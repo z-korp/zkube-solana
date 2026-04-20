@@ -43,6 +43,13 @@ interface GridProps {
   levelTransitionPending: boolean;
   onCascadeComplete?: () => void;
   onNextLineUpdate?: (nextRow: number[]) => void;
+  /** Optional override: when provided, replaces the Dojo move call (e.g. for Solana).
+   *  May return the new chain state so Grid can apply it without waiting for Dojo events. */
+  onMove?: (rowIndex: number, startIndex: number, finalIndex: number) => Promise<{
+    blocks: number[][];
+    nextRow: number[];
+    over: boolean;
+  } | void>;
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -60,6 +67,7 @@ const Grid: React.FC<GridProps> = ({
   levelTransitionPending,
   onCascadeComplete,
   onNextLineUpdate,
+  onMove,
 }) => {
   const {
     setup: {
@@ -153,7 +161,7 @@ const Grid: React.FC<GridProps> = ({
   // =================== Receipt-based sync (replaces Torii for moves/bonuses) ===================
   const pendingReceiptRef = useRef<ReceiptGameData | null>(null);
 
-  const applyReceipt = (parsed: { blocks: number[][]; nextRow: number[]; over: boolean; game: Game }) => {
+  const applyReceipt = (parsed: { blocks: number[][]; nextRow: number[]; over: boolean; game: Game | null }) => {
     const newNextLine = transformDataContractIntoBlock([parsed.nextRow]);
     // Update refs immediately (for pointer handler, before React re-renders)
     gameStateRef.current = GameState.WAITING;
@@ -166,8 +174,8 @@ const Grid: React.FC<GridProps> = ({
     // Update the preview in GameBoard with the receipt's next line
     onNextLineUpdate?.(parsed.nextRow);
     setNextLineHasBeenConsumed(false);
-    // Push full Game to store so HUD updates instantly
-    useReceiptGameStore.getState().setGame(parsed.game);
+    // Push full Game to store so HUD updates instantly (Dojo only; null in Solana mode)
+    if (parsed.game) useReceiptGameStore.getState().setGame(parsed.game);
     pendingReceiptRef.current = null;
     // If game over, keep the spinner going — Torii still needs to sync before
     // we navigate to map. Otherwise unlock the grid for the next move.
@@ -391,7 +399,7 @@ const Grid: React.FC<GridProps> = ({
   const sendMoveTX = useCallback(
     async (rowIndex: number, startColIndex: number, finalColIndex: number) => {
       if (startColIndex === finalColIndex) return;
-      if (!account) return;
+      if (!account && !onMove) return;
 
       playSwipe();
       useMoveStore.getState().enqueueMove({
@@ -401,11 +409,11 @@ const Grid: React.FC<GridProps> = ({
         finalIndex: Math.trunc(finalColIndex),
       });
     },
-    [account, gameId, gridHeight, playSwipe],
+    [account, gameId, gridHeight, onMove, playSwipe],
   );
 
   useEffect(() => {
-    if (!account || !nextQueuedMove || isQueueProcessing) return;
+    if ((!account && !onMove) || !nextQueuedMove || isQueueProcessing) return;
 
     let cancelled = false;
     const store = useMoveStore.getState();
@@ -415,16 +423,41 @@ const Grid: React.FC<GridProps> = ({
       store.markSubmitting(nextQueuedMove.id);
 
       try {
-        const { events } = await move({
-          account: account as Account,
-          game_id: gameId,
-          row_index: nextQueuedMove.rowIndex,
-          start_index: nextQueuedMove.startIndex,
-          final_index: nextQueuedMove.finalIndex,
-        });
-        store.markConfirmed(nextQueuedMove.id);
-        // Apply game state from TX receipt events (microtask to escape effect lifecycle)
-        queueMicrotask(() => receiptSyncRef.current(events));
+        if (onMove) {
+          // Solana (or other chain) path — bypass Dojo entirely
+          const solanaState = await onMove(
+            nextQueuedMove.rowIndex,
+            nextQueuedMove.startIndex,
+            nextQueuedMove.finalIndex,
+          );
+          store.markConfirmed(nextQueuedMove.id);
+          // Mirror the Dojo receiptSync pattern: if already in CASCADE_COMPLETE
+          // call applyReceipt directly; otherwise store for the state machine.
+          if (solanaState) {
+            const receipt = {
+              blocks: solanaState.blocks,
+              nextRow: solanaState.nextRow,
+              over: solanaState.over,
+              game: null as any,
+            };
+            if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
+              applyReceipt(receipt);
+            } else {
+              pendingReceiptRef.current = receipt;
+            }
+          }
+        } else {
+          const { events } = await move({
+            account: account as Account,
+            game_id: gameId,
+            row_index: nextQueuedMove.rowIndex,
+            start_index: nextQueuedMove.startIndex,
+            final_index: nextQueuedMove.finalIndex,
+          });
+          store.markConfirmed(nextQueuedMove.id);
+          // Apply game state from TX receipt events (microtask to escape effect lifecycle)
+          queueMicrotask(() => receiptSyncRef.current(events));
+        }
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : "Move transaction failed.";

@@ -20,6 +20,10 @@ export default defineConfig({
   build: {
     target: "ES2022",
     rollupOptions: {
+      input: {
+        main: "index.html",
+        solana: "solana.html",
+      },
       output: {
         manualChunks: {
           "vendor-starknet": [
