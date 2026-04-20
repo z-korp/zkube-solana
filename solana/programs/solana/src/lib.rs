@@ -15,7 +15,13 @@ declare_id!("CUXMJcSVjhFDKACZj6sPQesvhncpW2UKrS3YYnrSnbiQ");
 pub mod solana {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+    /// Crée une nouvelle partie + demande un aléatoire au VRF
+    pub fn create_game(ctx: Context<CreateGame>) -> Result<()> {
+        handler_create_game(ctx)
+    }
+
+    /// Callback appelé par l'oracle VRF — initialise la grille
+    pub fn receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [u8; 32]) -> Result<()> {
+        handler_receive_randomness(ctx, randomness)
     }
 }

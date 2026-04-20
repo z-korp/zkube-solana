@@ -12,7 +12,6 @@ pub struct GameState {
 
     pub next_row: [u8; 8],
 
-    /// points accumulés depuis le début 
     pub score: u32,
 
     pub combo_counter: u8,
