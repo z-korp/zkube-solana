@@ -1,4 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
+import type { WalletName } from "@solana/wallet-adapter-base";
 import { useSolanaGame } from "@/solana/useSolanaGame";
 import { useNavigationStore } from "@/stores/navigationStore";
 
@@ -37,7 +38,7 @@ function SolanaGrid({ blocks }: { blocks: number[] }) {
 }
 
 export default function SolanaPage() {
-  const { connect, disconnect, wallets } = useWallet();
+  const { connect, disconnect, select } = useWallet();
   const navigate = useNavigationStore((s) => s.navigate);
   const {
     connected,
@@ -52,7 +53,10 @@ export default function SolanaPage() {
     refresh,
   } = useSolanaGame();
 
-  const phantomWallet = wallets.find((w) => w.adapter.name === "Phantom");
+  const handleConnectPhantom = async () => {
+    select("Phantom" as WalletName<"Phantom">);
+    await connect();
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6 flex flex-col items-center gap-6">
@@ -79,7 +83,7 @@ export default function SolanaPage() {
           <div className="flex flex-col items-center gap-3">
             <p className="text-gray-400 text-sm">Connecte ton wallet Phantom pour jouer</p>
             <button
-              onClick={() => phantomWallet && connect({ adapter: phantomWallet.adapter } as any)}
+              onClick={handleConnectPhantom}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold transition-colors flex items-center gap-2"
             >
               🔮 Connecter Phantom

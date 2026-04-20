@@ -108,16 +108,44 @@ export function useSolanaGame() {
 
       setLastTx(tx);
       console.log("[Solana] create_game tx:", tx);
+
+      // Poll until VRF oracle populates the blocks (seed != 0)
+      let attempts = 0;
+      let gs = null;
+      while (attempts < 10) {
+        await new Promise((r) => setTimeout(r, 1500));
+        gs = await fetchGameState();
+        const state = await (async () => {
+          const pda = getGameStatePda(publicKey);
+          return await (program.account as any).gameState.fetchNullable(pda);
+        })();
+        if (state && state.blocks.some((b: number) => b > 0)) break;
+        attempts++;
+      }
       await fetchGameState();
     } catch (e: any) {
-      setError(e?.message ?? "Erreur lors de la création de partie");
+      const msg: string = e?.message ?? "";
+      // "already processed" = Phantom a resoumis la TX qui avait déjà réussi
+      // "already in use"   = la PDA existe encore (close non encore GC'd)
+      if (msg.includes("already been processed") || msg.includes("already in use")) {
+        // La partie a peut-être été créée quand même — on resync
+        try {
+          const pda = getGameStatePda(publicKey!);
+          const gs = await (program.account as any).gameState.fetchNullable(pda);
+          if (gs) {
+            await fetchGameState();
+            return; // État valide récupéré, pas d'erreur à afficher
+          }
+        } catch (_) {}
+      }
+      setError(msg || "Erreur lors de la création de partie");
       console.error("[useSolanaGame] createGame error:", e);
     } finally {
       setIsLoading(false);
     }
   }, [publicKey, getProgram, fetchGameState]);
 
-  // Joue un coup
+  // Joue un coup — retourne le nouvel état brut pour que Grid puisse se resynchroniser
   const makeMove = useCallback(
     async (rowIndex: number, startIndex: number, finalIndex: number) => {
       if (!publicKey) return;
@@ -136,16 +164,95 @@ export function useSolanaGame() {
 
         setLastTx(tx);
         console.log("[Solana] make_move tx:", tx);
-        await fetchGameState();
+
+        // Fetch once — met à jour le state React ET retourne les données brutes
+        const gs = await (program.account as any).gameState.fetchNullable(gameStatePda);
+        if (gs) {
+          const newState: SolanaGameState = {
+            player: gs.player.toBase58(),
+            blocks: Array.from(gs.blocks as number[]),
+            nextRow: Array.from(gs.nextRow as number[]),
+            score: gs.score,
+            comboCounter: gs.comboCounter,
+            maxCombo: gs.maxCombo,
+            moveCount: gs.moveCount,
+            seed: gs.seed.toString(),
+            over: gs.over,
+          };
+          setGameState(newState);
+          // Retourné à handleMove pour injection dans pendingReceiptRef du Grid
+          return {
+            rawBlocks: newState.blocks,
+            nextRow: newState.nextRow,
+            over: newState.over,
+          };
+        }
       } catch (e: any) {
-        setError(e?.message ?? "Erreur lors du coup");
+        const msg: string = e?.message ?? "";
+        // "already been processed" = Phantom a resoumis une TX qui avait déjà réussi
+        // Le move a quand même été appliqué on-chain → fetch et retourne l'état sans erreur
+        if (msg.includes("already been processed")) {
+          try {
+            const program2 = getProgram();
+            if (program2) {
+              const gameStatePda = getGameStatePda(publicKey!);
+              const gs = await (program2.account as any).gameState.fetchNullable(gameStatePda);
+              if (gs) {
+                const newState: SolanaGameState = {
+                  player: gs.player.toBase58(),
+                  blocks: Array.from(gs.blocks as number[]),
+                  nextRow: Array.from(gs.nextRow as number[]),
+                  score: gs.score,
+                  comboCounter: gs.comboCounter,
+                  maxCombo: gs.maxCombo,
+                  moveCount: gs.moveCount,
+                  seed: gs.seed.toString(),
+                  over: gs.over,
+                };
+                setGameState(newState);
+                return { rawBlocks: newState.blocks, nextRow: newState.nextRow, over: newState.over };
+              }
+            }
+          } catch (_) {}
+          // Si le fetch échoue aussi, on sort sans afficher d'erreur
+          return;
+        }
+        setError(msg || "Erreur lors du coup");
         console.error("[useSolanaGame] makeMove error:", e);
       } finally {
         setIsLoading(false);
       }
     },
-    [publicKey, getProgram, fetchGameState]
+    [publicKey, getProgram]
   );
+
+  // Injecte la randomness manuellement (VRF oracle devnet inactif)
+  const receiveRandomness = useCallback(async () => {
+    if (!publicKey) return;
+    const program = getProgram();
+    if (!program) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const gameStatePda = getGameStatePda(publicKey);
+      const randomBytes = Array.from(crypto.getRandomValues(new Uint8Array(32)));
+
+      const tx = await (program.methods as any)
+        .receiveRandomness(randomBytes)
+        .accounts({ gameState: gameStatePda })
+        .rpc();
+
+      setLastTx(tx);
+      console.log("[Solana] receive_randomness tx:", tx);
+      await fetchGameState();
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur receive_randomness");
+      console.error("[useSolanaGame] receiveRandomness error:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [publicKey, getProgram, fetchGameState]);
 
   // Ferme la partie
   const closeGame = useCallback(async () => {
@@ -186,6 +293,7 @@ export function useSolanaGame() {
     createGame,
     makeMove,
     closeGame,
+    receiveRandomness,
     refresh: fetchGameState,
   };
 }

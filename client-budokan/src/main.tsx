@@ -103,20 +103,10 @@ function AppGate({ setupResult }: { setupResult: SetupResult | null }) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Wait for: dojo setup + account object (not just isConnected) + username.
-  // Deep-link entries (e.g. Budokan /play/{tokenId}) always wait for account so
-  // we don't flash the Connect popup while auto-reconnect is still in flight —
-  // Cartridge may restore a session even without `lastUsedConnector` in storage.
   const isReady = !!setupResult
     && (timedOut || (!hadStoredSession && !isDeepLinkEntry) || !!account)
     && (timedOut || !isConnected || !!username);
 
-
-  // Conditionally mount App rather than hiding it with display:none — Radix
-  // portals (e.g. PlayScreen's Connect dialog) render to document.body and
-  // leak through a hidden parent. Keep the Dojo/Controllers/GameEvents
-  // providers mounted so Torii sync and Cartridge reconnect run in parallel
-  // with the Loading screen.
   return (
     <>
       {!isReady && <Loading />}
