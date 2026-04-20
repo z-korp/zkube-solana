@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings";
+export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
 export type OverlayId = "play" | "daily" | "boss" | "map";
 export type PageId = TabId | OverlayId;
 

@@ -23,6 +23,7 @@ import { GameEventsProvider } from "./contexts/gameEvents";
 import { useControllerUsername } from "./hooks/useControllerUsername";
 import { useNavigationStore } from "./stores/navigationStore";
 import { DenshokanProvider } from "@provable-games/denshokan-sdk/react";
+import { SolanaProvider } from "./solana/provider";
 
 import "./index.css";
 import { type BigNumberish, shortString, PaymasterRpc } from "starknet";
@@ -217,6 +218,7 @@ export function Main() {
 
   return (
     <React.StrictMode>
+      <SolanaProvider>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <StarknetConfig
           autoConnect
@@ -234,6 +236,7 @@ export function Main() {
           </MusicPlayerProvider>
         </StarknetConfig>
       </ThemeProvider>
+      </SolanaProvider>
     </React.StrictMode>
   );
 }
