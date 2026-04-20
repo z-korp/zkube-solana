@@ -214,7 +214,7 @@ describe("zkube-solana — VRF oracle (optionnel)", () => {
     if (gs.seed.toString() !== "0") {
       console.log("   ✅ Oracle VRF a répondu !");
     } else {
-      console.log("   ⚠️  Oracle pas encore répondu — contacter MagicBlock Discord");
+      console.log("   ⚠️  Oracle pas encore répondu ");
     }
     // Passe toujours — l'oracle est un point externe
   });

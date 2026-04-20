@@ -13,6 +13,7 @@ import LeaderboardPage from "@/ui/pages/LeaderboardPage";
 import ProfilePage from "@/ui/pages/ProfilePage";
 import DailyChallengePage from "@/ui/pages/DailyChallengePage";
 import BossRevealPage from "@/ui/pages/BossRevealPage";
+import SolanaPage from "@/ui/pages/SolanaPage";
 
 const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   home: <HomePage />,
@@ -24,6 +25,7 @@ const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   profile: <ProfilePage />,
   daily: <DailyChallengePage />,
   boss: <BossRevealPage />,
+  solana: <SolanaPage />,
 };
 
 export default function App() {
