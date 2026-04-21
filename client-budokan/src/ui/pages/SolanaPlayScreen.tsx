@@ -51,36 +51,24 @@ export default function SolanaPlayScreen() {
     createGame,
     makeMove,
     closeGame,
-    receiveRandomness,
   } = useSolanaGame();
 
-  // Auto-inject randomness + re-key grid uniquement pour un NOUVEAU jeu
-  const hasInjectedRef = useRef(false);
+  // Re-key grid uniquement pour un NOUVEAU jeu (seed ou joueur différent)
   const prevGameKeyRef = useRef<string>("");
   const [gridKey, setGridKey] = useState(0);
 
   useEffect(() => {
     if (!gameState) {
-      hasInjectedRef.current = false;
       prevGameKeyRef.current = "";
       return;
     }
-    // Re-key + reset uniquement quand le jeu change (seed ou joueur différent)
     const gameKey = `${gameState.player}-${gameState.seed}`;
     if (gameKey !== prevGameKeyRef.current) {
       prevGameKeyRef.current = gameKey;
-      hasInjectedRef.current = false;
       setGridKey((k) => k + 1);
       setNextLineHasBeenConsumed(false);
     }
-    // Fallback VRF : injecter la randomness si les blocs sont tous à 0
-    if (hasInjectedRef.current || isLoading) return;
-    const allZero = gameState.blocks.every((b) => b === 0);
-    if (allZero) {
-      hasInjectedRef.current = true;
-      receiveRandomness();
-    }
-  }, [gameState, isLoading, receiveRandomness]);
+  }, [gameState?.player, gameState?.seed]);
 
   // Reset isTxProcessing si une erreur Solana survient (TX échouée)
   useEffect(() => {
@@ -145,7 +133,6 @@ export default function SolanaPlayScreen() {
     await connect();
   };
 
-  // ─── Not connected ────────────────────────────────────────────────────────
   if (!connected) {
     return (
       <div
@@ -176,7 +163,7 @@ export default function SolanaPlayScreen() {
     );
   }
 
-  // ─── Connected, no game ───────────────────────────────────────────────────
+  // ─── Connected, no game 
   if (!gameState && !isLoading) {
     return (
       <div
@@ -211,7 +198,7 @@ export default function SolanaPlayScreen() {
     );
   }
 
-  // ─── Loading ──────────────────────────────────────────────────────────────
+  // ─── Loading 
   if (isLoading && !gameState) {
     return (
       <div
@@ -223,7 +210,7 @@ export default function SolanaPlayScreen() {
     );
   }
 
-  // ─── Game over ────────────────────────────────────────────────────────────
+  // ─── Game over 
   if (gameState?.over) {
     return (
       <div
@@ -246,6 +233,28 @@ export default function SolanaPlayScreen() {
           >
             New Game
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Game created but VRF oracle hasn't responded yet ────────────────────
+  if (gameState && gameState.seed === "0") {
+    return (
+      <div
+        className="flex h-full min-h-0 flex-col items-center justify-center gap-4"
+        style={{ backgroundColor: themeColors.primary }}
+      >
+        <p className="text-cyan-400 animate-pulse text-lg font-bold">Génération de la grille…</p>
+        <p className="text-white/50 text-sm">L'oracle VRF initialise votre partie</p>
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }}
+            />
+          ))}
         </div>
       </div>
     );
@@ -284,24 +293,15 @@ export default function SolanaPlayScreen() {
             <div className="text-white/50 text-[10px] uppercase tracking-wider">Combo</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={closeGame}
-            disabled={isLoading}
-            className="text-[10px] text-red-400/70 hover:text-red-300 disabled:opacity-40 transition-colors border border-red-400/30 hover:border-red-300/50 rounded px-2 py-0.5"
-          >
-            ↺ New
-          </button>
-          <div className="text-[10px] text-purple-300 font-mono">
-            🔮 {publicKey?.slice(0, 6)}…
-          </div>
+        <div className="text-[10px] text-purple-300 font-mono">
+          🔮 {publicKey?.slice(0, 6)}…
         </div>
       </div>
 
       {/* Error banner */}
       {error && (
         <div className="px-3 py-1 bg-red-900/70 text-red-300 text-xs text-center">
-          ⚠️ {error}
+          {error}
         </div>
       )}
 

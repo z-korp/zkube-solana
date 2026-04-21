@@ -17,10 +17,11 @@ pub struct CreateGame<'info> {
     #[account(mut)]
     pub player: Signer<'info>,
 
-    /// Le compte GameState créé sur la blockchain
+    /// Le compte GameState créé (ou réinitialisé) sur la blockchain
     /// PDA = adresse dérivée du mot "game" + clé publique du joueur
+    /// init_if_needed : crée le compte s'il n'existe pas, le réutilise s'il existe
     #[account(
-        init,
+        init_if_needed,
         payer = player,
         space = GameState::SIZE,
         seeds = [b"game", player.key().as_ref()],
@@ -62,8 +63,6 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
         ErrorCode::InvalidOracleQueue
     );
 
-    let clock = Clock::get()?;
-
     // Initialise les champs du GameState (grille vide en attendant le VRF)
     game.player = ctx.accounts.player.key();
     game.over = false;
@@ -75,12 +74,18 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
     game.next_row = [0u8; 8];
     game.seed = 0;
 
-    // Seed unique pour cette requête VRF
+    // Seed de requête VRF = clé publique du joueur XOR slot actuel.
+    // Le slot garantit l'unicité de chaque requête (l'oracle déduplique par caller_seed).
+    // Sans nonce, deux parties consécutives du même joueur auraient le même caller_seed
+    // et l'oracle ignorerait la seconde requête → grille vide.
+    let clock = Clock::get()?;
     let caller_seed: [u8; 32] = {
-        let mut seed = [0u8; 32];
-        let player_bytes = ctx.accounts.player.key().to_bytes();
-        seed[..32].copy_from_slice(&player_bytes);
-        seed[0] ^= (clock.slot & 0xFF) as u8;
+        let mut seed = ctx.accounts.player.key().to_bytes();
+        // XOR des 8 premiers octets avec le slot pour unicité
+        let slot_bytes = clock.slot.to_le_bytes();
+        for i in 0..8 {
+            seed[i] ^= slot_bytes[i];
+        }
         seed
     };
 

@@ -80,6 +80,17 @@ export function useSolanaGame() {
       setGameState(null);
     }
   }, [connected, publicKey, fetchGameState]);
+  // TODO: a supprimer quand l'oracle vrf fonctionne
+  // Polling continu tant que la grille est vide (seed == 0 = oracle VRF pas encore répondu)
+  // S'arrête automatiquement quand les blocs sont remplis
+  useEffect(() => {
+    if (!gameState || gameState.seed !== "0") return;
+    // Seed est 0 → oracle n'a pas encore répondu, on poll toutes les 2s
+    const interval = setInterval(() => {
+      fetchGameState();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [gameState?.seed, fetchGameState]);
 
   // Crée une nouvelle partie
   const createGame = useCallback(async () => {
@@ -226,33 +237,9 @@ export function useSolanaGame() {
     [publicKey, getProgram]
   );
 
-  // Injecte la randomness manuellement (VRF oracle devnet inactif)
-  const receiveRandomness = useCallback(async () => {
-    if (!publicKey) return;
-    const program = getProgram();
-    if (!program) return;
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const gameStatePda = getGameStatePda(publicKey);
-      const randomBytes = Array.from(crypto.getRandomValues(new Uint8Array(32)));
-
-      const tx = await (program.methods as any)
-        .receiveRandomness(randomBytes)
-        .accounts({ gameState: gameStatePda })
-        .rpc();
-
-      setLastTx(tx);
-      console.log("[Solana] receive_randomness tx:", tx);
-      await fetchGameState();
-    } catch (e: any) {
-      setError(e?.message ?? "Erreur receive_randomness");
-      console.error("[useSolanaGame] receiveRandomness error:", e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [publicKey, getProgram, fetchGameState]);
+  // receiveRandomness supprimé : l'oracle VRF MagicBlock répond correctement.
+  // L'appel manuel depuis le frontend était un contournement de sécurité (devnet).
+  // Sur mainnet, seul l'oracle peut appeler receive_randomness (VRF proof).
 
   // Ferme la partie
   const closeGame = useCallback(async () => {
@@ -293,7 +280,6 @@ export function useSolanaGame() {
     createGame,
     makeMove,
     closeGame,
-    receiveRandomness,
     refresh: fetchGameState,
   };
 }
