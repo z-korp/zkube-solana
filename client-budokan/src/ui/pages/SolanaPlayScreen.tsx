@@ -238,28 +238,6 @@ export default function SolanaPlayScreen() {
     );
   }
 
-  // ─── Game created but VRF oracle hasn't responded yet ────────────────────
-  if (gameState && gameState.seed === "0") {
-    return (
-      <div
-        className="flex h-full min-h-0 flex-col items-center justify-center gap-4"
-        style={{ backgroundColor: themeColors.primary }}
-      >
-        <p className="text-cyan-400 animate-pulse text-lg font-bold">Génération de la grille…</p>
-        <p className="text-white/50 text-sm">L'oracle VRF initialise votre partie</p>
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"
-              style={{ animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   // ─── Active game ──────────────────────────────────────────────────────────
   return (
     <div
@@ -293,10 +271,29 @@ export default function SolanaPlayScreen() {
             <div className="text-white/50 text-[10px] uppercase tracking-wider">Combo</div>
           </div>
         </div>
-        <div className="text-[10px] text-purple-300 font-mono">
-          🔮 {publicKey?.slice(0, 6)}…
-        </div>
+        <button
+          onClick={closeGame}
+          disabled={isLoading}
+          className="text-[10px] text-red-400/70 hover:text-red-300 disabled:opacity-40 transition-colors font-mono border border-red-400/30 hover:border-red-300/50 rounded px-2 py-1"
+          title="Fermer la partie et récupérer le SOL"
+        >
+          ✕ Close
+        </button>
       </div>
+
+      {/* Banner oracle en attente */}
+      {gameState?.seed === "0" && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30">
+          <span className="text-yellow-300 text-xs">⏳ Oracle VRF en attente — grille vide</span>
+          <button
+            onClick={closeGame}
+            disabled={isLoading}
+            className="text-xs text-yellow-200 hover:text-white bg-yellow-700/60 hover:bg-yellow-600/80 disabled:opacity-40 rounded px-3 py-0.5 transition-colors font-bold"
+          >
+            Fermer &amp; Recommencer
+          </button>
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (
