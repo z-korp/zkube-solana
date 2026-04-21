@@ -16,4 +16,7 @@ pub enum ErrorCode {
 
     #[msg("Indices de move invalides row < 10, col < 8, start != end")]
     InvalidMove,
+
+    #[msg("La randomness a deja ete injectee pour cette partie")]
+    RandomnessAlreadySet,
 }

@@ -21,7 +21,7 @@ custom-panic = []
 
 
 [dependencies]
-anchor-lang = "0.32.0"
+anchor-lang = { version = "0.32.0", features = ["init-if-needed"] }
 ephemeral-vrf-sdk = { version = "0.2.3", features = ["anchor"] }
 sha2 = "0.10"
 
