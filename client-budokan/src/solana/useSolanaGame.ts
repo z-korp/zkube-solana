@@ -261,7 +261,22 @@ export function useSolanaGame() {
       console.log("[Solana] close_game tx:", tx);
       setGameState(null);
     } catch (e: any) {
-      setError(e?.message ?? "Erreur lors de la fermeture");
+      const msg: string = e?.message ?? "";
+      
+      if (msg.includes("already been processed")) {
+        try {
+          const pda = getGameStatePda(publicKey!);
+          const program2 = getProgram();
+          if (program2) {
+            const gs = await (program2.account as any).gameState.fetchNullable(pda);
+            if (!gs) {
+              setGameState(null); // Fermé avec succès
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      setError(msg || "Erreur lors de la fermeture");
       console.error("[useSolanaGame] closeGame error:", e);
     } finally {
       setIsLoading(false);
