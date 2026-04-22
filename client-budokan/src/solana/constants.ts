@@ -16,7 +16,7 @@ export const ORACLE_QUEUE = new PublicKey(
 // Réseau Solana
 export const SOLANA_ENDPOINT = clusterApiUrl("devnet");
 
-// Re-export utile
+// Re-export 
 export { SYSVAR_SLOT_HASHES_PUBKEY };
 
 // Calcule le PDA game_state d'un joueur
