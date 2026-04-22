@@ -133,7 +133,7 @@ export default function SolanaPlayScreen() {
     await connect();
   };
 
-  if (!connected) {
+  if (!connected || !publicKey) {
     return (
       <div
         className="flex h-full min-h-0 flex-col items-center justify-center gap-6"
@@ -191,7 +191,7 @@ export default function SolanaPlayScreen() {
             disabled={isLoading}
             className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white text-lg transition-colors"
           >
-            🎮 New Solana Game
+            New Solana Game
           </button>
         </div>
       </div>

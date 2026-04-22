@@ -9,6 +9,7 @@ import {
   ORACLE_QUEUE,
   getGameStatePda,
   getIdentityPda,
+  getTreasuryPda,
 } from "./constants";
 
 // État de la partie côté frontend
@@ -103,6 +104,7 @@ export function useSolanaGame() {
     try {
       const gameStatePda = getGameStatePda(publicKey);
       const identityPda = getIdentityPda();
+      const treasuryPda = getTreasuryPda();
 
       const tx = await (program.methods as any)
         .createGame()
@@ -113,6 +115,7 @@ export function useSolanaGame() {
           identity: identityPda,
           vrfProgram: VRF_PROGRAM_ID,
           slotHashes: SYSVAR_SLOT_HASHES_PUBKEY,
+          treasury: treasuryPda,
           systemProgram: SystemProgram.programId,
         })
         .rpc();

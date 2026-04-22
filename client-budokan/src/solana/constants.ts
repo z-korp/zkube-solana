@@ -36,3 +36,12 @@ export function getIdentityPda(): PublicKey {
   );
   return pda;
 }
+
+// Calcule le PDA treasury z-korp
+export function getTreasuryPda(): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("treasury")],
+    ZKUBE_PROGRAM_ID
+  );
+  return pda;
+}
