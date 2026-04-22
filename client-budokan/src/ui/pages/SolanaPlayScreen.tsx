@@ -156,7 +156,7 @@ export default function SolanaPlayScreen() {
             onClick={handleConnectPhantom}
             className="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold text-white text-lg transition-colors flex items-center gap-2"
           >
-            🔮 Connect Phantom
+            Connect Phantom
           </button>
         </div>
       </div>
@@ -185,13 +185,13 @@ export default function SolanaPlayScreen() {
           <p className="text-xs text-white/50 font-mono">
             {publicKey?.slice(0, 8)}...{publicKey?.slice(-6)}
           </p>
-          {error && <p className="text-red-400 text-sm">⚠️ {error}</p>}
+          {error && <p className="text-red-400 text-sm"> {error}</p>}
           <button
             onClick={createGame}
             disabled={isLoading}
             className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white text-lg transition-colors"
           >
-            New Solana Game
+            New Game
           </button>
         </div>
       </div>

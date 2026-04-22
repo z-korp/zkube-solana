@@ -22,6 +22,7 @@ import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
 import AchievementsTab from "@/ui/components/profile/AchievementsTab";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 import Connect from "@/ui/components/Connect";
+import PhantomConnectButton from "@/ui/components/PhantomConnectButton";
 
 import {
   LEVEL_THRESHOLDS,
@@ -125,8 +126,9 @@ const ProfilePage: React.FC = () => {
           <p className="mb-6 font-sans text-2xl font-semibold text-white/85">
             Connect to view your profile
           </p>
-          <div className="w-full max-w-[320px]">
+          <div className="w-full max-w-[320px] flex flex-col gap-3">
             <Connect />
+            <PhantomConnectButton />
           </div>
         </div>
       </div>

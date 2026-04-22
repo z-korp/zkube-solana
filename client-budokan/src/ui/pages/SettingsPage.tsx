@@ -19,6 +19,7 @@ import { useZStarBalance } from "@/hooks/useZStarBalance";
 import { ZONE_THEMES } from "@/hooks/useMapData";
 import { useAccount, useDisconnect } from "@starknet-react/core";
 import Connect from "@/ui/components/Connect";
+import PhantomConnectButton from "@/ui/components/PhantomConnectButton";
 import ControllerConnector from "@cartridge/connector/controller";
 import { useMemo, useState } from "react";
 
@@ -260,6 +261,9 @@ const SettingsPage: React.FC = () => {
             ) : (
               <Connect />
             )}
+            <div className="mt-3">
+              <PhantomConnectButton />
+            </div>
           </motion.section>
         </div>
       </div>
