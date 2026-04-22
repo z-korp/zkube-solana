@@ -13,11 +13,12 @@ import idl from "../target/idl/solana.json";
 const PROGRAM_ID = new PublicKey("8vB8kAAsuxLGejEweuJRdnAAe5wuUFTdt2fRQjeqvC6v");
 
 async function main() {
-  // Fee en lamports (argument CLI ou 1_000_000 par défaut = 0.001 SOL)
-  const feePerGame = BigInt(process.argv[2] ?? "1000000");
+  // Fee en lamports ( 0.001 SOL)
+  const feePerGame = BigInt(process.argv[2] ?? "1000000"); //TODO: a changer avec la valeur fee du. boss 
   console.log(`Fee par partie : ${feePerGame} lamports (${Number(feePerGame) / 1e9} SOL)`);
 
-  // Charge le wallet depuis le keypair Solana par défaut (~/.config/solana/id.json)
+  // charge le wallet depuis le keypair Solana par défaut 
+  // la mienne acti-uel 
   const keypairPath = process.env.KEYPAIR_PATH ??
     path.join(process.env.HOME!, ".config", "solana", "id.json");
   const raw = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
@@ -53,7 +54,7 @@ async function main() {
   }
 
   // Appel initialize_treasury
-  console.log("\nInitialisation de la treasury...");
+  console.log("\nInitialisation de la treasury");
   const tx = await (program.methods as any)
     .initializeTreasury(new anchor.BN(feePerGame.toString()))
     .accounts({

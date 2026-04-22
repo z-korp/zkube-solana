@@ -309,7 +309,7 @@ const HomePage: React.FC = () => {
           variants={containerVariants}
           initial={false}
           animate="show"
-          className="flex-1 space-y-3 overflow-y-auto pb-3"
+          className="flex-1 space-y-3 pb-3"
         >
           {account ? (
             <>
@@ -521,13 +521,12 @@ const HomePage: React.FC = () => {
 
       {/* Solana mode entry */}
       <div className="relative z-20 px-4 pb-3">
-        <button
-          type="button"
+        <ArcadeButton
           onClick={() => navigate("solana")}
-          className="w-full py-2 bg-purple-900/60 hover:bg-purple-800/80 border border-purple-600 rounded-lg text-sm font-bold text-purple-300 transition-colors"
+          accentOverride="#9333ea"
         >
-          ⚡ Play on Solana (devnet)
-        </button>
+          Play on Solana
+        </ArcadeButton>
       </div>
 
       {unlockZone && <UnlockModal colors={colors} zone={unlockZone} onClose={() => setUnlockZone(null)} />}

@@ -50,9 +50,36 @@ export const IDL = {
         },
         { name: "vrf_program" },
         { name: "slot_hashes" },
+        {
+          name: "treasury",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
+            ],
+          },
+        },
         { name: "system_program", address: "11111111111111111111111111111111" },
       ],
       args: [],
+    },
+    {
+      name: "initialize_treasury",
+      discriminator: [124, 186, 211, 195, 85, 165, 129, 166],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "treasury",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
+            ],
+          },
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "fee_per_game", type: "u64" }],
     },
     {
       name: "make_move",
@@ -80,26 +107,53 @@ export const IDL = {
       name: "receive_randomness",
       discriminator: [118, 124, 23, 234, 168, 81, 207, 220],
       accounts: [
+        { name: "program_identity" },
         {
           name: "game_state",
           writable: true,
           pda: {
             seeds: [
               { kind: "const", value: [103, 97, 109, 101] },
-              {
-                kind: "account",
-                path: "game_state.player",
-                account: "GameState",
-              },
+              { kind: "account", path: "game_state.player", account: "GameState" },
             ],
           },
         },
       ],
       args: [{ name: "randomness", type: { array: ["u8", 32] } }],
     },
+    {
+      name: "withdraw",
+      discriminator: [183, 18, 70, 156, 148, 109, 161, 34],
+      accounts: [
+        { name: "authority", signer: true },
+        {
+          name: "treasury",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
+            ],
+          },
+        },
+        { name: "destination", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "amount", type: "u64" }],
+    },
   ],
   accounts: [
     { name: "GameState", discriminator: [144, 94, 208, 172, 248, 99, 134, 120] },
+    { name: "Treasury", discriminator: [238, 239, 123, 238, 89, 1, 168, 253] },
+  ],
+  errors: [
+    { code: 6000, name: "CustomError", msg: "Custom error message" },
+    { code: 6001, name: "InvalidOracleQueue", msg: "Oracle queue invalide utiliser l'adresse DEFAULT_QUEUE de MagicBlock" },
+    { code: 6002, name: "NotGameOwner", msg: "Tu n'es pas le proprietaire de cette partie" },
+    { code: 6003, name: "GameOver", msg: "Cette partie est deja terminee" },
+    { code: 6004, name: "InvalidMove", msg: "indices de move invalides row < 10, col < 8, start != end" },
+    { code: 6005, name: "RandomnessAlreadySet", msg: "la randomness a deja ete injectee pour cette partie" },
+    { code: 6006, name: "Unauthorized", msg: "Seule l'authority peut effectuer cette action" },
+    { code: 6007, name: "InsufficientFunds", msg: "Fonds insuffisants dans la treasury" },
   ],
   types: [
     {
@@ -119,7 +173,16 @@ export const IDL = {
         ],
       },
     },
+    {
+      name: "Treasury",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "authority", type: "pubkey" },
+          { name: "total_collected", type: "u64" },
+          { name: "fee_per_game", type: "u64" },
+        ],
+      },
+    },
   ],
-} as const;
-
-export type ZkubeSolanaIDL = typeof IDL;
+};
