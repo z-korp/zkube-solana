@@ -5,12 +5,12 @@ export const ZKUBE_PROGRAM_ID = new PublicKey(
   "8vB8kAAsuxLGejEweuJRdnAAe5wuUFTdt2fRQjeqvC6v"
 );
 
-// Notre VRF forké déployé sur devnet (ephemeral-vrf fork, fee=0)
+// MagicBlock VRF officiel (test temporaire — remettre notre fork après)
 export const VRF_PROGRAM_ID = new PublicKey(
-  "Ho3QDxWm47tPR9UfKZBNKxSF3k9i2MDQsAML85mqCkDo"
+  "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
 );
 export const ORACLE_QUEUE = new PublicKey(
-  "EZnAzWj1XgeQT5QdYQWXCF61k4JJajDnEMnGEZEd91MH"
+  "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"
 );
 
 // Réseau Solana

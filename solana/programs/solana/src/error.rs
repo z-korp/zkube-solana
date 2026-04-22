@@ -14,9 +14,9 @@ pub enum ErrorCode {
     #[msg("Cette partie est deja terminee")]
     GameOver,
 
-    #[msg("Indices de move invalides row < 10, col < 8, start != end")]
+    #[msg("indices de move invalides row < 10, col < 8, start != end")]
     InvalidMove,
 
-    #[msg("La randomness a deja ete injectee pour cette partie")]
+    #[msg("la randomness a deja ete injectee pour cette partie")]
     RandomnessAlreadySet,
 }
