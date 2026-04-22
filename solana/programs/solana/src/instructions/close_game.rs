@@ -7,7 +7,7 @@ use crate::error::ErrorCode;
 
 #[derive(Accounts)]
 pub struct CloseGame<'info> {
-    /// Le joueur doit être le propriétaire de la partie
+    /// Le joueur est le proprio de la partie
     #[account(mut)]
     pub player: Signer<'info>,
 

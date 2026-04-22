@@ -7,7 +7,7 @@ use ephemeral_vrf_sdk::instructions::{create_request_randomness_ix, RequestRando
 use ephemeral_vrf_sdk::consts::IDENTITY;
 
 /// Adresse de notre oracle queue déployée sur devnet (ephemeral-vrf fork)
-const OUR_ORACLE_QUEUE: &str = "EZnAzWj1XgeQT5QdYQWXCF61k4JJajDnEMnGEZEd91MH";
+const OUR_ORACLE_QUEUE: &str = "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"; // MagicBlock queue (test temporaire)
 use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 use crate::state::GameState;
 use crate::error::ErrorCode;
@@ -81,7 +81,11 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
     // Seed de requête VRF = clé publique du joueur XOR slot actuel.
     // Le slot garantit l'unicité de chaque requête (l'oracle déduplique par caller_seed).
     // Sans nonce, deux parties consécutives du même joueur auraient le même caller_seed
-    // et l'oracle ignorerait la seconde requête → grille vide.
+    // et l'oracle ignorerait la seconde requête et donc grille vide
+
+    // remarque : 
+    // c'est safe dans create_game le slot est utilisé uniquement pour le caller_seed — c'est juste un nonce pour éviter les requêtes dupliquées dans la queue vrf
+    // Il ne génère aucune donnée de jeu c'est juste un identifiant unique de requête
     let clock = Clock::get()?;
     let caller_seed: [u8; 32] = {
         let mut seed = ctx.accounts.player.key().to_bytes();
@@ -125,7 +129,6 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
     let identity_bump = ctx.bumps.identity;
 
     // invoke_signed car l'identity PDA (PDA de notre programme) doit signer
-    // Ordre des comptes = ordre dans l'instruction VRF (instructions.rs du SDK):
     // 1. payer, 2. identity PDA, 3. oracle_queue, 4. system_program, 5. slot_hashes
     invoke_signed(
         &ix,

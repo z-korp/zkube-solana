@@ -28,7 +28,7 @@ pub struct GameState {
 }
 
 ///HACK:  
-/// Rust ne génère pas Default automatiquement pour les tableaux > 32 éléments sadlyyy.  :(
+/// Rust ne génère pas Default automatiquement pour les tableaux > 32 éléments 
 /// donc on le fait manuellement tous les champs à zéro au départ
 impl Default for GameState {
     fn default() -> Self {

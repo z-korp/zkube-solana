@@ -20,12 +20,12 @@ pub mod solana {
         handler_create_game(ctx)
     }
 
-    /// Callback appelé par l'oracle VRF initialise la grille
+    /// Callback appel par l'oracle VRF initialise la grille
     pub fn receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [u8; 32]) -> Result<()> {
         handler_receive_randomness(ctx, randomness)
     }
 
-    /// Joue un coup déplace les blocs calcule le score
+    /// Joue un coup dplace les blocs calcule le score
     pub fn make_move(ctx: Context<MakeMove>, row_index: u8, start_index: u8, final_index: u8) -> Result<()> {
         make_move::handler(ctx, row_index, start_index, final_index)
     }

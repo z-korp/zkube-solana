@@ -1,20 +1,20 @@
-// Callback appelé automatiquement par l'oracle VRF MagicBlock
-// après avoir répondu à notre demande d'aléatoire dans create_game
+// Callback appelé automatiquement par l'oracle vrf MagicBlock
 // Équivalent du initialize_grid dans grid_system Cairo
 
 use anchor_lang::prelude::*;
 use crate::state::GameState;
 use crate::error::ErrorCode;
 
-/// Les comptes nécessaires pour recevoir l'aléatoire du VRF
+/// Les comptes nécessaires pour recevoir l'aléatoire du vrf
+/// 
 #[derive(Accounts)]
 pub struct ReceiveRandomness<'info> {
-    /// CHECK: Identité du programme VRF — passé automatiquement par le programme VRF
+    /// CHECK: Identité du programme Vvrf passé automatiquement par le programme vrf
     /// en PREMIER compte du callback (requis par le protocole ephemeral-vrf)
     pub program_identity: AccountInfo<'info>,
 
     /// Le compte GameState du joueur on va le remplir avec la grille initiale
-    /// Contrainte : seed == 0 vérifiée dans le handler (idempotence)
+    /// Contrainte : seed == 0 vérifiée dans le handler 
     #[account(
         mut,
         seeds = [b"game", game_state.player.as_ref()],
@@ -23,20 +23,23 @@ pub struct ReceiveRandomness<'info> {
     pub game_state: Account<'info, GameState>,
 }
 
-/// Handler: appelé par l'oracle VRF avec le vrai nombre aléatoire
-/// @param randomness: 32 octets de vrai aléatoire vérifiable (VRF proof côté oracle)
+/// Handler: appelé par l'oracle vrf avec le vrai nombre aléatoire
+/// @param randomness: 32 octets de vrai aléatoire vérifiable (vrf proof côté oracle)
 ///
-/// TODO SÉCURITÉ :
+/// HACK SÉCURITÉ :
 /// - On vérifie que seed == 0 : l'oracle ne peut initialiser la grille qu'une seule fois
-///   Si quelqu'un appelle cette instruction manuellement APRÈS l'oracle elle rejette
-/// TODO mainnet : vérifier la VRF proof cryptographiquement via le SDK MagicBlock
+///   Si quelqu'un appelle cette instruction manuellement APRÈS l'oracle elle rejette , c'est pour la securite 
+/// 
+/// 
+/// TODO mainnet : vérifier la vrf proof cryptographiquement via le SDK MagicBlock
 ///   pour s'assurer que seul l'oracle peut appeler cette instruction.
+/// 
 pub fn handler_receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [u8; 32]) -> Result<()> {
     let game = &mut ctx.accounts.game_state;
 
-    // Idempotence : refuse si la randomness a déjà été injectée
-    // Empêche qu'un attaquant réinitialise la grille d'une partie en cours
-    require!(game.seed == 0, ErrorCode::RandomnessAlreadySet);
+    // refuse si la randomness a déjà été injectée
+    // empêche qu'un attaquant réinitialise la grille d'une partie en cours
+    require!(game.seed == 0, ErrorCode::RandomnessAlreadySet); /// <== ici 
 
     // Convertit les 32 octets aléatoires en u64 pour notre seed
     // On prend les 8 premiers octets et on les assemble
@@ -55,7 +58,7 @@ pub fn handler_receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [
         game.blocks[start..start + 8].copy_from_slice(&row);
     }
 
-    msg!("Grille initialisée avec VRF pour: {}", game.player);
+    msg!("grille initialisée avec vrf pour: {}", game.player);
     Ok(())
 }
 
