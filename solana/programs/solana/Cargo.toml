@@ -22,7 +22,7 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = { version = "0.32.0", features = ["init-if-needed"] }
-ephemeral-vrf-sdk = { version = "0.2.3", features = ["anchor"] }
+ephemeral-vrf-sdk = { path = "../../../../ephemeral-vrf/sdk", features = ["anchor"] }
 sha2 = "0.10"
 
 [dev-dependencies]
