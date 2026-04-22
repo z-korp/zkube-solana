@@ -4,7 +4,10 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::invoke_signed;
 use sha2::{Sha256, Digest};
 use ephemeral_vrf_sdk::instructions::{create_request_randomness_ix, RequestRandomnessParams};
-use ephemeral_vrf_sdk::consts::{DEFAULT_QUEUE, IDENTITY};
+use ephemeral_vrf_sdk::consts::IDENTITY;
+
+/// Adresse de notre oracle queue déployée sur devnet (ephemeral-vrf fork)
+const OUR_ORACLE_QUEUE: &str = "EZnAzWj1XgeQT5QdYQWXCF61k4JJajDnEMnGEZEd91MH";
 use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 use crate::state::GameState;
 use crate::error::ErrorCode;
@@ -57,9 +60,10 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
 
     let game = &mut ctx.accounts.game_state;
 
-    // Vérifie que l'oracle_queue est bien celui de MagicBlock
+    // Vérifie que l'oracle_queue est bien notre queue déployée
+    let expected_queue: Pubkey = OUR_ORACLE_QUEUE.parse().unwrap();
     require!(
-        ctx.accounts.oracle_queue.key() == DEFAULT_QUEUE,
+        ctx.accounts.oracle_queue.key() == expected_queue,
         ErrorCode::InvalidOracleQueue
     );
 

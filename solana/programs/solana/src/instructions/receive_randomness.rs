@@ -9,6 +9,10 @@ use crate::error::ErrorCode;
 /// Les comptes nécessaires pour recevoir l'aléatoire du VRF
 #[derive(Accounts)]
 pub struct ReceiveRandomness<'info> {
+    /// CHECK: Identité du programme VRF — passé automatiquement par le programme VRF
+    /// en PREMIER compte du callback (requis par le protocole ephemeral-vrf)
+    pub program_identity: AccountInfo<'info>,
+
     /// Le compte GameState du joueur on va le remplir avec la grille initiale
     /// Contrainte : seed == 0 vérifiée dans le handler (idempotence)
     #[account(

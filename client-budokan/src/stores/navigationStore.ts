@@ -5,7 +5,7 @@ export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "sol
 export type OverlayId = "play" | "daily" | "boss" | "map";
 export type PageId = TabId | OverlayId;
 
-export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map"]);
+export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana"]);
 const NAV_TRANSITION_LOCK_MS = 300;
 
 export interface PendingLevelCompletion {
