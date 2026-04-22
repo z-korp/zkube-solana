@@ -19,4 +19,10 @@ pub enum ErrorCode {
 
     #[msg("la randomness a deja ete injectee pour cette partie")]
     RandomnessAlreadySet,
+
+    #[msg("Seule l'authority peut effectuer cette action")]
+    Unauthorized,
+
+    #[msg("Fonds insuffisants dans la treasury")]
+    InsufficientFunds,
 }

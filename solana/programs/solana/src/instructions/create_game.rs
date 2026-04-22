@@ -9,7 +9,7 @@ use ephemeral_vrf_sdk::consts::IDENTITY;
 /// Adresse de notre oracle queue déployée sur devnet (ephemeral-vrf fork)
 const OUR_ORACLE_QUEUE: &str = "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"; // MagicBlock queue (test temporaire)
 use ephemeral_vrf_sdk::types::SerializableAccountMeta;
-use crate::state::GameState;
+use crate::state::{GameState, Treasury};
 use crate::error::ErrorCode;
 
 
@@ -51,6 +51,14 @@ pub struct CreateGame<'info> {
     /// CHECK: Sysvar slot_hashes — requis par le VRF pour générer l'aléatoire
     pub slot_hashes: AccountInfo<'info>,
 
+    /// La treasury z-korp — reçoit le fee de création de partie
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+
     /// Programme système Solana requis pour créer un compte
     pub system_program: Program<'info, System>,
 }
@@ -66,6 +74,23 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
         ctx.accounts.oracle_queue.key() == expected_queue,
         ErrorCode::InvalidOracleQueue
     );
+
+    // Transfère le fee de création vers la treasury z-korp
+    let fee = ctx.accounts.treasury.fee_per_game;
+    if fee > 0 {
+        anchor_lang::system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.player.to_account_info(),
+                    to: ctx.accounts.treasury.to_account_info(),
+                },
+            ),
+            fee,
+        )?;
+        ctx.accounts.treasury.total_collected = ctx.accounts.treasury.total_collected.saturating_add(fee);
+        msg!("Fee de {} lamports transféré à la treasury", fee);
+    }
 
     // Initialise les champs du GameState (grille vide en attendant le VRF)
     game.player = ctx.accounts.player.key();

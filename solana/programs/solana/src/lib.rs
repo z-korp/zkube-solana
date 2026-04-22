@@ -30,8 +30,19 @@ pub mod solana {
         make_move::handler(ctx, row_index, start_index, final_index)
     }
 
-    /// Ferme la partie 
+    /// Ferme la partie
     pub fn close_game(ctx: Context<CloseGame>) -> Result<()> {
         handler_close_game(ctx)
+    }
+
+    /// Initialise la treasury z-korp (one-time, à appeler au déploiement)
+    pub fn initialize_treasury(ctx: Context<InitializeTreasury>, fee_per_game: u64) -> Result<()> {
+        handler_initialize_treasury(ctx, fee_per_game)
+    }
+
+    /// Retire des fonds de la treasury vers un wallet destinataire
+    /// Seule l'authority peut appeler cette instruction
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        handler_withdraw(ctx, amount)
     }
 }
