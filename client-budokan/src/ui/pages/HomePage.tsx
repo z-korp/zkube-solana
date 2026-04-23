@@ -518,6 +518,8 @@ const HomePage: React.FC = () => {
           </>
         )}
       </div>
+      //TODO: takeoff the button
+      // TODO: 
 
       {/* Solana mode entry */}
       <div className="relative z-20 px-4 pb-3">

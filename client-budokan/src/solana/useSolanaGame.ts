@@ -81,12 +81,12 @@ export function useSolanaGame() {
       setGameState(null);
     }
   }, [connected, publicKey, fetchGameState]);
-  // TODO: a supprimer quand l'oracle vrf fonctionne
-  // Polling continu tant que la grille est vide (seed == 0 = oracle VRF pas encore répondu)
-  // S'arrête automatiquement quand les blocs sont remplis
+
+  // // Polling continu tant que la grille est vide (seed == 0 = oracle VRF pas encore répondu)
+  // // S'arrête automatiquement quand les blocs sont remplis
   useEffect(() => {
     if (!gameState || gameState.seed !== "0") return;
-    // Seed est 0 → oracle n'a pas encore répondu, on poll toutes les 2s
+    // Seed est 0 oracle n'a pas encore répondu, on poll toutes les 2s
     const interval = setInterval(() => {
       fetchGameState();
     }, 2000);
@@ -140,7 +140,7 @@ export function useSolanaGame() {
     } catch (e: any) {
       const msg: string = e?.message ?? "";
       // "already processed" = Phantom a resoumis la TX qui avait déjà réussi
-      // "already in use"   = la PDA existe encore (close non encore GC'd)
+      // "already in use"   = la PDA existe encore 
       if (msg.includes("already been processed") || msg.includes("already in use")) {
         // La partie a peut-être été créée quand même — on resync
         try {
@@ -148,7 +148,7 @@ export function useSolanaGame() {
           const gs = await (program.account as any).gameState.fetchNullable(pda);
           if (gs) {
             await fetchGameState();
-            return; // État valide récupéré, pas d'erreur à afficher
+            return; // tat valide récupéré, pas d'erreur à afficher
           }
         } catch (_) {}
       }
@@ -159,7 +159,7 @@ export function useSolanaGame() {
     }
   }, [publicKey, getProgram, fetchGameState]);
 
-  // Joue un coup — retourne le nouvel état brut pour que Grid puisse se resynchroniser
+  // Joue un coup retourne le nouvel état brut pour que Grid puisse se resynchroniser
   const makeMove = useCallback(
     async (rowIndex: number, startIndex: number, finalIndex: number) => {
       if (!publicKey) return;
@@ -179,7 +179,7 @@ export function useSolanaGame() {
         setLastTx(tx);
         console.log("[Solana] make_move tx:", tx);
 
-        // Fetch once — met à jour le state React ET retourne les données brutes
+        // Fetch once met à jour le state React ET retourne les données brutes
         const gs = await (program.account as any).gameState.fetchNullable(gameStatePda);
         if (gs) {
           const newState: SolanaGameState = {
@@ -204,7 +204,7 @@ export function useSolanaGame() {
       } catch (e: any) {
         const msg: string = e?.message ?? "";
         // "already been processed" = Phantom a resoumis une TX qui avait déjà réussi
-        // Le move a quand même été appliqué on-chain → fetch et retourne l'état sans erreur
+        // Le move a quand même été appliqué on-chain, fetch et retourne l'état sans erreur
         if (msg.includes("already been processed")) {
           try {
             const program2 = getProgram();
@@ -239,7 +239,7 @@ export function useSolanaGame() {
     },
     [publicKey, getProgram]
   );
-
+  // 
   // receiveRandomness supprimé : l'oracle VRF MagicBlock répond correctement.
   // L'appel manuel depuis le frontend était un contournement de sécurité (devnet).
   // Sur mainnet, seul l'oracle peut appeler receive_randomness (VRF proof).
