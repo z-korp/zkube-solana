@@ -1,9 +1,10 @@
 /**
- * Script d'initialisation de la treasury z-korp
+ * script d'initialisation de la treasury zkorp
  * Usage: npx ts-node scripts/initialize-treasury.ts [fee_en_lamports]
- * Exemple: npx ts-node scripts/initialize-treasury.ts 1000000  (= 0.001 SOL)
+ * Exemple: npx ts-node scripts/initialize-treasury.ts 1000000  (environ 0.001 SOL)
  */
 
+// TODO: ce script est pour devnet , on ajoutera une version pour mainnnet plus tard
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey, Keypair, Connection, clusterApiUrl } from "@solana/web3.js";
 import fs from "fs";
@@ -32,7 +33,7 @@ async function main() {
     commitment: "confirmed",
   });
 
-  // Programme Anchor
+  // programme Anchor
   const program = new anchor.Program(idl as any, provider);
 
   // Dérive le PDA treasury
@@ -42,16 +43,19 @@ async function main() {
   );
   console.log(`Treasury PDA: ${treasuryPda.toBase58()}`);
 
+//--------------------------------------------
   // Vérifie si la treasury existe déjà
   const existing = await connection.getAccountInfo(treasuryPda);
   if (existing) {
     console.log("hop hopppp Treasury déjà initialisée !");
     const data = await (program.account as any).treasury.fetch(treasuryPda);
-    console.log(`   Authority: ${data.authority.toBase58()}`);
-    console.log(`   Fee par partie: ${data.feePerGame.toString()} lamports`);
-    console.log(`   Total collecté: ${data.totalCollected.toString()} lamports`);
+    console.log(`   Authority: ${data.authority.toBase58()}`); // c'est a qui 
+    console.log(`   Fee par partie: ${data.feePerGame.toString()} lamports`);// c'est combien
+    console.log(`   Total collecté: ${data.totalCollected.toString()} lamports`);// combien j'ai collecté depuis le début
     return;
   }
+
+  //---------------------------------------------------------
 
   // Appel initialize_treasury
   console.log("\nInitialisation de la treasury");

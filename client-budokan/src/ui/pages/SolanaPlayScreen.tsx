@@ -282,9 +282,10 @@ export default function SolanaPlayScreen() {
       </div>
 
       {/* Banner oracle en attente */}
+      {/* TODO: to change to waiting slogan it's better */}
       {gameState?.seed === "0" && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30">
-          <span className="text-yellow-300 text-xs">⏳ Oracle VRF en attente — grille vide</span>
+          <span className="text-yellow-300 text-xs"> VRF en attente</span>
           <button
             onClick={closeGame}
             disabled={isLoading}
