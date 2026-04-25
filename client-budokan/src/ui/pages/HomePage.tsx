@@ -493,6 +493,7 @@ const HomePage: React.FC = () => {
           )}
         </motion.div>
       </div>
+      
 
       <div className="relative z-20 mt-auto flex flex-col gap-2.5 px-4 pb-3">
         {!account ? (
@@ -518,8 +519,7 @@ const HomePage: React.FC = () => {
           </>
         )}
       </div>
-      //TODO: takeoff the button
-      // TODO: 
+      
 
       {/* Solana mode entry */}
       <div className="relative z-20 px-4 pb-3">

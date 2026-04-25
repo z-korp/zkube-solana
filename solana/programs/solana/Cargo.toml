@@ -19,14 +19,13 @@ anchor-debug = []
 custom-heap = []
 custom-panic = []
 
-
 [dependencies]
 anchor-lang = { version = "0.32.0", features = ["init-if-needed"] }
-ephemeral-vrf-sdk = { path = "../../../../ephemeral-vrf/sdk", features = ["anchor"] }
+ephemeral-vrf-sdk = { version = "0.1", features = ["anchor"] }
+ephemeral-rollups-sdk = { version = "0.5", features = ["anchor"] }
 sha2 = "0.10"
 
 [dev-dependencies]
-
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

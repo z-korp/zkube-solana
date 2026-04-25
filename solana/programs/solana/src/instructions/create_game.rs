@@ -2,18 +2,20 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::invoke_signed;
+use crate::state::GamePhase;
 use sha2::{Sha256, Digest};
 use ephemeral_vrf_sdk::instructions::{create_request_randomness_ix, RequestRandomnessParams};
 use ephemeral_vrf_sdk::consts::IDENTITY;
-
-/// Adresse de notre oracle queue déployée sur devnet (ephemeral-vrf fork)
-const OUR_ORACLE_QUEUE: &str = "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"; // MagicBlock queue (test temporaire)
 use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 use crate::state::{GameState, Treasury};
 use crate::error::ErrorCode;
 
+/// Adresse de l'oracle queue MagicBlock (devnet)
+/// Utilisée par le VRF officiel Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz
+const OUR_ORACLE_QUEUE: &str = "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh";
 
 /// Les comptes nécessaires pour créer une partie
+/// Après create_game, appeler delegate_game pour déléguer le GameState à l'ER
 #[derive(Accounts)]
 pub struct CreateGame<'info> {
     /// Le joueur qui crée la partie: il signe et paie
@@ -22,7 +24,6 @@ pub struct CreateGame<'info> {
 
     /// Le compte GameState créé (ou réinitialisé) sur la blockchain
     /// PDA = adresse dérivée du mot "game" + clé publique du joueur
-    /// init_if_needed : crée le compte s'il n'existe pas, le réutilise s'il existe
     #[account(
         init_if_needed,
         payer = player,
@@ -37,8 +38,6 @@ pub struct CreateGame<'info> {
     pub oracle_queue: AccountInfo<'info>,
 
     /// CHECK: Identity PDA de notre programme signé via invoke_signed
-    /// Dérivé de [b"identity"] et notre program ID
-    /// Le programme VRF exige cette signature pour identifier le callback
     #[account(
         seeds = [IDENTITY],
         bump
@@ -48,7 +47,7 @@ pub struct CreateGame<'info> {
     /// CHECK: Le programme VRF MagicBlock
     pub vrf_program: AccountInfo<'info>,
 
-    /// CHECK: Sysvar slot_hashes — requis par le VRF pour générer l'aléatoire
+    /// CHECK: Sysvar slot_hashes — requis par le VRF
     pub slot_hashes: AccountInfo<'info>,
 
     /// La treasury z-korp — reçoit le fee de création de partie
@@ -63,12 +62,13 @@ pub struct CreateGame<'info> {
     pub system_program: Program<'info, System>,
 }
 
-///la logique de création de partie
-pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
+/// la logique de création de partie
+/// session_key : keypair éphémère généré côté client — autorisé à signer make_move sans popup
+pub fn handler_create_game(ctx: Context<CreateGame>, session_key: Pubkey) -> Result<()> {
 
     let game = &mut ctx.accounts.game_state;
 
-    // Vérifie que l'oracle_queue est bien notre queue déployée
+    // Vérifie que l'oracle_queue est bien notre queue
     let expected_queue: Pubkey = OUR_ORACLE_QUEUE.parse().unwrap();
     require!(
         ctx.accounts.oracle_queue.key() == expected_queue,
@@ -102,19 +102,17 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
     game.blocks = [0u8; 80];
     game.next_row = [0u8; 8];
     game.seed = 0;
+    // Champs ER — pas encore délégué au départ
+    game.delegated = false;
+    game.delegated_authority = Pubkey::default();
+    game.phase = GamePhase::Created;
+    // Session key : autorise le client à signer make_move sans popup
+    game.session_key = session_key;
 
-    // Seed de requête VRF = clé publique du joueur XOR slot actuel.
-    // Le slot garantit l'unicité de chaque requête (l'oracle déduplique par caller_seed).
-    // Sans nonce, deux parties consécutives du même joueur auraient le même caller_seed
-    // et l'oracle ignorerait la seconde requête et donc grille vide
-
-    // remarque : 
-    // c'est safe dans create_game le slot est utilisé uniquement pour le caller_seed — c'est juste un nonce pour éviter les requêtes dupliquées dans la queue vrf
-    // Il ne génère aucune donnée de jeu c'est juste un identifiant unique de requête
+    // Seed de requête VRF = clé publique du joueur XOR slot actuel
     let clock = Clock::get()?;
     let caller_seed: [u8; 32] = {
         let mut seed = ctx.accounts.player.key().to_bytes();
-        // XOR des 8 premiers octets avec le slot pour unicité
         let slot_bytes = clock.slot.to_le_bytes();
         for i in 0..8 {
             seed[i] ^= slot_bytes[i];
@@ -127,15 +125,13 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
     hasher.update(b"global:receive_randomness");
     let callback_discriminator = hasher.finalize()[..8].to_vec();
 
-    // PDA du game_state remarque : l'oracle doit l'inclure quand il appelle receive_randomness
+    // PDA du game_state
     let (game_state_pda, _) = Pubkey::find_program_address(
         &[b"game", ctx.accounts.player.key().as_ref()],
         &crate::ID,
     );
 
     // Crée l'instruction VRF
-    // accounts_metas = comptes supplémentaires que l'oracle passera au callback
-    // Sans ça l'oracle ne sait pas qu'il doit inclure game_state dans receive_randomness
     let ix = create_request_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.player.key(),
         oracle_queue: ctx.accounts.oracle_queue.key(),
@@ -150,11 +146,8 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
         callback_args: None,
     });
 
-    // Récupère le bump de l'identity PDA pour signer
     let identity_bump = ctx.bumps.identity;
 
-    // invoke_signed car l'identity PDA (PDA de notre programme) doit signer
-    // 1. payer, 2. identity PDA, 3. oracle_queue, 4. system_program, 5. slot_hashes
     invoke_signed(
         &ix,
         &[
@@ -167,6 +160,7 @@ pub fn handler_create_game(ctx: Context<CreateGame>) -> Result<()> {
         &[&[IDENTITY, &[identity_bump]]],
     )?;
 
-    msg!("Partie créée, aléatoire VRF demandé pour: {}", game.player);
+    msg!("Partie créée, VRF demandé pour: {}", game.player);
+    msg!("Appeler delegate_game ensuite pour déléguer à l'ER MagicBlock");
     Ok(())
 }

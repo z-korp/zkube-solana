@@ -25,4 +25,31 @@ pub enum ErrorCode {
 
     #[msg("Fonds insuffisants dans la treasury")]
     InsufficientFunds,
+
+    #[msg("Le compte game_state n'est pas delegue a l'Ephemeral Rollup")]
+    NotDelegated,
+
+    #[msg("L'authority de delegation ne correspond pas au joueur")]
+    InvalidAuthority,
+
+    #[msg("Phase de jeu invalide pour cette instruction")]
+    InvalidState,
+
+    #[msg("L'owner du compte PDA n'est pas le programme attendu")]
+    InvalidOwner,
+
+    #[msg("La delegation a l'Ephemeral Rollup a echoue")]
+    DelegationFailed,
+
+    #[msg("Ordre des moves invalide (expected_move != move_count)")]
+    InvalidMoveOrder,
+
+    #[msg("Le programme magic_program est invalide")]
+    InvalidMagicProgram,
+
+    #[msg("Le compte magic_context est invalide")]
+    InvalidMagicContext,
+
+    #[msg("La partie n'est pas encore terminee (game.over doit etre true)")]
+    GameNotFinished,
 }

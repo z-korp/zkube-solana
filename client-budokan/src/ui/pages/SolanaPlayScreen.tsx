@@ -18,16 +18,11 @@ const NEXT_LINE_ROWS = 1;
 const HORIZONTAL_PADDING = 24;
 const VERTICAL_CHROME = 36;
 
-/** Convert Solana flat blocks array (80 values) to number[][] (10 rows × 8 cols)
- *  Solana row 0 = bottom of grid → display at y = ROWS-1 (bottom)
- *  Solana row 9 = top of grid   → display at y = 0 (top)
- */
 function solanaBlocksToGrid(blocks: number[]): number[][] {
   const grid: number[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
   for (let i = 0; i < blocks.length; i++) {
     const solanaRow = Math.floor(i / COLS);
     const col = i % COLS;
-    // Invert: Solana row 0 → display row ROWS-1 (bottom)
     grid[ROWS - 1 - solanaRow][col] = blocks[i];
   }
   return grid;
@@ -39,8 +34,7 @@ export default function SolanaPlayScreen() {
   const themeColors = getThemeColors(themeTemplate as ThemeId);
   const themeImages = getThemeImages(themeTemplate as ThemeId);
 
-  // Phantom wallet
-  const { connect, select } = useWallet();
+  const { select, connect } = useWallet();
   const {
     connected,
     publicKey,
@@ -48,20 +42,19 @@ export default function SolanaPlayScreen() {
     isLoading,
     error,
     lastTx,
+    hasSessionKey,
     createGame,
     makeMove,
     closeGame,
+    resetGame,
+    renewSessionKey,
   } = useSolanaGame();
 
-  // Re-key grid uniquement pour un NOUVEAU jeu (seed ou joueur différent)
   const prevGameKeyRef = useRef<string>("");
   const [gridKey, setGridKey] = useState(0);
 
   useEffect(() => {
-    if (!gameState) {
-      prevGameKeyRef.current = "";
-      return;
-    }
+    if (!gameState) { prevGameKeyRef.current = ""; return; }
     const gameKey = `${gameState.player}-${gameState.seed}`;
     if (gameKey !== prevGameKeyRef.current) {
       prevGameKeyRef.current = gameKey;
@@ -70,18 +63,15 @@ export default function SolanaPlayScreen() {
     }
   }, [gameState?.player, gameState?.seed]);
 
-  // Reset isTxProcessing si une erreur Solana survient (TX échouée)
   useEffect(() => {
     if (error) setIsTxProcessing(false);
   }, [error]);
 
-  // Grid sizing (same logic as GameBoard)
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
   const [isTxProcessing, setIsTxProcessing] = useState(false);
   const [nextLineHasBeenConsumed, setNextLineHasBeenConsumed] = useState(false);
 
-  // Responsive grid sizing
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -92,28 +82,22 @@ export default function SolanaPlayScreen() {
       const safeHeight = Math.max(1, h - VERTICAL_CHROME);
       const cellByWidth = Math.floor(safeWidth / COLS);
       const cellByHeight = Math.floor(safeHeight / (ROWS + NEXT_LINE_ROWS));
-      const cellSize = Math.min(cellByWidth, cellByHeight);
-      setGridSize(Math.max(28, Math.min(cellSize, 72)));
+      setGridSize(Math.max(28, Math.min(Math.min(cellByWidth, cellByHeight), 72)));
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Convert Solana state → Block[]
   const initialData = useMemo(() => {
     if (!gameState) return [];
     return transformDataContractIntoBlock(solanaBlocksToGrid(gameState.blocks));
-  }, [gameState, gridKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gameState, gridKey]); // eslint-disable-line
 
   const nextLineData = useMemo(() => {
     if (!gameState) return [];
     return transformDataContractIntoBlock([gameState.nextRow]);
-  }, [gameState, gridKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gameState, gridKey]); // eslint-disable-line
 
-  // Solana move handler passed to Grid
-  // Handler de move : retourne le nouvel état blockchain pour que Grid
-  // l'injecte dans pendingReceiptRef (même mécanisme que les events Dojo).
-  // isTxProcessing est géré par Grid (CASCADE_COMPLETE → applyReceipt).
   const handleMove = useCallback(
     async (rowIndex: number, startIndex: number, finalIndex: number) => {
       const result = await makeMove(rowIndex, startIndex, finalIndex);
@@ -128,11 +112,28 @@ export default function SolanaPlayScreen() {
     [makeMove],
   );
 
-  const handleConnectPhantom = async () => {
-    select("Phantom" as WalletName<"Phantom">);
-    await connect();
-  };
+  // ── Connexion Phantom ─────────────────────────────────────────────────────
+  // select() set le wallet ; connect() peut échouer si l'adapter n'est pas
+  // encore prêt — on catchs l'erreur et Phantom re-essaie via l'adapter.
+  const handleConnectPhantom = useCallback(async () => {
+    try {
+      select("Phantom" as WalletName<"Phantom">);
+      await connect();
+    } catch (_) {
+      // WalletNotSelectedError normal quand l'adapter se charge encore.
+      // L'useEffect ci-dessous re-tentera automatiquement.
+    }
+  }, [select, connect]);
 
+  // Tente une connexion automatique dès que Phantom est sélectionné
+  const { wallet, connecting } = useWallet();
+  useEffect(() => {
+    if (wallet?.adapter.name === "Phantom" && !connected && !connecting) {
+      connect().catch(() => {});
+    }
+  }, [wallet?.adapter.name, connected, connecting, connect]);
+
+  // ── Écran : non connecté ──────────────────────────────────────────────────
   if (!connected || !publicKey) {
     return (
       <div
@@ -144,26 +145,24 @@ export default function SolanaPlayScreen() {
           backgroundColor: themeColors.primary,
         }}
       >
-        <button
-          onClick={() => navigate("home")}
-          className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors"
-        >
+        <button onClick={() => navigate("home")} className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors">
           ← Back
         </button>
         <div className="flex flex-col items-center gap-4 p-8 bg-black/50 rounded-2xl border border-white/10 backdrop-blur-sm">
           <p className="text-white/70 text-sm">Connect your Phantom wallet to play on Solana</p>
           <button
             onClick={handleConnectPhantom}
-            className="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold text-white text-lg transition-colors flex items-center gap-2"
+            disabled={connecting}
+            className="px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-xl font-bold text-white text-lg transition-colors flex items-center gap-2"
           >
-            Connect Phantom
+            {connecting ? "Connecting…" : "Connect Phantom"}
           </button>
         </div>
       </div>
     );
   }
 
-  // ─── Connected, no game 
+  // ── Écran : pas de partie (ou compte corrompu) ────────────────────────────
   if (!gameState && !isLoading) {
     return (
       <div
@@ -175,17 +174,14 @@ export default function SolanaPlayScreen() {
           backgroundColor: themeColors.primary,
         }}
       >
-        <button
-          onClick={() => navigate("home")}
-          className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors"
-        >
+        <button onClick={() => navigate("home")} className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors">
           ← Back
         </button>
         <div className="flex flex-col items-center gap-4 p-8 bg-black/50 rounded-2xl border border-white/10 backdrop-blur-sm">
           <p className="text-xs text-white/50 font-mono">
             {publicKey?.slice(0, 8)}...{publicKey?.slice(-6)}
           </p>
-          {error && <p className="text-red-400 text-sm"> {error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <button
             onClick={createGame}
             disabled={isLoading}
@@ -193,24 +189,32 @@ export default function SolanaPlayScreen() {
           >
             New Game
           </button>
+          {/* Reset toujours disponible — nettoie un ancien compte bloqué */}
+          <button
+            onClick={resetGame}
+            disabled={isLoading}
+            className="px-4 py-2 text-sm text-yellow-400/70 hover:text-yellow-300 border border-yellow-500/30 hover:border-yellow-400/50 rounded-lg transition-colors disabled:opacity-40"
+          >
+            🔄 Reset Account
+          </button>
+          <p className="text-white/30 text-xs text-center max-w-xs">
+            Use Reset if New Game fails (old account format)
+          </p>
         </div>
       </div>
     );
   }
 
-  // ─── Loading 
+  // ── Écran : chargement ────────────────────────────────────────────────────
   if (isLoading && !gameState) {
     return (
-      <div
-        className="flex h-full min-h-0 flex-col items-center justify-center"
-        style={{ backgroundColor: themeColors.primary }}
-      >
-        <p className="text-cyan-400 animate-pulse text-lg font-bold">Transaction en cours...</p>
+      <div className="flex h-full min-h-0 flex-col items-center justify-center" style={{ backgroundColor: themeColors.primary }}>
+        <p className="text-cyan-400 animate-pulse text-lg font-bold">Transaction en cours…</p>
       </div>
     );
   }
 
-  // ─── Game over 
+  // ── Écran : game over ─────────────────────────────────────────────────────
   if (gameState?.over) {
     return (
       <div
@@ -231,14 +235,78 @@ export default function SolanaPlayScreen() {
             disabled={isLoading}
             className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
           >
-            New Game
+            {isLoading ? "Committing…" : "New Game"}
           </button>
         </div>
       </div>
     );
   }
 
-  // ─── Active game ──────────────────────────────────────────────────────────
+  // ── Écran : compte bloqué (non délégué, quelle que soit la phase) ──────────
+  // Couvre : delegation échouée (Created), ancien compte (Playing sans délégation),
+  // ou tout état où delegated=false empêche de jouer correctement.
+  // Exception : isLoading=true pendant createGame() (flux normal create→delegate).
+  if (gameState && !gameState.delegated && !isLoading) {
+    const phaseLabel = gameState.phase === "Created"
+      ? "La délégation vers l'Ephemeral Rollup a échoué."
+      : gameState.phase === "Finished"
+      ? "La partie est terminée — réinitialise pour en commencer une nouvelle."
+      : "Compte dans un état incohérent (ancien format ou délégation échouée).";
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6" style={{ backgroundColor: themeColors.primary }}>
+        <button onClick={() => navigate("home")} className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors">← Back</button>
+        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-yellow-500/30">
+          <p className="text-yellow-400 font-bold text-lg">Compte bloqué</p>
+          <p className="text-white/60 text-sm text-center max-w-xs">
+            {phaseLabel}<br/>
+            <span className="text-white/40 text-xs">Phase : {gameState.phase} · Délégué : non</span>
+          </p>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <button
+            onClick={resetGame}
+            disabled={isLoading}
+            className="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
+          >
+            🔄 Reset &amp; Recommencer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Écran : session key manquante (reconnexion mid-game) ──────────────────
+  // Le jeu est délégué sur l'ER mais la session_key n'est plus en mémoire.
+  if (gameState?.delegated && !hasSessionKey && !isLoading) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6" style={{ backgroundColor: themeColors.primary }}>
+        <button onClick={() => navigate("home")} className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors">← Back</button>
+        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-purple-500/30">
+          <p className="text-purple-300 font-bold text-lg">Session expirée</p>
+          <p className="text-white/60 text-sm text-center max-w-xs">
+            Ta clé de session a été perdue (fermeture d'onglet).<br/>
+            Autorise une nouvelle clé pour reprendre sans popup.
+          </p>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <button
+            onClick={renewSessionKey}
+            disabled={isLoading}
+            className="px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
+          >
+            Renouveler la session (1 popup)
+          </button>
+          <button
+            onClick={closeGame}
+            disabled={isLoading}
+            className="px-4 py-2 text-sm text-red-400/70 hover:text-red-300 border border-red-400/30 rounded-lg transition-colors disabled:opacity-40"
+          >
+            Quitter la partie
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Écran : jeu actif ─────────────────────────────────────────────────────
   return (
     <div
       className="flex h-full min-h-0 flex-col"
@@ -251,10 +319,7 @@ export default function SolanaPlayScreen() {
     >
       {/* HUD */}
       <div className="flex items-center justify-between px-4 py-2 bg-black/30">
-        <button
-          onClick={() => navigate("home")}
-          className="text-white/60 hover:text-white text-sm transition-colors"
-        >
+        <button onClick={() => navigate("home")} className="text-white/60 hover:text-white text-sm transition-colors">
           ← Back
         </button>
         <div className="flex items-center gap-4">
@@ -275,24 +340,26 @@ export default function SolanaPlayScreen() {
           onClick={closeGame}
           disabled={isLoading}
           className="text-[10px] text-red-400/70 hover:text-red-300 disabled:opacity-40 transition-colors font-mono border border-red-400/30 hover:border-red-300/50 rounded px-2 py-1"
-          title="Fermer la partie et récupérer le SOL"
+          title="Fermer la partie"
         >
           ✕ Close
         </button>
       </div>
 
-      {/* Banner oracle en attente */}
-      {/* TODO: to change to waiting slogan it's better */}
+      {/* Banner VRF en attente */}
       {gameState?.seed === "0" && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30">
-          <span className="text-yellow-300 text-xs"> VRF en attente</span>
-          <button
-            onClick={closeGame}
-            disabled={isLoading}
-            className="text-xs text-yellow-200 hover:text-white bg-yellow-700/60 hover:bg-yellow-600/80 disabled:opacity-40 rounded px-3 py-0.5 transition-colors font-bold"
-          >
+          <span className="text-yellow-300 text-xs">⏳ VRF en attente</span>
+          <button onClick={closeGame} disabled={isLoading} className="text-xs text-yellow-200 hover:text-white bg-yellow-700/60 hover:bg-yellow-600/80 disabled:opacity-40 rounded px-3 py-0.5 transition-colors font-bold">
             Fermer &amp; Recommencer
           </button>
+        </div>
+      )}
+
+      {/* Banner session key active (feedback visuel) */}
+      {hasSessionKey && (
+        <div className="px-3 py-1 bg-green-900/40 border-b border-green-600/20 text-center">
+          <span className="text-green-400 text-[10px]">⚡ Session active — moves gratuits</span>
         </div>
       )}
 
@@ -330,9 +397,7 @@ export default function SolanaPlayScreen() {
               <div className="chevron-pulse">
                 <ChevronUp size={14} className="text-white/50" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
-                Next Row
-              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Next Row</span>
             </div>
             <NextLine
               nextLineData={nextLineHasBeenConsumed ? [] : nextLineData}
