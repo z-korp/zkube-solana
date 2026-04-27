@@ -27,17 +27,13 @@ pub fn handler(
     final_index: u8,
     expected_move: u32,
 ) -> Result<()> {
-    // Vérifie le flag métier de délégation (mis à true par delegate_game).
-    // Note: on ne vérifie PAS account.owner == delegation_program car sur l'ER,
-    // les comptes sont présentés avec owner = programme original (pas delegation_program).
+    // Phase valide : Created (bypass devnet), Delegated (1er move ER), Playing (suite).
+    // Note: le check `delegated` a été retiré pour permettre les moves directs sur devnet
+    // pendant la période où le relayer ER MagicBlock est hors-service.
+    // Remettre require!(game_state.delegated, NotDelegated) quand le relayer sera réparé.
     require!(
-        ctx.accounts.game_state.delegated,
-        ErrorCode::NotDelegated
-    );
-
-    // Phase valide : Delegated (1er move) ou Playing (moves suivants).
-    require!(
-        ctx.accounts.game_state.phase == GamePhase::Delegated
+        ctx.accounts.game_state.phase == GamePhase::Created
+            || ctx.accounts.game_state.phase == GamePhase::Delegated
             || ctx.accounts.game_state.phase == GamePhase::Playing,
         ErrorCode::InvalidState
     );
@@ -66,8 +62,8 @@ pub fn handler(
 
     let game = &mut ctx.accounts.game_state;
 
-    // Transition de phase : premier move → Playing
-    if game.phase == GamePhase::Delegated {
+    // Transition de phase : Created ou Delegated → Playing au 1er move
+    if game.phase == GamePhase::Created || game.phase == GamePhase::Delegated {
         game.phase = GamePhase::Playing;
     }
 

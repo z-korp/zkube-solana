@@ -1,9 +1,6 @@
 // Délègue le GameState PDA à l'Ephemeral Rollup MagicBlock.
 // À appeler depuis mainnet APRÈS que le VRF ait rempli la grille.
 //
-// Le macro #[delegate] injecte automatiquement les comptes de délégation
-// (buffer, delegation_record, delegation_metadata, delegation_program, system_program)
-// via CPI interne — le client n'a PAS à les passer explicitement.
 
 use anchor_lang::prelude::*;
 use anchor_lang::{AccountDeserialize, AccountSerialize};
@@ -12,7 +9,7 @@ use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use crate::state::{GameState, GamePhase};
 use crate::error::ErrorCode;
 
-const ER_VALIDATOR: &str = "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e";
+// ER_VALIDATOR vient de crate::constants — modifier dans solana/.env et constants.rs
 
 /// Comptes pour la délégation du PDA à l'ER.
 /// Le client ne passe que player, validator (optionnel), pda.
@@ -62,7 +59,7 @@ pub fn handler_delegate_game(ctx: Context<DelegateGame>) -> Result<()> {
     game_state.try_serialize(&mut cursor)?;
     drop(data);
 
-    let validator: Pubkey = ER_VALIDATOR.parse().unwrap();
+    let validator: Pubkey = crate::ER_VALIDATOR.parse().unwrap();
 
     // Propager l'erreur directement — Solana revert tout si la tx échoue
     ctx.accounts.delegate_pda(

@@ -4,7 +4,7 @@
 
 export const IDL = {
   address: "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN",
-  metadata: { name: "solana", version: "0.1.0", spec: "0.1.0" },
+  metadata: { name: "solana", version: "0.1.0", spec: "0.1.0", description: "Created with Anchor" },
   instructions: [
     // ── close_game (ER → commit + undelegate) ────────────────────────────────
     {
@@ -13,7 +13,7 @@ export const IDL = {
       accounts: [
         { name: "player", writable: true, signer: true },
         {
-          name: "game_state",
+          name: "pda",
           writable: true,
           pda: {
             seeds: [
@@ -22,13 +22,13 @@ export const IDL = {
             ],
           },
         },
-        { name: "magic_context", writable: true },
-        { name: "magic_program" },
+        { name: "magic_program", address: "Magic11111111111111111111111111111111111111" },
+        { name: "magic_context", writable: true, address: "MagicContext1111111111111111111111111111111" },
       ],
       args: [],
     },
 
-    // ── create_game (mainnet + VRF) ───────────────────────────────────────────
+    // ── create_game ──────────────────────────────────────────────────────────
     {
       name: "create_game",
       discriminator: [124, 69, 75, 66, 184, 220, 72, 206],
@@ -48,9 +48,7 @@ export const IDL = {
         {
           name: "identity",
           pda: {
-            seeds: [
-              { kind: "const", value: [105, 100, 101, 110, 116, 105, 116, 121] },
-            ],
+            seeds: [{ kind: "const", value: [105, 100, 101, 110, 116, 105, 116, 121] }],
           },
         },
         { name: "vrf_program" },
@@ -59,9 +57,7 @@ export const IDL = {
           name: "treasury",
           writable: true,
           pda: {
-            seeds: [
-              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
-            ],
+            seeds: [{ kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] }],
           },
         },
         { name: "system_program", address: "11111111111111111111111111111111" },
@@ -69,11 +65,7 @@ export const IDL = {
       args: [{ name: "session_key", type: "pubkey" }],
     },
 
-    // ── delegate_game (mainnet → délègue le PDA à l'ER) ──────────────────────
-    // Le client passe uniquement { player, validator }.
-    // Tous les autres comptes (buffer_pda, delegation_record_pda,
-    // delegation_metadata_pda, pda, owner_program, delegation_program,
-    // system_program) sont dérivés automatiquement par Anchor depuis l'IDL.
+    // ── delegate_game ────────────────────────────────────────────────────────
     {
       name: "delegate_game",
       discriminator: [116, 183, 70, 107, 112, 223, 122, 210],
@@ -90,7 +82,7 @@ export const IDL = {
             ],
             program: {
               kind: "const",
-              value: [103, 233, 81, 90, 68, 18, 167, 19, 58, 180, 89, 17, 78, 94, 134, 250, 5, 140, 191, 248, 249, 160, 229, 227, 22, 188, 165, 15, 102, 2, 70, 51],
+              value: [103,233,81,90,68,18,167,19,58,180,89,17,78,94,134,250,5,140,191,248,249,160,229,227,22,188,165,15,102,2,70,51],
             },
           },
         },
@@ -110,7 +102,7 @@ export const IDL = {
           writable: true,
           pda: {
             seeds: [
-              { kind: "const", value: [100, 101, 108, 101, 103, 97, 116, 105, 111, 110, 45, 109, 101, 116, 97, 100, 97, 116, 97] },
+              { kind: "const", value: [100,101,108,101,103,97,116,105,111,110,45,109,101,116,97,100,97,116,97] },
               { kind: "account", path: "pda" },
             ],
             program: { kind: "account", path: "delegation_program" },
@@ -133,7 +125,7 @@ export const IDL = {
       args: [],
     },
 
-    // ── initialize_treasury (one-time) ────────────────────────────────────────
+    // ── initialize_treasury ──────────────────────────────────────────────────
     {
       name: "initialize_treasury",
       discriminator: [124, 186, 211, 195, 85, 165, 129, 166],
@@ -143,9 +135,7 @@ export const IDL = {
           name: "treasury",
           writable: true,
           pda: {
-            seeds: [
-              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
-            ],
+            seeds: [{ kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] }],
           },
         },
         { name: "system_program", address: "11111111111111111111111111111111" },
@@ -153,7 +143,7 @@ export const IDL = {
       args: [{ name: "fee_per_game", type: "u64" }],
     },
 
-    // ── make_move (ER — gratuit, ~50ms) ──────────────────────────────────────
+    // ── make_move ────────────────────────────────────────────────────────────
     {
       name: "make_move",
       discriminator: [78, 77, 152, 203, 222, 211, 208, 233],
@@ -178,7 +168,20 @@ export const IDL = {
       ],
     },
 
-    // ── receive_randomness (callback VRF) ────────────────────────────────────
+    // ── process_undelegation (auto-généré par #[ephemeral]) ──────────────────
+    {
+      name: "process_undelegation",
+      discriminator: [196, 28, 41, 206, 48, 37, 51, 167],
+      accounts: [
+        { name: "base_account", writable: true },
+        { name: "buffer" },
+        { name: "payer", writable: true },
+        { name: "system_program" },
+      ],
+      args: [{ name: "account_seeds", type: { vec: "bytes" } }],
+    },
+
+    // ── receive_randomness ───────────────────────────────────────────────────
     {
       name: "receive_randomness",
       discriminator: [118, 124, 23, 234, 168, 81, 207, 220],
@@ -198,7 +201,7 @@ export const IDL = {
       args: [{ name: "randomness", type: { array: ["u8", 32] } }],
     },
 
-    // ── reset_game (migration / compte corrompu) ──────────────────────────────
+    // ── reset_game ───────────────────────────────────────────────────────────
     {
       name: "reset_game",
       discriminator: [97, 146, 71, 156, 110, 206, 124, 224],
@@ -219,7 +222,7 @@ export const IDL = {
       args: [],
     },
 
-    // ── set_session_key (ER — reconnexion mid-game) ───────────────────────────
+    // ── set_session_key ──────────────────────────────────────────────────────
     {
       name: "set_session_key",
       discriminator: [13, 147, 179, 38, 67, 1, 69, 132],
@@ -239,7 +242,7 @@ export const IDL = {
       args: [{ name: "new_session_key", type: "pubkey" }],
     },
 
-    // ── withdraw (treasury) ───────────────────────────────────────────────────
+    // ── withdraw ─────────────────────────────────────────────────────────────
     {
       name: "withdraw",
       discriminator: [183, 18, 70, 156, 148, 109, 161, 34],
@@ -249,9 +252,7 @@ export const IDL = {
           name: "treasury",
           writable: true,
           pda: {
-            seeds: [
-              { kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] },
-            ],
+            seeds: [{ kind: "const", value: [116, 114, 101, 97, 115, 117, 114, 121] }],
           },
         },
         { name: "destination", writable: true },
@@ -332,4 +333,8 @@ export const IDL = {
       },
     },
   ],
-};
+
+  constants: [
+    { name: "SEED", type: "string", value: '"anchor"' },
+  ],
+} as const;
