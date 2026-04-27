@@ -1,22 +1,14 @@
-import { createContext, useContext } from "react";
+import { createContext } from "react";
 import type { ReactNode } from "react";
-import type { SetupResult } from "./setup";
 
-export const DojoContext = createContext<SetupResult | null>(null);
+// ── Stub Dojo context (migration Solana) ──────────────────────────────────────
+// Le jeu tourne désormais sur Solana / Phantom.
+// Ce stub permet aux hooks qui importent encore DojoContext de compiler
+// sans crash. Ils retourneront des données vides.
+// TODO: supprimer les hooks Dojo restants au fil des migrations.
 
-export const DojoProvider = ({
-  children,
-  value,
-}: {
-  children: ReactNode;
-  value: SetupResult;
-}) => {
-  const currentValue = useContext(DojoContext);
-  if (currentValue) throw new Error("DojoProvider can only be used once");
+export const DojoContext = createContext<any>(null);
 
-  return (
-    <DojoContext.Provider value={value}>
-      {children}
-    </DojoContext.Provider>
-  );
+export const DojoProvider = ({ children }: { children: ReactNode }) => {
+  return <>{children}</>;
 };

@@ -18,7 +18,6 @@ import { ZONE_NAMES, getLevelFromXp, getTitleForLevel, type ZoneProgressData } f
 import { ZONE_GUARDIANS, getGuardianPortrait } from "@/config/bossCharacters";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { predictedDailyZoneId } from "@/utils/predictedDailyZone";
-import Connect from "@/ui/components/Connect";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 
@@ -495,34 +494,7 @@ const HomePage: React.FC = () => {
       </div>
       
 
-      <div className="relative z-20 mt-auto flex flex-col gap-2.5 px-4 pb-3">
-        {!account ? (
-          <Connect ctaLabel="PLAY NOW" />
-        ) : (
-          <>
-            {isDailySelected ? (
-              <ArcadeButton
-                onClick={() => navigate("daily")}
-                accentOverride={dailyColors.accent}
-              >
-                Go to Daily
-              </ArcadeButton>
-            ) : (
-              <ArcadeButton disabled={!selectedZonePlayable} onClick={handlePrimaryAction} accentOverride={
-                hasActiveStoryRun && activeStoryRun
-                  ? getThemeColors(getThemeId(activeStoryRun.zoneId)).accent
-                  : zone ? getThemeColors(getThemeId(zone.zoneId)).accent : undefined
-              }>
-                {hasActiveStoryRun ? "Resume Story" : "Play Story"}
-              </ArcadeButton>
-            )}
-          </>
-        )}
-      </div>
-      
-
-      {/* Solana mode entry */}
-      <div className="relative z-20 px-4 pb-3">
+      <div className="relative z-20 mt-auto flex flex-col gap-2.5 px-4 pb-6">
         <ArcadeButton
           onClick={() => navigate("solana")}
           accentOverride="#9333ea"
