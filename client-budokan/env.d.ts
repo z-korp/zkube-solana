@@ -1,20 +1,5 @@
 interface ImportMetaEnv {
-  // ── Starknet / Cartridge (modes: mainnet | sepolia | slot) ─────────────────
-  readonly VITE_PUBLIC_DEPLOY_TYPE:
-    | "mainnet"
-    | "sepolia"
-    | "sepoliadev1"
-    | "sepoliadev2"
-    | "slot"
-    | "slotdev";
-  readonly VITE_PUBLIC_NODE_URL: string;
-  readonly VITE_PUBLIC_TORII: string;
-  readonly VITE_PUBLIC_DENSHOKAN_ADDRESS: string;
-  readonly VITE_PUBLIC_METAGAME_TORII_URL: string;
-  readonly VITE_PUBLIC_METAGAME_NAMESPACE: string;
-  readonly VITE_PUBLIC_LEADERBOARD_EXCLUDED_NAMES?: string;
-
-  // ── Solana / MagicBlock (client-budokan/.env)
+  // ── Solana / MagicBlock (client-budokan/.env) ──────────────────────────────
   // Programme principal zKube
   readonly VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID?: string;
   // VRF MagicBlock

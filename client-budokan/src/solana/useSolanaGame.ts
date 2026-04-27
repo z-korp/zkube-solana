@@ -401,6 +401,9 @@ export function useSolanaGame() {
       await fetchGameState();
     } catch (e: any) {
       const msg: string = e?.message ?? "";
+      if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
+        return;
+      }
       if (msg.includes("already been processed") || msg.includes("already in use")) {
         try {
           const pda = getGameStatePda(publicKey!);
@@ -441,7 +444,11 @@ export function useSolanaGame() {
       setLastTx(tx);
       console.log("[ER] set_session_key tx (reconnexion):", tx);
     } catch (e: any) {
-      setError(e?.message || "Erreur lors du renouvellement de session");
+      const msg: string = e?.message ?? "";
+      if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
+        return;
+      }
+      setError(msg || "Erreur lors du renouvellement de session");
       console.error("[useSolanaGame] renewSessionKey error:", e);
     } finally {
       setIsLoading(false);
@@ -533,6 +540,10 @@ export function useSolanaGame() {
         }
       } catch (e: any) {
         const msg: string = e?.message ?? e?.toString?.() ?? "";
+        // User cancelled the Phantom popup — silent no-op, unlock grid
+        if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
+          return;
+        }
         // Logs de transaction (les plus utiles pour diagnostiquer)
         const txLogs: string[] = e?.logs ?? e?.transactionLogs ?? [];
         const anchorErr = e?.error?.errorCode?.code ?? e?.error?.errorMessage ?? "";
@@ -622,6 +633,10 @@ export function useSolanaGame() {
       setGameState(null);
     } catch (e: any) {
       const msg: string = e?.message ?? "";
+      // User cancelled the Phantom popup — silent no-op
+      if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
+        return;
+      }
       // "already been processed" = tx envoyée 2× ou confirmation tardive
       // → le reset a fonctionné, on nettoie juste le state local
       if (msg.includes("already been processed") || msg.includes("already in use")) {
@@ -745,6 +760,10 @@ export function useSolanaGame() {
       setGameState(null);
     } catch (e: any) {
       const msg: string = e?.message ?? e?.toString?.() ?? "";
+      // User cancelled the Phantom popup — silent no-op
+      if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
+        return;
+      }
       const instrErr   = e?.InstructionError ?? (e as any)?.["InstructionError"];
       const ANCHOR_ERRORS: Record<number, string> = {
         6000: "CustomError",      6001: "InvalidOracleQueue", 6002: "NotGameOwner",
