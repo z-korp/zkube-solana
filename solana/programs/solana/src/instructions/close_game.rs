@@ -1,111 +1,71 @@
 // Termine la partie : commit état final + undelegate vers mainnet.
 // DOIT être envoyé au RPC ER (devnet-eu.magicblock.app).
 //
-// Build : anchor build  (une seule version — plus de feature flags)
-//
-// Permet deux cas :
-//   - game_over (game.over == true) : partie terminée normalement
-//   - quit      (game.over == false) : le joueur quitte en cours de partie
 
 use anchor_lang::prelude::*;
-use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
+use anchor_lang::AccountDeserialize;
+use ephemeral_rollups_sdk::anchor::commit;
+use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 use crate::state::{GameState, GamePhase};
 use crate::error::ErrorCode;
 
-const DELEGATION_PROGRAM_ID: &str = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh";
-const MAGIC_PROGRAM_ID: &str      = "Magic11111111111111111111111111111111111111";
-const MAGIC_CONTEXT_ID: &str      = "MagicContext1111111111111111111111111111111";
-
-/// Vérifie que le compte est bien délégué à l'Ephemeral Rollup
-fn is_delegated(account: &AccountInfo) -> bool {
-    let delegation_program: Pubkey = DELEGATION_PROGRAM_ID.parse().unwrap();
-    account.owner == &delegation_program
-}
-
-/// Comptes pour fermer la partie (commit + undelegate depuis l'ER).
-/// magic_context et magic_program sont requis par commit_and_undelegate_accounts.
+/// #[commit] injecte magic_context et magic_program automatiquement.
+#[commit]
 #[derive(Accounts)]
 pub struct CloseGame<'info> {
-    /// Le joueur réel qui ferme sa partie (signe depuis Phantom — 1 popup)
+    /// Le joueur réel (signe depuis Phantom 1 popup)
     #[account(mut)]
     pub player: Signer<'info>,
 
-    /// GameState à committer et undelegater.
-    /// Seeds sur player.key() — le joueur réel signe toujours close_game.
+    /// CHECK: AccountInfo raw — vérifications manuelles dans le handler.
     #[account(
         mut,
         seeds = [b"game", player.key().as_ref()],
         bump,
-        constraint = game_state.player == player.key() @ ErrorCode::NotGameOwner,
     )]
-    pub game_state: Account<'info, GameState>,
-
-    /// CHECK: Compte magic_context requis par commit_and_undelegate_accounts
-    #[account(mut)]
-    pub magic_context: AccountInfo<'info>,
-
-    /// CHECK: Programme MagicBlock ER
-    pub magic_program: AccountInfo<'info>,
+    pub pda: AccountInfo<'info>,
+    // magic_context et magic_program injectés par #[commit]
 }
 
 pub fn handler_close_game(ctx: Context<CloseGame>) -> Result<()> {
-    // 1. Runtime check : le compte doit être délégué sur l'ER
-    require!(
-        is_delegated(&ctx.accounts.game_state.to_account_info()),
-        ErrorCode::NotDelegated
-    );
+    let player_key = ctx.accounts.player.key();
 
-    // 2. Business check : flag délégué dans l'état
-    require!(
-        ctx.accounts.game_state.delegated,
-        ErrorCode::NotDelegated
-    );
+    // ── Lecture + validation 
+    let game = {
+        let data = ctx.accounts.pda.try_borrow_data()?;
+        let mut slice: &[u8] = &data;
+        GameState::try_deserialize(&mut slice)?
+    };
 
-    // 3. Phase valide : Delegated (aucun move joué) ou Playing (mid-game ou game over)
+    require!(game.player == player_key, ErrorCode::NotGameOwner);
     require!(
-        ctx.accounts.game_state.phase == GamePhase::Delegated
-            || ctx.accounts.game_state.phase == GamePhase::Playing,
+        game.phase == GamePhase::Delegated
+            || game.phase == GamePhase::Playing
+            || game.phase == GamePhase::Finished,
         ErrorCode::InvalidState
     );
-
-    // 4. Authority : le joueur qui ferme est bien celui qui a délégué
     require!(
-        ctx.accounts.game_state.delegated_authority == ctx.accounts.player.key(),
+        game.delegated_authority == player_key,
         ErrorCode::InvalidAuthority
     );
 
-    // 5. Validation des comptes MagicBlock (anti-spoofing CPI)
-    let expected_magic_program: Pubkey = MAGIC_PROGRAM_ID.parse().unwrap();
-    require!(
-        ctx.accounts.magic_program.key() == expected_magic_program,
-        ErrorCode::InvalidMagicProgram
-    );
-    let expected_magic_context: Pubkey = MAGIC_CONTEXT_ID.parse().unwrap();
-    require!(
-        ctx.accounts.magic_context.key() == expected_magic_context,
-        ErrorCode::InvalidMagicContext
-    );
-
-    // ── Transitions d'état AVANT le commit ───────────────────────────────────
-    // Ces valeurs seront commitées sur mainnet par commit_and_undelegate_accounts.
-    ctx.accounts.game_state.phase     = GamePhase::Finished;
-    ctx.accounts.game_state.delegated = false;
-
     msg!(
-        "Partie fermée pour {}, score: {}, moves: {}, over: {} — commit + undelegate",
-        ctx.accounts.player.key(),
-        ctx.accounts.game_state.score,
-        ctx.accounts.game_state.move_count,
-        ctx.accounts.game_state.over,
+        "close_game pour {}: score={}, moves={}, over={} — MagicIntentBundleBuilder commit_and_undelegate",
+        player_key,
+        game.score,
+        game.move_count,
+        game.over,
     );
 
-    // ── Commit + undelegate depuis l'ER vers mainnet ──────────────────────────
-    commit_and_undelegate_accounts(
-        &ctx.accounts.player,
-        vec![&ctx.accounts.game_state.to_account_info()],
-        &ctx.accounts.magic_context,
-        &ctx.accounts.magic_program,
-    )?;
+    // SDK 0.10 : MagicIntentBundleBuilder écrit uniquement dans magic_context
+    // → aucun ExternalAccountDataModified
+    MagicIntentBundleBuilder::new(
+        ctx.accounts.player.to_account_info(),
+        ctx.accounts.magic_context.to_account_info(),
+        ctx.accounts.magic_program.to_account_info(),
+    )
+    .commit_and_undelegate(&[ctx.accounts.pda.to_account_info()])
+    .build_and_invoke()?;
 
     Ok(())
 }

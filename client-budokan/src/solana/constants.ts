@@ -1,44 +1,59 @@
 import { PublicKey, clusterApiUrl, SYSVAR_SLOT_HASHES_PUBKEY } from "@solana/web3.js";
 
 // ── Adresses MagicBlock Ephemeral Rollup ─────────────────────────────────────
+// Toutes ces valeurs viennent du fichier .env (client-budokan/.env).
+// Pour modifier une adresse : changer uniquement le .env, pas ce fichier.
+
 export const DELEGATION_PROGRAM_ID = new PublicKey(
-  "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+  import.meta.env.VITE_PUBLIC_SOLANA_DELEGATION_PROGRAM_ID
+  ?? "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
 );
 export const MAGIC_PROGRAM_ID = new PublicKey(
-  "Magic11111111111111111111111111111111111111"
+  import.meta.env.VITE_PUBLIC_SOLANA_MAGIC_PROGRAM_ID
+  ?? "Magic11111111111111111111111111111111111111"
 );
 export const MAGIC_CONTEXT_ID = new PublicKey(
-  "MagicContext1111111111111111111111111111111"
+  import.meta.env.VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID
+  ?? "MagicContext1111111111111111111111111111111"
 );
 
 // Programme déployé sur Solana devnet
 export const ZKUBE_PROGRAM_ID = new PublicKey(
-  "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN"
+  import.meta.env.VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID
+  ?? "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN"
 );
 
 // VRF MagicBlock officiel (devnet) — fonctionne avec l'oracle queue Cuj97...
-// Ces adresses correspondent au programme déployé 7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN
 export const VRF_PROGRAM_ID = new PublicKey(
-  "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
+  import.meta.env.VITE_PUBLIC_SOLANA_VRF_PROGRAM_ID
+  ?? "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
 );
 export const ORACLE_QUEUE = new PublicKey(
-  "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"
+  import.meta.env.VITE_PUBLIC_SOLANA_ORACLE_QUEUE
+  ?? "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"
 );
 
-//FIX: Réseau Solana mainnet (devnet)
-export const SOLANA_ENDPOINT = clusterApiUrl("devnet");
+// Réseau Solana (base chain)
+export const SOLANA_ENDPOINT =
+  import.meta.env.VITE_PUBLIC_SOLANA_RPC_ENDPOINT
+  ?? clusterApiUrl("devnet");
 
-// ── Ephemeral Rollup (ER) MagicBlock 
+// Ephemeral Rollup (ER) MagicBlock
 // Validator EU devnet — make_move et close_game sont envoyés ici
 // create_game reste sur devnet (délègue le compte à l'ER)
-//FIX: pour mainnet on change ceci 
-export const ER_RPC_ENDPOINT = "https://devnet-eu.magicblock.app";
+export const ER_RPC_ENDPOINT =
+  import.meta.env.VITE_PUBLIC_SOLANA_ER_RPC_ENDPOINT
+  ?? "https://devnet-eu.magicblock.app";
+
 export const ER_VALIDATOR_IDENTITY = new PublicKey(
-  "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e"
+  import.meta.env.VITE_PUBLIC_SOLANA_ER_VALIDATOR
+  ?? "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e"
 );
 
-// reexport 
+// reexport
 export { SYSVAR_SLOT_HASHES_PUBKEY };
+
+// ── PDA helpers ───────────────────────────────────────────────────────────────
 
 // Calcule le PDA game_state d'un joueur
 export function getGameStatePda(playerPubkey: PublicKey): PublicKey {
@@ -67,7 +82,8 @@ export function getTreasuryPda(): PublicKey {
   return pda;
 }
 
-// buffer_pda : program = ZKUBE_PROGRAM_ID (pas DELEGATION_PROGRAM_ID)
+// delegation_buffer : créé pendant delegate_game
+// seeds = ["buffer", pda], program = ZKUBE_PROGRAM_ID
 export function getDelegationBuffer(pdaPubkey: PublicKey): PublicKey {
   const [buf] = PublicKey.findProgramAddressSync(
     [Buffer.from("buffer"), pdaPubkey.toBuffer()],
@@ -76,7 +92,18 @@ export function getDelegationBuffer(pdaPubkey: PublicKey): PublicKey {
   return buf;
 }
 
-// delegation_record_pda : seed = "delegation" (pas "delegation-record")
+// undelegate_buffer : créé par le delegation_program pendant l'undelegation
+// seeds = ["undelegate_buffer", pda], program = DELEGATION_PROGRAM_ID
+// C'est ce buffer qui est passé à process_undelegation (pas le delegation_buffer)
+export function getUndelegateBuffer(pdaPubkey: PublicKey): PublicKey {
+  const [buf] = PublicKey.findProgramAddressSync(
+    [Buffer.from("undelegate_buffer"), pdaPubkey.toBuffer()],
+    DELEGATION_PROGRAM_ID
+  );
+  return buf;
+}
+
+// delegation_record_pda : seed = "delegation"
 export function getDelegationRecord(pdaPubkey: PublicKey): PublicKey {
   const [rec] = PublicKey.findProgramAddressSync(
     [Buffer.from("delegation"), pdaPubkey.toBuffer()],

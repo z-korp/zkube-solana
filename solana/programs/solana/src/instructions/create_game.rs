@@ -10,9 +10,7 @@ use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 use crate::state::{GameState, Treasury};
 use crate::error::ErrorCode;
 
-/// Adresse de l'oracle queue MagicBlock (devnet)
-/// Utilisée par le VRF officiel Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz
-const OUR_ORACLE_QUEUE: &str = "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh";
+// ORACLE_QUEUE vient de crate::constants — modifier dans solana/.env et constants.rs
 
 /// Les comptes nécessaires pour créer une partie
 /// Après create_game, appeler delegate_game pour déléguer le GameState à l'ER
@@ -68,8 +66,8 @@ pub fn handler_create_game(ctx: Context<CreateGame>, session_key: Pubkey) -> Res
 
     let game = &mut ctx.accounts.game_state;
 
-    // Vérifie que l'oracle_queue est bien notre queue
-    let expected_queue: Pubkey = OUR_ORACLE_QUEUE.parse().unwrap();
+    // Vérifie que l'oracle_queue est bien notre queue (définie dans constants.rs)
+    let expected_queue: Pubkey = crate::ORACLE_QUEUE.parse().unwrap();
     require!(
         ctx.accounts.oracle_queue.key() == expected_queue,
         ErrorCode::InvalidOracleQueue

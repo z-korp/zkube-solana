@@ -4,12 +4,18 @@ pub mod instructions;
 pub mod state;
 
 use anchor_lang::prelude::*;
+use ephemeral_rollups_sdk::anchor::ephemeral;
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
 declare_id!("7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN");
 
+// #[ephemeral] injecte automatiquement le callback d'undelegation
+// (discriminator [196,28,41,206,48,37,51,167]) appelé par le delegation_program
+// sur mainnet pour finaliser l'undelegation après un commit_and_undelegate sur l'ER.
+// Sans ce macro, le compte resterait bloqué avec owner=delegation_program après close_game.
+#[ephemeral]
 #[program]
 pub mod solana {
     use super::*;
