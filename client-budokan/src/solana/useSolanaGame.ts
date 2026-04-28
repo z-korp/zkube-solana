@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Connection, Keypair, PublicKey, SystemProgram, SYSVAR_SLOT_HASHES_PUBKEY } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SystemProgram, SYSVAR_SLOT_HASHES_PUBKEY, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { IDL } from "./idl";
 import {
@@ -103,7 +103,6 @@ class SessionWallet {
 //   • closeGame → non nécessaire (le PDA n'est pas délégué)
 //   • Compte stuck existant → toujours bloqué, contacter MagicBlock Discord
 const SKIP_DELEGATION = true;
-
 // ── Hook principal ───────────────────────────────────────────────────────────
 export function useSolanaGame() {
   const { connection } = useConnection();  // mainnet (devnet) connection
@@ -181,6 +180,14 @@ export function useSolanaGame() {
   // ── Fetch state ──────────────────────────────────────────────────────────
   // Essaie l'ER en premier (compte délégué pendant la partie),
   // puis fallback mainnet (avant délégation ou après undelegate).
+  // Anchor sérialise les variants enum en minuscules : { created: {} }
+  // → Object.keys()[0] = "created". On capitalise pour correspondre au type GamePhase.
+  const toPhase = useCallback((p: any, fallback: GamePhase = "Created"): GamePhase => {
+    if (!p) return fallback;
+    const raw: string = Object.keys(p)[0] ?? "";
+    return (raw.charAt(0).toUpperCase() + raw.slice(1)) as GamePhase;
+  }, []);
+
   const fetchGameState = useCallback(async () => {
     if (!publicKey) return;
     const pda = getGameStatePda(publicKey);
@@ -197,7 +204,7 @@ export function useSolanaGame() {
       over: gs.over,
       delegated: gs.delegated ?? false,
       delegatedAuthority: gs.delegatedAuthority?.toBase58() ?? "",
-      phase: (gs.phase ? Object.keys(gs.phase)[0] : "Created") as GamePhase,
+      phase: toPhase(gs.phase, "Created"),
       sessionKey: gs.sessionKey?.toBase58() ?? "",
     });
 
@@ -227,11 +234,10 @@ export function useSolanaGame() {
         if (SKIP_DELEGATION) {
           const info = await connection.getAccountInfo(pda);
           if (info && !info.owner.equals(ZKUBE_PROGRAM_ID)) {
-            console.warn("[fetchGameState] PDA owned by delegation_program — compte coincé, masqué en bypass mode");
+            console.warn("[fetchGameState] PDA owned by delegation_program compte coincé, masqué en bypass mode");
             setError(
-              `Compte bloqué par MagicBlock delegation_program.\n` +
-              `PDA: ${pda.toBase58()}\n` +
-              `Utilise un autre wallet ou attends la réponse MagicBlock Discord.`
+              `Compte bloqué delegation program \n` +
+              `PDA: ${pda.toBase58()}\n` 
             );
             setGameState(null);
             return;
@@ -239,21 +245,36 @@ export function useSolanaGame() {
         }
         setGameState(mapGs(gs));
       } else {
-        setGameState(null);
+        // Ne pas effacer un état valide récent — protège contre les lectures RPC
+        // obsolètes juste après create_game (le wallet change de référence après
+        // avoir signé → useEffect relance fetchGameState → RPC renvoie parfois null
+        // pendant ~1s même si le compte vient d'être créé).
+        setGameState((prev) => {
+          if (prev && prev.seed !== "0" && !prev.over) {
+            console.warn("[fetchGameState] devnet null mais gameState valide en mémoire — conservé");
+            return prev;
+          }
+          return null;
+        });
       }
     } catch (e) {
       console.error("[useSolanaGame] fetchGameState error:", e);
     }
-  }, [publicKey, getProgram, getErProgram, connection]);
+  }, [publicKey, getProgram, getErProgram, connection, toPhase]);
 
-  // Rafraîchit l'état quand le wallet est connecté
+  // Rafraîchit l'état quand le wallet est connecté.
+  // On dépend de publicKey?.toBase58() (string stable) et non de l'objet PublicKey
+  // pour éviter que le changement de référence du wallet après une signature Phantom
+  // ne relance le fetch inutilement (wallet → getProgram → fetchGameState cascade).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (connected && publicKey) {
       fetchGameState();
     } else {
       setGameState(null);
     }
-  }, [connected, publicKey, fetchGameState]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey?.toBase58()]);
 
   // Polling tant que le VRF n'a pas répondu (seed == 0 = grille vide)
   useEffect(() => {
@@ -528,7 +549,7 @@ export function useSolanaGame() {
             over:               gs.over,
             delegated:          gs.delegated ?? false,
             delegatedAuthority: gs.delegatedAuthority?.toBase58() ?? "",
-            phase:              (gs.phase ? Object.keys(gs.phase)[0] : "Playing") as GamePhase,
+            phase:              toPhase(gs.phase, "Playing"),
             sessionKey:         gs.sessionKey?.toBase58() ?? "",
           };
           setGameState(newState);
@@ -587,7 +608,7 @@ export function useSolanaGame() {
                 over:               gs.over,
                 delegated:          gs.delegated ?? false,
                 delegatedAuthority: gs.delegatedAuthority?.toBase58() ?? "",
-                phase:              (gs.phase ? Object.keys(gs.phase)[0] : "Playing") as GamePhase,
+                phase:              toPhase(gs.phase, "Playing"),
                 sessionKey:         gs.sessionKey?.toBase58() ?? "",
               };
               setGameState(newState);
@@ -603,7 +624,7 @@ export function useSolanaGame() {
         setIsLoading(false);
       }
     },
-    [publicKey, sessionKeypair, gameState?.moveCount, gameState?.delegated, getSessionProgram, getErProgram, getProgram]
+    [publicKey, sessionKeypair, gameState?.moveCount, gameState?.delegated, getSessionProgram, getErProgram, getProgram, toPhase]
   );
 
   // ── reset_game (devnet — vide un compte coincé pour recommencer) ─────────
@@ -674,22 +695,19 @@ export function useSolanaGame() {
       if (SKIP_DELEGATION || !(gameState?.delegated)) {
         console.log("[Bypass] closeGame → reset_game sur devnet");
 
-        // Vérifier que le PDA est bien owned par ZKUBE avant d'appeler reset_game.
-        // Si owned par delegation_program → compte coincé (ancienne partie ER),
-        // reset_game échouera ("cannot deduct from an account it does not own").
         const pdaInfo = await connection.getAccountInfo(gameStatePda);
         if (pdaInfo && !pdaInfo.owner.equals(ZKUBE_PROGRAM_ID)) {
-          console.warn("[Bypass] closeGame: PDA owned by delegation_program — compte coincé, reset impossible");
-          setError(
+         console.warn("[Bypass] closeGame: PDA owned by delegation_program");
+         setError(
             `Compte bloqué par MagicBlock delegation_program.\n` +
             `PDA: ${gameStatePda.toBase58()}\n` +
             `Utilise un autre wallet ou attends la réponse MagicBlock Discord.`
           );
           // Force clear state local pour sortir de l'écran game over
-          clearSessionKeypair(publicKey.toBase58());
-          setSessionKeypair(null);
-          setGameState(null);
-          return;
+              clearSessionKeypair(publicKey.toBase58());
+              setSessionKeypair(null);
+              setGameState(null);
+              return;
         }
 
         const program = getProgram();

@@ -93,11 +93,12 @@ export function getDelegationBuffer(pdaPubkey: PublicKey): PublicKey {
 }
 
 // undelegate_buffer : créé par le delegation_program pendant l'undelegation
-// seeds = ["undelegate_buffer", pda], program = DELEGATION_PROGRAM_ID
+// seeds = ["undelegate-buffer", pda], program = DELEGATION_PROGRAM_ID  ← tiret, pas underscore
+// Vérifié sur le SDK v0.12 source : undelegateBufferPdaFromDelegatedAccount
 // C'est ce buffer qui est passé à process_undelegation (pas le delegation_buffer)
 export function getUndelegateBuffer(pdaPubkey: PublicKey): PublicKey {
   const [buf] = PublicKey.findProgramAddressSync(
-    [Buffer.from("undelegate_buffer"), pdaPubkey.toBuffer()],
+    [Buffer.from("undelegate-buffer"), pdaPubkey.toBuffer()],
     DELEGATION_PROGRAM_ID
   );
   return buf;
