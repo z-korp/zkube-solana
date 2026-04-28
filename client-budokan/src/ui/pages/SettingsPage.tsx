@@ -1,10 +1,9 @@
 import { motion } from "motion/react";
 import {
-  Check,
-  Copy,
   Palette,
   ChevronLeft,
   UserRound,
+  Check,
 } from "lucide-react";
 import { THEME_IDS, THEME_META, getThemeColors, type ThemeId } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
@@ -12,14 +11,10 @@ import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import ImageAssets from "@/ui/theme/ImageAssets";
-import { useControllerUsername } from "@/hooks/useControllerUsername";
-import useAccountCustom from "@/hooks/useAccountCustom";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
 import { ZONE_THEMES } from "@/hooks/useMapData";
-import { useAccount, useDisconnect } from "@starknet-react/core";
-import Connect from "@/ui/components/Connect";
-import ControllerConnector from "@cartridge/connector/controller";
+import PhantomConnectButton from "@/ui/components/PhantomConnectButton";
 import { useMemo, useState } from "react";
 
 const toPercent = (value: number): number => Math.round(value * 100);
@@ -28,13 +23,9 @@ const SettingsPage: React.FC = () => {
   const { themeTemplate, setThemeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const goBack = useNavigationStore((s) => s.goBack);
-  const { username } = useControllerUsername();
-  const { account } = useAccountCustom();
-  const { connector } = useAccount();
-  const { disconnect } = useDisconnect();
   const [copied, setCopied] = useState(false);
-  const { balance: zStarBalance } = useZStarBalance(account?.address);
-  const { zones } = useZoneProgress(account?.address, zStarBalance);
+  const { balance: zStarBalance } = useZStarBalance(undefined);
+  const { zones } = useZoneProgress(undefined, zStarBalance);
 
   const unlockedThemes = useMemo(() => {
     const themeSet = new Set<ThemeId>();
@@ -51,20 +42,9 @@ const SettingsPage: React.FC = () => {
   const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
     useMusicPlayer();
 
-  const truncatedAddress = account?.address
-    ? `${account.address.slice(0, 8)}...${account.address.slice(-6)}`
-    : "Not connected";
-
-  const handleCopyAddress = async () => {
-    if (!account?.address) return;
-    try {
-      await navigator.clipboard.writeText(account.address);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      setCopied(false);
-    }
-  };
+  // copied state réservé pour usage futur
+  void copied;
+  void setCopied;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-12">
@@ -213,53 +193,7 @@ const SettingsPage: React.FC = () => {
               <UserRound size={16} style={{ color: colors.accent }} />
               Account
             </h3>
-
-            {account ? (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.1em] text-white/55">Username</p>
-                      <p className="font-sans text-base font-semibold text-white">{username ?? "Controller User"}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const cc = connector as ControllerConnector;
-                        cc?.controller?.openProfile?.();
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/[0.15] bg-white/[0.08] px-2.5 py-1.5 font-sans text-xs font-semibold text-white/80"
-                    >
-                      Controller
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.1em] text-white/55">Wallet Address</p>
-                      <p className="font-sans text-sm font-semibold text-white/90">{truncatedAddress}</p>
-                    </div>
-                    <button
-                      onClick={handleCopyAddress}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/[0.15] bg-white/[0.08] px-2.5 py-1.5 font-sans text-xs font-semibold text-white/80"
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                      {copied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => disconnect()}
-                  className="w-full rounded-xl border border-red-400/35 bg-red-500/15 py-2.5 font-sans text-sm font-bold text-red-300 transition-colors hover:bg-red-500/25"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <Connect />
-            )}
+            <PhantomConnectButton />
           </motion.section>
         </div>
       </div>
