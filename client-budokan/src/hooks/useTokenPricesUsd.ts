@@ -21,7 +21,7 @@ const QUOTE_AMOUNT_IN = BigInt(100) * BigInt(1e18);
 const quoteToUsd = async (tokenIn: string): Promise<number | null> => {
   try {
     const quote = await getSwapQuote(QUOTE_AMOUNT_IN, tokenIn, USDC);
-    if (!quote.total) return null;
+    if (!quote || !quote.total) return null;
     // USDC has 6 decimals; we quoted 100 tokens, so divide again by 100.
     return quote.total / 1e6 / 100;
   } catch (err) {

@@ -7,6 +7,7 @@ import useAccountCustom from "@/hooks/useAccountCustom";
 import { useClaimableCounts } from "@/hooks/useClaimableCount";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import Connect from "@/ui/components/Connect";
+import PhantomConnectButton from "@/ui/components/PhantomConnectButton";
 import DailyTab from "@/ui/components/rewards/DailyTab";
 import WeeklyTab from "@/ui/components/rewards/WeeklyTab";
 import QuestsRewardsTab from "@/ui/components/rewards/QuestsRewardsTab";
@@ -34,8 +35,9 @@ const RewardsPage: React.FC = () => {
           <p className="mb-6 font-sans text-2xl font-semibold text-white/85">
             Connect to view rewards
           </p>
-          <div className="w-full max-w-[320px]">
+          <div className="w-full max-w-[320px] flex flex-col gap-3">
             <Connect />
+            
           </div>
         </div>
       </div>

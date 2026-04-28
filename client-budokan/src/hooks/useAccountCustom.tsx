@@ -1,10 +1,9 @@
-import { useAccount } from "@starknet-react/core";
-import type { Account } from "starknet";
+// Migration Solana — useAccountCustom retourne null (plus de compte Starknet)
+// Les composants qui utilisent `account` afficheront un état déconnecté.
+// TODO: migrer les usages vers useWallet() de @solana/wallet-adapter-react
 
 const useAccountCustom = () => {
-  const { account: controllerAccount } = useAccount();
-
-  return { account: (controllerAccount as Account) ?? null };
+  return { account: null };
 };
 
 export default useAccountCustom;

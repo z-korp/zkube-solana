@@ -1,16 +1,7 @@
-import slot from "../../../contracts/manifest_slot.json";
-import sepolia from "../../../contracts/manifest_sepolia.json";
-import mainnet from "../../../contracts/manifest_mainnet.json";
+// Stub — Manifest Starknet supprimé lors de la migration Solana
 
-const deployType = import.meta.env.VITE_PUBLIC_DEPLOY_TYPE;
+export type Manifest = { contracts?: any[] };
 
-const manifests: Record<string, typeof slot> = {
-  sepolia,
-  mainnet,
-  slot,
-};
+export const manifest: Manifest = { contracts: [] };
 
-// Fallback to `slot` if deployType is not a key in `manifests`
-export const manifest = deployType in manifests ? manifests[deployType] : slot;
-
-export type Manifest = typeof manifest;
+export default manifest;
