@@ -113,17 +113,14 @@ export default function SolanaPlayScreen() {
   );
 
   // ── Connexion Phantom ─────────────────────────────────────────────────────
-  // select() set le wallet ; connect() peut échouer si l'adapter n'est pas
-  // encore prêt — on catchs l'erreur et Phantom re-essaie via l'adapter.
-  const handleConnectPhantom = useCallback(async () => {
-    try {
-      select("Phantom" as WalletName<"Phantom">);
-      await connect();
-    } catch (_) {
-      // WalletNotSelectedError normal quand l'adapter se charge encore.
-      // L'useEffect ci-dessous re-tentera automatiquement.
-    }
-  }, [select, connect]);
+  // select() déclenche une mise à jour d'état React asynchrone.
+  // Appeler connect() immédiatement après provoque WalletNotSelectedError
+  // car le wallet n'est pas encore enregistré dans le contexte.
+  // Solution : select() uniquement ici, le useEffect ci-dessous appelle connect()
+  // une fois que wallet.adapter.name === "Phantom" est propagé.
+  const handleConnectPhantom = useCallback(() => {
+    select("Phantom" as WalletName<"Phantom">);
+  }, [select]);
 
   // Tente une connexion automatique dès que Phantom est sélectionné
   const { wallet, connecting } = useWallet();
@@ -243,10 +240,18 @@ export default function SolanaPlayScreen() {
   }
 
   // ── Écran : compte bloqué (non délégué, quelle que soit la phase) ──────────
-  // Couvre : delegation échouée (Created), ancien compte (Playing sans délégation),
-  // ou tout état où delegated=false empêche de jouer correctement.
+  // En mode SKIP_DELEGATION, le jeu tourne sur devnet sans délégation → delegated=false
+  // est l'état normal. On n'affiche "Compte bloqué" que si la partie est Finished
+  // (besoin de reset) ou si le seed est 0 alors que la phase n'est pas Created (incohérent).
   // Exception : isLoading=true pendant createGame() (flux normal create→delegate).
-  if (gameState && !gameState.delegated && !isLoading) {
+  const isSkipDelegation = true; // doit correspondre à SKIP_DELEGATION dans useSolanaGame
+  // En bypass, la phase passe Created → Playing au 1er move (make_move.rs ligne 66).
+  // Les deux phases sont jouables. On bloque uniquement sur Finished (besoin de reset).
+  const isPlayableBypass =
+    isSkipDelegation &&
+    gameState?.seed !== "0" &&
+    gameState?.phase !== "Finished";
+  if (gameState && !gameState.delegated && !isLoading && !isPlayableBypass) {
     const phaseLabel = gameState.phase === "Created"
       ? "La délégation vers l'Ephemeral Rollup a échoué."
       : gameState.phase === "Finished"
@@ -276,6 +281,7 @@ export default function SolanaPlayScreen() {
 
   // ── Écran : session key manquante (reconnexion mid-game) ──────────────────
   // Le jeu est délégué sur l'ER mais la session_key n'est plus en mémoire.
+  // En bypass mode, le jeu n'est jamais délégué → cette condition ne s'active jamais.
   if (gameState?.delegated && !hasSessionKey && !isLoading) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6" style={{ backgroundColor: themeColors.primary }}>

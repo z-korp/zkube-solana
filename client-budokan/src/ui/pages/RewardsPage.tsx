@@ -37,7 +37,7 @@ const RewardsPage: React.FC = () => {
           </p>
           <div className="w-full max-w-[320px] flex flex-col gap-3">
             <Connect />
-            <PhantomConnectButton />
+            
           </div>
         </div>
       </div>
