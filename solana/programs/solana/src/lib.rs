@@ -71,4 +71,30 @@ pub mod solana {
     pub fn reset_game(ctx: Context<ResetGame>) -> Result<()> {
         handler_reset_game(ctx)
     }
+
+    // ── Daily Challenge ───────────────────────────────────────────────────────
+
+    /// Crée le challenge quotidien pour un jour donné (challenge_id = Unix / 86400).
+    /// Permissionless — échoue si le compte existe déjà (idempotent côté client).
+    pub fn create_daily_challenge(ctx: Context<CreateDailyChallenge>, challenge_id: u32) -> Result<()> {
+        handler_create_daily_challenge(ctx, challenge_id)
+    }
+
+    /// Enregistre le joueur pour le challenge du jour et crée son suivi de tentative.
+    /// Doit être appelé avant create_game pour la partie daily.
+    pub fn start_daily(ctx: Context<StartDaily>, challenge_id: u32) -> Result<()> {
+        handler_start_daily(ctx, challenge_id)
+    }
+
+    /// Copie le score depuis game_state vers DailyEntry et ferme ActiveDailyAttempt.
+    /// La partie doit être terminée (game_state.over == true).
+    pub fn submit_daily_score(ctx: Context<SubmitDailyScore>, challenge_id: u32) -> Result<()> {
+        handler_submit_daily_score(ctx, challenge_id)
+    }
+
+    /// Ferme une tentative daily obsolète (d'un jour précédent).
+    /// Permet au joueur de débloquer start_daily pour aujourd'hui.
+    pub fn abandon_daily(ctx: Context<AbandonDaily>) -> Result<()> {
+        handler_abandon_daily(ctx)
+    }
 }

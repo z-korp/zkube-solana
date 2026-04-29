@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Loader2 } from "lucide-react";
-import { hash } from "starknet";
-import { useDojo } from "@/dojo/useDojo";
-import useAccountCustom from "@/hooks/useAccountCustom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
+import { useSolanaDaily } from "@/solana/useSolanaDaily";
+import { computeDailyZoneId, getTodayChallengeId } from "@/solana/dailyConstants";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
@@ -23,16 +23,6 @@ const TROPHY_IMAGES: Record<number, string> = {
   1: "/assets/common/trophies/gold.png",
   2: "/assets/common/trophies/silver.png",
   3: "/assets/common/trophies/bronze.png",
-};
-
-/** Compute today's daily zone from day_id — mirrors contract logic */
-const computeDailyZoneId = (dayId: number): number => {
-  const DAILY_CHALLENGE_FELT = BigInt(
-    Array.from("DAILY_CHALLENGE").reduce((acc, c) => (acc << 8n) | BigInt(c.charCodeAt(0)), 0n),
-  );
-  const seed = BigInt(hash.computePoseidonHashOnElements([BigInt(dayId), DAILY_CHALLENGE_FELT]));
-  const seedU256 = seed < 0n ? seed + (1n << 256n) : seed;
-  return Number((seedU256 % 10n) + 1n);
 };
 
 const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
@@ -54,22 +44,22 @@ const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
 };
 
 const DailyChallengePage: React.FC = () => {
-  const { account } = useAccountCustom();
+  const { publicKey, connected } = useWallet();
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
   const setIsDailyMap = useNavigationStore((state) => state.setIsDailyMap);
-  const {
-    setup: { systemCalls },
-  } = useDojo();
+
+  const { createDailyChallenge, startDaily, abandonDaily } = useSolanaDaily();
+
   const activeDailyRun = useActiveDailyAttempt();
 
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entry, isRegistered } = usePlayerEntry(
     challenge?.challenge_id,
-    account?.address,
+    publicKey?.toBase58(),
   );
   const { entries: leaderboard } = useDailyLeaderboard(
     challenge?.challenge_id,
@@ -78,8 +68,10 @@ const DailyChallengePage: React.FC = () => {
   const [starting, setStarting] = useState(false);
 
   const now = useMemo(() => Math.floor(Date.now() / 1000), []);
-  const todayDayId = Math.floor(now / 86400);
-  const isActiveDailyFromToday = activeDailyRun ? activeDailyRun.challengeId === todayDayId : false;
+  const todayDayId = getTodayChallengeId();
+  const isActiveDailyFromToday = activeDailyRun
+    ? activeDailyRun.challengeId === todayDayId
+    : false;
   const isActive =
     challenge &&
     !challenge.settled &&
@@ -103,45 +95,64 @@ const DailyChallengePage: React.FC = () => {
   const starReward = entry?.star_reward ? BigInt(entry.star_reward) : 0n;
 
   const playerRank = useMemo(() => {
-    if (!account?.address || !leaderboard.length) return null;
-    const normalized = normalizeAddress(account.address);
+    if (!publicKey || !leaderboard.length) return null;
+    const normalized = normalizeAddress(publicKey.toBase58());
     return leaderboard.find((e) => normalizeAddress(e.player) === normalized) ?? null;
-  }, [account?.address, leaderboard]);
+  }, [publicKey, leaderboard]);
 
   const handlePlay = useCallback(async () => {
-    if (!account || starting) return;
+    if (!connected || !publicKey || starting) return;
 
-    // If there's an active daily game from today, resume it
+    // Si le joueur reprend une partie daily d'aujourd'hui déjà commencée
     if (activeDailyRun && isActiveDailyFromToday) {
       const dailyZone = challenge?.zone_id ?? computeDailyZoneId(todayDayId);
       setMapZoneId(dailyZone);
       setIsDailyMap(true);
-      navigate("map", activeDailyRun.gameId);
+      navigate("solana");
       return;
     }
 
     setStarting(true);
     try {
-      // If there's a stale daily run from a previous day, surrender it first
+      // Fermer une tentative obsolète d'un jour précédent
       if (activeDailyRun && !isActiveDailyFromToday) {
-        await systemCalls.surrender({ account, game_id: activeDailyRun.gameId });
+        await abandonDaily();
       }
 
-      // Start a new daily game, then go to map
-      const result = await systemCalls.startDailyGame({ account });
-      if (result.game_id !== 0n) {
-        // Use computed zone for today (contract may not be synced yet)
-        const dailyZone = computeDailyZoneId(todayDayId);
-        setMapZoneId(dailyZone);
-        setIsDailyMap(true);
-        // Brief wait for Torii to index the new game
-        await new Promise((r) => setTimeout(r, 1500));
-        navigate("map", result.game_id);
-      }
+      // Créer le DailyChallenge on-chain s'il n'existe pas encore
+      await createDailyChallenge(todayDayId);
+
+      // Enregistrer le joueur pour ce challenge
+      await startDaily(todayDayId);
+
+      // Naviguer vers l'écran de jeu Solana
+      const dailyZone = challenge?.zone_id ?? computeDailyZoneId(todayDayId);
+      setMapZoneId(dailyZone);
+      setIsDailyMap(true);
+      navigate("solana");
+    } catch (err: any) {
+      console.error("[DailyChallenge] handlePlay error:", err);
     } finally {
       setStarting(false);
     }
-  }, [account, starting, systemCalls, navigate, setMapZoneId, setIsDailyMap, zoneId, activeDailyRun, isActiveDailyFromToday]);
+  }, [
+    connected,
+    publicKey,
+    starting,
+    activeDailyRun,
+    isActiveDailyFromToday,
+    challenge,
+    todayDayId,
+    createDailyChallenge,
+    startDaily,
+    abandonDaily,
+    navigate,
+    setMapZoneId,
+    setIsDailyMap,
+  ]);
+
+  // Compte plutôt que account?.address pour l'affichage "connecté"
+  const isConnected = connected && !!publicKey;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-12">
@@ -259,7 +270,7 @@ const DailyChallengePage: React.FC = () => {
                   colors={zoneColors}
                   myRank={playerRank.rank}
                   myScore={playerRank.totalStars ?? 0}
-                  myName={playerRank.playerName ?? "You"}
+                  myName={publicKey?.toBase58().slice(0, 8) ?? "You"}
                   totalEntries={leaderboard.length}
                   tiers={DAILY_REWARD_TIERS}
                   entries={leaderboard.map((e) => ({ rank: e.rank, score: e.totalStars ?? 0, name: e.playerName ?? e.player.slice(0, 8) }))}
@@ -271,12 +282,21 @@ const DailyChallengePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Play button */}
-      {account && !challengeLoading && (isActive || !challenge) && (
+      {/* Play button — visible si connecté et le challenge est actif (ou absent) */}
+      {isConnected && !challengeLoading && (isActive || !challenge) && (
         <div className="relative z-20 mt-auto px-4 pb-3">
           <ArcadeButton disabled={starting} onClick={handlePlay} accentOverride={zoneColors.accent}>
             {starting ? "Starting..." : isActiveDailyFromToday ? "Resume Daily" : "Play Daily"}
           </ArcadeButton>
+        </div>
+      )}
+
+      {/* Si l'utilisateur a déjà joué et terminé ce challenge */}
+      {isConnected && !challengeLoading && isActive && entry?.completed && (
+        <div className="relative z-20 mt-auto px-4 pb-3 text-center">
+          <p className="font-sans text-sm text-white/60">
+            Tu as déjà joué ce challenge — score&nbsp;: <span className="font-bold text-white">{entry.score}</span> ({entry.totalStars}★)
+          </p>
         </div>
       )}
     </div>

@@ -242,6 +242,131 @@ export const IDL = {
       args: [{ name: "new_session_key", type: "pubkey" }],
     },
 
+    // ── create_daily_challenge ───────────────────────────────────────────────
+    {
+      name: "create_daily_challenge",
+      discriminator: [80, 157, 198, 105, 123, 114, 67, 181],
+      accounts: [
+        { name: "creator", writable: true, signer: true },
+        {
+          name: "daily_challenge",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [100, 97, 105, 108, 121, 95, 99, 104, 97, 108, 108, 101, 110, 103, 101] },
+              { kind: "arg", path: "challenge_id" },
+            ],
+          },
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "challenge_id", type: "u32" }],
+    },
+
+    // ── start_daily ──────────────────────────────────────────────────────────
+    {
+      name: "start_daily",
+      discriminator: [34, 55, 170, 38, 230, 116, 136, 158],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        {
+          name: "daily_challenge",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [100, 97, 105, 108, 121, 95, 99, 104, 97, 108, 108, 101, 110, 103, 101] },
+              { kind: "arg", path: "challenge_id" },
+            ],
+          },
+        },
+        {
+          name: "daily_entry",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [100, 97, 105, 108, 121, 95, 101, 110, 116, 114, 121] },
+              { kind: "arg", path: "challenge_id" },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        {
+          name: "active_daily",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [97, 99, 116, 105, 118, 101, 95, 100, 97, 105, 108, 121] },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "challenge_id", type: "u32" }],
+    },
+
+    // ── submit_daily_score ───────────────────────────────────────────────────
+    {
+      name: "submit_daily_score",
+      discriminator: [3, 0, 87, 211, 15, 183, 15, 84],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        {
+          name: "game_state",
+          pda: {
+            seeds: [
+              { kind: "const", value: [103, 97, 109, 101] },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        {
+          name: "daily_entry",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [100, 97, 105, 108, 121, 95, 101, 110, 116, 114, 121] },
+              { kind: "arg", path: "challenge_id" },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        {
+          name: "active_daily",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [97, 99, 116, 105, 118, 101, 95, 100, 97, 105, 108, 121] },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "challenge_id", type: "u32" }],
+    },
+
+    // ── abandon_daily ────────────────────────────────────────────────────────
+    {
+      name: "abandon_daily",
+      discriminator: [129, 177, 250, 55, 49, 246, 228, 134],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        {
+          name: "active_daily",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [97, 99, 116, 105, 118, 101, 95, 100, 97, 105, 108, 121] },
+              { kind: "account", path: "player" },
+            ],
+          },
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [],
+    },
+
     // ── withdraw ─────────────────────────────────────────────────────────────
     {
       name: "withdraw",
@@ -265,6 +390,9 @@ export const IDL = {
   accounts: [
     { name: "GameState", discriminator: [144, 94, 208, 172, 248, 99, 134, 120] },
     { name: "Treasury", discriminator: [238, 239, 123, 238, 89, 1, 168, 253] },
+    { name: "DailyChallenge", discriminator: [217, 74, 215, 176, 49, 63, 217, 226] },
+    { name: "DailyEntry", discriminator: [95, 72, 107, 127, 200, 191, 88, 121] },
+    { name: "ActiveDailyAttempt", discriminator: [57, 65, 155, 177, 225, 193, 36, 198] },
   ],
 
   errors: [
@@ -285,6 +413,9 @@ export const IDL = {
     { code: 6014, name: "InvalidMagicProgram", msg: "Le programme magic_program est invalide" },
     { code: 6015, name: "InvalidMagicContext", msg: "Le compte magic_context est invalide" },
     { code: 6016, name: "GameNotFinished", msg: "La partie n'est pas encore terminee (game.over doit etre true)" },
+    { code: 6017, name: "ChallengeNotStarted", msg: "Le challenge daily n'a pas encore commence" },
+    { code: 6018, name: "ChallengeEnded", msg: "Le challenge daily est termine" },
+    { code: 6019, name: "AlreadySubmitted", msg: "Le score daily a deja ete soumis pour cette tentative" },
   ],
 
   types: [
@@ -329,6 +460,45 @@ export const IDL = {
           { name: "authority", type: "pubkey" },
           { name: "total_collected", type: "u64" },
           { name: "fee_per_game", type: "u64" },
+        ],
+      },
+    },
+    {
+      name: "DailyChallenge",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "challenge_id", type: "u32" },
+          { name: "start_time", type: "i64" },
+          { name: "end_time", type: "i64" },
+          { name: "zone_id", type: "u8" },
+          { name: "active_mutator_id", type: "u8" },
+          { name: "passive_mutator_id", type: "u8" },
+          { name: "total_entries", type: "u32" },
+          { name: "settled", type: "bool" },
+        ],
+      },
+    },
+    {
+      name: "DailyEntry",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "challenge_id", type: "u32" },
+          { name: "player", type: "pubkey" },
+          { name: "score", type: "u32" },
+          { name: "completed", type: "bool" },
+        ],
+      },
+    },
+    {
+      name: "ActiveDailyAttempt",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "player", type: "pubkey" },
+          { name: "challenge_id", type: "u32" },
+          { name: "started_at", type: "i64" },
         ],
       },
     },
