@@ -11,90 +11,85 @@ pub use state::*;
 
 declare_id!("7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN");
 
-// #[ephemeral] injecte automatiquement le callback d'undelegation
-// (discriminator [196,28,41,206,48,37,51,167]) appelé par le delegation_program
-// sur mainnet pour finaliser l'undelegation après un commit_and_undelegate sur l'ER.
-// Sans ce macro, le compte resterait bloqué avec owner=delegation_program après close_game.
 #[ephemeral]
 #[program]
 pub mod solana {
     use super::*;
 
     /// Cree une nouvelle partie et demande un aléatoire au VRF
-    /// session_key : keypair éphémère généré côté client, autorisé à signer make_move sans popup
     pub fn create_game(ctx: Context<CreateGame>, session_key: Pubkey) -> Result<()> {
         handler_create_game(ctx, session_key)
     }
 
-    /// Callback appel par l'oracle VRF initialise la grille
+    /// Callback appel par l'oracle VRF — initialise la grille
     pub fn receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [u8; 32]) -> Result<()> {
         handler_receive_randomness(ctx, randomness)
     }
 
-    /// Joue un coup dplace les blocs calcule le score
-    /// expected_move : verrou d'ordre (doit etre egal a game_state.move_count)
+    /// Joue un coup — expected_move : verrou d'ordre anti-replay
     pub fn make_move(ctx: Context<MakeMove>, row_index: u8, start_index: u8, final_index: u8, expected_move: u32) -> Result<()> {
         make_move::handler(ctx, row_index, start_index, final_index, expected_move)
     }
 
-    /// Délègue le GameState à l'ER MagicBlock (après create_game + VRF)
-    /// Mainnet → ensuite make_move va sur le RPC ER (gratuit, ~50ms)
+    /// Délègue le GameState à l'ER MagicBlock
     pub fn delegate_game(ctx: Context<DelegateGame>) -> Result<()> {
         handler_delegate_game(ctx)
     }
 
-    /// Termine la partie : commit état final + undelegate vers mainnet
-    /// Envoyé au RPC ER (devnet-eu.magicblock.app)
+    /// Termine la partie : commit + undelegate vers mainnet
     pub fn close_game(ctx: Context<CloseGame>) -> Result<()> {
         handler_close_game(ctx)
     }
 
-    /// Initialise la treasury z-korp (one-time, à appeler au déploiement)
+    /// Initialise la treasury z-korp (one-time)
     pub fn initialize_treasury(ctx: Context<InitializeTreasury>, fee_per_game: u64) -> Result<()> {
         handler_initialize_treasury(ctx, fee_per_game)
     }
 
-    /// Retire des fonds de la treasury vers un wallet destinataire
-    /// Seule l'authority peut appeler cette instruction
+    /// Retire des fonds de la treasury
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         handler_withdraw(ctx, amount)
     }
 
-    /// Met à jour la session_key autorisée à signer make_move.
-    /// Envoyé au RPC ER — utile pour la reconnexion mid-game (nouvelle session_key).
+    /// Met à jour la session_key autorisée à signer make_move
     pub fn set_session_key(ctx: Context<SetSessionKey>, new_session_key: Pubkey) -> Result<()> {
         handler_set_session_key(ctx, new_session_key)
     }
 
-    /// Ferme et réinitialise le compte game_state (migration / compte corrompu).
-    /// Le joueur récupère ses lamports et peut relancer create_game.
+    /// Ferme et réinitialise le compte game_state (migration / compte corrompu)
     pub fn reset_game(ctx: Context<ResetGame>) -> Result<()> {
         handler_reset_game(ctx)
     }
 
-    // ── Daily Challenge ───────────────────────────────────────────────────────
+    // ── Tournoi ───────────────────────────────────────────────────────────────
 
-    /// Crée le challenge quotidien pour un jour donné (challenge_id = Unix / 86400).
-    /// Permissionless — échoue si le compte existe déjà (idempotent côté client).
-    pub fn create_daily_challenge(ctx: Context<CreateDailyChallenge>, challenge_id: u32) -> Result<()> {
-        handler_create_daily_challenge(ctx, challenge_id)
+    /// Crée un nouveau tournoi — réservé à l'authority zKorp
+    pub fn create_tournament(ctx: Context<CreateTournament>, tournament_id: u32) -> Result<()> {
+        handler_create_tournament(ctx, tournament_id)
     }
 
-    /// Enregistre le joueur pour le challenge du jour et crée son suivi de tentative.
-    /// Doit être appelé avant create_game pour la partie daily.
-    pub fn start_daily(ctx: Context<StartDaily>, challenge_id: u32) -> Result<()> {
-        handler_start_daily(ctx, challenge_id)
+    /// Première inscription au tournoi — paie l'entry fee (0.1 SOL)
+    pub fn join_tournament(ctx: Context<JoinTournament>, tournament_id: u32) -> Result<()> {
+        handler_join_tournament(ctx, tournament_id)
     }
 
-    /// Copie le score depuis game_state vers DailyEntry et ferme ActiveDailyAttempt.
-    /// La partie doit être terminée (game_state.over == true).
-    pub fn submit_daily_score(ctx: Context<SubmitDailyScore>, challenge_id: u32) -> Result<()> {
-        handler_submit_daily_score(ctx, challenge_id)
+    /// Replay — paie à nouveau l'entry fee pour une nouvelle tentative
+    pub fn rejoin_tournament(ctx: Context<RejoinTournament>, tournament_id: u32) -> Result<()> {
+        handler_rejoin_tournament(ctx, tournament_id)
     }
 
-    /// Ferme une tentative daily obsolète (d'un jour précédent).
-    /// Permet au joueur de débloquer start_daily pour aujourd'hui.
-    pub fn abandon_daily(ctx: Context<AbandonDaily>) -> Result<()> {
-        handler_abandon_daily(ctx)
+    /// Soumet le score de la partie terminée (garde le meilleur score)
+    pub fn submit_tournament_score(ctx: Context<SubmitTournamentScore>, tournament_id: u32) -> Result<()> {
+        handler_submit_tournament_score(ctx, tournament_id)
+    }
+
+    /// Calcule le top 3 et stocke les résultats — permissionless après end_time
+    pub fn settle_tournament(ctx: Context<SettleTournament>, tournament_id: u32) -> Result<()> {
+        handler_settle_tournament(ctx, tournament_id)
+    }
+
+    /// Le joueur gagnant réclame son prize — il signe lui-même
+    pub fn claim_prize(ctx: Context<ClaimPrize>, tournament_id: u32) -> Result<()> {
+        handler_claim_prize(ctx, tournament_id)
     }
 }
