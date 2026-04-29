@@ -8,6 +8,10 @@ pub mod initialize_treasury;
 pub mod withdraw;
 pub mod set_session_key;
 pub mod reset_game;
+pub mod create_daily_challenge;
+pub mod start_daily;
+pub mod submit_daily_score;
+pub mod abandon_daily;
 
 pub use initialize::*;
 pub use create_game::*;
@@ -19,3 +23,7 @@ pub use initialize_treasury::*;
 pub use withdraw::*;
 pub use set_session_key::*;
 pub use reset_game::*;
+pub use create_daily_challenge::*;
+pub use start_daily::*;
+pub use submit_daily_score::*;
+pub use abandon_daily::*;

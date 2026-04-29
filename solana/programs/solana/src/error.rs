@@ -52,4 +52,13 @@ pub enum ErrorCode {
 
     #[msg("La partie n'est pas encore terminee (game.over doit etre true)")]
     GameNotFinished,
+
+    #[msg("Le challenge daily n'a pas encore commence")]
+    ChallengeNotStarted,
+
+    #[msg("Le challenge daily est termine")]
+    ChallengeEnded,
+
+    #[msg("Le score daily a deja ete soumis pour cette tentative")]
+    AlreadySubmitted,
 }
