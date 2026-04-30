@@ -2,17 +2,12 @@ use anchor_lang::prelude::*;
 use crate::state::{Tournament, TournamentEntry};
 use crate::error::ErrorCode;
 
-// pour la securite 
-/// Settle permissionless calcule le top 3 et stocke les résultats dans Tournament.
-/// La distribution réelle se fait via claim_prize (le joueur signe lui-même).
+/// Settle permissionless — calcule le top 3 et stocke les résultats dans Tournament.
+/// La distribution se fait via claim_prize (le joueur signe lui-même).
 ///
-/// Sécurité :
-///   - remaining_accounts = uniquement les TournamentEntry PDAs (source de vérité)
-///   - player pubkey dérivé depuis l'entry — jamais fourni par le caller
-///   - aucun wallet externe, aucune logique de pairing
-///   - le caller ne contrôle rien : il fournit les entries, le contrat décide tout
-///
-/// remaining_accounts = [entry_0, entry_1, ..., entry_n]  (writable non requis)
+/// remaining_accounts = toutes les TournamentEntry du tournoi
+///   Désérialisées via Anchor (Account::try_from) — filtrées et triées on-chain.
+///   Le caller ne contrôle rien : les winners sont déterminés par les entries.
 #[derive(Accounts)]
 #[instruction(tournament_id: u32)]
 pub struct SettleTournament<'info> {
@@ -26,6 +21,7 @@ pub struct SettleTournament<'info> {
         constraint = !tournament.settled @ ErrorCode::TournamentAlreadySettled,
     )]
     pub tournament: Account<'info, Tournament>,
+    // remaining_accounts = [entry_0, entry_1, ..., entry_n]
 }
 
 pub fn handler_settle_tournament(
@@ -42,53 +38,33 @@ pub fn handler_settle_tournament(
     let prize_pool = ctx.accounts.tournament.prize_pool;
     require!(prize_pool > 0, ErrorCode::EmptyPrizePool);
 
-    // ── Phase 1 : reconstruire le leaderboard depuis les entries 
-    struct Candidate { 
-        player:       Pubkey,
-        best_score:   u32,
-        submitted_at: i64,
-    }
-
-    let mut candidates: Vec<Candidate> = Vec::new();
+    // ── Phase 1 : reconstruire le leaderboard depuis les entries ─────────────
+    // try_deserialize vérifie le discriminant Anchor et désérialise Borsh.
+    // On vérifie aussi l'owner pour s'assurer que c'est un compte de CE programme.
+    // Aucun problème de lifetime — on opère sur les bytes uniquement.
+    let mut entries: Vec<TournamentEntry> = Vec::new();
 
     for acc in ctx.remaining_accounts.iter() {
         if acc.owner != ctx.program_id { continue; }
-
         let data = acc.try_borrow_data()?;
-        if data.len() < TournamentEntry::SIZE              { continue; }
-        if &data[..8] != TournamentEntry::DISCRIMINATOR     { continue; }
-
-        // Layout Borsh après 8 bytes discriminant :
-        //   tournament_id : u32    @ 8..12
-        //   player        : Pubkey @ 12..44
-        //   best_score    : u32    @ 44..48
-        //   submitted_at  : i64    @ 48..56
-        //   attempts      : u8     @ 56
-        //   has_submitted : bool   @ 57
-
-        let entry_tid = u32::from_le_bytes(data[8..12].try_into().unwrap());
-        if entry_tid != tournament_id { continue; }
-
-        let has_submitted = data[57] != 0;
-        if !has_submitted { continue; }
-
-        candidates.push(Candidate {
-            player:       Pubkey::from(<[u8; 32]>::try_from(&data[12..44]).unwrap()),
-            best_score:   u32::from_le_bytes(data[44..48].try_into().unwrap()),
-            submitted_at: i64::from_le_bytes(data[48..56].try_into().unwrap()),
-        });
+        if data.len() < TournamentEntry::SIZE { continue; }
+        if let Ok(entry) = TournamentEntry::try_deserialize(&mut data.as_ref()) {
+            if entry.tournament_id == tournament_id && entry.has_submitted {
+                entries.push(entry);
+            }
+        }
     }
 
-    require!(!candidates.is_empty(), ErrorCode::NoScoreSubmitted);
+    require!(!entries.is_empty(), ErrorCode::NoScoreSubmitted);
 
-    // ── Phase 2 : trier (score desc, timestamp asc) ──────────────────────────
-    candidates.sort_by(|a, b| {
+    // ── Phase 2 : trier — score DESC, timestamp ASC (premier arrivé gagne) ───
+    entries.sort_by(|a, b| {
         b.best_score
             .cmp(&a.best_score)
-            .then(a.submitted_at.cmp(&b.submitted_at))
+            .then_with(|| a.submitted_at.cmp(&b.submitted_at))
     });
 
-    let n = candidates.len();
+    let n = entries.len();
 
     // ── Phase 3 : calculer les montants (u128 contre overflow) ───────────────
     let pool = prize_pool as u128;
@@ -104,22 +80,21 @@ pub fn handler_settle_tournament(
         (a1, a2, prize_pool - a1 - a2)
     };
 
-    // ── Phase 4 : stocker les résultats dans Tournament ──────────────────────
-    // La distribution réelle se fait via claim_prize.
+    // ── Phase 4 : stocker les résultats — distribution via claim_prize ────────
     let t = &mut ctx.accounts.tournament;
-    t.settled = true;
+    t.settled  = true;
 
-    t.winner_1 = candidates[0].player;
+    t.winner_1 = entries[0].player;
     t.prize_1  = p1;
 
-    t.winner_2 = if n >= 2 { candidates[1].player } else { Pubkey::default() };
+    t.winner_2 = if n >= 2 { entries[1].player } else { Pubkey::default() };
     t.prize_2  = p2;
 
-    t.winner_3 = if n >= 3 { candidates[2].player } else { Pubkey::default() };
+    t.winner_3 = if n >= 3 { entries[2].player } else { Pubkey::default() };
     t.prize_3  = p3;
 
     msg!(
-        "Tournoi #{} settled — {} joueurs — 1er: {} ({} L), 2ème: {} ({} L), 3ème: {} ({} L)",
+        "Tournoi #{} settled — {} joueurs — 1er: {} ({}L), 2ème: {} ({}L), 3ème: {} ({}L)",
         tournament_id, n,
         t.winner_1, p1,
         t.winner_2, p2,
