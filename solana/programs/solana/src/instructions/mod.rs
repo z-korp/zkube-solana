@@ -15,7 +15,7 @@ pub mod submit_tournament_score;
 pub mod settle_tournament;
 pub mod claim_prize;
 
-pub use initialize::*;
+
 pub use create_game::*;
 pub use receive_randomness::*;
 pub use make_move::*;
