@@ -251,7 +251,7 @@ const ALL_ZONES = Object.entries(ZONE_NAMES)
 
 const HomePage: React.FC = () => {
   // ── Phantom wallet ───────────────────────────────────────────────────────────
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, wallet } = useWallet();
 
   // ── Navigation ───────────────────────────────────────────────────────────────
   const { themeTemplate } = useTheme();
@@ -324,20 +324,6 @@ const HomePage: React.FC = () => {
     return 0;
   }, [dailyMyRank, dailyEntries.length]);
 
-  const PhantomLogo = () => (
-  <svg width="14" height="14" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-						<rect width="128" height="128" rx="64" fill="#AB9FF2" fillOpacity="0.4" />
-						<path
-							d="M110.584 64.103C110.584 41.703 92.401 23.52 70.001 23.52H57.751C35.351 23.52 17.168 41.703 17.168 64.103C17.168 83.137 29.948 99.203 47.501 104.137V88.87C40.668 85.137 36.001 77.937 36.001 69.687V64.103C36.001 52.103 45.751 42.353 57.751 42.353H70.001C82.001 42.353 91.751 52.103 91.751 64.103V69.687C91.751 77.937 87.084 85.137 80.251 88.87V104.137C97.804 99.203 110.584 83.137 110.584 64.103Z"
-							fill="white"
-							fillOpacity="0.4"
-						/>
-						<ellipse cx="53.5" cy="65.5" rx="6.5" ry="6.5" fill="#AB9FF2" fillOpacity="0.4" />
-						<ellipse cx="74.5" cy="65.5" rx="6.5" ry="6.5" fill="#AB9FF2" fillOpacity="0.4" />
-					
-  </svg>
-);
-
   useEffect(() => {
     setMusicPlaylist(["main", "level"]);
   }, [setMusicPlaylist]);
@@ -376,9 +362,18 @@ const HomePage: React.FC = () => {
                 <div className="flex min-w-0 items-center gap-3">
                   <div
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-sans text-lg font-black"
-                    style={{ background: "linear-gradient(145deg,#9333ea,#7c3aed)", color: "#fff" }}
+                    style={{ background: "linear-gradient(145deg,#AB9FF2,#7c3aed)", color: "#fff" }}
                   >
-                    👻
+                    {wallet?.adapter.icon ? (
+                      <img
+                        src={wallet.adapter.icon}
+                        alt="Phantom"
+                        className="h-7 w-7 object-contain"
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="text-sm font-black">P</span>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-sans text-[14px] font-bold text-white">
