@@ -78,6 +78,14 @@ const TournamentPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNowSec(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // ── Fetch données ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -114,9 +122,8 @@ const TournamentPage: React.FC = () => {
   const zoneImages = getThemeImages(themeId);
   const guardian = getZoneGuardian(zoneId);
 
-  const now = Math.floor(Date.now() / 1000);
   const isActive = tournament
-    ? !tournament.settled && now >= tournament.startTime && now < tournament.endTime
+    ? !tournament.settled && nowSec >= tournament.startTime && nowSec < tournament.endTime
     : false;
   const isSettled = tournament?.settled ?? false;
   const secondsLeft = tournament ? getSecondsRemaining(tournament) : 0;
@@ -285,7 +292,7 @@ const TournamentPage: React.FC = () => {
                         className="shrink-0 rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
                         style={{ background: zoneColors.accent }}
                       >
-                        <CountdownText endTime={tournament.endTime} />
+                        Ongoing
                       </span>
                     ) : isSettled ? (
                       <span className="shrink-0 rounded-full bg-purple-600 px-3 py-1.5 font-sans text-xs font-bold text-white">
@@ -302,13 +309,14 @@ const TournamentPage: React.FC = () => {
                   <p className="mt-2.5 font-sans text-[13px] italic text-white/55">
                     "{guardian.trialIntro}"
                   </p>
+                  
 
                   {/* Stats row */}
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {[
                       { label: "Entry fee", value: "0.1 SOL" },
                       { label: "Prize pool", value: `${prizePoolSol} SOL` },
-                      { label: "Time left", value: isActive ? formatCountdown(secondsLeft) : isSettled ? "Settled" : "Ended" },
+                      { label: "Time left", value: isActive ? <CountdownText endTime={tournament.endTime} /> : isSettled ? "Settled" : "Ended" },
                     ].map(({ label, value }) => (
                       <div
                         key={label}
@@ -423,13 +431,7 @@ const TournamentPage: React.FC = () => {
                 </div>
               )}
 
-              {leaderboard.length === 0 && !isLoading && (
-                <div className="rounded-2xl border border-white/[0.08] p-6 text-center">
-                  <p className="font-sans text-sm text-white/40">
-                    No scores submitted yet. Be the first!
-                  </p>
-                </div>
-              )}
+              {leaderboard.length === 0 && !isLoading }
             </motion.div>
           )}
         </div>

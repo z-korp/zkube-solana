@@ -87,4 +87,7 @@ pub enum ErrorCode {
 
     #[msg("Le prize pool est vide, rien a distribuer")]
     EmptyPrizePool,
+
+    #[msg("Tournament id invalide pour la periode actuelle")]
+    InvalidTournamentId,
 }

@@ -3,21 +3,20 @@ use solana_program::hash::hashv;
 use crate::state::{Tournament, Treasury};
 use crate::error::ErrorCode;
 
-/// Crée un nouveau tournoi.
-/// Réservé à l'authority zKorp (celle qui a initialisé la treasury).
+/// Crée le tournoi de la période 48h actuelle.
+/// Permissionless: n'importe quel joueur peut le lancer si le compte n'existe pas.
 /// Le prize pool commence à 0 — il est alimenté par join_tournament.
 #[derive(Accounts)]
 #[instruction(tournament_id: u32)]
 pub struct CreateTournament<'info> {
-    /// zKorp authority — seul signataire autorisé
+    /// Joueur/caller qui finance la création du compte Tournament.
     #[account(mut)]
     pub authority: Signer<'info>,
 
-    /// Treasury existante — on vérifie que le signataire est bien l'authority
+    /// Treasury existante — permet de vérifier que le jeu a bien été initialisé.
     #[account(
         seeds = [b"treasury"],
         bump,
-        constraint = treasury.authority == authority.key() @ ErrorCode::Unauthorized,
     )]
     pub treasury: Account<'info, Treasury>,
 
@@ -39,6 +38,8 @@ pub fn handler_create_tournament(
     tournament_id: u32,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;// je recupere l'heure du debut 
+    require!(tournament_id == current_tournament_id(now), ErrorCode::InvalidTournamentId);
+
     let t   = &mut ctx.accounts.tournament;
 
     t.tournament_id  = tournament_id;
@@ -70,4 +71,8 @@ fn compute_zone_id(tournament_id: u32) -> u8 {
     let  bytes = hash.to_bytes();
     let n = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
     ((n % 10) + 1) as u8
+}
+
+fn current_tournament_id(now: i64) -> u32 {
+    (now / Tournament::DURATION) as u32
 }

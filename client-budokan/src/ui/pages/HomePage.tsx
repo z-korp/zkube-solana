@@ -6,36 +6,18 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { getThemeColors, getThemeId, getThemeImages, type ThemeId } from "@/config/themes";
-import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
-import { usePlayerEntry } from "@/hooks/usePlayerEntry";
-import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { ZONE_NAMES } from "@/config/profileData";
 import { ZONE_GUARDIANS, getGuardianPortrait } from "@/config/bossCharacters";
 import { useNavigationStore } from "@/stores/navigationStore";
-import { computeDailyZoneId, getTodayChallengeId } from "@/solana/dailyConstants";
 import { useTournaments } from "@/hooks/useTournaments";
 import type { TournamentWithStatus } from "@/hooks/useTournaments";
+import {
+  getCurrentTournamentId,
+  TOURNAMENT_DURATION_SECONDS,
+  useSolanaTournament,
+} from "@/solana/useSolanaTournament";
+import type { TournamentData } from "@/solana/useSolanaTournament";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-
-const useDailyCountdown = (endTime: number | undefined) => {
-  const [remaining, setRemaining] = useState(() =>
-    endTime ? Math.max(0, endTime - Math.floor(Date.now() / 1000)) : 0,
-  );
-
-  useEffect(() => {
-    if (!endTime) return;
-    const tick = () => setRemaining(Math.max(0, endTime - Math.floor(Date.now() / 1000)));
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [endTime]);
-
-  if (!endTime || remaining <= 0) return null;
-  const h = Math.floor(remaining / 3600);
-  const m = Math.floor((remaining % 3600) / 60);
-  const s = remaining % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-};
 
 const containerVariants: Variants = {
   hidden: { opacity: 1 },
@@ -249,6 +231,21 @@ const ALL_ZONES = Object.entries(ZONE_NAMES)
   .map(([id, name]) => ({ zoneId: Number(id), name }))
   .sort((a, b) => a.zoneId - b.zoneId);
 
+function formatTournamentCountdown(totalSec: number) {
+  const h = Math.floor(totalSec / 3600).toString().padStart(2, "0");
+  const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, "0");
+  const s = (totalSec % 60).toString().padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+function getTournamentStatus(t: TournamentData): TournamentWithStatus["status"] {
+  const now = Math.floor(Date.now() / 1000);
+  if (t.settled) return "settled";
+  if (now < t.startTime) return "upcoming";
+  if (now < t.endTime) return "active";
+  return "ended";
+}
+
 const HomePage: React.FC = () => {
   // ── Phantom wallet ───────────────────────────────────────────────────────────
   const { connected, publicKey, wallet } = useWallet();
@@ -261,6 +258,14 @@ const HomePage: React.FC = () => {
   const setMapZoneId = useNavigationStore((s) => s.setMapZoneId);
   const setTournamentId = useNavigationStore((s) => s.setTournamentId);
   const colors = getThemeColors(themeTemplate);
+  const { createTournament, fetchTournament } = useSolanaTournament();
+  const [isCreatingTournament, setIsCreatingTournament] = useState(false);
+  const [tournamentStartError, setTournamentStartError] = useState<string | null>(null);
+  const [currentTournament, setCurrentTournament] = useState<TournamentWithStatus | null>(null);
+  const startTournamentDurationLabel = useMemo(
+    () => formatTournamentCountdown(TOURNAMENT_DURATION_SECONDS),
+    [],
+  );
 
   // ── Zone selection (classique) ────────────────────────────────────────────────
   const zoneScrollRef = useRef<HTMLDivElement | null>(null);
@@ -286,43 +291,90 @@ const HomePage: React.FC = () => {
 
   // ── Tournois (Solana) ─────────────────────────────────────────────────────────
   const { activeTournaments, upcomingTournaments, isLoading: tournamentsLoading } = useTournaments();
-  const visibleTournaments = [...activeTournaments, ...upcomingTournaments].slice(0, 3);
+  const visibleTournaments = useMemo(() => {
+    const byId = new Map<number, TournamentWithStatus>();
+    if (currentTournament && (currentTournament.status === "active" || currentTournament.status === "upcoming")) {
+      byId.set(currentTournament.tournamentId, currentTournament);
+    }
+    for (const t of [...activeTournaments, ...upcomingTournaments]) {
+      byId.set(t.tournamentId, t);
+    }
+    return [...byId.values()].slice(0, 3);
+  }, [activeTournaments, currentTournament, upcomingTournaments]);
+  const canStartTournament = connected && !tournamentsLoading && visibleTournaments.length === 0;
 
-  // ── Daily challenge (Solana) ──────────────────────────────────────────────────
-  const [isDailySelected, setIsDailySelected] = useState(false);
-  const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
-  const { isRegistered: hasPlayedDaily } = usePlayerEntry(
-    challenge?.challenge_id,
-    publicKey?.toBase58(),
-  );
-  const { entries: dailyEntries } = useDailyLeaderboard(challenge?.challenge_id);
-  const dailyCountdown = useDailyCountdown(challenge?.end_time);
+  const handleStartTournament = useCallback(async () => {
+    if (!connected || isCreatingTournament) return;
+    const tournamentId = getCurrentTournamentId();
+    setIsCreatingTournament(true);
+    setTournamentStartError(null);
+    try {
+      const existing = await fetchTournament(tournamentId);
+      if (existing) {
+        setTournamentId(tournamentId);
+        navigate("tournament");
+        return;
+      }
 
-  // Zone du daily — depuis la chain si possible, sinon dérivation SHA256 Solana
-  const dailyZoneId = useMemo(
-    () => challenge?.zone_id ?? computeDailyZoneId(getTodayChallengeId()),
-    [challenge?.zone_id],
-  );
-  const dailyZoneName = ZONE_NAMES[dailyZoneId] ?? null;
-  const dailyColors = getThemeColors(getThemeId(dailyZoneId));
+      await createTournament(tournamentId);
 
-  const dailyMyRank = useMemo(() => {
-    if (!publicKey || !dailyEntries.length) return null;
-    const myKey = publicKey.toBase58().toLowerCase();
-    const found = dailyEntries.find((e) => e.player.toLowerCase() === myKey);
-    return found?.rank ?? null;
-  }, [dailyEntries, publicKey]);
+      for (let i = 0; i < 8; i++) {
+        const created = await fetchTournament(tournamentId);
+        if (created) {
+          setTournamentId(tournamentId);
+          navigate("tournament");
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 800));
+      }
 
-  const dailyMyReward = useMemo(() => {
-    if (!dailyMyRank || !dailyEntries.length) return 0;
-    const pct = ((dailyMyRank - 1) * 100) / dailyEntries.length;
-    if (pct < 2) return 10;
-    if (pct < 5) return 7;
-    if (pct < 10) return 5;
-    if (pct < 25) return 3;
-    if (pct < 50) return 1;
-    return 0;
-  }, [dailyMyRank, dailyEntries.length]);
+      setTournamentStartError("Tournament created. Refresh if it does not appear in a few seconds.");
+    } catch (err) {
+      const existingAfterError = await fetchTournament(tournamentId).catch(() => null);
+      if (existingAfterError) {
+        setTournamentId(tournamentId);
+        navigate("tournament");
+        return;
+      }
+      console.error("[Tournament] start tournament error:", err);
+      setTournamentStartError("Could not start tournament. Check Phantom or try again in a moment.");
+    } finally {
+      setIsCreatingTournament(false);
+    }
+  }, [connected, isCreatingTournament, createTournament, fetchTournament, setTournamentId, navigate]);
+
+  useEffect(() => {
+    if (!connected) {
+      setCurrentTournament(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchCurrentTournament = async () => {
+      const tournament = await fetchTournament(getCurrentTournamentId());
+      if (cancelled) return;
+      setCurrentTournament(
+        tournament ? { ...tournament, status: getTournamentStatus(tournament) } : null,
+      );
+    };
+
+    void fetchCurrentTournament();
+    const id = window.setInterval(fetchCurrentTournament, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [connected, fetchTournament]);
+
+  useEffect(() => {
+    if (!currentTournament) return;
+    const id = window.setInterval(() => {
+      setCurrentTournament((prev) => (
+        prev ? { ...prev, status: getTournamentStatus(prev) } : prev
+      ));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [currentTournament]);
 
   useEffect(() => {
     setMusicPlaylist(["main", "level"]);
@@ -451,38 +503,35 @@ const HomePage: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* ── Daily Challenge ────────────────────────────────────────────── */}
-              <motion.div variants={itemVariants}>
-                <button type="button" onClick={() => navigate("daily")}
-                  className="relative w-full overflow-hidden rounded-2xl text-left transition-all"
-                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}>
-                  <img src={getThemeImages(getThemeId(dailyZoneId)).background} alt=""
-                    className="absolute inset-0 h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/50" />
-                  <div className="relative z-10 px-4 py-3">
-                    
-                    <div className="mt-1 flex items-center justify-between">
+              {canStartTournament && (
+                <motion.div variants={itemVariants}>
+                  <button
+                    type="button"
+                    onClick={handleStartTournament}
+                    disabled={isCreatingTournament}
+                    className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-white/[0.06] px-4 py-3 text-left backdrop-blur-md transition-all hover:bg-white/[0.10] active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="font-sans text-sm font-bold text-white">{dailyZoneName ?? "Daily Challenge"}</p>
-                        <p className="font-sans text-[11px] text-white/60">
-                          {challengeLoading ? "Loading..."
-                            : !challenge ? "Be the first to play today!"
-                            : hasPlayedDaily && dailyMyRank
-                              ? `#${dailyMyRank}/${dailyEntries.length}${dailyMyReward > 0 ? ` · +${dailyMyReward}★` : ""}`
-                              : `${challenge.total_entries ?? 0} player${(challenge.total_entries ?? 0) !== 1 ? "s" : ""}`}
+                        <p className="font-sans text-sm font-bold text-white">
+                          {isCreatingTournament ? "Starting tournament..." : "Start 48h Tournament"}
+                        </p>
+                        <p className="mt-0.5 font-sans text-[11px] text-white/50">
+                          Be the first to open the global competition.
                         </p>
                       </div>
-                      {dailyCountdown ? (
-                        <span className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white" style={{ background: dailyColors.accent }}>
-                          {dailyCountdown}
-                        </span>
-                      ) : challenge ? (
-                        <span className="rounded-full bg-red-500 px-3 py-1.5 font-sans text-xs font-bold text-white">ENDED</span>
-                      ) : null}
+                      <span className="rounded-full bg-purple-500/20 px-3 py-1.5 font-sans text-[10px] font-bold tabular-nums tracking-[0.08em] text-purple-300">
+                        {startTournamentDurationLabel}
+                      </span>
                     </div>
-                  </div>
-                </button>
-              </motion.div>
+                    {tournamentStartError && (
+                      <p className="mt-2 font-sans text-[11px] font-semibold text-red-300">
+                        {tournamentStartError}
+                      </p>
+                    )}
+                  </button>
+                </motion.div>
+              )}
             </>
           ) : (
             /* ── Non connecté : guardian uniquement ──────────────────────── */
@@ -493,13 +542,7 @@ const HomePage: React.FC = () => {
 
       {/* ── Boutons d'action ─────────────────────────────────────────────────── */}
       <div className="relative z-20 flex flex-col gap-2 px-4 pb-6 pt-2">
-        {connected && visibleTournaments.length > 0 && (
-          <button type="button"
-            onClick={() => { const first = visibleTournaments[0]; if (first) { setTournamentId(first.tournamentId); navigate("tournament"); } }}
-            className="w-full rounded-2xl border border-white/[0.18] bg-white/[0.06] py-3 text-center font-sans text-sm font-bold text-white/80 backdrop-blur-md transition-all hover:bg-white/[0.10] active:scale-[0.98]">
-            🏆 View Tournaments
-          </button>
-        )}
+        {connected && visibleTournaments.length > 0 }
         <ArcadeButton
           onClick={() => navigate("solana")}
           accentOverride="#9333ea"
