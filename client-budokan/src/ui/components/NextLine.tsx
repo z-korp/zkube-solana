@@ -8,6 +8,7 @@ interface NextLineProps {
   gridSize: number;
   gridWidth: number;
   gridHeight: number;
+  themeId?: ThemeId;
 }
 
 const NextLine = ({
@@ -15,10 +16,11 @@ const NextLine = ({
   gridHeight,
   gridSize,
   gridWidth,
+  themeId: themeIdOverride,
 }: NextLineProps) => {
   const [blocks, setBlocks] = useState<Block[]>(nextLineData);
   const { themeTemplate } = useTheme();
-  const themeImages = getThemeImages(themeTemplate as ThemeId);
+  const themeImages = getThemeImages(themeIdOverride ?? (themeTemplate as ThemeId));
 
   const blockImages = useMemo<Record<number, string>>(() => ({
     1: themeImages.block1,

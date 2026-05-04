@@ -34,6 +34,23 @@ import {
 } from "./constants";
 
 const ACTIVE_GAME_PDA_PREFIX = "zkube_game_pda_";
+const SCORE_SUBMIT_READY_ATTEMPTS = 30;
+const TX_CONFIRM_TIMEOUT_MS = 45_000;
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
+}
 
 function loadActiveGamePda(playerPubkey: string): PublicKey | null {
   try {
@@ -166,7 +183,8 @@ export function useSolanaTournament() {
   // ── fetchLeaderboard ─────────────────────────────────────────────────────────
   /**
    * Récupère toutes les TournamentEntry du tournoi via getProgramAccounts.
-   * Filtre sur tournament_id (offset 8, 4 bytes LE) et taille de compte.
+   * Filtre sur tournament_id côté client après décodage pour éviter les
+   * différences de support memcmp/base64 entre RPC.
    * Tri identique au on-chain : score DESC, submitted_at ASC (tiebreaker).
    */
   const fetchLeaderboard = useCallback(
@@ -174,30 +192,17 @@ export function useSolanaTournament() {
       const program = getProgram();
       if (!program) return [];
 
-      // Encoder tournament_id en 4 bytes LE pour le filtre memcmp
-      const idBuf = Buffer.alloc(4);
-      idBuf.writeUInt32LE(tournamentId, 0);
-
       try {
         const accounts = await connection.getProgramAccounts(ZKUBE_PROGRAM_ID, {
           commitment: "confirmed",
-          filters: [
-            { dataSize: TOURNAMENT_ENTRY_SIZE },
-            // offset 8 = après le discriminant Anchor (8 bytes)
-            {
-              memcmp: {
-                offset: 8,
-                bytes: idBuf.toString("base64"),
-                encoding: "base64" as any,
-              },
-            },
-          ],
+          filters: [{ dataSize: TOURNAMENT_ENTRY_SIZE }],
         });
 
         const entries: TournamentEntryData[] = [];
         for (const { account } of accounts) {
           try {
             const raw = program.coder.accounts.decode("TournamentEntry", account.data);
+            if (Number(raw.tournamentId) !== tournamentId) continue;
             entries.push({
               tournamentId: raw.tournamentId,
               player:       raw.player,
@@ -228,18 +233,29 @@ export function useSolanaTournament() {
 
   // ── Helper interne : sign + send + confirm ────────────────────────────────────
   const sendTx = useCallback(
-    async (tx: any): Promise<string> => {
+    async (tx: any, onStatus?: (status: string) => void): Promise<string> => {
       const { blockhash, lastValidBlockHeight } =
         await connection.getLatestBlockhash("confirmed");
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey!;
 
+      onStatus?.("Confirm the score transaction in Phantom…");
+      console.log("[Solana] wallet signature requested");
       const signed = await wallet.signTransaction!(tx);
+      console.log("[Solana] transaction signed — sending");
       const sig = await connection.sendRawTransaction(signed.serialize());
-      await connection.confirmTransaction(
-        { signature: sig, blockhash, lastValidBlockHeight },
-        "confirmed"
+      console.log("[Solana] transaction sent:", sig);
+
+      onStatus?.("Waiting for Solana confirmation…");
+      await withTimeout(
+        connection.confirmTransaction(
+          { signature: sig, blockhash, lastValidBlockHeight },
+          "confirmed"
+        ),
+        TX_CONFIRM_TIMEOUT_MS,
+        "La transaction a été envoyée, mais la confirmation Solana prend trop de temps. Vérifie le score dans le tournoi dans quelques secondes."
       );
+
       return sig;
     },
     [connection, wallet, publicKey]
@@ -343,15 +359,69 @@ export function useSolanaTournament() {
    * Met à jour best_score uniquement si le nouveau score est supérieur.
    */
   const submitTournamentScore = useCallback(
-    async (tournamentId: number): Promise<string> => {
+    async (
+      tournamentId: number,
+      gameStatePdaOverride?: PublicKey,
+      onStatus?: (status: string) => void,
+    ): Promise<string> => {
       const program = getProgram();
       if (!program || !publicKey) throw new Error("Wallet non connecté");
 
       const gameStatePda  =
-        loadActiveGamePda(publicKey.toBase58()) ?? getGameStatePda(publicKey);
+        gameStatePdaOverride ?? loadActiveGamePda(publicKey.toBase58()) ?? getGameStatePda(publicKey);
       const tournamentPda = getTournamentPda(tournamentId);
       const entryPda      = getTournamentEntryPda(tournamentId, publicKey);
 
+      let scoreReady = false;
+      let finalScore = 0;
+      let lastReadState: string | null = null;
+      onStatus?.("Waiting for the final score on Solana…");
+      for (let attempt = 0; attempt < SCORE_SUBMIT_READY_ATTEMPTS; attempt++) {
+        try {
+          const rawGame = await (program.account as any).gameState.fetchNullable(gameStatePda);
+          if (rawGame?.player && !rawGame.player.equals(publicKey)) {
+            throw new Error("Ce compte de jeu appartient à un autre wallet.");
+          }
+          if (rawGame?.over) {
+            finalScore = Number(rawGame.score);
+            scoreReady = true;
+            break;
+          }
+          lastReadState = rawGame ? "not_finished" : "missing";
+        } catch (e) {
+          if (e instanceof Error && e.message.includes("autre wallet")) throw e;
+          lastReadState = "not_returned";
+        }
+
+        await sleep(1000);
+      }
+
+      if (!scoreReady) {
+        console.warn("[Tournament] score submit postponed — game_state not ready", {
+          tournamentId,
+          gameStatePda: gameStatePda.toBase58(),
+          lastReadState,
+        });
+        throw new Error(
+          "Le score final n'est pas encore revenu sur Solana. Réessaie dans quelques secondes."
+        );
+      }
+
+      const entry = await (program.account as any).tournamentEntry.fetchNullable(entryPda);
+      if (!entry) {
+        throw new Error("Ton inscription tournoi est introuvable. Reviens au tournoi puis réessaie.");
+      }
+      if (entry.hasSubmitted && Number(entry.bestScore) >= finalScore) {
+        console.log("[Tournament] submitTournamentScore skipped — score already saved", {
+          tournamentId,
+          bestScore: Number(entry.bestScore),
+          finalScore,
+        });
+        onStatus?.("Score already saved.");
+        return "already-submitted";
+      }
+
+      onStatus?.("Preparing score transaction…");
       const tx = await (program.methods as any)
         .submitTournamentScore(tournamentId)
         .accounts({
@@ -362,7 +432,7 @@ export function useSolanaTournament() {
         })
         .transaction();
 
-      const sig = await sendTx(tx);
+      const sig = await sendTx(tx, onStatus);
       console.log("[Tournament] submitTournamentScore #" + tournamentId + " — tx:", sig);
       return sig;
     },
@@ -382,29 +452,27 @@ export function useSolanaTournament() {
 
       const tournamentPda = getTournamentPda(tournamentId);
 
-      // Récupérer toutes les entries pour les passer en remaining_accounts
-      const idBuf = Buffer.alloc(4);
-      idBuf.writeUInt32LE(tournamentId, 0);
-
+      // Récupérer toutes les entries puis filtrer côté client. Même raison que
+      // fetchLeaderboard: certains RPC devnet gèrent mal memcmp base64.
       const rawAccounts = await connection.getProgramAccounts(ZKUBE_PROGRAM_ID, {
         commitment: "confirmed",
-        filters: [
-          { dataSize: TOURNAMENT_ENTRY_SIZE },
-          {
-            memcmp: {
-              offset: 8,
-              bytes: idBuf.toString("base64"),
-              encoding: "base64" as any,
-            },
-          },
-        ],
+        filters: [{ dataSize: TOURNAMENT_ENTRY_SIZE }],
       });
 
-      const remainingAccounts: AccountMeta[] = rawAccounts.map(({ pubkey }) => ({
-        pubkey,
-        isWritable: false,
-        isSigner:   false,
-      }));
+      const remainingAccounts: AccountMeta[] = rawAccounts
+        .filter(({ account }) => {
+          try {
+            const raw = program.coder.accounts.decode("TournamentEntry", account.data);
+            return Number(raw.tournamentId) === tournamentId;
+          } catch {
+            return false;
+          }
+        })
+        .map(({ pubkey }) => ({
+          pubkey,
+          isWritable: false,
+          isSigner:   false,
+        }));
 
       console.log(
         "[Tournament] settleTournament #" + tournamentId +

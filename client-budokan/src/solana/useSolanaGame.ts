@@ -14,6 +14,8 @@ import {
   getGameStatePda,
   getIdentityPda,
   getTreasuryPda,
+  getTournamentPda,
+  getTournamentEntryPda,
   getDelegationBuffer,
   getUndelegateBuffer,
   getDelegationRecord,
@@ -93,6 +95,13 @@ export interface SolanaGameState {
   delegatedAuthority: string;
   phase: GamePhase;
   sessionKey: string;        // pubkey de la session_key autorisée
+}
+
+type TournamentEntryAction = "join" | "rejoin";
+
+interface CreateGameOptions {
+  tournamentId?: number;
+  tournamentEntryAction?: TournamentEntryAction;
 }
 
 // ── Wallet adapté à un Keypair local (pour signer sans popup) ────────────────
@@ -240,12 +249,12 @@ export function useSolanaGame() {
   }, []);
 
   const fetchGameState = useCallback(async () => {
-    if (!publicKey) return;
+    if (!publicKey) return null;
     const activeKp = sessionKeypair ?? loadSessionKeypair(publicKey.toBase58());
     const storedPda = loadActiveGamePda(publicKey.toBase58());
     if (!storedPda && !activeKp) {
       setGameState(null);
-      return;
+      return null;
     }
     const activePda = storedPda ?? getGameStatePda(publicKey, activeKp?.publicKey);
     const pdas = [activePda];
@@ -273,8 +282,9 @@ export function useSolanaGame() {
         try {
         const gs = await (erProgram.account as any).gameState.fetchNullable(pda);
         if (gs) {
-          setGameState(mapGs(gs));
-          return;
+          const nextState = mapGs(gs);
+          setGameState(nextState);
+          return nextState;
         }
         } catch (_) {
           // ER indisponible ou compte pas encore délégué → fallback mainnet
@@ -301,11 +311,12 @@ export function useSolanaGame() {
                 `PDA: ${pda.toBase58()}\n`
               );
               setGameState(null);
-              return;
+              return null;
             }
           }
-          setGameState(mapGs(gs));
-          return;
+          const nextState = mapGs(gs);
+          setGameState(nextState);
+          return nextState;
         }
       }
       // Ne pas effacer un état valide récent — protège contre les lectures RPC
@@ -317,8 +328,10 @@ export function useSolanaGame() {
         }
         return null;
       });
+      return null;
     } catch (e) {
       console.error("[useSolanaGame] fetchGameState error:", e);
+      return null;
     }
   }, [publicKey, sessionKeypair, getProgram, getErProgram, connection, toPhase]);
 
@@ -380,19 +393,21 @@ export function useSolanaGame() {
   // ── create_game (mainnet) ────────────────────────────────────────────────
   // Mode bypass (SKIP_DELEGATION=true) : 1 seul popup Phantom, moves sur devnet.
   // Mode normal (SKIP_DELEGATION=false) : 2 popups (create + delegate), moves sur ER.
-  const createGame = useCallback(async () => {
+  const createGame = useCallback(async (options?: CreateGameOptions) => {
     if (!publicKey) return;
     const program = getProgram();
     if (!program) return;
 
     setIsLoading(true);
     setError(null);
+    let sessionKeyPubkeyForRetry: PublicKey | null = null;
     try {
       // En mode normal, chaque nouvelle session key donne un nouveau PDA.
       // Cela permet au même wallet de rejouer même si un ancien PDA reste coincé
       // dans le delegation_program côté MagicBlock.
       const kp = SKIP_DELEGATION ? Keypair.generate() : generateSessionKeypair();
       const sessionKeyPubkey = kp.publicKey;
+      sessionKeyPubkeyForRetry = sessionKeyPubkey;
       const gameStatePda  = getGameStatePda(publicKey, sessionKeyPubkey);
       saveActiveGamePda(publicKey.toBase58(), gameStatePda);
       const identityPda   = getIdentityPda();
@@ -421,8 +436,7 @@ export function useSolanaGame() {
         console.log("[Session] session_key transmise à create_game:", sessionKeyPubkey.toBase58());
       }
 
-      // create_game → mainnet (1 popup Phantom)
-      const tx = await (program.methods as any)
+      const createGameBuilder = (program.methods as any)
         .createGame(sessionKeyPubkey)
         .accounts({
           player:        publicKey,
@@ -433,8 +447,38 @@ export function useSolanaGame() {
           slotHashes:    SYSVAR_SLOT_HASHES_PUBKEY,
           treasury:      treasuryPda,
           systemProgram: SystemProgram.programId,
-        })
-        .rpc();
+        });
+
+      let tx: string;
+      if (options?.tournamentEntryAction && options.tournamentId !== undefined) {
+        const tournamentPda = getTournamentPda(options.tournamentId);
+        const tournamentEntryPda = getTournamentEntryPda(options.tournamentId, publicKey);
+        const tournamentBuilder =
+          options.tournamentEntryAction === "join"
+            ? (program.methods as any).joinTournament(options.tournamentId)
+            : (program.methods as any).rejoinTournament(options.tournamentId);
+
+        const tournamentIx = await tournamentBuilder
+          .accounts({
+            player:          publicKey,
+            tournament:      tournamentPda,
+            tournamentEntry: tournamentEntryPda,
+            treasury:        treasuryPda,
+            systemProgram:   SystemProgram.programId,
+          })
+          .instruction();
+        const createGameIx = await createGameBuilder.instruction();
+
+        const combinedTx = new Transaction().add(tournamentIx, createGameIx);
+        tx = await (program.provider as AnchorProvider).sendAndConfirm(combinedTx);
+        console.log(
+          `[Tournament] ${options.tournamentEntryAction}_tournament + create_game tx:`,
+          tx,
+        );
+      } else {
+        // create_game → mainnet (1 popup Phantom)
+        tx = await createGameBuilder.rpc();
+      }
 
       setLastTx(tx);
       console.log("[Solana] create_game tx:", tx);
@@ -489,7 +533,7 @@ export function useSolanaGame() {
       }
       if (msg.includes("already been processed") || msg.includes("already in use")) {
         try {
-          const pda = getGameStatePda(publicKey!, sessionKeyPubkey);
+          const pda = getGameStatePda(publicKey!, sessionKeyPubkeyForRetry ?? undefined);
           const gs = await (getProgram()?.account as any)?.gameState.fetchNullable(pda);
           if (gs) { await fetchGameState(); return; }
         } catch (_) {}

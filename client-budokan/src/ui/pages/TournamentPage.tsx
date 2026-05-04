@@ -3,13 +3,13 @@
  *
  * Flow :
  *  1. Affiche la zone/guardian du tournoi, le prize pool, le countdown
- *  2. Si le joueur n'est pas inscrit → bouton "Join & Play" (joinTournament → navigate)
- *  3. Si le joueur est inscrit et n'a pas encore soumis de score → bouton "Play" (rejoin → navigate)
- *  4. Si le joueur a déjà soumis → bouton "Play Again" (rejoin → navigate)
+ *  2. Si le joueur n'est pas inscrit → bouton "Join & Play" (join + create_game groupés)
+ *  3. Si le joueur est inscrit et n'a pas encore soumis de score → bouton "Play" sans paiement
+ *  4. Si le joueur a déjà soumis → bouton "Play Again" (rejoin + create_game groupés)
  *  5. Après settle → leaderboard avec les 3 gagnants + bouton "Claim Prize"
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Trophy } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useNavigationStore } from "@/stores/navigationStore";
@@ -20,6 +20,11 @@ import { ZONE_NAMES } from "@/config/profileData";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
 import { motion } from "motion/react";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+
+const TOURNAMENT_SUBMIT_RETURN_PREFIX = "zkube_tournament_submit_return_";
+const TOURNAMENT_PLAY_REQUEST_PREFIX = "zkube_tournament_play_request_";
+const REPLAY_AFTER_SUBMIT_LOCK_MS = 2500;
+type TournamentEntryAction = "join" | "rejoin";
 
 // ── Countdown live ───────────────────────────────────────────────────────────
 const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
@@ -49,6 +54,33 @@ function lamportsToSol(lamports: bigint): string {
   return (Number(lamports) / 1_000_000_000).toFixed(3);
 }
 
+function getSubmitReturnTime(playerPubkey: string, tournamentId: number): number {
+  try {
+    const raw = sessionStorage.getItem(`${TOURNAMENT_SUBMIT_RETURN_PREFIX}${playerPubkey}_${tournamentId}`);
+    return raw ? Number(raw) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveTournamentPlayRequest(
+  playerPubkey: string,
+  tournamentId: number,
+  tournamentEntryAction?: TournamentEntryAction,
+): void {
+  try {
+    sessionStorage.setItem(
+      `${TOURNAMENT_PLAY_REQUEST_PREFIX}${playerPubkey}_${tournamentId}`,
+      JSON.stringify({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        tournamentEntryAction,
+      }),
+    );
+  } catch {
+    // Best-effort duplicate-start guard only.
+  }
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 const TournamentPage: React.FC = () => {
   const { publicKey, connected } = useWallet();
@@ -64,8 +96,6 @@ const TournamentPage: React.FC = () => {
     fetchTournament,
     fetchMyEntry,
     fetchLeaderboard,
-    joinTournament,
-    rejoinTournament,
     claimPrize,
     getMyPrizeRank,
     formatCountdown,
@@ -79,6 +109,8 @@ const TournamentPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  const [replayLockedUntil, setReplayLockedUntil] = useState(0);
+  const playInFlightRef = useRef(false);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -114,6 +146,24 @@ const TournamentPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [tournamentId, fetchTournament, fetchMyEntry, fetchLeaderboard]);
 
+  useEffect(() => {
+    if (!publicKey || !tournamentId) {
+      setReplayLockedUntil(0);
+      return;
+    }
+
+    const returnedAt = getSubmitReturnTime(publicKey.toBase58(), tournamentId);
+    const lockedUntil = returnedAt + REPLAY_AFTER_SUBMIT_LOCK_MS;
+    if (lockedUntil <= Date.now()) {
+      setReplayLockedUntil(0);
+      return;
+    }
+
+    setReplayLockedUntil(lockedUntil);
+    const timeout = window.setTimeout(() => setReplayLockedUntil(0), lockedUntil - Date.now());
+    return () => window.clearTimeout(timeout);
+  }, [publicKey, tournamentId]);
+
   // ── Infos thème ──────────────────────────────────────────────────────────────
   const zoneId = tournament?.zoneId ?? 1;
   const zoneName = ZONE_NAMES[zoneId] ?? `Zone ${zoneId}`;
@@ -131,16 +181,27 @@ const TournamentPage: React.FC = () => {
 
   const isRegistered = !!myEntry;
   const myPrizeRank = tournament ? getMyPrizeRank(tournament) : null;
+  const isReplayLocked = replayLockedUntil > Date.now();
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const handlePlay = useCallback(async () => {
     if (!connected || !publicKey || !tournamentId || !tournament) return;
+    if (replayLockedUntil > Date.now()) return;
+    if (playInFlightRef.current) return;
+    playInFlightRef.current = true;
     setIsPlaying(true);
     try {
-      if (isRegistered) {
-        await rejoinTournament(tournamentId);
-      } else {
-        await joinTournament(tournamentId);
+      const tournamentEntryAction: TournamentEntryAction | undefined = !isRegistered
+        ? "join"
+        : myEntry?.hasSubmitted
+        ? "rejoin"
+        : undefined;
+
+      saveTournamentPlayRequest(publicKey.toBase58(), tournamentId, tournamentEntryAction);
+      if (!isRegistered) {
+        console.log("[Tournament] join will be bundled with create_game");
+      } else if (myEntry?.hasSubmitted) {
+        console.log("[Tournament] rejoin will be bundled with create_game");
       }
       // Configurer la navigation : zone imposée par le tournoi
       setMapZoneId(tournament.zoneId);
@@ -151,11 +212,11 @@ const TournamentPage: React.FC = () => {
     } catch (err: any) {
       console.error("[Tournament] handlePlay error:", err);
     } finally {
+      playInFlightRef.current = false;
       setIsPlaying(false);
     }
   }, [
-    connected, publicKey, tournamentId, tournament, isRegistered,
-    joinTournament, rejoinTournament,
+    connected, publicKey, tournamentId, tournament, isRegistered, myEntry?.hasSubmitted, replayLockedUntil,
     setMapZoneId, setIsDailyMap, setIsTournamentMap, setNavTournamentId, navigate,
   ]);
 
@@ -176,11 +237,12 @@ const TournamentPage: React.FC = () => {
 
   // ── Libellé du bouton play ───────────────────────────────────────────────────
   const playLabel = useMemo(() => {
+    if (isReplayLocked) return "Score Saved";
     if (isPlaying) return "Loading...";
     if (!isRegistered) return "Join & Play — 0.1 SOL";
     if (!myEntry?.hasSubmitted) return "Play Now";
     return `Play Again (attempt #${(myEntry.attempts ?? 0) + 1})`;
-  }, [isPlaying, isRegistered, myEntry]);
+  }, [isPlaying, isRegistered, isReplayLocked, myEntry]);
 
   // ── Top 3 pour le leaderboard ─────────────────────────────────────────────────
   const top3 = useMemo(
@@ -454,7 +516,7 @@ const TournamentPage: React.FC = () => {
           {/* Bouton play si actif */}
           {isActive && (
             <ArcadeButton
-              disabled={isPlaying}
+              disabled={isPlaying || isReplayLocked}
               onClick={handlePlay}
               accentOverride={zoneColors.accent}
             >
