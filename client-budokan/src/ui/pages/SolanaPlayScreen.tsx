@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { WalletName } from "@solana/wallet-adapter-base";
 import { useSolanaGame } from "@/solana/useSolanaGame";
+import { useSolanaTournament } from "@/solana/useSolanaTournament";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";
@@ -30,6 +31,9 @@ function solanaBlocksToGrid(blocks: number[]): number[][] {
 
 export default function SolanaPlayScreen() {
   const navigate = useNavigationStore((s) => s.navigate);
+  const isTournamentMap = useNavigationStore((s) => s.isTournamentMap);
+  const tournamentId = useNavigationStore((s) => s.tournamentId);
+  const setIsTournamentMap = useNavigationStore((s) => s.setIsTournamentMap);
   const { themeTemplate } = useTheme();
   const themeColors = getThemeColors(themeTemplate as ThemeId);
   const themeImages = getThemeImages(themeTemplate as ThemeId);
@@ -50,6 +54,13 @@ export default function SolanaPlayScreen() {
     renewSessionKey,
   } = useSolanaGame();
 
+  // ── Tournament score submission ───────────────────────────────────────────
+  const { submitTournamentScore } = useSolanaTournament();
+  const [tournamentSubmitting, setTournamentSubmitting] = useState(false);
+  const [tournamentSubmitted, setTournamentSubmitted] = useState(false);
+  const [tournamentSubmitError, setTournamentSubmitError] = useState<string | null>(null);
+  const hasAutoSubmittedRef = useRef(false);
+
   const prevGameKeyRef = useRef<string>("");
   const [gridKey, setGridKey] = useState(0);
 
@@ -60,12 +71,43 @@ export default function SolanaPlayScreen() {
       prevGameKeyRef.current = gameKey;
       setGridKey((k) => k + 1);
       setNextLineHasBeenConsumed(false);
+      // Reset tournament submission state for the new game
+      hasAutoSubmittedRef.current = false;
+      setTournamentSubmitted(false);
+      setTournamentSubmitError(null);
     }
   }, [gameState?.player, gameState?.seed]);
 
   useEffect(() => {
     if (error) setIsTxProcessing(false);
   }, [error]);
+
+  // Auto-submit tournament score as soon as game is over in tournament mode
+  useEffect(() => {
+    if (
+      !isTournamentMap ||
+      tournamentId === null ||
+      !gameState?.over ||
+      hasAutoSubmittedRef.current ||
+      tournamentSubmitted ||
+      tournamentSubmitting
+    ) return;
+
+    hasAutoSubmittedRef.current = true;
+    setTournamentSubmitting(true);
+    setTournamentSubmitError(null);
+
+    submitTournamentScore(tournamentId)
+      .then(() => {
+        setTournamentSubmitting(false);
+        setTournamentSubmitted(true);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTournamentSubmitError(msg);
+        setTournamentSubmitting(false);
+      });
+  }, [isTournamentMap, tournamentId, gameState?.over, tournamentSubmitted, tournamentSubmitting, submitTournamentScore]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
@@ -223,17 +265,56 @@ export default function SolanaPlayScreen() {
           backgroundColor: themeColors.primary,
         }}
       >
-        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-white/10">
+        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-white/10 w-[min(340px,90vw)]">
           <p className="text-3xl font-bold text-red-400">GAME OVER</p>
           <p className="text-white">Score : <span className="text-yellow-400 font-bold text-xl">{gameState.score}</span></p>
-          <p className="text-white/60 text-sm">Coups : {gameState.moveCount} · Combo max : {gameState.maxCombo}</p>
-          <button
-            onClick={closeGame}
-            disabled={isLoading}
-            className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
-          >
-            {isLoading ? "Committing…" : "New Game"}
-          </button>
+          <p className="text-white/60 text-sm">Moves : {gameState.moveCount} · Max combo : {gameState.maxCombo}</p>
+
+          {/* Tournament mode: submit score then go to tournament page */}
+          {isTournamentMap && tournamentId !== null ? (
+            <>
+              {tournamentSubmitting && (
+                <p className="text-purple-300 text-sm animate-pulse">🏆 Submitting score to tournament…</p>
+              )}
+              {tournamentSubmitted && (
+                <p className="text-green-400 text-sm font-bold">✅ Score submitted!</p>
+              )}
+              {tournamentSubmitError && (
+                <p className="text-red-400 text-xs text-center max-w-xs">{tournamentSubmitError}</p>
+              )}
+              <button
+                onClick={() => {
+                  setIsTournamentMap(false);
+                  closeGame();
+                  navigate("tournament");
+                }}
+                disabled={isLoading || tournamentSubmitting}
+                className="px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors w-full"
+              >
+                {isLoading ? "Closing…" : "🏆 View Tournament"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsTournamentMap(false);
+                  closeGame();
+                  navigate("home");
+                }}
+                disabled={isLoading || tournamentSubmitting}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors"
+              >
+                Back to Home
+              </button>
+            </>
+          ) : (
+            /* Classic mode */
+            <button
+              onClick={closeGame}
+              disabled={isLoading}
+              className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
+            >
+              {isLoading ? "Committing…" : "New Game"}
+            </button>
+          )}
         </div>
       </div>
     );

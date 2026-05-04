@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
 export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
-export type OverlayId = "play" | "daily" | "boss" | "map";
+export type OverlayId = "play" | "daily" | "boss" | "map" | "tournament";
 export type PageId = TabId | OverlayId;
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana"]);
@@ -25,6 +25,8 @@ interface NavigationState {
   gameId: bigint | null;
   mapZoneId: number;
   isDailyMap: boolean;
+  isTournamentMap: boolean;
+  tournamentId: number | null;
   selectedMode: number;
   profileAddress: string | null;
   pendingPreviewLevel: number | null;
@@ -43,6 +45,8 @@ interface NavigationState {
   setGameId: (id: bigint | null) => void;
   setMapZoneId: (zoneId: number) => void;
   setIsDailyMap: (isDaily: boolean) => void;
+  setIsTournamentMap: (isTournament: boolean) => void;
+  setTournamentId: (id: number | null) => void;
   setSelectedMode: (mode: number) => void;
   setProfileAddress: (address: string | null) => void;
   setPendingPreviewLevel: (level: number | null) => void;
@@ -56,6 +60,8 @@ const getBackTarget = (page: PageId): PageId => {
     case "play":
       return "map";
     case "daily":
+      return "home";
+    case "tournament":
       return "home";
     case "boss":
       return "map";
@@ -76,6 +82,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   gameId: null,
   mapZoneId: 1,
   isDailyMap: false,
+  isTournamentMap: false,
+  tournamentId: null,
   selectedMode: 0,
   profileAddress: null,
   pendingPreviewLevel: null,
@@ -121,6 +129,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setGameId: (id) => set({ gameId: id }),
   setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
   setIsDailyMap: (isDaily) => set({ isDailyMap: isDaily }),
+  setIsTournamentMap: (isTournament) => set({ isTournamentMap: isTournament }),
+  setTournamentId: (id) => set({ tournamentId: id }),
   setSelectedMode: (mode) => set({ selectedMode: mode }),
   setProfileAddress: (address) => set({ profileAddress: address }),
   setPendingPreviewLevel: (level) => set({ pendingPreviewLevel: level }),
