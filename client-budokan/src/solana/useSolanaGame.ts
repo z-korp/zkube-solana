@@ -743,16 +743,6 @@ export function useSolanaGame() {
     }
   }, [publicKey, getProgram, getActiveGameStatePda]);
 
-  const forgetLocalGame = useCallback(() => {
-    if (!publicKey) return;
-    clearSessionKeypair(publicKey.toBase58());
-    clearActiveGamePda(publicKey.toBase58());
-    setSessionKeypair(null);
-    setGameState(null);
-    setUndelegatingPda(null);
-    setError(null);
-  }, [publicKey]);
-
   const markLocalGameOver = useCallback(() => {
     setGameState((prev) => prev
       ? { ...prev, over: true, phase: "Finished" }
@@ -767,16 +757,16 @@ export function useSolanaGame() {
   // NE PAS passer magic_context / magic_program → auto-résolus depuis IDL (addresses fixes)
   // → évite le bug Anchor où le flag writable=true de l'IDL est perdu si on les passe manuellement.
   const closeGame = useCallback(async () => {
-    if (!publicKey) return;
-    if (!wallet.signTransaction) return;
+    if (!publicKey) return false;
+    if (!wallet.signTransaction) return false;
     const erProgram = getErProgram();
-    if (!erProgram) return;
+    if (!erProgram) return false;
 
     setIsLoading(true);
     setError(null);
     try {
       const gameStatePda = getActiveGameStatePda();
-      if (!gameStatePda) return;
+      if (!gameStatePda) return false;
       const pdaInfo = await connection.getAccountInfo(gameStatePda);
       const isOwnedByDelegationProgram = pdaInfo?.owner.equals(DELEGATION_PROGRAM_ID) ?? false;
       setUndelegatingPda(gameStatePda.toBase58());
@@ -797,11 +787,11 @@ export function useSolanaGame() {
               clearActiveGamePda(publicKey.toBase58());
               setSessionKeypair(null);
               setGameState(null);
-              return;
+              return false;
         }
 
         const program = getProgram();
-        if (!program) return;
+        if (!program) return false;
         const tx = await (program.methods as any)
           .resetGame()
           .accounts({
@@ -816,7 +806,7 @@ export function useSolanaGame() {
         setSessionKeypair(null);
         setGameState(null);
         setUndelegatingPda(null);
-        return;
+        return true;
       }
 
       // ── Mode normal : close_game sur l'ER (commit + undelegate) ─────────
@@ -868,7 +858,7 @@ export function useSolanaGame() {
           `Dernière tx ER: ${txSig}\n` +
           `État: ${ownership === "timeout" ? "toujours owned par delegation_program après 120s" : "compte introuvable"}`
         );
-        return;
+        return false;
       }
 
       clearSessionKeypair(publicKey.toBase58());
@@ -876,11 +866,12 @@ export function useSolanaGame() {
       setSessionKeypair(null);
       setGameState(null);
       setUndelegatingPda(null);
+      return true;
     } catch (e: any) {
       const msg: string = e?.message ?? e?.toString?.() ?? "";
       // User cancelled the Phantom popup — silent no-op
       if (e?.name === "WalletSignTransactionError" || msg.includes("User rejected")) {
-        return;
+        return false;
       }
       const instrErr   = e?.InstructionError ?? (e as any)?.["InstructionError"];
       const ANCHOR_ERRORS: Record<number, string> = {
@@ -901,7 +892,7 @@ export function useSolanaGame() {
       if (msg.includes("already been processed")) {
         try {
           const pda = getActiveGameStatePda();
-          if (!pda) return;
+          if (!pda) return false;
           const program = getProgram();
           if (program) {
             const gs = await (program.account as any).gameState.fetchNullable(pda);
@@ -910,7 +901,7 @@ export function useSolanaGame() {
               clearActiveGamePda(publicKey.toBase58());
               setSessionKeypair(null);
               setGameState(null);
-              return;
+              return true;
             }
           }
         } catch (_) {}
@@ -918,11 +909,18 @@ export function useSolanaGame() {
       const displayMsg = errorName || msg || "Erreur lors de la fermeture";
       setError(displayMsg);
       console.error("[useSolanaGame] closeGame error:", e);
+      return false;
     } finally {
       setUndelegatingPda(null);
       setIsLoading(false);
     }
   }, [publicKey, wallet, erConnection, connection, getErProgram, getProgram, getActiveGameStatePda, fetchGameState, gameState?.delegated, waitForMainnetOwnership]);
+
+  const startNewGame = useCallback(async () => {
+    const closed = await closeGame();
+    if (!closed) return;
+    await createGame();
+  }, [closeGame, createGame]);
 
   // ── ÉTAPE 3 — diagnoseUndelegation ──────────────────────────────────────
   // Vérifie l'état réel de tous les buffers sur Solana devnet et liste les
@@ -1075,8 +1073,8 @@ export function useSolanaGame() {
     createGame,
     makeMove,
     closeGame,
+    startNewGame,              // ferme la partie courante puis relance directement
     resetGame,                 // pour débloquer un compte coincé (non délégué)
-    forgetLocalGame,           // oublie un ancien PDA local et permet de créer une nouvelle partie
     markLocalGameOver,         // affiche Game Over dès que la grille locale détecte la perte
     renewSessionKey,           // reconnexion mid-game (nouvelle session_key)
     refresh: fetchGameState,

@@ -52,8 +52,8 @@ export default function SolanaPlayScreen() {
     createGame,
     makeMove,
     closeGame,
+    startNewGame,
     resetGame,
-    forgetLocalGame,
     markLocalGameOver,
     renewSessionKey,
   } = useSolanaGame();
@@ -117,6 +117,16 @@ export default function SolanaPlayScreen() {
   const [gridSize, setGridSize] = useState(40);
   const [isTxProcessing, setIsTxProcessing] = useState(false);
   const [nextLineHasBeenConsumed, setNextLineHasBeenConsumed] = useState(false);
+  const [gameOverActionsReady, setGameOverActionsReady] = useState(false);
+
+  useEffect(() => {
+    if (!gameState?.over) {
+      setGameOverActionsReady(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setGameOverActionsReady(true), 900);
+    return () => window.clearTimeout(timeout);
+  }, [gameState?.over]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -232,17 +242,6 @@ export default function SolanaPlayScreen() {
           >
             New Game
           </button>
-          {/* Reset toujours disponible — nettoie un ancien compte bloqué */}
-          <button
-            onClick={resetGame}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm text-yellow-400/70 hover:text-yellow-300 border border-yellow-500/30 hover:border-yellow-400/50 rounded-lg transition-colors disabled:opacity-40"
-          >
-            🔄 Reset Account
-          </button>
-          <p className="text-white/30 text-xs text-center max-w-xs">
-            Use Reset if New Game fails (old account format)
-          </p>
         </div>
       </div>
     );
@@ -322,18 +321,14 @@ export default function SolanaPlayScreen() {
             /* Classic mode */
             <>
               <button
-                onClick={closeGame}
-                disabled={isLoading}
+                onClick={() => {
+                  if (!gameOverActionsReady) return;
+                  startNewGame();
+                }}
+                disabled={isLoading || !gameOverActionsReady}
                 className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
               >
-                {undelegatingPda ? "Waiting…" : isLoading ? "Committing…" : "New Game"}
-              </button>
-              <button
-                onClick={forgetLocalGame}
-                disabled={isLoading}
-                className="text-sm text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
-              >
-                Start fresh
+                {undelegatingPda ? "Preparing…" : isLoading ? "Starting…" : "New Game"}
               </button>
             </>
           )}
@@ -456,18 +451,8 @@ export default function SolanaPlayScreen() {
 
       {/* Banner VRF en attente */}
       {gameState?.seed === "0" && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30">
-          <span className="text-yellow-300 text-xs">⏳ VRF en attente</span>
-          <button onClick={closeGame} disabled={isLoading} className="text-xs text-yellow-200 hover:text-white bg-yellow-700/60 hover:bg-yellow-600/80 disabled:opacity-40 rounded px-3 py-0.5 transition-colors font-bold">
-            Fermer &amp; Recommencer
-          </button>
-        </div>
-      )}
-
-      {/* Banner session key active (feedback visuel) */}
-      {hasSessionKey && (
-        <div className="px-3 py-1 bg-green-900/40 border-b border-green-600/20 text-center">
-          <span className="text-green-400 text-[10px]">⚡ Session active — moves gratuits</span>
+        <div className="px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30 text-center">
+          <span className="text-yellow-300 text-xs">Generating grid…</span>
         </div>
       )}
 
