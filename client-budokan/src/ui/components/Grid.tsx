@@ -51,6 +51,7 @@ interface GridProps {
     over: boolean;
   } | void>;
   onLocalGameOver?: () => void;
+  themeId?: ThemeId;
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -70,6 +71,7 @@ const Grid: React.FC<GridProps> = ({
   onNextLineUpdate,
   onMove,
   onLocalGameOver,
+  themeId: themeIdOverride,
 }) => {
   const {
     setup: {
@@ -79,8 +81,9 @@ const Grid: React.FC<GridProps> = ({
 
   // ==================== Theme ====================
   const { themeTemplate } = useTheme();
-  const themeColors = getThemeColors(themeTemplate as ThemeId);
-  const themeImages = getThemeImages(themeTemplate as ThemeId);
+  const activeThemeId = themeIdOverride ?? (themeTemplate as ThemeId);
+  const themeColors = getThemeColors(activeThemeId);
+  const themeImages = getThemeImages(activeThemeId);
   const blockImages = useMemo<Record<number, string>>(() => ({
     1: themeImages.block1,
     2: themeImages.block2,
