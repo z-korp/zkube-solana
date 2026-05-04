@@ -143,6 +143,73 @@ export const IDL = {
       args: [{ name: "fee_per_game", type: "u64" }],
     },
 
+    // ── tournaments ─────────────────────────────────────────────────────────
+    {
+      name: "create_tournament",
+      discriminator: [158, 137, 233, 231, 73, 132, 191, 68],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        { name: "treasury" },
+        { name: "tournament", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+    {
+      name: "join_tournament",
+      discriminator: [77, 21, 212, 206, 77, 82, 124, 31],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        { name: "tournament", writable: true },
+        { name: "tournament_entry", writable: true },
+        { name: "treasury", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+    {
+      name: "rejoin_tournament",
+      discriminator: [226, 5, 106, 2, 222, 61, 67, 121],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        { name: "tournament", writable: true },
+        { name: "tournament_entry", writable: true },
+        { name: "treasury", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+    {
+      name: "submit_tournament_score",
+      discriminator: [15, 169, 125, 10, 24, 47, 154, 103],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        { name: "game_state" },
+        { name: "tournament" },
+        { name: "tournament_entry", writable: true },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+    {
+      name: "settle_tournament",
+      discriminator: [106, 1, 252, 206, 251, 192, 194, 84],
+      accounts: [
+        { name: "caller", writable: true, signer: true },
+        { name: "tournament", writable: true },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+    {
+      name: "claim_prize",
+      discriminator: [157, 233, 139, 121, 246, 62, 234, 235],
+      accounts: [
+        { name: "player", writable: true, signer: true },
+        { name: "tournament", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+      ],
+      args: [{ name: "tournament_id", type: "u32" }],
+    },
+
     // ── make_move ────────────────────────────────────────────────────────────
     {
       name: "make_move",
@@ -390,6 +457,8 @@ export const IDL = {
   accounts: [
     { name: "GameState", discriminator: [144, 94, 208, 172, 248, 99, 134, 120] },
     { name: "Treasury", discriminator: [238, 239, 123, 238, 89, 1, 168, 253] },
+    { name: "Tournament", discriminator: [175, 139, 119, 242, 115, 194, 57, 92] },
+    { name: "TournamentEntry", discriminator: [36, 203, 172, 114, 100, 189, 217, 158] },
     { name: "DailyChallenge", discriminator: [217, 74, 215, 176, 49, 63, 217, 226] },
     { name: "DailyEntry", discriminator: [95, 72, 107, 127, 200, 191, 88, 121] },
     { name: "ActiveDailyAttempt", discriminator: [57, 65, 155, 177, 225, 193, 36, 198] },
@@ -416,6 +485,15 @@ export const IDL = {
     { code: 6017, name: "ChallengeNotStarted", msg: "Le challenge daily n'a pas encore commence" },
     { code: 6018, name: "ChallengeEnded", msg: "Le challenge daily est termine" },
     { code: 6019, name: "AlreadySubmitted", msg: "Le score daily a deja ete soumis pour cette tentative" },
+    { code: 6020, name: "TournamentNotStarted", msg: "Le tournoi n'a pas encore commence" },
+    { code: 6021, name: "TournamentEnded", msg: "Le tournoi est termine, plus d'inscriptions possibles" },
+    { code: 6022, name: "TournamentAlreadySettled", msg: "Le tournoi est deja settle" },
+    { code: 6023, name: "TournamentNotEnded", msg: "Le tournoi n'est pas encore termine" },
+    { code: 6024, name: "InsufficientEntryFee", msg: "Fonds insuffisants pour payer l'entry fee (0.1 SOL requis)" },
+    { code: 6025, name: "NoScoreSubmitted", msg: "Le joueur n'a pas encore soumis de score dans ce tournoi" },
+    { code: 6026, name: "InvalidWinnerOrder", msg: "Les gagnants passes ne sont pas dans le bon ordre de score" },
+    { code: 6027, name: "EmptyPrizePool", msg: "Le prize pool est vide, rien a distribuer" },
+    { code: 6028, name: "InvalidTournamentId", msg: "Tournament id invalide pour la periode actuelle" },
   ],
 
   types: [
@@ -460,6 +538,43 @@ export const IDL = {
           { name: "authority", type: "pubkey" },
           { name: "total_collected", type: "u64" },
           { name: "fee_per_game", type: "u64" },
+        ],
+      },
+    },
+    {
+      name: "Tournament",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "tournament_id", type: "u32" },
+          { name: "start_time", type: "i64" },
+          { name: "end_time", type: "i64" },
+          { name: "zone_id", type: "u8" },
+          { name: "entry_fee", type: "u64" },
+          { name: "prize_pool", type: "u64" },
+          { name: "total_players", type: "u32" },
+          { name: "total_attempts", type: "u32" },
+          { name: "settled", type: "bool" },
+          { name: "winner_1", type: "pubkey" },
+          { name: "prize_1", type: "u64" },
+          { name: "winner_2", type: "pubkey" },
+          { name: "prize_2", type: "u64" },
+          { name: "winner_3", type: "pubkey" },
+          { name: "prize_3", type: "u64" },
+        ],
+      },
+    },
+    {
+      name: "TournamentEntry",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "tournament_id", type: "u32" },
+          { name: "player", type: "pubkey" },
+          { name: "best_score", type: "u32" },
+          { name: "submitted_at", type: "i64" },
+          { name: "attempts", type: "u8" },
+          { name: "has_submitted", type: "bool" },
         ],
       },
     },

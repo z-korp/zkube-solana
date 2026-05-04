@@ -33,6 +33,17 @@ import {
   getTournamentEntryPda,
 } from "./constants";
 
+const ACTIVE_GAME_PDA_PREFIX = "zkube_game_pda_";
+
+function loadActiveGamePda(playerPubkey: string): PublicKey | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_GAME_PDA_PREFIX + playerPubkey);
+    return raw ? new PublicKey(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface TournamentData {
@@ -64,6 +75,11 @@ export interface TournamentEntryData {
 
 // Taille Borsh d'un compte TournamentEntry (discriminant 8 + données 50 = 58)
 const TOURNAMENT_ENTRY_SIZE = 58;
+export const TOURNAMENT_DURATION_SECONDS = 48 * 3600;
+
+export function getCurrentTournamentId(nowSec = Math.floor(Date.now() / 1000)): number {
+  return Math.floor(nowSec / TOURNAMENT_DURATION_SECONDS);
+}
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -230,6 +246,32 @@ export function useSolanaTournament() {
   );
 
   // ── joinTournament ────────────────────────────────────────────────────────────
+  const createTournament = useCallback(
+    async (tournamentId = getCurrentTournamentId()): Promise<string> => {
+      const program = getProgram();
+      if (!program || !publicKey) throw new Error("Wallet non connecté");
+
+      const tournamentPda = getTournamentPda(tournamentId);
+      const treasuryPda   = getTreasuryPda();
+
+      const tx = await (program.methods as any)
+        .createTournament(tournamentId)
+        .accounts({
+          authority:     publicKey,
+          treasury:      treasuryPda,
+          tournament:    tournamentPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .transaction();
+
+      const sig = await sendTx(tx);
+      console.log("[Tournament] createTournament #" + tournamentId + " — tx:", sig);
+      return sig;
+    },
+    [getProgram, publicKey, sendTx]
+  );
+
+  // ── joinTournament ────────────────────────────────────────────────────────────
   /**
    * Première inscription au tournoi.
    * Transfère 0.1 SOL (10% treasury, 90% prize pool).
@@ -305,7 +347,8 @@ export function useSolanaTournament() {
       const program = getProgram();
       if (!program || !publicKey) throw new Error("Wallet non connecté");
 
-      const gameStatePda  = getGameStatePda(publicKey);
+      const gameStatePda  =
+        loadActiveGamePda(publicKey.toBase58()) ?? getGameStatePda(publicKey);
       const tournamentPda = getTournamentPda(tournamentId);
       const entryPda      = getTournamentEntryPda(tournamentId, publicKey);
 
@@ -466,6 +509,7 @@ export function useSolanaTournament() {
     fetchMyEntry,
     fetchLeaderboard,
     // Actions
+    createTournament,
     joinTournament,
     rejoinTournament,
     submitTournamentScore,
