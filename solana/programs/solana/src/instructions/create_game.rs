@@ -15,18 +15,19 @@ use crate::error::ErrorCode;
 /// Les comptes nécessaires pour créer une partie
 /// Après create_game, appeler delegate_game pour déléguer le GameState à l'ER
 #[derive(Accounts)]
+#[instruction(session_key: Pubkey)]
 pub struct CreateGame<'info> {
     /// Le joueur qui crée la partie: il signe et paie
     #[account(mut)]
     pub player: Signer<'info>,
 
     /// Le compte GameState créé (ou réinitialisé) sur la blockchain
-    /// PDA = adresse dérivée du mot "game" + clé publique du joueur
+    /// PDA = adresse dérivée du mot "game" + clé publique du joueur + session_key
     #[account(
         init_if_needed,
         payer = player,
         space = GameState::SIZE,
-        seeds = [b"game", player.key().as_ref()],
+        seeds = [b"game", player.key().as_ref(), session_key.as_ref()],
         bump
     )]
     pub game_state: Account<'info, GameState>,
@@ -125,7 +126,7 @@ pub fn handler_create_game(ctx: Context<CreateGame>, session_key: Pubkey) -> Res
 
     // PDA du game_state
     let (game_state_pda, _) = Pubkey::find_program_address(
-        &[b"game", ctx.accounts.player.key().as_ref()],
+        &[b"game", ctx.accounts.player.key().as_ref(), session_key.as_ref()],
         &crate::ID,
     );
 

@@ -3,6 +3,9 @@
 // Le joueur récupère ses lamports et peut relancer create_game sur un compte vierge.
 
 use anchor_lang::prelude::*;
+use anchor_lang::AccountDeserialize;
+use crate::state::GameState;
+use crate::error::ErrorCode;
 
 #[derive(Accounts)]
 pub struct ResetGame<'info> {
@@ -10,13 +13,8 @@ pub struct ResetGame<'info> {
     #[account(mut)]
     pub player: Signer<'info>,
 
-    /// CHECK: PDA game_state du joueur — vérification seeds uniquement.
-    /// On n'essaie pas de désérialiser (peut avoir un ancien layout).
-    #[account(
-        mut,
-        seeds = [b"game", player.key().as_ref()],
-        bump,
-    )]
+    /// CHECK: game_state du joueur — vérification manuelle.
+    #[account(mut)]
     pub game_state: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
@@ -25,6 +23,14 @@ pub struct ResetGame<'info> {
 pub fn handler_reset_game(ctx: Context<ResetGame>) -> Result<()> {
     let game_state_info = ctx.accounts.game_state.to_account_info();
     let player_info     = ctx.accounts.player.to_account_info();
+
+    if game_state_info.data_len() >= GameState::SIZE {
+        let data = game_state_info.try_borrow_data()?;
+        let mut slice: &[u8] = &data;
+        if let Ok(game) = GameState::try_deserialize(&mut slice) {
+            require!(game.player == ctx.accounts.player.key(), ErrorCode::NotGameOwner);
+        }
+    }
 
     // Rapatrier les lamports vers le joueur
     let lamports = game_state_info.lamports();

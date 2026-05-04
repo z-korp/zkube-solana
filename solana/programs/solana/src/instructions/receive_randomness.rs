@@ -17,8 +17,6 @@ pub struct ReceiveRandomness<'info> {
     /// Contrainte : seed == 0 vérifiée dans le handler 
     #[account(
         mut,
-        seeds = [b"game", game_state.player.as_ref()],
-        bump
     )]
     pub game_state: Account<'info, GameState>,
 }

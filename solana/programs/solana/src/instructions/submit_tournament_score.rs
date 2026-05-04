@@ -14,8 +14,6 @@ pub struct SubmitTournamentScore<'info> {
 
     /// GameState du joueur — doit être terminé
     #[account(
-        seeds = [b"game", player.key().as_ref()],
-        bump,
         constraint = game_state.player == player.key() @ ErrorCode::NotGameOwner,
         constraint = game_state.over @ ErrorCode::GameNotFinished,
     )]

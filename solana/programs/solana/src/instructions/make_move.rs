@@ -5,16 +5,14 @@ use crate::instructions::receive_randomness::generate_row;
 
 /// Comptes pour jouer un coup.
 /// Le signer peut être le joueur réel (player) OU la session_key éphémère.
-/// La PDA est toujours dérivée de game_state.player (stocké on-chain),
-/// ce qui permet à la session_key de signer sans changer le PDA.
+/// Le game_state est passé explicitement pour supporter les nouvelles parties
+/// dérivées avec une session_key: ["game", player, session_key].
 #[derive(Accounts)]
 pub struct MakeMove<'info> {
     pub player: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [b"game", game_state.player.as_ref()],
-        bump,
         constraint = !game_state.over @ ErrorCode::GameOver,
     )]
     pub game_state: Account<'info, GameState>,
@@ -81,11 +79,21 @@ pub fn handler(
         game.score = game.score.saturating_add(points);
     }
 
+    if is_grid_full(game.blocks) {
+        game.over = true;
+        game.phase = GamePhase::Finished;
+        game.move_count = game.move_count.saturating_add(1);
+        msg!("Game over! Score final: {}", game.score);
+        return Ok(());
+    }
+
     game.blocks   = insert_new_line(game.blocks, game.next_row);
     game.next_row = generate_row(game.seed, game.move_count + 1);
 
     if is_grid_full(game.blocks) {
         game.over = true;
+        game.phase = GamePhase::Finished;
+        game.move_count = game.move_count.saturating_add(1);
         msg!("Game over! Score final: {}", game.score);
         return Ok(());
     }

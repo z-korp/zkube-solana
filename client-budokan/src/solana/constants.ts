@@ -55,10 +55,16 @@ export { SYSVAR_SLOT_HASHES_PUBKEY };
 
 // ── PDA helpers ───────────────────────────────────────────────────────────────
 
-// Calcule le PDA game_state d'un joueur
-export function getGameStatePda(playerPubkey: PublicKey): PublicKey {
+// Calcule le PDA game_state d'un joueur.
+// Nouveau format: ["game", player, session_key] pour éviter qu'un ancien PDA
+// coincé chez MagicBlock bloque définitivement le wallet.
+// Fallback legacy: ["game", player] quand aucune session_key active n'existe.
+export function getGameStatePda(playerPubkey: PublicKey, sessionKey?: PublicKey): PublicKey {
+  const seeds = sessionKey
+    ? [Buffer.from("game"), playerPubkey.toBuffer(), sessionKey.toBuffer()]
+    : [Buffer.from("game"), playerPubkey.toBuffer()];
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("game"), playerPubkey.toBuffer()],
+    seeds,
     ZKUBE_PROGRAM_ID
   );
   return pda;

@@ -26,8 +26,6 @@ pub struct DelegateGame<'info> {
     #[account(
         mut,
         del,
-        seeds = [b"game", player.key().as_ref()],
-        bump,
     )]
     pub pda: AccountInfo<'info>,
 }
@@ -64,7 +62,7 @@ pub fn handler_delegate_game(ctx: Context<DelegateGame>) -> Result<()> {
     // Propager l'erreur directement — Solana revert tout si la tx échoue
     ctx.accounts.delegate_pda(
         &ctx.accounts.player,
-        &[b"game", player_key.as_ref()],
+        &[b"game", player_key.as_ref(), game_state.session_key.as_ref()],
         DelegateConfig {
             validator: Some(validator),
             ..Default::default()

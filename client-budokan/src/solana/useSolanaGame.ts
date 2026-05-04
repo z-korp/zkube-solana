@@ -24,6 +24,7 @@ import {
 // La session_key est stockée dans sessionStorage (persistante sur refresh,
 // effacée à la fermeture de l'onglet). Clé de stockage par wallet.
 const SESSION_KEY_PREFIX = "zkube_session_";
+const ACTIVE_GAME_PDA_PREFIX = "zkube_game_pda_";
 
 function saveSessionKeypair(playerPubkey: string, keypair: Keypair): void {
   try {
@@ -48,6 +49,27 @@ function loadSessionKeypair(playerPubkey: string): Keypair | null {
 function clearSessionKeypair(playerPubkey: string): void {
   try {
     sessionStorage.removeItem(SESSION_KEY_PREFIX + playerPubkey);
+  } catch (_) {}
+}
+
+function saveActiveGamePda(playerPubkey: string, pda: PublicKey): void {
+  try {
+    localStorage.setItem(ACTIVE_GAME_PDA_PREFIX + playerPubkey, pda.toBase58());
+  } catch (_) {}
+}
+
+function loadActiveGamePda(playerPubkey: string): PublicKey | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_GAME_PDA_PREFIX + playerPubkey);
+    return raw ? new PublicKey(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearActiveGamePda(playerPubkey: string): void {
+  try {
+    localStorage.removeItem(ACTIVE_GAME_PDA_PREFIX + playerPubkey);
   } catch (_) {}
 }
 
@@ -95,14 +117,14 @@ class SessionWallet {
   }
 }
 
-// ── Bypass temporaire : skip delegation (ER relayer devnet-eu cassé) ─────────
-// Mettre à false pour réactiver la délégation quand MagicBlock aura réparé
-// le relayer. Avec SKIP_DELEGATION=true :
+// ── Bypass temporaire : skip delegation ──────────────────────────────────────
+// Garder à false en production : les moves passent par l'ER avec session_key.
+// Avec SKIP_DELEGATION=true :
 //   • createGame → pas de delegate_game → 1 seul popup Phantom (au lieu de 2)
 //   • make_move → Solana devnet directement, signé par Phantom (1 popup / coup)
 //   • closeGame → non nécessaire (le PDA n'est pas délégué)
 //   • Compte stuck existant → toujours bloqué, contacter MagicBlock Discord
-const SKIP_DELEGATION = true;
+const SKIP_DELEGATION = false;
 // ── Hook principal ───────────────────────────────────────────────────────────
 export function useSolanaGame() {
   const { connection } = useConnection();  // mainnet (devnet) connection
@@ -113,6 +135,7 @@ export function useSolanaGame() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastTx, setLastTx] = useState<string | null>(null);
+  const [undelegatingPda, setUndelegatingPda] = useState<string | null>(null);
 
   // Session keypair en mémoire — reloadé depuis sessionStorage si disponible
   const [sessionKeypair, setSessionKeypair] = useState<Keypair | null>(() => {
@@ -177,6 +200,34 @@ export function useSolanaGame() {
     return kp;
   }, [publicKey]);
 
+  const getActiveGameStatePda = useCallback((): PublicKey | null => {
+    if (!publicKey) return null;
+    const stored = loadActiveGamePda(publicKey.toBase58());
+    if (stored) return stored;
+    const kp = sessionKeypair ?? loadSessionKeypair(publicKey.toBase58());
+    return getGameStatePda(publicKey, kp?.publicKey);
+  }, [publicKey, sessionKeypair]);
+
+  const waitForMainnetOwnership = useCallback(async (pda: PublicKey): Promise<"returned" | "missing" | "timeout"> => {
+    const startedAt = Date.now();
+    const timeoutMs = 120_000;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const info = await connection.getAccountInfo(pda).catch(() => null);
+      if (!info) return "missing";
+      if (info.owner.equals(ZKUBE_PROGRAM_ID)) return "returned";
+
+      console.log("[close_game] attente undelegation mainnet:", {
+        pda: pda.toBase58(),
+        owner: info.owner.toBase58(),
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+
+    return "timeout";
+  }, [connection]);
+
   // ── Fetch state ──────────────────────────────────────────────────────────
   // Essaie l'ER en premier (compte délégué pendant la partie),
   // puis fallback mainnet (avant délégation ou après undelegate).
@@ -190,7 +241,14 @@ export function useSolanaGame() {
 
   const fetchGameState = useCallback(async () => {
     if (!publicKey) return;
-    const pda = getGameStatePda(publicKey);
+    const activeKp = sessionKeypair ?? loadSessionKeypair(publicKey.toBase58());
+    const storedPda = loadActiveGamePda(publicKey.toBase58());
+    if (!storedPda && !activeKp) {
+      setGameState(null);
+      return;
+    }
+    const activePda = storedPda ?? getGameStatePda(publicKey, activeKp?.publicKey);
+    const pdas = [activePda];
 
     const mapGs = (gs: any): SolanaGameState => ({
       player: gs.player.toBase58(),
@@ -208,59 +266,61 @@ export function useSolanaGame() {
       sessionKey: gs.sessionKey?.toBase58() ?? "",
     });
 
-    // 1. Essai ER (compte délégué — état temps réel)
-    try {
-      const erProgram = getErProgram();
-      if (erProgram) {
+    const erProgram = getErProgram();
+    if (erProgram) {
+      for (const pda of pdas) {
+        // 1. Essai ER (compte délégué — état temps réel)
+        try {
         const gs = await (erProgram.account as any).gameState.fetchNullable(pda);
         if (gs) {
           setGameState(mapGs(gs));
           return;
         }
+        } catch (_) {
+          // ER indisponible ou compte pas encore délégué → fallback mainnet
+        }
       }
-    } catch (_) {
-      // ER indisponible ou compte pas encore délégué → fallback mainnet
     }
 
     // 2. Fallback mainnet (avant create_game ou après close_game)
     try {
       const program = getProgram();
       if (!program) return;
-      const gs = await (program.account as any).gameState.fetchNullable(pda);
-      if (gs) {
-        // En mode bypass, le PDA ne devrait jamais être owned par delegation_program.
-        // Si c'est le cas → compte coincé d'une ancienne partie ER → on refuse de l'afficher
-        // (sinon l'UI boucle sur game over avec un compte qu'on ne peut pas reset).
-        if (SKIP_DELEGATION) {
-          const info = await connection.getAccountInfo(pda);
-          if (info && !info.owner.equals(ZKUBE_PROGRAM_ID)) {
-            console.warn("[fetchGameState] PDA owned by delegation_program compte coincé, masqué en bypass mode");
-            setError(
-              `Compte bloqué delegation program \n` +
-              `PDA: ${pda.toBase58()}\n` 
-            );
-            setGameState(null);
-            return;
+      for (const pda of pdas) {
+        const gs = await (program.account as any).gameState.fetchNullable(pda);
+        if (gs) {
+          // En mode bypass, le PDA ne devrait jamais être owned par delegation_program.
+          // Si c'est le cas → compte coincé d'une ancienne partie ER → on refuse de l'afficher
+          // (sinon l'UI boucle sur game over avec un compte qu'on ne peut pas reset).
+          if (SKIP_DELEGATION) {
+            const info = await connection.getAccountInfo(pda);
+            if (info && !info.owner.equals(ZKUBE_PROGRAM_ID)) {
+              console.warn("[fetchGameState] PDA owned by delegation_program compte coincé, masqué en bypass mode");
+              setError(
+                `Compte bloqué delegation program \n` +
+                `PDA: ${pda.toBase58()}\n`
+              );
+              setGameState(null);
+              return;
+            }
           }
+          setGameState(mapGs(gs));
+          return;
         }
-        setGameState(mapGs(gs));
-      } else {
-        // Ne pas effacer un état valide récent — protège contre les lectures RPC
-        // obsolètes juste après create_game (le wallet change de référence après
-        // avoir signé → useEffect relance fetchGameState → RPC renvoie parfois null
-        // pendant ~1s même si le compte vient d'être créé).
-        setGameState((prev) => {
-          if (prev && prev.seed !== "0" && !prev.over) {
-            console.warn("[fetchGameState] devnet null mais gameState valide en mémoire — conservé");
-            return prev;
-          }
-          return null;
-        });
       }
+      // Ne pas effacer un état valide récent — protège contre les lectures RPC
+      // obsolètes juste après create_game.
+      setGameState((prev) => {
+        if (prev && prev.seed !== "0" && !prev.over) {
+          console.warn("[fetchGameState] devnet null mais gameState valide en mémoire — conservé");
+          return prev;
+        }
+        return null;
+      });
     } catch (e) {
       console.error("[useSolanaGame] fetchGameState error:", e);
     }
-  }, [publicKey, getProgram, getErProgram, connection, toPhase]);
+  }, [publicKey, sessionKeypair, getProgram, getErProgram, connection, toPhase]);
 
   // Rafraîchit l'état quand le wallet est connecté.
   // On dépend de publicKey?.toBase58() (string stable) et non de l'objet PublicKey
@@ -328,7 +388,13 @@ export function useSolanaGame() {
     setIsLoading(true);
     setError(null);
     try {
-      const gameStatePda  = getGameStatePda(publicKey);
+      // En mode normal, chaque nouvelle session key donne un nouveau PDA.
+      // Cela permet au même wallet de rejouer même si un ancien PDA reste coincé
+      // dans le delegation_program côté MagicBlock.
+      const kp = SKIP_DELEGATION ? Keypair.generate() : generateSessionKeypair();
+      const sessionKeyPubkey = kp.publicKey;
+      const gameStatePda  = getGameStatePda(publicKey, sessionKeyPubkey);
+      saveActiveGamePda(publicKey.toBase58(), gameStatePda);
       const identityPda   = getIdentityPda();
       const treasuryPda   = getTreasuryPda();
 
@@ -351,10 +417,6 @@ export function useSolanaGame() {
         // Erreur RPC → on tente quand même (ne pas bloquer si RPC flaky)
       }
 
-      // En mode bypass, pas besoin de session_key (Phantom signe les moves directement)
-      // En mode normal, on génère une session_key pour les moves sans popup
-      const kp = SKIP_DELEGATION ? Keypair.generate() : generateSessionKeypair();
-      const sessionKeyPubkey = kp.publicKey;
       if (!SKIP_DELEGATION) {
         console.log("[Session] session_key transmise à create_game:", sessionKeyPubkey.toBase58());
       }
@@ -427,7 +489,7 @@ export function useSolanaGame() {
       }
       if (msg.includes("already been processed") || msg.includes("already in use")) {
         try {
-          const pda = getGameStatePda(publicKey!);
+          const pda = getGameStatePda(publicKey!, sessionKeyPubkey);
           const gs = await (getProgram()?.account as any)?.gameState.fetchNullable(pda);
           if (gs) { await fetchGameState(); return; }
         } catch (_) {}
@@ -452,7 +514,8 @@ export function useSolanaGame() {
     setError(null);
     try {
       const kp = generateSessionKeypair();
-      const gameStatePda = getGameStatePda(publicKey);
+      const gameStatePda = getActiveGameStatePda();
+      if (!gameStatePda) return;
 
       const tx = await (erProgram.methods as any)
         .setSessionKey(kp.publicKey)
@@ -474,7 +537,7 @@ export function useSolanaGame() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, getErProgram, generateSessionKeypair]);
+  }, [publicKey, getErProgram, generateSessionKeypair, getActiveGameStatePda]);
 
   // ── make_move ────────────────────────────────────────────────────────────
   // Chemin idéal : session_key locale → ER (0 popup, 0 fee).
@@ -519,7 +582,8 @@ export function useSolanaGame() {
       setIsLoading(true);
       setError(null);
       try {
-        const gameStatePda = getGameStatePda(publicKey);
+        const gameStatePda = getActiveGameStatePda();
+        if (!gameStatePda) return;
         const signerPubkey = SKIP_DELEGATION ? publicKey : (kp ? kp.publicKey : publicKey);
 
         const expectedMove = gameState?.moveCount ?? 0;
@@ -593,7 +657,8 @@ export function useSolanaGame() {
 
         if (msg.includes("already been processed")) {
           try {
-            const gameStatePda = getGameStatePda(publicKey!);
+            const gameStatePda = getActiveGameStatePda();
+            if (!gameStatePda) return;
             const gs = await (signerProgram.account as any).gameState.fetchNullable(gameStatePda);
             if (gs) {
               const newState: SolanaGameState = {
@@ -624,7 +689,7 @@ export function useSolanaGame() {
         setIsLoading(false);
       }
     },
-    [publicKey, sessionKeypair, gameState?.moveCount, gameState?.delegated, getSessionProgram, getErProgram, getProgram, toPhase]
+    [publicKey, sessionKeypair, gameState?.moveCount, gameState?.delegated, getSessionProgram, getErProgram, getProgram, getActiveGameStatePda, toPhase]
   );
 
   // ── reset_game (devnet — vide un compte coincé pour recommencer) ─────────
@@ -638,7 +703,8 @@ export function useSolanaGame() {
     setIsLoading(true);
     setError(null);
     try {
-      const gameStatePda = getGameStatePda(publicKey);
+      const gameStatePda = getActiveGameStatePda();
+      if (!gameStatePda) return;
 
       const tx = await (program.methods as any)
         .resetGame()
@@ -650,6 +716,7 @@ export function useSolanaGame() {
 
       console.log("[Solana] reset_game tx:", tx);
       clearSessionKeypair(publicKey.toBase58());
+      clearActiveGamePda(publicKey.toBase58());
       setSessionKeypair(null);
       setGameState(null);
     } catch (e: any) {
@@ -663,6 +730,7 @@ export function useSolanaGame() {
       if (msg.includes("already been processed") || msg.includes("already in use")) {
         console.log("[Solana] reset_game déjà traité — nettoyage local");
         clearSessionKeypair(publicKey.toBase58());
+        clearActiveGamePda(publicKey.toBase58());
         setSessionKeypair(null);
         setGameState(null);
         await fetchGameState().catch(() => {});
@@ -673,7 +741,25 @@ export function useSolanaGame() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, getProgram]);
+  }, [publicKey, getProgram, getActiveGameStatePda]);
+
+  const forgetLocalGame = useCallback(() => {
+    if (!publicKey) return;
+    clearSessionKeypair(publicKey.toBase58());
+    clearActiveGamePda(publicKey.toBase58());
+    setSessionKeypair(null);
+    setGameState(null);
+    setUndelegatingPda(null);
+    setError(null);
+  }, [publicKey]);
+
+  const markLocalGameOver = useCallback(() => {
+    setGameState((prev) => prev
+      ? { ...prev, over: true, phase: "Finished" }
+      : prev
+    );
+    setError(null);
+  }, []);
 
   // ── close_game (ER — player signe, 1 popup) ──────────────────────────────
   // Envoyé au RPC ER → commit état final + undelegate → compte revient sur mainnet.
@@ -689,13 +775,16 @@ export function useSolanaGame() {
     setIsLoading(true);
     setError(null);
     try {
-      const gameStatePda = getGameStatePda(publicKey);
+      const gameStatePda = getActiveGameStatePda();
+      if (!gameStatePda) return;
+      const pdaInfo = await connection.getAccountInfo(gameStatePda);
+      const isOwnedByDelegationProgram = pdaInfo?.owner.equals(DELEGATION_PROGRAM_ID) ?? false;
+      setUndelegatingPda(gameStatePda.toBase58());
 
       // ── Bypass : jeu sur devnet, pas d'ER → reset_game directement ──────
-      if (SKIP_DELEGATION || !(gameState?.delegated)) {
+      if (SKIP_DELEGATION || (!(gameState?.delegated) && !isOwnedByDelegationProgram)) {
         console.log("[Bypass] closeGame → reset_game sur devnet");
 
-        const pdaInfo = await connection.getAccountInfo(gameStatePda);
         if (pdaInfo && !pdaInfo.owner.equals(ZKUBE_PROGRAM_ID)) {
          console.warn("[Bypass] closeGame: PDA owned by delegation_program");
          setError(
@@ -705,6 +794,7 @@ export function useSolanaGame() {
           );
           // Force clear state local pour sortir de l'écran game over
               clearSessionKeypair(publicKey.toBase58());
+              clearActiveGamePda(publicKey.toBase58());
               setSessionKeypair(null);
               setGameState(null);
               return;
@@ -722,8 +812,10 @@ export function useSolanaGame() {
         console.log("[Solana] reset_game (bypass closeGame) tx:", tx);
         setLastTx(tx);
         clearSessionKeypair(publicKey.toBase58());
+        clearActiveGamePda(publicKey.toBase58());
         setSessionKeypair(null);
         setGameState(null);
+        setUndelegatingPda(null);
         return;
       }
 
@@ -766,16 +858,24 @@ export function useSolanaGame() {
         await new Promise((r) => setTimeout(r, 5000));
       }
 
-      // Nettoie la session_key (partie terminée)
+      console.log("[close_game] tx confirmée sur l'ER — attente du retour mainnet");
+
+      const ownership = await waitForMainnetOwnership(gameStatePda);
+      if (ownership !== "returned") {
+        setError(
+          `Undelegation pas encore finalisée côté mainnet.\n` +
+          `PDA: ${gameStatePda.toBase58()}\n` +
+          `Dernière tx ER: ${txSig}\n` +
+          `État: ${ownership === "timeout" ? "toujours owned par delegation_program après 120s" : "compte introuvable"}`
+        );
+        return;
+      }
+
       clearSessionKeypair(publicKey.toBase58());
+      clearActiveGamePda(publicKey.toBase58());
       setSessionKeypair(null);
-
-      // On libère l'UI immédiatement — l'undelegation sur mainnet peut prendre
-      // 30-120s selon les conditions de l'ER. createGame gérera les retries
-      // automatiquement si le compte est encore owned par delegation_program.
-      console.log("[close_game] tx confirmée sur l'ER — undelegation mainnet en cours (async)");
-
       setGameState(null);
+      setUndelegatingPda(null);
     } catch (e: any) {
       const msg: string = e?.message ?? e?.toString?.() ?? "";
       // User cancelled the Phantom popup — silent no-op
@@ -800,12 +900,14 @@ export function useSolanaGame() {
 
       if (msg.includes("already been processed")) {
         try {
-          const pda = getGameStatePda(publicKey!);
+          const pda = getActiveGameStatePda();
+          if (!pda) return;
           const program = getProgram();
           if (program) {
             const gs = await (program.account as any).gameState.fetchNullable(pda);
             if (!gs || gs.over) {
               clearSessionKeypair(publicKey.toBase58());
+              clearActiveGamePda(publicKey.toBase58());
               setSessionKeypair(null);
               setGameState(null);
               return;
@@ -817,16 +919,18 @@ export function useSolanaGame() {
       setError(displayMsg);
       console.error("[useSolanaGame] closeGame error:", e);
     } finally {
+      setUndelegatingPda(null);
       setIsLoading(false);
     }
-  }, [publicKey, wallet, erConnection, connection, getErProgram, getProgram, fetchGameState, gameState?.delegated]);
+  }, [publicKey, wallet, erConnection, connection, getErProgram, getProgram, getActiveGameStatePda, fetchGameState, gameState?.delegated, waitForMainnetOwnership]);
 
   // ── ÉTAPE 3 — diagnoseUndelegation ──────────────────────────────────────
   // Vérifie l'état réel de tous les buffers sur Solana devnet et liste les
   // transactions récentes sur le PDA pour savoir si l'ER a soumis quelque chose.
   const diagnoseUndelegation = useCallback(async () => {
     if (!publicKey) return;
-    const gameStatePda     = getGameStatePda(publicKey);
+    const gameStatePda     = getActiveGameStatePda();
+    if (!gameStatePda) return;
     const delegationBuffer = getDelegationBuffer(gameStatePda);   // ["buffer", pda] ZKUBE
     const undelegateBuffer = getUndelegateBuffer(gameStatePda);   // ["undelegate_buffer", pda] DELEGATION
 
@@ -883,7 +987,7 @@ export function useSolanaGame() {
 
     console.groupEnd();
     return { pdaInfo, delBufInfo, undBufInfo };
-  }, [publicKey, connection]);
+  }, [publicKey, connection, getActiveGameStatePda]);
 
   // ── ÉTAPE 4 — forceProcessUndelegation ──────────────────────────────────
   // Test décisif : appelle process_undelegation MANUELLEMENT depuis le client.
@@ -899,7 +1003,8 @@ export function useSolanaGame() {
     const program      = getProgram();
     if (!program) return;
 
-    const gameStatePda     = getGameStatePda(publicKey);
+    const gameStatePda     = getActiveGameStatePda();
+    if (!gameStatePda) return;
     const undelegateBuffer = getUndelegateBuffer(gameStatePda);
 
     // Vérifier que le undelegate_buffer existe avant d'essayer
@@ -962,6 +1067,8 @@ export function useSolanaGame() {
     isLoading,
     error,
     lastTx,
+    undelegatingPda,
+    isSkipDelegation: SKIP_DELEGATION,
     hasSessionKey:  !!sessionKeypair,
     sessionKey:     sessionKeypair?.publicKey.toBase58() ?? null,
     // Actions
@@ -969,6 +1076,8 @@ export function useSolanaGame() {
     makeMove,
     closeGame,
     resetGame,                 // pour débloquer un compte coincé (non délégué)
+    forgetLocalGame,           // oublie un ancien PDA local et permet de créer une nouvelle partie
+    markLocalGameOver,         // affiche Game Over dès que la grille locale détecte la perte
     renewSessionKey,           // reconnexion mid-game (nouvelle session_key)
     refresh: fetchGameState,
     // ── Debug MagicBlock undelegation ───────────────────────────────────
