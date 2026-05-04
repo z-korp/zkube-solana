@@ -46,11 +46,15 @@ export default function SolanaPlayScreen() {
     isLoading,
     error,
     lastTx,
+    undelegatingPda,
+    isSkipDelegation,
     hasSessionKey,
     createGame,
     makeMove,
     closeGame,
     resetGame,
+    forgetLocalGame,
+    markLocalGameOver,
     renewSessionKey,
   } = useSolanaGame();
 
@@ -248,7 +252,16 @@ export default function SolanaPlayScreen() {
   if (isLoading && !gameState) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center" style={{ backgroundColor: themeColors.primary }}>
-        <p className="text-cyan-400 animate-pulse text-lg font-bold">Transaction en cours…</p>
+        <div className="flex flex-col items-center gap-3 px-8 text-center">
+          <p className="text-cyan-400 animate-pulse text-lg font-bold">
+            {undelegatingPda ? "Undelegation en cours…" : "Transaction en cours…"}
+          </p>
+          {undelegatingPda && (
+            <p className="text-white/50 text-xs max-w-sm">
+              Le compte revient de MagicBlock vers Solana devnet. Ne relance pas New Game tant que cette étape n'est pas terminée.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -307,13 +320,22 @@ export default function SolanaPlayScreen() {
             </>
           ) : (
             /* Classic mode */
-            <button
-              onClick={closeGame}
-              disabled={isLoading}
-              className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
-            >
-              {isLoading ? "Committing…" : "New Game"}
-            </button>
+            <>
+              <button
+                onClick={closeGame}
+                disabled={isLoading}
+                className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
+              >
+                {undelegatingPda ? "Waiting…" : isLoading ? "Committing…" : "New Game"}
+              </button>
+              <button
+                onClick={forgetLocalGame}
+                disabled={isLoading}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+              >
+                Start fresh
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -325,7 +347,6 @@ export default function SolanaPlayScreen() {
   // est l'état normal. On n'affiche "Compte bloqué" que si la partie est Finished
   // (besoin de reset) ou si le seed est 0 alors que la phase n'est pas Created (incohérent).
   // Exception : isLoading=true pendant createGame() (flux normal create→delegate).
-  const isSkipDelegation = true; // doit correspondre à SKIP_DELEGATION dans useSolanaGame
   // En bypass, la phase passe Created → Playing au 1er move (make_move.rs ligne 66).
   // Les deux phases sont jouables. On bloque uniquement sur Finished (besoin de reset).
   const isPlayableBypass =
@@ -479,6 +500,7 @@ export default function SolanaPlayScreen() {
               setIsTxProcessing={setIsTxProcessing}
               levelTransitionPending={false}
               onMove={handleMove}
+              onLocalGameOver={markLocalGameOver}
             />
             <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
               <div className="chevron-pulse">

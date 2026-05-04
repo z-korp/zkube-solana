@@ -17,11 +17,8 @@ pub struct SetSessionKey<'info> {
     pub player: Signer<'info>,
 
     /// Le GameState du joueur sur l'ER.
-    /// PDA dérivée de game_state.player (même pattern que make_move).
     #[account(
         mut,
-        seeds = [b"game", game_state.player.as_ref()],
-        bump,
         constraint = game_state.player == player.key() @ ErrorCode::NotGameOwner,
         constraint = game_state.delegated @ ErrorCode::NotDelegated,
         constraint = (game_state.phase == GamePhase::Delegated
