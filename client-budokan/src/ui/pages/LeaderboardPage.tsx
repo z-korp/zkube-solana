@@ -1,15 +1,14 @@
 import { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { Trophy, Loader2 } from "lucide-react";
-import useAccountCustom from "@/hooks/useAccountCustom";
-import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
-import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useClassicLeaderboard } from "@/hooks/useClassicLeaderboard";
 import { usePlayerLeaderboard } from "@/hooks/usePlayerLeaderboard";
 import { getThemeColors } from "@/config/themes";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import PageHeader from "@/ui/components/shared/PageHeader";
-import { getLevelFromXp, getTitleForLevel } from "@/config/profileData";
+import { getCurrentTournamentId } from "@/solana/useSolanaTournament";
 
 const TROPHY_IMAGES: Record<number, string> = {
   1: "/assets/common/trophies/gold.png",
@@ -25,29 +24,25 @@ const rowVariants: any = {
   })
 };
 
-function computeDailyReward(rank1Based: number, total: number): number {
-  if (total === 0) return 0;
-  const pct = ((rank1Based - 1) * 100) / total;
-  if (pct < 2) return 10;
-  if (pct < 5) return 7;
-  if (pct < 10) return 5;
-  if (pct < 25) return 3;
-  if (pct < 50) return 1;
-  return 0;
+function shortAddress(address: string): string {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
 const LeaderboardPage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const { account } = useAccountCustom();
-  const { challenge } = useCurrentChallenge();
-  const { entries: dailyEntries, isLoading: dailyLoading } = useDailyLeaderboard(challenge?.challenge_id);
-  const { entries: playerEntries, isLoading: playerLoading } = usePlayerLeaderboard();
-  const [activeTab, setActiveTab] = useState<"daily" | "player">("daily");
+  const { publicKey } = useWallet();
+  const navTournamentId = useNavigationStore((s) => s.tournamentId);
+  const activeTournamentId = navTournamentId ?? getCurrentTournamentId();
+  const { entries: dailyEntries, isLoading: dailyLoading } = useClassicLeaderboard();
+  const { entries: playerEntries, isLoading: playerLoading } = usePlayerLeaderboard(activeTournamentId);
+  const [activeTab, setActiveTab] = useState<"daily" | "player">(() =>
+    navTournamentId ? "player" : "daily",
+  );
   const navigate = useNavigationStore((s) => s.navigate);
   const setProfileAddress = useNavigationStore((s) => s.setProfileAddress);
 
-  const normalizedAccount = account?.address?.toLowerCase();
+  const normalizedAccount = publicKey?.toBase58().toLowerCase();
 
   const handleRowClick = (playerAddress: string | undefined) => {
     if (!playerAddress) return;
@@ -60,35 +55,32 @@ const LeaderboardPage: React.FC = () => {
       return dailyEntries.slice(0, 30).map((entry) => ({
         id: `daily-${entry.rank}`,
         rank: entry.rank,
-        name: entry.playerName ?? entry.player,
-        score: entry.totalStars ?? 0,
+        name: entry.playerName ?? shortAddress(entry.player),
+        score: entry.score,
         playerAddress: entry.player,
         isYou: normalizedAccount === entry.player.toLowerCase(),
-        subtitle: undefined as string | undefined,
+        subtitle: `Classic best · ${entry.moveCount} moves · ${entry.maxCombo} combo`,
       }));
     }
-    return playerEntries.slice(0, 30).map((entry) => {
-      const level = getLevelFromXp(entry.lifetimeXp);
-      return {
-        id: `player-${entry.rank}`,
-        rank: entry.rank,
-        name: entry.playerName ?? entry.player,
-        score: entry.lifetimeXp,
-        playerAddress: entry.player,
-        isYou: normalizedAccount === entry.player.toLowerCase(),
-        subtitle: `Lv.${level} · ${getTitleForLevel(level)}`,
-      };
-    });
+    return playerEntries.slice(0, 30).map((entry) => ({
+      id: `player-${entry.rank}`,
+      rank: entry.rank,
+      name: entry.playerName ?? shortAddress(entry.player),
+      score: entry.bestScore,
+      playerAddress: entry.player,
+      isYou: normalizedAccount === entry.player.toLowerCase(),
+      subtitle: `Tournament #${entry.tournamentId} · ${entry.attempts} attempt${entry.attempts > 1 ? "s" : ""}`,
+    }));
   }, [activeTab, dailyEntries, playerEntries, normalizedAccount]);
 
   const myRank = useMemo(() => {
     if (!normalizedAccount) return null;
     if (activeTab === "daily") {
       const entry = dailyEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
-      return entry ? { rank: entry.rank, total: dailyEntries.length, score: entry.totalStars ?? 0, name: entry.playerName ?? "You" } : null;
+      return entry ? { rank: entry.rank, total: dailyEntries.length, score: entry.score, name: entry.playerName ?? "You" } : null;
     }
     const entry = playerEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
-    return entry ? { rank: entry.rank, total: playerEntries.length, score: entry.lifetimeXp, name: entry.playerName ?? "You" } : null;
+    return entry ? { rank: entry.rank, total: playerEntries.length, score: entry.bestScore, name: entry.playerName ?? "You" } : null;
   }, [activeTab, dailyEntries, playerEntries, normalizedAccount]);
 
   const isMyRankVisible = myRank ? rankRows.some((r) => r.isYou) : false;
@@ -145,7 +137,11 @@ const LeaderboardPage: React.FC = () => {
           >
             <Trophy className="h-12 w-12 mb-4 opacity-50" />
             <p className="mb-1 font-sans text-xl font-semibold" style={{ color: colors.text }}>No entries yet</p>
-            <p className="font-sans text-base">Finish a run to claim rank #1.</p>
+            <p className="font-sans text-base">
+              {activeTab === "daily"
+                ? "Finish a classic game to claim rank #1."
+                : "Submit a tournament score to claim rank #1."}
+            </p>
           </motion.div>
         ) : (
           <motion.div
@@ -155,10 +151,6 @@ const LeaderboardPage: React.FC = () => {
             className="mx-auto max-w-[640px] space-y-2"
           >
             {rankRows.map((entry, index) => {
-              const reward = activeTab === "daily"
-                ? computeDailyReward(entry.rank, dailyEntries.length)
-                : 0;
-
               // Background per row: rank colors for top 3, neutral white otherwise.
               const baseBg =
                 entry.rank === 1
@@ -227,13 +219,8 @@ const LeaderboardPage: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     <div className="font-sans text-[16px] font-extrabold tracking-wide" style={{ color: colors.text }}>
-                      {entry.score.toLocaleString()}{activeTab === "player" ? " XP" : activeTab === "daily" ? " ★" : ""}
+                      {entry.score.toLocaleString()} pts
                     </div>
-                    {reward > 0 && (
-                      <div className="shrink-0 rounded-full bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">
-                        +{reward} ★
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               );
@@ -260,27 +247,14 @@ const LeaderboardPage: React.FC = () => {
                     <p className="truncate font-sans text-sm font-extrabold" style={{ color: colors.accent }}>
                       {myRank.name}
                     </p>
-                    {activeTab === "player" && (() => {
-                      const lvl = getLevelFromXp(myRank.score);
-                      return (
-                        <p className="truncate font-sans text-[11px] font-semibold" style={{ color: colors.textMuted }}>
-                          Lv.{lvl} · {getTitleForLevel(lvl)}
-                        </p>
-                      );
-                    })()}
+                    <p className="truncate font-sans text-[11px] font-semibold" style={{ color: colors.textMuted }}>
+                      Your rank in {activeTab === "daily" ? "classic games" : `tournament #${activeTournamentId}`}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="font-sans text-[16px] font-extrabold tracking-wide" style={{ color: colors.text }}>
-                      {myRank.score.toLocaleString()}{activeTab === "player" ? " XP" : activeTab === "daily" ? " ★" : ""}
+                      {myRank.score.toLocaleString()} pts
                     </div>
-                    {activeTab === "daily" && (() => {
-                      const reward = computeDailyReward(myRank.rank, myRank.total);
-                      return reward > 0 ? (
-                        <div className="shrink-0 rounded-full bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">
-                          +{reward} ★
-                        </div>
-                      ) : null;
-                    })()}
                   </div>
                 </motion.div>
               </>
@@ -290,7 +264,9 @@ const LeaderboardPage: React.FC = () => {
             {!myRank && normalizedAccount && rankRows.length > 0 && (
               <div className="mt-2 rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-center">
                 <p className="font-sans text-xs font-semibold text-white/50">
-                  You're not ranked yet. Finish a run to appear here!
+                  {activeTab === "daily"
+                    ? "You're not ranked yet. Finish a classic game to appear here!"
+                    : "You're not ranked yet. Submit a tournament score to appear here!"}
                 </p>
               </div>
             )}
