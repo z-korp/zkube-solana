@@ -60,11 +60,13 @@ const LeaderboardPage: React.FC = () => {
 
   const normalizedAccount = publicKey?.toBase58().toLowerCase();
 
-  const handleRowClick = (playerAddress: string | undefined) => {
-    if (!playerAddress) return;
-    setProfileAddress(playerAddress);
-    navigate("profile");
-  };
+  //TODO: decommenter pour la partie profile 
+  // const handleRowClick = (playerAddress: string | undefined) => {
+  //   if (!playerAddress) return;
+  //   setProfileAddress(playerAddress);
+    
+  //   navigate("profile");
+  // };
 
   const rankRows = useMemo(() => {
     // Daily leaderboard temporarily disabled
@@ -196,7 +198,10 @@ const LeaderboardPage: React.FC = () => {
                   custom={index}
                   variants={rowVariants}
                   key={entry.id}
-                  onClick={() => handleRowClick(entry.playerAddress)}
+                  // TODO: decommenter ceci pour faire la partie profile
+                  //onClick={() => handleRowClick(entry.playerAddress)}
+
+                  
                   className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl transition-all active:scale-[0.98] ${entry.isYou ? "leaderboard-pulse" : ""}`}
                   style={{
                     // For non-"you" rows: static rank-based background.

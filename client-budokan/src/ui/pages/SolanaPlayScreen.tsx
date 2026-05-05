@@ -546,6 +546,12 @@ export default function SolanaPlayScreen() {
               >
                 {undelegatingPda ? "Preparing…" : isLoading ? "Starting…" : "New Game"}
               </button>
+              <button
+                onClick={() => navigate("home")}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors"
+              >
+                ← Back to Home
+              </button>
             </>
           )}
         </div>
