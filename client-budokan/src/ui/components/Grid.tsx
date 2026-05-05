@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Account } from "starknet";
+// Account type removed (starknet dep supprimé)
+type Account = any;
 import { useDojo } from "@/dojo/useDojo";
 import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";

@@ -1,5 +1,10 @@
 import { toast } from "sonner";
-import { shortenHex } from "@dojoengine/utils";
+
+// Remplace shortenHex de @dojoengine/utils (paquet supprimé)
+const shortenHex = (str: string, chars = 6): string => {
+  if (!str || str.length <= chars * 2 + 2) return str;
+  return `${str.slice(0, chars)}…${str.slice(-chars)}`;
+};
 
 const { VITE_PUBLIC_DEPLOY_TYPE } = import.meta.env;
 

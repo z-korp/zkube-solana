@@ -1,4 +1,5 @@
-import type { ComponentValue } from "@dojoengine/recs";
+// ComponentValue supprimé (dojoengine/recs retiré)
+type ComponentValue = Record<string, any>;
 import { Packer } from "../helpers/packer";
 import {
   unpackRunData,
