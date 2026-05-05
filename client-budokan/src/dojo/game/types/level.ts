@@ -11,7 +11,18 @@
  * - Supports dual constraints from settings
  */
 
-import { hash } from "starknet";
+// hash de starknet supprimé — remplacé par un hash déterministe simple
+function computePoseidonHashOnElements(values: bigint[]): string {
+  let h = 0x6c62272e07bb0142n;
+  for (const v of values) {
+    h ^= v;
+    h = BigInt.asUintN(64, h * 0x517cc1b727220a95n);
+    h = (h << 17n) | (h >> 47n);
+    h = BigInt.asUintN(64, h);
+  }
+  return "0x" + h.toString(16);
+}
+const hash = { computePoseidonHashOnElements };
 import { Difficulty, DifficultyType } from "./difficulty";
 import { Constraint, ConstraintType } from "./constraint";
 import { BOSS_LEVELS } from "@/dojo/game/constants";

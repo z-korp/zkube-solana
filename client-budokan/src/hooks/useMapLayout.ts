@@ -1,5 +1,15 @@
 import { useMemo } from "react";
-import { hash } from "starknet";
+// hash de starknet supprimé — remplacé par un hash déterministe simple (xorshift64)
+function poseidonSimple(values: bigint[]): bigint {
+  let h = 0x6c62272e07bb0142n;
+  for (const v of values) {
+    h ^= v;
+    h = BigInt.asUintN(64, h * 0x517cc1b727220a95n);
+    h = (h << 17n) | (h >> 47n);
+    h = BigInt.asUintN(64, h);
+  }
+  return h;
+}
 
 export type MapLayoutEdgeKind = "main" | "branch";
 
@@ -30,7 +40,7 @@ export interface UseMapLayoutParams {
 /* ------------------------------------------------------------------ */
 
 function poseidon(values: bigint[]): bigint {
-  return BigInt(hash.computePoseidonHashOnElements(values));
+  return poseidonSimple(values);
 }
 
 /** Returns a deterministic float in [0, 1) for a given (seed, zone, step, salt). */
