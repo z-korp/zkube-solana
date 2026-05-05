@@ -1,9 +1,4 @@
 {
-  "framework": "vite",
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "dist",
-  "installCommand": "pnpm install",
-  "routes": [
-    { "src": "/[^.]+", "dest": "/", "status": 200 }
+  "rewrites": [ { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
