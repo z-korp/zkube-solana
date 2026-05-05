@@ -477,7 +477,7 @@ export default function SolanaPlayScreen() {
           </p>
           {undelegatingPda && (
             <p className="text-white/50 text-xs max-w-sm">
-              Le compte revient de MagicBlock vers Solana devnet. Ne relance pas New Game tant que cette étape n'est pas terminée.
+              the account is coming back from MagicBlock to Solana. Do not retry New Game until this step is completed.
             </p>
           )}
         </div>
@@ -759,7 +759,8 @@ export default function SolanaPlayScreen() {
       )}
 
       {/* Solana tx link */}
-      {lastTx && (
+      {/* TODO: the tx en bas peut le garder quand c'est mainnnet  */}
+      {/* {lastTx && (
         <div className="text-center pb-2">
           <a
             href={`https://explorer.solana.com/tx/${lastTx}?cluster=devnet`}
@@ -770,7 +771,7 @@ export default function SolanaPlayScreen() {
             Last tx: {lastTx.slice(0, 10)}… ↗
           </a>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

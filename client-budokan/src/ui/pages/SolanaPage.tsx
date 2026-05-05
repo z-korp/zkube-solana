@@ -69,12 +69,6 @@ export default function SolanaPage() {
         >
           ← Back
         </button>
-        <div className="flex-1 flex flex-col items-center gap-1">
-          <h1 className="text-3xl font-bold tracking-wider text-cyan-400">
-            zKube × Solana
-          </h1>
-          <p className="text-gray-400 text-sm">Devnet</p>
-        </div>
       </div>
 
       {/* Wallet */}
