@@ -109,6 +109,10 @@ const TournamentPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  // Verrouille le bouton play pendant 800ms après le montage du composant
+  // pour empêcher les ghost-clicks (tap sur "Submit Score" dans SolanaPlayScreen
+  // qui se propage sur "Play Again" quand TournamentPage se monte au même endroit).
+  const [mountProtected, setMountProtected] = useState(true);
   const [replayLockedUntil, setReplayLockedUntil] = useState(0);
   const playInFlightRef = useRef(false);
 
@@ -117,6 +121,12 @@ const TournamentPage: React.FC = () => {
       setNowSec(Math.floor(Date.now() / 1000));
     }, 1000);
     return () => window.clearInterval(id);
+  }, []);
+
+  // Lève la protection anti-ghost-click après 800ms
+  useEffect(() => {
+    const id = window.setTimeout(() => setMountProtected(false), 800);
+    return () => window.clearTimeout(id);
   }, []);
 
   // ── Fetch données ────────────────────────────────────────────────────────────
@@ -147,17 +157,13 @@ const TournamentPage: React.FC = () => {
   }, [tournamentId, fetchTournament, fetchMyEntry, fetchLeaderboard]);
 
   useEffect(() => {
-    if (!publicKey || !tournamentId) {
-      setReplayLockedUntil(0);
-      return;
-    }
+    // N'intervient que si une soumission récente impose un délai.
+    // On ne remet jamais à 0 ici — c'est le mountProtected qui gère les ghost-clicks.
+    if (!publicKey || !tournamentId) return;
 
     const returnedAt = getSubmitReturnTime(publicKey.toBase58(), tournamentId);
     const lockedUntil = returnedAt + REPLAY_AFTER_SUBMIT_LOCK_MS;
-    if (lockedUntil <= Date.now()) {
-      setReplayLockedUntil(0);
-      return;
-    }
+    if (lockedUntil <= Date.now()) return; // délai expiré, rien à faire
 
     setReplayLockedUntil(lockedUntil);
     const timeout = window.setTimeout(() => setReplayLockedUntil(0), lockedUntil - Date.now());
@@ -181,11 +187,18 @@ const TournamentPage: React.FC = () => {
 
   const isRegistered = !!myEntry;
   const myPrizeRank = tournament ? getMyPrizeRank(tournament) : null;
-  const isReplayLocked = replayLockedUntil > Date.now();
+  const currentPage = useNavigationStore((s) => s.currentPage);
+  const isReplayLocked = mountProtected || replayLockedUntil > Date.now();
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const handlePlay = useCallback(async () => {
     if (!connected || !publicKey || !tournamentId || !tournament) return;
+    // Bloque si on est déjà sur l'écran de jeu (page "solana" déjà active).
+    // AnimatePresence garde TournamentPage monté pendant l'animation de sortie :
+    // sans ce guard, un tap pendant la transition sauverait un 2e play request
+    // en sessionStorage, déclenchant un 3e jeu automatique.
+    if (currentPage === "solana") return;
+    if (mountProtected) return; // Protection anti-ghost-click (800ms après montage)
     if (replayLockedUntil > Date.now()) return;
     if (playInFlightRef.current) return;
     playInFlightRef.current = true;
@@ -216,7 +229,8 @@ const TournamentPage: React.FC = () => {
       setIsPlaying(false);
     }
   }, [
-    connected, publicKey, tournamentId, tournament, isRegistered, myEntry?.hasSubmitted, replayLockedUntil,
+    connected, publicKey, tournamentId, tournament, isRegistered, myEntry?.hasSubmitted,
+    currentPage, mountProtected, replayLockedUntil,
     setMapZoneId, setIsDailyMap, setIsTournamentMap, setNavTournamentId, navigate,
   ]);
 

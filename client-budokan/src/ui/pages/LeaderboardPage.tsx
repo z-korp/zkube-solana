@@ -2,14 +2,15 @@ import { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { Trophy, Loader2 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useClassicLeaderboard } from "@/hooks/useClassicLeaderboard";
+// import { useClassicLeaderboard } from "@/hooks/useClassicLeaderboard";
 import { usePlayerLeaderboard } from "@/hooks/usePlayerLeaderboard";
+import { useTournaments } from "@/hooks/useTournaments";
 import { getThemeColors } from "@/config/themes";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import PageHeader from "@/ui/components/shared/PageHeader";
-import { getCurrentTournamentId } from "@/solana/useSolanaTournament";
 
+//TODO: s'occupe de la partie daily commenter 
 const TROPHY_IMAGES: Record<number, string> = {
   1: "/assets/common/trophies/gold.png",
   2: "/assets/common/trophies/silver.png",
@@ -33,12 +34,27 @@ const LeaderboardPage: React.FC = () => {
   const colors = getThemeColors(themeTemplate);
   const { publicKey } = useWallet();
   const navTournamentId = useNavigationStore((s) => s.tournamentId);
-  const activeTournamentId = navTournamentId ?? getCurrentTournamentId();
-  const { entries: dailyEntries, isLoading: dailyLoading } = useClassicLeaderboard();
-  const { entries: playerEntries, isLoading: playerLoading } = usePlayerLeaderboard(activeTournamentId);
-  const [activeTab, setActiveTab] = useState<"daily" | "player">(() =>
-    navTournamentId ? "player" : "daily",
+  // Fallback : premier tournoi actif on-chain, puis upcoming, puis ended — jamais getCurrentTournamentId()
+  const { activeTournaments, upcomingTournaments, recentTournaments } = useTournaments();
+  const fallbackTournamentId = useMemo(
+    () =>
+      activeTournaments[0]?.tournamentId ??
+      upcomingTournaments[0]?.tournamentId ??
+      recentTournaments[0]?.tournamentId ??
+      null,
+    [activeTournaments, upcomingTournaments, recentTournaments],
   );
+  const activeTournamentId = navTournamentId ?? fallbackTournamentId;
+  // const { entries: dailyEntries, isLoading: dailyLoading } = useClassicLeaderboard();
+  // Daily leaderboard temporarily disabled - TODO: reimplement for Solana migration
+  const dailyEntries: any[] = [];
+  const dailyLoading = false;
+  const { entries: playerEntries, isLoading: playerLoading } = usePlayerLeaderboard(activeTournamentId);
+  // const [activeTab, setActiveTab] = useState<"daily" | "player">(() =>
+  //   navTournamentId ? "player" : "daily",
+  // );
+  // Temporarily default to player tab since daily is disabled
+  const [activeTab, setActiveTab] = useState<"daily" | "player">("player");
   const navigate = useNavigationStore((s) => s.navigate);
   const setProfileAddress = useNavigationStore((s) => s.setProfileAddress);
 
@@ -51,17 +67,18 @@ const LeaderboardPage: React.FC = () => {
   };
 
   const rankRows = useMemo(() => {
-    if (activeTab === "daily") {
-      return dailyEntries.slice(0, 30).map((entry) => ({
-        id: `daily-${entry.rank}`,
-        rank: entry.rank,
-        name: entry.playerName ?? shortAddress(entry.player),
-        score: entry.score,
-        playerAddress: entry.player,
-        isYou: normalizedAccount === entry.player.toLowerCase(),
-        subtitle: `Classic best · ${entry.moveCount} moves · ${entry.maxCombo} combo`,
-      }));
-    }
+    // Daily leaderboard temporarily disabled
+    // if (activeTab === "daily") {
+    //   return dailyEntries.slice(0, 30).map((entry) => ({
+    //     id: `daily-${entry.rank}`,
+    //     rank: entry.rank,
+    //     name: entry.playerName ?? shortAddress(entry.player),
+    //     score: entry.score,
+    //     playerAddress: entry.player,
+    //     isYou: normalizedAccount === entry.player.toLowerCase(),
+    //     subtitle: `Classic best · ${entry.moveCount} moves · ${entry.maxCombo} combo`,
+    //   }));
+    // }
     return playerEntries.slice(0, 30).map((entry) => ({
       id: `player-${entry.rank}`,
       rank: entry.rank,
@@ -75,10 +92,11 @@ const LeaderboardPage: React.FC = () => {
 
   const myRank = useMemo(() => {
     if (!normalizedAccount) return null;
-    if (activeTab === "daily") {
-      const entry = dailyEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
-      return entry ? { rank: entry.rank, total: dailyEntries.length, score: entry.score, name: entry.playerName ?? "You" } : null;
-    }
+    // Daily leaderboard temporarily disabled
+    // if (activeTab === "daily") {
+    //   const entry = dailyEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
+    //   return entry ? { rank: entry.rank, total: dailyEntries.length, score: entry.score, name: entry.playerName ?? "You" } : null;
+    // }
     const entry = playerEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
     return entry ? { rank: entry.rank, total: playerEntries.length, score: entry.bestScore, name: entry.playerName ?? "You" } : null;
   }, [activeTab, dailyEntries, playerEntries, normalizedAccount]);
@@ -97,7 +115,7 @@ const LeaderboardPage: React.FC = () => {
         </motion.div>
         <div className="mx-6 mt-2 flex rounded-full border border-white/[0.16] bg-white/[0.1] p-1 shadow-[inset_0_2px_8px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           {([
-            { id: "daily", label: "Daily" },
+            // { id: "daily", label: "Daily" }, // Temporarily disabled - Daily leaderboard under migration
             { id: "player", label: "Player" },
           ] as const).map((tab) => (
             <button
@@ -123,6 +141,7 @@ const LeaderboardPage: React.FC = () => {
       </div>
 
       <div className="mx-4 mt-2 mb-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
+        {/* Daily leaderboard temporarily disabled */}
         {(activeTab === "daily" ? dailyLoading : playerLoading) ? (
           <div className="flex flex-col items-center justify-center py-16" style={{ color: colors.textMuted }}>
             <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: colors.accent }} />
@@ -138,8 +157,9 @@ const LeaderboardPage: React.FC = () => {
             <Trophy className="h-12 w-12 mb-4 opacity-50" />
             <p className="mb-1 font-sans text-xl font-semibold" style={{ color: colors.text }}>No entries yet</p>
             <p className="font-sans text-base">
+              {/* Daily leaderboard temporarily disabled */}
               {activeTab === "daily"
-                ? "Finish a classic game to claim rank #1."
+                ? "Daily leaderboard temporarily disabled - Solana migration in progress."
                 : "Submit a tournament score to claim rank #1."}
             </p>
           </motion.div>
@@ -264,8 +284,9 @@ const LeaderboardPage: React.FC = () => {
             {!myRank && normalizedAccount && rankRows.length > 0 && (
               <div className="mt-2 rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-center">
                 <p className="font-sans text-xs font-semibold text-white/50">
+                  {/* Daily leaderboard temporarily disabled */}
                   {activeTab === "daily"
-                    ? "You're not ranked yet. Finish a classic game to appear here!"
+                    ? "Daily leaderboard temporarily disabled - Solana migration in progress."
                     : "You're not ranked yet. Submit a tournament score to appear here!"}
                 </p>
               </div>
