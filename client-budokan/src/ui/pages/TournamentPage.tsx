@@ -54,6 +54,10 @@ function lamportsToSol(lamports: bigint): string {
   return (Number(lamports) / 1_000_000_000).toFixed(3);
 }
 
+function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 function getSubmitReturnTime(playerPubkey: string, tournamentId: number): number {
   try {
     const raw = sessionStorage.getItem(`${TOURNAMENT_SUBMIT_RETURN_PREFIX}${playerPubkey}_${tournamentId}`);
@@ -96,10 +100,9 @@ const TournamentPage: React.FC = () => {
     fetchTournament,
     fetchMyEntry,
     fetchLeaderboard,
+    settleTournament,
     claimPrize,
     getMyPrizeRank,
-    formatCountdown,
-    getSecondsRemaining,
   } = useSolanaTournament();
 
   const [tournament, setTournament] = useState<TournamentData | null>(null);
@@ -107,7 +110,11 @@ const TournamentPage: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<TournamentEntryData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [settleError, setSettleError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimPromptDismissed, setClaimPromptDismissed] = useState(false);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   // Verrouille le bouton play pendant 800ms après le montage du composant
   // pour empêcher les ghost-clicks (tap sur "Submit Score" dans SolanaPlayScreen
@@ -182,13 +189,32 @@ const TournamentPage: React.FC = () => {
     ? !tournament.settled && nowSec >= tournament.startTime && nowSec < tournament.endTime
     : false;
   const isSettled = tournament?.settled ?? false;
-  const secondsLeft = tournament ? getSecondsRemaining(tournament) : 0;
   const prizePoolSol = tournament ? lamportsToSol(tournament.prizePool) : "0.000";
 
   const isRegistered = !!myEntry;
   const myPrizeRank = tournament ? getMyPrizeRank(tournament) : null;
   const currentPage = useNavigationStore((s) => s.currentPage);
   const isReplayLocked = mountProtected || replayLockedUntil > Date.now();
+  const isEndedUnsettled = tournament
+    ? !tournament.settled && nowSec >= tournament.endTime
+    : false;
+  const myPrizeAmount = tournament && myPrizeRank
+    ? myPrizeRank === 1
+      ? tournament.prize1
+      : myPrizeRank === 2
+      ? tournament.prize2
+      : tournament.prize3
+    : 0n;
+  const submittedScoresCount = useMemo(
+    () => leaderboard.filter((entry) => entry.hasSubmitted).length,
+    [leaderboard],
+  );
+
+  useEffect(() => {
+    setClaimPromptDismissed(false);
+    setSettleError(null);
+    setClaimError(null);
+  }, [tournamentId, myPrizeRank]);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const handlePlay = useCallback(async () => {
@@ -222,7 +248,7 @@ const TournamentPage: React.FC = () => {
       setIsTournamentMap(true);
       setNavTournamentId(tournamentId);
       navigate("solana");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Tournament] handlePlay error:", err);
     } finally {
       playInFlightRef.current = false;
@@ -237,17 +263,56 @@ const TournamentPage: React.FC = () => {
   const handleClaim = useCallback(async () => {
     if (!connected || !publicKey || !tournamentId) return;
     setIsClaiming(true);
+    setClaimError(null);
     try {
       await claimPrize(tournamentId);
       // Rafraîchir les données après claim
-      const t = await fetchTournament(tournamentId);
+      const [t, board] = await Promise.all([
+        fetchTournament(tournamentId),
+        fetchLeaderboard(tournamentId),
+      ]);
       if (t) setTournament(t);
-    } catch (err: any) {
+      setLeaderboard(board);
+      setClaimPromptDismissed(false);
+    } catch (err: unknown) {
       console.error("[Tournament] handleClaim error:", err);
+      setClaimError(getErrorMessage(err, "Claim failed. Try again in a moment."));
     } finally {
       setIsClaiming(false);
     }
-  }, [connected, publicKey, tournamentId, claimPrize, fetchTournament]);
+  }, [connected, publicKey, tournamentId, claimPrize, fetchTournament, fetchLeaderboard]);
+
+  const handleSettle = useCallback(async () => {
+    if (!connected || !publicKey || !tournamentId || !tournament || isSettling) return;
+    setIsSettling(true);
+    setSettleError(null);
+    try {
+      await settleTournament(tournamentId);
+      const [t, entry, board] = await Promise.all([
+        fetchTournament(tournamentId),
+        fetchMyEntry(tournamentId),
+        fetchLeaderboard(tournamentId),
+      ]);
+      setTournament(t);
+      setMyEntry(entry);
+      setLeaderboard(board);
+    } catch (err: unknown) {
+      console.error("[Tournament] handleSettle error:", err);
+      setSettleError(getErrorMessage(err, "Finalization failed. Try again in a moment."));
+    } finally {
+      setIsSettling(false);
+    }
+  }, [
+    connected,
+    publicKey,
+    tournamentId,
+    tournament,
+    isSettling,
+    settleTournament,
+    fetchTournament,
+    fetchMyEntry,
+    fetchLeaderboard,
+  ]);
 
   // ── Libellé du bouton play ───────────────────────────────────────────────────
   const playLabel = useMemo(() => {
@@ -266,7 +331,7 @@ const TournamentPage: React.FC = () => {
             { wallet: tournament.winner1, prize: tournament.prize1, rank: 1 },
             { wallet: tournament.winner2, prize: tournament.prize2, rank: 2 },
             { wallet: tournament.winner3, prize: tournament.prize3, rank: 3 },
-          ].filter((w) => w.prize > 0n)
+          ].filter((w) => w.wallet.toBase58() !== "11111111111111111111111111111111")
         : [],
     [isSettled, tournament],
   );
@@ -458,7 +523,7 @@ const TournamentPage: React.FC = () => {
                             {wallet.toBase58().slice(0, 8)}…
                           </span>
                           <span className="font-sans text-sm font-bold" style={{ color: TROPHY_COLORS[rank] }}>
-                            {lamportsToSol(prize)} SOL
+                            {prize > 0n ? `${lamportsToSol(prize)} SOL` : "Claimed"}
                           </span>
                         </div>
                       ))}
@@ -513,6 +578,87 @@ const TournamentPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Popup finalization après 48h */}
+      {connected && tournament && isEndedUnsettled && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-2xl border border-white/[0.12] bg-black/88 p-6 text-center shadow-2xl">
+            <Trophy size={34} className="mx-auto mb-3 text-white/60" />
+            <h2 className="font-display text-xl font-black text-white">Tournament ended</h2>
+            <p className="mt-3 font-sans text-sm font-semibold leading-relaxed text-white/55">
+              Finalize the results to unlock winner claims.
+            </p>
+            {settleError && (
+              <p className="mt-3 font-sans text-xs font-semibold text-red-300">{settleError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleSettle}
+              disabled={isSettling || submittedScoresCount === 0}
+              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-purple-600 px-5 py-4 font-sans text-base font-black text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {isSettling ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={18} className="animate-spin" />
+                  Finalizing...
+                </span>
+              ) : submittedScoresCount === 0 ? (
+                "No scores to finalize"
+              ) : (
+                "Finalize Results"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={goBack}
+              className="mt-4 font-sans text-sm font-bold text-white/45 transition hover:text-white/70"
+            >
+              Later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Popup claim gagnant */}
+      {connected && tournament && myPrizeRank && myPrizeAmount > 0n && !claimPromptDismissed && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-2xl border border-purple-400/25 bg-black/90 p-6 text-center shadow-2xl">
+            <Trophy size={38} className="mx-auto mb-3 text-yellow-300" />
+            <p className="font-sans text-xs font-black uppercase tracking-[0.22em] text-purple-300">
+              Rank #{myPrizeRank}
+            </p>
+            <h2 className="mt-1 font-display text-2xl font-black text-white">Prize ready</h2>
+            <p className="mt-3 font-sans text-sm font-semibold leading-relaxed text-white/55">
+              You won <span className="font-black text-yellow-300">{lamportsToSol(myPrizeAmount)} SOL</span>.
+            </p>
+            {claimError && (
+              <p className="mt-3 font-sans text-xs font-semibold text-red-300">{claimError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleClaim}
+              disabled={isClaiming}
+              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-purple-600 px-5 py-4 font-sans text-base font-black text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {isClaiming ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={18} className="animate-spin" />
+                  Claiming...
+                </span>
+              ) : (
+                "Claim Prize"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setClaimPromptDismissed(true)}
+              className="mt-4 font-sans text-sm font-bold text-white/45 transition hover:text-white/70"
+            >
+              Later
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CTA en bas */}
       {connected && tournament && (
         <div className="relative z-20 mt-auto flex flex-col gap-2 px-4 pb-3">
@@ -535,6 +681,16 @@ const TournamentPage: React.FC = () => {
               accentOverride={zoneColors.accent}
             >
               {playLabel}
+            </ArcadeButton>
+          )}
+
+          {isEndedUnsettled && (
+            <ArcadeButton
+              disabled={isSettling || submittedScoresCount === 0}
+              onClick={handleSettle}
+              accentOverride="#9333ea"
+            >
+              {isSettling ? "Finalizing..." : submittedScoresCount === 0 ? "No Scores" : "Finalize Results"}
             </ArcadeButton>
           )}
         </div>
