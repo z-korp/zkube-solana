@@ -51,27 +51,29 @@ export function useTournaments() {
         const result: TournamentWithStatus[] = [];
         for (const { account } of accounts) {
           try {
+            // Anchor 0.32 + IDL v0.1 : BorshAccountsCoder retourne les noms
+            // snake_case tels que définis dans l'IDL (pas de conversion camelCase).
             const raw = coder.decode("Tournament", account.data);
             const t: TournamentData = {
-              tournamentId:  raw.tournamentId,
-              startTime:     Number(raw.startTime),
-              endTime:       Number(raw.endTime),
-              zoneId:        raw.zoneId,
-              entryFee:      BigInt(raw.entryFee.toString()),
-              prizePool:     BigInt(raw.prizePool.toString()),
-              totalPlayers:  raw.totalPlayers,
-              totalAttempts: raw.totalAttempts,
+              tournamentId:  raw.tournament_id,
+              startTime:     Number(raw.start_time),
+              endTime:       Number(raw.end_time),
+              zoneId:        raw.zone_id,
+              entryFee:      BigInt(raw.entry_fee.toString()),
+              prizePool:     BigInt(raw.prize_pool.toString()),
+              totalPlayers:  raw.total_players,
+              totalAttempts: raw.total_attempts,
               settled:       raw.settled,
-              winner1:       raw.winner1,
-              prize1:        BigInt(raw.prize1.toString()),
-              winner2:       raw.winner2,
-              prize2:        BigInt(raw.prize2.toString()),
-              winner3:       raw.winner3,
-              prize3:        BigInt(raw.prize3.toString()),
+              winner1:       raw.winner_1,
+              prize1:        BigInt(raw.prize_1.toString()),
+              winner2:       raw.winner_2,
+              prize2:        BigInt(raw.prize_2.toString()),
+              winner3:       raw.winner_3,
+              prize3:        BigInt(raw.prize_3.toString()),
             };
             result.push({ ...t, status: getStatus(t) });
-          } catch {
-            // compte mal formé — on ignore
+          } catch (err) {
+            console.warn("[useTournaments] decode error:", err);
           }
         }
 

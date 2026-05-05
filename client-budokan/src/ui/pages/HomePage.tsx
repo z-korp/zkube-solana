@@ -16,7 +16,6 @@ import {
   TOURNAMENT_DURATION_SECONDS,
   useSolanaTournament,
 } from "@/solana/useSolanaTournament";
-import type { TournamentData } from "@/solana/useSolanaTournament";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
 const containerVariants: Variants = {
@@ -261,7 +260,6 @@ const HomePage: React.FC = () => {
   const { createTournament, fetchTournament } = useSolanaTournament();
   const [isCreatingTournament, setIsCreatingTournament] = useState(false);
   const [tournamentStartError, setTournamentStartError] = useState<string | null>(null);
-  const [currentTournament, setCurrentTournament] = useState<TournamentWithStatus | null>(null);
   const startTournamentDurationLabel = useMemo(
     () => formatTournamentCountdown(TOURNAMENT_DURATION_SECONDS),
     [],
@@ -290,17 +288,13 @@ const HomePage: React.FC = () => {
   }, []);
 
   // ── Tournois (Solana) ─────────────────────────────────────────────────────────
+  // useTournaments lit TOUS les comptes Tournament on-chain via getProgramAccounts.
+  // C'est la seule source de vérité — pas besoin de fetch par ID calculé.
   const { activeTournaments, upcomingTournaments, isLoading: tournamentsLoading } = useTournaments();
-  const visibleTournaments = useMemo(() => {
-    const byId = new Map<number, TournamentWithStatus>();
-    if (currentTournament && (currentTournament.status === "active" || currentTournament.status === "upcoming")) {
-      byId.set(currentTournament.tournamentId, currentTournament);
-    }
-    for (const t of [...activeTournaments, ...upcomingTournaments]) {
-      byId.set(t.tournamentId, t);
-    }
-    return [...byId.values()].slice(0, 3);
-  }, [activeTournaments, currentTournament, upcomingTournaments]);
+  const visibleTournaments = useMemo(
+    () => [...activeTournaments, ...upcomingTournaments].slice(0, 3),
+    [activeTournaments, upcomingTournaments],
+  );
   const canStartTournament = connected && !tournamentsLoading && visibleTournaments.length === 0;
 
   const handleStartTournament = useCallback(async () => {
@@ -344,39 +338,6 @@ const HomePage: React.FC = () => {
   }, [connected, isCreatingTournament, createTournament, fetchTournament, setTournamentId, navigate]);
 
   useEffect(() => {
-    if (!connected) {
-      setCurrentTournament(null);
-      return;
-    }
-
-    let cancelled = false;
-    const fetchCurrentTournament = async () => {
-      const tournament = await fetchTournament(getCurrentTournamentId());
-      if (cancelled) return;
-      setCurrentTournament(
-        tournament ? { ...tournament, status: getTournamentStatus(tournament) } : null,
-      );
-    };
-
-    void fetchCurrentTournament();
-    const id = window.setInterval(fetchCurrentTournament, 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [connected, fetchTournament]);
-
-  useEffect(() => {
-    if (!currentTournament) return;
-    const id = window.setInterval(() => {
-      setCurrentTournament((prev) => (
-        prev ? { ...prev, status: getTournamentStatus(prev) } : prev
-      ));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [currentTournament]);
-
-  useEffect(() => {
     setMusicPlaylist(["main", "level"]);
   }, [setMusicPlaylist]);
 
@@ -407,6 +368,7 @@ const HomePage: React.FC = () => {
           {connected && publicKey ? (
             <>
               {/* ── Profil Phantom ─────────────────────────────────────────── */}
+              
               <motion.div
                 variants={itemVariants}
                 className="flex items-center justify-between rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-1.5 backdrop-blur-xl"

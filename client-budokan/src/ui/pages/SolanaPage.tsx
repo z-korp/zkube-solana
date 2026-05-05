@@ -86,7 +86,7 @@ export default function SolanaPage() {
               onClick={handleConnectPhantom}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold transition-colors flex items-center gap-2"
             >
-              🔮 Connecter Phantom
+               Connecter Phantom
             </button>
           </div>
         ) : (
@@ -110,7 +110,7 @@ export default function SolanaPage() {
       {/* Erreur */}
       {error && (
         <div className="w-full max-w-md bg-red-900/50 border border-red-500 rounded-lg p-3 text-sm text-red-300">
-          ⚠️ {error}
+           {error}
         </div>
       )}
 

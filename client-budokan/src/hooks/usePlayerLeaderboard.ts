@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { ZKUBE_PROGRAM_ID } from "@/solana/constants";
-import { getCurrentTournamentId } from "@/solana/useSolanaTournament";
 
 const TOURNAMENT_ENTRY_SIZE = 58;
 const TOURNAMENT_ENTRY_DISC = Buffer.from([36, 203, 172, 114, 100, 189, 217, 158]);
@@ -43,12 +42,17 @@ function decodeTournamentEntry(data: Buffer): Omit<PlayerLeaderboardEntry, "rank
   };
 }
 
-export function usePlayerLeaderboard(tournamentId = getCurrentTournamentId()) {
+export function usePlayerLeaderboard(tournamentId: number | null) {
   const { connection } = useConnection();
   const [entries, setEntries] = useState<PlayerLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchLeaderboard = useCallback(async () => {
+    // Pas de tournoi connu → on n'essaie pas de fetcher
+    if (tournamentId === null) {
+      setEntries([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const accounts = await connection.getProgramAccounts(ZKUBE_PROGRAM_ID, {
