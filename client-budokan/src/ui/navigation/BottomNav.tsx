@@ -22,7 +22,8 @@ const BottomNav = () => {
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
     { id: "ranks", icon: Trophy, label: "Leaderboard" },
-    { id: "profile", icon: User, label: "Profile" },
+    //TODO: decommenter ceci pour faire la partie profile 
+    //{ id: "profile", icon: User, label: "Profile" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
 
