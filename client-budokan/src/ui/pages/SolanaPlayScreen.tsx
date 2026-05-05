@@ -1,10 +1,12 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { WalletName } from "@solana/wallet-adapter-base";
+import { PublicKey } from "@solana/web3.js";
 import { useSolanaGame } from "@/solana/useSolanaGame";
+import { useSolanaTournament } from "@/solana/useSolanaTournament";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";
+import { getThemeColors, getThemeId, getThemeImages, type ThemeId } from "@/config/themes";
 import { BonusType } from "@/dojo/game/types/bonusTypes";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import Grid from "@/ui/components/Grid";
@@ -17,6 +19,63 @@ const COLS = 8;
 const NEXT_LINE_ROWS = 1;
 const HORIZONTAL_PADDING = 24;
 const VERTICAL_CHROME = 36;
+const ACTIVE_GAME_PDA_PREFIX = "zkube_game_pda_";
+const TOURNAMENT_SUBMIT_RETURN_PREFIX = "zkube_tournament_submit_return_";
+const TOURNAMENT_PLAY_REQUEST_PREFIX = "zkube_tournament_play_request_";
+const TOURNAMENT_PLAY_CONSUMED_PREFIX = "zkube_tournament_play_consumed_";
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+type TournamentEntryAction = "join" | "rejoin";
+
+function loadActiveGamePda(playerPubkey: string): PublicKey | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_GAME_PDA_PREFIX + playerPubkey);
+    return raw ? new PublicKey(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function markTournamentSubmitReturn(playerPubkey: string, tournamentId: number) {
+  try {
+    sessionStorage.setItem(
+      `${TOURNAMENT_SUBMIT_RETURN_PREFIX}${playerPubkey}_${tournamentId}`,
+      Date.now().toString(),
+    );
+  } catch {
+    // Best-effort UX guard only.
+  }
+}
+
+function consumeTournamentPlayRequest(
+  playerPubkey: string,
+  tournamentId: number,
+): TournamentEntryAction | null | false {
+  try {
+    const requestKey = `${TOURNAMENT_PLAY_REQUEST_PREFIX}${playerPubkey}_${tournamentId}`;
+    const consumedKey = `${TOURNAMENT_PLAY_CONSUMED_PREFIX}${playerPubkey}_${tournamentId}`;
+    const rawRequest = sessionStorage.getItem(requestKey);
+    if (!rawRequest) return false;
+
+    let requestId = rawRequest;
+    let tournamentEntryAction: TournamentEntryAction | null = null;
+    try {
+      const parsed = JSON.parse(rawRequest);
+      requestId = String(parsed.id ?? rawRequest);
+      tournamentEntryAction =
+        parsed.tournamentEntryAction === "join" || parsed.tournamentEntryAction === "rejoin"
+          ? parsed.tournamentEntryAction
+          : null;
+    } catch {
+      // Ancien format: la présence de la valeur suffit, sans action tournoi.
+    }
+
+    if (sessionStorage.getItem(consumedKey) === requestId) return false;
+    sessionStorage.setItem(consumedKey, requestId);
+    return tournamentEntryAction;
+  } catch {
+    return false;
+  }
+}
 
 function solanaBlocksToGrid(blocks: number[]): number[][] {
   const grid: number[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -30,9 +89,17 @@ function solanaBlocksToGrid(blocks: number[]): number[][] {
 
 export default function SolanaPlayScreen() {
   const navigate = useNavigationStore((s) => s.navigate);
+  const isTournamentMap = useNavigationStore((s) => s.isTournamentMap);
+  const tournamentId = useNavigationStore((s) => s.tournamentId);
+  const mapZoneId = useNavigationStore((s) => s.mapZoneId);
+  const setIsTournamentMap = useNavigationStore((s) => s.setIsTournamentMap);
   const { themeTemplate } = useTheme();
-  const themeColors = getThemeColors(themeTemplate as ThemeId);
-  const themeImages = getThemeImages(themeTemplate as ThemeId);
+  const playThemeId = useMemo<ThemeId>(
+    () => (mapZoneId ? getThemeId(mapZoneId) : (themeTemplate as ThemeId)),
+    [mapZoneId, themeTemplate],
+  );
+  const themeColors = getThemeColors(playThemeId);
+  const themeImages = getThemeImages(playThemeId);
 
   const { select, connect } = useWallet();
   const {
@@ -42,13 +109,27 @@ export default function SolanaPlayScreen() {
     isLoading,
     error,
     lastTx,
+    undelegatingPda,
+    isSkipDelegation,
     hasSessionKey,
     createGame,
     makeMove,
     closeGame,
+    startNewGame,
     resetGame,
+    markLocalGameOver,
     renewSessionKey,
+    refresh,
   } = useSolanaGame();
+
+  // ── Tournament score submission ───────────────────────────────────────────
+  const { submitTournamentScore } = useSolanaTournament();
+  const [tournamentSubmitting, setTournamentSubmitting] = useState(false);
+  const [tournamentSubmitted, setTournamentSubmitted] = useState(false);
+  const [tournamentSubmitError, setTournamentSubmitError] = useState<string | null>(null);
+  const [tournamentSubmitStatus, setTournamentSubmitStatus] = useState<string | null>(null);
+  const tournamentAutoStartRef = useRef(false);
+  const tournamentGamePdaRef = useRef<PublicKey | null>(null);
 
   const prevGameKeyRef = useRef<string>("");
   const [gridKey, setGridKey] = useState(0);
@@ -60,6 +141,10 @@ export default function SolanaPlayScreen() {
       prevGameKeyRef.current = gameKey;
       setGridKey((k) => k + 1);
       setNextLineHasBeenConsumed(false);
+      // Reset tournament submission state for the new game
+      setTournamentSubmitted(false);
+      setTournamentSubmitError(null);
+      setTournamentSubmitStatus(null);
     }
   }, [gameState?.player, gameState?.seed]);
 
@@ -67,10 +152,67 @@ export default function SolanaPlayScreen() {
     if (error) setIsTxProcessing(false);
   }, [error]);
 
+  useEffect(() => {
+    if (
+      isSkipDelegation ||
+      isLoading ||
+      !gameState ||
+      gameState.delegated ||
+      gameState.phase !== "Created" ||
+      gameState.seed === "0"
+    ) return;
+
+    void refresh();
+    const id = window.setInterval(() => {
+      void refresh();
+    }, 1200);
+    return () => window.clearInterval(id);
+  }, [
+    gameState?.delegated,
+    gameState?.phase,
+    gameState?.seed,
+    isLoading,
+    isSkipDelegation,
+    refresh,
+  ]);
+
+  useEffect(() => {
+    if (!publicKey) return;
+    const activePda = loadActiveGamePda(publicKey);
+    if (activePda) tournamentGamePdaRef.current = activePda;
+  }, [gameState?.seed, publicKey]);
+
+  useEffect(() => {
+    if (!isTournamentMap || tournamentId === null || !connected || !publicKey) {
+      tournamentAutoStartRef.current = false;
+      return;
+    }
+    // Ne pas auto-démarrer si on est en train de soumettre le score ou qu'il a déjà été soumis
+    if (gameState || isLoading || tournamentAutoStartRef.current || tournamentSubmitting || tournamentSubmitted) return;
+    const tournamentEntryAction = consumeTournamentPlayRequest(publicKey, tournamentId);
+    if (tournamentEntryAction === false) return;
+
+    tournamentAutoStartRef.current = true;
+    void createGame({
+      tournamentId,
+      tournamentEntryAction: tournamentEntryAction ?? undefined,
+    });
+  }, [connected, createGame, gameState, isLoading, isTournamentMap, publicKey, tournamentId, tournamentSubmitting, tournamentSubmitted]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
   const [isTxProcessing, setIsTxProcessing] = useState(false);
   const [nextLineHasBeenConsumed, setNextLineHasBeenConsumed] = useState(false);
+  const [gameOverActionsReady, setGameOverActionsReady] = useState(false);
+
+  useEffect(() => {
+    if (!gameState?.over) {
+      setGameOverActionsReady(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setGameOverActionsReady(true), 900);
+    return () => window.clearTimeout(timeout);
+  }, [gameState?.over]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -111,6 +253,64 @@ export default function SolanaPlayScreen() {
     },
     [makeMove],
   );
+
+  const handleSubmitTournamentScore = useCallback(async () => {
+    if (!publicKey || tournamentId === null || tournamentSubmitting || tournamentSubmitted) return;
+
+    const gameStatePda = loadActiveGamePda(publicKey) ?? tournamentGamePdaRef.current;
+    if (!gameStatePda) {
+      setTournamentSubmitError("Game account introuvable. Impossible de soumettre le score.");
+      return;
+    }
+
+    tournamentGamePdaRef.current = gameStatePda;
+    setTournamentSubmitting(true);
+    setTournamentSubmitError(null);
+    setTournamentSubmitStatus("Waiting for final game state…");
+    try {
+      let finalizedState = null;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        finalizedState = await refresh();
+        if (finalizedState?.over) break;
+        await sleep(1000);
+      }
+
+      if (!finalizedState?.over) {
+        throw new Error("Le score final n'est pas encore confirmé sur l'ER. Réessaie dans quelques secondes.");
+      }
+
+      setTournamentSubmitStatus("Closing Ephemeral Rollup game…");
+      const closed = await closeGame();
+      if (!closed) {
+        throw new Error("Impossible de finaliser la partie avant la soumission du score.");
+      }
+
+      setTournamentSubmitStatus("Preparing score submission…");
+      await submitTournamentScore(tournamentId, gameStatePda, setTournamentSubmitStatus);
+      setTournamentSubmitted(true);
+      setTournamentSubmitStatus("Score submitted.");
+      markTournamentSubmitReturn(publicKey, tournamentId);
+      tournamentGamePdaRef.current = null;
+      setIsTournamentMap(false);
+      navigate("tournament");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTournamentSubmitError(msg);
+      setTournamentSubmitStatus(null);
+    } finally {
+      setTournamentSubmitting(false);
+    }
+  }, [
+    publicKey,
+    tournamentId,
+    tournamentSubmitting,
+    tournamentSubmitted,
+    closeGame,
+    refresh,
+    submitTournamentScore,
+    setIsTournamentMap,
+    navigate,
+  ]);
 
   // ── Connexion Phantom ─────────────────────────────────────────────────────
   // select() déclenche une mise à jour d'état React asynchrone.
@@ -161,6 +361,82 @@ export default function SolanaPlayScreen() {
 
   // ── Écran : pas de partie (ou compte corrompu) ────────────────────────────
   if (!gameState && !isLoading) {
+    if (isTournamentMap && tournamentId !== null) {
+      if (tournamentSubmitting || tournamentSubmitted || tournamentSubmitError || tournamentGamePdaRef.current) {
+        return (
+          <div
+            className="flex h-full min-h-0 flex-col items-center justify-center gap-6"
+            style={{
+              backgroundImage: `url(${themeImages.gameBg})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundColor: themeColors.primary,
+            }}
+          >
+            <div className="flex w-[min(360px,90vw)] flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/70 p-8 text-center backdrop-blur-sm">
+              <p className="text-lg font-bold text-white">
+                {tournamentSubmitError ? "Score submission paused" : "Submitting tournament score…"}
+              </p>
+              <p className="text-sm text-white/50">
+                {tournamentSubmitStatus ?? "Finalizing your finished run."}
+              </p>
+              {tournamentSubmitError && (
+                <p className="text-xs text-red-300">{tournamentSubmitError}</p>
+              )}
+              {tournamentSubmitError && (
+                <button
+                  onClick={handleSubmitTournamentScore}
+                  disabled={tournamentSubmitting}
+                  className="rounded-xl bg-purple-600 px-6 py-3 font-bold text-white transition-colors hover:bg-purple-500 disabled:opacity-50"
+                >
+                  Retry Submit
+                </button>
+              )}
+              {tournamentSubmitError && (
+                <button
+                  onClick={() => navigate("tournament")}
+                  className="text-sm text-white/40 transition-colors hover:text-white/70"
+                >
+                  Back to Tournament
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className="flex h-full min-h-0 flex-col items-center justify-center gap-6"
+          style={{
+            backgroundImage: `url(${themeImages.gameBg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundColor: themeColors.primary,
+          }}
+        >
+          <div className="flex w-[min(340px,90vw)] flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/60 p-8 text-center backdrop-blur-sm">
+            <p className="text-lg font-bold text-white">Preparing tournament run…</p>
+            <p className="text-sm text-white/50">
+              Your entry is confirmed. The game grid will open automatically.
+            </p>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && (
+              <button
+                onClick={() => {
+                  tournamentAutoStartRef.current = false;
+                  void createGame();
+                }}
+                className="rounded-xl bg-cyan-600 px-6 py-3 font-bold text-white transition-colors hover:bg-cyan-500"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         className="flex h-full min-h-0 flex-col items-center justify-center gap-6"
@@ -186,17 +462,6 @@ export default function SolanaPlayScreen() {
           >
             New Game
           </button>
-          {/* Reset toujours disponible — nettoie un ancien compte bloqué */}
-          <button
-            onClick={resetGame}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm text-yellow-400/70 hover:text-yellow-300 border border-yellow-500/30 hover:border-yellow-400/50 rounded-lg transition-colors disabled:opacity-40"
-          >
-            🔄 Reset Account
-          </button>
-          <p className="text-white/30 text-xs text-center max-w-xs">
-            Use Reset if New Game fails (old account format)
-          </p>
         </div>
       </div>
     );
@@ -206,7 +471,16 @@ export default function SolanaPlayScreen() {
   if (isLoading && !gameState) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center" style={{ backgroundColor: themeColors.primary }}>
-        <p className="text-cyan-400 animate-pulse text-lg font-bold">Transaction en cours…</p>
+        <div className="flex flex-col items-center gap-3 px-8 text-center">
+          <p className="text-cyan-400 animate-pulse text-lg font-bold">
+            {undelegatingPda ? "Undelegation en cours…" : "Transaction en cours…"}
+          </p>
+          {undelegatingPda && (
+            <p className="text-white/50 text-xs max-w-sm">
+              the account is coming back from MagicBlock to Solana. Do not retry New Game until this step is completed.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -223,17 +497,94 @@ export default function SolanaPlayScreen() {
           backgroundColor: themeColors.primary,
         }}
       >
-        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-white/10">
+        <div className="flex flex-col items-center gap-4 p-8 bg-black/70 rounded-2xl border border-white/10 w-[min(340px,90vw)]">
           <p className="text-3xl font-bold text-red-400">GAME OVER</p>
           <p className="text-white">Score : <span className="text-yellow-400 font-bold text-xl">{gameState.score}</span></p>
-          <p className="text-white/60 text-sm">Coups : {gameState.moveCount} · Combo max : {gameState.maxCombo}</p>
-          <button
-            onClick={closeGame}
-            disabled={isLoading}
-            className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
-          >
-            {isLoading ? "Committing…" : "New Game"}
-          </button>
+          <p className="text-white/60 text-sm">Moves : {gameState.moveCount} · Max combo : {gameState.maxCombo}</p>
+
+          {/* Tournament mode: submit score then go to tournament page */}
+          {isTournamentMap && tournamentId !== null ? (
+            <>
+              {tournamentSubmitting && (
+                <p className="text-purple-300 text-sm animate-pulse">
+                  {tournamentSubmitStatus ?? "Submitting score to tournament…"}
+                </p>
+              )}
+              {tournamentSubmitted && (
+                <p className="text-green-400 text-sm font-bold">Score submitted!</p>
+              )}
+              {tournamentSubmitError && (
+                <p className="text-red-400 text-xs text-center max-w-xs">{tournamentSubmitError}</p>
+              )}
+              <button
+                onClick={handleSubmitTournamentScore}
+                disabled={isLoading || tournamentSubmitting}
+                className="px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors w-full"
+              >
+                {isLoading || tournamentSubmitting ? "Submitting…" : "Submit Score"}
+              </button>
+              <button
+                onClick={() => {
+                  navigate("tournament");
+                }}
+                disabled={isLoading || tournamentSubmitting}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors"
+              >
+                Back to Tournament
+              </button>
+            </>
+          ) : (
+            /* Classic mode */
+            <>
+              <button
+                onClick={() => {
+                  if (!gameOverActionsReady) return;
+                  startNewGame();
+                }}
+                disabled={isLoading || !gameOverActionsReady}
+                className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
+              >
+                {undelegatingPda ? "Preparing…" : isLoading ? "Starting…" : "New Game"}
+              </button>
+              <button
+                onClick={() => navigate("home")}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors"
+              >
+                ← Back to Home
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const isWaitingForDelegation =
+    !!gameState &&
+    !isSkipDelegation &&
+    !gameState.delegated &&
+    gameState.phase === "Created" &&
+    gameState.seed !== "0";
+
+  if (isWaitingForDelegation) {
+    return (
+      <div
+        className="flex h-full min-h-0 flex-col items-center justify-center gap-6"
+        style={{
+          backgroundImage: `url(${themeImages.gameBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundColor: themeColors.primary,
+        }}
+      >
+        <button onClick={() => navigate("home")} className="absolute top-4 left-4 text-white/60 hover:text-white text-sm transition-colors">
+          ← Back
+        </button>
+        <div className="flex w-[min(340px,90vw)] flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/60 p-8 text-center backdrop-blur-sm">
+          <p className="text-lg font-bold text-white">Preparing Ephemeral Rollup…</p>
+          <p className="text-sm text-white/50">
+            The grid is ready. Waiting for MagicBlock to expose the delegated state.
+          </p>
         </div>
       </div>
     );
@@ -244,7 +595,6 @@ export default function SolanaPlayScreen() {
   // est l'état normal. On n'affiche "Compte bloqué" que si la partie est Finished
   // (besoin de reset) ou si le seed est 0 alors que la phase n'est pas Created (incohérent).
   // Exception : isLoading=true pendant createGame() (flux normal create→delegate).
-  const isSkipDelegation = true; // doit correspondre à SKIP_DELEGATION dans useSolanaGame
   // En bypass, la phase passe Created → Playing au 1er move (make_move.rs ligne 66).
   // Les deux phases sont jouables. On bloque uniquement sur Finished (besoin de reset).
   const isPlayableBypass =
@@ -354,18 +704,8 @@ export default function SolanaPlayScreen() {
 
       {/* Banner VRF en attente */}
       {gameState?.seed === "0" && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30">
-          <span className="text-yellow-300 text-xs">⏳ VRF en attente</span>
-          <button onClick={closeGame} disabled={isLoading} className="text-xs text-yellow-200 hover:text-white bg-yellow-700/60 hover:bg-yellow-600/80 disabled:opacity-40 rounded px-3 py-0.5 transition-colors font-bold">
-            Fermer &amp; Recommencer
-          </button>
-        </div>
-      )}
-
-      {/* Banner session key active (feedback visuel) */}
-      {hasSessionKey && (
-        <div className="px-3 py-1 bg-green-900/40 border-b border-green-600/20 text-center">
-          <span className="text-green-400 text-[10px]">⚡ Session active — moves gratuits</span>
+        <div className="px-3 py-1.5 bg-yellow-900/60 border-b border-yellow-600/30 text-center">
+          <span className="text-yellow-300 text-xs">Generating grid…</span>
         </div>
       )}
 
@@ -398,6 +738,8 @@ export default function SolanaPlayScreen() {
               setIsTxProcessing={setIsTxProcessing}
               levelTransitionPending={false}
               onMove={handleMove}
+              onLocalGameOver={markLocalGameOver}
+              themeId={playThemeId}
             />
             <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
               <div className="chevron-pulse">
@@ -410,13 +752,15 @@ export default function SolanaPlayScreen() {
               gridSize={gridSize}
               gridHeight={1}
               gridWidth={COLS}
+              themeId={playThemeId}
             />
           </div>
         </div>
       )}
 
       {/* Solana tx link */}
-      {lastTx && (
+      {/* TODO: the tx en bas peut le garder quand c'est mainnnet  */}
+      {/* {lastTx && (
         <div className="text-center pb-2">
           <a
             href={`https://explorer.solana.com/tx/${lastTx}?cluster=devnet`}
@@ -427,7 +771,7 @@ export default function SolanaPlayScreen() {
             Last tx: {lastTx.slice(0, 10)}… ↗
           </a>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

@@ -43,7 +43,7 @@ pub struct GameState {
     /// flag de fin de partie  si c'est true, on bloque les futurs moves
     pub over: bool,
 
-    // ─── Champs ER (Ephemeral Rollup) ─────────────────────────────────────────
+    /// champ ER 
     /// true si le GameState est actuellement délégué à l'Ephemeral Rollup.
     /// Redondant avec phase mais utile pour des checks rapides.
     pub delegated: bool,
@@ -56,7 +56,7 @@ pub struct GameState {
     /// Source of truth pour les gardes d'instructions.
     pub phase: GamePhase,
 
-    // ─── Session Key (gameplay sans popup) ────────────────────────────────────
+
     /// Clé éphémère générée côté client au moment de create_game.
     /// Autorisée à signer make_move sans popup wallet — zéro friction pendant le jeu.
     /// Reste en mémoire côté client ; peut être mise à jour via set_session_key.

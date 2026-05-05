@@ -8,8 +8,14 @@ pub mod initialize_treasury;
 pub mod withdraw;
 pub mod set_session_key;
 pub mod reset_game;
+pub mod create_tournament;
+pub mod join_tournament;
+pub mod rejoin_tournament;
+pub mod submit_tournament_score;
+pub mod settle_tournament;
+pub mod claim_prize;
 
-pub use initialize::*;
+
 pub use create_game::*;
 pub use receive_randomness::*;
 pub use make_move::*;
@@ -19,3 +25,9 @@ pub use initialize_treasury::*;
 pub use withdraw::*;
 pub use set_session_key::*;
 pub use reset_game::*;
+pub use create_tournament::*;
+pub use join_tournament::*;
+pub use rejoin_tournament::*;
+pub use submit_tournament_score::*;
+pub use settle_tournament::*;
+pub use claim_prize::*;

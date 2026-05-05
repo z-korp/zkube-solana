@@ -55,10 +55,16 @@ export { SYSVAR_SLOT_HASHES_PUBKEY };
 
 // ── PDA helpers ───────────────────────────────────────────────────────────────
 
-// Calcule le PDA game_state d'un joueur
-export function getGameStatePda(playerPubkey: PublicKey): PublicKey {
+// Calcule le PDA game_state d'un joueur.
+// Nouveau format: ["game", player, session_key] pour éviter qu'un ancien PDA
+// coincé chez MagicBlock bloque définitivement le wallet.
+// Fallback legacy: ["game", player] quand aucune session_key active n'existe.
+export function getGameStatePda(playerPubkey: PublicKey, sessionKey?: PublicKey): PublicKey {
+  const seeds = sessionKey
+    ? [Buffer.from("game"), playerPubkey.toBuffer(), sessionKey.toBuffer()]
+    : [Buffer.from("game"), playerPubkey.toBuffer()];
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("game"), playerPubkey.toBuffer()],
+    seeds,
     ZKUBE_PROGRAM_ID
   );
   return pda;
@@ -120,4 +126,28 @@ export function getDelegationMetadata(pdaPubkey: PublicKey): PublicKey {
     DELEGATION_PROGRAM_ID
   );
   return meta;
+}
+
+// ── Tournament PDAs ───────────────────────────────────────────────────────────
+
+// Calcule le PDA Tournament — seeds = ["tournament", tournament_id (LE u32)]
+export function getTournamentPda(tournamentId: number): PublicKey {
+  const idBuf = Buffer.alloc(4);
+  idBuf.writeUInt32LE(tournamentId, 0);
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tournament"), idBuf],
+    ZKUBE_PROGRAM_ID
+  );
+  return pda;
+}
+
+// Calcule le PDA TournamentEntry — seeds = ["tournament_entry", tournament_id (LE u32), player]
+export function getTournamentEntryPda(tournamentId: number, player: PublicKey): PublicKey {
+  const idBuf = Buffer.alloc(4);
+  idBuf.writeUInt32LE(tournamentId, 0);
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tournament_entry"), idBuf, player.toBuffer()],
+    ZKUBE_PROGRAM_ID
+  );
+  return pda;
 }

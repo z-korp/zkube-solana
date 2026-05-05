@@ -5,7 +5,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::AccountDeserialize;
 use ephemeral_rollups_sdk::anchor::commit;
-use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
+use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 use crate::state::{GameState, GamePhase};
 use crate::error::ErrorCode;
 
@@ -20,8 +20,6 @@ pub struct CloseGame<'info> {
     /// CHECK: AccountInfo raw — vérifications manuelles dans le handler.
     #[account(
         mut,
-        seeds = [b"game", player.key().as_ref()],
-        bump,
     )]
     pub pda: AccountInfo<'info>,
     // magic_context et magic_program injectés par #[commit]
@@ -50,22 +48,28 @@ pub fn handler_close_game(ctx: Context<CloseGame>) -> Result<()> {
     );
 
     msg!(
-        "close_game pour {}: score={}, moves={}, over={} — MagicIntentBundleBuilder commit_and_undelegate",
+        "close_game pour {}: score={}, moves={}, over={} — ScheduleCommitAndUndelegate",
         player_key,
         game.score,
         game.move_count,
         game.over,
     );
 
-    // SDK 0.10 : MagicIntentBundleBuilder écrit uniquement dans magic_context
-    // → aucun ExternalAccountDataModified
-    MagicIntentBundleBuilder::new(
-        ctx.accounts.player.to_account_info(),
-        ctx.accounts.magic_context.to_account_info(),
-        ctx.accounts.magic_program.to_account_info(),
-    )
-    .commit_and_undelegate(&[ctx.accounts.pda.to_account_info()])
-    .build_and_invoke()?;
+    // Use the legacy CPI path that emits MagicBlockInstruction::ScheduleCommitAndUndelegate.
+    // The fluent builder emits ScheduleIntentBundle on SDK 0.12, which is not the same
+    // instruction path MagicBlock expects for this undelegation flow.
+    let player_info = ctx.accounts.player.to_account_info();
+    let pda_info = ctx.accounts.pda.to_account_info();
+    let magic_context_info = ctx.accounts.magic_context.to_account_info();
+    let magic_program_info = ctx.accounts.magic_program.to_account_info();
+
+    commit_and_undelegate_accounts(
+        &player_info,
+        vec![&pda_info],
+        &magic_context_info,
+        &magic_program_info,
+        None,
+    )?;
 
     Ok(())
 }

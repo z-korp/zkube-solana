@@ -17,8 +17,6 @@ pub struct ReceiveRandomness<'info> {
     /// Contrainte : seed == 0 vérifiée dans le handler 
     #[account(
         mut,
-        seeds = [b"game", game_state.player.as_ref()],
-        bump
     )]
     pub game_state: Account<'info, GameState>,
 }
@@ -39,7 +37,7 @@ pub fn handler_receive_randomness(ctx: Context<ReceiveRandomness>, randomness: [
 
     // refuse si la randomness a déjà été injectée
     // empêche qu'un attaquant réinitialise la grille d'une partie en cours
-    require!(game.seed == 0, ErrorCode::RandomnessAlreadySet); /// <== ici 
+    require!(game.seed == 0, ErrorCode::RandomnessAlreadySet); 
 
     // Convertit les 32 octets aléatoires en u64 pour notre seed
     // On prend les 8 premiers octets et on les assemble

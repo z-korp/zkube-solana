@@ -50,6 +50,8 @@ interface GridProps {
     nextRow: number[];
     over: boolean;
   } | void>;
+  onLocalGameOver?: () => void;
+  themeId?: ThemeId;
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -68,6 +70,8 @@ const Grid: React.FC<GridProps> = ({
   onCascadeComplete,
   onNextLineUpdate,
   onMove,
+  onLocalGameOver,
+  themeId: themeIdOverride,
 }) => {
   const {
     setup: {
@@ -77,8 +81,9 @@ const Grid: React.FC<GridProps> = ({
 
   // ==================== Theme ====================
   const { themeTemplate } = useTheme();
-  const themeColors = getThemeColors(themeTemplate as ThemeId);
-  const themeImages = getThemeImages(themeTemplate as ThemeId);
+  const activeThemeId = themeIdOverride ?? (themeTemplate as ThemeId);
+  const themeColors = getThemeColors(activeThemeId);
+  const themeImages = getThemeImages(activeThemeId);
   const blockImages = useMemo<Record<number, string>>(() => ({
     1: themeImages.block1,
     2: themeImages.block2,
@@ -177,9 +182,9 @@ const Grid: React.FC<GridProps> = ({
     // Push full Game to store so HUD updates instantly (Dojo only; null in Solana mode)
     if (parsed.game) useReceiptGameStore.getState().setGame(parsed.game);
     pendingReceiptRef.current = null;
-    // If game over, keep the spinner going — Torii still needs to sync before
-    // we navigate to map. Otherwise unlock the grid for the next move.
-    if (!parsed.over) {
+    // Dojo waits for Torii to sync after game over. Solana has no Torii path here,
+    // so unlock immediately and let the parent render the Game Over screen.
+    if (!parsed.over || onMove) {
       isTxProcessingRef.current = false;
       setIsTxProcessing(false);
     }
@@ -394,6 +399,18 @@ const Grid: React.FC<GridProps> = ({
     showToast({ type: "error", message });
   }, [saveGridStateblocks, nextLineData, resetDragRefs, setIsTxProcessing]);
 
+  const triggerLocalGameOver = useCallback(() => {
+    pendingReceiptRef.current = null;
+    useMoveStore.getState().clearQueueForGame(gameId);
+    setcurrentMove(null);
+    setIsMoving(false);
+    gameStateRef.current = GameState.CASCADE_COMPLETE;
+    setGameState(GameState.CASCADE_COMPLETE);
+    isTxProcessingRef.current = false;
+    setIsTxProcessing(false);
+    onLocalGameOver?.();
+  }, [gameId, onLocalGameOver, setIsTxProcessing]);
+
   // =================== MOVE TX ===================
 
   const sendMoveTX = useCallback(
@@ -590,6 +607,10 @@ const Grid: React.FC<GridProps> = ({
           }
           // Grid full after shift? (any block at y=0 would go to y=-1)
           if (blocks.some(b => b.y === 0)) {
+            if (onLocalGameOver) {
+              triggerLocalGameOver();
+              break;
+            }
             setGameState(GameState.UPDATE_AFTER_MOVE);
             break;
           }
@@ -669,7 +690,7 @@ const Grid: React.FC<GridProps> = ({
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [gameState, isMoving, isTransitioning]);
+  }, [gameState, isMoving, isTransitioning, onLocalGameOver, triggerLocalGameOver]);
 
   // =================== RENDER ===================
 

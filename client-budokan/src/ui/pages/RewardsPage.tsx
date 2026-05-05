@@ -32,9 +32,9 @@ const RewardsPage: React.FC = () => {
         <PageHeader title="Rewards" />
         <div className="mx-4 mt-2 mb-4 flex flex-1 min-h-0 flex-col items-center justify-center text-center">
           <span className="mb-4 text-6xl opacity-50">🎁</span>
-          <p className="mb-6 font-sans text-2xl font-semibold text-white/85">
+          {/* <p className="mb-6 font-sans text-2xl font-semibold text-white/85">
             Connect to view rewards
-          </p>
+          </p> */}
           <div className="w-full max-w-[320px] flex flex-col gap-3">
             <Connect />
             
