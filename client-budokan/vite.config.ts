@@ -4,7 +4,6 @@ import wasm from "vite-plugin-wasm";
 import react from "@vitejs/plugin-react";
 import topLevelAwait from "vite-plugin-top-level-await";
 import tailwindcss from "@tailwindcss/vite";
-import mkcert from "vite-plugin-mkcert";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 // https://vitejs.dev/config/
@@ -14,7 +13,7 @@ export default defineConfig({
     tailwindcss(),
     wasm(),
     topLevelAwait(),
-    mkcert(),
+    // Note: mkcert (local HTTPS) retiré — Vercel gère HTTPS automatiquement
     nodePolyfills({ include: ["buffer", "process", "stream", "util"] }),
   ],
   build: {
@@ -25,19 +24,13 @@ export default defineConfig({
       },
       output: {
         manualChunks: {
-          "vendor-starknet": [
-            "starknet",
-            "@starknet-react/core",
-            "@starknet-react/chains",
+          "vendor-solana": [
+            "@solana/web3.js",
+            "@coral-xyz/anchor",
           ],
-          "vendor-dojo": [
-            "@dojoengine/core",
-            "@dojoengine/react",
-            "@dojoengine/recs",
-            "@dojoengine/sdk",
-            "@dojoengine/state",
-            "@dojoengine/torii-client",
-            "@dojoengine/utils",
+          "vendor-wallet": [
+            "@solana/wallet-adapter-react",
+            "@solana/wallet-adapter-wallets",
           ],
           "vendor-ui": ["motion"],
         },
@@ -50,7 +43,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: true, // Allow access from local network
+    host: true,
     port: 5175,
   },
 });
