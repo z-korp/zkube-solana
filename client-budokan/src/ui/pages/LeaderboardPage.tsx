@@ -151,6 +151,7 @@ const LeaderboardPage: React.FC = () => {
     refreshTournament,
     refetchSelectedLeaderboard,
   ]);
+  
 
   const handleClaimPrize = useCallback(async (playerAddress: string) => {
     if (selectedTournamentId === null || leaderboardView !== "last" || claimingPlayer) return;
