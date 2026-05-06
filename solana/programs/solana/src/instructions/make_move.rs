@@ -74,6 +74,13 @@ pub fn handler(
     game.combo_counter = combo;
     game.max_combo     = max_combo;
 
+    // BUG FIX: après avoir effacé des lignes, les blocs au-dessus sont flottants.
+    // Sans cette 2e passe de gravité, les blocs restent en haut de la grille
+    // et déclenchent un game over prématuré alors qu'ils auraient pu tomber.
+    if lines_cleared > 0 {
+        apply_gravity(&mut game.blocks);
+    }
+
     if lines_cleared > 0 {
         let points = lines_cleared as u32 * 100 * (game.combo_counter as u32 + 1);
         game.score = game.score.saturating_add(points);
@@ -119,25 +126,59 @@ fn apply_swipe(blocks: &mut [u8; 80], row_index: u8, start: u8, end: u8) -> Resu
             blocks[row_start + actual_end as usize + i] = block_size;
         }
     } else {
-        for i in 0..block_size as usize {
-            blocks[row_start + end as usize + i] = block_size;
+        // Déplacement vers la gauche : vérifier qu'il n'y a pas de bloc en chevauchement.
+        // On écrase les cellules cibles seulement si elles sont toutes vides.
+        // (Le client valide côté UI, mais on double-check on-chain.)
+        let target = end as usize;
+        let all_clear = (0..block_size as usize).all(|i| blocks[row_start + target + i] == 0);
+        if all_clear {
+            for i in 0..block_size as usize {
+                blocks[row_start + target + i] = block_size;
+            }
+        } else {
+            // Position cible occupée : on replace le bloc à son origine
+            for i in 0..block_size as usize {
+                blocks[row_start + start as usize + i] = block_size;
+            }
         }
     }
     Ok(())
 }
 
 fn apply_gravity(blocks: &mut [u8; 80]) {
+    // BUG FIX: traiter chaque bloc comme une unité atomique.
+    // L'ancienne version colonne-par-colonne fragmentait les blocs de taille > 1 :
+    // si une seule colonne du dessous était bloquée, les autres colonnes tombaient quand même,
+    // créant des cellules orphelines qui remplissaient la grille prématurément → game over aléatoire.
+    //
+    // Nouvelle version : on itère par ligne, on saute d'un bloc entier à la fois (col += size),
+    // et on ne fait tomber le bloc QUE si TOUTES ses cellules en dessous sont libres.
     loop {
         let mut changed = false;
         for row in 1..10usize {
-            for col in 0..8usize {
-                let current = blocks[row * 8 + col];
-                let below   = blocks[(row - 1) * 8 + col];
-                if current > 0 && below == 0 {
-                    blocks[(row - 1) * 8 + col] = current;
-                    blocks[row * 8 + col]        = 0;
+            let mut col = 0usize;
+            while col < 8 {
+                let size = blocks[row * 8 + col] as usize;
+                if size == 0 {
+                    col += 1;
+                    continue;
+                }
+                // Sécurité : ne pas déborder à droite
+                let block_end = col + size;
+                if block_end > 8 {
+                    col += 1;
+                    continue;
+                }
+                // Le bloc tombe seulement si TOUTES les cellules en dessous sont vides
+                let can_fall = (0..size).all(|i| blocks[(row - 1) * 8 + col + i] == 0);
+                if can_fall {
+                    for i in 0..size {
+                        blocks[(row - 1) * 8 + col + i] = size as u8;
+                        blocks[row * 8 + col + i]       = 0;
+                    }
                     changed = true;
                 }
+                col += size;
             }
         }
         if !changed { break; }
