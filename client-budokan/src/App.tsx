@@ -4,6 +4,7 @@ import PageNavigator from "@/ui/navigation/PageNavigator";
 import { useNavigationStore } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { getToastPlacement } from "@/utils/toast";
+import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import SolanaPlayScreen from "@/ui/pages/SolanaPlayScreen";
 import MapPage from "@/ui/pages/MapPage";
 import SettingsPage from "@/ui/pages/SettingsPage";
@@ -29,8 +30,22 @@ const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   tournament: <TournamentPage />,
 };
 
+// Spectator mode: ?pda=<gameStatePda> → show bot game read-only, no wallet needed
+const SPECTATOR_PDA = new URLSearchParams(window.location.search).get("pda");
+
 export default function App() {
   const currentPage = useNavigationStore((s) => s.currentPage);
+
+  if (SPECTATOR_PDA) {
+    return (
+      <TooltipProvider>
+        <div className="h-screen w-screen overflow-hidden">
+          <SpectatorScreen pda={SPECTATOR_PDA} />
+        </div>
+        <Toaster position={getToastPlacement()} />
+      </TooltipProvider>
+    );
+  }
 
   return (
     <TooltipProvider>
