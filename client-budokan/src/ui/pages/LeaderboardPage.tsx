@@ -7,7 +7,6 @@ import { usePlayerLeaderboard } from "@/hooks/usePlayerLeaderboard";
 import { useTournaments } from "@/hooks/useTournaments";
 import { getThemeColors } from "@/config/themes";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { useNavigationStore } from "@/stores/navigationStore";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import { useSolanaTournament } from "@/solana/useSolanaTournament";
 import type { TournamentData } from "@/solana/useSolanaTournament";
@@ -27,6 +26,8 @@ const rowVariants: Variants = {
     transition: { delay: i * 0.04, type: "spring", stiffness: 300, damping: 24 }
   })
 };
+
+type LeaderboardView = "current" | "last";
 
 function shortAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -56,64 +57,85 @@ const LeaderboardPage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const { publicKey } = useWallet();
-  const navTournamentId = useNavigationStore((s) => s.tournamentId);
-  // Fallback : premier tournoi actif on-chain, puis upcoming, puis ended — jamais getCurrentTournamentId()
   const { tournaments, activeTournaments, upcomingTournaments, recentTournaments } = useTournaments();
-  const fallbackTournamentId = useMemo(
-    () =>
-      activeTournaments[0]?.tournamentId ??
-      upcomingTournaments[0]?.tournamentId ??
-      recentTournaments[0]?.tournamentId ??
-      null,
-    [activeTournaments, upcomingTournaments, recentTournaments],
+  const currentTournament = useMemo(
+    () => activeTournaments[0] ?? upcomingTournaments[0] ?? null,
+    [activeTournaments, upcomingTournaments],
   );
-  const activeTournamentId = navTournamentId ?? fallbackTournamentId;
-  // const { entries: dailyEntries, isLoading: dailyLoading } = useClassicLeaderboard();
-  // Daily leaderboard temporarily disabled - TODO: reimplement for Solana migration
-  const dailyLoading = false;
-  const { entries: playerEntries, isLoading: playerLoading, refetch: refetchPlayerLeaderboard } = usePlayerLeaderboard(activeTournamentId);
+  const lastResultsTournament = useMemo(
+    () => [...recentTournaments].sort((a, b) => b.tournamentId - a.tournamentId)[0] ?? null,
+    [recentTournaments],
+  );
+  const currentTournamentId = currentTournament?.tournamentId ?? null;
+  const lastResultsTournamentId = lastResultsTournament?.tournamentId ?? null;
+  const [leaderboardView, setLeaderboardView] = useState<LeaderboardView>("current");
+  const selectedTournamentId = leaderboardView === "current" ? currentTournamentId : lastResultsTournamentId;
+  const {
+    entries: currentEntries,
+    isLoading: currentLoading,
+    refetch: refetchCurrentLeaderboard,
+  } = usePlayerLeaderboard(currentTournamentId);
+  const {
+    entries: lastEntries,
+    isLoading: lastLoading,
+    refetch: refetchLastLeaderboard,
+  } = usePlayerLeaderboard(lastResultsTournamentId);
   const { claimPrize, settleTournament, fetchTournament } = useSolanaTournament();
-  const [localTournament, setLocalTournament] = useState<TournamentWithStatus | null>(null);
+  const [localTournaments, setLocalTournaments] = useState<Record<number, TournamentWithStatus>>({});
   const [isSettling, setIsSettling] = useState(false);
   const [claimingPlayer, setClaimingPlayer] = useState<string | null>(null);
   const [prizeActionError, setPrizeActionError] = useState<string | null>(null);
-  // const [activeTab, setActiveTab] = useState<"daily" | "player">(() =>
-  //   navTournamentId ? "player" : "daily",
-  // );
-  // Temporarily default to player tab since daily is disabled
-  const [activeTab, setActiveTab] = useState<"daily" | "player">("player");
 
   const normalizedAccount = publicKey?.toBase58().toLowerCase();
   const selectedTournamentFromList = useMemo(
-    () => tournaments.find((t) => t.tournamentId === activeTournamentId) ?? null,
-    [activeTournamentId, tournaments],
+    () => tournaments.find((t) => t.tournamentId === selectedTournamentId) ?? null,
+    [selectedTournamentId, tournaments],
   );
-  const selectedTournament = localTournament ?? selectedTournamentFromList;
+  const selectedTournament =
+    selectedTournamentId !== null
+      ? localTournaments[selectedTournamentId] ?? selectedTournamentFromList
+      : null;
+  const playerEntries = leaderboardView === "current" ? currentEntries : lastEntries;
+  const playerLoading = leaderboardView === "current" ? currentLoading : lastLoading;
   const submittedScoreCount = playerEntries.length;
+  const hasCurrentTournament = currentTournamentId !== null;
+  const hasLastResults = lastResultsTournamentId !== null;
 
   useEffect(() => {
-    setLocalTournament(null);
+    if (!hasCurrentTournament && hasLastResults) setLeaderboardView("last");
+    if (hasCurrentTournament && !hasLastResults) setLeaderboardView("current");
+  }, [hasCurrentTournament, hasLastResults]);
+
+  useEffect(() => {
     setPrizeActionError(null);
     setClaimingPlayer(null);
     setIsSettling(false);
-  }, [activeTournamentId]);
+  }, [selectedTournamentId, leaderboardView]);
 
-  const refreshSelectedTournament = useCallback(async () => {
-    if (activeTournamentId === null) return null;
-    const refreshed = await fetchTournament(activeTournamentId);
+  const refreshTournament = useCallback(async (tournamentId: number | null) => {
+    if (tournamentId === null) return null;
+    const refreshed = await fetchTournament(tournamentId);
     if (!refreshed) return null;
     const withStatus = withTournamentStatus(refreshed);
-    setLocalTournament(withStatus);
+    setLocalTournaments((prev) => ({ ...prev, [tournamentId]: withStatus }));
     return withStatus;
-  }, [activeTournamentId, fetchTournament]);
+  }, [fetchTournament]);
+
+  const refetchSelectedLeaderboard = useCallback(async () => {
+    if (leaderboardView === "current") {
+      await refetchCurrentLeaderboard();
+      return;
+    }
+    await refetchLastLeaderboard();
+  }, [leaderboardView, refetchCurrentLeaderboard, refetchLastLeaderboard]);
 
   const handleFinalizeResults = useCallback(async () => {
-    if (activeTournamentId === null || isSettling || submittedScoreCount === 0) return;
+    if (selectedTournamentId === null || leaderboardView !== "last" || isSettling || submittedScoreCount === 0) return;
     setIsSettling(true);
     setPrizeActionError(null);
     try {
-      await settleTournament(activeTournamentId);
-      await Promise.all([refreshSelectedTournament(), refetchPlayerLeaderboard()]);
+      await settleTournament(selectedTournamentId);
+      await Promise.all([refreshTournament(selectedTournamentId), refetchSelectedLeaderboard()]);
     } catch (err: unknown) {
       console.error("[Leaderboard] finalize tournament error:", err);
       setPrizeActionError(getErrorMessage(err, "Could not finalize results. Try again in a moment."));
@@ -121,21 +143,22 @@ const LeaderboardPage: React.FC = () => {
       setIsSettling(false);
     }
   }, [
-    activeTournamentId,
+    selectedTournamentId,
+    leaderboardView,
     isSettling,
     submittedScoreCount,
     settleTournament,
-    refreshSelectedTournament,
-    refetchPlayerLeaderboard,
+    refreshTournament,
+    refetchSelectedLeaderboard,
   ]);
 
   const handleClaimPrize = useCallback(async (playerAddress: string) => {
-    if (activeTournamentId === null || claimingPlayer) return;
+    if (selectedTournamentId === null || leaderboardView !== "last" || claimingPlayer) return;
     setClaimingPlayer(playerAddress);
     setPrizeActionError(null);
     try {
-      await claimPrize(activeTournamentId);
-      await Promise.all([refreshSelectedTournament(), refetchPlayerLeaderboard()]);
+      await claimPrize(selectedTournamentId);
+      await Promise.all([refreshTournament(selectedTournamentId), refetchSelectedLeaderboard()]);
     } catch (err: unknown) {
       console.error("[Leaderboard] claim prize error:", err);
       setPrizeActionError(getErrorMessage(err, "Could not claim prize. Try again in a moment."));
@@ -143,11 +166,12 @@ const LeaderboardPage: React.FC = () => {
       setClaimingPlayer(null);
     }
   }, [
-    activeTournamentId,
+    selectedTournamentId,
+    leaderboardView,
     claimingPlayer,
     claimPrize,
-    refreshSelectedTournament,
-    refetchPlayerLeaderboard,
+    refreshTournament,
+    refetchSelectedLeaderboard,
   ]);
 
   const winnerInfoByAddress = useMemo(() => {
@@ -174,20 +198,8 @@ const LeaderboardPage: React.FC = () => {
   // };
 
   const rankRows = useMemo(() => {
-    // Daily leaderboard temporarily disabled
-    // if (activeTab === "daily") {
-    //   return dailyEntries.slice(0, 30).map((entry) => ({
-    //     id: `daily-${entry.rank}`,
-    //     rank: entry.rank,
-    //     name: entry.playerName ?? shortAddress(entry.player),
-    //     score: entry.score,
-    //     playerAddress: entry.player,
-    //     isYou: normalizedAccount === entry.player.toLowerCase(),
-    //     subtitle: `Classic best · ${entry.moveCount} moves · ${entry.maxCombo} combo`,
-    //   }));
-    // }
     return playerEntries.slice(0, 30).map((entry) => ({
-      id: `player-${entry.rank}`,
+      id: `${leaderboardView}-${entry.tournamentId}-${entry.rank}`,
       rank: entry.rank,
       name: entry.playerName ?? shortAddress(entry.player),
       score: entry.bestScore,
@@ -196,15 +208,10 @@ const LeaderboardPage: React.FC = () => {
       subtitle: `Tournament #${entry.tournamentId} · ${entry.attempts} attempt${entry.attempts > 1 ? "s" : ""}`,
       winnerInfo: winnerInfoByAddress.get(entry.player.toLowerCase()) ?? null,
     }));
-  }, [playerEntries, normalizedAccount, winnerInfoByAddress]);
+  }, [leaderboardView, playerEntries, normalizedAccount, winnerInfoByAddress]);
 
   const myRank = useMemo(() => {
     if (!normalizedAccount) return null;
-    // Daily leaderboard temporarily disabled
-    // if (activeTab === "daily") {
-    //   const entry = dailyEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
-    //   return entry ? { rank: entry.rank, total: dailyEntries.length, score: entry.score, name: entry.playerName ?? "You" } : null;
-    // }
     const entry = playerEntries.find((e) => e.player.toLowerCase() === normalizedAccount);
     return entry ? { rank: entry.rank, total: playerEntries.length, score: entry.bestScore, name: entry.playerName ?? "You" } : null;
   }, [playerEntries, normalizedAccount]);
@@ -223,19 +230,19 @@ const LeaderboardPage: React.FC = () => {
         </motion.div>
         <div className="mx-6 mt-2 flex rounded-full border border-white/[0.16] bg-white/[0.1] p-1 shadow-[inset_0_2px_8px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           {([
-            // { id: "daily", label: "Daily" }, // Temporarily disabled - Daily leaderboard under migration
-            { id: "player", label: "Player" },
+            { id: "current", label: "Current" },
+            { id: "last", label: "Last Results" },
           ] as const).map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => setLeaderboardView(tab.id)}
               className={`relative flex-1 py-1.5 px-3 rounded-full text-[12px] font-bold transition-colors duration-200 z-10 font-sans tracking-wide uppercase ${
-                activeTab === tab.id
+                leaderboardView === tab.id
                   ? "text-white"
                   : "text-white/40 hover:text-white/60"
               }`}
             >
-              {activeTab === tab.id && (
+              {leaderboardView === tab.id && (
                 <motion.div
                   layoutId="leaderboard-tab-indicator"
                   className="absolute inset-0 bg-white/20 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] border border-white/[0.08]"
@@ -249,12 +256,28 @@ const LeaderboardPage: React.FC = () => {
       </div>
 
       <div className="mx-4 mt-2 mb-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
-        {/* Daily leaderboard temporarily disabled */}
-        {(activeTab === "daily" ? dailyLoading : playerLoading) ? (
+        {playerLoading ? (
           <div className="flex flex-col items-center justify-center py-16" style={{ color: colors.textMuted }}>
             <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: colors.accent }} />
             <p className="font-sans text-sm font-medium">Loading rankings...</p>
           </div>
+        ) : !selectedTournament ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center justify-center py-16 text-center"
+            style={{ color: colors.textMuted }}
+          >
+            <Trophy className="h-12 w-12 mb-4 opacity-50" />
+            <p className="mb-1 font-sans text-xl font-semibold" style={{ color: colors.text }}>
+              {leaderboardView === "current" ? "No current tournament" : "No past results yet"}
+            </p>
+            <p className="font-sans text-base">
+              {leaderboardView === "current"
+                ? "Start a tournament from Home to open a new ranking."
+                : "Finished tournaments will stay here for claims."}
+            </p>
+          </motion.div>
         ) : rankRows.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -265,20 +288,28 @@ const LeaderboardPage: React.FC = () => {
             <Trophy className="h-12 w-12 mb-4 opacity-50" />
             <p className="mb-1 font-sans text-xl font-semibold" style={{ color: colors.text }}>No entries yet</p>
             <p className="font-sans text-base">
-              {/* Daily leaderboard temporarily disabled */}
-              {activeTab === "daily"
-                ? "Daily leaderboard temporarily disabled - Solana migration in progress."
-                : "Submit a tournament score to claim rank #1."}
+              {leaderboardView === "current"
+                ? "Submit a score in the current tournament to claim rank #1."
+                : "No scores were submitted in the last tournament."}
             </p>
           </motion.div>
         ) : (
           <motion.div
-            key={activeTab}
+            key={leaderboardView}
             initial="hidden"
             animate="visible"
             className="mx-auto max-w-[640px] space-y-2"
           >
-            {activeTab === "player" && selectedTournament?.status === "ended" && (
+            <div className="rounded-2xl border border-white/[0.10] bg-white/[0.05] px-4 py-3 text-center backdrop-blur-xl">
+              <p className="font-sans text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
+                {leaderboardView === "current" ? "Current Tournament" : "Last Results"}
+              </p>
+              <p className="mt-1 font-sans text-sm font-black text-white">
+                Tournament #{selectedTournament.tournamentId}
+              </p>
+            </div>
+
+            {leaderboardView === "last" && selectedTournament.status === "ended" && (
               <motion.div
                 variants={rowVariants}
                 custom={0}
@@ -311,7 +342,7 @@ const LeaderboardPage: React.FC = () => {
               </motion.div>
             )}
 
-            {activeTab === "player" && selectedTournament?.status === "settled" && prizeActionError && (
+            {leaderboardView === "last" && selectedTournament.status === "settled" && prizeActionError && (
               <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-center">
                 <p className="font-sans text-xs font-semibold text-red-300">{prizeActionError}</p>
               </div>
@@ -393,7 +424,7 @@ const LeaderboardPage: React.FC = () => {
                     <div className="font-sans text-[16px] font-extrabold tracking-wide" style={{ color: colors.text }}>
                       {entry.score.toLocaleString()} pts
                     </div>
-                    {claimablePrize > 0n ? (
+                    {leaderboardView === "last" && claimablePrize > 0n ? (
                       <button
                         type="button"
                         onClick={(event) => {
@@ -412,11 +443,11 @@ const LeaderboardPage: React.FC = () => {
                           `Claim ${lamportsToSol(claimablePrize)} SOL`
                         )}
                       </button>
-                    ) : entry.isYou && entry.winnerInfo ? (
+                    ) : leaderboardView === "last" && entry.isYou && entry.winnerInfo ? (
                       <span className="rounded-full bg-white/10 px-2 py-1 font-sans text-[10px] font-black text-white/55">
                         Claimed
                       </span>
-                    ) : entry.winnerInfo ? (
+                    ) : leaderboardView === "last" && entry.winnerInfo ? (
                       <span className="rounded-full bg-yellow-400/15 px-2 py-1 font-sans text-[10px] font-black text-yellow-200">
                         Winner
                       </span>
@@ -448,7 +479,7 @@ const LeaderboardPage: React.FC = () => {
                       {myRank.name}
                     </p>
                     <p className="truncate font-sans text-[11px] font-semibold" style={{ color: colors.textMuted }}>
-                      Your rank in {activeTab === "daily" ? "classic games" : `tournament #${activeTournamentId}`}
+                      Your rank in tournament #{selectedTournamentId}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -464,10 +495,7 @@ const LeaderboardPage: React.FC = () => {
             {!myRank && normalizedAccount && rankRows.length > 0 && (
               <div className="mt-2 rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-center">
                 <p className="font-sans text-xs font-semibold text-white/50">
-                  {/* Daily leaderboard temporarily disabled */}
-                  {activeTab === "daily"
-                    ? "Daily leaderboard temporarily disabled - Solana migration in progress."
-                    : "You're not ranked yet. Submit a tournament score to appear here!"}
+                  You're not ranked in this tournament.
                 </p>
               </div>
             )}
