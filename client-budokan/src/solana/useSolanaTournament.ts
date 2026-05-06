@@ -36,6 +36,7 @@ import {
 const ACTIVE_GAME_PDA_PREFIX = "zkube_game_pda_";
 const SCORE_SUBMIT_READY_ATTEMPTS = 30;
 const TX_CONFIRM_TIMEOUT_MS = 45_000;
+const TOURNAMENT_ENTRY_DISC = Buffer.from([36, 203, 172, 114, 100, 189, 217, 158]);
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -59,6 +60,37 @@ function loadActiveGamePda(playerPubkey: string): PublicKey | null {
   } catch {
     return null;
   }
+}
+
+type DecodedAccount = Record<string, unknown>;
+
+function readAccountField<T>(raw: DecodedAccount, camelName: string, snakeName: string): T {
+  return (raw[camelName] ?? raw[snakeName]) as T;
+}
+
+function readTournamentEntry(raw: DecodedAccount): TournamentEntryData {
+  return {
+    tournamentId: Number(readAccountField(raw, "tournamentId", "tournament_id")),
+    player:       readAccountField(raw, "player", "player"),
+    bestScore:    Number(readAccountField(raw, "bestScore", "best_score")),
+    submittedAt:  Number(readAccountField(raw, "submittedAt", "submitted_at")),
+    attempts:     Number(readAccountField(raw, "attempts", "attempts")),
+    hasSubmitted: Boolean(readAccountField(raw, "hasSubmitted", "has_submitted")),
+  };
+}
+
+function decodeTournamentEntryData(data: Buffer): TournamentEntryData | null {
+  if (data.length < TOURNAMENT_ENTRY_SIZE) return null;
+  if (!data.subarray(0, 8).equals(TOURNAMENT_ENTRY_DISC)) return null;
+
+  return {
+    tournamentId: data.readUInt32LE(8),
+    player:       new PublicKey(data.subarray(12, 44)),
+    bestScore:    data.readUInt32LE(44),
+    submittedAt:  Number(data.readBigInt64LE(48)),
+    attempts:     data[56] ?? 0,
+    hasSubmitted: data[57] === 1,
+  };
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -128,21 +160,21 @@ export function useSolanaTournament() {
         const pda = getTournamentPda(tournamentId);
         const raw = await (program.account as any).tournament.fetch(pda);
         return {
-          tournamentId:  raw.tournamentId,
-          startTime:     Number(raw.startTime),
-          endTime:       Number(raw.endTime),
-          zoneId:        raw.zoneId,
-          entryFee:      BigInt(raw.entryFee.toString()),
-          prizePool:     BigInt(raw.prizePool.toString()),
-          totalPlayers:  raw.totalPlayers,
-          totalAttempts: raw.totalAttempts,
-          settled:       raw.settled,
-          winner1:       raw.winner1,
-          prize1:        BigInt(raw.prize1.toString()),
-          winner2:       raw.winner2,
-          prize2:        BigInt(raw.prize2.toString()),
-          winner3:       raw.winner3,
-          prize3:        BigInt(raw.prize3.toString()),
+          tournamentId:  Number(readAccountField(raw, "tournamentId", "tournament_id")),
+          startTime:     Number(readAccountField(raw, "startTime", "start_time")),
+          endTime:       Number(readAccountField(raw, "endTime", "end_time")),
+          zoneId:        Number(readAccountField(raw, "zoneId", "zone_id")),
+          entryFee:      BigInt(readAccountField(raw, "entryFee", "entry_fee").toString()),
+          prizePool:     BigInt(readAccountField(raw, "prizePool", "prize_pool").toString()),
+          totalPlayers:  Number(readAccountField(raw, "totalPlayers", "total_players")),
+          totalAttempts: Number(readAccountField(raw, "totalAttempts", "total_attempts")),
+          settled:       Boolean(readAccountField(raw, "settled", "settled")),
+          winner1:       readAccountField(raw, "winner1", "winner_1"),
+          prize1:        BigInt(readAccountField(raw, "prize1", "prize_1").toString()),
+          winner2:       readAccountField(raw, "winner2", "winner_2"),
+          prize2:        BigInt(readAccountField(raw, "prize2", "prize_2").toString()),
+          winner3:       readAccountField(raw, "winner3", "winner_3"),
+          prize3:        BigInt(readAccountField(raw, "prize3", "prize_3").toString()),
         };
       } catch (e) {
         console.error("[Tournament] fetchTournament #" + tournamentId + " error:", e);
@@ -165,14 +197,7 @@ export function useSolanaTournament() {
       try {
         const pda = getTournamentEntryPda(tournamentId, publicKey);
         const raw = await (program.account as any).tournamentEntry.fetch(pda);
-        return {
-          tournamentId: raw.tournamentId,
-          player:       raw.player,
-          bestScore:    raw.bestScore,
-          submittedAt:  Number(raw.submittedAt),
-          attempts:     raw.attempts,
-          hasSubmitted: raw.hasSubmitted,
-        };
+        return readTournamentEntry(raw);
       } catch {
         return null; // compte inexistant = joueur non inscrit
       }
@@ -200,20 +225,9 @@ export function useSolanaTournament() {
 
         const entries: TournamentEntryData[] = [];
         for (const { account } of accounts) {
-          try {
-            const raw = program.coder.accounts.decode("TournamentEntry", account.data);
-            if (Number(raw.tournamentId) !== tournamentId) continue;
-            entries.push({
-              tournamentId: raw.tournamentId,
-              player:       raw.player,
-              bestScore:    raw.bestScore,
-              submittedAt:  Number(raw.submittedAt),
-              attempts:     raw.attempts,
-              hasSubmitted: raw.hasSubmitted,
-            });
-          } catch {
-            // compte mal formé — on ignore
-          }
+          const entry = decodeTournamentEntryData(account.data);
+          if (!entry || entry.tournamentId !== tournamentId) continue;
+          entries.push(entry);
         }
 
         // Tri identique au settle on-chain
@@ -411,10 +425,11 @@ export function useSolanaTournament() {
       if (!entry) {
         throw new Error("Ton inscription tournoi est introuvable. Reviens au tournoi puis réessaie.");
       }
-      if (entry.hasSubmitted && Number(entry.bestScore) >= finalScore) {
+      const entryData = readTournamentEntry(entry);
+      if (entryData.hasSubmitted && entryData.bestScore >= finalScore) {
         console.log("[Tournament] submitTournamentScore skipped — score already saved", {
           tournamentId,
-          bestScore: Number(entry.bestScore),
+          bestScore: entryData.bestScore,
           finalScore,
         });
         onStatus?.("Score already saved.");
@@ -459,24 +474,28 @@ export function useSolanaTournament() {
         filters: [{ dataSize: TOURNAMENT_ENTRY_SIZE }],
       });
 
-      const remainingAccounts: AccountMeta[] = rawAccounts
-        .filter(({ account }) => {
-          try {
-            const raw = program.coder.accounts.decode("TournamentEntry", account.data);
-            return Number(raw.tournamentId) === tournamentId;
-          } catch {
-            return false;
-          }
-        })
-        .map(({ pubkey }) => ({
-          pubkey,
-          isWritable: false,
-          isSigner:   false,
-        }));
+      const matchingEntries = rawAccounts.flatMap(({ pubkey, account }) => {
+        const entry = decodeTournamentEntryData(account.data);
+        if (!entry || entry.tournamentId !== tournamentId || !entry.hasSubmitted || entry.bestScore <= 0) {
+          return [];
+        }
+        return [{ pubkey, entry }];
+      });
+
+      const remainingAccounts: AccountMeta[] = matchingEntries.map(({ pubkey }) => ({
+        pubkey,
+        isWritable: false,
+        isSigner:   false,
+      }));
 
       console.log(
         "[Tournament] settleTournament #" + tournamentId +
-        " — " + remainingAccounts.length + " entries trouvées"
+        " — " + remainingAccounts.length + " entries trouvées",
+        matchingEntries.map(({ entry }) => ({
+          player: entry.player.toBase58(),
+          score: entry.bestScore,
+          submittedAt: entry.submittedAt,
+        }))
       );
 
       const tx = await (program.methods as any)
