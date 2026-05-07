@@ -78,6 +78,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
   const [gridSize, setGridSize] = useState(40);
   const [gridKey, setGridKey] = useState(0);
   const prevSeedRef           = useRef("");
+  const prevMoveCountRef      = useRef(-1);
   const areaRef               = useRef<HTMLDivElement>(null);
   const themeColors           = getThemeColors(THEME);
   const themeImages           = getThemeImages(THEME);
@@ -91,10 +92,16 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
       const parsed = parseAccount(info.data);
       if (!parsed) { setError("Failed to parse game account."); return; }
       setError(null);
-      if (parsed.seed !== prevSeedRef.current && prevSeedRef.current !== "") {
-        setGridKey((k) => k + 1); // new game → reset grid animation
+
+      const isNewGame = parsed.seed !== prevSeedRef.current && prevSeedRef.current !== "";
+      const isMoveAdvanced = parsed.moveCount !== prevMoveCountRef.current && prevMoveCountRef.current !== -1;
+
+      if (isNewGame || isMoveAdvanced) {
+        setGridKey((k) => k + 1);
       }
+
       prevSeedRef.current = parsed.seed;
+      prevMoveCountRef.current = parsed.moveCount;
       setState(parsed);
     } catch (e) {
       setError(String(e));
