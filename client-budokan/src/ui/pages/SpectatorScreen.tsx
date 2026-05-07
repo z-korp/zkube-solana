@@ -16,7 +16,7 @@ import "../../grid.css";
 const THEME: ThemeId = "theme-1";
 const ROWS = 10;
 const COLS = 8;
-const REFRESH_MS = 2_000;
+const REFRESH_MS = 1_000;
 
 // ── Account deserialization (same layout as Hydra ZKubeStateService) ──────────
 const OFFSETS = {
@@ -78,6 +78,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
   const [gridSize, setGridSize] = useState(40);
   const [gridKey, setGridKey] = useState(0);
   const prevSeedRef           = useRef("");
+  const prevMoveCountRef      = useRef(-1);
   const areaRef               = useRef<HTMLDivElement>(null);
   const themeColors           = getThemeColors(THEME);
   const themeImages           = getThemeImages(THEME);
@@ -91,10 +92,16 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
       const parsed = parseAccount(info.data);
       if (!parsed) { setError("Failed to parse game account."); return; }
       setError(null);
-      if (parsed.seed !== prevSeedRef.current && prevSeedRef.current !== "") {
-        setGridKey((k) => k + 1); // new game → reset grid animation
+
+      const isNewGame = parsed.seed !== prevSeedRef.current && prevSeedRef.current !== "";
+      const isMoveAdvanced = parsed.moveCount !== prevMoveCountRef.current && prevMoveCountRef.current !== -1;
+
+      if (isNewGame || isMoveAdvanced) {
+        setGridKey((k) => k + 1);
       }
+
       prevSeedRef.current = parsed.seed;
+      prevMoveCountRef.current = parsed.moveCount;
       setState(parsed);
     } catch (e) {
       setError(String(e));
@@ -123,6 +130,9 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
 
   const initialData  = state ? transformDataContractIntoBlock(solanaBlocksToGrid(state.blocks)) : [];
   const nextLineData = state ? transformDataContractIntoBlock([state.nextRow]) : [];
+  const stateKey = state
+    ? `${state.seed}-${state.moveCount}-${state.score}-${state.blocks.join("")}-${state.nextRow.join("")}`
+    : "loading";
 
   return (
     <div
@@ -134,10 +144,11 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
         backgroundColor: themeColors.primary,
       }}
     >
-      {/* HUD */}
+      {/* la nav bar en haut avec les score et tout  */}
+
       <div className="flex items-center justify-between px-4 py-2 bg-black/30">
         <div className="text-xs text-white/50 font-mono">
-          🤖 Bot · {pda.slice(0, 6)}…{pda.slice(-4)}
+          zKube Live · {pda.slice(0, 6)}…{pda.slice(-4)}
         </div>
         <div className="flex items-center gap-4">
           <div className="text-center">
@@ -162,7 +173,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
             {state?.over ? "GAME OVER" : (state?.phase ?? "…")}
           </div>
         </div>
-        <div className="text-[10px] text-white/20">↻ 2s</div>
+        <div className="text-[10px] text-white/20">on-chain · 1s</div>
       </div>
 
       {/* Banners */}
@@ -189,24 +200,25 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
       >
         {state && state.seed !== "0" && (
           <div className="flex min-h-0 flex-1 flex-col items-center">
-            <Grid
-              key={gridKey}
-              gameId={0n}
-              initialData={initialData}
-              nextLineData={nextLineData}
-              setNextLineHasBeenConsumed={() => {}}
-              gridSize={gridSize}
-              gridHeight={ROWS}
-              gridWidth={COLS}
-              bonus={BonusType.None}
-              account={null}
-              isTxProcessing={true}
-              setIsTxProcessing={() => {}}
-              levelTransitionPending={false}
-              onMove={async () => undefined}
-              onLocalGameOver={() => {}}
-              themeId={THEME}
-            />
+            <div className="pointer-events-none">
+              <Grid
+                key={`${gridKey}-${stateKey}`}
+                gameId={0n}
+                initialData={initialData}
+                nextLineData={nextLineData}
+                setNextLineHasBeenConsumed={() => {}}
+                gridSize={gridSize}
+                gridHeight={ROWS}
+                gridWidth={COLS}
+                bonus={BonusType.None}
+                account={null}
+                isTxProcessing={false}
+                setIsTxProcessing={() => {}}
+                levelTransitionPending={false}
+                onLocalGameOver={() => {}}
+                themeId={THEME}
+              />
+            </div>
             <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Next Row</span>
             </div>

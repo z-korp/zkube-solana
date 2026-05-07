@@ -473,7 +473,7 @@ export default function SolanaPlayScreen() {
       <div className="flex h-full min-h-0 flex-col items-center justify-center" style={{ backgroundColor: themeColors.primary }}>
         <div className="flex flex-col items-center gap-3 px-8 text-center">
           <p className="text-cyan-400 animate-pulse text-lg font-bold">
-            {undelegatingPda ? "Undelegation en cours…" : "Transaction en cours…"}
+            {undelegatingPda ? "Undelegation in progress…" : "Transaction in progress…"}
           </p>
           {undelegatingPda && (
             <p className="text-white/50 text-xs max-w-sm">
@@ -590,13 +590,6 @@ export default function SolanaPlayScreen() {
     );
   }
 
-  // ── Écran : compte bloqué (non délégué, quelle que soit la phase) ──────────
-  // En mode SKIP_DELEGATION, le jeu tourne sur devnet sans délégation → delegated=false
-  // est l'état normal. On n'affiche "Compte bloqué" que si la partie est Finished
-  // (besoin de reset) ou si le seed est 0 alors que la phase n'est pas Created (incohérent).
-  // Exception : isLoading=true pendant createGame() (flux normal create→delegate).
-  // En bypass, la phase passe Created → Playing au 1er move (make_move.rs ligne 66).
-  // Les deux phases sont jouables. On bloque uniquement sur Finished (besoin de reset).
   const isPlayableBypass =
     isSkipDelegation &&
     gameState?.seed !== "0" &&
@@ -622,7 +615,7 @@ export default function SolanaPlayScreen() {
             disabled={isLoading}
             className="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-xl font-bold text-white transition-colors"
           >
-            🔄 Reset &amp; Recommencer
+           Reset &amp; Recommencer
           </button>
         </div>
       </div>
