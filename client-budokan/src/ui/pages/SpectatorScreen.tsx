@@ -13,7 +13,7 @@ import type { ThemeId } from "@/config/themes";
 import { SOLANA_ENDPOINT, ZKUBE_PROGRAM_ID } from "@/solana/constants";
 import "../../grid.css";
 
-const THEME: ThemeId = "theme-1";
+const DEFAULT_THEME: ThemeId = "theme-1";
 const ROWS = 10;
 const COLS = 8;
 const REFRESH_MS = 1_000;
@@ -72,7 +72,13 @@ function solanaBlocksToGrid(blocks: number[]): number[][] {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SpectatorScreen({ pda }: { pda: string }) {
+export default function SpectatorScreen({
+  pda,
+  theme = DEFAULT_THEME,
+}: {
+  pda: string;
+  theme?: ThemeId;
+}) {
   const [state, setState]     = useState<BotGameState | null>(null);
   const [error, setError]     = useState<string | null>(null);
   const [gridSize, setGridSize] = useState(40);
@@ -80,8 +86,8 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
   const prevSeedRef           = useRef("");
   const prevMoveCountRef      = useRef(-1);
   const areaRef               = useRef<HTMLDivElement>(null);
-  const themeColors           = getThemeColors(THEME);
-  const themeImages           = getThemeImages(THEME);
+  const themeColors           = getThemeColors(theme);
+  const themeImages           = getThemeImages(theme);
   const connection            = new Connection(SOLANA_ENDPOINT, "confirmed");
 
   const fetchState = useCallback(async () => {
@@ -141,7 +147,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
         backgroundImage: `url(${themeImages.gameBg})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundColor: themeColors.primary,
+        backgroundColor: themeColors.background,
       }}
     >
       {/* la nav bar en haut avec les score et tout  */}
@@ -216,7 +222,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
                 setIsTxProcessing={() => {}}
                 levelTransitionPending={false}
                 onLocalGameOver={() => {}}
-                themeId={THEME}
+                themeId={theme}
               />
             </div>
             <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
@@ -227,7 +233,7 @@ export default function SpectatorScreen({ pda }: { pda: string }) {
               gridSize={gridSize}
               gridHeight={1}
               gridWidth={COLS}
-              themeId={THEME}
+              themeId={theme}
             />
           </div>
         )}
