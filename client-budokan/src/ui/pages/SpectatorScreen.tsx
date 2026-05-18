@@ -92,7 +92,12 @@ export default function SpectatorScreen({
 
   const fetchState = useCallback(async () => {
     try {
-      const info = await connection.getAccountInfo(new PublicKey(pda));
+      let pubkey: PublicKey;
+      try { pubkey = new PublicKey(pda); } catch {
+        setError("Waiting for bot to start a game…");
+        return;
+      }
+      const info = await connection.getAccountInfo(pubkey);
       if (!info) { setError("Game not found on-chain."); return; }
       if (!info.owner.equals(ZKUBE_PROGRAM_ID)) { setError("Not a zkube account."); return; }
       const parsed = parseAccount(info.data);
