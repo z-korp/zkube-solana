@@ -1,4 +1,5 @@
 import { CalendarDays, Check, Clock, Star } from "lucide-react";
+import { QUEST_DEFS } from "@/config/questDefs";
 import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
 import GameCard from "@/ui/components/shared/GameCard";
 import PageHeader from "@/ui/components/shared/PageHeader";
@@ -45,11 +46,19 @@ export default function RebootRewardsPage() {
                 </span>
               </div>
               <h2 className="mt-3 font-display text-lg font-black">
-                {quest.cadence === "daily" ? "Daily" : "Weekly"} quest{" "}
-                {quest.index + 1}
+                {QUEST_DEFS[quest.index]
+                  ? `${QUEST_DEFS[quest.index].icon} ${QUEST_DEFS[quest.index].name}`
+                  : `${quest.cadence === "daily" ? "Daily" : "Weekly"} quest ${quest.index + 1}`}
               </h2>
+              {quest.cadence === "daily" && quest.starReward === 2n && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-yellow-300">
+                  Daily finisher — claim all three dailies first
+                </p>
+              )}
               <p className="my-2 text-xs text-white/50">
-                Progress {quest.progress} / {quest.threshold}
+                {QUEST_DEFS[quest.index]?.description ?? ""}
+                {" · "}
+                {quest.progress} / {quest.threshold}
               </p>
               <ProgressBar
                 value={Math.min(quest.progress, quest.threshold)}

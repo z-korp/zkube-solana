@@ -32,10 +32,21 @@ export interface QuestProgressView {
   claimable: boolean;
 }
 
+export interface LifetimeStatsView {
+  runsStarted: bigint;
+  linesCleared: bigint;
+  maxCombo: number;
+  bossesCleared: bigint;
+  perfectLevels: bigint;
+  dailyChallenges: bigint;
+  bonusUses: bigint;
+}
+
 export interface ProgressView {
   progressVersion: number;
   starsBalance: bigint;
   achievementXp: bigint;
+  lifetime: LifetimeStatsView;
   achievements: AchievementProgressView[];
   quests: QuestProgressView[];
 }
@@ -108,10 +119,21 @@ export async function fetchProgressView(args: {
       claimable: Boolean(rule.enabled) && active && !claimed && progress >= threshold,
     };
   });
+  const lifetimeValue = (key: string) =>
+    BigInt(String((player as Record<string, unknown>)[key] ?? 0));
   return {
     progressVersion,
     starsBalance: BigInt(player.starsBalance.toString()),
     achievementXp: BigInt(player.achievementXp.toString()),
+    lifetime: {
+      runsStarted: lifetimeValue("lifetimeRunsStarted"),
+      linesCleared: lifetimeValue("lifetimeLinesCleared"),
+      maxCombo: Number(lifetimeValue("lifetimeMaxCombo")),
+      bossesCleared: lifetimeValue("lifetimeBossesCleared"),
+      perfectLevels: lifetimeValue("lifetimePerfectLevels"),
+      dailyChallenges: lifetimeValue("lifetimeDailyChallenges"),
+      bonusUses: lifetimeValue("lifetimeBonusUses"),
+    },
     achievements,
     quests,
   };

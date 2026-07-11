@@ -1,7 +1,9 @@
-import { Award, Map, Star, Trophy } from "lucide-react";
+import { Award, Flame, Gamepad2, Map, Rows3, Skull, Star, Trophy } from "lucide-react";
+import { ACHIEVEMENT_DEFS } from "@/config/achievementDefs";
 import {
   getLevelFromXp,
   getTitleForLevel,
+  LEVEL_THRESHOLDS,
   ZONE_NAMES,
 } from "@/config/profileData";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
@@ -18,6 +20,12 @@ export default function RebootProfilePage() {
   const rewards = useRebootProgress();
   const xp = Number(rewards.progress?.achievementXp ?? 0n);
   const level = getLevelFromXp(xp);
+  const levelFloor = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const nextThreshold = LEVEL_THRESHOLDS[level] ?? levelFloor;
+  const maxLevel = level >= LEVEL_THRESHOLDS.length;
+  const xpIntoLevel = xp - levelFloor;
+  const xpForNext = Math.max(1, nextThreshold - levelFloor);
+  const lifetime = rewards.progress?.lifetime;
   const maps = campaign.campaign?.maps ?? [];
   const totalStars = maps.reduce(
     (sum, map) =>
@@ -44,10 +52,12 @@ export default function RebootProfilePage() {
             </h2>
             <p className="mb-2 text-xs text-white/50">
               {xp.toLocaleString()} achievement XP
+              {!maxLevel &&
+                ` · ${(nextThreshold - xp).toLocaleString()} XP to Level ${level + 1} (${getTitleForLevel(level + 1)})`}
             </p>
             <ProgressBar
-              value={Math.min(100, level)}
-              max={100}
+              value={maxLevel ? 1 : xpIntoLevel}
+              max={maxLevel ? 1 : xpForNext}
               color="#22d3ee"
               glow
             />
@@ -78,6 +88,33 @@ export default function RebootProfilePage() {
             label="Achievements"
             value={`${rewards.progress?.achievements.filter((entry) => entry.claimed).length ?? 0}/24`}
             color="#c084fc"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric
+            icon={<Gamepad2 />}
+            label="Games"
+            value={(lifetime?.runsStarted ?? 0n).toLocaleString()}
+            color="#38bdf8"
+          />
+          <Metric
+            icon={<Rows3 />}
+            label="Lines cleared"
+            value={(lifetime?.linesCleared ?? 0n).toLocaleString()}
+            color="#34d399"
+          />
+          <Metric
+            icon={<Flame />}
+            label="Best combo"
+            value={`×${lifetime?.maxCombo ?? 0}`}
+            color="#fb923c"
+          />
+          <Metric
+            icon={<Skull />}
+            label="Guardians"
+            value={(lifetime?.bossesCleared ?? 0n).toLocaleString()}
+            color="#f472b6"
           />
         </div>
 
@@ -121,10 +158,16 @@ export default function RebootProfilePage() {
                 className={`rounded-xl border p-3 ${entry.claimed ? "border-emerald-300/20 bg-emerald-500/10" : "border-white/10 bg-black/25"}`}
               >
                 <div className="flex justify-between">
-                  <strong>Achievement {entry.index + 1}</strong>
+                  <strong>
+                    {ACHIEVEMENT_DEFS[entry.index]
+                      ? `${ACHIEVEMENT_DEFS[entry.index].icon} ${ACHIEVEMENT_DEFS[entry.index].name}`
+                      : `Achievement ${entry.index + 1}`}
+                  </strong>
                   <span className="text-purple-300">{entry.xpReward} XP</span>
                 </div>
                 <p className="my-2 text-xs text-white/50">
+                  {ACHIEVEMENT_DEFS[entry.index]?.description ?? ""}
+                  {" · "}
                   {entry.progress.toString()} / {entry.threshold.toString()}
                 </p>
                 <ProgressBar
