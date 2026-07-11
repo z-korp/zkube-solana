@@ -1,4 +1,4 @@
-import type { Connection } from "@solana/web3.js";
+import type { Connection, PublicKey } from "@solana/web3.js";
 import type { ResumedRun } from "./resumeRun";
 
 export type RunWatchPhase = "resolving" | "subscribed" | "reconnecting" | "stopped";
@@ -9,12 +9,28 @@ export interface RunWatchStatus {
   error?: string;
 }
 
-interface RunWatcherOptions {
-  resolve: () => Promise<ResumedRun>;
-  onState: (state: ResumedRun) => void;
+export interface RunWatchBindTarget {
+  connection: Connection;
+  address: PublicKey;
+}
+
+interface RunWatcherOptions<T> {
+  resolve: () => Promise<T>;
+  onState: (state: T) => void;
   onStatus?: (status: RunWatchStatus) => void;
   pollMs?: number;
   maxBackoffMs?: number;
+  /** Where to attach the account subscription; defaults to the persisted-run
+   *  marker binding. Return null to keep polling without a subscription. */
+  bindTarget?: (state: T) => RunWatchBindTarget | null;
+}
+
+function defaultResumedRunTarget(state: ResumedRun): RunWatchBindTarget | null {
+  if (state.phase !== "delegated" && state.phase !== "base") return null;
+  return {
+    connection: state.connection,
+    address: state.marker.addresses.activeRun,
+  };
 }
 
 /**
@@ -22,15 +38,22 @@ interface RunWatcherOptions {
  * notifications trigger a fresh authoritative decode; a low-frequency router
  * re-resolution replaces stale subscriptions after ER migration or socket loss.
  */
-export class PersistedRunWatcher {
+export class PersistedRunWatcher<T = ResumedRun> {
   private stopped = true;
   private refreshing = false;
   private refreshQueued = false;
   private attempt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private subscription: { connection: Connection; id: number } | null = null;
+  private readonly bindTarget: (state: T) => RunWatchBindTarget | null;
 
-  constructor(private readonly options: RunWatcherOptions) {}
+  constructor(private readonly options: RunWatcherOptions<T>) {
+    this.bindTarget =
+      options.bindTarget ??
+      (defaultResumedRunTarget as unknown as (
+        state: T,
+      ) => RunWatchBindTarget | null);
+  }
 
   start(): void {
     if (!this.stopped) return;
@@ -84,19 +107,20 @@ export class PersistedRunWatcher {
     }
   }
 
-  private async bind(state: ResumedRun): Promise<void> {
-    if (state.phase !== "delegated" && state.phase !== "base") {
+  private async bind(state: T): Promise<void> {
+    const target = this.bindTarget(state);
+    if (!target) {
       await this.clearSubscription();
       return;
     }
-    if (this.subscription?.connection === state.connection) return;
+    if (this.subscription?.connection === target.connection) return;
     await this.clearSubscription();
-    const id = state.connection.onAccountChange(
-      state.marker.addresses.activeRun,
+    const id = target.connection.onAccountChange(
+      target.address,
       () => void this.refresh(),
       "confirmed",
     );
-    this.subscription = { connection: state.connection, id };
+    this.subscription = { connection: target.connection, id };
   }
 
   private async clearSubscription(): Promise<void> {

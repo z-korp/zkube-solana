@@ -1,7 +1,8 @@
-import { Crown, Medal, Trophy } from "lucide-react";
+import { Crown, Eye, Medal, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { useRebootDaily } from "@/solana/reboot/useRebootDaily";
+import { useNavigationStore } from "@/stores/navigationStore";
 import GameCard from "@/ui/components/shared/GameCard";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import ThemeBackground from "@/ui/components/shared/ThemeBackground";
@@ -9,6 +10,14 @@ import ThemeBackground from "@/ui/components/shared/ThemeBackground";
 export default function RebootLeaderboardPage() {
   const daily = useRebootDaily();
   const identity = useEmbeddedIdentity();
+  const navigate = useNavigationStore((state) => state.navigate);
+  const setSpectateTarget = useNavigationStore(
+    (state) => state.setSpectateTarget,
+  );
+  const watch = (player: string, runId: bigint) => {
+    setSpectateTarget({ player, runId: runId.toString() });
+    navigate("spectate");
+  };
   const entries = daily.daily?.leaderboard ?? [];
   const inBoard = entries.some((entry) =>
     entry.player.equals(identity.publicKey),
@@ -57,7 +66,7 @@ export default function RebootLeaderboardPage() {
                     ? { boxShadow: { repeat: Infinity, duration: 2.2 } }
                     : {}),
                 }}
-                className={`grid grid-cols-[3rem_1fr_auto] items-center rounded-2xl border px-4 py-3 ${own ? "border-cyan-300/40 bg-cyan-500/15" : index < 3 ? "border-yellow-300/20 bg-yellow-500/[0.08]" : "border-white/10 bg-black/35"}`}
+                className={`grid grid-cols-[3rem_1fr_auto_auto] items-center gap-2 rounded-2xl border px-4 py-3 ${own ? "border-cyan-300/40 bg-cyan-500/15" : index < 3 ? "border-yellow-300/20 bg-yellow-500/[0.08]" : "border-white/10 bg-black/35"}`}
               >
                 <span className="grid place-items-center text-lg font-black">
                   {index === 0 ? (
@@ -79,6 +88,13 @@ export default function RebootLeaderboardPage() {
                 <strong className="font-display text-xl text-cyan-200">
                   {entry.score}
                 </strong>
+                <button
+                  onClick={() => watch(entry.player.toBase58(), entry.runId)}
+                  aria-label="Watch this run"
+                  className="rounded-full border border-white/15 bg-black/30 p-1.5 text-white/55 transition hover:text-white"
+                >
+                  <Eye size={14} />
+                </button>
               </motion.div>
             );
           })}
