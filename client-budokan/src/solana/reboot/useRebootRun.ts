@@ -66,6 +66,10 @@ export function useRebootRun() {
     null,
   );
   const paymaster = useRef<PaymasterClient | null>(null);
+  // While a move/bonus is in flight the action itself is the authoritative
+  // state source; watcher snapshots taken mid-action (awaitingVrf, stale
+  // counters) must not clobber currentRun or reach the board.
+  const actionInFlight = useRef(false);
 
   useEffect(() => {
     paymaster.current = null;
@@ -80,6 +84,16 @@ export function useRebootRun() {
           baseConnection: connection,
         }),
       onState: (run) => {
+        if (actionInFlight.current) return;
+        if (
+          run.phase === "delegated" &&
+          currentRun.current &&
+          run.activeRun.runId === currentRun.current.activeRun.runId &&
+          run.activeRun.actionCounter <
+            currentRun.current.activeRun.actionCounter
+        ) {
+          return;
+        }
         currentRun.current = run.phase === "delegated" ? run : null;
         setState((value) => ({
           ...value,
@@ -234,44 +248,49 @@ export function useRebootRun() {
     async (row: number, start: number, destination: number) => {
       const run = currentRun.current;
       if (!run) throw new Error("No delegated run is attached");
-      return withBusy(setState, async () => {
-        const sessionWallet = new SessionWallet(run.marker.session);
-        const plan = await buildPlayMovePlan({
-          owner: run.marker.owner,
-          sessionWallet,
-          sessionToken: run.marker.sessionToken,
-          activeRun: run.marker.addresses.activeRun,
-          erConnection: run.connection,
-          expectedMove: run.activeRun.moves,
-          expectedAction: run.activeRun.actionCounter,
-          row,
-          start,
-          destination,
-        });
-        const signature = await submitWalletTransactionPlan({
-          transactionPlan: plan,
-          wallet: sessionWallet,
-        });
-        const activeRun = await hydrateRows({
-          prepared: {
-            runId: run.marker.runId,
-            addresses: run.marker.addresses,
+      actionInFlight.current = true;
+      try {
+        return await withBusy(setState, async () => {
+          const sessionWallet = new SessionWallet(run.marker.session);
+          const plan = await buildPlayMovePlan({
+            owner: run.marker.owner,
+            sessionWallet,
             sessionToken: run.marker.sessionToken,
-            sessionValidUntil: run.marker.validUntil,
+            activeRun: run.marker.addresses.activeRun,
+            erConnection: run.connection,
+            expectedMove: run.activeRun.moves,
+            expectedAction: run.activeRun.actionCounter,
+            row,
+            start,
+            destination,
+          });
+          const signature = await submitWalletTransactionPlan({
             transactionPlan: plan,
-          },
-          session: run.marker.session,
-          erConnection: run.connection,
-          ownerWallet: wallet!,
+            wallet: sessionWallet,
+          });
+          const activeRun = await hydrateRows({
+            prepared: {
+              runId: run.marker.runId,
+              addresses: run.marker.addresses,
+              sessionToken: run.marker.sessionToken,
+              sessionValidUntil: run.marker.validUntil,
+              transactionPlan: plan,
+            },
+            session: run.marker.session,
+            erConnection: run.connection,
+            ownerWallet: wallet!,
+          });
+          run.activeRun = activeRun;
+          setState((value) => ({
+            ...value,
+            activeRun,
+            lastSignature: signature,
+          }));
+          return activeRun;
         });
-        run.activeRun = activeRun;
-        setState((value) => ({
-          ...value,
-          activeRun,
-          lastSignature: signature,
-        }));
-        return activeRun;
-      });
+      } finally {
+        actionInFlight.current = false;
+      }
     },
     [wallet],
   );
@@ -320,33 +339,42 @@ export function useRebootRun() {
   const applyBonus = useCallback(async (row: number, column: number) => {
     const run = currentRun.current;
     if (!run) throw new Error("No delegated run is attached");
-    return withBusy(setState, async () => {
-      const sessionWallet = new SessionWallet(run.marker.session);
-      const plan = await buildApplyBonusPlan({
-        owner: run.marker.owner,
-        sessionWallet,
-        sessionToken: run.marker.sessionToken,
-        activeRun: run.marker.addresses.activeRun,
-        erConnection: run.connection,
-        expectedAction: run.activeRun.actionCounter,
-        row,
-        column,
+    actionInFlight.current = true;
+    try {
+      return await withBusy(setState, async () => {
+        const sessionWallet = new SessionWallet(run.marker.session);
+        const plan = await buildApplyBonusPlan({
+          owner: run.marker.owner,
+          sessionWallet,
+          sessionToken: run.marker.sessionToken,
+          activeRun: run.marker.addresses.activeRun,
+          erConnection: run.connection,
+          expectedAction: run.activeRun.actionCounter,
+          row,
+          column,
+        });
+        const signature = await submitWalletTransactionPlan({
+          transactionPlan: plan,
+          wallet: sessionWallet,
+        });
+        const activeRun = await fetchActiveRun(
+          run.connection,
+          sessionWallet,
+          run.marker.addresses.activeRun,
+        );
+        if (!activeRun)
+          throw new Error("ActiveRun disappeared after bonus application");
+        run.activeRun = activeRun;
+        setState((value) => ({
+          ...value,
+          activeRun,
+          lastSignature: signature,
+        }));
+        return activeRun;
       });
-      const signature = await submitWalletTransactionPlan({
-        transactionPlan: plan,
-        wallet: sessionWallet,
-      });
-      const activeRun = await fetchActiveRun(
-        run.connection,
-        sessionWallet,
-        run.marker.addresses.activeRun,
-      );
-      if (!activeRun)
-        throw new Error("ActiveRun disappeared after bonus application");
-      run.activeRun = activeRun;
-      setState((value) => ({ ...value, activeRun, lastSignature: signature }));
-      return activeRun;
-    });
+    } finally {
+      actionInFlight.current = false;
+    }
   }, []);
 
   const cleanup = useCallback(async () => {

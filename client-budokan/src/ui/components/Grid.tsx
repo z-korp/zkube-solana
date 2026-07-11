@@ -5,6 +5,7 @@ import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
+  blocksMatchGrid,
   removeCompleteRows,
   removeBlocksSameWidth,
   removeBlocksInRows,
@@ -55,6 +56,13 @@ interface ReceiptProjection {
   nextRow: number[];
   over: boolean;
 }
+
+const sameBlockGeometry = (a: Block[], b: Block[]): boolean => {
+  if (a.length !== b.length) return false;
+  const key = (blk: Block) => `${blk.x},${blk.y},${blk.width}`;
+  const present = new Set(a.map(key));
+  return b.every((blk) => present.has(key(blk)));
+};
 
 const Grid: React.FC<GridProps> = ({
   gameId,
@@ -165,10 +173,15 @@ const Grid: React.FC<GridProps> = ({
     const newNextLine = transformDataContractIntoBlock([parsed.nextRow]);
     // Update refs immediately (for pointer handler, before React re-renders)
     gameStateRef.current = GameState.WAITING;
-    // Save receipt blocks for error rollback — DON'T replace visible blocks.
-    // The local cascade already computed correct positions; replacing would
-    // destroy block IDs and kill CSS transitions (max-update-depth + animation cut).
-    setSaveGridStateblocks(transformDataContractIntoBlock(parsed.blocks));
+    const authoritative = transformDataContractIntoBlock(parsed.blocks);
+    setSaveGridStateblocks(authoritative);
+    // The local cascade normally lands exactly on the chain result — keep the
+    // visible blocks then (replacing would destroy block IDs and kill CSS
+    // transitions). Snap to the authoritative grid only on divergence, since
+    // the Grid now persists across moves and nothing else corrects it.
+    setBlocks((prev) =>
+      blocksMatchGrid(prev, parsed.blocks) ? prev : authoritative,
+    );
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
     // Update the preview in GameBoard with the receipt's next line
@@ -185,6 +198,24 @@ const Grid: React.FC<GridProps> = ({
     const hasWarning = blocks.some((b) => b.y === 1);
     setDangerLevel(hasCritical ? 2 : hasWarning ? 1 : 0);
   }, [blocks]);
+
+  // Idle-state resync from authoritative props. The receipt path covers the
+  // normal move flow; this covers out-of-band chain updates reaching a
+  // persistent Grid (e.g. a move whose VRF wait timed out client-side but
+  // executed on-chain — the rollback restores a pre-move board that nothing
+  // else would ever correct).
+  useEffect(() => {
+    if (gameStateRef.current !== GameState.WAITING) return;
+    if (draggingRef.current) return;
+    if (useMoveStore.getState().queue.some((m) => m.gameId === gameId)) return;
+    setBlocks((prev) =>
+      sameBlockGeometry(prev, initialData) ? prev : initialData,
+    );
+    setNextLine((prev) =>
+      sameBlockGeometry(prev, nextLineData) ? prev : nextLineData,
+    );
+    setSaveGridStateblocks(initialData);
+  }, [initialData, nextLineData, gameId]);
 
   // =================== DRAG & DROP ===================
   //
@@ -399,13 +430,27 @@ const Grid: React.FC<GridProps> = ({
     [gameId, gridHeight, onMove, playSwipe],
   );
 
+  // Unmount-only flag. The drain effect's own cleanup fires on every dep
+  // change (markSubmitting mutates the queue synchronously), so an
+  // effect-scoped `cancelled` flag is already true by the time the tx
+  // settles — the failure branch must key off real unmount instead.
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!nextQueuedMove || isQueueProcessing) return;
 
-    let cancelled = false;
-    const store = useMoveStore.getState();
-
     const processQueuedMove = async () => {
+      const store = useMoveStore.getState();
+      const stillQueued = store.queue.some(
+        (item) => item.id === nextQueuedMove.id && item.status === "queued",
+      );
+      if (!stillQueued || store.isQueueProcessing) return;
       store.setQueueProcessing(true);
       store.markSubmitting(nextQueuedMove.id);
 
@@ -424,18 +469,18 @@ const Grid: React.FC<GridProps> = ({
           }
         }
       } catch (error) {
-        if (cancelled) return;
         const message = error instanceof Error ? error.message : "Move transaction failed.";
         store.markFailed(nextQueuedMove.id, message);
         store.clearQueueForGame(gameId);
-        rollbackGrid("Move sync failed. Grid rolled back.");
+        if (!unmountedRef.current) {
+          rollbackGrid("Move sync failed. Grid rolled back.");
+        }
       } finally {
         store.setQueueProcessing(false);
       }
     };
 
     processQueuedMove();
-    return () => { cancelled = true; };
   }, [nextQueuedMove, isQueueProcessing, gameId, resetDragRefs, setIsTxProcessing]);
 
   useEffect(() => {
@@ -559,6 +604,12 @@ const Grid: React.FC<GridProps> = ({
             setGameState(GameState.UPDATE_AFTER_MOVE);
             break;
           }
+          // No next line available (e.g. remount while the VRF row was in
+          // flight) — skip the insert; the receipt will reconcile the board.
+          if (nextLine.length === 0) {
+            setGameState(GameState.UPDATE_AFTER_MOVE);
+            break;
+          }
           // Phase 1: Place next-line blocks off-screen (y=gridHeight, clipped by SVG)
           setBlocks(prev => [
             ...prev,
@@ -579,6 +630,11 @@ const Grid: React.FC<GridProps> = ({
             setBlocks(prev => prev.map(b => ({ ...b, y: b.y - 1 })));
             setIsMoving(true);
             setGameState(GameState.GRAVITY2);
+          } else {
+            // Nothing was inserted — without this escape the machine parks
+            // here forever (input stays locked).
+            setIsMoving(false);
+            setGameState(GameState.UPDATE_AFTER_MOVE);
           }
         }
         break;
