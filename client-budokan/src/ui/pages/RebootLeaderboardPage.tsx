@@ -1,4 +1,5 @@
 import { Crown, Medal, Trophy } from "lucide-react";
+import { motion } from "motion/react";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { useRebootDaily } from "@/solana/reboot/useRebootDaily";
 import GameCard from "@/ui/components/shared/GameCard";
@@ -9,6 +10,10 @@ export default function RebootLeaderboardPage() {
   const daily = useRebootDaily();
   const identity = useEmbeddedIdentity();
   const entries = daily.daily?.leaderboard ?? [];
+  const inBoard = entries.some((entry) =>
+    entry.player.equals(identity.publicKey),
+  );
+  const ownBest = daily.daily?.player?.bestScore ?? null;
   return (
     <div className="relative min-h-full overflow-y-auto pb-28 pt-5 text-white">
       <ThemeBackground />
@@ -27,8 +32,31 @@ export default function RebootLeaderboardPage() {
           {entries.map((entry, index) => {
             const own = entry.player.equals(identity.publicKey);
             return (
-              <div
+              <motion.div
                 key={entry.player.toBase58()}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  ...(own
+                    ? {
+                        boxShadow: [
+                          "0 0 0px rgba(34,211,238,0)",
+                          "0 0 14px rgba(34,211,238,.45)",
+                          "0 0 0px rgba(34,211,238,0)",
+                        ],
+                      }
+                    : {}),
+                }}
+                transition={{
+                  delay: index * 0.05,
+                  type: "spring",
+                  stiffness: 240,
+                  damping: 22,
+                  ...(own
+                    ? { boxShadow: { repeat: Infinity, duration: 2.2 } }
+                    : {}),
+                }}
                 className={`grid grid-cols-[3rem_1fr_auto] items-center rounded-2xl border px-4 py-3 ${own ? "border-cyan-300/40 bg-cyan-500/15" : index < 3 ? "border-yellow-300/20 bg-yellow-500/[0.08]" : "border-white/10 bg-black/35"}`}
               >
                 <span className="grid place-items-center text-lg font-black">
@@ -51,9 +79,30 @@ export default function RebootLeaderboardPage() {
                 <strong className="font-display text-xl text-cyan-200">
                   {entry.score}
                 </strong>
-              </div>
+              </motion.div>
             );
           })}
+          {!daily.loading && !inBoard && ownBest !== null && ownBest > 0 && (
+            <div className="grid grid-cols-[3rem_1fr_auto] items-center rounded-2xl border border-cyan-300/40 bg-cyan-500/15 px-4 py-3">
+              <span className="grid place-items-center text-sm font-black text-white/60">
+                —
+              </span>
+              <span className="truncate font-mono text-xs text-white/60">
+                You · outside the top 10
+              </span>
+              <strong className="font-display text-xl text-cyan-200">
+                {ownBest.toString()}
+              </strong>
+            </div>
+          )}
+          {!daily.loading &&
+            entries.length > 0 &&
+            !inBoard &&
+            (ownBest === null || ownBest === 0) && (
+              <p className="pt-2 text-center text-xs text-white/45">
+                You’re not ranked yet — enter today’s Daily to claim a spot.
+              </p>
+            )}
           {!daily.loading && entries.length === 0 && (
             <GameCard
               variant="glass"
