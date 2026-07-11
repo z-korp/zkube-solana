@@ -1,10 +1,14 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { HTMLAttributes } from "react";
 import Grid from "./Grid";
 import { BonusType } from "../../solana/reboot/bonusTypes";
 import { useMoveStore } from "../../stores/moveTxStore";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 vi.mock("motion/react", () => ({
   motion: {
@@ -135,5 +139,92 @@ describe("Grid drag interactions", () => {
     expect((container.querySelector(".svg-block") as SVGGElement).style.transform).not.toBe(
       "translate(0px, 180px)",
     );
+  });
+});
+
+describe("Grid move queue", () => {
+  const dragBlockTo = (container: HTMLElement, clientX: number) => {
+    const block = container.querySelector(".svg-block") as SVGGElement;
+    const surface = container.querySelector("svg") as SVGSVGElement;
+    Object.defineProperty(surface, "getScreenCTM", {
+      value: () => ({ a: 1, e: 0 }),
+      configurable: true,
+    });
+    fireEvent.pointerDown(block, { clientX: 10 });
+    fireEvent.pointerMove(document, { clientX });
+    fireEvent.pointerUp(document);
+  };
+
+  const baseProps = {
+    gameId: 1n,
+    initialData: [{ id: 1, x: 0, y: 9, width: 1 }],
+    nextLineData: [],
+    setNextLineHasBeenConsumed: vi.fn(),
+    gridSize: 20,
+    gridWidth: 8,
+    gridHeight: 10,
+    bonus: BonusType.None,
+    isTxProcessing: false,
+    setIsTxProcessing: vi.fn(),
+    levelTransitionPending: false,
+    onBonus: vi.fn(async () => undefined),
+  };
+
+  beforeEach(() => {
+    useMoveStore.setState({
+      isMoveComplete: false,
+      queue: [],
+      isQueueProcessing: false,
+      lastFailedMoveError: null,
+    });
+  });
+
+  it("rolls back the grid and clears the queue when the move tx fails", async () => {
+    const onMove = vi.fn(async () => {
+      throw new Error("ER rejected the move");
+    });
+    const { container } = render(<Grid {...baseProps} onMove={onMove} />);
+
+    dragBlockTo(container, 50);
+
+    await waitFor(() =>
+      expect(useMoveStore.getState().lastFailedMoveError).toBe(
+        "ER rejected the move",
+      ),
+    );
+    // No stuck "submitting" entry may survive the failure.
+    expect(useMoveStore.getState().queue).toHaveLength(0);
+    expect(useMoveStore.getState().isQueueProcessing).toBe(false);
+    // The optimistic move was rolled back to the last authoritative board.
+    await waitFor(() =>
+      expect(
+        (container.querySelector(".svg-block") as SVGGElement).style.transform,
+      ).toBe("translate(0px, 180px)"),
+    );
+  });
+
+  it("completes a move with an empty next line without stalling the machine", async () => {
+    const postMoveGrid = Array.from({ length: 10 }, (_, y) =>
+      y === 9 ? [0, 0, 1, 0, 0, 0, 0, 0] : [0, 0, 0, 0, 0, 0, 0, 0],
+    );
+    const onMove = vi.fn(async () => ({
+      blocks: postMoveGrid,
+      nextRow: [2, 2, 0, 0, 0, 0, 0, 0],
+      over: false,
+    }));
+    const { container } = render(<Grid {...baseProps} onMove={onMove} />);
+
+    dragBlockTo(container, 50);
+
+    await waitFor(() => expect(onMove).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(useMoveStore.getState().queue).toHaveLength(0));
+    // The receipt must land and unlock the board (WAITING) even though no
+    // next line was inserted — a second drag must still respond.
+    await waitFor(() => {
+      dragBlockTo(container, 90);
+      expect(
+        (container.querySelector(".svg-block") as SVGGElement).style.transform,
+      ).not.toBe("translate(40px, 180px)");
+    });
   });
 });

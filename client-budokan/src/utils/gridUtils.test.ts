@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { transformDataContractIntoBlock } from "./gridUtils";
+import { blocksMatchGrid, transformDataContractIntoBlock } from "./gridUtils";
+
+describe("blocksMatchGrid", () => {
+  const emptyRow = () => [0, 0, 0, 0, 0, 0, 0, 0];
+
+  it("matches when block geometry equals the contract grid", () => {
+    const grid = [emptyRow(), [0, 0, 2, 2, 0, 3, 3, 3]];
+    const blocks = [
+      { id: 7, x: 2, y: 1, width: 2 },
+      { id: 9, x: 5, y: 1, width: 3 },
+    ];
+    expect(blocksMatchGrid(blocks, grid)).toBe(true);
+  });
+
+  it("detects divergence in position", () => {
+    const grid = [emptyRow(), [0, 0, 2, 2, 0, 0, 0, 0]];
+    const blocks = [{ id: 7, x: 3, y: 1, width: 2 }];
+    expect(blocksMatchGrid(blocks, grid)).toBe(false);
+  });
+
+  it("detects blocks missing from the local board", () => {
+    const grid = [emptyRow(), [1, 0, 0, 0, 0, 0, 0, 0]];
+    expect(blocksMatchGrid([], grid)).toBe(false);
+  });
+
+  it("rejects out-of-bounds blocks instead of throwing", () => {
+    const grid = [emptyRow()];
+    expect(blocksMatchGrid([{ id: 1, x: 7, y: 0, width: 2 }], grid)).toBe(
+      false,
+    );
+    expect(blocksMatchGrid([{ id: 1, x: 0, y: 3, width: 1 }], grid)).toBe(
+      false,
+    );
+  });
+});
 
 describe("transformDataContractIntoBlock", () => {
   it("should transform a row with empty spaces and blocks", () => {

@@ -28,6 +28,11 @@ export default function RebootPlayScreen() {
   const [level, setLevel] = useState(previewLevel ?? 1);
   const [gridBusy, setGridBusy] = useState(false);
   const [selectedBonus, setSelectedBonus] = useState(BonusType.None);
+  const [nextLineConsumed, setNextLineConsumed] = useState(false);
+  const runId = run.activeRun?.runId;
+  useEffect(() => {
+    setNextLineConsumed(false);
+  }, [runId]);
   const effectiveMapId = run.activeRun?.mapId ?? mapId;
   const isDailyRun =
     navigationDaily ||
@@ -376,28 +381,27 @@ export default function RebootPlayScreen() {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-2">
             <Grid
-              key={`${run.activeRun.runId}-${run.activeRun.actionCounter}`}
+              key={`run-${run.activeRun.runId}`}
               gameId={run.activeRun.runId}
               initialData={grid}
               nextLineData={nextRow}
-              setNextLineHasBeenConsumed={() => {}}
+              setNextLineHasBeenConsumed={setNextLineConsumed}
               gridSize={gridSize}
               gridHeight={ROWS}
               gridWidth={COLS}
               bonus={selectedBonus}
-              isTxProcessing={gridBusy || run.busy}
+              isTxProcessing={gridBusy}
               setIsTxProcessing={setGridBusy}
               levelTransitionPending={false}
               onMove={onMove}
               onBonus={onBonus}
-              onLocalGameOver={() => {}}
               themeId={themeId}
             />
             <div className="mt-1 flex items-center gap-1 text-[10px] uppercase tracking-[0.2em] text-white/50">
               <ChevronUp size={14} /> Next row
             </div>
             <NextLine
-              nextLineData={nextRow}
+              nextLineData={nextLineConsumed ? [] : nextRow}
               gridSize={gridSize}
               gridHeight={1}
               gridWidth={COLS}
