@@ -1,12 +1,18 @@
+import { useEffect } from "react";
 import { ChevronLeft, Crown, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
+import { useMusicPlayer } from "@/contexts/hooks";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
 export default function RebootBossRevealPage() {
+  const { playSfx } = useMusicPlayer();
+  useEffect(() => {
+    playSfx("boss-intro");
+  }, [playSfx]);
   const zone = useNavigationStore((state) => state.mapZoneId);
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);

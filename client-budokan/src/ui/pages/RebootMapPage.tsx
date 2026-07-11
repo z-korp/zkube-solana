@@ -3,6 +3,7 @@ import { ChevronLeft, Lock, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
 import { getThemeColors, getThemeId } from "@/config/themes";
+import { useMusicPlayer } from "@/contexts/hooks";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -39,6 +40,11 @@ export default function RebootMapPage() {
   const stars = map?.levelStars.reduce((sum, value) => sum + value, 0) ?? 0;
 
   useEffect(() => setMapZoneId(zone), [setMapZoneId, zone]);
+
+  const { setMusicPlaylist } = useMusicPlayer();
+  useEffect(() => {
+    setMusicPlaylist(["main", "level"]);
+  }, [setMusicPlaylist]);
 
   const firstPlayable = useMemo(() => {
     if (!map) return 1;

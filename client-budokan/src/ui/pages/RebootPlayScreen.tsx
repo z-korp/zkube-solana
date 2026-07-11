@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronUp } from "lucide-react";
 import { BonusType } from "@/solana/reboot/bonusTypes";
 import { getThemeColors, getThemeImages, getThemeId } from "@/config/themes";
+import { useMusicPlayer } from "@/contexts/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import Grid from "@/ui/components/Grid";
@@ -33,6 +34,36 @@ export default function RebootPlayScreen() {
   useEffect(() => {
     setNextLineConsumed(false);
   }, [runId]);
+
+  const { playSfx, setMusicContext } = useMusicPlayer();
+  const lifecycle = run.activeRun?.lifecycle ?? null;
+  const isBossLevel =
+    (run.activeRun?.rules.bossId ?? 0) > 0 || run.activeRun?.level === 10;
+  const isFinalBoss =
+    isBossLevel && run.activeRun?.mapId === 10 && run.activeRun?.level === 10;
+  const inPlay =
+    Boolean(run.activeRun) && lifecycle !== null && !isTerminal(lifecycle);
+  useEffect(() => {
+    if (!inPlay) return;
+    setMusicContext(isBossLevel ? "boss" : "level");
+    return () => setMusicContext("main");
+  }, [inPlay, isBossLevel, setMusicContext]);
+
+  // End-of-level fanfares — only on a transition observed during play, never
+  // when resuming straight into a terminal lifecycle.
+  const prevLifecycleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = prevLifecycleRef.current;
+    prevLifecycleRef.current = lifecycle;
+    if (!lifecycle || previous === null || previous === lifecycle) return;
+    if (lifecycle === "levelComplete") {
+      playSfx(isFinalBoss ? "victory" : isBossLevel ? "boss-defeat" : "levelup");
+      window.setTimeout(() => playSfx("star"), 350);
+      window.setTimeout(() => playSfx("coin"), 650);
+    } else if (lifecycle === "finished") {
+      playSfx("over");
+    }
+  }, [lifecycle, isBossLevel, isFinalBoss, playSfx]);
   const effectiveMapId = run.activeRun?.mapId ?? mapId;
   const isDailyRun =
     navigationDaily ||
