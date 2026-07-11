@@ -1,10 +1,16 @@
 import { create } from "zustand";
 
 export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
-export type OverlayId = "play" | "daily" | "boss" | "map" | "tournament";
+export type OverlayId = "play" | "daily" | "boss" | "map" | "tournament" | "spectate";
 export type PageId = TabId | OverlayId;
 
-export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana"]);
+export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana", "spectate"]);
+
+export interface SpectateTargetParams {
+  player?: string;
+  pda?: string;
+  runId?: string;
+}
 const NAV_TRANSITION_LOCK_MS = 300;
 
 export interface PendingLevelCompletion {
@@ -52,12 +58,16 @@ interface NavigationState {
   setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
   markZoneGreeted: (zoneId: number) => void;
   setPendingDeepLinkStart: (value: boolean) => void;
+  spectateTarget: SpectateTargetParams | null;
+  setSpectateTarget: (target: SpectateTargetParams | null) => void;
 }
 
 const getBackTarget = (page: PageId): PageId => {
   switch (page) {
     case "play":
       return "map";
+    case "spectate":
+      return "ranks";
     case "daily":
       return "home";
     case "tournament":
@@ -132,6 +142,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setTournamentId: (id) => set({ tournamentId: id }),
   setSelectedMode: (mode) => set({ selectedMode: mode }),
   setProfileAddress: (address) => set({ profileAddress: address }),
+  spectateTarget: null,
+  setSpectateTarget: (target) => set({ spectateTarget: target }),
   setPendingPreviewLevel: (level) => set({ pendingPreviewLevel: level }),
   setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),
   markZoneGreeted: (zoneId) => set((state) => {

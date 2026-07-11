@@ -12,6 +12,23 @@ import RebootProfilePage from "@/ui/pages/RebootProfilePage";
 import RebootRewardsPage from "@/ui/pages/RebootRewardsPage";
 import RebootLeaderboardPage from "@/ui/pages/RebootLeaderboardPage";
 import RebootBossRevealPage from "@/ui/pages/RebootBossRevealPage";
+import RebootSpectatorScreen from "@/ui/pages/RebootSpectatorScreen";
+
+// URL hydration: /?player=<pubkey> or /?pda=<activeRun pda> (+ optional
+// &run=<id>) opens the read-only spectator directly.
+const params = new URLSearchParams(window.location.search);
+const spectatePlayer = params.get("player");
+const spectatePda = params.get("pda");
+if (spectatePlayer || spectatePda) {
+  useNavigationStore.setState({
+    currentPage: "spectate",
+    spectateTarget: {
+      player: spectatePlayer ?? undefined,
+      pda: spectatePda ?? undefined,
+      runId: params.get("run") ?? undefined,
+    },
+  });
+}
 
 const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   home: <RebootHomePage />,
@@ -25,6 +42,7 @@ const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   daily: <RebootDailyChallengePage />,
   boss: <RebootBossRevealPage />,
   tournament: <RebootDailyChallengePage />,
+  spectate: <RebootSpectatorScreen />,
 };
 
 export default function App() {

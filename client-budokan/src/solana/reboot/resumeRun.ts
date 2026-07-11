@@ -191,7 +191,7 @@ export async function recoverDelegatedRunSession(args: {
   return marker;
 }
 
-async function fetchReceipt(
+export async function fetchReceipt(
   connection: Connection,
   wallet: WalletLike,
   receiptAddress: PublicKey,
