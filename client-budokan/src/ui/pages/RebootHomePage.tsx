@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,11 +15,16 @@ import { useDevnetRuntimeStatus } from "@/solana/reboot/useDevnetRuntimeStatus";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
+import { useMusicPlayer } from "@/contexts/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import GameCard from "@/ui/components/shared/GameCard";
 
 export default function RebootHomePage() {
+  const { setMusicPlaylist } = useMusicPlayer();
+  useEffect(() => {
+    setMusicPlaylist(["main"]);
+  }, [setMusicPlaylist]);
   const runtime = useDevnetRuntimeStatus();
   const identity = useEmbeddedIdentity();
   const campaign = useRebootCampaign();

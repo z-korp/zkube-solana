@@ -37,6 +37,7 @@ export default function RebootGameActionBar({
     isPlaying,
     playTheme,
     stopTheme,
+    playSfx,
   } = useMusicPlayer();
   const [soundOpen, setSoundOpen] = useState(false);
   const selected = activeBonus !== BonusType.None;
@@ -71,7 +72,15 @@ export default function RebootGameActionBar({
               </p>
               <div className="flex gap-3">
                 <DialogClose className="flex-1 rounded-lg border px-4 py-2">Stay</DialogClose>
-                <DialogClose onClick={onExit} className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-bold text-white">Leave</DialogClose>
+                <DialogClose
+                  onClick={() => {
+                    playSfx("click");
+                    onExit();
+                  }}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-bold text-white"
+                >
+                  Leave
+                </DialogClose>
               </div>
             </DialogContent>
           </Dialog>
