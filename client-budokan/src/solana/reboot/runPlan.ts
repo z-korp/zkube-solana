@@ -101,6 +101,56 @@ export interface ActiveRunConstraintView {
   requiredCount: number;
 }
 
+interface RawConstraintSnapshot {
+  kind: unknown;
+  value: unknown;
+  requiredCount: unknown;
+}
+
+export interface RawLevelRuleSnapshot {
+  pointsRequired: unknown;
+  maxMoves: unknown;
+  difficulty: unknown;
+  primary: RawConstraintSnapshot;
+  secondary: RawConstraintSnapshot;
+  activeMutatorId: unknown;
+  passiveMutatorId: unknown;
+  bossId: unknown;
+  starThresholdModifier: unknown;
+  bonusType: unknown;
+  bonusTriggerType: unknown;
+  bonusThreshold: unknown;
+  startingCharges: unknown;
+}
+
+export function mapLevelRuleSnapshot(
+  rules: RawLevelRuleSnapshot,
+): ActiveRunRulesView {
+  return {
+    pointsRequired: Number(rules.pointsRequired),
+    maxMoves: Number(rules.maxMoves),
+    difficulty: Number(rules.difficulty),
+    primary: {
+      kind: Number(rules.primary.kind),
+      value: Number(rules.primary.value),
+      requiredCount: Number(rules.primary.requiredCount),
+    },
+    secondary: {
+      kind: Number(rules.secondary.kind),
+      value: Number(rules.secondary.value),
+      requiredCount: Number(rules.secondary.requiredCount),
+    },
+    activeMutatorId: Number(rules.activeMutatorId),
+    passiveMutatorId: Number(rules.passiveMutatorId),
+    bossId: Number(rules.bossId),
+    starThresholdModifier: Number(rules.starThresholdModifier),
+    bonusType: Number(rules.bonusType),
+    bonusTriggerType: Number(rules.bonusTriggerType),
+    bonusThreshold: Number(rules.bonusThreshold),
+    startingCharges: Number(rules.startingCharges),
+  };
+}
+
 export interface ActiveRunRulesView {
   pointsRequired: number;
   maxMoves: number;
@@ -548,29 +598,7 @@ export async function fetchActiveRun(
     dailyChallenge: account.dailyChallenge,
     mapId: Number(account.mapId),
     level: Number(account.level),
-    rules: {
-      pointsRequired: Number(account.rules.pointsRequired),
-      maxMoves: Number(account.rules.maxMoves),
-      difficulty: Number(account.rules.difficulty),
-      primary: {
-        kind: Number(account.rules.primary.kind),
-        value: Number(account.rules.primary.value),
-        requiredCount: Number(account.rules.primary.requiredCount),
-      },
-      secondary: {
-        kind: Number(account.rules.secondary.kind),
-        value: Number(account.rules.secondary.value),
-        requiredCount: Number(account.rules.secondary.requiredCount),
-      },
-      activeMutatorId: Number(account.rules.activeMutatorId),
-      passiveMutatorId: Number(account.rules.passiveMutatorId),
-      bossId: Number(account.rules.bossId),
-      starThresholdModifier: Number(account.rules.starThresholdModifier),
-      bonusType: Number(account.rules.bonusType),
-      bonusTriggerType: Number(account.rules.bonusTriggerType),
-      bonusThreshold: Number(account.rules.bonusThreshold),
-      startingCharges: Number(account.rules.startingCharges),
-    },
+    rules: mapLevelRuleSnapshot(account.rules),
     lifecycle,
     score: Number(account.score),
     actionCounter: Number(account.actionCounter),

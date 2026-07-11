@@ -7,7 +7,13 @@ import {
   deriveProtocolConfigPda,
   deriveTreasuryLedgerPda,
 } from "./pdas";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
+import {
+  mapLevelRuleSnapshot,
+  zkubeProgram,
+  type ActiveRunRulesView,
+  type RawLevelRuleSnapshot,
+  type TransactionPlan,
+} from "./runPlan";
 
 export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
@@ -24,6 +30,7 @@ export interface CampaignMapView {
   starCost: bigint;
   usdcCost: bigint;
   levelStars: number[];
+  levels: ActiveRunRulesView[];
 }
 
 export interface CampaignView {
@@ -69,6 +76,9 @@ export async function fetchCampaignView(args: {
       starCost: BigInt(catalog.starUnlockCost.toString()),
       usdcCost: BigInt(catalog.usdcUnlockCost.toString()),
       levelStars: unpackLevelStars(packedStars),
+      levels: (catalog.levels as RawLevelRuleSnapshot[]).map((rule) =>
+        mapLevelRuleSnapshot(rule),
+      ),
     }];
   });
   return {

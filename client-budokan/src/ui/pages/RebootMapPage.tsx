@@ -2,12 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Lock, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
-import { getThemeColors, getThemeId } from "@/config/themes";
+import {
+  getMapPathTheme,
+  getThemeColors,
+  getThemeId,
+  getThemeImages,
+} from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
+import { useMapLayout } from "@/hooks/useMapLayout";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-import GameCard from "@/ui/components/shared/GameCard";
+import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
+import RebootLevelPreview from "@/ui/components/map/RebootLevelPreview";
 import { ZoneBackground } from "@/ui/components/map/ZoneBackground";
 
 const ZONE_NAMES = [
@@ -23,6 +30,35 @@ const ZONE_NAMES = [
   "Summit",
 ];
 
+const VB_W = 60;
+const VB_H = 100;
+const NODES_PER_ZONE = 10;
+// Purely visual layout randomness — any stable constant works.
+const LAYOUT_SEED = 1337;
+
+type NodeState = "locked" | "available" | "current" | "cleared";
+
+const STATE_COLORS: Record<NodeState, { border: string; alpha: number }> = {
+  locked: { border: "#475569", alpha: 0.5 },
+  cleared: { border: "#22c55e", alpha: 1 },
+  current: { border: "#3b82f6", alpha: 1 },
+  available: { border: "#f97316", alpha: 1 },
+};
+
+const getPathType = (
+  fromState: NodeState,
+  toState: NodeState,
+): "cleared" | "active" | "locked" => {
+  if (fromState === "cleared" && toState === "cleared") return "cleared";
+  if (
+    fromState === "cleared" &&
+    (toState === "current" || toState === "available")
+  ) {
+    return "active";
+  }
+  return "locked";
+};
+
 export default function RebootMapPage() {
   const campaign = useRebootCampaign();
   const initialZone = useNavigationStore((state) => state.mapZoneId);
@@ -34,23 +70,45 @@ export default function RebootMapPage() {
     (state) => state.setPendingPreviewLevel,
   );
   const setDaily = useNavigationStore((state) => state.setIsDailyMap);
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [showGreeting, setShowGreeting] = useState(false);
   const map = campaign.campaign?.maps.find((entry) => entry.mapId === zone);
   const guardian = getZoneGuardian(zone);
-  const colors = getThemeColors(getThemeId(zone));
+  const themeId = getThemeId(zone);
+  const colors = getThemeColors(themeId);
+  const themeImages = getThemeImages(themeId);
+  const pathTheme = getMapPathTheme(themeId);
   const stars = map?.levelStars.reduce((sum, value) => sum + value, 0) ?? 0;
 
   useEffect(() => setMapZoneId(zone), [setMapZoneId, zone]);
+  useEffect(() => setSelectedLevel(null), [zone]);
 
   const { setMusicPlaylist } = useMusicPlayer();
   useEffect(() => {
     setMusicPlaylist(["main", "level"]);
   }, [setMusicPlaylist]);
 
+  const layouts = useMapLayout({
+    seed: LAYOUT_SEED,
+    totalZones: 10,
+    nodesPerZone: NODES_PER_ZONE,
+  });
+  const layout = layouts[zone - 1];
+
   const firstPlayable = useMemo(() => {
     if (!map) return 1;
     const uncleared = map.levelStars.findIndex((value) => value === 0);
     return uncleared < 0 ? 10 : uncleared + 1;
   }, [map]);
+
+  const nodeState = (levelIndex: number): NodeState => {
+    if (!map || !map.unlocked) return "locked";
+    if (map.levelStars[levelIndex] > 0) return "cleared";
+    const reachable =
+      levelIndex === 0 || map.levelStars[levelIndex - 1] > 0;
+    if (!reachable) return "locked";
+    return levelIndex + 1 === firstPlayable ? "current" : "available";
+  };
 
   const play = (level: number) => {
     setMapZoneId(zone);
@@ -61,7 +119,7 @@ export default function RebootMapPage() {
 
   return (
     <div className="relative flex min-h-full flex-col overflow-hidden pb-24 text-white">
-      <ZoneBackground zone={zone} themeId={getThemeId(zone)} />
+      <ZoneBackground zone={zone} themeId={themeId} />
       <header className="relative z-20 flex items-center justify-between px-4 pb-3 pt-5">
         <button
           onClick={goBack}
@@ -86,7 +144,7 @@ export default function RebootMapPage() {
         </div>
       </header>
 
-      <div className="relative z-20 flex gap-2 overflow-x-auto px-4 pb-4 [scrollbar-width:none]">
+      <div className="relative z-20 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
         {Array.from({ length: 10 }, (_, index) => {
           const candidate = campaign.campaign?.maps[index];
           const unlocked = candidate?.unlocked ?? index === 0;
@@ -105,119 +163,367 @@ export default function RebootMapPage() {
         })}
       </div>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-4xl flex-1 gap-4 overflow-y-auto px-4 pb-8 md:grid-cols-[18rem_1fr]">
-        <GameCard
-          variant="glass"
-          className="relative overflow-hidden text-center"
-        >
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              background: `radial-gradient(circle at top, ${colors.accent}, transparent 65%)`,
-            }}
-          />
-          <img
-            src={getGuardianPortrait(zone)}
-            alt={guardian.name}
-            className="relative mx-auto h-52 w-auto object-contain drop-shadow-2xl"
-          />
-          <div className="relative -mt-5">
-            <p
-              className="text-xs uppercase tracking-widest"
-              style={{ color: colors.accent }}
+      {campaign.loading && (
+        <p className="relative z-10 animate-pulse pt-10 text-center text-white/55">
+          Loading on-chain campaign…
+        </p>
+      )}
+      {!campaign.loading && !campaign.campaign && (
+        <p className="relative z-10 pt-10 text-center text-white/55">
+          Start Map 1 to initialize this zKube career.
+        </p>
+      )}
+
+      {/* Node map */}
+      {map && map.unlocked && (
+        <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
+          <div className="relative mx-auto h-full w-full max-w-[540px]">
+            <svg
+              viewBox={`0 0 ${VB_W} ${VB_H}`}
+              preserveAspectRatio="xMidYMid meet"
+              className="absolute inset-0 h-full w-full transition-opacity duration-300"
+              style={{ opacity: showGreeting || selectedLevel ? 0.3 : 1 }}
             >
-              {guardian.title}
-            </p>
-            <h2 className="font-display text-3xl font-black">
-              {guardian.name}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-white/65">
-              {guardian.zoneHint}
-            </p>
-          </div>
-        </GameCard>
+              {/* Paths */}
+              {layout.edges.map((edge) => {
+                const fromPt = layout.points[edge.from];
+                const toPt = layout.points[edge.to];
+                if (!fromPt || !toPt) return null;
 
-        <GameCard variant="glass" className="flex flex-col gap-4">
-          {campaign.loading && (
-            <p className="animate-pulse text-center text-white/55">
-              Loading on-chain campaign…
-            </p>
-          )}
-          {!campaign.loading && !map && (
-            <p className="text-center text-white/55">
-              Start Map 1 to initialize this zKube career.
-            </p>
-          )}
-          {map && (
-            <>
-              <div className="grid grid-cols-5 gap-3 sm:grid-cols-10">
-                {map.levelStars.map((levelStars, index) => {
-                  const level = index + 1;
-                  const available =
-                    map.unlocked &&
-                    (level === 1 ||
-                      map.levelStars[index - 1] > 0 ||
-                      level <= firstPlayable);
-                  const boss = level === 10;
-                  return (
-                    <motion.button
-                      key={level}
-                      whileTap={{ scale: 0.94 }}
-                      disabled={!available}
-                      onClick={() => play(level)}
-                      className={`relative aspect-square rounded-2xl border text-center disabled:opacity-30 ${boss ? "border-red-300/40 bg-red-500/15" : "border-white/15 bg-white/[0.08]"}`}
+                const fromX = fromPt.x * VB_W;
+                const fromY = fromPt.y * VB_H;
+                const toX = toPt.x * VB_W;
+                const toY = toPt.y * VB_H;
+                const midY = (fromY + toY) / 2;
+                const d = `M ${fromX} ${fromY} C ${fromX} ${midY}, ${toX} ${midY}, ${toX} ${toY}`;
+
+                const pathType = getPathType(
+                  nodeState(edge.from),
+                  nodeState(edge.to),
+                );
+                const stroke =
+                  pathType === "cleared"
+                    ? pathTheme.clearedColor
+                    : pathType === "active"
+                      ? pathTheme.activeColor
+                      : pathTheme.lockedColor;
+                const sw =
+                  pathType === "locked"
+                    ? pathTheme.lockedStrokeWidth
+                    : pathTheme.strokeWidth;
+                const opacity = pathType === "locked" ? 0.5 : 0.85;
+                const dash =
+                  pathType === "locked"
+                    ? pathTheme.lockedDash
+                    : pathTheme.pathStyle === "dashed"
+                      ? "8 4"
+                      : pathTheme.pathStyle === "dotted"
+                        ? "2 3"
+                        : undefined;
+
+                return (
+                  <g key={`path-${edge.from}-${edge.to}`}>
+                    {pathTheme.pathStyle === "double" && (
+                      <motion.path
+                        d={d}
+                        fill="none"
+                        stroke={stroke}
+                        strokeWidth={sw + 1.6}
+                        strokeLinecap="round"
+                        initial={!dash ? { pathLength: 0 } : undefined}
+                        animate={!dash ? { pathLength: 1 } : undefined}
+                        transition={{
+                          delay: 0.3 + edge.from * 0.05,
+                          duration: 0.5,
+                          ease: "easeInOut",
+                        }}
+                        opacity={opacity * 0.35}
+                      />
+                    )}
+                    <motion.path
+                      d={d}
+                      fill="none"
+                      stroke={stroke}
+                      strokeWidth={sw}
+                      strokeLinecap="round"
+                      initial={!dash ? { pathLength: 0 } : undefined}
+                      animate={!dash ? { pathLength: 1 } : undefined}
+                      transition={{
+                        delay: 0.3 + edge.from * 0.05,
+                        duration: 0.5,
+                        ease: "easeInOut",
+                      }}
+                      opacity={opacity}
+                      strokeDasharray={dash}
+                    />
+                  </g>
+                );
+              })}
+
+              {/* Guardian node — bottom-right, aligned with level 1 */}
+              {(() => {
+                const level1Pt = layout.points[0];
+                const guardianX = 0.82 * VB_W;
+                const guardianY = level1Pt ? level1Pt.y * VB_H : 0.92 * VB_H;
+                const gr = 5;
+                const badgeR = 2;
+                const badgeX = guardianX + gr * 0.7;
+                const badgeY = guardianY + gr * 0.7;
+                return (
+                  <g
+                    onClick={() => setShowGreeting(true)}
+                    className="map-guardian-pulse"
+                    style={{
+                      cursor: "pointer",
+                      transformOrigin: `${guardianX}px ${guardianY}px`,
+                    }}
+                  >
+                    <clipPath id="guardian-clip">
+                      <circle cx={guardianX} cy={guardianY} r={gr} />
+                    </clipPath>
+                    <image
+                      href={getGuardianPortrait(zone)}
+                      x={guardianX - gr}
+                      y={guardianY - gr}
+                      width={gr * 2}
+                      height={gr * 2}
+                      preserveAspectRatio="xMidYMid slice"
+                      clipPath="url(#guardian-clip)"
+                    />
+                    <circle
+                      cx={guardianX}
+                      cy={guardianY}
+                      r={gr}
+                      fill="none"
+                      stroke={colors.accent}
+                      strokeWidth={0.6}
+                    />
+                    <circle cx={badgeX} cy={badgeY} r={badgeR} fill={colors.accent} />
+                    <text
+                      x={badgeX}
+                      y={badgeY + 0.2}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="#0a1628"
+                      fontSize={2.4}
+                      fontWeight="bold"
+                      fontFamily="Outfit, sans-serif"
                     >
-                      <strong className="block text-lg">
-                        {boss ? guardian.emoji : level}
-                      </strong>
-                      <span className="mt-1 block text-[10px] text-yellow-300">
-                        {"★".repeat(levelStars)}
-                        {"☆".repeat(3 - levelStars)}
-                      </span>
-                    </motion.button>
-                  );
-                })}
-              </div>
+                      ?
+                    </text>
+                    <text
+                      x={guardianX}
+                      y={guardianY + gr + 2.5}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill={colors.accent}
+                      fontSize={2}
+                      fontWeight="bold"
+                      fontFamily="Outfit, sans-serif"
+                    >
+                      {guardian.name}
+                    </text>
+                  </g>
+                );
+              })()}
 
-              {!map.unlocked ? (
-                <div className="mt-auto space-y-3 rounded-2xl border border-yellow-300/20 bg-yellow-950/30 p-4 text-center">
-                  <Lock className="mx-auto text-yellow-300" />
-                  <p className="text-sm text-yellow-100">
-                    Unlock the full {guardian.name} map.
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <ArcadeButton
-                      disabled={
-                        campaign.unlocking ||
-                        (campaign.campaign?.starsBalance ?? 0n) < map.starCost
+              {/* Level nodes */}
+              {Array.from({ length: NODES_PER_ZONE }, (_, index) => {
+                const pt = layout.points[index];
+                if (!pt) return null;
+                const level = index + 1;
+                const boss = level === 10;
+                const state = nodeState(index);
+                const stateColors = STATE_COLORS[state];
+                const isInteractive = state !== "locked";
+                const levelStars = map.levelStars[index];
+
+                const cx = pt.x * VB_W;
+                const cy = pt.y * VB_H;
+                const nodeImg = boss
+                  ? themeImages.mapNodeBoss
+                  : state === "cleared"
+                    ? themeImages.mapNodeCompleted
+                    : themeImages.mapNodeLevel;
+                const r = boss ? 7.5 : 5;
+                const label =
+                  state === "cleared" ? "✓" : boss ? "★" : String(level);
+
+                return (
+                  <motion.g
+                    key={`node-${index}`}
+                    onClick={() => {
+                      if (!isInteractive) return;
+                      setSelectedLevel(level);
+                    }}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: stateColors.alpha }}
+                    transition={{
+                      delay: index * 0.06,
+                      type: "spring",
+                      stiffness: 260,
+                      damping: 20,
+                    }}
+                    style={{
+                      cursor: isInteractive ? "pointer" : "default",
+                      transformOrigin: `${cx}px ${cy}px`,
+                    }}
+                  >
+                    <clipPath id={`node-clip-${index}`}>
+                      <circle cx={cx} cy={cy} r={r} />
+                    </clipPath>
+                    <image
+                      href={nodeImg}
+                      x={cx - r}
+                      y={cy - r}
+                      width={r * 2}
+                      height={r * 2}
+                      preserveAspectRatio="xMidYMid slice"
+                      clipPath={`url(#node-clip-${index})`}
+                    />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      fill="none"
+                      stroke={
+                        state === "current" ? colors.accent : stateColors.border
                       }
-                      onClick={() => void campaign.unlock(zone, "stars")}
+                      strokeWidth={state === "current" ? 1 : boss ? 0.6 : 0.4}
+                    />
+
+                    {state === "current" && (
+                      <>
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={r + 2.5}
+                          fill={colors.accent}
+                          className="map-playing-glow"
+                        />
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={r + 1.8}
+                          fill="none"
+                          stroke={colors.accent}
+                          strokeWidth={1}
+                          className="map-playing-ring"
+                          style={{ transformOrigin: `${cx}px ${cy}px` }}
+                        />
+                      </>
+                    )}
+
+                    <circle
+                      cx={cx + r * 0.7}
+                      cy={cy + r * 0.7}
+                      r={2}
+                      fill="rgba(0,0,0,0.75)"
+                      stroke={stateColors.border}
+                      strokeWidth={0.3}
+                    />
+                    <text
+                      x={cx + r * 0.7}
+                      y={cy + r * 0.7 + 0.1}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="#ffffff"
+                      fontSize={2.2}
+                      fontWeight="bold"
+                      fontFamily="Outfit, sans-serif"
                     >
-                      {map.starCost} Stars
-                    </ArcadeButton>
-                    <ArcadeButton
-                      disabled={campaign.unlocking}
-                      accentOverride="#10b981"
-                      onClick={() => void campaign.unlock(zone, "usdc")}
-                    >
-                      {formatUsdc(map.usdcCost)} USDC
-                    </ArcadeButton>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-auto">
-                  <ArcadeButton onClick={() => play(firstPlayable)}>
-                    Play level {firstPlayable}
-                  </ArcadeButton>
-                </div>
-              )}
-            </>
-          )}
-          {campaign.error && (
-            <p className="text-center text-xs text-red-300">{campaign.error}</p>
-          )}
-        </GameCard>
-      </main>
+                      {label}
+                    </text>
+
+                    {!boss && state !== "locked" && (
+                      <g>
+                        {[0, 1, 2].map((starIndex) => (
+                          <text
+                            key={starIndex}
+                            fill={
+                              levelStars > starIndex
+                                ? "#FACC15"
+                                : "rgba(255,255,255,0.3)"
+                            }
+                            x={cx - 2.5 + starIndex * 2.5}
+                            y={cy + r + 2.5}
+                            fontSize={2}
+                            textAnchor="middle"
+                          >
+                            ★
+                          </text>
+                        ))}
+                      </g>
+                    )}
+                  </motion.g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* Locked-map unlock panel */}
+      {map && !map.unlocked && (
+        <div className="relative z-10 mx-auto w-full max-w-md flex-1 px-4 pt-8">
+          <div className="space-y-3 rounded-2xl border border-yellow-300/20 bg-yellow-950/40 p-5 text-center backdrop-blur">
+            <Lock className="mx-auto text-yellow-300" />
+            <p className="text-sm text-yellow-100">
+              Unlock the full {guardian.name} map.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ArcadeButton
+                disabled={
+                  campaign.unlocking ||
+                  (campaign.campaign?.starsBalance ?? 0n) < map.starCost
+                }
+                onClick={() => void campaign.unlock(zone, "stars")}
+              >
+                {map.starCost.toString()} Stars
+              </ArcadeButton>
+              <ArcadeButton
+                disabled={campaign.unlocking}
+                accentOverride="#10b981"
+                onClick={() => void campaign.unlock(zone, "usdc")}
+              >
+                {formatUsdc(map.usdcCost)} USDC
+              </ArcadeButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {campaign.error && (
+        <p className="relative z-10 pb-2 text-center text-xs text-red-300">
+          {campaign.error}
+        </p>
+      )}
+
+      {selectedLevel !== null && map && (
+        <RebootLevelPreview
+          zoneId={zone}
+          level={selectedLevel}
+          rules={map.levels[selectedLevel - 1] ?? null}
+          stars={map.levelStars[selectedLevel - 1] ?? 0}
+          isBoss={selectedLevel === 10}
+          cleared={(map.levelStars[selectedLevel - 1] ?? 0) > 0}
+          colors={colors}
+          onPlay={() => play(selectedLevel)}
+          onClose={() => setSelectedLevel(null)}
+        />
+      )}
+
+      {showGreeting && (
+        <GuardianGreeting
+          colors={colors}
+          guardian={guardian}
+          mode="story"
+          activeMutatorId={map?.levels[firstPlayable - 1]?.activeMutatorId}
+          passiveMutatorId={map?.levels[firstPlayable - 1]?.passiveMutatorId}
+          bossCleared={(map?.levelStars[9] ?? 0) > 0}
+          onClose={() => setShowGreeting(false)}
+        />
+      )}
     </div>
   );
 }

@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from "@/ui/elements/tooltip";
 
-export function buildTriggerDescription(
+function buildTriggerDescription(
   triggerType: number,
   triggerThreshold: number,
   startingCharges: number,
