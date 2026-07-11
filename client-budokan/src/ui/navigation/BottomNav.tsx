@@ -1,18 +1,19 @@
-import { Home, Star, User, Trophy, Settings } from "lucide-react";
+import { Home, Star, Trophy, Settings } from "lucide-react";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors } from "@/config/themes";
 import { motion } from "motion/react";
-import { useClaimableCount } from "@/hooks/useClaimableCount";
+import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
 
 const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
-  const setProfileAddress = useNavigationStore((s) => s.setProfileAddress);
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const claimableCount = useClaimableCount();
+  const { progress } = useRebootProgress();
+  const claimableCount = (progress?.achievements.filter((entry) => entry.claimable).length ?? 0)
+    + (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;
@@ -35,7 +36,7 @@ const BottomNav = () => {
         return (
           <button
             key={tab.id}
-            onClick={() => { if (tab.id === "profile") setProfileAddress(null); navigate(tab.id); }}
+            onClick={() => navigate(tab.id)}
             className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors"
             style={{ color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)" }}
           >

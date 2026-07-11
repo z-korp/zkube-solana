@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import type { GameLevelData } from "@/hooks/useGameLevel";
 
 export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
 export type OverlayId = "play" | "daily" | "boss" | "map" | "tournament";
@@ -13,7 +12,7 @@ export interface PendingLevelCompletion {
   levelMoves: number;
   prevTotalScore: number;
   totalScore: number;
-  gameLevel: GameLevelData | null;
+  gameLevel: unknown;
   isIncomplete?: boolean;
 }
 

@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "validRows": [
+    {
+      "name": "mixed-widths",
+      "cells": [0, 1, 2, 2, 0, 3, 3, 3],
+      "blocks": [
+        { "x": 1, "width": 1 },
+        { "x": 2, "width": 2 },
+        { "x": 5, "width": 3 }
+      ]
+    },
+    {
+      "name": "adjacent-equal-width-entities",
+      "cells": [2, 2, 2, 2, 0, 1, 0, 1],
+      "blocks": [
+        { "x": 0, "width": 2 },
+        { "x": 2, "width": 2 },
+        { "x": 5, "width": 1 },
+        { "x": 7, "width": 1 }
+      ]
+    },
+    {
+      "name": "maximum-width",
+      "cells": [4, 4, 4, 4, 0, 0, 1, 0],
+      "blocks": [
+        { "x": 0, "width": 4 },
+        { "x": 6, "width": 1 }
+      ]
+    }
+  ],
+  "invalidRows": [
+    { "name": "truncated-size-two", "cells": [2, 0, 0, 0, 0, 0, 0, 0] },
+    { "name": "overflowing-size-three", "cells": [0, 0, 0, 0, 0, 0, 3, 3] },
+    { "name": "unsupported-size", "cells": [5, 5, 5, 5, 5, 0, 0, 0] }
+  ],
+  "starCases": [
+    { "maxMoves": 20, "movesUsed": 10, "modifier": 128, "stars": 3 },
+    { "maxMoves": 20, "movesUsed": 15, "modifier": 128, "stars": 2 },
+    { "maxMoves": 20, "movesUsed": 16, "modifier": 128, "stars": 1 },
+    { "maxMoves": 20, "movesUsed": 9, "modifier": 129, "stars": 3 },
+    { "maxMoves": 20, "movesUsed": 11, "modifier": 127, "stars": 3 }
+  ],
+  "gridCases": [
+    {
+      "name": "atomic-swipe",
+      "operation": "swipe",
+      "inputRows": [{ "index": 0, "cells": [0, 2, 2, 0, 1, 0, 0, 0] }],
+      "args": [0, 1, 2],
+      "expectedRows": [{ "index": 0, "cells": [0, 0, 2, 2, 1, 0, 0, 0] }]
+    },
+    {
+      "name": "wide-block-gravity",
+      "operation": "gravity",
+      "inputRows": [
+        { "index": 0, "cells": [1, 0, 0, 0, 0, 0, 0, 0] },
+        { "index": 2, "cells": [2, 2, 0, 0, 0, 0, 0, 0] }
+      ],
+      "expectedRows": [
+        { "index": 0, "cells": [1, 0, 0, 0, 0, 0, 0, 0] },
+        { "index": 1, "cells": [2, 2, 0, 0, 0, 0, 0, 0] }
+      ]
+    },
+    {
+      "name": "triangular-two-line-clear",
+      "operation": "settle",
+      "inputRows": [
+        { "index": 0, "cells": [1, 1, 1, 1, 1, 1, 1, 1] },
+        { "index": 1, "cells": [1, 1, 1, 1, 1, 1, 1, 1] }
+      ],
+      "expectedRows": [],
+      "expectedLines": 2,
+      "expectedPoints": 3
+    },
+    {
+      "name": "hammer-whole-entity",
+      "operation": "hammer",
+      "inputRows": [{ "index": 0, "cells": [2, 2, 1, 0, 0, 0, 0, 0] }],
+      "args": [0, 1],
+      "expectedRows": [{ "index": 0, "cells": [0, 0, 1, 0, 0, 0, 0, 0] }]
+    },
+    {
+      "name": "totem-all-matching-widths",
+      "operation": "totem",
+      "inputRows": [
+        { "index": 0, "cells": [2, 2, 1, 0, 0, 0, 0, 0] },
+        { "index": 1, "cells": [0, 2, 2, 0, 1, 0, 0, 0] }
+      ],
+      "args": [0, 0],
+      "expectedRows": [
+        { "index": 0, "cells": [0, 0, 1, 0, 0, 0, 0, 0] },
+        { "index": 1, "cells": [0, 0, 0, 0, 1, 0, 0, 0] }
+      ]
+    },
+    {
+      "name": "wave-whole-row",
+      "operation": "wave",
+      "inputRows": [{ "index": 1, "cells": [0, 2, 2, 0, 1, 0, 0, 0] }],
+      "args": [1, 1],
+      "expectedRows": []
+    }
+  ],
+  "endlessCases": [
+    { "score": 24, "rampMultiplierX100": 100, "difficulty": 0, "scoreMultiplierX100": 100 },
+    { "score": 25, "rampMultiplierX100": 100, "difficulty": 1, "scoreMultiplierX100": 110 },
+    { "score": 13, "rampMultiplierX100": 200, "difficulty": 1, "scoreMultiplierX100": 110 },
+    { "score": 2400, "rampMultiplierX100": 100, "difficulty": 7, "scoreMultiplierX100": 250 }
+  ],
+  "engineCases": [
+    {
+      "name": "ordinary-level-clear",
+      "inputRows": [{ "index": 0, "cells": [1, 1, 1, 1, 1, 1, 0, 1] }],
+      "nextRow": [0, 0, 0, 0, 0, 0, 0, 1],
+      "move": [0, 7, 6],
+      "level": {
+        "pointsRequired": 1,
+        "maxMoves": 20,
+        "primary": { "kind": "none", "value": 0, "requiredCount": 0 },
+        "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
+      },
+      "mutator": {
+        "scoreMultiplierX100": 100,
+        "comboMultiplierX100": 100,
+        "lineClearBonus": 0,
+        "perfectClearBonus": 0,
+        "bonusTriggerType": 0,
+        "bonusThreshold": 0
+      },
+      "expected": {
+        "phase": "levelComplete",
+        "score": 1,
+        "moves": 1,
+        "lines": 1,
+        "points": 1,
+        "combo": 0,
+        "primaryProgress": 0,
+        "bonusCharges": 0
+      }
+    },
+    {
+      "name": "combo-objective-mutator-and-charge",
+      "inputRows": [
+        { "index": 0, "cells": [1, 1, 1, 1, 1, 1, 1, 1] },
+        { "index": 1, "cells": [1, 1, 1, 1, 1, 1, 1, 1] }
+      ],
+      "nextRow": [1, 0, 0, 0, 0, 0, 0, 0],
+      "move": [0, 0, 0],
+      "level": {
+        "pointsRequired": 100,
+        "maxMoves": 20,
+        "primary": { "kind": "comboLines", "value": 2, "requiredCount": 1 },
+        "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
+      },
+      "mutator": {
+        "scoreMultiplierX100": 100,
+        "comboMultiplierX100": 150,
+        "lineClearBonus": 1,
+        "perfectClearBonus": 0,
+        "bonusTriggerType": 1,
+        "bonusThreshold": 2
+      },
+      "expected": {
+        "phase": "awaitingVrf",
+        "score": 7,
+        "moves": 1,
+        "lines": 2,
+        "points": 7,
+        "combo": 2,
+        "primaryProgress": 1,
+        "bonusCharges": 1
+      }
+    }
+  ],
+  "mapCatalog": [
+    { "mapId": 1, "themeId": 1, "bossId": 1, "bossName": "COMBO MASTER", "starCost": 0, "usdcCost": 0 },
+    { "mapId": 2, "themeId": 2, "bossId": 2, "bossName": "DEMOLISHER", "starCost": 40, "usdcCost": 2000000 },
+    { "mapId": 3, "themeId": 3, "bossId": 3, "bossName": "DAREDEVIL", "starCost": 40, "usdcCost": 2000000 },
+    { "mapId": 4, "themeId": 4, "bossId": 4, "bossName": "PURIST", "starCost": 40, "usdcCost": 2000000 },
+    { "mapId": 5, "themeId": 6, "bossId": 6, "bossName": "TIDECALLER", "starCost": 100, "usdcCost": 5000000 },
+    { "mapId": 6, "themeId": 7, "bossId": 7, "bossName": "STACKER", "starCost": 100, "usdcCost": 5000000 },
+    { "mapId": 7, "themeId": 5, "bossId": 5, "bossName": "HARVESTER", "starCost": 100, "usdcCost": 5000000 },
+    { "mapId": 8, "themeId": 8, "bossId": 8, "bossName": "SURGEON", "starCost": 200, "usdcCost": 10000000 },
+    { "mapId": 9, "themeId": 9, "bossId": 9, "bossName": "ASCETIC", "starCost": 200, "usdcCost": 10000000 },
+    { "mapId": 10, "themeId": 10, "bossId": 10, "bossName": "PERFECTIONIST", "starCost": 200, "usdcCost": 10000000 }
+  ]
+}

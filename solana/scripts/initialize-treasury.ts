@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import idl from "../target/idl/solana.json";
 
-const PROGRAM_ID = new PublicKey("7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN");
+const PROGRAM_ID = new PublicKey("5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA");
 
 async function main() {
   // Fee en lamports ( 0.001 SOL)

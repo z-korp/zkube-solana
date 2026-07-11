@@ -1,0 +1,191 @@
+// @vitest-environment node
+
+import { Connection, Keypair } from "@solana/web3.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deriveRunAddresses } from "./pdas";
+import { resolvePersistedRun } from "./resumeRun";
+import { saveRunSession } from "./runSessionStore";
+import { deriveSessionTokenV2Pda } from "./sessionV2";
+import { SessionWallet } from "./sessionWallet";
+import { ZKUBE_PROGRAM_ID } from "../constants";
+
+describe("persisted run resolution", () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { localStorage: new MemoryStorage() },
+    });
+  });
+
+  it("re-resolves the ER and verifies the active run identity", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    const marker = persist(owner, session, 9n);
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
+    } as unknown as Connection;
+    const erConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
+    } as unknown as Connection;
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      dependencies: {
+        getStatus: vi
+          .fn()
+          .mockResolvedValue({
+            isDelegated: true,
+            fqdn: "https://er.example/",
+          }),
+        makeErConnection: () => erConnection,
+        fetchRun: vi.fn().mockResolvedValue({
+          owner: owner.publicKey,
+          runId: 9n,
+          lifecycle: "playing",
+          score: 10,
+          actionCounter: 1,
+          moves: 1,
+          grid: new Array(80).fill(0),
+          nextRow: new Array(8).fill(0),
+          pendingVrfCounter: 0,
+        }),
+      },
+    });
+    expect(result.phase).toBe("delegated");
+    expect(
+      result.phase === "delegated" &&
+        result.marker.addresses.activeRun.equals(marker.addresses.activeRun),
+    ).toBe(true);
+    expect(result.phase === "delegated" && result.sessionAuthorized).toBe(true);
+  });
+
+  it("falls back to a consumed base receipt after undelegation", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 4n);
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue(null),
+    } as unknown as Connection;
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      dependencies: {
+        getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
+        fetchReceipt: vi.fn().mockResolvedValue({
+          owner: owner.publicKey,
+          runId: 4n,
+          mode: "campaign",
+          score: 100,
+          moves: 5,
+          levelStars: 3,
+          completed: true,
+          consumed: true,
+        }),
+      },
+    });
+    expect(result.phase).toBe("settled");
+    expect(result.phase === "settled" && result.sessionAuthorized).toBe(false);
+  });
+
+  it("rejects a delegated account that does not match the persisted epoch", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 2n);
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection: {
+        getAccountInfo: vi.fn().mockResolvedValue({}),
+      } as unknown as Connection,
+      dependencies: {
+        getStatus: vi
+          .fn()
+          .mockResolvedValue({ isDelegated: true, fqdn: "https://er.example" }),
+        makeErConnection: () =>
+          ({
+            getAccountInfo: vi
+              .fn()
+              .mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
+          }) as unknown as Connection,
+        fetchRun: vi.fn().mockResolvedValue({
+          owner: owner.publicKey,
+          runId: 3n,
+          lifecycle: "playing",
+          score: 0,
+          actionCounter: 0,
+          moves: 0,
+          grid: [],
+          nextRow: null,
+          pendingVrfCounter: 0,
+        }),
+      },
+    });
+    expect(result.phase).toBe("missing");
+  });
+
+  it("rejects a Router endpoint serving an account owned by another program", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 5n);
+    await expect(
+      resolvePersistedRun({
+        owner: owner.publicKey,
+        wallet: new SessionWallet(owner),
+        baseConnection: {
+          getAccountInfo: vi.fn().mockResolvedValue({}),
+        } as unknown as Connection,
+        dependencies: {
+          getStatus: vi.fn().mockResolvedValue({
+            isDelegated: true,
+            fqdn: "https://er.example",
+            delegationRecord: {
+              authority: Keypair.generate().publicKey.toBase58(),
+              owner: ZKUBE_PROGRAM_ID.toBase58(),
+              delegationSlot: 1,
+              lamports: 1,
+            },
+          }),
+          makeErConnection: () =>
+            ({
+              getAccountInfo: vi.fn().mockResolvedValue({
+                owner: Keypair.generate().publicKey,
+              }),
+            }) as unknown as Connection,
+        },
+      }),
+    ).rejects.toThrow("is not owned by zKube");
+  });
+});
+
+function persist(owner: Keypair, session: Keypair, runId: bigint) {
+  const marker = {
+    owner: owner.publicKey,
+    runId,
+    mode: "campaign" as const,
+    session,
+    sessionToken: deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: session.publicKey,
+    }).sessionToken,
+    addresses: deriveRunAddresses(owner.publicKey, runId),
+    validUntil: Math.floor(Date.now() / 1_000) + 3_600,
+    createdAt: Math.floor(Date.now() / 1_000),
+  };
+  saveRunSession(marker);
+  return marker;
+}
+
+class MemoryStorage {
+  private readonly values = new Map<string, string>();
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+  setItem(key: string, value: string) {
+    this.values.set(key, value);
+  }
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+}

@@ -1,8 +1,9 @@
+import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { HTMLAttributes } from "react";
 import Grid from "./Grid";
-import type { BonusType } from "../../dojo/game/types/bonusTypes";
+import { BonusType } from "../../solana/reboot/bonusTypes";
 import { useMoveStore } from "../../stores/moveTxStore";
 
 vi.mock("motion/react", () => ({
@@ -15,16 +16,6 @@ vi.mock("motion/react", () => ({
 
 vi.mock("../elements/animatedText", () => ({
   default: () => null,
-}));
-
-vi.mock("@/dojo/useDojo", () => ({
-  useDojo: () => ({
-    setup: {
-      systemCalls: {
-        move: vi.fn(async () => undefined),
-      },
-    },
-  }),
 }));
 
 vi.mock("@/contexts/hooks", () => ({
@@ -73,7 +64,7 @@ vi.mock("@/hooks/useTransitionBlocks", () => ({
 
 describe("Grid drag interactions", () => {
   const baseProps = {
-    gameId: 1,
+    gameId: 1n,
     initialData: [{ id: 1, x: 0, y: 9, width: 1 }],
     nextLineData: [],
     setNextLineHasBeenConsumed: vi.fn(),
@@ -81,8 +72,7 @@ describe("Grid drag interactions", () => {
     gridWidth: 8,
     gridHeight: 10,
     selectBlock: vi.fn(),
-    bonus: "None" as BonusType,
-    account: null,
+    bonus: BonusType.None,
     isTxProcessing: false,
     setIsTxProcessing: vi.fn(),
     score: 0,
@@ -92,6 +82,8 @@ describe("Grid drag interactions", () => {
     setOptimisticCombo: vi.fn(),
     setOptimisticMaxCombo: vi.fn(),
     levelTransitionPending: false,
+    onMove: vi.fn(async () => undefined),
+    onBonus: vi.fn(async () => undefined),
   };
 
   beforeEach(() => {
@@ -105,41 +97,43 @@ describe("Grid drag interactions", () => {
 
   it("desktop drag remains responsive after a no-move click", () => {
     const { container } = render(<Grid {...baseProps} />);
-    const block = container.querySelector(".block") as HTMLDivElement;
-    const surface = container.querySelector("#grid .display-grid") as HTMLDivElement;
+    const block = container.querySelector(".svg-block") as SVGGElement;
+    const surface = container.querySelector("svg") as SVGSVGElement;
+    Object.defineProperty(surface, "getScreenCTM", {
+      value: () => ({ a: 1, e: 0 }),
+    });
 
-    expect(block.style.left).toBe("1px");
+    expect(block.style.transform).toBe("translate(0px, 180px)");
 
-    fireEvent.mouseDown(block, { clientX: 10 });
-    fireEvent.mouseUp(document);
+    fireEvent.pointerDown(block, { clientX: 10 });
+    fireEvent.pointerUp(document);
 
-    fireEvent.mouseDown(block, { clientX: 10 });
-    fireEvent.mouseMove(surface, { clientX: 50 });
+    fireEvent.pointerDown(block, { clientX: 10 });
+    fireEvent.pointerMove(document, { clientX: 50 });
 
-    expect((container.querySelector(".block") as HTMLDivElement).style.left).not.toBe("1px");
+    expect((container.querySelector(".svg-block") as SVGGElement).style.transform).not.toBe(
+      "translate(0px, 180px)",
+    );
   });
 
   it("mobile drag remains responsive after a no-move tap", () => {
     const { container } = render(<Grid {...baseProps} />);
-    const block = container.querySelector(".block") as HTMLDivElement;
-    const surface = container.querySelector("#grid .display-grid") as HTMLDivElement;
-
-    expect(block.style.left).toBe("1px");
-
-    fireEvent.touchStart(block, {
-      touches: [{ clientX: 10, clientY: 10 }],
-    });
-    fireEvent.touchEnd(document, {
-      changedTouches: [{ clientX: 10, clientY: 10 }],
+    const block = container.querySelector(".svg-block") as SVGGElement;
+    const surface = container.querySelector("svg") as SVGSVGElement;
+    Object.defineProperty(surface, "getScreenCTM", {
+      value: () => ({ a: 1, e: 0 }),
     });
 
-    fireEvent.touchStart(block, {
-      touches: [{ clientX: 10, clientY: 10 }],
-    });
-    fireEvent.touchMove(surface, {
-      touches: [{ clientX: 50, clientY: 10 }],
-    });
+    expect(block.style.transform).toBe("translate(0px, 180px)");
 
-    expect((container.querySelector(".block") as HTMLDivElement).style.left).not.toBe("1px");
+    fireEvent.pointerDown(block, { clientX: 10, pointerType: "touch" });
+    fireEvent.pointerUp(document, { pointerType: "touch" });
+
+    fireEvent.pointerDown(block, { clientX: 10, pointerType: "touch" });
+    fireEvent.pointerMove(document, { clientX: 50, pointerType: "touch" });
+
+    expect((container.querySelector(".svg-block") as SVGGElement).style.transform).not.toBe(
+      "translate(0px, 180px)",
+    );
   });
 });

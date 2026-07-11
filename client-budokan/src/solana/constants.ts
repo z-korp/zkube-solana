@@ -1,153 +1,67 @@
-import { PublicKey, clusterApiUrl, SYSVAR_SLOT_HASHES_PUBKEY } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
+import { delegationRecordPdaFromDelegatedAccount } from "@magicblock-labs/ephemeral-rollups-sdk";
 
-// ── Adresses MagicBlock Ephemeral Rollup ─────────────────────────────────────
-// Toutes ces valeurs viennent du fichier .env (client-budokan/.env).
-// Pour modifier une adresse : changer uniquement le .env, pas ce fichier.
+// API routes import the program id too; unlike Vite, their Node runtime has no
+// `import.meta.env`. Keep client overrides optional without crashing the server.
+const clientEnv =
+  (
+    import.meta as ImportMeta & {
+      env?: Record<string, string | undefined>;
+    }
+  ).env ?? {};
 
+// MagicBlock Ephemeral Rollup addresses. Browser overrides belong in `.env`.
 export const DELEGATION_PROGRAM_ID = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_DELEGATION_PROGRAM_ID
-  ?? "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+  clientEnv.VITE_PUBLIC_SOLANA_DELEGATION_PROGRAM_ID ??
+    "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
 );
 export const MAGIC_PROGRAM_ID = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_MAGIC_PROGRAM_ID
-  ?? "Magic11111111111111111111111111111111111111"
+  clientEnv.VITE_PUBLIC_SOLANA_MAGIC_PROGRAM_ID ??
+    "Magic11111111111111111111111111111111111111",
 );
 export const MAGIC_CONTEXT_ID = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID
-  ?? "MagicContext1111111111111111111111111111111"
+  clientEnv.VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID ??
+    "MagicContext1111111111111111111111111111111",
 );
 
-// Programme déployé sur Solana devnet
+// zKube reboot program.
 export const ZKUBE_PROGRAM_ID = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID
-  ?? "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN"
+  clientEnv.VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID ??
+    "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA",
 );
 
-// VRF MagicBlock officiel (devnet) — fonctionne avec l'oracle queue Cuj97...
-export const VRF_PROGRAM_ID = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_VRF_PROGRAM_ID
-  ?? "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
-);
-export const ORACLE_QUEUE = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_ORACLE_QUEUE
-  ?? "Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh"
+export const CANONICAL_DEVNET_USDC_MINT = new PublicKey(
+  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
 );
 
-// Réseau Solana (base chain)
+// Solana base layer.
 export const SOLANA_ENDPOINT =
-  import.meta.env.VITE_PUBLIC_SOLANA_RPC_ENDPOINT
-  ?? clusterApiUrl("devnet");
+  clientEnv.VITE_PUBLIC_SOLANA_RPC_ENDPOINT ??
+  "https://rpc.magicblock.app/devnet";
 
-// Ephemeral Rollup (ER) MagicBlock
-// Validator EU devnet — make_move et close_game sont envoyés ici
-// create_game reste sur devnet (délègue le compte à l'ER)
-export const ER_RPC_ENDPOINT =
-  import.meta.env.VITE_PUBLIC_SOLANA_ER_RPC_ENDPOINT
-  ?? "https://devnet-eu.magicblock.app";
+export const SOLANA_DEVNET_GENESIS_HASH =
+  "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+export const SOLANA_EXPECTED_GENESIS_HASH =
+  clientEnv.VITE_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH ??
+  (isLocalEndpoint(SOLANA_ENDPOINT) ? null : SOLANA_DEVNET_GENESIS_HASH);
 
-export const ER_VALIDATOR_IDENTITY = new PublicKey(
-  import.meta.env.VITE_PUBLIC_SOLANA_ER_VALIDATOR
-  ?? "MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e"
-);
+export const PAYMASTER_ENDPOINT =
+  clientEnv.VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT ?? "/api/paymaster";
 
-// reexport
-export { SYSVAR_SLOT_HASHES_PUBKEY };
-
-// ── PDA helpers ───────────────────────────────────────────────────────────────
-
-// Calcule le PDA game_state d'un joueur.
-// Nouveau format: ["game", player, session_key] pour éviter qu'un ancien PDA
-// coincé chez MagicBlock bloque définitivement le wallet.
-// Fallback legacy: ["game", player] quand aucune session_key active n'existe.
-export function getGameStatePda(playerPubkey: PublicKey, sessionKey?: PublicKey): PublicKey {
-  const seeds = sessionKey
-    ? [Buffer.from("game"), playerPubkey.toBuffer(), sessionKey.toBuffer()]
-    : [Buffer.from("game"), playerPubkey.toBuffer()];
-  const [pda] = PublicKey.findProgramAddressSync(
-    seeds,
-    ZKUBE_PROGRAM_ID
-  );
-  return pda;
+function isLocalEndpoint(endpoint: string): boolean {
+  try {
+    const hostname = new URL(endpoint).hostname;
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
 }
 
-// Calcule le PDA identity (requis par le VRF)
-export function getIdentityPda(): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("identity")],
-    ZKUBE_PROGRAM_ID
-  );
-  return pda;
-}
-
-// Calcule le PDA treasury z-korp
-export function getTreasuryPda(): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("treasury")],
-    ZKUBE_PROGRAM_ID
-  );
-  return pda;
-}
-
-// delegation_buffer : créé pendant delegate_game
-// seeds = ["buffer", pda], program = ZKUBE_PROGRAM_ID
-export function getDelegationBuffer(pdaPubkey: PublicKey): PublicKey {
-  const [buf] = PublicKey.findProgramAddressSync(
-    [Buffer.from("buffer"), pdaPubkey.toBuffer()],
-    ZKUBE_PROGRAM_ID
-  );
-  return buf;
-}
-
-// undelegate_buffer : créé par le delegation_program pendant l'undelegation
-// seeds = ["undelegate-buffer", pda], program = DELEGATION_PROGRAM_ID  ← tiret, pas underscore
-// Vérifié sur le SDK v0.12 source : undelegateBufferPdaFromDelegatedAccount
-// C'est ce buffer qui est passé à process_undelegation (pas le delegation_buffer)
-export function getUndelegateBuffer(pdaPubkey: PublicKey): PublicKey {
-  const [buf] = PublicKey.findProgramAddressSync(
-    [Buffer.from("undelegate-buffer"), pdaPubkey.toBuffer()],
-    DELEGATION_PROGRAM_ID
-  );
-  return buf;
-}
-
-// delegation_record_pda : seed = "delegation"
+// MagicBlock delegation record for an active run PDA.
 export function getDelegationRecord(pdaPubkey: PublicKey): PublicKey {
-  const [rec] = PublicKey.findProgramAddressSync(
-    [Buffer.from("delegation"), pdaPubkey.toBuffer()],
-    DELEGATION_PROGRAM_ID
-  );
-  return rec;
-}
-
-// delegation_metadata_pda : seed = "delegation-metadata"
-export function getDelegationMetadata(pdaPubkey: PublicKey): PublicKey {
-  const [meta] = PublicKey.findProgramAddressSync(
-    [Buffer.from("delegation-metadata"), pdaPubkey.toBuffer()],
-    DELEGATION_PROGRAM_ID
-  );
-  return meta;
-}
-
-// ── Tournament PDAs ───────────────────────────────────────────────────────────
-
-// Calcule le PDA Tournament — seeds = ["tournament", tournament_id (LE u32)]
-export function getTournamentPda(tournamentId: number): PublicKey {
-  const idBuf = Buffer.alloc(4);
-  idBuf.writeUInt32LE(tournamentId, 0);
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tournament"), idBuf],
-    ZKUBE_PROGRAM_ID
-  );
-  return pda;
-}
-
-// Calcule le PDA TournamentEntry — seeds = ["tournament_entry", tournament_id (LE u32), player]
-export function getTournamentEntryPda(tournamentId: number, player: PublicKey): PublicKey {
-  const idBuf = Buffer.alloc(4);
-  idBuf.writeUInt32LE(tournamentId, 0);
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tournament_entry"), idBuf, player.toBuffer()],
-    ZKUBE_PROGRAM_ID
-  );
-  return pda;
+  return delegationRecordPdaFromDelegatedAccount(pdaPubkey);
 }

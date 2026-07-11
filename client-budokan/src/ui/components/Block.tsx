@@ -23,7 +23,6 @@ interface BlockProps {
 const BlockContainer: React.FC<BlockProps> = ({
   block,
   gridSize,
-  gridHeight = 10,
   transitionDuration = 100,
   isTxProcessing = false,
   state,

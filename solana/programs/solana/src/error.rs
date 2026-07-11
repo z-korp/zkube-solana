@@ -2,92 +2,112 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Custom error message")]
-    CustomError,
-
-    #[msg("Oracle queue invalide utiliser l'adresse DEFAULT_QUEUE de MagicBlock")]
-    InvalidOracleQueue,
-
-    #[msg("Tu n'es pas le proprietaire de cette partie")]
+    #[msg("The signer is not authorized for this run")]
     NotGameOwner,
 
-    #[msg("Cette partie est deja terminee")]
+    #[msg("The run is already terminal")]
     GameOver,
 
-    #[msg("indices de move invalides row < 10, col < 8, start != end")]
+    #[msg("The move coordinates are invalid")]
     InvalidMove,
 
-    #[msg("la randomness a deja ete injectee pour cette partie")]
-    RandomnessAlreadySet,
-
-    #[msg("Seule l'authority peut effectuer cette action")]
+    #[msg("Only the configured authority may perform this action")]
     Unauthorized,
 
-    #[msg("Fonds insuffisants dans la treasury")]
+    #[msg("The source account has insufficient funds")]
     InsufficientFunds,
 
-    #[msg("Le compte game_state n'est pas delegue a l'Ephemeral Rollup")]
+    #[msg("The active run is not delegated to the ephemeral rollup")]
     NotDelegated,
 
-    #[msg("L'authority de delegation ne correspond pas au joueur")]
-    InvalidAuthority,
-
-    #[msg("Phase de jeu invalide pour cette instruction")]
+    #[msg("The account is in an invalid state for this instruction")]
     InvalidState,
 
-    #[msg("L'owner du compte PDA n'est pas le programme attendu")]
+    #[msg("The account owner or relationship is invalid")]
     InvalidOwner,
 
-    #[msg("La delegation a l'Ephemeral Rollup a echoue")]
-    DelegationFailed,
-
-    #[msg("Ordre des moves invalide (expected_move != move_count)")]
+    #[msg("The expected move or action counter does not match")]
     InvalidMoveOrder,
 
-    #[msg("Le programme magic_program est invalide")]
+    #[msg("The MagicBlock program is invalid")]
     InvalidMagicProgram,
 
-    #[msg("Le compte magic_context est invalide")]
-    InvalidMagicContext,
-
-    #[msg("La partie n'est pas encore terminee (game.over doit etre true)")]
+    #[msg("The run is not ready to finish")]
     GameNotFinished,
 
-    #[msg("Le challenge daily n'a pas encore commence")]
+    #[msg("The Daily challenge has not started")]
     ChallengeNotStarted,
 
-    #[msg("Le challenge daily est termine")]
+    #[msg("The Daily challenge entry or play window has ended")]
     ChallengeEnded,
 
-    #[msg("Le score daily a deja ete soumis pour cette tentative")]
+    #[msg("The Daily challenge has not ended")]
+    ChallengeNotEnded,
+
+    #[msg("This Daily attempt has already been submitted")]
     AlreadySubmitted,
 
-    // ── Tournoi ───────────────────────────────────────────────────────────────
-
-    #[msg("Le tournoi n'a pas encore commence")]
-    TournamentNotStarted,
-
-    #[msg("Le tournoi est termine, plus d'inscriptions possibles")]
-    TournamentEnded,
-
-    #[msg("Le tournoi est deja settle")]
-    TournamentAlreadySettled,
-
-    #[msg("Le tournoi n'est pas encore termine")]
-    TournamentNotEnded,
-
-    #[msg("Fonds insuffisants pour payer l'entry fee (0.1 SOL requis)")]
-    InsufficientEntryFee,
-
-    #[msg("Le joueur n'a pas encore soumis de score dans ce tournoi")]
-    NoScoreSubmitted,
-
-    #[msg("Les gagnants passes ne sont pas dans le bon ordre de score")]
-    InvalidWinnerOrder,
-
-    #[msg("Le prize pool est vide, rien a distribuer")]
-    EmptyPrizePool,
-
-    #[msg("Tournament id invalide pour la periode actuelle")]
-    InvalidTournamentId,
+    // ── Reboot v1 domain/accounting ──────────────────────────────────────────
+    #[msg("Arithmetic overflow")]
+    ArithmeticOverflow,
+    #[msg("Insufficient Stars")]
+    InsufficientStars,
+    #[msg("Invalid map")]
+    InvalidMap,
+    #[msg("Invalid level")]
+    InvalidLevel,
+    #[msg("Invalid star rating")]
+    InvalidStars,
+    #[msg("Prize and rake basis points must sum to 10,000")]
+    InvalidBasisPoints,
+    #[msg("Protocol is paused")]
+    ProtocolPaused,
+    #[msg("Unsupported account version")]
+    InvalidVersion,
+    #[msg("Invalid run id")]
+    InvalidRunId,
+    #[msg("Map is locked")]
+    MapLocked,
+    #[msg("Map is disabled")]
+    MapDisabled,
+    #[msg("Map is already unlocked")]
+    MapAlreadyUnlocked,
+    #[msg("Content version mismatch")]
+    ContentVersionMismatch,
+    #[msg("Invalid block weights")]
+    InvalidBlockWeights,
+    #[msg("A VRF request is already pending")]
+    VrfRequestPending,
+    #[msg("No VRF request is pending")]
+    NoVrfRequestPending,
+    #[msg("The run receipt does not match the committed run")]
+    ReceiptMismatch,
+    #[msg("The player has no Daily prize")]
+    NoPrize,
+    #[msg("The Daily prize has already been claimed")]
+    PrizeAlreadyClaimed,
+    #[msg("The Daily prize claim window is still open")]
+    PrizeClaimWindowOpen,
+    #[msg("The refund has already been claimed")]
+    RefundAlreadyClaimed,
+    #[msg("The progress catalog is invalid")]
+    InvalidProgressCatalog,
+    #[msg("This progress reward has already been claimed")]
+    RewardAlreadyClaimed,
+    #[msg("The progress requirement has not been met")]
+    RewardNotEarned,
+    #[msg("This quest is not active in the current cadence")]
+    QuestNotActive,
+    #[msg("The on-chain sponsorship allowance is exhausted")]
+    SponsorshipLimitExceeded,
+    #[msg("The sponsored transaction payload is invalid")]
+    InvalidSponsoredTransaction,
+    #[msg("The financial accounting invariant does not balance")]
+    AccountingInvariant,
+    #[msg("The governance proposal is invalid")]
+    InvalidGovernanceProposal,
+    #[msg("The governance timelock has not elapsed")]
+    GovernanceTimelockActive,
+    #[msg("The governance proposal execution window has expired")]
+    GovernanceProposalExpired,
 }

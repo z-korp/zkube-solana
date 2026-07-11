@@ -37,7 +37,9 @@ const ArcadeButton: React.FC<ArcadeButtonProps> = ({
       }}
     >
       <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.25),transparent)] opacity-60" />
-      <span className="relative z-10 inline-flex items-center justify-center gap-2">{children}</span>
+      <span className="relative z-10 inline-flex items-center justify-center gap-2">
+        {children}
+      </span>
     </motion.button>
   );
 };
