@@ -1,8 +1,31 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useRebootDaily } from "@/solana/reboot/useRebootDaily";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+
+function CountdownText({ endUnix }: { endUnix: number }) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, endUnix - Math.floor(Date.now() / 1000)),
+  );
+  useEffect(() => {
+    const tick = () =>
+      setRemaining(Math.max(0, endUnix - Math.floor(Date.now() / 1000)));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [endUnix]);
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  return (
+    <span className="font-mono tabular-nums">
+      {h}h {String(m).padStart(2, "0")}m {String(s).padStart(2, "0")}s
+    </span>
+  );
+}
 
 export default function RebootDailyChallengePage() {
   const { publicKey } = useEmbeddedIdentity();
@@ -31,9 +54,24 @@ export default function RebootDailyChallengePage() {
     navigate("solana");
   };
 
+  const guardianZone = daily.daily?.mapId ?? 1;
+  const guardian = getZoneGuardian(guardianZone);
+  const themeId = getThemeId(guardianZone);
+  const themeColors = getThemeColors(themeId);
+  const themeImages = getThemeImages(themeId);
+  const nowUnix = Math.floor(Date.now() / 1000);
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#050812] pb-24 pt-12 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#172554_0%,transparent_50%),linear-gradient(#050812,#090317)]" />
+      <div
+        className="absolute inset-0 opacity-30"
+        style={{
+          backgroundImage: `url(${themeImages.background})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#17255488_0%,transparent_50%),linear-gradient(rgba(5,8,18,.82),rgba(9,3,23,.94))]" />
       <header className="relative z-10 flex items-center justify-center px-6 pb-4">
         <button
           onClick={goBack}
@@ -70,17 +108,33 @@ export default function RebootDailyChallengePage() {
         {daily.daily && (
           <>
             <Card>
-              <div className="flex w-full items-start justify-between">
-                <div>
+              <div className="flex w-full items-center gap-3">
+                <img
+                  src={getGuardianPortrait(guardianZone)}
+                  alt={guardian.name}
+                  className="h-16 w-16 shrink-0 rounded-full border-2 object-cover"
+                  style={{ borderColor: themeColors.accent }}
+                />
+                <div className="min-w-0 flex-1">
                   <div className="text-xs uppercase tracking-widest text-cyan-300">
-                    Day {daily.daily.dayId}
+                    Day {daily.daily.dayId} · {guardian.name}
                   </div>
                   <h2 className="text-2xl font-black">
                     Map {daily.daily.mapId} Endless
                   </h2>
+                  <p className="truncate text-xs italic text-white/50">
+                    “{guardian.dailyGreeting}”
+                  </p>
                 </div>
                 <Status value={daily.daily.status} />
               </div>
+              {daily.daily.status === "open" &&
+                daily.daily.entriesCloseAt > nowUnix && (
+                  <p className="text-xs font-bold uppercase tracking-widest text-cyan-200/80">
+                    Entries close in{" "}
+                    <CountdownText endUnix={daily.daily.entriesCloseAt} />
+                  </p>
+                )}
               <div className="grid w-full grid-cols-2 gap-2 text-center sm:grid-cols-4">
                 <Stat
                   label="Prize liability"
