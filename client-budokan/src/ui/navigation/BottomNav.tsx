@@ -1,4 +1,4 @@
-import { Home, Star, Trophy, Settings } from "lucide-react";
+import { Home, Star, Trophy, Settings, User } from "lucide-react";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
@@ -23,8 +23,7 @@ const BottomNav = () => {
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
     { id: "ranks", icon: Trophy, label: "Leaderboard" },
-    //TODO: decommenter ceci pour faire la partie profile 
-    //{ id: "profile", icon: User, label: "Profile" },
+    { id: "profile", icon: User, label: "Profile" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
 

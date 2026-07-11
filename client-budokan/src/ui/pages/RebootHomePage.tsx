@@ -16,9 +16,23 @@ import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
 import { useMusicPlayer } from "@/contexts/hooks";
+import { loadRunSession } from "@/solana/reboot/runSessionStore";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import GameCard from "@/ui/components/shared/GameCard";
+
+function useUtcDayCountdown(): string {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const remaining = Math.max(0, 86_400_000 - (now % 86_400_000));
+  const h = Math.floor(remaining / 3_600_000);
+  const m = Math.floor((remaining % 3_600_000) / 60_000);
+  const s = Math.floor((remaining % 60_000) / 1_000);
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+}
 
 export default function RebootHomePage() {
   const { setMusicPlaylist } = useMusicPlayer();
@@ -50,11 +64,20 @@ export default function RebootHomePage() {
     () => shortKey(identity.publicKey.toBase58()),
     [identity.publicKey],
   );
+  const persistedRun = useMemo(
+    () => loadRunSession(identity.publicKey),
+    [identity.publicKey],
+  );
+  const dailyCountdown = useUtcDayCountdown();
 
   const openMap = () => {
     setMapZoneId(zone);
     setDaily(false);
     navigate("map");
+  };
+  const resumeRun = () => {
+    setDaily(false);
+    navigate("solana");
   };
   const openDaily = () => {
     setDaily(true);
@@ -195,11 +218,24 @@ export default function RebootHomePage() {
                     <ChevronRight size={18} />
                   </button>
                 </div>
-                <ArcadeButton disabled={!runtimeReady} onClick={openMap}>
-                  {(map?.unlocked ?? zone === 1)
-                    ? "Enter campaign"
-                    : "View locked map"}
+                <ArcadeButton
+                  disabled={!runtimeReady}
+                  onClick={persistedRun ? resumeRun : openMap}
+                >
+                  {persistedRun
+                    ? "Resume run"
+                    : (map?.unlocked ?? zone === 1)
+                      ? "Enter campaign"
+                      : "View locked map"}
                 </ArcadeButton>
+                {persistedRun && (
+                  <button
+                    onClick={openMap}
+                    className="w-full text-center text-xs font-bold text-white/50 underline-offset-2 hover:underline"
+                  >
+                    Browse campaign map instead
+                  </button>
+                )}
               </div>
             </div>
             <motion.img
@@ -225,6 +261,9 @@ export default function RebootHomePage() {
               <p className="mt-2 text-sm leading-6 text-white/55">
                 One immutable challenge, one authoritative leaderboard, USDC
                 prizes, and MagicBlock VRF rows.
+              </p>
+              <p className="mt-2 text-xs font-black uppercase tracking-widest text-purple-200/80">
+                Resets in {dailyCountdown}
               </p>
               <button
                 disabled={!runtimeReady}
