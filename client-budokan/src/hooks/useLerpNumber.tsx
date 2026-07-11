@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- animation loop intentionally freezes options in refs */
 import { useState, useEffect, useRef } from "react";
 
 interface LerpOptions {

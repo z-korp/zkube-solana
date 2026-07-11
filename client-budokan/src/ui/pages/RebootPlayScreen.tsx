@@ -18,7 +18,8 @@ import { useRebootRun } from "@/solana/reboot/useRebootRun";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
 import RebootProgressPanel from "@/ui/components/reboot/RebootProgressPanel";
-import RebootGameHud, { estimateStars } from "@/ui/components/hud/RebootGameHud";
+import RebootGameHud from "@/ui/components/hud/RebootGameHud";
+import { estimateStars } from "@/ui/components/hud/runDisplay";
 import RebootGameActionBar from "@/ui/components/actionbar/RebootGameActionBar";
 import "../../grid.css";
 
