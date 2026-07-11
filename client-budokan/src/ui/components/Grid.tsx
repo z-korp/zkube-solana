@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Account type removed (starknet dep supprimé)
-type Account = any;
-import { useDojo } from "@/dojo/useDojo";
+/* eslint-disable react-hooks/exhaustive-deps */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
@@ -14,20 +13,14 @@ import {
 import AnimatedText from "../elements/animatedText";
 import { ComboMessages } from "@/enums/comboEnum";
 import { motion } from "motion/react";
-import { BonusType } from "@/dojo/game/types/bonusTypes";
+import { BonusType } from "@/solana/reboot/bonusTypes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";
 import useGridAnimations from "@/hooks/useGridAnimations";
 import { useMoveStore } from "@/stores/moveTxStore";
-import { useReceiptGameStore } from "@/stores/receiptGameStore";
-import { parseGameFromReceipt, type ReceiptGameData } from "@/dojo/rpcReader";
-import type { Game } from "@/dojo/game/models/game";
 import { calculateFallDistance } from "@/utils/gridPhysics";
 import useTransitionBlocks from "@/hooks/useTransitionBlocks";
-import { showToast } from "@/utils/toast";
-
-const { VITE_PUBLIC_DEPLOY_TYPE } = import.meta.env;
 
 interface GridProps {
   gameId: bigint;
@@ -38,21 +31,29 @@ interface GridProps {
   gridWidth: number;
   gridHeight: number;
   bonus: BonusType;
-  account: Account | null;
   isTxProcessing: boolean;
   setIsTxProcessing: React.Dispatch<React.SetStateAction<boolean>>;
   levelTransitionPending: boolean;
   onCascadeComplete?: () => void;
   onNextLineUpdate?: (nextRow: number[]) => void;
-  /** Optional override: when provided, replaces the Dojo move call (e.g. for Solana).
-   *  May return the new chain state so Grid can apply it without waiting for Dojo events. */
-  onMove?: (rowIndex: number, startIndex: number, finalIndex: number) => Promise<{
+  onMove: (rowIndex: number, startIndex: number, finalIndex: number) => Promise<{
+    blocks: number[][];
+    nextRow: number[];
+    over: boolean;
+  } | void>;
+  onBonus: (rowIndex: number, columnIndex: number) => Promise<{
     blocks: number[][];
     nextRow: number[];
     over: boolean;
   } | void>;
   onLocalGameOver?: () => void;
   themeId?: ThemeId;
+}
+
+interface ReceiptProjection {
+  blocks: number[][];
+  nextRow: number[];
+  over: boolean;
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -64,22 +65,15 @@ const Grid: React.FC<GridProps> = ({
   gridWidth,
   gridSize,
   bonus,
-  account,
   isTxProcessing,
   setIsTxProcessing,
-  levelTransitionPending,
   onCascadeComplete,
   onNextLineUpdate,
   onMove,
+  onBonus,
   onLocalGameOver,
   themeId: themeIdOverride,
 }) => {
-  const {
-    setup: {
-      systemCalls: { move, applyBonus },
-    },
-  } = useDojo();
-
   // ==================== Theme ====================
   const { themeTemplate } = useTheme();
   const activeThemeId = themeIdOverride ?? (themeTemplate as ThemeId);
@@ -141,7 +135,7 @@ const Grid: React.FC<GridProps> = ({
 
   // ==================== Constants ====================
   const gravitySpeed = 100;
-  const transitionDuration = VITE_PUBLIC_DEPLOY_TYPE === "sepolia" ? 400 : 300;
+  const transitionDuration = 300;
 
   // SVG dimensions
   const svgW = gridWidth * gridSize;
@@ -165,9 +159,9 @@ const Grid: React.FC<GridProps> = ({
   }, [gameState]);
 
   // =================== Receipt-based sync (replaces Torii for moves/bonuses) ===================
-  const pendingReceiptRef = useRef<ReceiptGameData | null>(null);
+  const pendingReceiptRef = useRef<ReceiptProjection | null>(null);
 
-  const applyReceipt = (parsed: { blocks: number[][]; nextRow: number[]; over: boolean; game: Game | null }) => {
+  const applyReceipt = (parsed: ReceiptProjection) => {
     const newNextLine = transformDataContractIntoBlock([parsed.nextRow]);
     // Update refs immediately (for pointer handler, before React re-renders)
     gameStateRef.current = GameState.WAITING;
@@ -180,31 +174,9 @@ const Grid: React.FC<GridProps> = ({
     // Update the preview in GameBoard with the receipt's next line
     onNextLineUpdate?.(parsed.nextRow);
     setNextLineHasBeenConsumed(false);
-    // Push full Game to store so HUD updates instantly (Dojo only; null in Solana mode)
-    if (parsed.game) useReceiptGameStore.getState().setGame(parsed.game);
     pendingReceiptRef.current = null;
-    // Dojo waits for Torii to sync after game over. Solana has no Torii path here,
-    // so unlock immediately and let the parent render the Game Over screen.
-    if (!parsed.over || onMove) {
-      isTxProcessingRef.current = false;
-      setIsTxProcessing(false);
-    }
-  };
-
-  const receiptSyncRef = useRef<(events: any[]) => void>(() => {});
-  receiptSyncRef.current = (events: any[]) => {
-    const parsed = parseGameFromReceipt(events, gameId);
-    if (!parsed) {
-      return;
-    }
-    // Always store as pending — let the state machine apply it at the right time
-    // (UPDATE_AFTER_MOVE or CASCADE_COMPLETE) so cascade animation plays fully.
-    const state = gameStateRef.current;
-    if (state === GameState.CASCADE_COMPLETE) {
-      applyReceipt(parsed);
-    } else {
-      pendingReceiptRef.current = parsed;
-    }
+    isTxProcessingRef.current = false;
+    setIsTxProcessing(false);
   };
 
   // Recompute danger level whenever blocks change (covers initial load + chain sync + gravity)
@@ -396,8 +368,7 @@ const Grid: React.FC<GridProps> = ({
     setGameState(GameState.WAITING);
     setIsTxProcessing(false);
     isTxProcessingRef.current = false;
-    useReceiptGameStore.getState().setGame(null);
-    showToast({ type: "error", message });
+    toast.error(message);
   }, [saveGridStateblocks, nextLineData, resetDragRefs, setIsTxProcessing]);
 
   const triggerLocalGameOver = useCallback(() => {
@@ -417,8 +388,6 @@ const Grid: React.FC<GridProps> = ({
   const sendMoveTX = useCallback(
     async (rowIndex: number, startColIndex: number, finalColIndex: number) => {
       if (startColIndex === finalColIndex) return;
-      if (!account && !onMove) return;
-
       playSwipe();
       useMoveStore.getState().enqueueMove({
         gameId,
@@ -427,11 +396,11 @@ const Grid: React.FC<GridProps> = ({
         finalIndex: Math.trunc(finalColIndex),
       });
     },
-    [account, gameId, gridHeight, onMove, playSwipe],
+    [gameId, gridHeight, onMove, playSwipe],
   );
 
   useEffect(() => {
-    if ((!account && !onMove) || !nextQueuedMove || isQueueProcessing) return;
+    if (!nextQueuedMove || isQueueProcessing) return;
 
     let cancelled = false;
     const store = useMoveStore.getState();
@@ -441,40 +410,18 @@ const Grid: React.FC<GridProps> = ({
       store.markSubmitting(nextQueuedMove.id);
 
       try {
-        if (onMove) {
-          // Solana (or other chain) path — bypass Dojo entirely
-          const solanaState = await onMove(
-            nextQueuedMove.rowIndex,
-            nextQueuedMove.startIndex,
-            nextQueuedMove.finalIndex,
-          );
-          store.markConfirmed(nextQueuedMove.id);
-          // Mirror the Dojo receiptSync pattern: if already in CASCADE_COMPLETE
-          // call applyReceipt directly; otherwise store for the state machine.
-          if (solanaState) {
-            const receipt = {
-              blocks: solanaState.blocks,
-              nextRow: solanaState.nextRow,
-              over: solanaState.over,
-              game: null as any,
-            };
-            if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
-              applyReceipt(receipt);
-            } else {
-              pendingReceiptRef.current = receipt;
-            }
+        const solanaState = await onMove(
+          nextQueuedMove.rowIndex,
+          nextQueuedMove.startIndex,
+          nextQueuedMove.finalIndex,
+        );
+        store.markConfirmed(nextQueuedMove.id);
+        if (solanaState) {
+          if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
+            applyReceipt(solanaState);
+          } else {
+            pendingReceiptRef.current = solanaState;
           }
-        } else {
-          const { events } = await move({
-            account: account as Account,
-            game_id: gameId,
-            row_index: nextQueuedMove.rowIndex,
-            start_index: nextQueuedMove.startIndex,
-            final_index: nextQueuedMove.finalIndex,
-          });
-          store.markConfirmed(nextQueuedMove.id);
-          // Apply game state from TX receipt events (microtask to escape effect lifecycle)
-          queueMicrotask(() => receiptSyncRef.current(events));
         }
       } catch (error) {
         if (cancelled) return;
@@ -489,7 +436,7 @@ const Grid: React.FC<GridProps> = ({
 
     processQueuedMove();
     return () => { cancelled = true; };
-  }, [account, nextQueuedMove, isQueueProcessing, move, gameId, resetDragRefs, setIsTxProcessing]);
+  }, [nextQueuedMove, isQueueProcessing, gameId, resetDragRefs, setIsTxProcessing]);
 
   useEffect(() => {
     if (currentMove) {
@@ -502,21 +449,18 @@ const Grid: React.FC<GridProps> = ({
 
   const fireBonusTx = useCallback(
     async (block: Block) => {
-      if (!account) return;
       try {
-        const { events } = await applyBonus({
-          account: account as Account,
-          game_id: gameId,
-          row_index: gridHeight - 1 - block.y,
-          block_index: block.x,
-        });
+        const state = await onBonus(gridHeight - 1 - block.y, block.x);
+        if (state) {
+          if (gameStateRef.current === GameState.CASCADE_COMPLETE) applyReceipt(state);
+          else pendingReceiptRef.current = state;
+        }
         playSfx("bonus-activate");
-        queueMicrotask(() => receiptSyncRef.current(events));
-      } catch (error) {
+      } catch {
         rollbackGrid("Bonus failed. Grid rolled back.");
       }
     },
-    [account, applyBonus, gameId, gridHeight, playSfx, saveGridStateblocks, nextLineData, setIsTxProcessing],
+    [gridHeight, onBonus, playSfx, saveGridStateblocks, nextLineData, setIsTxProcessing],
   );
 
   // =================== GAME LOGIC ===================

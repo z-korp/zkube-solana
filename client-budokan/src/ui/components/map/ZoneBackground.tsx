@@ -49,7 +49,6 @@ export const ZoneBackground: React.FC<ZoneBackgroundProps> = ({ themeId }) => {
           background: `radial-gradient(130% 95% at 50% 50%, transparent 38%, ${theme.background}cc 100%), linear-gradient(180deg, ${theme.background}cc 0%, ${theme.background}66 24%, ${theme.background}66 76%, ${theme.background}f0 100%)`,
         }}
       />
-
     </div>
   );
 };

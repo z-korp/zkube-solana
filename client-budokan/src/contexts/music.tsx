@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audioManager } from "@/audio/AudioManager";
 import {
@@ -92,7 +93,6 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       document.removeEventListener("touchstart", unlock, true);
       document.removeEventListener("keydown", unlock, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeId, currentContext, playlistContexts]);
 
   useEffect(() => {

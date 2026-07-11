@@ -4,10 +4,11 @@ import { type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/ui/utils";
 import { LucideLoader } from "lucide-react";
-import { buttonVariants } from './variants';
+import { buttonVariants } from "./variants";
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   isLoading?: boolean;

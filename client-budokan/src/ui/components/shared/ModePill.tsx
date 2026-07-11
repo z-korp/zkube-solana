@@ -33,8 +33,14 @@ const ModePill = ({ selectedMode, onModeChange }: ModePillProps) => {
                 layoutId="mode-indicator"
                 className="absolute inset-0 rounded-full border shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]"
                 style={{
-                  background: index === 1 ? "linear-gradient(180deg, rgba(255,152,92,0.34), rgba(255,116,56,0.26))" : "rgba(255,255,255,0.2)",
-                  borderColor: index === 1 ? "rgba(255,188,133,0.55)" : "rgba(255,255,255,0.08)",
+                  background:
+                    index === 1
+                      ? "linear-gradient(180deg, rgba(255,152,92,0.34), rgba(255,116,56,0.26))"
+                      : "rgba(255,255,255,0.2)",
+                  borderColor:
+                    index === 1
+                      ? "rgba(255,188,133,0.55)"
+                      : "rgba(255,255,255,0.08)",
                 }}
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />

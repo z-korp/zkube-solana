@@ -1,5 +1,5 @@
 [toolchain]
-anchor_version = "0.32.0"
+anchor_version = "1.0.2"
 package_manager = "yarn"
 
 [features]
@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana = "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN"
+solana = "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
 
 [programs.devnet]
-solana = "7zdLjmcar3hQZoosNpgZ4JBmvbHzm8bxTBiBZCWrY2nN"
+solana = "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
 
 [provider]
 cluster = "devnet"

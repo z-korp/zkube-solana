@@ -27,7 +27,7 @@ const Tooltip: React.FC<
 > = ({ children, open: controlledOpen, onOpenChange, ...props }) => {
   const [touchOpen, setTouchOpen] = React.useState(false);
   const isTouch = React.useSyncExternalStore(subscribeTouch, getIsTouch, () => false);
-  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const toggle = React.useCallback(() => {
     setTouchOpen((prev) => {

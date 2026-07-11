@@ -1,0 +1,65 @@
+name: Static validation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: static-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-host:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: solana
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Cache Cargo artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            solana/target
+          key: rust-${{ runner.os }}-${{ hashFiles('solana/Cargo.lock', 'solana/rust-toolchain.toml') }}
+      - name: Formatting
+        run: NO_DNA=1 cargo fmt --all -- --check
+      - name: Host tests
+        run: NO_DNA=1 cargo test --workspace
+      - name: Clippy
+        run: NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client-budokan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.0
+          cache: pnpm
+          cache-dependency-path: client-budokan/pnpm-lock.yaml
+      - name: Install locked dependencies
+        run: NO_DNA=1 pnpm install --frozen-lockfile
+      - name: IDL drift
+        run: NO_DNA=1 pnpm idl:check
+      - name: TypeScript
+        run: NO_DNA=1 pnpm exec tsc -b --pretty false
+      - name: Lint
+        run: NO_DNA=1 pnpm lint
+      - name: Tests
+        run: NO_DNA=1 pnpm exec vitest run
+      - name: Production build
+        run: NO_DNA=1 pnpm build

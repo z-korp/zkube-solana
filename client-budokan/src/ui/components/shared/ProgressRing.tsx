@@ -37,7 +37,10 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   const innerDiameter = size - strokeWidth * 2;
 
   return (
-    <div className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className="relative inline-flex shrink-0 items-center justify-center"
+      style={{ width: size, height: size }}
+    >
       {/* Track + progress arc */}
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
         <circle
@@ -65,11 +68,15 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
       {/* Icon */}
       <div
         className="absolute z-10 flex items-center justify-center rounded-full overflow-hidden"
-        style={{ width: innerDiameter, height: innerDiameter, left: strokeWidth, top: strokeWidth }}
+        style={{
+          width: innerDiameter,
+          height: innerDiameter,
+          left: strokeWidth,
+          top: strokeWidth,
+        }}
       >
         {icon}
       </div>
-
 
       {badgeTopLeft && (
         <span className="absolute -top-0.5 -left-0.5 bg-slate-800 border border-slate-500 text-white font-sans text-[clamp(8px,2.5vw,13px)] font-bold min-w-[clamp(16px,4.5vw,24px)] h-[clamp(16px,4.5vw,24px)] flex items-center justify-center rounded-full px-0.5 leading-none shadow-[0_0_4px_rgba(0,0,0,0.5)] z-20">

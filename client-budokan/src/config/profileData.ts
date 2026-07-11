@@ -5,9 +5,8 @@ export const XP_PER_STAR = 100;
 // Formula picked so the early game (L1–L10) keeps roughly the previous
 // pace post-XP-nerf, while the long tail gives endgame players a real
 // goal to chase.
-export const LEVEL_THRESHOLDS: number[] = Array.from(
-  { length: 100 },
-  (_, i) => (i === 0 ? 0 : 16 * (i + 1) * (i + 1)),
+export const LEVEL_THRESHOLDS: number[] = Array.from({ length: 100 }, (_, i) =>
+  i === 0 ? 0 : 16 * (i + 1) * (i + 1),
 );
 
 // Titles spread across the 100-level ladder. Levels not listed inherit

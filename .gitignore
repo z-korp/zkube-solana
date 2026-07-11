@@ -30,3 +30,7 @@ Thumbs.db
 # Misc
 .cache/
 .turbo/
+.localnet/
+.devnet/
+artifacts/
+magicblock-test-storage/

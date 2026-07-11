@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import topLevelAwait from "vite-plugin-top-level-await";
 import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import { paymasterDevPlugin } from "./src/server/paymasterVitePlugin";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -13,6 +14,7 @@ export default defineConfig({
     tailwindcss(),
     wasm(),
     topLevelAwait(),
+    paymasterDevPlugin(),
     // Note: mkcert (local HTTPS) retiré — Vercel gère HTTPS automatiquement
     nodePolyfills({ include: ["buffer", "process", "stream", "util"] }),
   ],
@@ -24,14 +26,7 @@ export default defineConfig({
       },
       output: {
         manualChunks: {
-          "vendor-solana": [
-            "@solana/web3.js",
-            "@coral-xyz/anchor",
-          ],
-          "vendor-wallet": [
-            "@solana/wallet-adapter-react",
-            "@solana/wallet-adapter-wallets",
-          ],
+          "vendor-solana": ["@solana/web3.js", "@anchor-lang/core"],
           "vendor-ui": ["motion"],
         },
       },

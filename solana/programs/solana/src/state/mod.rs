@@ -1,8 +1,2 @@
-pub mod game_state;
-pub use game_state::*;
-
-pub mod treasury;
-pub use treasury::*;
-
-pub mod tournament;
-pub use tournament::*;
+pub mod v2;
+pub use v2::*;

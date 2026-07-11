@@ -109,10 +109,6 @@ export interface ThemeColors {
   };
 }
 
-function hex(n: number): string {
-  return `#${n.toString(16).padStart(6, "0")}`;
-}
-
 function darken(hexColor: string, amount: number): string {
   const r = parseInt(hexColor.slice(1, 3), 16);
   const g = parseInt(hexColor.slice(3, 5), 16);
@@ -928,4 +924,3 @@ export const getThemeId = (zoneId: number): ThemeId => {
   const normalized = Math.min(10, Math.max(1, zoneId));
   return `theme-${normalized}` as ThemeId;
 };
-
