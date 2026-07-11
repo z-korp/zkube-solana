@@ -15,17 +15,48 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/ui/elements/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/ui/elements/tooltip";
+
+export function buildTriggerDescription(
+  triggerType: number,
+  triggerThreshold: number,
+  startingCharges: number,
+): string {
+  if (triggerType === 0 || triggerThreshold === 0) return "";
+  const parts: string[] = [];
+  if (triggerType === 1) {
+    parts.push(`Clear ${triggerThreshold}+ lines in a move`);
+  } else if (triggerType === 2) {
+    parts.push(`Every ${triggerThreshold} lines cleared`);
+  } else if (triggerType === 3) {
+    parts.push(`Every ${triggerThreshold} points scored`);
+  }
+  if (startingCharges > 0) {
+    parts.push(`Start with ${startingCharges}`);
+  }
+  return parts.join(" · ");
+}
 
 export default function RebootGameActionBar({
   bonusType,
   bonusCharges,
   activeBonus,
+  bonusTriggerType = 0,
+  bonusThreshold = 0,
+  startingCharges = 0,
   onToggleBonus,
   onExit,
 }: {
   bonusType: number;
   bonusCharges: number;
   activeBonus: BonusType;
+  bonusTriggerType?: number;
+  bonusThreshold?: number;
+  startingCharges?: number;
   onToggleBonus: () => void;
   onExit: () => void;
 }) {
@@ -85,23 +116,50 @@ export default function RebootGameActionBar({
             </DialogContent>
           </Dialog>
 
-          <button
-            type="button"
-            disabled={bonusType === BonusType.None || bonusCharges === 0}
-            onClick={onToggleBonus}
-            aria-pressed={selected}
-            className={`absolute flex items-center justify-center rounded-full transition disabled:opacity-35 ${selected ? "drop-shadow-[0_0_10px_rgba(250,204,21,.8)]" : ""}`}
-            style={circleToPercent(ACTION_BAR.sockets.bonus, ACTION_BAR.viewBox)}
-          >
-            {bonusType === BonusType.None ? (
-              <span className="text-2xl text-white/25">◇</span>
-            ) : (
-              <>
-                <img src={bonusIcon(bonusType)} alt={bonusName(bonusType)} className="h-[62%] w-[62%] object-contain" />
-                <span className="absolute bottom-0 right-0 grid h-5 min-w-5 place-items-center rounded-full bg-yellow-500 px-1 text-[10px] font-black text-black">{bonusCharges}</span>
-              </>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={bonusType === BonusType.None || bonusCharges === 0}
+                onClick={onToggleBonus}
+                aria-pressed={selected}
+                className={`absolute flex items-center justify-center rounded-full transition disabled:opacity-35 ${selected ? "drop-shadow-[0_0_10px_rgba(250,204,21,.8)]" : ""}`}
+                style={circleToPercent(ACTION_BAR.sockets.bonus, ACTION_BAR.viewBox)}
+              >
+                {bonusType === BonusType.None ? (
+                  <span className="text-2xl text-white/25">◇</span>
+                ) : (
+                  <>
+                    <img src={bonusIcon(bonusType)} alt={bonusName(bonusType)} className="h-[62%] w-[62%] object-contain" />
+                    <span className="absolute bottom-0 right-0 grid h-5 min-w-5 place-items-center rounded-full bg-yellow-500 px-1 text-[10px] font-black text-black">{bonusCharges}</span>
+                  </>
+                )}
+              </button>
+            </TooltipTrigger>
+            {bonusType !== BonusType.None && (
+              <TooltipContent side="top" className="max-w-[220px]">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold">{bonusName(bonusType)}</span>
+                  <span className="text-[11px] opacity-80">
+                    {bonusDescription(bonusType)}
+                  </span>
+                  {buildTriggerDescription(
+                    bonusTriggerType,
+                    bonusThreshold,
+                    startingCharges,
+                  ) && (
+                    <span className="mt-0.5 text-[10px] text-yellow-500">
+                      {buildTriggerDescription(
+                        bonusTriggerType,
+                        bonusThreshold,
+                        startingCharges,
+                      )}
+                    </span>
+                  )}
+                </div>
+              </TooltipContent>
             )}
-          </button>
+          </Tooltip>
 
           <button
             type="button"
@@ -148,6 +206,16 @@ function bonusName(value: number): string {
       : value === BonusType.Wave
         ? "Wave"
         : "Bonus";
+}
+
+function bonusDescription(value: number): string {
+  return value === BonusType.Hammer
+    ? "Destroy a single targeted block."
+    : value === BonusType.Totem
+      ? "Destroy every block of the same size."
+      : value === BonusType.Wave
+        ? "Clear the entire targeted row."
+        : "";
 }
 
 function bonusIcon(value: number): string {

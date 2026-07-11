@@ -1,5 +1,7 @@
 import { ArrowLeft, Flame } from "lucide-react";
+import { motion } from "motion/react";
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type {
   ActiveRunConstraintView,
   ActiveRunView,
@@ -20,9 +22,11 @@ export default function RebootGameHud({
 }) {
   const guardian = getZoneGuardian(run.mapId);
   const movesRemaining = Math.max(0, run.rules.maxMoves - run.moves);
+  const displayScore =
+    useLerpNumber(run.score, { integer: true, duration: 500 }) ?? run.score;
   const scoreProgress = Math.min(
     1,
-    run.rules.pointsRequired > 0 ? run.score / run.rules.pointsRequired : 0,
+    run.rules.pointsRequired > 0 ? displayScore / run.rules.pointsRequired : 0,
   );
   const stars = estimateStars(
     run.rules.maxMoves,
@@ -64,7 +68,7 @@ export default function RebootGameHud({
             style={{ width: `${scoreProgress * 100}%` }}
           />
           <span className="absolute inset-0 grid place-items-center text-[clamp(8px,2vw,12px)] font-black tracking-wide text-white drop-shadow">
-            {run.score.toLocaleString()} / {run.rules.pointsRequired.toLocaleString()}
+            {displayScore.toLocaleString()} / {run.rules.pointsRequired.toLocaleString()}
           </span>
         </div>
 
@@ -80,12 +84,19 @@ export default function RebootGameHud({
           </span>
         </div>
 
-        <div
-          className="absolute flex items-center justify-center gap-1 text-[clamp(8px,2vw,12px)] font-black text-orange-300"
+        <motion.div
+          key={run.comboCounter}
+          animate={run.comboCounter > 0 ? { scale: [1, 1.3, 1] } : {}}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className={`absolute flex items-center justify-center gap-1 text-[clamp(8px,2vw,12px)] font-black ${
+            run.comboCounter >= 3
+              ? "text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,.9)]"
+              : "text-orange-300"
+          }`}
           style={rectToPercent(HUD_BAR.sockets.combo, HUD_BAR.viewBox)}
         >
           <Flame className="h-3 w-3" /> ×{run.comboCounter}
-        </div>
+        </motion.div>
 
         {constraints.map(({ rule, progress }, index) => (
           <ConstraintBadge
@@ -145,7 +156,7 @@ function constraintDescription(rule: ActiveRunConstraintView): string {
   return "No constraint";
 }
 
-function estimateStars(
+export function estimateStars(
   maxMoves: number,
   movesUsed: number,
   modifier: number,

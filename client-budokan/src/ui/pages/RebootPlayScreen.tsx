@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronUp } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { ChevronUp, Star } from "lucide-react";
 import { BonusType } from "@/solana/reboot/bonusTypes";
 import { getThemeColors, getThemeImages, getThemeId } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
@@ -11,12 +18,21 @@ import { useRebootRun } from "@/solana/reboot/useRebootRun";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
 import RebootProgressPanel from "@/ui/components/reboot/RebootProgressPanel";
-import RebootGameHud from "@/ui/components/hud/RebootGameHud";
+import RebootGameHud, { estimateStars } from "@/ui/components/hud/RebootGameHud";
 import RebootGameActionBar from "@/ui/components/actionbar/RebootGameActionBar";
 import "../../grid.css";
 
 const ROWS = 10;
 const COLS = 8;
+
+const subscribeResize = (onChange: () => void) => {
+  window.addEventListener("resize", onChange);
+  window.addEventListener("orientationchange", onChange);
+  return () => {
+    window.removeEventListener("resize", onChange);
+    window.removeEventListener("orientationchange", onChange);
+  };
+};
 
 export default function RebootPlayScreen() {
   const navigate = useNavigationStore((state) => state.navigate);
@@ -35,6 +51,10 @@ export default function RebootPlayScreen() {
     setNextLineConsumed(false);
   }, [runId]);
 
+  const viewportHeight = useSyncExternalStore(
+    subscribeResize,
+    () => window.innerHeight,
+  );
   const { playSfx, setMusicContext } = useMusicPlayer();
   const lifecycle = run.activeRun?.lifecycle ?? null;
   const isBossLevel =
@@ -369,7 +389,7 @@ export default function RebootPlayScreen() {
   const activeRun = run.activeRun;
   const gridSize = Math.max(
     24,
-    Math.min(52, Math.floor((window.innerHeight - 300) / 11)),
+    Math.min(52, Math.floor((viewportHeight - 300) / 11)),
   );
   return (
     <Surface background={images.background} color={colors.background}>
@@ -391,6 +411,30 @@ export default function RebootPlayScreen() {
                   ? "Level complete"
                   : "Run finished"}
               </h2>
+              {activeRun.lifecycle === "levelComplete" &&
+                activeRun.mode !== "daily" && (
+                  <div
+                    className="flex gap-1 text-yellow-300"
+                    aria-label="Stars earned"
+                  >
+                    {Array.from({ length: 3 }, (_, index) => (
+                      <Star
+                        key={index}
+                        size={28}
+                        fill={
+                          index <
+                          estimateStars(
+                            activeRun.rules.maxMoves,
+                            activeRun.moves,
+                            activeRun.rules.starThresholdModifier,
+                          )
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               <div className="grid w-full grid-cols-3 gap-2 text-center">
                 <ResultMetric label="Score" value={activeRun.score} />
                 <ResultMetric label="Moves" value={activeRun.moves} />
@@ -445,6 +489,9 @@ export default function RebootPlayScreen() {
             bonusType={activeRun.bonusType}
             bonusCharges={activeRun.bonusCharges}
             activeBonus={selectedBonus}
+            bonusTriggerType={activeRun.rules.bonusTriggerType}
+            bonusThreshold={activeRun.rules.bonusThreshold}
+            startingCharges={activeRun.rules.startingCharges}
             onToggleBonus={() =>
               setSelectedBonus((current) =>
                 current === activeRun.bonusType
