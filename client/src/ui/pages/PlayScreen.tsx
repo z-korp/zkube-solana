@@ -209,22 +209,43 @@ export default function PlayScreen() {
     );
   }
 
-  if (run.phase === "settled" && run.receipt) {
+  if (controller.settledReceipt) {
     return (
       <PlaySurface background={images.background}>
         <StatePanel title="Run settled">
           <p className="text-white/75">
-            Score {run.receipt.score} · {run.receipt.moves} moves
+            Score {controller.settledReceipt.score} ·{" "}
+            {controller.settledReceipt.moves} moves
           </p>
+          {controller.settledCleanupStatus === "running" && (
+            <p className="text-center text-xs text-cyan-200">
+              Recovering ActiveRun rent…
+            </p>
+          )}
+          {controller.settledCleanupStatus === "idle" && (
+            <p className="text-center text-xs text-cyan-200">
+              Preparing ActiveRun cleanup…
+            </p>
+          )}
+          {run.error && (
+            <p className="text-center text-xs text-red-200">{run.error}</p>
+          )}
+          {controller.settledCleanupStatus === "failed" && (
+            <button
+              type="button"
+              onClick={controller.retrySettlement}
+              className="rounded-xl bg-emerald-600 px-5 py-2 font-sans text-xs font-bold text-white"
+            >
+              Retry settlement
+            </button>
+          )}
           <button
             type="button"
-            disabled={run.busy}
-            onClick={() =>
-              void controller.finishSettled().catch(() => undefined)
-            }
+            disabled={controller.settledCleanupStatus !== "complete"}
+            onClick={controller.continueSettled}
             className="rounded-xl bg-cyan-600 px-6 py-3 font-sans font-bold text-white disabled:opacity-50"
           >
-            {run.busy ? "Recovering rent…" : "Collect rent & continue"}
+            Continue
           </button>
         </StatePanel>
       </PlaySurface>
