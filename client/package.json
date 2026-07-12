@@ -19,7 +19,7 @@
     "chain:local:stack": "mb-stack --reset --ledger ../.localnet/ledger --bpf-program 5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA ../solana/target/deploy/solana.so",
     "chain:local:er": "ephemeral-validator --no-tui --reset --remotes http://127.0.0.1:8899 --remotes ws://127.0.0.1:8900 --listen 127.0.0.1:7799 --lifecycle ephemeral",
     "chain:local:vrf": "vrf-oracle --rpc-url http://127.0.0.1:8899 --websocket-url ws://127.0.0.1:8900 --skip-preflight",
-    "typecheck:reboot": "tsc -p tsconfig.reboot.json --pretty false",
+    "typecheck:chain": "tsc -p tsconfig.chain.json --pretty false",
     "idl:sync": "node tools/sync-anchor-idl.mjs",
     "idl:check": "node tools/sync-anchor-idl.mjs --check",
     "lint": "node tools/lint-active.mjs",

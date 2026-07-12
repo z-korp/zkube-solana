@@ -1,14 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from "react";
 
-import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
+import { useCampaignController } from "@/chain/useCampaignController";
 
-export type CampaignController = ReturnType<typeof useRebootCampaign>;
+export type CampaignController = ReturnType<typeof useCampaignController>;
 
 const CampaignContext = createContext<CampaignController | null>(null);
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
-  const campaign = useRebootCampaign();
+  const campaign = useCampaignController();
   return (
     <CampaignContext.Provider value={campaign}>
       {children}
@@ -16,11 +16,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCampaignController(): CampaignController {
+export function useCampaign(): CampaignController {
   const campaign = useContext(CampaignContext);
   if (!campaign) {
     throw new Error(
-      "useCampaignController must be used within CampaignProvider",
+      "useCampaign must be used within CampaignProvider",
     );
   }
   return campaign;

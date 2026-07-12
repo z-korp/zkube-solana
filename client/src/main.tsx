@@ -7,7 +7,7 @@ import { DailyProvider } from "./contexts/daily";
 import { MusicPlayerProvider } from "./contexts/music";
 import { ProgressProvider } from "./contexts/progress";
 import { RunProvider } from "./contexts/run";
-import { SolanaProvider } from "./solana/provider";
+import { SolanaProvider } from "./chain/provider";
 import { ThemeProvider } from "./ui/elements/theme-provider";
 import "./index.css";
 

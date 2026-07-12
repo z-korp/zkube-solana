@@ -38,13 +38,13 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { validatePaymasterTransaction } from "../../src/server/paymaster";
-import { ZKUBE_PROGRAM_ID } from "../../src/solana/constants";
+import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 import {
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
   buildPublishProgressCatalogPlan,
-} from "../../src/solana/reboot/adminClient";
+} from "../../src/chain/adminClient";
 import {
   deriveCampaignProgressPda,
   derivePlayerProfilePda,
@@ -53,12 +53,12 @@ import {
   deriveSponsorAllowancePda,
   deriveTreasuryLedgerPda,
   deriveYieldPolicyPda,
-} from "../../src/solana/reboot/pdas";
+} from "../../src/chain/pdas";
 import {
   CANONICAL_ACHIEVEMENT_RULES,
   CANONICAL_QUEST_RULES,
-} from "../../src/solana/reboot/progressCatalog";
-import { waitForDelegation } from "../../src/solana/reboot/router";
+} from "../../src/chain/progressCatalog";
+import { waitForDelegation } from "../../src/chain/router";
 import {
   buildApplyBonusPlan,
   buildCloseSettledRunPlan,
@@ -70,17 +70,17 @@ import {
   zkubeProgram,
   type ActiveRunView,
   type TransactionPlan,
-} from "../../src/solana/reboot/runPlan";
+} from "../../src/chain/runPlan";
 import {
   buildTopUpMagicActionEscrowInstruction,
   deriveMagicActionEscrowPda,
-} from "../../src/solana/reboot/magicAction";
+} from "../../src/chain/magicAction";
 import {
   buildCreateSessionV2Instruction,
   deriveSessionTokenV2Pda,
-} from "../../src/solana/reboot/sessionV2";
-import { SessionWallet } from "../../src/solana/reboot/sessionWallet";
-import { withSponsorshipInstruction } from "../../src/solana/reboot/sponsorshipClient";
+} from "../../src/chain/sessionV2";
+import { SessionWallet } from "../../src/chain/sessionWallet";
+import { withSponsorshipInstruction } from "../../src/chain/sponsorshipClient";
 
 const RPC = process.env.ZKUBE_LOCAL_RPC ?? "http://127.0.0.1:8899";
 const ROUTER_RPC = process.env.ZKUBE_LOCAL_ROUTER_RPC ?? "http://127.0.0.1:6699";

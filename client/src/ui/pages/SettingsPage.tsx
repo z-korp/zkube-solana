@@ -9,9 +9,9 @@ import {
   getThemeColors,
   type ThemeId,
 } from "@/config/themes";
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import { useNavigationStore } from "@/stores/navigationStore";
 import AccountBadge from "@/ui/components/AccountBadge";
 import PageHeader from "@/ui/components/shared/PageHeader";
@@ -23,7 +23,7 @@ const toPercent = (value: number): number => Math.round(value * 100);
 
 const SettingsPage: React.FC = () => {
   const identity = useEmbeddedIdentity();
-  const { campaign } = useCampaignController();
+  const { campaign } = useCampaign();
   const { themeTemplate, setThemeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const goBack = useNavigationStore((state) => state.goBack);

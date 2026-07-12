@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 
-import { useCampaignController } from "@/contexts/campaign";
-import { useProgressController } from "@/contexts/progress";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useCampaign } from "@/contexts/campaign";
+import { useProgress } from "@/contexts/progress";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import { bigintToSafeNumber, highestClearedLevel } from "@/utils/solanaDisplay";
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
+import type { CampaignMapView } from "@/chain/campaignClient";
 
 export interface PlayerMeta {
   player: string;
@@ -24,8 +24,8 @@ export function campaignBestLevel(maps: readonly CampaignMapView[]): number {
 
 export const usePlayerMeta = (overrideAddress?: string) => {
   const { publicKey } = useEmbeddedIdentity();
-  const { campaign, loading: campaignLoading } = useCampaignController();
-  const { progress, loading: progressLoading } = useProgressController();
+  const { campaign, loading: campaignLoading } = useCampaign();
+  const { progress, loading: progressLoading } = useProgress();
   const address = publicKey.toBase58();
   const isCurrentPlayer = !overrideAddress || overrideAddress === address;
 

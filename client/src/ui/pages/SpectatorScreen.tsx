@@ -3,13 +3,13 @@ import { ChevronUp, Eye } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
-import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
-import type { SpectateTarget } from "@/solana/reboot/spectateRun";
-import { useSpectatedRun } from "@/solana/reboot/useSpectatedRun";
+import { toDisplayGrid } from "@/chain/gridProjection";
+import type { SpectateTarget } from "@/chain/spectateRun";
+import { useSpectatedRun } from "@/chain/useSpectatedRun";
 import { useNavigationStore } from "@/stores/navigationStore";
 import NextLine from "@/ui/components/NextLine";
 import SpectatorGrid from "@/ui/components/SpectatorGrid";
-import RebootGameHud from "@/ui/components/hud/RebootGameHud";
+import SpectatorHud from "@/ui/components/hud/SpectatorHud";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
@@ -163,7 +163,7 @@ export default function SpectatorScreen() {
 
         {activeRun && (
           <>
-            <RebootGameHud run={activeRun} onBack={() => navigate("ranks")} />
+            <SpectatorHud run={activeRun} onBack={() => navigate("ranks")} />
             <div
               ref={boardRef}
               className="flex min-h-0 flex-1 flex-col items-center justify-center p-2"

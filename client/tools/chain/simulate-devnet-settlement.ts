@@ -1,11 +1,11 @@
 import { PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "../../src/solana/constants";
-import { deriveRunAddresses } from "../../src/solana/reboot/pdas";
+import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
+import { deriveRunAddresses } from "../../src/chain/pdas";
 import {
   buildCommitRunPlan,
   resolveRunErConnection,
-} from "../../src/solana/reboot/runPlan";
-import type { WalletLike } from "../../src/solana/reboot/sessionWallet";
+} from "../../src/chain/runPlan";
+import type { WalletLike } from "../../src/chain/sessionWallet";
 
 async function main(): Promise<void> {
   const [ownerText, runIdText] = process.argv.slice(2);

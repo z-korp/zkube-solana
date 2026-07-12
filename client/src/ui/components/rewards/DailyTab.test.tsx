@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getThemeColors } from "@/config/themes";
-import type { DailyView } from "@/solana/reboot/dailyClient";
+import type { DailyView } from "@/chain/dailyClient";
 import DailyTab from "./DailyTab";
 
 const hooks = vi.hoisted(() => ({
@@ -16,14 +16,14 @@ const hooks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/daily", () => ({
-  useDailyController: () => hooks.current,
+  useDaily: () => hooks.current,
 }));
 
 vi.mock("@/hooks/usePreviousChallenge", () => ({
   usePreviousChallenge: () => hooks.previous,
 }));
 
-vi.mock("@/solana/reboot/embeddedIdentityContext", () => ({
+vi.mock("@/chain/embeddedIdentityContext", () => ({
   useEmbeddedIdentity: () => hooks.identity,
 }));
 

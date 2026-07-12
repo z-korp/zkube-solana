@@ -12,10 +12,10 @@ import {
   type ThemeColors,
   type ThemeId,
 } from "@/config/themes";
-import { useDailyController } from "@/contexts/daily";
+import { useDaily } from "@/contexts/daily";
 import { usePreviousChallenge } from "@/hooks/usePreviousChallenge";
-import type { DailyView } from "@/solana/reboot/dailyClient";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import type { DailyView } from "@/chain/dailyClient";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import TierContext, {
   type RankContextEntry,
 } from "@/ui/components/rewards/TierContext";
@@ -67,7 +67,7 @@ interface DailyTabProps {
 }
 
 const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
-  const current = useDailyController();
+  const current = useDaily();
   const previous = usePreviousChallenge();
   const { publicKey } = useEmbeddedIdentity();
   const address = publicKey.toBase58();

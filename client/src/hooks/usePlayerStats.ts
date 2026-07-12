@@ -1,5 +1,5 @@
-import { useProgressController } from "@/contexts/progress";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useProgress } from "@/contexts/progress";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
 export interface PlayerStats {
@@ -12,7 +12,7 @@ export interface PlayerStats {
 
 export const usePlayerStats = (overrideAddress?: string): PlayerStats => {
   const { publicKey } = useEmbeddedIdentity();
-  const { progress } = useProgressController();
+  const { progress } = useProgress();
   if (overrideAddress && overrideAddress !== publicKey.toBase58()) {
     return { totalLines: 0, totalBosses: 0, maxCombo: 0, combo4Count: 0 };
   }

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 
-import { useProgressController } from "@/contexts/progress";
+import { useProgress } from "@/contexts/progress";
 
 export const useClaimableCount = (): number => {
-  const { progress } = useProgressController();
+  const { progress } = useProgress();
   return useMemo(
     () =>
       (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
@@ -13,7 +13,7 @@ export const useClaimableCount = (): number => {
 };
 
 export const useClaimableCounts = () => {
-  const { progress } = useProgressController();
+  const { progress } = useProgress();
   return useMemo(() => {
     const achievements =
       progress?.achievements.filter((entry) => entry.claimable).length ?? 0;

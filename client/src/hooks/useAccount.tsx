@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 
 /** The embedded identity as the app's account: always connected, no wallet. */
 export default function useAccount(): { address: string } {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { useDailyController } from "@/contexts/daily";
-import { currentDailyDayId, type DailyView } from "@/solana/reboot/dailyClient";
+import { useDaily } from "@/contexts/daily";
+import { currentDailyDayId, type DailyView } from "@/chain/dailyClient";
 
 export interface CurrentChallengeView {
   challenge_id: number;
@@ -32,7 +32,7 @@ export function dailyToCurrentChallenge(
 }
 
 export function useCurrentChallenge() {
-  const { daily, loading, refresh } = useDailyController();
+  const { daily, loading, refresh } = useDaily();
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1_000));
   useEffect(() => {
     const timer = window.setInterval(

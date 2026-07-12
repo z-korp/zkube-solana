@@ -1,11 +1,11 @@
 import { Connection } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "../../src/solana/constants";
+import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 import {
   evaluateOperationalReadiness,
   fetchDailyOperationalSnapshots,
-} from "../../src/solana/reboot/monitoring";
-import { evaluateTreasuryReadiness } from "../../src/solana/reboot/readiness";
-import { fetchTreasuryView } from "../../src/solana/reboot/treasuryClient";
+} from "../../src/chain/monitoring";
+import { evaluateTreasuryReadiness } from "../../src/chain/readiness";
+import { fetchTreasuryView } from "../../src/chain/treasuryClient";
 
 interface Options {
   rpc: string;

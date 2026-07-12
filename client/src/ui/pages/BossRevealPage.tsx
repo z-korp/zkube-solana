@@ -3,7 +3,7 @@ import { ChevronLeft } from "lucide-react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { ConstraintType } from "@/game/constraint";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
@@ -97,7 +97,7 @@ function guardianConstraints(
 const BossRevealPage: React.FC = () => {
   const { setThemeTemplate } = useTheme();
   const { playSfx } = useMusicPlayer();
-  const campaign = useCampaignController();
+  const campaign = useCampaign();
   const gameId = useNavigationStore((state) => state.gameId);
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);

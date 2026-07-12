@@ -2,7 +2,7 @@ import {
   devnetDeploymentInputFromEnv,
   formatDevnetDeployment,
   runZkubeDevnetDeployment,
-} from "../../src/solana/reboot/deploymentRunner";
+} from "../../src/chain/deploymentRunner";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {

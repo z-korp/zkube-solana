@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
 
@@ -9,7 +9,7 @@ export const useGame = (options: {
   shouldLog: boolean;
 }) => {
   const run = useRun();
-  const { campaign } = useCampaignController();
+  const { campaign } = useCampaign();
   const game = useMemo(() => {
     const active = run.activeRun;
     if (!active) return null;

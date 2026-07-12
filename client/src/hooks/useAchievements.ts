@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 
-import { useProgressController } from "@/contexts/progress";
+import { useProgress } from "@/contexts/progress";
 import {
   ACHIEVEMENT_DEFS,
   type AchievementCategory,
   type AchievementDef,
 } from "@/config/achievementDefs";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
-import type { AchievementProgressView } from "@/solana/reboot/progressClient";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import type { AchievementProgressView } from "@/chain/progressClient";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
 export interface AchievementStatus extends AchievementDef {
@@ -37,7 +37,7 @@ export function projectAchievements(
 }
 
 export const useAchievements = (playerAddress?: string) => {
-  const controller = useProgressController();
+  const controller = useProgress();
   const { publicKey } = useEmbeddedIdentity();
   const isCurrentPlayer =
     !playerAddress || playerAddress === publicKey.toBase58();

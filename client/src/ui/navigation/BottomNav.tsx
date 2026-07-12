@@ -4,14 +4,14 @@ import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors } from "@/config/themes";
 import { motion } from "motion/react";
-import { useProgressController } from "@/contexts/progress";
+import { useProgress } from "@/contexts/progress";
 
 const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const { progress } = useProgressController();
+  const { progress } = useProgress();
   const claimableCount =
     (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
     (progress?.quests.filter((entry) => entry.claimable).length ?? 0);

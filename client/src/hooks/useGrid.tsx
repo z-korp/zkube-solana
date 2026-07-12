@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRun } from "@/contexts/run";
-import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
+import { toDisplayGrid } from "@/chain/gridProjection";
 import useDeepMemo from "./useDeepMemo";
 
 export const useGrid = (options: {

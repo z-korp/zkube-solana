@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
-import { loadRunSession } from "@/solana/reboot/runSessionStore";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { loadRunSession } from "@/chain/runSessionStore";
 
 export interface ActiveDailyRun {
   gameId: bigint;

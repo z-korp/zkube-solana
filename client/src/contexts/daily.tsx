@@ -1,23 +1,23 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from "react";
 
-import { useRebootDaily } from "@/solana/reboot/useRebootDaily";
+import { useDailyController } from "@/chain/useDailyController";
 
-export type DailyController = ReturnType<typeof useRebootDaily>;
+export type DailyController = ReturnType<typeof useDailyController>;
 
 const DailyContext = createContext<DailyController | null>(null);
 
 export function DailyProvider({ children }: { children: ReactNode }) {
-  const daily = useRebootDaily();
+  const daily = useDailyController();
   return (
     <DailyContext.Provider value={daily}>{children}</DailyContext.Provider>
   );
 }
 
-export function useDailyController(): DailyController {
+export function useDaily(): DailyController {
   const daily = useContext(DailyContext);
   if (!daily) {
-    throw new Error("useDailyController must be used within DailyProvider");
+    throw new Error("useDaily must be used within DailyProvider");
   }
   return daily;
 }

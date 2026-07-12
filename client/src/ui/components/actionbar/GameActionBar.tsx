@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
 import { Flag, Settings, Volume2, VolumeX } from "lucide-react";
-import { BonusType } from "@/solana/reboot/bonusTypes";
+import { BonusType } from "@/chain/bonusTypes";
 import {
   Tooltip,
   TooltipContent,

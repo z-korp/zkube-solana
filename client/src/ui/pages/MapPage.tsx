@@ -10,7 +10,7 @@ import {
   getThemeId,
   getThemeImages,
 } from "@/config/themes";
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useGame } from "@/hooks/useGame";
@@ -80,7 +80,7 @@ const getLabel = (node: MapNodeData): string => {
 };
 
 const MapPage: React.FC = () => {
-  const campaign = useCampaignController();
+  const campaign = useCampaign();
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
   const gameId = useNavigationStore((state) => state.gameId);

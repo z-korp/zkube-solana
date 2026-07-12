@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
+import type { CampaignMapView } from "@/chain/campaignClient";
 import { campaignMapsToZones } from "./useZoneProgress";
 
 const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({

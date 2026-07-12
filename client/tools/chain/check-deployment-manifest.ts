@@ -7,7 +7,7 @@ import {
   isZkubeDeploymentManifest,
   validateDeploymentBinding,
   validateDeploymentManifest,
-} from "../../src/solana/reboot/deploymentManifest";
+} from "../../src/chain/deploymentManifest";
 
 interface Options {
   manifestPath: string | null;

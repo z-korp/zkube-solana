@@ -1,14 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from "react";
 
-import { useRebootRun } from "@/solana/reboot/useRebootRun";
+import { useRunController } from "@/chain/useRunController";
 
-export type RunController = ReturnType<typeof useRebootRun>;
+export type RunController = ReturnType<typeof useRunController>;
 
 const RunContext = createContext<RunController | null>(null);
 
 export function RunProvider({ children }: { children: ReactNode }) {
-  const run = useRebootRun();
+  const run = useRunController();
   return <RunContext.Provider value={run}>{children}</RunContext.Provider>;
 }
 

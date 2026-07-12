@@ -5,7 +5,7 @@ import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
-import { useDailyController } from "@/contexts/daily";
+import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
@@ -45,7 +45,7 @@ const DailyChallengePage: React.FC = () => {
   const colors = getThemeColors(themeTemplate);
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
-  const daily = useDailyController();
+  const daily = useDaily();
   const activeDailyRun = useActiveDailyAttempt();
 
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
