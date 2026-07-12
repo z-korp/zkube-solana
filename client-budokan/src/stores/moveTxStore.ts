@@ -13,8 +13,6 @@ export interface QueuedMove {
 }
 
 interface MoveState {
-  isMoveComplete: boolean;
-  setMoveComplete: (value: boolean) => void;
   queue: QueuedMove[];
   isQueueProcessing: boolean;
   lastFailedMoveError: string | null;
@@ -28,8 +26,6 @@ interface MoveState {
 }
 
 export const useMoveStore = create<MoveState>((set) => ({
-  isMoveComplete: false,
-  setMoveComplete: (value: boolean) => set({ isMoveComplete: value }),
   queue: [],
   isQueueProcessing: false,
   lastFailedMoveError: null,

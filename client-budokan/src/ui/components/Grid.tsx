@@ -427,7 +427,7 @@ const Grid: React.FC<GridProps> = ({
         finalIndex: Math.trunc(finalColIndex),
       });
     },
-    [gameId, gridHeight, onMove, playSwipe],
+    [gameId, gridHeight, playSwipe],
   );
 
   // Unmount-only flag. The drain effect's own cleanup fires on every dep

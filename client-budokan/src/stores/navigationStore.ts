@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
-export type OverlayId = "play" | "daily" | "boss" | "map" | "tournament" | "spectate";
+export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana", "spectate"]);
@@ -30,34 +30,22 @@ interface NavigationState {
   gameId: bigint | null;
   mapZoneId: number;
   isDailyMap: boolean;
-  isTournamentMap: boolean;
-  tournamentId: number | null;
   selectedMode: number;
   profileAddress: string | null;
   pendingPreviewLevel: number | null;
   pendingLevelCompletion: PendingLevelCompletion | null;
   greetedZones: Set<number>;
   showEndlessGreeting: boolean;
-  /**
-   * True when the app was opened via a /play/{tokenId} deep link and we
-   * haven't yet attempted create_run for the token. PlayScreen consumes this
-   * flag to auto-start the game on first landing (e.g. Budokan tournament
-   * launches where Denshokan minted the token before the user arrived).
-   */
-  pendingDeepLinkStart: boolean;
   navigate: (page: PageId, gameId?: bigint) => void;
   goBack: () => void;
   setGameId: (id: bigint | null) => void;
   setMapZoneId: (zoneId: number) => void;
   setIsDailyMap: (isDaily: boolean) => void;
-  setIsTournamentMap: (isTournament: boolean) => void;
-  setTournamentId: (id: number | null) => void;
   setSelectedMode: (mode: number) => void;
   setProfileAddress: (address: string | null) => void;
   setPendingPreviewLevel: (level: number | null) => void;
   setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
   markZoneGreeted: (zoneId: number) => void;
-  setPendingDeepLinkStart: (value: boolean) => void;
   spectateTarget: SpectateTargetParams | null;
   setSpectateTarget: (target: SpectateTargetParams | null) => void;
 }
@@ -69,8 +57,6 @@ const getBackTarget = (page: PageId): PageId => {
     case "spectate":
       return "ranks";
     case "daily":
-      return "home";
-    case "tournament":
       return "home";
     case "boss":
       return "map";
@@ -91,15 +77,12 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   gameId: null,
   mapZoneId: 1,
   isDailyMap: false,
-  isTournamentMap: false,
-  tournamentId: null,
   selectedMode: 0,
   profileAddress: null,
   pendingPreviewLevel: null,
   pendingLevelCompletion: null,
   greetedZones: new Set(),
   showEndlessGreeting: false,
-  pendingDeepLinkStart: false,
 
   navigate: (page, gameId) => {
     const { currentPage, isTransitioning } = get();
@@ -138,8 +121,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setGameId: (id) => set({ gameId: id }),
   setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
   setIsDailyMap: (isDaily) => set({ isDailyMap: isDaily }),
-  setIsTournamentMap: (isTournament) => set({ isTournamentMap: isTournament }),
-  setTournamentId: (id) => set({ tournamentId: id }),
   setSelectedMode: (mode) => set({ selectedMode: mode }),
   setProfileAddress: (address) => set({ profileAddress: address }),
   spectateTarget: null,
@@ -151,5 +132,4 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     next.add(zoneId);
     return { greetedZones: next };
   }),
-  setPendingDeepLinkStart: (value) => set({ pendingDeepLinkStart: value }),
 }));

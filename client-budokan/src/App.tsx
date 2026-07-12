@@ -41,7 +41,6 @@ const pageComponents: Partial<Record<PageId, React.ReactNode>> = {
   profile: <RebootProfilePage />,
   daily: <RebootDailyChallengePage />,
   boss: <RebootBossRevealPage />,
-  tournament: <RebootDailyChallengePage />,
   spectate: <RebootSpectatorScreen />,
 };
 
