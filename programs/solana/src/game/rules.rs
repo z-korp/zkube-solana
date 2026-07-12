@@ -233,11 +233,19 @@ impl RunEngine {
         Grid::validate_row(&row)?;
         if self.initial_rows_remaining > 0 {
             self.grid.insert_bottom_row(row)?;
+            // Settle the seed stack exactly like Cairo's initialize_grid, which
+            // runs assess_game (gravity + line clears) after every add_line.
+            // Without this the independently-generated seed rows leave blocks
+            // hanging over empty cells (floating cubes) and the first move's
+            // settle retroactively collapses/mis-scores the board. Seed-phase
+            // clears are discarded — they never count toward the run.
+            let _ = self.grid.settle();
             self.initial_rows_remaining -= 1;
             // Keep awaiting until all configured seed rows plus one visible
             // next row have independently verified VRF callbacks.
         } else if self.grid.is_empty() {
             self.grid.insert_bottom_row(row)?;
+            let _ = self.grid.settle();
             // Keep awaiting: the player must always see exactly one next row.
         } else {
             self.next_row = Some(row);
@@ -554,6 +562,32 @@ mod tests {
         run.provide_vrf_row(row).unwrap();
         assert_eq!(run.phase, RunPhase::Playing);
         assert_eq!(run.next_row, Some(row));
+    }
+
+    #[test]
+    fn seed_rows_are_gravity_settled_no_floating_cubes() {
+        let mut run = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            initial_rows_remaining: 2,
+            ..RunEngine::default()
+        };
+        // Two DISTINCT coherent rows. Inserted raw (the pre-fix behavior) the
+        // col-0 block from the first row would hang over the empty col-0 cell
+        // of the second — a floating cube. Seeding must gravity-settle, exactly
+        // like Cairo's initialize_grid.
+        run.provide_vrf_row([1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+        run.provide_vrf_row([0, 0, 1, 0, 0, 0, 0, 0]).unwrap();
+        // The seeded board is already gravity-stable (applying gravity again is
+        // a no-op) — the definitive "no floating cubes" assertion.
+        let mut resettled = run.grid;
+        resettled.apply_gravity();
+        assert_eq!(resettled, run.grid, "seed board must be gravity-settled");
+        assert_eq!(run.grid.row(0).unwrap(), &[1, 0, 1, 0, 0, 0, 0, 0]);
+        assert_eq!(run.grid.row(1).unwrap(), &[0, 0, 0, 0, 0, 0, 0, 0]);
+        // The final VRF callback yields the single visible preview row.
+        run.provide_vrf_row([2, 2, 0, 0, 0, 0, 0, 0]).unwrap();
+        assert_eq!(run.phase, RunPhase::Playing);
+        assert_eq!(run.next_row, Some([2, 2, 0, 0, 0, 0, 0, 0]));
     }
 
     #[test]
