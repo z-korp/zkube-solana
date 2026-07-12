@@ -19,11 +19,11 @@ the exact instructions, accounts, signers, cluster, and maximum spend.
 | Canonical USDC | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
 | Token program | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
 
-The live binary is slot `475787281`, SBF SHA-256
-`65e45420574910611285f25bbaa95eb5a69a04f9ea4b8fe1a4880ffba218646e`,
-under signature
-`3k5JLn49munysN8ripfSUeJK4bB9crTBbSKjRcX1FBekZ92G8gQztmuRpYUG1vvRiRdadTWNPi9LR4kDWrc2xjuF`.
-It is 1,596,600 bytes within a 1,604,032-byte allocation.
+The live binary is slot `475813201`, SBF SHA-256
+`89a24c891311ff384891929f6745c26b48f9f6f8a6da33595ad5ce2176e7254f`
+(approved fingerprint `20a84645e3f8d292`). It is 1,598,448 bytes within a
+1,604,032-byte allocation and adds the rent-economics cleanup close on top of
+`abandonRunV1` and the paymaster boundary hardening.
 
 Repository source contains later hardening and must not be represented as the
 live binary. A local SBF is a new candidate. No source change, build, simulation,
