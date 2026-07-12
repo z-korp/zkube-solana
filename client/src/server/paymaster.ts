@@ -103,10 +103,12 @@ const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
     },
   ],
   [
+    // The payer slot doubles as the rent recipient: cleanup returns every
+    // run rent to the protocol paymaster that fronted it at prepare.
     discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1),
     {
       ownerAccountIndex: 0,
-      payerAccountIndex: null,
+      payerAccountIndex: 2,
     },
   ],
   [

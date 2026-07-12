@@ -28,6 +28,7 @@ export interface SpectateTarget {
 
 export type SpectatedRun =
   | { phase: "not-found" }
+  | { phase: "archived"; runId: bigint }
   | {
       phase: "delegated" | "base";
       activeRun: ActiveRunView;
@@ -106,7 +107,14 @@ export async function resolveSpectatedRun(args: {
     READ_ONLY_WALLET,
     activeRunPda,
   );
-  if (!activeRun) return { phase: "not-found" };
+  if (!activeRun) {
+    // A player-resolved run whose accounts no longer exist was settled and
+    // cleaned up (cleanup closes ActiveRun, RunShell, and RunReceipt).
+    if (resolved.resolvedRunId !== null) {
+      return { phase: "archived", runId: resolved.resolvedRunId };
+    }
+    return { phase: "not-found" };
+  }
   return {
     phase: "base",
     activeRun,
@@ -119,10 +127,14 @@ async function resolveAddresses(
   connection: Connection,
   target: SpectateTarget,
   deps: SpectateRunDependencies,
-): Promise<{ activeRunPda: PublicKey; runReceiptPda: PublicKey | null } | null> {
+): Promise<{
+  activeRunPda: PublicKey;
+  runReceiptPda: PublicKey | null;
+  resolvedRunId: bigint | null;
+} | null> {
   if (target.pda) {
     // A bare PDA has no owner/runId context, so no receipt fallback.
-    return { activeRunPda: target.pda, runReceiptPda: null };
+    return { activeRunPda: target.pda, runReceiptPda: null, resolvedRunId: null };
   }
   if (!target.player) return null;
   let runId = target.runId;
@@ -138,6 +150,7 @@ async function resolveAddresses(
   return {
     activeRunPda: addresses.activeRun,
     runReceiptPda: addresses.runReceipt,
+    resolvedRunId: runId,
   };
 }
 

@@ -18,7 +18,7 @@ import {
   compileSponsoredTransactionPlan,
   type TransactionPlan,
 } from "./runPlan";
-import { deriveRunAddresses } from "./pdas";
+import { deriveProtocolConfigPda, deriveRunAddresses } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 
 describe("sponsored transaction plans", () => {
@@ -137,6 +137,70 @@ describe("sponsored transaction plans", () => {
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
     ).toBeNull();
+  });
+
+  it("pins the close instruction's protocol and rent-recipient slots", async () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const connection = sponsoredConnection();
+    const transactionPlan = await buildFinalizeRunPlan({
+      wallet: new SessionWallet(owner),
+      owner: owner.publicKey,
+      runId: 7n,
+      addresses: deriveRunAddresses(owner.publicKey, 7n),
+      mode: "campaign",
+      receiptConsumed: true,
+      connection,
+      paymaster: paymaster.publicKey,
+    });
+    const transaction = await compileSponsoredTransactionPlan({
+      transactionPlan,
+      wallet: new SessionWallet(owner),
+      paymaster: paymaster.publicKey,
+    });
+    const message = transaction.message;
+    const keys = message.staticAccountKeys;
+    const close = message.compiledInstructions.find((ix) =>
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1.every(
+        (byte, i) => ix.data[i] === byte,
+      ),
+    );
+    expect(close).toBeDefined();
+    expect(keys[close.accountKeyIndexes[0]].equals(owner.publicKey)).toBe(true);
+    expect(
+      keys[close.accountKeyIndexes[1]].equals(deriveProtocolConfigPda()),
+    ).toBe(true);
+    expect(
+      keys[close.accountKeyIndexes[2]].equals(paymaster.publicKey),
+    ).toBe(true);
+  });
+
+  it("rejects a close whose rent recipient is not the paymaster", async () => {
+    const paymaster = Keypair.generate();
+    const attacker = Keypair.generate();
+    const owner = Keypair.generate();
+    const connection = sponsoredConnection();
+    // Built as if the attacker were the protocol paymaster…
+    const transactionPlan = await buildFinalizeRunPlan({
+      wallet: new SessionWallet(owner),
+      owner: owner.publicKey,
+      runId: 7n,
+      addresses: deriveRunAddresses(owner.publicKey, 7n),
+      mode: "campaign",
+      receiptConsumed: true,
+      connection,
+      paymaster: attacker.publicKey,
+    });
+    transactionPlan.feePayer = paymaster.publicKey;
+    // …but co-signed by the real paymaster: the policy must refuse.
+    const transaction = await compileSponsoredTransactionPlan({
+      transactionPlan,
+      wallet: new SessionWallet(owner),
+      paymaster: paymaster.publicKey,
+    });
+    expect(
+      validatePaymasterTransaction(transaction, paymaster.publicKey),
+    ).not.toBeNull();
   });
 
   it("omits receipt consumption after an already-consumed campaign receipt", async () => {

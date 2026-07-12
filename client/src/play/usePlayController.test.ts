@@ -80,7 +80,7 @@ describe("play controller projections", () => {
     expect(settleStageLabel("sealing")).toBe("Sealing result…");
     expect(settleStageLabel("committing")).toBe("Committing to Solana…");
     expect(settleStageLabel("settling")).toBe("Waiting for base copyback…");
-    expect(settleStageLabel("cleaning")).toBe("Recovering rent…");
+    expect(settleStageLabel("cleaning")).toBe("Cleaning up settled run…");
   });
 
   it("waits for session renewal before sealing a delegated terminal run", () => {

@@ -153,7 +153,7 @@ export default function PlayScreen() {
     if (recoveryRunId === null || recoveringRun) return;
     if (
       !window.confirm(
-        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, ActiveRun rent returns to this Vault, and there is no token-transfer instruction.`,
+        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.`,
       )
     ) {
       return;

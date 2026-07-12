@@ -132,6 +132,18 @@ export default function SpectatorScreen() {
           </Panel>
         )}
 
+        {!parsed.error && run?.phase === "archived" && (
+          <Panel>
+            <h2 className="text-xl font-black">Run settled and archived</h2>
+            <p className="text-center text-sm text-white/60">
+              Run {run.runId.toString()} finished, settled, and its on-chain
+              accounts were cleaned up. Its results live on in the player's
+              progression and the leaderboard.
+            </p>
+            <BackButton onClick={() => navigate("ranks")} />
+          </Panel>
+        )}
+
         {!parsed.error && !run && !status?.error && (
           <Panel>
             <p className="animate-pulse text-lg font-bold text-cyan-300">

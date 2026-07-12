@@ -29,7 +29,7 @@ import {
   deriveMagicActionEscrowPda,
 } from "./magicAction";
 import type { PaymasterClient } from "./paymasterClient";
-import { saveRunSession } from "./runSessionStore";
+import { saveReusableSession, saveRunSession } from "./runSessionStore";
 import type { WalletLike } from "./sessionWallet";
 import { withSponsorshipInstruction } from "./sponsorshipClient";
 import {
@@ -250,6 +250,8 @@ export async function buildPrepareCampaignRunPlan(args: {
   connection?: Connection;
   nowUnix?: number;
   paymaster?: PublicKey;
+  /** Live expiry of a REUSED session token (marker correctness). */
+  sessionValidUntil?: number;
 }): Promise<PreparedRunPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
@@ -273,7 +275,7 @@ export async function buildPrepareCampaignRunPlan(args: {
     sessionSigner: args.session.publicKey,
   });
   const instructions: TransactionInstruction[] = [];
-  const sessionValidUntil =
+  let sessionValidUntil =
     (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
 
   if (!profile) {
@@ -300,6 +302,10 @@ export async function buildPrepareCampaignRunPlan(args: {
         validUntil: sessionValidUntil,
       }),
     );
+  } else if (args.sessionValidUntil) {
+    // Reused session: the marker must reflect the live token's real expiry,
+    // not a fresh six-day claim.
+    sessionValidUntil = args.sessionValidUntil;
   }
   instructions.push(
     buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),
@@ -575,7 +581,9 @@ export async function buildCloseSettledRunPlan(args: {
   runId: bigint;
   addresses: RunAddresses;
   connection?: Connection;
-  paymaster?: PublicKey;
+  /** Fee payer AND rent recipient: cleanup returns every run rent to the
+   *  protocol paymaster that fronted it at prepare. */
+  paymaster: PublicKey;
 }): Promise<TransactionPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
@@ -584,6 +592,8 @@ export async function buildCloseSettledRunPlan(args: {
     .closeSettledActiveRunV1(new BN(args.runId.toString()))
     .accountsPartial({
       owner: args.wallet.publicKey,
+      protocol: deriveProtocolConfigPda(),
+      rentRecipient: args.paymaster,
       runShell: args.addresses.runShell,
       runReceipt: args.addresses.runReceipt,
       activeRun: args.addresses.activeRun,
@@ -593,7 +603,7 @@ export async function buildCloseSettledRunPlan(args: {
     "solana-base",
     "Close settled active run",
     connection,
-    args.paymaster ?? args.wallet.publicKey,
+    args.paymaster,
     [instruction],
   );
 }
@@ -617,7 +627,8 @@ export async function buildFinalizeRunPlan(args: {
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
   connection?: Connection;
-  paymaster?: PublicKey;
+  /** Fee payer AND rent recipient for the bundled close (protocol paymaster). */
+  paymaster: PublicKey;
 }): Promise<TransactionPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
@@ -684,6 +695,8 @@ export async function buildFinalizeRunPlan(args: {
       .closeSettledActiveRunV1(new BN(args.runId.toString()))
       .accountsPartial({
         owner: args.owner,
+        protocol: deriveProtocolConfigPda(),
+        rentRecipient: args.paymaster,
         runShell: args.addresses.runShell,
         runReceipt: args.addresses.runReceipt,
         activeRun: args.addresses.activeRun,
@@ -694,7 +707,7 @@ export async function buildFinalizeRunPlan(args: {
     "solana-base",
     "Finalize run settlement",
     connection,
-    args.paymaster ?? args.wallet.publicKey,
+    args.paymaster,
     instructions,
   );
 }
@@ -960,6 +973,13 @@ export async function submitPreparedRunPlan(args: {
     validUntil: args.preparedRun.sessionValidUntil,
     createdAt: Math.floor(Date.now() / 1_000),
   });
+  // The session identity outlives this run: later runs reuse it (and its
+  // on-chain token) instead of paying new session rent.
+  saveReusableSession(
+    args.wallet.publicKey,
+    args.session,
+    args.preparedRun.sessionValidUntil,
+  );
   return signature;
 }
 
