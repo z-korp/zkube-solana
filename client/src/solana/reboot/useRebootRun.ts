@@ -33,6 +33,7 @@ import {
 import { getDelegationStatus } from "./router";
 import {
   clearRunSession,
+  isRunSessionFresh,
   loadRunSession,
   type RunSessionMarker,
 } from "./runSessionStore";
@@ -343,6 +344,7 @@ export function useRebootRun() {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
+          requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
           const plan = await buildPlayMovePlan({
             owner: run.marker.owner,
@@ -453,6 +455,7 @@ export function useRebootRun() {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
+          requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
           setStage("sealing");
           const seal = await buildSealRunPlan({
@@ -675,6 +678,7 @@ export function useRebootRun() {
     actionInFlight.current = true;
     try {
       return await withBusy(setState, async () => {
+        requireFreshRunSession(run);
         const sessionWallet = new SessionWallet(run.marker.session);
         const plan = await buildApplyBonusPlan({
           owner: run.marker.owner,
@@ -735,21 +739,29 @@ export function useRebootRun() {
   const recoverSession = useCallback(async () => {
     const run = currentRun.current;
     if (!run || !wallet) throw new Error("No delegated run is attached");
-    return withBusy(setState, async () => {
-      const sponsor =
-        paymaster.current ?? (await fetchPaymasterClient(connection));
-      paymaster.current = sponsor;
-      const marker = await recoverDelegatedRunSession({
-        run,
-        wallet,
-        paymaster: sponsor,
+    if (actionInFlight.current) {
+      throw new Error("Another run action is already in progress");
+    }
+    actionInFlight.current = true;
+    try {
+      return await withBusy(setState, async () => {
+        const sponsor =
+          paymaster.current ?? (await fetchPaymasterClient(connection));
+        paymaster.current = sponsor;
+        const marker = await recoverDelegatedRunSession({
+          run,
+          wallet,
+          paymaster: sponsor,
+        });
+        run.marker = marker;
+        run.sessionAuthorized = true;
+        setEpoch((value) => value + 1);
+        setState((value) => ({ ...value, sessionAuthorized: true }));
+        return marker;
       });
-      run.marker = marker;
-      run.sessionAuthorized = true;
-      setEpoch((value) => value + 1);
-      setState((value) => ({ ...value, sessionAuthorized: true }));
-      return marker;
-    });
+    } finally {
+      actionInFlight.current = false;
+    }
   }, [connection, wallet]);
 
   return {
@@ -840,6 +852,14 @@ function requirePositiveRunId(runId: bigint | null | undefined): bigint {
     throw new Error("A positive run ID is required for base-run recovery");
   }
   return runId;
+}
+
+function requireFreshRunSession(
+  run: Extract<ResumedRun, { phase: "delegated" }>,
+): void {
+  if (!run.sessionAuthorized || !isRunSessionFresh(run.marker)) {
+    throw new Error("Run session renewal is required before this action");
+  }
 }
 
 export function requireNoAttachedRunSession(args: {

@@ -58,6 +58,95 @@ describe("persisted run resolution", () => {
     expect(result.phase === "delegated" && result.sessionAuthorized).toBe(true);
   });
 
+  it("reattaches a near-expiry run but requires proactive session rotation", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    const now = Math.floor(Date.now() / 1_000);
+    const marker = persist(owner, session, 10n, now + 60);
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
+    } as unknown as Connection;
+    const erConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
+    } as unknown as Connection;
+
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      dependencies: {
+        getStatus: vi.fn().mockResolvedValue({
+          isDelegated: true,
+          fqdn: "https://er.example/",
+        }),
+        makeErConnection: () => erConnection,
+        fetchRun: vi.fn().mockResolvedValue({
+          owner: owner.publicKey,
+          runId: 10n,
+          lifecycle: "playing",
+          score: 0,
+          actionCounter: 0,
+          moves: 0,
+          grid: new Array(80).fill(0),
+          nextRow: new Array(8).fill(0),
+          pendingVrfCounter: 0,
+        }),
+      },
+    });
+
+    expect(result.phase).toBe("delegated");
+    expect(result.phase === "delegated" && result.sessionAuthorized).toBe(
+      false,
+    );
+    expect(
+      result.phase === "delegated" &&
+        result.marker.addresses.activeRun.equals(marker.addresses.activeRun),
+    ).toBe(true);
+    expect(baseConnection.getAccountInfo).not.toHaveBeenCalled();
+  });
+
+  it("reattaches a delegated run whose on-chain session token is missing", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 11n);
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue(null),
+    } as unknown as Connection;
+    const erConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
+    } as unknown as Connection;
+
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      dependencies: {
+        getStatus: vi.fn().mockResolvedValue({
+          isDelegated: true,
+          fqdn: "https://er.example/",
+        }),
+        makeErConnection: () => erConnection,
+        fetchRun: vi.fn().mockResolvedValue({
+          owner: owner.publicKey,
+          runId: 11n,
+          lifecycle: "playing",
+          score: 0,
+          actionCounter: 0,
+          moves: 0,
+          grid: new Array(80).fill(0),
+          nextRow: new Array(8).fill(0),
+          pendingVrfCounter: 0,
+        }),
+      },
+    });
+
+    expect(result.phase).toBe("delegated");
+    expect(result.phase === "delegated" && result.sessionAuthorized).toBe(
+      false,
+    );
+    expect(baseConnection.getAccountInfo).toHaveBeenCalledOnce();
+  });
+
   it("falls back to a consumed base receipt after undelegation", async () => {
     const owner = Keypair.generate();
     const session = Keypair.generate();
@@ -159,7 +248,12 @@ describe("persisted run resolution", () => {
   });
 });
 
-function persist(owner: Keypair, session: Keypair, runId: bigint) {
+function persist(
+  owner: Keypair,
+  session: Keypair,
+  runId: bigint,
+  validUntil = Math.floor(Date.now() / 1_000) + 3_600,
+) {
   const marker = {
     owner: owner.publicKey,
     runId,
@@ -170,7 +264,7 @@ function persist(owner: Keypair, session: Keypair, runId: bigint) {
       sessionSigner: session.publicKey,
     }).sessionToken,
     addresses: deriveRunAddresses(owner.publicKey, runId),
-    validUntil: Math.floor(Date.now() / 1_000) + 3_600,
+    validUntil,
     createdAt: Math.floor(Date.now() / 1_000),
   };
   saveRunSession(marker);

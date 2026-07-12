@@ -30,6 +30,8 @@ const fixtures = vi.hoisted(() => ({
   },
   dismissRun: vi.fn(),
   recoverSession: vi.fn(),
+  retrySessionRenewal: vi.fn(),
+  sessionRenewalStatus: "renewing" as "idle" | "renewing" | "failed",
   recoverBaseRun: vi.fn(),
   retrySettlement: vi.fn(),
   continueSettled: vi.fn(),
@@ -95,6 +97,8 @@ vi.mock("@/play/usePlayController", () => ({
       onMove: vi.fn(),
       onCascadeComplete: vi.fn(),
       retrySettlement: fixtures.retrySettlement,
+      retrySessionRenewal: fixtures.retrySessionRenewal,
+      sessionRenewalStatus: fixtures.sessionRenewalStatus,
       recoverBaseRun: fixtures.recoverBaseRun,
       continueSettled: fixtures.continueSettled,
       settledReceipt: fixtures.settledReceipt,
@@ -162,24 +166,41 @@ describe("PlayScreen expired-session escape", () => {
     fixtures.sessionAuthorized = false;
     fixtures.settledReceipt = null;
     fixtures.settledCleanupStatus = "idle";
+    fixtures.sessionRenewalStatus = "renewing";
     fixtures.recoveryRunId = null;
   });
 
   it.each(["playing", "levelComplete"])(
-    "lets the player forget a %s run locally when renewal is unavailable",
+    "silently renews a %s run while retaining the local escape hatch",
     (lifecycle) => {
       fixtures.lifecycle = lifecycle;
       render(<PlayScreen />);
 
+      expect(screen.getByText("Renewing session…")).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Renew session" }),
-      ).toBeEnabled();
+        screen.queryByRole("button", { name: "Renew session" }),
+      ).not.toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", { name: "Forget run locally" }),
       );
 
       expect(fixtures.dismissRun).toHaveBeenCalledOnce();
       expect(fixtures.navigate).toHaveBeenCalledWith("home");
+    },
+  );
+
+  it.each(["playing", "levelComplete"])(
+    "offers one explicit retry after silent %s renewal fails",
+    (lifecycle) => {
+      fixtures.lifecycle = lifecycle;
+      fixtures.error = "rotation failed";
+      fixtures.sessionRenewalStatus = "failed";
+      render(<PlayScreen />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry session" }));
+
+      expect(fixtures.retrySessionRenewal).toHaveBeenCalledOnce();
+      expect(fixtures.recoverSession).not.toHaveBeenCalled();
     },
   );
 });
@@ -194,6 +215,7 @@ describe("PlayScreen settled summary", () => {
     fixtures.recoveryRunId = null;
     fixtures.settledReceipt = { runId: 7n, score: 10, moves: 6 };
     fixtures.settledCleanupStatus = "complete";
+    fixtures.sessionRenewalStatus = "idle";
   });
 
   it("makes Continue a navigation-only controller action", () => {
@@ -231,6 +253,7 @@ describe("PlayScreen orphaned base-run recovery", () => {
     fixtures.sessionAuthorized = false;
     fixtures.settledReceipt = null;
     fixtures.settledCleanupStatus = "idle";
+    fixtures.sessionRenewalStatus = "idle";
     fixtures.recoveryRunId = 1n;
   });
 

@@ -64,20 +64,24 @@ export function saveRunSession(
 
 export function loadRunSession(
   owner: PublicKey,
-  options: { storage?: StorageLike | null; nowUnix?: number } = {},
+  options: { storage?: StorageLike | null } = {},
 ): RunSessionMarker | null {
-  const storage = options.storage === undefined ? browserStorage() : options.storage;
+  const storage =
+    options.storage === undefined ? browserStorage() : options.storage;
   if (!storage) return null;
   const sessions = loadStoredSessions(storage);
   const stored = sessions[owner.toBase58()];
   if (!stored) return null;
-  const marker = restoreStoredRunSession(
-    stored,
-    owner,
-    options.nowUnix ?? Math.floor(Date.now() / 1_000),
-  );
+  const marker = restoreStoredRunSession(stored, owner);
   if (!marker) clearRunSession(owner, storage);
   return marker;
+}
+
+export function isRunSessionFresh(
+  marker: Pick<RunSessionMarker, "validUntil">,
+  nowUnix = Math.floor(Date.now() / 1_000),
+): boolean {
+  return marker.validUntil - nowUnix > RUN_SESSION_REFRESH_SKEW_SECONDS;
 }
 
 export function clearRunSession(
@@ -88,7 +92,8 @@ export function clearRunSession(
   const sessions = loadStoredSessions(storage);
   delete sessions[owner.toBase58()];
   try {
-    if (Object.keys(sessions).length === 0) storage.removeItem(RUN_SESSION_STORAGE_KEY);
+    if (Object.keys(sessions).length === 0)
+      storage.removeItem(RUN_SESSION_STORAGE_KEY);
     else storage.setItem(RUN_SESSION_STORAGE_KEY, JSON.stringify(sessions));
   } catch {
     // The marker is already unusable when storage itself is unavailable.
@@ -98,27 +103,29 @@ export function clearRunSession(
 function restoreStoredRunSession(
   stored: StoredRunSession,
   owner: PublicKey,
-  nowUnix: number,
 ): RunSessionMarker | null {
-  if (
-    stored.owner !== owner.toBase58()
-    || stored.validUntil - nowUnix <= RUN_SESSION_REFRESH_SKEW_SECONDS
-  ) return null;
+  // Expiry invalidates the session authorization, not the marker. The marker
+  // remains the durable run locator needed to rotate an expired token or
+  // finish cleanup after a long absence.
+  if (stored.owner !== owner.toBase58()) return null;
   try {
     const runId = BigInt(stored.runId);
     if (runId <= 0n) return null;
-    const session = Keypair.fromSecretKey(Uint8Array.from(stored.sessionSecretKey));
+    const session = Keypair.fromSecretKey(
+      Uint8Array.from(stored.sessionSecretKey),
+    );
     const expectedSessionToken = deriveSessionTokenV2Pda({
       authority: owner,
       sessionSigner: session.publicKey,
     }).sessionToken;
     const addresses = deriveRunAddresses(owner, runId);
     if (
-      !expectedSessionToken.equals(new PublicKey(stored.sessionToken))
-      || !addresses.activeRun.equals(new PublicKey(stored.activeRun))
-      || !addresses.runShell.equals(new PublicKey(stored.runShell))
-      || !addresses.runReceipt.equals(new PublicKey(stored.runReceipt))
-    ) return null;
+      !expectedSessionToken.equals(new PublicKey(stored.sessionToken)) ||
+      !addresses.activeRun.equals(new PublicKey(stored.activeRun)) ||
+      !addresses.runShell.equals(new PublicKey(stored.runShell)) ||
+      !addresses.runReceipt.equals(new PublicKey(stored.runReceipt))
+    )
+      return null;
     return {
       owner,
       runId,
@@ -134,7 +141,9 @@ function restoreStoredRunSession(
   }
 }
 
-function loadStoredSessions(storage: StorageLike): Record<string, StoredRunSession> {
+function loadStoredSessions(
+  storage: StorageLike,
+): Record<string, StoredRunSession> {
   try {
     const raw = storage.getItem(RUN_SESSION_STORAGE_KEY);
     if (!raw) return {};
@@ -151,24 +160,28 @@ function loadStoredSessions(storage: StorageLike): Record<string, StoredRunSessi
 }
 
 function isStoredRunSession(value: unknown): value is StoredRunSession {
-  return isRecord(value)
-    && value.version === 1
-    && typeof value.owner === "string"
-    && typeof value.runId === "string"
-    && (value.mode === "campaign" || value.mode === "daily")
-    && validSecretKey(value.sessionSecretKey)
-    && typeof value.sessionToken === "string"
-    && typeof value.activeRun === "string"
-    && typeof value.runShell === "string"
-    && typeof value.runReceipt === "string"
-    && Number.isInteger(value.validUntil)
-    && Number.isInteger(value.createdAt);
+  return (
+    isRecord(value) &&
+    value.version === 1 &&
+    typeof value.owner === "string" &&
+    typeof value.runId === "string" &&
+    (value.mode === "campaign" || value.mode === "daily") &&
+    validSecretKey(value.sessionSecretKey) &&
+    typeof value.sessionToken === "string" &&
+    typeof value.activeRun === "string" &&
+    typeof value.runShell === "string" &&
+    typeof value.runReceipt === "string" &&
+    Number.isInteger(value.validUntil) &&
+    Number.isInteger(value.createdAt)
+  );
 }
 
 function validSecretKey(value: unknown): value is number[] {
-  return Array.isArray(value)
-    && value.length === 64
-    && value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255);
+  return (
+    Array.isArray(value) &&
+    value.length === 64 &&
+    value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  );
 }
 
 function browserStorage(): StorageLike | null {
