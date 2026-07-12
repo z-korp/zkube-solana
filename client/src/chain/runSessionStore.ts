@@ -4,6 +4,10 @@ import { deriveSessionTokenV2Pda } from "./sessionV2";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v1";
 export const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
+export const REUSABLE_SESSION_STORAGE_KEY = "zkube:session:v1";
+/** Reuse a session only when a whole run comfortably fits inside its
+ *  remaining validity; below this, mint a fresh one at run start. */
+export const REUSABLE_SESSION_MIN_REMAINING_SECONDS = 60 * 60;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -97,6 +101,95 @@ export function clearRunSession(
     else storage.setItem(RUN_SESSION_STORAGE_KEY, JSON.stringify(sessions));
   } catch {
     // The marker is already unusable when storage itself is unavailable.
+  }
+}
+
+interface StoredReusableSession {
+  version: 1;
+  owner: string;
+  sessionSecretKey: number[];
+  validUntil: number;
+  createdAt: number;
+}
+
+export interface ReusableSession {
+  session: Keypair;
+  validUntil: number;
+}
+
+/**
+ * The session identity outlives individual runs (run markers are cleared at
+ * settlement): one SessionTokenV2 serves every run inside its validity, so a
+ * new run costs no session-token rent. Keyed per owner, separate from the
+ * per-run marker store.
+ */
+export function saveReusableSession(
+  owner: PublicKey,
+  session: Keypair,
+  validUntil: number,
+  storage = browserStorage(),
+): void {
+  if (!storage) return;
+  const sessions = loadStoredReusableSessions(storage);
+  sessions[owner.toBase58()] = {
+    version: 1,
+    owner: owner.toBase58(),
+    sessionSecretKey: Array.from(session.secretKey),
+    validUntil,
+    createdAt: Math.floor(Date.now() / 1_000),
+  };
+  try {
+    storage.setItem(REUSABLE_SESSION_STORAGE_KEY, JSON.stringify(sessions));
+  } catch {
+    // Losing reuse only costs one session-token rent on the next run.
+  }
+}
+
+export function loadReusableSession(
+  owner: PublicKey,
+  options: {
+    storage?: StorageLike | null;
+    nowUnix?: number;
+    minRemainingSeconds?: number;
+  } = {},
+): ReusableSession | null {
+  const storage =
+    options.storage === undefined ? browserStorage() : options.storage;
+  if (!storage) return null;
+  const stored = loadStoredReusableSessions(storage)[owner.toBase58()];
+  if (!stored || stored.owner !== owner.toBase58()) return null;
+  if (
+    !Array.isArray(stored.sessionSecretKey) ||
+    stored.sessionSecretKey.length !== 64 ||
+    !Number.isFinite(stored.validUntil)
+  ) {
+    return null;
+  }
+  const nowUnix = options.nowUnix ?? Math.floor(Date.now() / 1_000);
+  const minRemaining =
+    options.minRemainingSeconds ?? REUSABLE_SESSION_MIN_REMAINING_SECONDS;
+  if (stored.validUntil - nowUnix <= minRemaining) return null;
+  try {
+    return {
+      session: Keypair.fromSecretKey(Uint8Array.from(stored.sessionSecretKey)),
+      validUntil: stored.validUntil,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function loadStoredReusableSessions(
+  storage: StorageLike,
+): Record<string, StoredReusableSession> {
+  try {
+    const raw = storage.getItem(REUSABLE_SESSION_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as Record<string, StoredReusableSession>;
+  } catch {
+    return {};
   }
 }
 

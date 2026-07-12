@@ -85,7 +85,7 @@ export function settleStageLabel(stage: SettleStage | null): string {
     case "consuming":
       return "Crediting progress…";
     case "cleaning":
-      return "Recovering rent…";
+      return "Cleaning up settled run…";
     case "preparing":
       return "Preparing on-chain run…";
     default:

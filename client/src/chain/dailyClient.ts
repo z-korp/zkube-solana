@@ -229,6 +229,8 @@ export async function buildPrepareDailyRunPlan(args: {
   playerPaymentAccount?: PublicKey;
   paymaster?: PublicKey;
   nowUnix?: number;
+  /** Live expiry of a REUSED session token (marker correctness). */
+  sessionValidUntil?: number;
 }): Promise<PreparedRunPlan> {
   if (args.daily.nextRunId <= 0n)
     throw new Error("Daily eligibility requires a player profile");
@@ -239,7 +241,7 @@ export async function buildPrepareDailyRunPlan(args: {
     authority: owner,
     sessionSigner: args.session.publicKey,
   });
-  const sessionValidUntil =
+  let sessionValidUntil =
     (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
   const instructions: TransactionInstruction[] = [];
   if (!(await args.connection.getAccountInfo(sessionToken, "confirmed"))) {
@@ -252,6 +254,9 @@ export async function buildPrepareDailyRunPlan(args: {
         validUntil: sessionValidUntil,
       }),
     );
+  } else if (args.sessionValidUntil) {
+    // Reused session: the marker must reflect the live token's real expiry.
+    sessionValidUntil = args.sessionValidUntil;
   }
   instructions.push(
     buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),

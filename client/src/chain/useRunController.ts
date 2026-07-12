@@ -35,7 +35,9 @@ import { getDelegationStatus } from "./router";
 import {
   clearRunSession,
   isRunSessionFresh,
+  loadReusableSession,
   loadRunSession,
+  saveReusableSession,
   type RunSessionMarker,
 } from "./runSessionStore";
 import { deriveRunAddresses, type RunAddresses } from "./pdas";
@@ -210,7 +212,8 @@ export function useRunController() {
       const sponsor =
         paymaster.current ?? (await fetchPaymasterClient(connection));
       paymaster.current = sponsor;
-      const session = Keypair.generate();
+      const reusable = loadReusableSession(publicKey);
+      const session = reusable?.session ?? Keypair.generate();
       const prepared = await buildPrepareCampaignRunPlan({
         wallet,
         session,
@@ -218,6 +221,7 @@ export function useRunController() {
         level,
         connection,
         paymaster: sponsor.pubkey,
+        sessionValidUntil: reusable?.validUntil,
       });
       const prepareSignature = await submitPreparedRunPlan({
         preparedRun: prepared,
@@ -280,7 +284,8 @@ export function useRunController() {
         const sponsor =
           paymaster.current ?? (await fetchPaymasterClient(connection));
         paymaster.current = sponsor;
-        const session = Keypair.generate();
+        const reusable = loadReusableSession(publicKey);
+        const session = reusable?.session ?? Keypair.generate();
         const prepared = await buildPrepareDailyRunPlan({
           wallet,
           session,
@@ -288,6 +293,7 @@ export function useRunController() {
           payment,
           connection,
           paymaster: sponsor.pubkey,
+          sessionValidUntil: reusable?.validUntil,
         });
         const prepareSignature = await submitPreparedRunPlan({
           preparedRun: prepared,
@@ -887,6 +893,7 @@ export function useRunController() {
         });
         run.marker = marker;
         run.sessionAuthorized = true;
+        saveReusableSession(publicKey, marker.session, marker.validUntil);
         setEpoch((value) => value + 1);
         setState((value) => ({ ...value, sessionAuthorized: true }));
         return marker;
@@ -894,7 +901,7 @@ export function useRunController() {
     } finally {
       actionInFlight.current = false;
     }
-  }, [connection, wallet]);
+  }, [connection, publicKey, wallet]);
 
   return {
     ...state,
