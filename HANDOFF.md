@@ -270,14 +270,51 @@ The active route set is functionally ported, but continue visual testing on
 mobile and desktop. The current production bundle is large; code splitting is
 recorded debt, not a blocker for the current Devnet lifecycle proof.
 
+### 2026-07-12 frontend review pass (parity audit + fixes)
+
+The working tree was committed as the Reboot baseline on `feat/solana-reboot`
+and a full page-by-page parity audit against `/home/djizus/zkube` was run.
+Everything below is committed and gate-green:
+
+- Gameplay-feel fixes for the optimistic Grid under the VRF move flow: the
+  move-queue failure path now actually rolls back (the previous effect-scoped
+  cancellation made rollback dead code), the Grid no longer remounts per
+  action (authoritative state lands through `applyReceipt` with divergence
+  reconciliation via `blocksMatchGrid`), watcher snapshots are suppressed
+  while a move/bonus is in flight (no mid-cascade `awaitingVrf` clobber),
+  and the ADD_LINE machine can no longer park on an empty next line.
+- Audio restored everywhere (boss intro/defeat, level-up, victory, game-over,
+  star/coin, click, main/level/boss music contexts) — the infra existed but
+  was never called after the port.
+- Play screen: earned-star rating on level complete, bonus tooltips with
+  charge triggers, HUD score count-up + combo pulse, resize-reactive board.
+- The original SVG node-graph campaign map is restored on on-chain data
+  (`RebootMapPage` + `RebootLevelPreview` + `GuardianGreeting`), with
+  per-level rules exposed on `CampaignView` via `mapLevelRuleSnapshot`.
+- Profile: XP-within-level progress (previous bar was level/100 — a bug),
+  achievement names/icons, lifetime stat tiles (`LifetimeStatsView`); quest
+  names/finisher label on Rewards; profile tab re-enabled in the bottom nav;
+  Resume-run CTA and daily countdown on Home; leaderboard rank pinning,
+  entrance/own-row animation, and Daily guardian art + live countdown.
+- New read-only spectator: `/?player=<pubkey>` (optional `&run=<id>`) or
+  `/?pda=<activeRun>` opens `RebootSpectatorScreen`; leaderboard rows have
+  Watch buttons. `resolveSpectatedRun` routes delegation-status-first (ER
+  authoritative while delegated), falls back to consumed receipts, and uses a
+  throwaway decode-only wallet — no identity/paymaster/session code on the
+  spectate path. The preserved live run is a safe manual test target.
+- Cleanup: stale Starknet manifests (`contracts/`), dead
+  `solana/scripts/initialize-treasury.ts` + `solana/migrations/deploy.ts`,
+  and vestigial client state (deep-link flag, tournament alias/state, dead
+  move-store fields) are deleted with user approval.
+
 ## Validation status
 
-Last full client gate after the frontend port:
+Last full client gate after the 2026-07-12 frontend review pass:
 
 - IDL check: pass
 - strict project-reference TypeScript: pass
 - lint: pass
-- tests: 27 files, 97 tests, all pass
+- tests: 28 files, 108 tests, all pass
 - production Vite build: pass
 
 Last program gate:

@@ -92,7 +92,6 @@ describe("Grid drag interactions", () => {
 
   beforeEach(() => {
     useMoveStore.setState({
-      isMoveComplete: false,
       queue: [],
       isQueueProcessing: false,
       lastFailedMoveError: null,
@@ -172,7 +171,6 @@ describe("Grid move queue", () => {
 
   beforeEach(() => {
     useMoveStore.setState({
-      isMoveComplete: false,
       queue: [],
       isQueueProcessing: false,
       lastFailedMoveError: null,
