@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { GameLevelData } from "@/hooks/useGameLevel";
 
 export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings";
 export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
@@ -23,7 +24,7 @@ export interface PendingLevelCompletion {
   levelMoves: number;
   prevTotalScore: number;
   totalScore: number;
-  gameLevel: unknown;
+  gameLevel: GameLevelData | null;
   isIncomplete?: boolean;
 }
 
@@ -132,9 +133,10 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setSpectateTarget: (target) => set({ spectateTarget: target }),
   setPendingPreviewLevel: (level) => set({ pendingPreviewLevel: level }),
   setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),
-  markZoneGreeted: (zoneId) => set((state) => {
-    const next = new Set(state.greetedZones);
-    next.add(zoneId);
-    return { greetedZones: next };
-  }),
+  markZoneGreeted: (zoneId) =>
+    set((state) => {
+      const next = new Set(state.greetedZones);
+      next.add(zoneId);
+      return { greetedZones: next };
+    }),
 }));

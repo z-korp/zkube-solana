@@ -73,6 +73,7 @@ export const getTitleForLevel = (level: number): string => {
 
 export interface ZoneProgressData {
   zoneId: number;
+  themeId?: number;
   settingsId: number;
   name: string;
   emoji: string;

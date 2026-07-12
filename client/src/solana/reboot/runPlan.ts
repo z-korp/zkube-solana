@@ -73,7 +73,62 @@ export interface RotatedSessionPlan {
   transactionPlan: TransactionPlan;
 }
 
-export interface ActiveRunView {
+export type EndlessThresholdsView = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
+
+export type EndlessScoreMultipliersX100View = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
+
+export interface EndlessRulesView {
+  endlessThresholds: EndlessThresholdsView;
+  endlessScoreMultipliersX100: EndlessScoreMultipliersX100View;
+  endlessRampMultiplierX100: number;
+}
+
+export interface RawEndlessRulesSnapshot {
+  endlessThresholds: readonly unknown[];
+  endlessScoreMultipliersX100: readonly unknown[];
+  endlessRampMultiplierX100: unknown;
+}
+
+export function mapEndlessRulesSnapshot(
+  rules: RawEndlessRulesSnapshot,
+): EndlessRulesView {
+  if (rules.endlessThresholds.length !== 7) {
+    throw new Error("Decoded endless rules must contain exactly 7 thresholds");
+  }
+  if (rules.endlessScoreMultipliersX100.length !== 8) {
+    throw new Error(
+      "Decoded endless rules must contain exactly 8 score multipliers",
+    );
+  }
+  return {
+    endlessThresholds: rules.endlessThresholds.map(
+      Number,
+    ) as EndlessThresholdsView,
+    endlessScoreMultipliersX100: rules.endlessScoreMultipliersX100.map(
+      Number,
+    ) as EndlessScoreMultipliersX100View,
+    endlessRampMultiplierX100: Number(rules.endlessRampMultiplierX100),
+  };
+}
+
+export interface ActiveRunView extends EndlessRulesView {
   owner: PublicKey;
   runId: bigint;
   mode: string;
@@ -681,6 +736,16 @@ export async function fetchActiveRun(
     wallet,
   ).account.activeRun.fetchNullable(activeRun);
   if (!account) return null;
+  return mapActiveRunAccount(account);
+}
+
+type DecodedActiveRunAccount = Awaited<
+  ReturnType<ReturnType<typeof zkubeProgram>["account"]["activeRun"]["fetch"]>
+>;
+
+export function mapActiveRunAccount(
+  account: DecodedActiveRunAccount,
+): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
   return {
     owner: account.owner,
@@ -702,6 +767,7 @@ export async function fetchActiveRun(
     totalLinesCleared: Number(account.totalLinesCleared),
     bonusUses: Number(account.bonusUses),
     currentDifficulty: Number(account.currentDifficulty),
+    ...mapEndlessRulesSnapshot(account),
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
     grid: [...account.grid].map(Number),

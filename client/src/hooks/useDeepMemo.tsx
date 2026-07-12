@@ -48,9 +48,9 @@ export function deepCompare(a: unknown, b: unknown): boolean {
 }
 
 function useDeepMemo<T>(factory: () => T, deps: readonly unknown[]): T {
-  const valueRef = useRef<
-    { deps: readonly unknown[]; value: T } | undefined
-  >(undefined);
+  const valueRef = useRef<{ deps: readonly unknown[]; value: T } | undefined>(
+    undefined,
+  );
 
   if (!valueRef.current || !deepCompare(valueRef.current.deps, deps)) {
     valueRef.current = { deps, value: factory() };
