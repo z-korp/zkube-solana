@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  ComputeBudgetProgram,
   Keypair,
   type Connection,
   PublicKey,
@@ -195,6 +196,40 @@ describe("paymaster policy", () => {
     expect(
       validatePaymasterTransaction(transfer, paymaster.publicKey),
     ).toContain("is not sponsored");
+  });
+
+  it("rejects compute-unit limit instructions", () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const transaction = transactionWithMany(
+      paymaster.publicKey,
+      [owner],
+      [
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+        initializePlayerInstruction(paymaster, owner),
+      ],
+    );
+
+    expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBe(
+      "Compute Budget instructions are not sponsored",
+    );
+  });
+
+  it("rejects compute-unit price instructions", () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const transaction = transactionWithMany(
+      paymaster.publicKey,
+      [owner],
+      [
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+        initializePlayerInstruction(paymaster, owner),
+      ],
+    );
+
+    expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBe(
+      "Compute Budget instructions are not sponsored",
+    );
   });
 
   it("rejects a transaction whose player signature is missing", () => {

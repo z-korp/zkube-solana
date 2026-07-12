@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["node", "vite/client", "vitest/globals"],
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "api/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tools/**/*.ts",
+    "*.config.ts"
+  ],
+  "exclude": ["dist", "node_modules", "src/chain/idl/solana.ts"]
+}

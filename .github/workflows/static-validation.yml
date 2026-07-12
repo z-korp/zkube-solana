@@ -14,9 +14,6 @@ concurrency:
 jobs:
   rust-host:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: solana
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned Rust toolchain
@@ -27,16 +24,34 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            solana/target
-          key: rust-${{ runner.os }}-${{ hashFiles('solana/Cargo.lock', 'solana/rust-toolchain.toml') }}
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Formatting
         run: NO_DNA=1 cargo fmt --all -- --check
       - name: Host tests
         run: NO_DNA=1 cargo test --workspace
       - name: Clippy
         run: NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
+      - name: Install pinned Anchor CLI
+        run: |
+          NO_DNA=1 cargo install --git https://github.com/solana-foundation/anchor --tag v1.0.2 avm --locked
+          NO_DNA=1 avm install 1.0.2
+          NO_DNA=1 avm use 1.0.2
+      - name: Generate client ABI
+        run: |
+          mkdir -p target/idl target/types
+          NO_DNA=1 anchor idl build -o target/idl/solana.json -t target/types/solana.ts
+      - name: Upload client ABI
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-client-abi
+          path: |
+            target/idl/solana.json
+            target/types/solana.ts
+          retention-days: 1
 
   frontend:
+    needs: rust-host
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,12 +66,19 @@ jobs:
           node-version: 24.13.0
           cache: pnpm
           cache-dependency-path: client/pnpm-lock.yaml
+      - name: Download generated client ABI
+        uses: actions/download-artifact@v4
+        with:
+          name: anchor-client-abi
+          path: target
       - name: Install locked dependencies
         run: NO_DNA=1 pnpm install --frozen-lockfile
       - name: IDL drift
         run: NO_DNA=1 pnpm idl:check
       - name: TypeScript
         run: NO_DNA=1 pnpm exec tsc -b --pretty false
+      - name: Chain TypeScript
+        run: NO_DNA=1 pnpm run typecheck:chain
       - name: Lint
         run: NO_DNA=1 pnpm lint
       - name: Tests
