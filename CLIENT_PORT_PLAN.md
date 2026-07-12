@@ -1,5 +1,9 @@
 # CLIENT_PORT_PLAN — Archive `client-budokan`, port the original zKube client onto the Solana/MagicBlock layer at `client/`
 
+> **STATUS: EXECUTED 2026-07-12** (commits `a6cb50f..a635c4e`). Kept as the
+> historical record of the port. `HANDOFF.md` referenced below has since been
+> retired in favor of `STATUS.md` + `AGENTS.md`.
+
 Written: 2026-07-12. Executor: Codex (or any coding agent), phase by phase, with a
 validation gate after every phase. This document is self-contained; the executor
 is not assumed to have seen any prior conversation. Read `HANDOFF.md` before
