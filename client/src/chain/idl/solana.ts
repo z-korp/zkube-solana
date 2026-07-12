@@ -14,6 +14,37 @@ export type Solana = {
   },
   "instructions": [
     {
+      "name": "abandonRunV1",
+      "discriminator": [
+        125,
+        40,
+        244,
+        230,
+        253,
+        139,
+        171,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "activeRun",
+          "writable": true
+        },
+        {
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "acceptProtocolAuthorityV1",
       "discriminator": [
         230,

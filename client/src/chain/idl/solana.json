@@ -8,6 +8,37 @@
   },
   "instructions": [
     {
+      "name": "abandon_run_v1",
+      "discriminator": [
+        125,
+        40,
+        244,
+        230,
+        253,
+        139,
+        171,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "active_run",
+          "writable": true
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "accept_protocol_authority_v1",
       "discriminator": [
         230,

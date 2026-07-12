@@ -127,7 +127,24 @@ export default function PlayScreen() {
     [onRunBonus],
   );
 
+  const abandonRun = run.abandonRun;
   const handleQuit = useCallback(() => {
+    // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed);
+    // navigation is immediate and settlement continues in the background.
+    // Fall back to forgetting the local marker if the abandon cannot run
+    // (e.g. a deployed program that predates abandonRunV1).
+    void (async () => {
+      try {
+        await abandonRun();
+      } catch {
+        dismissRun();
+      }
+    })();
+    navigate("home");
+  }, [abandonRun, dismissRun, navigate]);
+
+  /** Local-only escape hatch: forget the marker, never touch the chain. */
+  const handleForgetLocally = useCallback(() => {
     dismissRun();
     navigate("home");
   }, [dismissRun, navigate]);
@@ -282,7 +299,7 @@ export default function PlayScreen() {
               {run.phase === "missing" && (
                 <button
                   type="button"
-                  onClick={handleQuit}
+                  onClick={handleForgetLocally}
                   className="rounded-xl border border-red-300/30 bg-red-950/60 px-6 py-2 font-sans text-sm font-bold text-red-100"
                 >
                   Forget missing run
@@ -398,7 +415,7 @@ export default function PlayScreen() {
                 <button
                   type="button"
                   disabled={run.busy}
-                  onClick={handleQuit}
+                  onClick={handleForgetLocally}
                   className="rounded-xl border border-white/20 bg-white/10 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
                 >
                   Forget run locally
@@ -429,7 +446,7 @@ export default function PlayScreen() {
                 onClick={handleQuit}
                 className="mt-3 rounded-xl border border-white/20 bg-white/10 px-5 py-2 font-sans text-xs font-bold text-white"
               >
-                Dismiss stuck run
+                Abandon run
               </button>
             )}
           </div>
@@ -456,7 +473,7 @@ export default function PlayScreen() {
               <button
                 type="button"
                 disabled={run.busy}
-                onClick={handleQuit}
+                onClick={handleForgetLocally}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
               >
                 Forget run locally

@@ -74,6 +74,8 @@ export function pendingCompletionFromRun(
 
 export function settleStageLabel(stage: SettleStage | null): string {
   switch (stage) {
+    case "abandoning":
+      return "Abandoning run…";
     case "sealing":
       return "Sealing result…";
     case "committing":
