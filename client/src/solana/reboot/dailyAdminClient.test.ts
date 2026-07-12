@@ -135,6 +135,7 @@ function dailyFixture(): DailyView {
     claimsCloseAt: 0,
     entryPrice: 1_000_000n,
     starEntryCost: 10n,
+    payoutBps: [4_000, 2_000, 1_200, 800, 600, 400, 300, 300, 200, 200],
     sponsorFunding: 0n,
     prizeLiability: 0n,
     settledPrizePool: 0n,

@@ -117,6 +117,7 @@ export interface DailyView extends DailyGameRulesView {
   claimsCloseAt: number;
   entryPrice: bigint;
   starEntryCost: bigint;
+  payoutBps: readonly number[];
   sponsorFunding: bigint;
   prizeLiability: bigint;
   settledPrizePool: bigint;
@@ -179,6 +180,7 @@ export async function fetchDailyView(args: {
     claimsCloseAt: Number(challenge.claimsCloseAt),
     entryPrice: asBigInt(challenge.entryPrice),
     starEntryCost: asBigInt(challenge.starEntryCost),
+    payoutBps: challenge.payoutBps.map(Number),
     sponsorFunding: asBigInt(challenge.sponsorFunding),
     prizeLiability: asBigInt(challenge.prizeLiability),
     settledPrizePool: asBigInt(challenge.settledPrizePool),

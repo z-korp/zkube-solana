@@ -1,0 +1,156 @@
+import React from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import DailyChallengePage from "./DailyChallengePage";
+
+const fixtures = vi.hoisted(() => ({
+  accountAddress: "ABCD12345678WXYZ",
+  activeAttempt: null as null | {
+    gameId: bigint;
+    level: number;
+    isReplay: boolean;
+    settled: boolean;
+  },
+  controller: {
+    action: null as string | null,
+    daily: {
+      status: "open",
+      opensAt: 1_234_000,
+      entriesCloseAt: 1_235_000,
+      playerEligible: true,
+      playerStars: 12n,
+      starEntryCost: 3n,
+      entryPrice: 2_500_000n,
+      player: null,
+    },
+    enter: vi.fn(),
+    error: null as string | null,
+    loading: false,
+    run: { phase: "none" },
+  },
+  navigation: {
+    goBack: vi.fn(),
+    navigate: vi.fn(),
+  },
+}));
+
+vi.mock("@/contexts/daily", () => ({
+  useDailyController: () => fixtures.controller,
+}));
+
+vi.mock("@/hooks/useAccountCustom", () => ({
+  default: () => ({ account: { address: fixtures.accountAddress } }),
+}));
+
+vi.mock("@/hooks/useActiveDailyAttempt", () => ({
+  useActiveDailyAttempt: () => fixtures.activeAttempt,
+}));
+
+vi.mock("@/hooks/useCurrentChallenge", () => ({
+  useCurrentChallenge: () => ({
+    challenge: {
+      challenge_id: 14,
+      start_time: 1_234_000,
+      end_time: 1_236_000,
+      settled: false,
+      cancelled: false,
+      zone_id: 2,
+      total_entries: 2n,
+      active_mutator_id: 0,
+      passive_mutator_id: 0,
+    },
+    isLoading: false,
+  }),
+}));
+
+vi.mock("@/hooks/useDailyLeaderboard", () => ({
+  useDailyLeaderboard: () => ({
+    entries: [
+      {
+        rank: 1,
+        player: fixtures.accountAddress,
+        playerName: "ABCD…WXYZ",
+        receipt: "receipt",
+        runId: 8n,
+        score: 123,
+        submittedAt: 1_234_100,
+      },
+    ],
+    isLoading: false,
+  }),
+}));
+
+vi.mock("@/stores/navigationStore", () => ({
+  useNavigationStore: (
+    selector: (state: typeof fixtures.navigation) => unknown,
+  ) => selector(fixtures.navigation),
+}));
+
+vi.mock("@/ui/elements/theme-provider/hooks", () => ({
+  useTheme: () => ({ themeTemplate: "theme-1" }),
+}));
+
+vi.mock("@/ui/components/rewards/TierContext", () => ({
+  default: (props: {
+    myRank: number;
+    myScore: number;
+    scoreLabel?: string;
+  }) => (
+    <div data-testid="tier-context">
+      #{props.myRank} · {props.myScore}
+      {props.scoreLabel}
+    </div>
+  ),
+}));
+
+beforeAll(() => {
+  vi.stubGlobal("React", React);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("DailyChallengePage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.activeAttempt = null;
+  });
+
+  it("shows live Stars and USDC entry choices without executing a transaction", () => {
+    render(<DailyChallengePage />);
+
+    expect(screen.getByRole("button", { name: "3 Stars" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "2.5 USDC" })).toBeEnabled();
+    expect(screen.getByTestId("tier-context")).toHaveTextContent(
+      "#1 · 123 pts",
+    );
+    expect(fixtures.controller.enter).not.toHaveBeenCalled();
+  });
+
+  it("routes a settled previous-day attempt to rent cleanup", () => {
+    fixtures.activeAttempt = {
+      gameId: 41n,
+      level: 7,
+      isReplay: false,
+      settled: true,
+    };
+
+    render(<DailyChallengePage />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Finish previous Daily" }),
+    );
+
+    expect(fixtures.navigation.navigate).toHaveBeenCalledWith("play", 41n);
+    expect(screen.queryByRole("button", { name: "3 Stars" })).toBeNull();
+  });
+});
