@@ -207,12 +207,10 @@ authority. Independent ProgramData decoding hashes the first 1,592,248 code
 bytes to `d075288f...6636`; all remaining 1,544 allocation bytes are zero.
 Sanitized evidence is `artifacts/devnet-program-upgrade.proof.json`.
 
-The preserved run's exact commit now simulates on the Router-resolved EU ER at
-55,849 CU with no error. The only outer writable accounts are payer, delegated
-ActiveRun, and Magic context. Router/base checks after simulation prove the run
-remained delegated and the simulation scheduled no real commit. Actual
-owner-signed commit/undelegate, base copyback, receipt, and cleanup remain the
-last lifecycle proof steps.
+The first live run has since copied back to base with its receipt reserved;
+only its final receipt-consumption/rent-cleanup transaction remains, tracked as
+an open item in `STATUS.md`. New runs settle and clean up automatically through
+the client's auto-settlement pipeline.
 
 For local browser testing against Devnet, Vite serves the same stateless
 `/api/paymaster` handler used by the deployed function:

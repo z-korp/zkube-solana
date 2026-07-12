@@ -13,11 +13,12 @@ Current product boundaries:
 
 Start with:
 
-- [HANDOFF.md](HANDOFF.md) — complete current-state handoff for the next agent,
-  including the live run and exact remaining lifecycle steps.
+- [STATUS.md](STATUS.md) — current deployed state and open items.
 - [IMPLEMENTATION.md](IMPLEMENTATION.md) — scope, architecture, iteration status, decisions, and validation evidence.
 - [MAGICBLOCK.md](MAGICBLOCK.md) — authoritative cycling-sim-derived Router, ER, VRF, embedded identity, settlement, and proof rules.
 - [OPERATIONS.md](OPERATIONS.md) — deployment identity, approval gates, custody invariants, readiness probe, and incident procedures.
+- [AGENTS.md](AGENTS.md) — working rules for AI coding agents in this repo;
+  none of it describes product behavior.
 - [client/.env.example](client/.env.example) — public/server configuration inventory; never commit a real paymaster secret.
 - [client/deployment/README.md](client/deployment/README.md) — approved deployment-manifest contract and fail-closed production build gate.
 
@@ -65,10 +66,9 @@ corrected SBF
 was deployed under approved fingerprint `21ef11168ed0fe45` at slot `475577726`,
 signature `2wrqVqv9...BR5t`. The loader drained and closed the temporary
 11.08325016-SOL buffer back to the deployer, and the on-chain code prefix
-matches the artifact byte-for-byte. The preserved Router-resolved commit now
-simulates successfully at 55,849 CU with only the payer, delegated ActiveRun,
-and Magic context writable. Owner-signed settlement/copyback/cleanup remain to
-be executed from the embedded client.
+matches the artifact byte-for-byte. The client lifecycle is fully
+automatic (silent embedded signing, sponsored fees/rent, auto-settlement); a
+single legacy first-run cleanup remains tracked in [STATUS.md](STATUS.md).
 Selected public bootstrap identities are recorded in
 `artifacts/devnet-bootstrap-identities.candidate.json`; candidate status is not
 approval. Sanitized custody, protocol, and catalog execution proofs are stored under
