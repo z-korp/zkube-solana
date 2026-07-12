@@ -366,6 +366,9 @@ Signer-free browser acceptance after the port:
   390×844 mobile viewports;
 - Home campaign data, Home → Map, Daily, Boss, Play empty state, Rewards,
   Leaderboard, Profile, Settings/Vault, and read-only Spectator all render;
+- a second isolated context opened the preserved `BQNu…KTB6` run and rendered
+  its authoritative `LIVE · BASE` board plus `Level complete — awaiting
+  settlement`, using only account/balance/Router-status reads;
 - Settings exposes deposit address, SOL/USDC balances, recovery controls, and
   withdrawal controls without revealing recovery material;
 - `/api/paymaster` returns the expected `CNhM…7SgY` identity;
