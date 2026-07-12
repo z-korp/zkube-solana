@@ -62,10 +62,25 @@ first run costs roughly 0.014 SOL, so the refill is mitigation, not durable
 capacity planning.
 
 The relay source now explicitly rejects all Compute Budget program
-instructions, including unit-limit and unit-price requests. Remaining incident
-follow-up is scheduled readiness alerting, a friendly sponsorship-unavailable
-client state, verification of the updated web deployment, and correction of
-stale quit-dialog copy.
+instructions, including unit-limit and unit-price requests. Client-side
+follow-up landed on 2026-07-12: dry-sponsor prepare failures render honest
+"sponsored play temporarily unavailable" copy (raw error demoted to a
+diagnostic line), the Home banner warns below a configurable reserve
+(`VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS`, default 0.05 SOL), and the quit dialog
+describes on-chain abandon. Scheduled readiness alerting and web-deployment
+verification remain operator tasks.
+
+### Rent economics (source, pending upgrade)
+
+Measured against the live binary, the paymaster spends ~0.014 SOL per fresh
+player and ~0.011 SOL per run (rent gifted to players at cleanup, durable
+RunShell/RunReceipt per run, a new session token per run). Source now closes
+all three run accounts at cleanup with rent returning to the protocol
+paymaster (`CloseSettledActiveRunV1` pins the recipient to
+`ProtocolConfig.paymaster`), and one session token is reused across runs for
+its whole validity (`zkube:session:v1`). Expected after the next approved
+upgrade: recurring per-run paymaster cost ≈ fees + the 10k-lamport Magic
+Action top-up; spectating an already-cleaned run shows an "archived" state.
 
 ## Open work
 
