@@ -19,6 +19,7 @@ import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
 import RebootProgressPanel from "@/ui/components/reboot/RebootProgressPanel";
 import RebootGameHud from "@/ui/components/hud/RebootGameHud";
+import SpectatorGrid from "@/ui/components/SpectatorGrid";
 import { estimateStars } from "@/ui/components/hud/runDisplay";
 import RebootGameActionBar from "@/ui/components/actionbar/RebootGameActionBar";
 import "../../grid.css";
@@ -40,6 +41,9 @@ export default function RebootPlayScreen() {
   const zone = useNavigationStore((state) => state.mapZoneId);
   const navigationDaily = useNavigationStore((state) => state.isDailyMap);
   const previewLevel = useNavigationStore((state) => state.pendingPreviewLevel);
+  const setPreviewLevel = useNavigationStore(
+    (state) => state.setPendingPreviewLevel,
+  );
   const run = useRebootRun();
   const campaign = useRebootCampaign();
   const [mapId, setMapId] = useState(Math.min(10, Math.max(1, zone)));
@@ -114,6 +118,28 @@ export default function RebootPlayScreen() {
       setMapId(1);
     }
   }, [campaign.campaign, campaign.loading, mapId, selectedMap?.enabled]);
+
+  // Landing from a map node (pendingPreviewLevel set) starts the run
+  // immediately, like the original client — the manual map/level form only
+  // shows on a direct visit with no selection intent.
+  const autoStartRef = useRef(false);
+  const autoStartIntent =
+    !navigationDaily && previewLevel !== null && run.phase === "none";
+  useEffect(() => {
+    if (!autoStartIntent || autoStartRef.current) return;
+    if (campaign.loading || !mapUnlocked || run.busy) return;
+    autoStartRef.current = true;
+    setPreviewLevel(null);
+    runAction(run.startCampaignRun(mapId, previewLevel!));
+  }, [
+    autoStartIntent,
+    campaign.loading,
+    mapUnlocked,
+    run,
+    mapId,
+    previewLevel,
+    setPreviewLevel,
+  ]);
   const grid = useMemo(
     () =>
       transformDataContractIntoBlock(toDisplayGrid(run.activeRun?.grid ?? [])),
@@ -173,6 +199,33 @@ export default function RebootPlayScreen() {
             >
               Back to Daily Arena
             </button>
+          </Panel>
+        </Surface>
+      );
+    }
+    if (autoStartIntent || (autoStartRef.current && run.busy)) {
+      return (
+        <Surface background={images.background} color={colors.background}>
+          <Panel>
+            <p className="animate-pulse text-lg font-bold text-cyan-300">
+              Preparing on-chain run…
+            </p>
+            <p className="text-xs text-white/50">
+              Map {mapId} · Level {previewLevel ?? level}
+            </p>
+            {run.error && (
+              <>
+                <p className="max-w-sm text-center text-xs text-red-300">
+                  {run.error}
+                </p>
+                <button
+                  onClick={() => navigate("map")}
+                  className="rounded-xl bg-cyan-600 px-7 py-3 font-bold text-white"
+                >
+                  Back to map
+                </button>
+              </>
+            )}
           </Panel>
         </Surface>
       );
@@ -344,7 +397,7 @@ export default function RebootPlayScreen() {
     );
   }
 
-  if (!run.activeRun || run.phase === "base") {
+  if (!run.activeRun) {
     return (
       <Surface background={images.background} color={colors.background}>
         <Panel>
@@ -360,6 +413,45 @@ export default function RebootPlayScreen() {
             </p>
           )}
         </Panel>
+      </Surface>
+    );
+  }
+
+  // The run state lives on the Solana base layer (committed back from the
+  // rollup, receipt not yet consumed) — nothing here is playable, so show
+  // the authoritative board and say what is actually happening instead of
+  // pretending to resolve forever.
+  if (run.phase === "base") {
+    const baseRun = run.activeRun;
+    const baseTerminal = isTerminal(baseRun.lifecycle);
+    const baseGridSize = Math.max(
+      20,
+      Math.min(44, Math.floor((viewportHeight - 320) / 11)),
+    );
+    return (
+      <Surface background={images.background} color={colors.background}>
+        <div className="flex h-full min-h-0 w-full flex-col bg-black/15">
+          <RebootGameHud run={baseRun} onBack={() => navigate("home")} />
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-2">
+            <SpectatorGrid
+              grid={toDisplayGrid(baseRun.grid)}
+              gridSize={baseGridSize}
+              gridWidth={COLS}
+              gridHeight={ROWS}
+              themeId={themeId}
+            />
+            <p className="max-w-sm rounded-2xl border border-yellow-300/30 bg-yellow-950/70 px-4 py-2 text-center text-xs font-bold leading-5 text-yellow-200">
+              {baseTerminal
+                ? "Result recorded on Solana — settlement is finalizing on-chain. Rent recovery unlocks once the receipt is consumed."
+                : "This run returned to the Solana base layer and cannot continue on the rollup from here."}
+            </p>
+            {run.error && (
+              <p className="max-w-sm text-center text-xs text-red-300">
+                {run.error}
+              </p>
+            )}
+          </div>
+        </div>
       </Surface>
     );
   }

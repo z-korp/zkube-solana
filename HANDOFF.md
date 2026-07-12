@@ -307,6 +307,40 @@ Everything below is committed and gate-green:
   and vestigial client state (deep-link flag, tournament alias/state, dead
   move-store fields) are deleted with user approval.
 
+### 2026-07-12 second pass — element parity + live headless verification
+
+User feedback: pages must reuse the ORIGINAL client's elements, not
+re-interpretations. Applied and verified live against Devnet with headless
+Chromium (cycling-sim's Playwright):
+
+- Home rebuilt as an element-for-element port of the original: bobbing theme
+  logo, identity bar (level badge/title/Connected pill), Story divider with
+  arrow pagination, snap-scroll zone-card rail (theme icons, star progress,
+  lock/cost), Tournaments divider, Daily Challenge art card with countdown
+  pill, bottom accent ArcadeButton (Play Story / Resume Story / Go to Daily).
+- Campaign flow: tapping a map node auto-starts the run (original behavior);
+  the manual map/level form only remains for direct visits.
+- Uninitialized careers: the node map now renders Map 1 as playable before
+  CampaignProgress exists (previously a dead end saying "Start Map 1…" with
+  nothing clickable). Map header uses the canonical ZONE_NAMES (Tiki, …).
+- Node-map SVG had zero height under `min-h-full`; fixed to `h-full`.
+- `client-budokan/.env` was MISSING in this worktree — `/api/paymaster`
+  returned 503, which breaks session renewal and all sponsored actions
+  (the probable "resume does nothing" report). Recreated with the documented
+  dev defaults (`PAYMASTER_KEYPAIR_PATH=../.devnet/zkube-paymaster.json`);
+  route again returns the expected `CNhM…7SgY`.
+- Live headless E2E passed with a fresh identity: home → map → level 1 →
+  sponsored prepare → delegate → VRF → board; one drag-move round-tripped
+  (16→15 moves, score 2/10, new VRF row); reload → "Resume Story" → back on
+  the live board; zero console errors.
+- The preserved run (owner `BQNu…KTB6`, run 1) now resolves as
+  **base-layer, receipt unconsumed** (Router no longer reports delegation) —
+  spectator renders it "LIVE · BASE · Level complete — awaiting settlement".
+  The play screen previously showed a forever "Resolving MagicBlock run…"
+  spinner for base-phase runs; it now renders the authoritative board with an
+  honest "settlement finalizing on-chain" panel. Completing that settlement
+  (receipt consumption + rent cleanup) remains the chain-side task above.
+
 ## Validation status
 
 Last full client gate after the 2026-07-12 frontend review pass:
