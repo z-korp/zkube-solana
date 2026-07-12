@@ -903,6 +903,12 @@ export function useRunController() {
     }
   }, [connection, publicKey, wallet]);
 
+  // Force an immediate watcher re-resolve (restarts the resolve/subscribe
+  // loop). Used to retry a run stuck "resolving" while the ER catches up.
+  const retryResolve = useCallback(() => {
+    setEpoch((value) => value + 1);
+  }, []);
+
   return {
     ...state,
     connected: true,
@@ -918,6 +924,7 @@ export function useRunController() {
     dismissRun,
     cleanup,
     recoverSession,
+    retryResolve,
   };
 }
 

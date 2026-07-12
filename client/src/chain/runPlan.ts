@@ -386,9 +386,14 @@ export async function resolveRunErConnection(
   activeRun: PublicKey,
   commitment: Commitment = "confirmed",
 ): Promise<Connection> {
+  // The delegate tx has confirmed on base; the ER validator still has to clone
+  // the account. Give the cloner a generous budget (~30s) so a fresh run's
+  // launch rarely surfaces the "did not delegate" timeout to the player.
   const status = await waitForDelegation(activeRun, {
     expectedOwnerProgram: ZKUBE_PROGRAM_ID,
     commitment,
+    attempts: 60,
+    delayMs: 500,
   });
   return new Connection(status.fqdn, commitment);
 }

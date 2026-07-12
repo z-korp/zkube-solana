@@ -17,11 +17,19 @@ import {
 } from "./runPlan";
 import { getDelegationStatus, type DelegationStatus } from "./router";
 import type { WalletLike } from "./sessionWallet";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 
 export type ResumedRun =
   | { phase: "none" }
   | { phase: "missing"; marker: RunSessionMarker; sessionAuthorized: boolean }
+  | {
+      // Delegate confirmed on base, but the ER validator has not cloned the
+      // account yet (transient cloner lag). Not a dead-end: the watcher keeps
+      // polling and this heals to "delegated" once the ER catches up.
+      phase: "resolving";
+      marker: RunSessionMarker;
+      sessionAuthorized: boolean;
+    }
   | {
       phase: "base";
       marker: RunSessionMarker;
@@ -118,7 +126,12 @@ export async function resolvePersistedRun(args: {
       marker.addresses.activeRun,
       "confirmed",
     );
-    if (!erInfo?.owner.equals(ZKUBE_PROGRAM_ID)) {
+    if (!erInfo) {
+      // Router reports delegated, but the ER has not cloned the account yet.
+      // Keep waiting rather than dead-ending.
+      return { phase: "resolving", marker, sessionAuthorized };
+    }
+    if (!erInfo.owner.equals(ZKUBE_PROGRAM_ID)) {
       throw new Error(
         `Resolved ER account ${marker.addresses.activeRun.toBase58()} is not owned by zKube`,
       );
@@ -177,6 +190,16 @@ export async function resolvePersistedRun(args: {
       connection: args.baseConnection,
       sessionAuthorized,
     };
+  }
+  // No decodable zKube ActiveRun on base. If the account exists but is owned by
+  // the delegation program, the run is delegated-on-base and the router/ER is
+  // still catching up — keep resolving instead of dead-ending as "missing".
+  const rawActiveRun = await args.baseConnection.getAccountInfo(
+    marker.addresses.activeRun,
+    "confirmed",
+  );
+  if (rawActiveRun?.owner.equals(DELEGATION_PROGRAM_ID)) {
+    return { phase: "resolving", marker, sessionAuthorized };
   }
   return { phase: "missing", marker, sessionAuthorized };
 }
