@@ -22,7 +22,10 @@ import GameActionBar, {
 import { buildTriggerDescription } from "@/ui/components/actionbar/bonusDescription";
 import GameHud from "@/ui/components/hud/GameHud";
 import ImageAssets from "@/ui/theme/ImageAssets";
-import { usePlayController } from "@/play/usePlayController";
+import {
+  describeRunStartError,
+  usePlayController,
+} from "@/play/usePlayController";
 import "../../grid.css";
 
 export default function PlayScreen() {
@@ -281,11 +284,25 @@ export default function PlayScreen() {
               className="h-16 w-16 animate-bounce"
             />
           ) : (
-            <p className="max-w-sm text-center text-sm text-white/65">
-              {controller.startError ??
-                run.error ??
-                "Choose a campaign level or Daily attempt to begin."}
-            </p>
+            (() => {
+              const rawError = controller.startError ?? run.error;
+              const described = rawError
+                ? describeRunStartError(rawError)
+                : null;
+              return (
+                <>
+                  <p className="max-w-sm text-center text-sm text-white/65">
+                    {described?.headline ??
+                      "Choose a campaign level or Daily attempt to begin."}
+                  </p>
+                  {described?.detail && (
+                    <p className="max-w-sm break-all text-center text-[10px] text-white/30">
+                      {described.detail}
+                    </p>
+                  )}
+                </>
+              );
+            })()
           )}
           {!preparing && (
             <div className="flex flex-wrap justify-center gap-2">

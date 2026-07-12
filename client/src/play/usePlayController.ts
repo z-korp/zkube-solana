@@ -72,6 +72,28 @@ export function pendingCompletionFromRun(
   };
 }
 
+/**
+ * Translate low-level run-start failures into player-honest copy. A prepare
+ * simulation failing with the System program's `Custom:1` means the sponsor
+ * could not fund the envelope (insufficient paymaster lamports) — a service
+ * condition, not something the player can fix.
+ */
+export function describeRunStartError(message: string): {
+  headline: string;
+  detail: string | null;
+} {
+  const sponsorshipDry =
+    message.includes("Simulation failed for") && message.includes('"Custom":1}');
+  if (sponsorshipDry) {
+    return {
+      headline:
+        "Sponsored play is temporarily unavailable — please try again soon.",
+      detail: message,
+    };
+  }
+  return { headline: message, detail: null };
+}
+
 export function settleStageLabel(stage: SettleStage | null): string {
   switch (stage) {
     case "abandoning":
