@@ -3,8 +3,8 @@ import { ChevronUp } from "lucide-react";
 import Grid, { type GridProps } from "./Grid";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import NextLine from "./NextLine";
-import { BonusType } from "@/dojo/game/types/bonusTypes";
-import { Game } from "@/dojo/game/models/game";
+import { BonusType } from "@/solana/reboot/bonusTypes";
+import { Game } from "@/game/model";
 
 import "../../grid.css";
 
@@ -17,10 +17,10 @@ interface GameBoardProps {
   onCascadeComplete?: () => void;
   forceTxProcessing?: boolean;
   /**
-   * True while the contract-side level is transitioning. PlayScreen owns the
-   * computation because it has access to both the receipt-merged `game` and
-   * `toriiGame`; we OR it into effectiveTxProcessing so the grid stays locked
-   * until Torii catches up and the level-complete navigation fires.
+   * True while the on-chain level is transitioning. PlayScreen owns the
+   * computation; we OR it into effectiveTxProcessing so the grid stays locked
+   * until the authoritative snapshot catches up and the level-complete
+   * navigation fires.
    */
   levelTransitionPending: boolean;
   onMove: GridProps["onMove"];

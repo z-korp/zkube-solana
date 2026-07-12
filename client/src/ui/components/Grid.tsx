@@ -165,7 +165,7 @@ const Grid: React.FC<GridProps> = ({
     gameStateRef.current = gameState;
   }, [gameState]);
 
-  // =================== Receipt-based sync (replaces Torii for moves/bonuses) ===================
+  // =================== Receipt-based sync (authoritative chain projections for moves/bonuses) ===================
   const pendingReceiptRef = useRef<ReceiptProjection | null>(null);
 
   const applyReceipt = (parsed: ReceiptProjection) => {

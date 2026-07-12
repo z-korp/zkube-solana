@@ -5,7 +5,7 @@ import { getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useCampaignController } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { ConstraintType } from "@/dojo/game/types/constraint";
+import { ConstraintType } from "@/game/constraint";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import {
   rulesToGameLevelData,

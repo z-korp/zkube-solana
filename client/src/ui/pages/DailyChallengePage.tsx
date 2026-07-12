@@ -6,7 +6,7 @@ import { getMutatorDef } from "@/config/mutatorConfig";
 import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDailyController } from "@/contexts/daily";
-import useAccountCustom from "@/hooks/useAccountCustom";
+import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
@@ -40,7 +40,7 @@ const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
 };
 
 const DailyChallengePage: React.FC = () => {
-  const { account } = useAccountCustom();
+  const { address } = useAccount();
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const navigate = useNavigationStore((state) => state.navigate);
@@ -89,9 +89,9 @@ const DailyChallengePage: React.FC = () => {
   const playerRank = useMemo(() => {
     if (!leaderboard.length) return null;
     return (
-      leaderboard.find((entry) => entry.player === account.address) ?? null
+      leaderboard.find((entry) => entry.player === address) ?? null
     );
-  }, [account.address, leaderboard]);
+  }, [address, leaderboard]);
 
   const openRun = useCallback(() => {
     if (!activeDailyRun) return;

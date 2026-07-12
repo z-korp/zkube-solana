@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useCampaignController } from "@/contexts/campaign";
 import { useRun } from "@/contexts/run";
-import { Game } from "@/dojo/game/models/game";
+import { Game } from "@/game/model";
 
 export const useGame = (options: {
   gameId: bigint | undefined;

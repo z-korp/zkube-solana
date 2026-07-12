@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type { GameLevelData } from "@/hooks/useGameLevel";
-import { Constraint, ConstraintType } from "@/dojo/game/types/constraint";
+import { Constraint, ConstraintType } from "@/game/constraint";
 import { getCommonAssetPath, getThemeImages } from "@/config/themes";
 import type { ThemeId } from "@/config/themes";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/ui/components/chrome";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
-import { isBossLevel } from "@/dojo/game/helpers/runDataPacking";
+import { isBossLevel } from "@/game/constants";
 import {
   Tooltip,
   TooltipContent,

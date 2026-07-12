@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 
-import type { Game } from "@/dojo/game/models/game";
-import { Constraint, ConstraintType } from "@/dojo/game/types/constraint";
+import type { Game } from "@/game/model";
+import { Constraint, ConstraintType } from "@/game/constraint";
 import {
   getGuardianPortrait,
   getGuardianStarText,

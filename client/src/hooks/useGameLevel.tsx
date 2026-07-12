@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
-import { ConstraintType } from "@/dojo/game/types/constraint";
-import { applyStarThresholdModifier } from "@/dojo/game/types/level";
+import { ConstraintType } from "@/game/constraint";
+import { applyStarThresholdModifier } from "@/game/level";
 import type { ActiveRunRulesView } from "@/solana/reboot/runPlan";
 
 export interface GameLevelData {

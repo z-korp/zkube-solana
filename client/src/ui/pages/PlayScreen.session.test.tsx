@@ -75,7 +75,7 @@ vi.mock("@/play/usePlayController", () => ({
         ? {
             id: 7n,
             blocks: [[1]],
-            next_row: [1],
+            nextRow: [1],
             mode: 0,
             level: 1,
             levelMoves: 1,

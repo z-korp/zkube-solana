@@ -5,7 +5,7 @@ import { useDailyController } from "@/contexts/daily";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useProgressController } from "@/contexts/progress";
 import { useRun } from "@/contexts/run";
-import { Game } from "@/dojo/game/models/game";
+import { Game } from "@/game/model";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/solana/reboot/runPlan";
 import type { RunReceiptView } from "@/solana/reboot/resumeRun";
