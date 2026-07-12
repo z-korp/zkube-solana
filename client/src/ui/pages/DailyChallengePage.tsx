@@ -236,9 +236,9 @@ const DailyChallengePage: React.FC = () => {
                       </div>
                       <div className="mt-0.5 flex items-center gap-2">
                         <p className="font-sans text-[11px] font-semibold text-white/50">
-                          {zoneName} · {challenge.total_entries.toString()}{" "}
-                          player
-                          {challenge.total_entries !== 1n ? "s" : ""}
+                          {zoneName} · {challenge.total_attempts.toString()}{" "}
+                          attempt
+                          {challenge.total_attempts !== 1n ? "s" : ""}
                         </p>
                       </div>
                     </div>
@@ -300,7 +300,6 @@ const DailyChallengePage: React.FC = () => {
                   myRank={playerRank.rank}
                   myScore={playerRank.score}
                   myName={`You · ${truncatePublicKey(playerRank.player)}`}
-                  totalEntries={leaderboard.length}
                   entries={leaderboard.map((entry) => ({
                     rank: entry.rank,
                     score: entry.score,

@@ -10,7 +10,7 @@ export interface CurrentChallengeView {
   settled: boolean;
   cancelled: boolean;
   zone_id: number;
-  total_entries: bigint;
+  total_attempts: bigint;
   active_mutator_id: number;
   passive_mutator_id: number;
 }
@@ -25,7 +25,7 @@ export function dailyToCurrentChallenge(
     settled: daily.status === "claimable" || daily.status === "closed",
     cancelled: daily.status === "cancelled",
     zone_id: daily.mapId,
-    total_entries: daily.runsStarted,
+    total_attempts: daily.runsStarted,
     active_mutator_id: daily.rules.activeMutatorId,
     passive_mutator_id: daily.rules.passiveMutatorId,
   };

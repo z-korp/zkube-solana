@@ -2,7 +2,8 @@ import { Game } from "@/dojo/game/models/game";
 import { Dialog, DialogContent, DialogTitle } from "../elements/dialog";
 import { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Flame, Gem, Layers, Star, Trophy } from "lucide-react";
+import { Flame, Gem, Star, Trophy } from "lucide-react";
+import CubeIcon from "@/ui/components/CubeIcon";
 
 interface VictoryDialogProps {
   isOpen: boolean;
@@ -155,13 +156,13 @@ Play now: app.zkube.xyz
             animate={animationPhase >= 2 ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.4, delay: 0.2 }}
           >
-            {/* Total lines */}
+            {/* Total cubes */}
             <div className="flex flex-col items-center gap-1 bg-yellow-900/30 px-4 py-3 rounded-lg flex-1 border border-yellow-500/30">
               <div className="text-3xl flex gap-2 items-center text-yellow-400">
                 {game.totalCubes}
-                <Layers size={16} />
+                <CubeIcon size="xs" />
               </div>
-              <div className="text-xs text-yellow-400/80">Lines</div>
+              <div className="text-xs text-yellow-400/80">Cubes</div>
             </div>
 
             {/* Total Score */}

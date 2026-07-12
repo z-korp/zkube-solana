@@ -82,7 +82,7 @@ describe("daily compatibility projection", () => {
         cancelled,
         active_mutator_id: 8,
         passive_mutator_id: 9,
-        total_entries: 3n,
+        total_attempts: 3n,
       });
     },
   );

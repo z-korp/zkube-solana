@@ -64,7 +64,7 @@ vi.mock("@/hooks/useCurrentChallenge", () => ({
       settled: false,
       cancelled: false,
       zone_id: 2,
-      total_entries: 2n,
+      total_attempts: 2n,
       active_mutator_id: 0,
       passive_mutator_id: 0,
     },
@@ -131,6 +131,7 @@ describe("DailyChallengePage", () => {
 
     expect(screen.getByRole("button", { name: "3 Stars" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "2.5 USDC" })).toBeEnabled();
+    expect(screen.getByText(/2 attempts/)).toBeInTheDocument();
     expect(screen.getByTestId("tier-context")).toHaveTextContent(
       "#1 · 123 pts",
     );

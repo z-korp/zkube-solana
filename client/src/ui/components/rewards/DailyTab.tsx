@@ -160,7 +160,6 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
                 myRank={currentPosition.rank}
                 myScore={currentPosition.score}
                 myName="You"
-                totalEntries={current.daily.leaderboard.length}
                 entries={currentEntries}
                 scoreLabel=" pts"
               />

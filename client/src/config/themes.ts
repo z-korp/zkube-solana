@@ -135,7 +135,13 @@ function lighten(hexColor: string, amount: number): string {
     .padStart(2, "0")}`;
 }
 
-function uiColors(accent: string, accent2: string): Pick<ThemeColors, "accent2" | "text" | "textMuted" | "surface" | "border" | "glow"> {
+function uiColors(
+  accent: string,
+  accent2: string,
+): Pick<
+  ThemeColors,
+  "accent2" | "text" | "textMuted" | "surface" | "border" | "glow"
+> {
   return {
     accent2,
     text: "#ffffff",
@@ -919,7 +925,7 @@ export function getMapPathTheme(themeId: ThemeId): MapPathTheme {
 }
 
 /// Clamp a raw zone id to `[1, 10]` and return the corresponding ThemeId.
-/// Tournaments may carry `zone_id = 0`; this defaults them to theme-1 (Tiki).
+/// Missing or legacy snapshots may carry `zone_id = 0`; default to Tiki.
 export const getThemeId = (zoneId: number): ThemeId => {
   const normalized = Math.min(10, Math.max(1, zoneId));
   return `theme-${normalized}` as ThemeId;

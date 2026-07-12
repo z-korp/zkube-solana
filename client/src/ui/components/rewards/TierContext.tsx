@@ -12,7 +12,6 @@ interface TierContextProps {
   myRank: number | null;
   myScore: number;
   myName?: string;
-  totalEntries: number;
   entries: RankContextEntry[];
   scoreLabel?: string;
 }
@@ -28,11 +27,10 @@ const TierContext: React.FC<TierContextProps> = ({
   myRank,
   myScore,
   myName = "You",
-  totalEntries,
   entries,
   scoreLabel = "",
 }) => {
-  if (!myRank || totalEntries === 0) return null;
+  if (!myRank || entries.length === 0) return null;
 
   const sorted = [...entries].sort((left, right) => left.rank - right.rank);
   const above = sorted.find((entry) => entry.rank === myRank - 1) ?? null;
@@ -54,7 +52,7 @@ const TierContext: React.FC<TierContextProps> = ({
           Your Position
         </p>
         <span className="font-sans text-[10px] font-semibold text-white/35">
-          {myRank} of {totalEntries}
+          Daily rank #{myRank}
         </span>
       </div>
 
