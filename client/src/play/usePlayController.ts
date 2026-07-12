@@ -30,7 +30,9 @@ export type PlayOutcome = "victory" | "daily" | null;
 export function canSettleTerminalRun(
   phase: string,
   sessionAuthorized: boolean,
+  recoveryRunId: bigint | null = null,
 ): boolean {
+  if (recoveryRunId !== null) return false;
   return phase === "settleable" || (phase === "delegated" && sessionAuthorized);
 }
 
@@ -117,6 +119,10 @@ export function usePlayController() {
     (state) => state.setPendingPreviewLevel,
   );
   const setGameId = useNavigationStore((state) => state.setGameId);
+  const setRecoveryRunId = useNavigationStore(
+    (state) => state.setRecoveryRunId,
+  );
+  const recoveryRunId = useNavigationStore((state) => state.recoveryRunId);
   const setPendingLevelCompletion = useNavigationStore(
     (state) => state.setPendingLevelCompletion,
   );
@@ -145,6 +151,7 @@ export function usePlayController() {
   useEffect(() => {
     if (
       previewLevel === null ||
+      recoveryRunId !== null ||
       run.phase !== "none" ||
       run.busy ||
       campaign.loading ||
@@ -172,6 +179,7 @@ export function usePlayController() {
     mapId,
     mapPlayable,
     previewLevel,
+    recoveryRunId,
     run.busy,
     run.phase,
     setGameId,
@@ -287,7 +295,11 @@ export function usePlayController() {
   }, [lifecycleRun, playSfx]);
 
   useEffect(() => {
-    const canSettle = canSettleTerminalRun(run.phase, run.sessionAuthorized);
+    const canSettle = canSettleTerminalRun(
+      run.phase,
+      run.sessionAuthorized,
+      recoveryRunId,
+    );
     if (!terminalRun || !canSettle || localActionPending) return;
     if (terminalAwaitingCascadeRef.current === terminalRun.runId) return;
     if (settlingRunRef.current === terminalRun.runId) return;
@@ -336,6 +348,7 @@ export function usePlayController() {
     localActionPending,
     navigate,
     progressRefresh,
+    recoveryRunId,
     run.phase,
     run.sessionAuthorized,
     recoverSettlement,
@@ -351,6 +364,7 @@ export function usePlayController() {
   }, []);
 
   const cleanup = run.cleanup;
+  const recoverBaseRun = run.recoverBaseRun;
   const settledReceipt = run.receipt;
   const finishSettled = useCallback(async () => {
     if (!settledReceipt) return;
@@ -397,6 +411,29 @@ export function usePlayController() {
     navigate(terminalSnapshot?.isDaily ? "daily" : "map");
   }, [navigate, terminalSnapshot?.isDaily]);
 
+  const recoverOrphanedBaseRun = useCallback(
+    async (runId: bigint) => {
+      setStartError(null);
+      const signature = await recoverBaseRun(runId);
+      await Promise.allSettled([
+        campaignRefresh(),
+        progressRefresh(),
+        dailyRefresh(),
+      ]);
+      setRecoveryRunId(null);
+      navigate("map");
+      return signature;
+    },
+    [
+      campaignRefresh,
+      dailyRefresh,
+      navigate,
+      progressRefresh,
+      recoverBaseRun,
+      setRecoveryRunId,
+    ],
+  );
+
   const activeGame = useMemo(() => {
     if (!run.activeRun) return null;
     const stars =
@@ -433,6 +470,7 @@ export function usePlayController() {
     onCascadeComplete,
     retrySettlement,
     finishSettled,
+    recoverBaseRun: recoverOrphanedBaseRun,
     settlingLabel: settleStageLabel(run.settleStage),
   };
 }

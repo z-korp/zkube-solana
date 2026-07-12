@@ -88,5 +88,7 @@ describe("play controller projections", () => {
     expect(canSettleTerminalRun("delegated", true)).toBe(true);
     expect(canSettleTerminalRun("settleable", false)).toBe(true);
     expect(canSettleTerminalRun("base", true)).toBe(false);
+    expect(canSettleTerminalRun("settleable", true, 1n)).toBe(false);
+    expect(canSettleTerminalRun("delegated", true, 1n)).toBe(false);
   });
 });

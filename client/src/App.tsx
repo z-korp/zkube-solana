@@ -28,6 +28,17 @@ if (spectatePlayer || spectatePda) {
       runId: params.get("run") ?? undefined,
     },
   });
+} else {
+  const recoverRun = params.get("recover");
+  if (recoverRun && /^[1-9]\d*$/.test(recoverRun)) {
+    useNavigationStore.setState({
+      currentPage: "play",
+      gameId: null,
+      recoveryRunId: BigInt(recoverRun),
+      pendingPreviewLevel: null,
+      pendingLevelCompletion: null,
+    });
+  }
 }
 
 const pageComponents: Record<PageId, ReactNode> = {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSolanaConnection } from "../connectionContext";
 import { Keypair, type PublicKey } from "@solana/web3.js";
+import { ZKUBE_PROGRAM_ID } from "../constants";
 import { fetchPaymasterClient, type PaymasterClient } from "./paymasterClient";
 import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
 import { SessionWallet } from "./sessionWallet";
@@ -35,6 +36,7 @@ import {
   loadRunSession,
   type RunSessionMarker,
 } from "./runSessionStore";
+import { deriveRunAddresses, type RunAddresses } from "./pdas";
 import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
@@ -61,6 +63,69 @@ export interface RebootRunState {
   lastSignature: string | null;
   sessionAuthorized: boolean;
   settleStage: SettleStage | null;
+}
+
+/**
+ * The public chain data needed by the base settlement tail. Deliberately
+ * excludes the ephemeral session key and local marker metadata so a run can
+ * still be finalized after browser storage is lost.
+ */
+export interface PublicRunSettlementDescriptor {
+  owner: PublicKey;
+  runId: bigint;
+  addresses: RunAddresses;
+  mode: "campaign" | "daily";
+  dailyChallenge: PublicKey | null;
+}
+
+type BaseRunRecoveryView = Pick<
+  ActiveRunView,
+  "owner" | "runId" | "mode" | "lifecycle"
+>;
+
+/** Pure validation shared by the chain hook and focused recovery tests. */
+export function validateBaseRunRecovery(args: {
+  owner: PublicKey;
+  runId: bigint | null | undefined;
+  isDelegated: boolean;
+  activeRun: BaseRunRecoveryView | null;
+}): PublicRunSettlementDescriptor {
+  const runId = requirePositiveRunId(args.runId);
+  if (args.isDelegated) {
+    throw new Error(
+      `Run ${runId.toString()} is still delegated to MagicBlock and cannot be recovered on Solana base`,
+    );
+  }
+  if (!args.activeRun) {
+    throw new Error(
+      `ActiveRun for run ${runId.toString()} is missing on Solana base`,
+    );
+  }
+  if (!args.activeRun.owner.equals(args.owner)) {
+    throw new Error("ActiveRun owner does not match the embedded Vault");
+  }
+  if (args.activeRun.runId !== runId) {
+    throw new Error(
+      `ActiveRun belongs to run ${args.activeRun.runId.toString()}, not requested run ${runId.toString()}`,
+    );
+  }
+  if (args.activeRun.mode !== "campaign") {
+    throw new Error(
+      `ActiveRun mode ${args.activeRun.mode} cannot use campaign base-run recovery`,
+    );
+  }
+  if (!isTerminal(args.activeRun.lifecycle)) {
+    throw new Error(
+      `ActiveRun lifecycle ${args.activeRun.lifecycle} is not terminal`,
+    );
+  }
+  return {
+    owner: args.owner,
+    runId,
+    addresses: deriveRunAddresses(args.owner, runId),
+    mode: "campaign",
+    dailyChallenge: null,
+  };
 }
 
 export function useRebootRun() {
@@ -335,23 +400,23 @@ export function useRebootRun() {
    * stuck-run recovery.
    */
   const finalizeBaseSettlement = useCallback(
-    async (marker: RunSessionMarker, dailyChallenge: PublicKey | null) => {
+    async (descriptor: PublicRunSettlementDescriptor) => {
       const sponsor =
         paymaster.current ?? (await fetchPaymasterClient(connection));
       paymaster.current = sponsor;
       const receipt = await fetchReceipt(
         connection,
         wallet,
-        marker.addresses.runReceipt,
+        descriptor.addresses.runReceipt,
       );
       setStage(receipt?.consumed ? "cleaning" : "consuming");
       const finalizePlan = await buildFinalizeRunPlan({
         wallet,
-        owner: marker.owner,
-        runId: marker.runId,
-        addresses: marker.addresses,
-        mode: marker.mode === "daily" ? "daily" : "campaign",
-        dailyChallenge,
+        owner: descriptor.owner,
+        runId: descriptor.runId,
+        addresses: descriptor.addresses,
+        mode: descriptor.mode,
+        dailyChallenge: descriptor.dailyChallenge,
         receiptConsumed: Boolean(receipt?.consumed),
         connection,
         paymaster: sponsor.pubkey,
@@ -362,8 +427,14 @@ export function useRebootRun() {
         paymaster: sponsor,
       });
       await connection.confirmTransaction(signature, "confirmed");
-      clearRunSession(publicKey);
-      currentRun.current = null;
+      const marker = loadRunSession(publicKey);
+      if (marker?.runId === descriptor.runId) clearRunSession(publicKey);
+      if (currentRun.current?.marker.runId === descriptor.runId) {
+        currentRun.current = null;
+      }
+      if (settleableRun.current?.marker.runId === descriptor.runId) {
+        settleableRun.current = null;
+      }
       return signature;
     },
     [connection, publicKey, setStage, wallet],
@@ -425,8 +496,7 @@ export function useRebootRun() {
             await sleep(1_500);
           }
           await finalizeBaseSettlement(
-            run.marker,
-            run.activeRun.dailyChallenge,
+            settlementDescriptor(run.marker, run.activeRun.dailyChallenge),
           );
           let activeRun: ActiveRunView | null = null;
           if (next) {
@@ -467,8 +537,10 @@ export function useRebootRun() {
     try {
       return await withBusy(setState, async () => {
         await finalizeBaseSettlement(
-          recovered.marker,
-          recovered.activeRun.dailyChallenge,
+          settlementDescriptor(
+            recovered.marker,
+            recovered.activeRun.dailyChallenge,
+          ),
         );
         settleableRun.current = null;
         setEpoch((value) => value + 1);
@@ -487,6 +559,97 @@ export function useRebootRun() {
       actionInFlight.current = false;
     }
   }, [finalizeBaseSettlement, setStage]);
+
+  /**
+   * Recover an undelegated terminal campaign ActiveRun using only its public run ID.
+   * Every PDA is reconstructed from the current embedded owner, so this path
+   * remains available when the local RunSessionMarker has been lost.
+   */
+  const recoverBaseRun = useCallback(
+    async (runId: bigint): Promise<string> => {
+      if (actionInFlight.current) {
+        throw new Error("Another run action is already in progress");
+      }
+      actionInFlight.current = true;
+      try {
+        return await withBusy(setState, async () => {
+          const validRunId = requirePositiveRunId(runId);
+          if (!wallet.publicKey.equals(publicKey)) {
+            throw new Error(
+              "Embedded Vault identity changed before run recovery",
+            );
+          }
+          requireNoAttachedRunSession({
+            owner: publicKey,
+            requestedRunId: validRunId,
+            stored: loadRunSession(publicKey),
+            active: currentRun.current?.marker ?? null,
+            settleable: settleableRun.current?.marker ?? null,
+          });
+          const addresses = deriveRunAddresses(publicKey, validRunId);
+          const delegation = await getDelegationStatus(addresses.activeRun);
+          if (delegation.isDelegated) {
+            // Run the same pure validator used after account hydration while
+            // avoiding a misleading base-account lookup for delegated state.
+            validateBaseRunRecovery({
+              owner: publicKey,
+              runId: validRunId,
+              isDelegated: true,
+              activeRun: null,
+            });
+          }
+          const accountInfo = await connection.getAccountInfo(
+            addresses.activeRun,
+            "confirmed",
+          );
+          if (!accountInfo) {
+            throw new Error(
+              `ActiveRun for run ${validRunId.toString()} is missing on Solana base`,
+            );
+          }
+          if (!accountInfo.owner.equals(ZKUBE_PROGRAM_ID)) {
+            throw new Error(
+              `ActiveRun account is not owned by the zKube program`,
+            );
+          }
+          const activeRun = await fetchActiveRun(
+            connection,
+            wallet,
+            addresses.activeRun,
+          );
+          const descriptor = validateBaseRunRecovery({
+            owner: publicKey,
+            runId: validRunId,
+            isDelegated: false,
+            activeRun,
+          });
+          requireNoAttachedRunSession({
+            owner: publicKey,
+            requestedRunId: validRunId,
+            stored: loadRunSession(publicKey),
+            active: currentRun.current?.marker ?? null,
+            settleable: settleableRun.current?.marker ?? null,
+          });
+          const signature = await finalizeBaseSettlement(descriptor);
+          setEpoch((value) => value + 1);
+          setState((value) => ({
+            ...value,
+            phase: "none",
+            activeRun: null,
+            receipt: null,
+            lastSignature: signature,
+            sessionAuthorized: false,
+            settleStage: null,
+          }));
+          return signature;
+        });
+      } finally {
+        setStage(null);
+        actionInFlight.current = false;
+      }
+    },
+    [connection, finalizeBaseSettlement, publicKey, setStage, wallet],
+  );
 
   /** Local escape hatch: forget the stuck marker without touching chain
    *  accounts (they stay recoverable later). */
@@ -551,7 +714,9 @@ export function useRebootRun() {
     const marker = loadRunSession(publicKey);
     if (!marker) return null;
     return withBusy(setState, async () => {
-      const signature = await finalizeBaseSettlement(marker, null);
+      const signature = await finalizeBaseSettlement(
+        settlementDescriptor(marker, null),
+      );
       settleableRun.current = null;
       setEpoch((value) => value + 1);
       setState((value) => ({
@@ -597,6 +762,7 @@ export function useRebootRun() {
     applyBonus,
     settleAndAdvance,
     recoverSettlement,
+    recoverBaseRun,
     dismissRun,
     cleanup,
     recoverSession,
@@ -667,6 +833,40 @@ function isTerminal(lifecycle: string): boolean {
     lifecycle === "finished" ||
     lifecycle === "settled"
   );
+}
+
+function requirePositiveRunId(runId: bigint | null | undefined): bigint {
+  if (typeof runId !== "bigint" || runId <= 0n) {
+    throw new Error("A positive run ID is required for base-run recovery");
+  }
+  return runId;
+}
+
+export function requireNoAttachedRunSession(args: {
+  owner: PublicKey;
+  requestedRunId: bigint;
+  stored: Pick<RunSessionMarker, "runId"> | null;
+  active: Pick<RunSessionMarker, "runId"> | null;
+  settleable: Pick<RunSessionMarker, "runId"> | null;
+}): void {
+  const attached = args.stored ?? args.active ?? args.settleable;
+  if (!attached) return;
+  throw new Error(
+    `Vault ${args.owner.toBase58()} already has local run ${attached.runId.toString()} attached; leave recovery mode and resume or forget it before recovering run ${args.requestedRunId.toString()}`,
+  );
+}
+
+function settlementDescriptor(
+  marker: RunSessionMarker,
+  dailyChallenge: PublicKey | null,
+): PublicRunSettlementDescriptor {
+  return {
+    owner: marker.owner,
+    runId: marker.runId,
+    addresses: marker.addresses,
+    mode: marker.mode,
+    dailyChallenge,
+  };
 }
 
 async function withBusy<T>(
