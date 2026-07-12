@@ -143,6 +143,18 @@ const GameBoard: React.FC<GameBoardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Chain-sync indicator: the move/bonus is confirming on MagicBlock. */}
+      {effectiveTxProcessing && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-start justify-center pt-3">
+          <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-1.5 backdrop-blur-sm">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-white/80">
+              Syncing…
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

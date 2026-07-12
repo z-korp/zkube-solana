@@ -175,7 +175,7 @@ export default function PlayScreen() {
     const resolving = run.watchStatus?.phase === "resolving";
     const attachedRun = run.phase !== "none";
     return (
-      <PlaySurface background={images.background}>
+      <PlaySurface>
         <StatePanel
           title={
             recoveringRun
@@ -231,7 +231,7 @@ export default function PlayScreen() {
 
   if (controller.settledReceipt) {
     return (
-      <PlaySurface background={images.background}>
+      <PlaySurface>
         <StatePanel title="Run settled">
           <p className="text-white/75">
             Score {controller.settledReceipt.score} ·{" "}
@@ -285,7 +285,7 @@ export default function PlayScreen() {
         ? "Preparing game"
         : "Run unavailable";
     return (
-      <PlaySurface background={images.background}>
+      <PlaySurface>
         <StatePanel title={title}>
           {preparing ? (
             <>
@@ -370,7 +370,7 @@ export default function PlayScreen() {
       : Math.max(0, gameLevel.maxMoves - game.levelMoves);
 
   return (
-    <PlaySurface background={images.background}>
+    <PlaySurface>
       {controller.outcome === "daily" && (
         <GameOverDialog isOpen onClose={controller.closeOutcome} game={game} />
       )}
@@ -543,20 +543,18 @@ export default function PlayScreen() {
   );
 }
 
-function PlaySurface({
-  background,
-  children,
-}: {
-  background: string;
-  children: ReactNode;
-}) {
+function PlaySurface({ children }: { children: ReactNode }) {
+  // In-game background is the themed stone tablet (matching the original), not
+  // the scenic zone art — blocks read clearly on it. The scenic background
+  // stays on home/map. Both come from the active `data-theme` CSS variables.
   return (
     <div
-      className="flex h-full min-h-0 flex-col bg-[#10172a]"
+      className="flex h-full min-h-0 flex-col"
       style={{
-        backgroundImage: `url('${background}')`,
-        backgroundPosition: "center",
+        backgroundImage: "var(--theme-grid-bg-image, none)",
         backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "var(--theme-grid-bg, #10172A)",
       }}
     >
       {children}
