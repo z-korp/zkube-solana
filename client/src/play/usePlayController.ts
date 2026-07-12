@@ -8,6 +8,7 @@ import { useRun } from "@/contexts/run";
 import { Game } from "@/dojo/game/models/game";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/solana/reboot/runPlan";
+import type { RunReceiptView } from "@/solana/reboot/resumeRun";
 import type { SettleStage } from "@/solana/reboot/useRebootRun";
 import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
 import {
@@ -26,6 +27,7 @@ export interface TerminalRunSnapshot {
 }
 
 export type PlayOutcome = "victory" | "daily" | null;
+export type SettledCleanupStatus = "idle" | "running" | "complete" | "failed";
 
 export function canSettleTerminalRun(
   phase: string,
@@ -132,6 +134,10 @@ export function usePlayController() {
     useState<TerminalRunSnapshot | null>(null);
   const [outcome, setOutcome] = useState<PlayOutcome>(null);
   const [startError, setStartError] = useState<string | null>(null);
+  const [settledReceiptSnapshot, setSettledReceiptSnapshot] =
+    useState<RunReceiptView | null>(null);
+  const [settledCleanupStatus, setSettledCleanupStatus] =
+    useState<SettledCleanupStatus>("idle");
   const startIntentRef = useRef<string | null>(null);
   const terminalAwaitingCascadeRef = useRef<bigint | null>(null);
   const settlingRunRef = useRef<bigint | null>(null);
@@ -243,6 +249,8 @@ export function usePlayController() {
 
   const settleAndAdvance = run.settleAndAdvance;
   const recoverSettlement = run.recoverSettlement;
+  const cleanup = run.cleanup;
+  const chainSettledReceipt = run.receipt;
   const campaignRefresh = campaign.refresh;
   const progressRefresh = progress.refresh;
   const dailyRefresh = daily.refresh;
@@ -357,16 +365,64 @@ export function usePlayController() {
     terminalRun,
   ]);
 
+  useEffect(() => {
+    if (
+      recoveryRunId !== null ||
+      run.phase !== "settled" ||
+      !chainSettledReceipt ||
+      run.busy
+    ) {
+      return;
+    }
+    setSettledReceiptSnapshot(chainSettledReceipt);
+    if (settlingRunRef.current === chainSettledReceipt.runId) {
+      if (run.error) setSettledCleanupStatus("failed");
+      return;
+    }
+
+    // A consumed receipt still leaves transient ActiveRun rent to reclaim.
+    // Fire that sponsored cleanup once on attachment; only an explicit retry
+    // clears this per-run latch after failure, so watcher refreshes cannot
+    // hammer the paymaster.
+    settlingRunRef.current = chainSettledReceipt.runId;
+    setSettledCleanupStatus("running");
+    void cleanup()
+      .then(async () => {
+        await Promise.allSettled([
+          campaignRefresh(),
+          progressRefresh(),
+          dailyRefresh(),
+        ]);
+        setSettledCleanupStatus("complete");
+      })
+      .catch(() => {
+        // The run hook owns the error message. Keep the latch set until the
+        // player chooses the existing explicit retry affordance.
+        setSettledCleanupStatus("failed");
+      });
+  }, [
+    campaignRefresh,
+    cascadeVersion,
+    chainSettledReceipt,
+    cleanup,
+    dailyRefresh,
+    progressRefresh,
+    recoveryRunId,
+    run.busy,
+    run.error,
+    run.phase,
+  ]);
+
   const retrySettlement = useCallback(() => {
     settlingRunRef.current = null;
     terminalAwaitingCascadeRef.current = null;
+    setSettledCleanupStatus("idle");
     setCascadeVersion((value) => value + 1);
   }, []);
 
-  const cleanup = run.cleanup;
   const recoverBaseRun = run.recoverBaseRun;
-  const settledReceipt = run.receipt;
-  const finishSettled = useCallback(async () => {
+  const settledReceipt = chainSettledReceipt ?? settledReceiptSnapshot;
+  const continueSettled = useCallback(() => {
     if (!settledReceipt) return;
 
     if (
@@ -392,16 +448,12 @@ export function usePlayController() {
       });
     }
 
-    await cleanup();
-    await Promise.all([campaignRefresh(), progressRefresh(), dailyRefresh()]);
+    setSettledReceiptSnapshot(null);
+    setSettledCleanupStatus("idle");
     navigate(settledReceipt.mode === "daily" ? "daily" : "map");
   }, [
     campaign.campaign?.maps,
-    campaignRefresh,
-    cleanup,
-    dailyRefresh,
     navigate,
-    progressRefresh,
     setPendingLevelCompletion,
     settledReceipt,
   ]);
@@ -469,7 +521,9 @@ export function usePlayController() {
     onBonus,
     onCascadeComplete,
     retrySettlement,
-    finishSettled,
+    continueSettled,
+    settledReceipt,
+    settledCleanupStatus,
     recoverBaseRun: recoverOrphanedBaseRun,
     settlingLabel: settleStageLabel(run.settleStage),
   };

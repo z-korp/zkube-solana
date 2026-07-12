@@ -16,6 +16,14 @@ const fixtures = vi.hoisted(() => ({
   lifecycle: "playing",
   phase: "delegated",
   gameAvailable: true,
+  error: null as string | null,
+  sessionAuthorized: false,
+  settledReceipt: null as null | {
+    runId: bigint;
+    score: number;
+    moves: number;
+  },
+  settledCleanupStatus: "idle" as "idle" | "running" | "complete" | "failed",
   recoveryRunId: null as bigint | null,
   publicKey: {
     toBase58: () => "BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6",
@@ -23,6 +31,8 @@ const fixtures = vi.hoisted(() => ({
   dismissRun: vi.fn(),
   recoverSession: vi.fn(),
   recoverBaseRun: vi.fn(),
+  retrySettlement: vi.fn(),
+  continueSettled: vi.fn(),
   navigate: vi.fn(),
   setMusicContext: vi.fn(),
   playSfx: vi.fn(),
@@ -52,9 +62,9 @@ vi.mock("@/play/usePlayController", () => ({
       run: {
         phase: fixtures.phase,
         busy: false,
-        error: null,
+        error: fixtures.error,
         watchStatus: null,
-        sessionAuthorized: false,
+        sessionAuthorized: fixtures.sessionAuthorized,
         publicKey: fixtures.publicKey,
         dismissRun: fixtures.dismissRun,
         recoverSession: fixtures.recoverSession,
@@ -84,9 +94,11 @@ vi.mock("@/play/usePlayController", () => ({
       onBonus: vi.fn(),
       onMove: vi.fn(),
       onCascadeComplete: vi.fn(),
-      retrySettlement: vi.fn(),
+      retrySettlement: fixtures.retrySettlement,
       recoverBaseRun: fixtures.recoverBaseRun,
-      finishSettled: vi.fn(),
+      continueSettled: fixtures.continueSettled,
+      settledReceipt: fixtures.settledReceipt,
+      settledCleanupStatus: fixtures.settledCleanupStatus,
       closeOutcome: vi.fn(),
       settlingLabel: "Finalizing…",
       startError: null,
@@ -146,6 +158,10 @@ describe("PlayScreen expired-session escape", () => {
     fixtures.lifecycle = "playing";
     fixtures.phase = "delegated";
     fixtures.gameAvailable = true;
+    fixtures.error = null;
+    fixtures.sessionAuthorized = false;
+    fixtures.settledReceipt = null;
+    fixtures.settledCleanupStatus = "idle";
     fixtures.recoveryRunId = null;
   });
 
@@ -168,12 +184,53 @@ describe("PlayScreen expired-session escape", () => {
   );
 });
 
+describe("PlayScreen settled summary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.phase = "none";
+    fixtures.gameAvailable = false;
+    fixtures.error = null;
+    fixtures.sessionAuthorized = false;
+    fixtures.recoveryRunId = null;
+    fixtures.settledReceipt = { runId: 7n, score: 10, moves: 6 };
+    fixtures.settledCleanupStatus = "complete";
+  });
+
+  it("makes Continue a navigation-only controller action", () => {
+    render(<PlayScreen />);
+
+    expect(
+      screen.queryByRole("button", { name: "Collect rent & continue" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(fixtures.continueSettled).toHaveBeenCalledOnce();
+    expect(fixtures.retrySettlement).not.toHaveBeenCalled();
+  });
+
+  it("shows Retry settlement and blocks Continue after cleanup failure", () => {
+    fixtures.error = "paymaster failed";
+    fixtures.settledCleanupStatus = "failed";
+
+    render(<PlayScreen />);
+
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry settlement" }));
+    expect(fixtures.retrySettlement).toHaveBeenCalledOnce();
+    expect(fixtures.continueSettled).not.toHaveBeenCalled();
+  });
+});
+
 describe("PlayScreen orphaned base-run recovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fixtures.lifecycle = "levelComplete";
     fixtures.phase = "none";
     fixtures.gameAvailable = false;
+    fixtures.error = null;
+    fixtures.sessionAuthorized = false;
+    fixtures.settledReceipt = null;
+    fixtures.settledCleanupStatus = "idle";
     fixtures.recoveryRunId = 1n;
   });
 
