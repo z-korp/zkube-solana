@@ -720,7 +720,10 @@
       "accounts": [
         {
           "name": "owner",
-          "writable": true,
+          "docs": [
+            "The player still consents to cleanup: closing erases the on-chain",
+            "receipt, so a third party must not be able to grief-close a run."
+          ],
           "signer": true,
           "relations": [
             "run_shell",
@@ -729,7 +732,35 @@
           ]
         },
         {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "docs": [
+            "identity that fronted every run rent at prepare gets it back."
+          ],
+          "writable": true
+        },
+        {
           "name": "run_shell",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -753,6 +784,7 @@
         },
         {
           "name": "run_receipt",
+          "writable": true,
           "pda": {
             "seeds": [
               {

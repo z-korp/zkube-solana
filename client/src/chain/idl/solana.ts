@@ -726,7 +726,10 @@ export type Solana = {
       "accounts": [
         {
           "name": "owner",
-          "writable": true,
+          "docs": [
+            "The player still consents to cleanup: closing erases the on-chain",
+            "receipt, so a third party must not be able to grief-close a run."
+          ],
           "signer": true,
           "relations": [
             "runShell",
@@ -735,7 +738,35 @@ export type Solana = {
           ]
         },
         {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "docs": [
+            "identity that fronted every run rent at prepare gets it back."
+          ],
+          "writable": true
+        },
+        {
           "name": "runShell",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -759,6 +790,7 @@ export type Solana = {
         },
         {
           "name": "runReceipt",
+          "writable": true,
           "pda": {
             "seeds": [
               {
