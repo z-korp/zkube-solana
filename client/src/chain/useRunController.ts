@@ -354,6 +354,18 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
+          if (import.meta.env.DEV) {
+            console.debug("[run] playMove →", {
+              row,
+              start,
+              destination,
+              expectedMove: run.activeRun.moves,
+              expectedAction: run.activeRun.actionCounter,
+              lifecycle: run.activeRun.lifecycle,
+              pendingVrf: run.activeRun.pendingVrfCounter,
+              hasNextRow: run.activeRun.nextRow !== null,
+            });
+          }
           const plan = await buildPlayMovePlan({
             owner: run.marker.owner,
             sessionWallet,

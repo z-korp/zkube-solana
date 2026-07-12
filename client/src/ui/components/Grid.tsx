@@ -5,6 +5,7 @@ import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
+  blocksMatchGrid,
   removeCompleteRows,
   removeBlocksSameWidth,
   removeBlocksInRows,
@@ -173,11 +174,22 @@ const Grid: React.FC<GridProps> = ({
     gameStateRef.current = GameState.WAITING;
     const authoritative = transformDataContractIntoBlock(parsed.blocks);
     setSaveGridStateblocks(authoritative);
-    // A move's cascade is deterministic (VRF only randomizes the NEXT preview
-    // row), so the local animation already lands on the chain result — keep
-    // the visible blocks (replacing would destroy block IDs and kill CSS
-    // transitions mid-flow, the "snap" flash). The idle-resync effect below is
-    // the safety net that silently corrects any genuine drift when idle.
+    // The board is AUTHORITATIVE: when the local cascade matches the chain
+    // result (the common case) keep the visible blocks so CSS transitions
+    // stay smooth; on any divergence snap to the chain board. Skipping this
+    // left a stale board — the next VRF row never appeared and the next drag
+    // sent coordinates the program rejected (InvalidMove / 6002).
+    setBlocks((prev) =>
+      blocksMatchGrid(prev, parsed.blocks) ? prev : authoritative,
+    );
+    if (import.meta.env.DEV) {
+      console.debug("[grid] applyReceipt", {
+        gameId: gameId.toString(),
+        chainBlocks: parsed.blocks.flat().filter(Boolean).length,
+        nextRow: parsed.nextRow,
+        diverged: !blocksMatchGrid(blocks, parsed.blocks),
+      });
+    }
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
     // Update the preview in GameBoard with the receipt's next line
