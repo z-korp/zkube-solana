@@ -131,19 +131,22 @@ export default function PlayScreen() {
   );
 
   const abandonRun = run.abandonRun;
+  const [quitting, setQuitting] = useState(false);
   const handleQuit = useCallback(() => {
-    // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed);
-    // navigation is immediate and settlement continues in the background.
-    // Fall back to forgetting the local marker if the abandon cannot run
-    // (e.g. a deployed program that predates abandonRunV1).
+    // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed).
+    // Stay on a "Forfeiting…" screen until the run has really settled
+    // on-chain, then return home. Fall back to a local dismiss if the
+    // abandon cannot run (e.g. a deployed program that predates abandonRunV1).
+    setQuitting(true);
     void (async () => {
       try {
         await abandonRun();
       } catch {
         dismissRun();
+      } finally {
+        navigate("home");
       }
     })();
-    navigate("home");
   }, [abandonRun, dismissRun, navigate]);
 
   /** Local-only escape hatch: forget the marker, never touch the chain. */
@@ -170,6 +173,20 @@ export default function PlayScreen() {
       setRecoveringRun(false);
     }
   }, [recoverBaseRun, recoveringRun, recoveryOwner, recoveryRunId]);
+
+  if (quitting) {
+    return (
+      <PlaySurface>
+        <StatePanel title="Forfeiting run…">
+          <img src={images.loader} alt="" className="h-16 w-16 animate-bounce" />
+          <p className="max-w-sm text-center text-xs text-white/65">
+            {controller.settlingLabel} — finishing this run on-chain before
+            leaving.
+          </p>
+        </StatePanel>
+      </PlaySurface>
+    );
+  }
 
   if (recoveryRunId !== null) {
     const resolving = run.watchStatus?.phase === "resolving";
@@ -410,7 +427,7 @@ export default function PlayScreen() {
 
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden px-2 py-1">
         <div
-          className={`flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none opacity-60" : ""}`}
+          className={`flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
         >
           <GameBoard
             initialGrid={grid}

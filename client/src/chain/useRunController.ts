@@ -49,6 +49,13 @@ import {
 import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
 
+/** Visible perf/telemetry logger (console.log, not console.debug which the
+ *  browser hides by default). DEV-only. Use to spot delays/bottlenecks while
+ *  playing: level creation, per move, and settlement stage timings. */
+const plog = (label: string, data: Record<string, unknown>): void => {
+  if (import.meta.env.DEV) console.log(`[perf] ${label}`, data);
+};
+
 export type SettleStage =
   | "abandoning"
   | "sealing"
@@ -209,9 +216,17 @@ export function useRunController() {
 
   const launchCampaignRun = useCallback(
     async (mapId: number, level: number) => {
+      const launchStart = Date.now();
+      let mark = launchStart;
+      const lap = (label: string) => {
+        const now = Date.now();
+        plog(`launch:${label}`, { ms: now - mark });
+        mark = now;
+      };
       const sponsor =
         paymaster.current ?? (await fetchPaymasterClient(connection));
       paymaster.current = sponsor;
+      lap("paymaster");
       const reusable = loadReusableSession(publicKey);
       const session = reusable?.session ?? Keypair.generate();
       const prepared = await buildPrepareCampaignRunPlan({
@@ -229,6 +244,7 @@ export function useRunController() {
         paymaster: sponsor,
         session,
       });
+      lap("prepare");
       const delegate = await buildDelegateRunPlan({
         wallet,
         addresses: prepared.addresses,
@@ -241,14 +257,23 @@ export function useRunController() {
         paymaster: sponsor,
       });
       await connection.confirmTransaction(delegateSignature, "confirmed");
+      lap("delegate");
       const erConnection = await resolveRunErConnection(
         prepared.addresses.activeRun,
       );
+      lap("er-resolve");
       const activeRun = await hydrateRows({
         prepared,
         session,
         erConnection,
         ownerWallet: wallet,
+      });
+      lap("vrf-hydrate");
+      plog("launch:total", {
+        ms: Date.now() - launchStart,
+        mapId,
+        level,
+        reusedSession: Boolean(reusable),
       });
       currentRun.current = {
         phase: "delegated",
@@ -354,18 +379,14 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
-          if (import.meta.env.DEV) {
-            console.debug("[run] playMove →", {
-              row,
-              start,
-              destination,
-              expectedMove: run.activeRun.moves,
-              expectedAction: run.activeRun.actionCounter,
-              lifecycle: run.activeRun.lifecycle,
-              pendingVrf: run.activeRun.pendingVrfCounter,
-              hasNextRow: run.activeRun.nextRow !== null,
-            });
-          }
+          const moveStart = Date.now();
+          plog("move:start", {
+            move: run.activeRun.moves,
+            action: run.activeRun.actionCounter,
+            row,
+            start,
+            destination,
+          });
           const plan = await buildPlayMovePlan({
             owner: run.marker.owner,
             sessionWallet,
@@ -382,6 +403,8 @@ export function useRunController() {
             transactionPlan: plan,
             wallet: sessionWallet,
           });
+          const submittedAt = Date.now();
+          plog("move:submit", { ms: submittedAt - moveStart });
           const activeRun = await hydrateRows({
             prepared: {
               runId: run.marker.runId,
@@ -393,6 +416,13 @@ export function useRunController() {
             session: run.marker.session,
             erConnection: run.connection,
             ownerWallet: wallet!,
+          });
+          plog("move:total", {
+            ms: Date.now() - moveStart,
+            vrfHydrateMs: Date.now() - submittedAt,
+            newMove: activeRun.moves,
+            newScore: activeRun.score,
+            lifecycle: activeRun.lifecycle,
           });
           run.activeRun = activeRun;
           setState((value) => ({
@@ -431,6 +461,11 @@ export function useRunController() {
         wallet,
         descriptor.addresses.runReceipt,
       );
+      plog("settle:finalize-start", {
+        runId: descriptor.runId.toString(),
+        receiptConsumed: Boolean(receipt?.consumed),
+        mode: descriptor.mode,
+      });
       setStage(receipt?.consumed ? "cleaning" : "consuming");
       const finalizePlan = await buildFinalizeRunPlan({
         wallet,
@@ -510,17 +545,27 @@ export function useRunController() {
             wallet,
           });
           setStage("settling");
-          const deadline = Date.now() + 90_000;
+          const pollStart = Date.now();
+          const deadline = pollStart + 90_000;
+          let polls = 0;
           while (Date.now() < deadline) {
             const status = await getDelegationStatus(
               run.marker.addresses.activeRun,
             );
+            polls += 1;
             if (!status.isDelegated) break;
             await sleep(1_500);
           }
+          plog("settle:copyback", {
+            polls,
+            waitedMs: Date.now() - pollStart,
+            timedOut: Date.now() >= deadline,
+          });
+          const finalizeStart = Date.now();
           await finalizeBaseSettlement(
             settlementDescriptor(run.marker, run.activeRun.dailyChallenge),
           );
+          plog("settle:finalize-done", { ms: Date.now() - finalizeStart });
           let activeRun: ActiveRunView | null = null;
           if (next) {
             setStage("preparing");
