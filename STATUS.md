@@ -21,9 +21,12 @@ and the full implementation record in `IMPLEMENTATION.md`.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
   (ProgramData `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`, upgrade
   authority `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`).
-- Current binary: slot `475577726`, signature `2wrqVqv9…BR5t`, SBF SHA-256
-  `d075288f0c7776ed50dad38cb770ea4e2c6f277b2049b8a6336cd69b87336636`
-  (includes the corrected Magic Action commit metas).
+- Current binary: slot `475787281`, signature `3k5JLn49…xjuF`, SBF SHA-256
+  `65e45420574910611285f25bbaa95eb5a69a04f9ea4b8fe1a4880ffba218646e`
+  (adds `abandonRunV1`; includes the corrected Magic Action commit metas).
+  ProgramData allocation extended to 1,604,032 code bytes (7,432 headroom);
+  deployed code hash independently verified byte-for-byte, trailing bytes
+  zero, stable buffer closed, upgrade authority preserved.
 - Bootstrap complete: custody `08063b99625c0a82`, protocol `1f6cd8031b2ec13a`,
   catalogs `d3d34aa2e7528cad`. Canonical Devnet USDC, vault addresses, and
   sanitized proofs are recorded in `MAGICBLOCK.md`, `OPERATIONS.md`, and
@@ -50,10 +53,10 @@ steps, no player SOL required:
   runs in an auto-settle effect; there is no manual settle button. Resuming
   into an already-settled run auto-cleans its rent, and orphaned base runs
   are recoverable.
-- Quit is an on-chain abandon (`abandonRunV1`): terminal with zero stars,
-  settled through the unchanged pipeline, ActiveRun rent reclaimed —
-  cycling-sim abort semantics. Until the program upgrade lands (see open
-  items) the client falls back to the local forget-marker path.
+- Quit is an on-chain abandon (`abandonRunV1`, live since slot `475787281`):
+  terminal with zero stars, settled through the unchanged pipeline, ActiveRun
+  rent reclaimed — cycling-sim abort semantics. The local forget-marker path
+  remains only as a fallback and for the explicit "Forget locally" buttons.
 - Clicks that remain are user intent (choosing a level, paid Daily entry,
   claims, unlocks, withdrawals) — the same set cycling-sim keeps.
 
@@ -78,12 +81,7 @@ Rust tests, formatting/Clippy/SBF/IDL clean.
    (simulates at 48,993 CU). Operator approval required before signing.
    Afterward: verify receipt/progress postconditions and save a sanitized
    lifecycle proof.
-2. **Program upgrade for `abandonRunV1`** — the instruction is implemented,
-   tested, and in the synced IDL, but the deployed binary predates it. Run
-   `cd client && NO_DNA=1 pnpm chain:devnet:deploy` for the dry-run preview
-   and approve its exact fingerprint to upgrade; until then Quit falls back
-   to the local forget-marker path.
-3. **Vercel dashboard**: set the project Root Directory to `client`
+2. **Vercel dashboard**: set the project Root Directory to `client`
    (not automatable from the repo).
 4. **Signed live-Devnet acceptance**: multi-move gameplay depth, settle-through
    -to-receipt on a fresh run, Vault withdraw, and a recovery-code restore

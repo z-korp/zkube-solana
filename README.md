@@ -46,9 +46,9 @@ The zKube program is live on MagicBlock Devnet:
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Latest deployment slot: `475577726`
-- Latest upgrade signature: `2wrqVqv9C8sqK1Hrb2xFE37f48YPfVW2EoxULjc1qaJvHH63bX38Yvvbo3Ca3MefF6W49Q1FeLpuchpUuzUXBR5t`
-- Deployed SBF SHA-256: `d075288f0c7776ed50dad38cb770ea4e2c6f277b2049b8a6336cd69b87336636`
+- Latest deployment slot: `475787281`
+- Latest upgrade signature: `3k5JLn49munysN8ripfSUeJK4bB9crTBbSKjRcX1FBekZ92G8gQztmuRpYUG1vvRiRdadTWNPi9LR4kDWrc2xjuF`
+- Deployed SBF SHA-256: `65e45420574910611285f25bbaa95eb5a69a04f9ea4b8fe1a4880ffba218646e` (adds `abandonRunV1`)
 - Sanitized proofs: `artifacts/devnet-program-deployment.proof.json` for the initial deployment and `artifacts/devnet-program-upgrade.proof.json` for the current binary (upgrade proof SHA-256 `fadd75eeaea00adaab6495e91eac5ed99bcac481e671a9447464b5ffffa43ede`)
 
 The custody stage is live: five empty canonical-USDC vaults were created and the
