@@ -74,6 +74,35 @@ export default function RebootPlayScreen() {
     return () => setMusicContext("main");
   }, [inPlay, isBossLevel, setMusicContext]);
 
+  // Auto-settle: a terminal delegated run seals/commits/settles itself and,
+  // for a completed non-boss campaign level, chains straight into the next
+  // level. No manual settle button anywhere.
+  const autoSettleRef = useRef<bigint | null>(null);
+  const settleAndAdvance = run.settleAndAdvance;
+  const runPhase = run.phase;
+  const terminalRun =
+    run.activeRun && isTerminal(run.activeRun.lifecycle) ? run.activeRun : null;
+  useEffect(() => {
+    if (runPhase !== "delegated" || !terminalRun) return;
+    if (autoSettleRef.current === terminalRun.runId) return;
+    autoSettleRef.current = terminalRun.runId;
+    const isDaily = terminalRun.mode === "daily";
+    const next =
+      !isDaily &&
+      terminalRun.lifecycle === "levelComplete" &&
+      terminalRun.level < 10
+        ? { mapId: terminalRun.mapId, level: terminalRun.level + 1 }
+        : undefined;
+    void settleAndAdvance(next)
+      .then((nextRun) => {
+        if (!nextRun) navigate(isDaily ? "daily" : "map");
+      })
+      .catch(() => {
+        // Error is projected into run.error; allow a retry.
+        autoSettleRef.current = null;
+      });
+  }, [runPhase, terminalRun, settleAndAdvance, navigate]);
+
   // End-of-level fanfares — only on a transition observed during play, never
   // when resuming straight into a terminal lifecycle.
   const prevLifecycleRef = useRef<string | null>(null);
@@ -418,12 +447,11 @@ export default function RebootPlayScreen() {
   }
 
   // The run state lives on the Solana base layer (committed back from the
-  // rollup, receipt not yet consumed) — nothing here is playable, so show
-  // the authoritative board and say what is actually happening instead of
+  // rollup). "settleable" auto-recovers (consume receipt → close → clear
+  // marker); show the authoritative board and real progress instead of
   // pretending to resolve forever.
-  if (run.phase === "base") {
+  if (run.phase === "base" || run.phase === "settleable") {
     const baseRun = run.activeRun;
-    const baseTerminal = isTerminal(baseRun.lifecycle);
     const baseGridSize = Math.max(
       20,
       Math.min(44, Math.floor((viewportHeight - 320) / 11)),
@@ -441,14 +469,29 @@ export default function RebootPlayScreen() {
               themeId={themeId}
             />
             <p className="max-w-sm rounded-2xl border border-yellow-300/30 bg-yellow-950/70 px-4 py-2 text-center text-xs font-bold leading-5 text-yellow-200">
-              {baseTerminal
-                ? "Result recorded on Solana — settlement is finalizing on-chain. Rent recovery unlocks once the receipt is consumed."
-                : "This run returned to the Solana base layer and cannot continue on the rollup from here."}
+              {run.phase === "settleable"
+                ? run.busy
+                  ? settleStageLabel(run.settleStage)
+                  : "Finalizing settlement on Solana…"
+                : isTerminal(baseRun.lifecycle)
+                  ? "Result recorded on Solana — settlement is finalizing on-chain."
+                  : "This run returned to the Solana base layer and cannot continue on the rollup from here."}
             </p>
             {run.error && (
-              <p className="max-w-sm text-center text-xs text-red-300">
-                {run.error}
-              </p>
+              <>
+                <p className="max-w-sm text-center text-xs text-red-300">
+                  {run.error}
+                </p>
+                <button
+                  onClick={() => {
+                    run.dismissRun();
+                    navigate("home");
+                  }}
+                  className="rounded-xl border border-white/20 bg-black/40 px-5 py-2 text-xs font-bold text-white/70"
+                >
+                  Dismiss stuck run (keeps on-chain accounts)
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -533,17 +576,21 @@ export default function RebootPlayScreen() {
                 <ResultMetric label="Moves" value={activeRun.moves} />
                 <ResultMetric label="Best combo" value={`×${activeRun.maxCombo}`} />
               </div>
-              <p className="text-center text-xs leading-5 text-white/55">
-                The result is verified on the MagicBlock rollup. Settlement
-                commits it atomically to your permanent Solana career.
-              </p>
-              <button
-                disabled={run.busy}
-                onClick={() => runAction(run.settle())}
-                className="rounded-xl bg-emerald-600 px-7 py-3 font-bold text-white disabled:opacity-50"
-              >
-                {run.busy ? "Committing…" : "Settle result"}
-              </button>
+              {run.error ? (
+                <button
+                  onClick={() => {
+                    autoSettleRef.current = null;
+                    runAction(settleAndAdvance());
+                  }}
+                  className="rounded-xl bg-emerald-600 px-7 py-3 font-bold text-white"
+                >
+                  Retry settlement
+                </button>
+              ) : (
+                <p className="animate-pulse text-center text-sm font-bold text-cyan-300">
+                  {settleStageLabel(run.settleStage)}
+                </p>
+              )}
             </Panel>
           </div>
         ) : (
@@ -602,6 +649,25 @@ export default function RebootPlayScreen() {
 
 function isTerminal(lifecycle: string): boolean {
   return lifecycle === "levelComplete" || lifecycle === "finished";
+}
+
+function settleStageLabel(stage: string | null): string {
+  switch (stage) {
+    case "sealing":
+      return "Sealing result…";
+    case "committing":
+      return "Committing to Solana…";
+    case "settling":
+      return "Waiting for base copyback…";
+    case "consuming":
+      return "Crediting stars…";
+    case "cleaning":
+      return "Recovering rent…";
+    case "preparing":
+      return "Preparing next level…";
+    default:
+      return "Settling…";
+  }
 }
 
 function runAction(action: Promise<unknown>): void {
