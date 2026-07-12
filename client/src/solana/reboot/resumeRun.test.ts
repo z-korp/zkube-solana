@@ -32,12 +32,10 @@ describe("persisted run resolution", () => {
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
-        getStatus: vi
-          .fn()
-          .mockResolvedValue({
-            isDelegated: true,
-            fqdn: "https://er.example/",
-          }),
+        getStatus: vi.fn().mockResolvedValue({
+          isDelegated: true,
+          fqdn: "https://er.example/",
+        }),
         makeErConnection: () => erConnection,
         fetchRun: vi.fn().mockResolvedValue({
           owner: owner.publicKey,
@@ -77,6 +75,8 @@ describe("persisted run resolution", () => {
           owner: owner.publicKey,
           runId: 4n,
           mode: "campaign",
+          mapId: 2,
+          level: 7,
           score: 100,
           moves: 5,
           levelStars: 3,

@@ -82,6 +82,14 @@ export class Game {
     return this.view.currentDifficulty;
   }
 
+  public get endlessThresholds(): readonly number[] {
+    return this.view.endlessThresholds;
+  }
+
+  public get endlessScoreMultipliersX100(): readonly number[] {
+    return this.view.endlessScoreMultipliersX100;
+  }
+
   public get levelCompleted(): boolean {
     return (
       this.view.lifecycle === "levelComplete" ||

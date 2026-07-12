@@ -8,6 +8,7 @@ export interface ActiveStoryRun {
   gameId: bigint;
   zoneId: number;
   level: number;
+  settled: boolean;
 }
 
 export const useActiveStoryAttempt = (): ActiveStoryRun | null => {
@@ -16,15 +17,27 @@ export const useActiveStoryAttempt = (): ActiveStoryRun | null => {
   return useMemo(() => {
     const marker = loadRunSession(publicKey);
     const active = run.activeRun;
-    if (
-      !marker ||
-      marker.mode !== "campaign" ||
-      !active ||
-      active.mode === "daily" ||
-      active.runId !== marker.runId
-    ) {
-      return null;
+    if (!marker || marker.mode !== "campaign") return null;
+    if (active && active.mode !== "daily" && active.runId === marker.runId) {
+      return {
+        gameId: marker.runId,
+        zoneId: active.mapId,
+        level: active.level,
+        settled: false,
+      };
     }
-    return { gameId: marker.runId, zoneId: active.mapId, level: active.level };
-  }, [publicKey, run.activeRun]);
+    if (
+      run.phase === "settled" &&
+      run.receipt?.mode === "campaign" &&
+      run.receipt.runId === marker.runId
+    ) {
+      return {
+        gameId: marker.runId,
+        zoneId: run.receipt.mapId,
+        level: run.receipt.level,
+        settled: true,
+      };
+    }
+    return null;
+  }, [publicKey, run.activeRun, run.phase, run.receipt]);
 };

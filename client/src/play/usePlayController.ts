@@ -1,0 +1,438 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useCampaignController } from "@/contexts/campaign";
+import { useDailyController } from "@/contexts/daily";
+import { useMusicPlayer } from "@/contexts/hooks";
+import { useProgressController } from "@/contexts/progress";
+import { useRun } from "@/contexts/run";
+import { Game } from "@/dojo/game/models/game";
+import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
+import type { ActiveRunView } from "@/solana/reboot/runPlan";
+import type { SettleStage } from "@/solana/reboot/useRebootRun";
+import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
+import {
+  useNavigationStore,
+  type PendingLevelCompletion,
+} from "@/stores/navigationStore";
+import type { ReceiptProjection } from "@/ui/components/Grid";
+
+export interface TerminalRunSnapshot {
+  activeRun: ActiveRunView;
+  game: Game;
+  gameLevel: GameLevelData;
+  isBoss: boolean;
+  isDaily: boolean;
+  completed: boolean;
+}
+
+export type PlayOutcome = "victory" | "daily" | null;
+
+export function canSettleTerminalRun(
+  phase: string,
+  sessionAuthorized: boolean,
+): boolean {
+  return phase === "settleable" || (phase === "delegated" && sessionAuthorized);
+}
+
+export function isTerminalLifecycle(lifecycle: string): boolean {
+  return (
+    lifecycle === "levelComplete" ||
+    lifecycle === "finished" ||
+    lifecycle === "settled"
+  );
+}
+
+export function projectRunReceipt(activeRun: ActiveRunView): ReceiptProjection {
+  return {
+    blocks: toDisplayGrid(activeRun.grid),
+    nextRow: activeRun.nextRow ?? [],
+    over: isTerminalLifecycle(activeRun.lifecycle),
+  };
+}
+
+export function pendingCompletionFromRun(
+  activeRun: ActiveRunView,
+): PendingLevelCompletion {
+  return {
+    level: activeRun.level,
+    levelMoves: activeRun.moves,
+    prevTotalScore: 0,
+    totalScore: activeRun.score,
+    gameLevel: rulesToGameLevelData(
+      activeRun.rules,
+      activeRun.level,
+      activeRun.runId,
+    ),
+    isIncomplete: activeRun.lifecycle === "finished",
+  };
+}
+
+export function settleStageLabel(stage: SettleStage | null): string {
+  switch (stage) {
+    case "sealing":
+      return "Sealing result…";
+    case "committing":
+      return "Committing to Solana…";
+    case "settling":
+      return "Waiting for base copyback…";
+    case "consuming":
+      return "Crediting progress…";
+    case "cleaning":
+      return "Recovering rent…";
+    case "preparing":
+      return "Preparing on-chain run…";
+    default:
+      return "Settling…";
+  }
+}
+
+function snapshotRun(
+  activeRun: ActiveRunView,
+  levelStars: readonly number[],
+): TerminalRunSnapshot {
+  return {
+    activeRun,
+    game: new Game(activeRun, levelStars),
+    gameLevel: rulesToGameLevelData(
+      activeRun.rules,
+      activeRun.level,
+      activeRun.runId,
+    ),
+    isBoss: activeRun.level === 10 || activeRun.rules.bossId > 0,
+    isDaily: activeRun.mode === "daily",
+    completed: activeRun.lifecycle === "levelComplete",
+  };
+}
+
+export function usePlayController() {
+  const run = useRun();
+  const campaign = useCampaignController();
+  const progress = useProgressController();
+  const daily = useDailyController();
+  const { playSfx } = useMusicPlayer();
+  const navigate = useNavigationStore((state) => state.navigate);
+  const mapId = useNavigationStore((state) => state.mapZoneId);
+  const previewLevel = useNavigationStore((state) => state.pendingPreviewLevel);
+  const setPreviewLevel = useNavigationStore(
+    (state) => state.setPendingPreviewLevel,
+  );
+  const setGameId = useNavigationStore((state) => state.setGameId);
+  const setPendingLevelCompletion = useNavigationStore(
+    (state) => state.setPendingLevelCompletion,
+  );
+  const [localActionPending, setLocalActionPending] = useState(false);
+  const [cascadeVersion, setCascadeVersion] = useState(0);
+  const [terminalSnapshot, setTerminalSnapshot] =
+    useState<TerminalRunSnapshot | null>(null);
+  const [outcome, setOutcome] = useState<PlayOutcome>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const startIntentRef = useRef<string | null>(null);
+  const terminalAwaitingCascadeRef = useRef<bigint | null>(null);
+  const settlingRunRef = useRef<bigint | null>(null);
+  const previousLifecycleRef = useRef<{
+    runId: bigint;
+    lifecycle: string;
+  } | null>(null);
+
+  const selectedMap = campaign.campaign?.maps.find(
+    (map) => map.mapId === mapId,
+  );
+  const mapPlayable = campaign.campaign
+    ? selectedMap?.enabled === true && selectedMap.unlocked
+    : mapId === 1;
+  const startCampaignRun = run.startCampaignRun;
+
+  useEffect(() => {
+    if (
+      previewLevel === null ||
+      run.phase !== "none" ||
+      run.busy ||
+      campaign.loading ||
+      !mapPlayable
+    ) {
+      return;
+    }
+    const intent = `${mapId}:${previewLevel}`;
+    if (startIntentRef.current === intent) return;
+    startIntentRef.current = intent;
+    setPreviewLevel(null);
+    setStartError(null);
+    void startCampaignRun(mapId, previewLevel)
+      .then((activeRun) => {
+        setGameId(activeRun.runId);
+        setTerminalSnapshot(null);
+        setOutcome(null);
+      })
+      .catch((cause: unknown) => {
+        startIntentRef.current = null;
+        setStartError(cause instanceof Error ? cause.message : String(cause));
+      });
+  }, [
+    campaign.loading,
+    mapId,
+    mapPlayable,
+    previewLevel,
+    run.busy,
+    run.phase,
+    setGameId,
+    setPreviewLevel,
+    startCampaignRun,
+  ]);
+
+  const rememberTerminal = useCallback(
+    (activeRun: ActiveRunView) => {
+      const levelStars =
+        activeRun.mode === "daily"
+          ? []
+          : (campaign.campaign?.maps.find(
+              (map) => map.mapId === activeRun.mapId,
+            )?.levelStars ?? []);
+      setTerminalSnapshot(snapshotRun(activeRun, levelStars));
+    },
+    [campaign.campaign?.maps],
+  );
+
+  const playMove = run.playMove;
+  const onMove = useCallback(
+    async (row: number, start: number, destination: number) => {
+      setLocalActionPending(true);
+      try {
+        const activeRun = await playMove(row, start, destination);
+        if (isTerminalLifecycle(activeRun.lifecycle)) {
+          terminalAwaitingCascadeRef.current = activeRun.runId;
+          rememberTerminal(activeRun);
+        }
+        return projectRunReceipt(activeRun);
+      } finally {
+        setLocalActionPending(false);
+      }
+    },
+    [playMove, rememberTerminal],
+  );
+
+  const applyBonus = run.applyBonus;
+  const onBonus = useCallback(
+    async (row: number, column: number) => {
+      setLocalActionPending(true);
+      try {
+        const activeRun = await applyBonus(row, column);
+        if (isTerminalLifecycle(activeRun.lifecycle)) {
+          terminalAwaitingCascadeRef.current = activeRun.runId;
+          rememberTerminal(activeRun);
+        }
+        return projectRunReceipt(activeRun);
+      } finally {
+        setLocalActionPending(false);
+      }
+    },
+    [applyBonus, rememberTerminal],
+  );
+
+  const onCascadeComplete = useCallback(() => {
+    terminalAwaitingCascadeRef.current = null;
+    setCascadeVersion((value) => value + 1);
+  }, []);
+
+  const settleAndAdvance = run.settleAndAdvance;
+  const recoverSettlement = run.recoverSettlement;
+  const campaignRefresh = campaign.refresh;
+  const progressRefresh = progress.refresh;
+  const dailyRefresh = daily.refresh;
+  const terminalRun =
+    run.activeRun && isTerminalLifecycle(run.activeRun.lifecycle)
+      ? run.activeRun
+      : null;
+
+  const lifecycleRun = run.activeRun;
+  useEffect(() => {
+    if (!lifecycleRun) {
+      previousLifecycleRef.current = null;
+      return;
+    }
+    const previous = previousLifecycleRef.current;
+    previousLifecycleRef.current = {
+      runId: lifecycleRun.runId,
+      lifecycle: lifecycleRun.lifecycle,
+    };
+    if (
+      !previous ||
+      previous.runId !== lifecycleRun.runId ||
+      previous.lifecycle === lifecycleRun.lifecycle ||
+      !isTerminalLifecycle(lifecycleRun.lifecycle)
+    ) {
+      return;
+    }
+
+    if (
+      lifecycleRun.mode === "daily" ||
+      lifecycleRun.lifecycle === "finished"
+    ) {
+      playSfx("over");
+      return;
+    }
+    const boss = lifecycleRun.level === 10 || lifecycleRun.rules.bossId > 0;
+    playSfx(
+      boss
+        ? lifecycleRun.mapId === 10
+          ? "victory"
+          : "boss-defeat"
+        : "levelup",
+    );
+    const starTimer = window.setTimeout(() => playSfx("star"), 350);
+    const coinTimer = window.setTimeout(() => playSfx("coin"), 650);
+    return () => {
+      window.clearTimeout(starTimer);
+      window.clearTimeout(coinTimer);
+    };
+  }, [lifecycleRun, playSfx]);
+
+  useEffect(() => {
+    const canSettle = canSettleTerminalRun(run.phase, run.sessionAuthorized);
+    if (!terminalRun || !canSettle || localActionPending) return;
+    if (terminalAwaitingCascadeRef.current === terminalRun.runId) return;
+    if (settlingRunRef.current === terminalRun.runId) return;
+
+    const levelStars =
+      terminalRun.mode === "daily"
+        ? []
+        : (campaign.campaign?.maps.find(
+            (map) => map.mapId === terminalRun.mapId,
+          )?.levelStars ?? []);
+    const snapshot = snapshotRun(terminalRun, levelStars);
+    setTerminalSnapshot(snapshot);
+    settlingRunRef.current = terminalRun.runId;
+
+    if (!snapshot.isDaily && !(snapshot.isBoss && snapshot.completed)) {
+      setPendingLevelCompletion(pendingCompletionFromRun(terminalRun));
+    }
+
+    const settle =
+      run.phase === "settleable" ? recoverSettlement : settleAndAdvance;
+    void settle()
+      .then(async () => {
+        await Promise.all([
+          campaignRefresh(),
+          progressRefresh(),
+          dailyRefresh(),
+        ]);
+        if (snapshot.isDaily) {
+          setOutcome("daily");
+        } else if (snapshot.isBoss && snapshot.completed) {
+          setOutcome("victory");
+        } else {
+          navigate("map");
+        }
+      })
+      .catch(() => {
+        // The run hook exposes the failure. Keep the per-run guard set until
+        // the user explicitly retries so watcher refreshes cannot hammer the
+        // settlement pipeline with repeated sponsored transactions.
+      });
+  }, [
+    campaign.campaign?.maps,
+    campaignRefresh,
+    cascadeVersion,
+    dailyRefresh,
+    localActionPending,
+    navigate,
+    progressRefresh,
+    run.phase,
+    run.sessionAuthorized,
+    recoverSettlement,
+    setPendingLevelCompletion,
+    settleAndAdvance,
+    terminalRun,
+  ]);
+
+  const retrySettlement = useCallback(() => {
+    settlingRunRef.current = null;
+    terminalAwaitingCascadeRef.current = null;
+    setCascadeVersion((value) => value + 1);
+  }, []);
+
+  const cleanup = run.cleanup;
+  const settledReceipt = run.receipt;
+  const finishSettled = useCallback(async () => {
+    if (!settledReceipt) return;
+
+    if (
+      settledReceipt.mode !== "daily" &&
+      !(settledReceipt.completed && settledReceipt.level === 10)
+    ) {
+      const rules = campaign.campaign?.maps.find(
+        (map) => map.mapId === settledReceipt.mapId,
+      )?.levels[settledReceipt.level - 1];
+      setPendingLevelCompletion({
+        level: settledReceipt.level,
+        levelMoves: settledReceipt.moves,
+        prevTotalScore: 0,
+        totalScore: settledReceipt.score,
+        gameLevel: rules
+          ? rulesToGameLevelData(
+              rules,
+              settledReceipt.level,
+              settledReceipt.runId,
+            )
+          : null,
+        isIncomplete: !settledReceipt.completed,
+      });
+    }
+
+    await cleanup();
+    await Promise.all([campaignRefresh(), progressRefresh(), dailyRefresh()]);
+    navigate(settledReceipt.mode === "daily" ? "daily" : "map");
+  }, [
+    campaign.campaign?.maps,
+    campaignRefresh,
+    cleanup,
+    dailyRefresh,
+    navigate,
+    progressRefresh,
+    setPendingLevelCompletion,
+    settledReceipt,
+  ]);
+
+  const closeOutcome = useCallback(() => {
+    setOutcome(null);
+    navigate(terminalSnapshot?.isDaily ? "daily" : "map");
+  }, [navigate, terminalSnapshot?.isDaily]);
+
+  const activeGame = useMemo(() => {
+    if (!run.activeRun) return null;
+    const stars =
+      run.activeRun.mode === "daily"
+        ? []
+        : (campaign.campaign?.maps.find(
+            (map) => map.mapId === run.activeRun?.mapId,
+          )?.levelStars ?? []);
+    return new Game(run.activeRun, stars);
+  }, [campaign.campaign?.maps, run.activeRun]);
+  const activeGameLevel = useMemo(
+    () =>
+      run.activeRun
+        ? rulesToGameLevelData(
+            run.activeRun.rules,
+            run.activeRun.level,
+            run.activeRun.runId,
+          )
+        : null,
+    [run.activeRun],
+  );
+
+  return {
+    run,
+    game: activeGame ?? terminalSnapshot?.game ?? null,
+    gameLevel: activeGameLevel ?? terminalSnapshot?.gameLevel ?? null,
+    activeRun: run.activeRun ?? terminalSnapshot?.activeRun ?? null,
+    terminalSnapshot,
+    outcome,
+    closeOutcome,
+    startError,
+    onMove,
+    onBonus,
+    onCascadeComplete,
+    retrySettlement,
+    finishSettled,
+    settlingLabel: settleStageLabel(run.settleStage),
+  };
+}
