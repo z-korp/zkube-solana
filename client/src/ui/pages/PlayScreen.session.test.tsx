@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import {
   afterAll,
   beforeAll,
@@ -14,8 +14,15 @@ import PlayScreen from "./PlayScreen";
 
 const fixtures = vi.hoisted(() => ({
   lifecycle: "playing",
+  phase: "delegated",
+  gameAvailable: true,
+  recoveryRunId: null as bigint | null,
+  publicKey: {
+    toBase58: () => "BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6",
+  },
   dismissRun: vi.fn(),
   recoverSession: vi.fn(),
+  recoverBaseRun: vi.fn(),
   navigate: vi.fn(),
   setMusicContext: vi.fn(),
   playSfx: vi.fn(),
@@ -43,36 +50,42 @@ vi.mock("@/play/usePlayController", () => ({
     };
     return {
       run: {
-        phase: "delegated",
+        phase: fixtures.phase,
         busy: false,
         error: null,
         watchStatus: null,
         sessionAuthorized: false,
+        publicKey: fixtures.publicKey,
         dismissRun: fixtures.dismissRun,
         recoverSession: fixtures.recoverSession,
       },
-      game: {
-        id: 7n,
-        blocks: [[1]],
-        next_row: [1],
-        mode: 0,
-        level: 1,
-        levelMoves: 1,
-        levelScore: 2,
-        totalScore: 2,
-        combo: 0,
-        constraintProgress: 0,
-        constraint2Progress: 0,
-        currentDifficulty: 1,
-        zoneId: 1,
-      },
-      gameLevel: { maxMoves: 16, pointsRequired: 10 },
-      activeRun,
+      game: fixtures.gameAvailable
+        ? {
+            id: 7n,
+            blocks: [[1]],
+            next_row: [1],
+            mode: 0,
+            level: 1,
+            levelMoves: 1,
+            levelScore: 2,
+            totalScore: 2,
+            combo: 0,
+            constraintProgress: 0,
+            constraint2Progress: 0,
+            currentDifficulty: 1,
+            zoneId: 1,
+          }
+        : null,
+      gameLevel: fixtures.gameAvailable
+        ? { maxMoves: 16, pointsRequired: 10 }
+        : null,
+      activeRun: fixtures.gameAvailable ? activeRun : null,
       outcome: null,
       onBonus: vi.fn(),
       onMove: vi.fn(),
       onCascadeComplete: vi.fn(),
       retrySettlement: vi.fn(),
+      recoverBaseRun: fixtures.recoverBaseRun,
       finishSettled: vi.fn(),
       closeOutcome: vi.fn(),
       settlingLabel: "Finalizing…",
@@ -84,8 +97,15 @@ vi.mock("@/play/usePlayController", () => ({
 vi.mock("@/hooks/useGrid", () => ({ useGrid: () => [] }));
 vi.mock("@/stores/navigationStore", () => ({
   useNavigationStore: (
-    selector: (state: { navigate: typeof fixtures.navigate }) => unknown,
-  ) => selector({ navigate: fixtures.navigate }),
+    selector: (state: {
+      navigate: typeof fixtures.navigate;
+      recoveryRunId: bigint | null;
+    }) => unknown,
+  ) =>
+    selector({
+      navigate: fixtures.navigate,
+      recoveryRunId: fixtures.recoveryRunId,
+    }),
 }));
 vi.mock("@/contexts/hooks", () => ({
   useMusicPlayer: () => ({
@@ -124,6 +144,9 @@ describe("PlayScreen expired-session escape", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fixtures.lifecycle = "playing";
+    fixtures.phase = "delegated";
+    fixtures.gameAvailable = true;
+    fixtures.recoveryRunId = null;
   });
 
   it.each(["playing", "levelComplete"])(
@@ -143,4 +166,59 @@ describe("PlayScreen expired-session escape", () => {
       expect(fixtures.navigate).toHaveBeenCalledWith("home");
     },
   );
+});
+
+describe("PlayScreen orphaned base-run recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.lifecycle = "levelComplete";
+    fixtures.phase = "none";
+    fixtures.gameAvailable = false;
+    fixtures.recoveryRunId = 1n;
+  });
+
+  it("confirms before recovering the requested settled run", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    fixtures.recoverBaseRun.mockResolvedValue("signature");
+
+    render(<PlayScreen />);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Recover settled run 1" }),
+      );
+    });
+
+    expect(confirm).toHaveBeenCalledWith(
+      "Sign one sponsored Devnet transaction for recovered run 1 and Vault BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, ActiveRun rent returns to this Vault, and there is no token-transfer instruction.",
+    );
+    expect(fixtures.recoverBaseRun).toHaveBeenCalledOnce();
+    expect(fixtures.recoverBaseRun).toHaveBeenCalledWith(1n);
+  });
+
+  it("does not recover when the confirmation is cancelled", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<PlayScreen />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Recover settled run 1" }),
+    );
+
+    expect(fixtures.recoverBaseRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps recovery modal and hides unrelated run controls", () => {
+    fixtures.phase = "delegated";
+    fixtures.gameAvailable = true;
+
+    render(<PlayScreen />);
+
+    expect(screen.getByText("Recovery unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("game-board")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Renew session" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Recover settled run 1" }),
+    ).not.toBeInTheDocument();
+  });
 });

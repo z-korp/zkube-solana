@@ -209,34 +209,40 @@ base copyback, durable receipt verification, and transient rent cleanup.
   `MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e`
 
 Latest signer-free base-plan inspection (2026-07-12): the receipt exists and
-is still unconsumed. The remaining atomic `Finalize run settlement` transaction
-contains exactly two zKube-program instructions (`consumeRunReceiptV1`, then
-`closeSettledActiveRunV1`), requires embedded owner `BQNu…KTB6`, uses paymaster
-`CNhM…7SgY` as fee payer, transfers no token, and simulates successfully on
-MagicBlock Devnet at 36,123 CU. This simulation did not sign, submit, or mutate
-state; it is pre-approval evidence, not authorization.
+is still unconsumed. The atomic `Finalize run settlement` payload contains two
+zKube-program instructions (`consumeRunReceiptV1`, then
+`closeSettledActiveRunV1`). A sponsored submission also prepends the required
+`consumeSponsorshipV1` instruction, so the signed paymaster envelope contains
+three zKube instructions in total and updates the owner's on-chain sponsorship
+allowance. It requires embedded owner `BQNu…KTB6`, uses paymaster `CNhM…7SgY`
+as fee payer, includes no token-transfer instruction, and the two-instruction
+settlement payload simulates successfully on MagicBlock Devnet at 36,123 CU.
+The complete three-instruction sponsored envelope independently simulates at
+48,993 CU. The owner's current daily sponsorship counter is `4/20` (paid Daily
+attempts `0`), so a successful finalization will advance it to `5/20`.
+This simulation did not sign, submit, or mutate state; it is pre-approval
+evidence, not authorization.
 
 The embedded identity lives in the browser. Do not extract or print its recovery
-material. First obtain explicit user approval for the exact
-seal/commit/copyback/receipt-consumption/rent-cleanup scope. After approval, ask
-the user to refresh `http://127.0.0.1:5175` and resume the run. The current
-Play controller starts the recovery pipeline automatically; there is no
-**Settle result** button. If the run is already shown as settled, the explicit
-UI action is **Collect rent & continue**. During that approved flow:
+material. The run has already copied back to Solana base, but the browser lost
+its local run marker. The explicit `/?recover=1` campaign-recovery route disables
+normal auto-start/auto-settlement, rejects any attached local session, derives
+PDAs from the current embedded owner, and validates base ownership, run ID,
+campaign mode, and terminal lifecycle before signing. It then presents the full
+three-instruction sponsored scope in a browser confirmation. During an approved
+flow:
 
-1. Monitor Router status and the ER transaction signature.
-2. Confirm commit/undelegate succeeds with no writable-account error.
-3. Poll base until the ActiveRun copyback and Magic Action complete.
+1. Open `http://127.0.0.1:5175/?recover=1` in the browser that renders Vault
+   `BQNu…KTB6`.
+2. Approve only the confirmation naming `consumeSponsorshipV1`,
+   `consumeRunReceiptV1`, and `closeSettledActiveRunV1`; otherwise cancel.
+3. Monitor the paymaster response and confirmed base-layer signature.
 4. Verify RunReceipt owner, discriminator, owner pubkey, run ID, map/level,
    score, moves, completion flag, action hash, VRF hash, and consumed flag.
 5. Verify campaign best Stars/Profile counters changed exactly once.
-6. Refresh/resume the client and confirm it shows the settled receipt.
-7. If **Collect rent & continue** is shown, ask the user to click it within the
-   same explicitly approved cleanup scope; otherwise let the existing sponsored
-   finalize plan finish only under that approval.
-8. Verify ActiveRun is closed, rent returns to the configured recipient, while
+6. Verify ActiveRun is closed, rent returns to the configured recipient, while
    RunShell and RunReceipt remain durable.
-9. Save a sanitized end-to-end lifecycle proof and update all four docs.
+7. Save a sanitized end-to-end lifecycle proof and update all four docs.
 
 Do not infer settlement approval from the program-upgrade approval. The executed
 fingerprint `21ef11168ed0fe45` covered only faucet funding and the loader upgrade.

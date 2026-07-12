@@ -29,10 +29,12 @@ export default function PlayScreen() {
   const controller = usePlayController();
   const { run, game, gameLevel, activeRun } = controller;
   const navigate = useNavigationStore((state) => state.navigate);
+  const recoveryRunId = useNavigationStore((state) => state.recoveryRunId);
   const { themeTemplate, setThemeTemplate } = useTheme();
   const { setMusicContext, playSfx } = useMusicPlayer();
   const images = ImageAssets(themeTemplate);
   const [activeBonus, setActiveBonus] = useState(BonusType.None);
+  const [recoveringRun, setRecoveringRun] = useState(false);
   const activeRunId = activeRun?.runId;
   const activeRunLevel = activeRun?.level;
   const activeRunBossId = activeRun?.rules.bossId;
@@ -42,7 +44,9 @@ export default function PlayScreen() {
     shouldLog: false,
   });
   const onRunBonus = controller.onBonus;
+  const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
+  const recoveryOwner = run.publicKey.toBase58();
 
   useEffect(() => {
     if (!activeRun) return;
@@ -127,6 +131,83 @@ export default function PlayScreen() {
     dismissRun();
     navigate("home");
   }, [dismissRun, navigate]);
+
+  const handleRecoverBaseRun = useCallback(async () => {
+    if (recoveryRunId === null || recoveringRun) return;
+    if (
+      !window.confirm(
+        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, ActiveRun rent returns to this Vault, and there is no token-transfer instruction.`,
+      )
+    ) {
+      return;
+    }
+    setRecoveringRun(true);
+    try {
+      await recoverBaseRun(recoveryRunId);
+    } catch {
+      // The shared run controller exposes the validation or submission error.
+    } finally {
+      setRecoveringRun(false);
+    }
+  }, [recoverBaseRun, recoveringRun, recoveryOwner, recoveryRunId]);
+
+  if (recoveryRunId !== null) {
+    const resolving = run.watchStatus?.phase === "resolving";
+    const attachedRun = run.phase !== "none";
+    return (
+      <PlaySurface background={images.background}>
+        <StatePanel
+          title={
+            recoveringRun
+              ? "Finalizing recovered run"
+              : resolving
+                ? "Checking local run state"
+                : attachedRun
+                  ? "Recovery unavailable"
+                  : "Recover settled campaign run"
+          }
+        >
+          {resolving ? (
+            <img
+              src={images.loader}
+              alt=""
+              className="h-16 w-16 animate-bounce"
+            />
+          ) : (
+            <p className="max-w-md text-center text-xs text-white/65">
+              {run.error ??
+                (attachedRun
+                  ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
+                  : `Recovery verifies Vault ${recoveryOwner} and requests one sponsored signature for consumeSponsorshipV1, consumeRunReceiptV1, and closeSettledActiveRunV1.`)}
+            </p>
+          )}
+          {!resolving && (
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("home")}
+                className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white"
+              >
+                Back to Home
+              </button>
+              {!attachedRun && (
+                <button
+                  type="button"
+                  disabled={run.busy || recoveringRun}
+                  onClick={() => void handleRecoverBaseRun()}
+                  className="rounded-xl bg-emerald-600 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
+                >
+                  {recoveringRun
+                    ? "Finalizing…"
+                    : `Recover settled run ${recoveryRunId}`}
+                </button>
+              )}
+            </div>
+          )}
+        </StatePanel>
+      </PlaySurface>
+    );
+  }
 
   if (run.phase === "settled" && run.receipt) {
     return (

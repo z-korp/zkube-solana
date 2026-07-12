@@ -34,6 +34,7 @@ interface NavigationState {
   isTransitioning: boolean;
   transitionDirection: "forward" | "back" | null;
   gameId: bigint | null;
+  recoveryRunId: bigint | null;
   mapZoneId: number;
   isDailyMap: boolean;
   selectedMode: number;
@@ -45,6 +46,7 @@ interface NavigationState {
   navigate: (page: PageId, gameId?: bigint) => void;
   goBack: () => void;
   setGameId: (id: bigint | null) => void;
+  setRecoveryRunId: (id: bigint | null) => void;
   setMapZoneId: (zoneId: number) => void;
   setIsDailyMap: (isDaily: boolean) => void;
   setSelectedMode: (mode: number) => void;
@@ -81,6 +83,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   isTransitioning: false,
   transitionDirection: null,
   gameId: null,
+  recoveryRunId: null,
   mapZoneId: 1,
   isDailyMap: false,
   selectedMode: 0,
@@ -100,6 +103,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       transitionDirection: "forward",
       isTransitioning: true,
       ...(gameId !== undefined ? { gameId } : {}),
+      ...(page !== "play" ? { recoveryRunId: null } : {}),
     });
 
     setTimeout(() => {
@@ -117,6 +121,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       currentPage: target,
       transitionDirection: "back",
       isTransitioning: true,
+      recoveryRunId: null,
     });
 
     setTimeout(() => {
@@ -125,6 +130,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   },
 
   setGameId: (id) => set({ gameId: id }),
+  setRecoveryRunId: (id) => set({ recoveryRunId: id }),
   setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
   setIsDailyMap: (isDaily) => set({ isDailyMap: isDaily }),
   setSelectedMode: (mode) => set({ selectedMode: mode }),
