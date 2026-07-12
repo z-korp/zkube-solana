@@ -463,6 +463,7 @@ const Grid: React.FC<GridProps> = ({
         if (solanaState) {
           if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
             applyReceipt(solanaState);
+            onCascadeComplete?.();
           } else {
             pendingReceiptRef.current = solanaState;
           }
@@ -496,8 +497,10 @@ const Grid: React.FC<GridProps> = ({
       try {
         const state = await onBonus(gridHeight - 1 - block.y, block.x);
         if (state) {
-          if (gameStateRef.current === GameState.CASCADE_COMPLETE) applyReceipt(state);
-          else pendingReceiptRef.current = state;
+          if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
+            applyReceipt(state);
+            onCascadeComplete?.();
+          } else pendingReceiptRef.current = state;
         }
         playSfx("bonus-activate");
       } catch {
@@ -662,7 +665,6 @@ const Grid: React.FC<GridProps> = ({
             setIsTxProcessing(true);
             gameStateRef.current = GameState.CASCADE_COMPLETE;
             setGameState(GameState.CASCADE_COMPLETE);
-            onCascadeComplete?.();
           } else if (gameState === GameState.UPDATE_AFTER_MOVE) {
             setcurrentMove(null);
             // Check if receipt already arrived while cascade was playing
@@ -673,7 +675,6 @@ const Grid: React.FC<GridProps> = ({
               setIsTxProcessing(true);
               gameStateRef.current = GameState.CASCADE_COMPLETE;
               setGameState(GameState.CASCADE_COMPLETE);
-              onCascadeComplete?.();
             }
           }
         }
@@ -681,6 +682,7 @@ const Grid: React.FC<GridProps> = ({
       case GameState.CASCADE_COMPLETE:
         if (pendingReceiptRef.current) {
           applyReceipt(pendingReceiptRef.current);
+          onCascadeComplete?.();
         }
         break;
       default:

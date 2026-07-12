@@ -81,19 +81,15 @@ export function useRebootRun() {
   const currentRun = useRef<Extract<ResumedRun, { phase: "delegated" }> | null>(
     null,
   );
+  const settleableRun = useRef<Extract<
+    ResumedRun,
+    { phase: "settleable" }
+  > | null>(null);
   const paymaster = useRef<PaymasterClient | null>(null);
   // While a move/bonus is in flight the action itself is the authoritative
   // state source; watcher snapshots taken mid-action (awaitingVrf, stale
   // counters) must not clobber currentRun or reach the board.
   const actionInFlight = useRef(false);
-  // Assigned below (needs the settlement callbacks); invoked from onState.
-  const recoverSettleable = useRef<
-    | ((
-        run: Extract<ResumedRun, { phase: "settleable" | "settled" }>,
-      ) => void)
-    | null
-  >(null);
-
   useEffect(() => {
     paymaster.current = null;
   }, [connection.rpcEndpoint]);
@@ -118,6 +114,7 @@ export function useRebootRun() {
           return;
         }
         currentRun.current = run.phase === "delegated" ? run : null;
+        settleableRun.current = run.phase === "settleable" ? run : null;
         setState((value) => ({
           ...value,
           phase: run.phase,
@@ -130,11 +127,8 @@ export function useRebootRun() {
           receipt: run.phase === "settled" ? run.receipt : null,
           sessionAuthorized:
             run.phase === "none" ? false : run.sessionAuthorized,
-          error: null,
+          error: value.phase === run.phase ? value.error : null,
         }));
-        if (run.phase === "settleable" || run.phase === "settled") {
-          recoverSettleable.current?.(run);
-        }
       },
       onStatus: (watchStatus) =>
         setState((value) => ({ ...value, watchStatus })),
@@ -460,54 +454,46 @@ export function useRebootRun() {
     [finalizeBaseSettlement, launchCampaignRun, setStage, wallet],
   );
 
-  // Automatic recovery for wedged runs: undelegated + terminal + unconsumed
-  // receipt means the Magic Action never ran. Complete settlement directly
-  // on base and unblock the career. Cooldown prevents hammering on repeated
-  // failures; the watcher re-triggers on its next resolve.
-  const recoveringRef = useRef(false);
-  const lastRecoveryAttemptRef = useRef(0);
-  recoverSettleable.current = (run) => {
-    if (recoveringRef.current || actionInFlight.current) return;
-    if (Date.now() - lastRecoveryAttemptRef.current < 30_000) return;
-    recoveringRef.current = true;
-    lastRecoveryAttemptRef.current = Date.now();
-    void (async () => {
-      try {
-        setState((value) => ({ ...value, busy: true, error: null }));
+  /**
+   * Explicit recovery for an undelegated terminal run whose receipt was not
+   * consumed by its Magic Action. Keeping this controller-driven prevents a
+   * background watcher from erasing the result before the UI can snapshot it,
+   * refresh progress, and route to the correct campaign/Daily destination.
+   */
+  const recoverSettlement = useCallback(async () => {
+    const recovered = settleableRun.current;
+    if (!recovered) throw new Error("No settleable run is attached");
+    actionInFlight.current = true;
+    try {
+      return await withBusy(setState, async () => {
         await finalizeBaseSettlement(
-          run.marker,
-          run.phase === "settleable" ? run.activeRun.dailyChallenge : null,
+          recovered.marker,
+          recovered.activeRun.dailyChallenge,
         );
+        settleableRun.current = null;
         setEpoch((value) => value + 1);
         setState((value) => ({
           ...value,
-          busy: false,
-          settleStage: null,
           phase: "none",
           activeRun: null,
           receipt: null,
           sessionAuthorized: false,
-        }));
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
-        setState((value) => ({
-          ...value,
-          busy: false,
           settleStage: null,
-          error: `Settlement recovery failed: ${message}`,
         }));
-      } finally {
-        recoveringRef.current = false;
-      }
-    })();
-  };
+        return recovered.activeRun;
+      });
+    } finally {
+      setStage(null);
+      actionInFlight.current = false;
+    }
+  }, [finalizeBaseSettlement, setStage]);
 
   /** Local escape hatch: forget the stuck marker without touching chain
    *  accounts (they stay recoverable later). */
   const dismissRun = useCallback(() => {
     clearRunSession(publicKey);
     currentRun.current = null;
+    settleableRun.current = null;
     setEpoch((value) => value + 1);
     setState((value) => ({
       ...value,
@@ -566,6 +552,7 @@ export function useRebootRun() {
     if (!marker) return null;
     return withBusy(setState, async () => {
       const signature = await finalizeBaseSettlement(marker, null);
+      settleableRun.current = null;
       setEpoch((value) => value + 1);
       setState((value) => ({
         ...value,
@@ -609,6 +596,7 @@ export function useRebootRun() {
     playMove,
     applyBonus,
     settleAndAdvance,
+    recoverSettlement,
     dismissRun,
     cleanup,
     recoverSession,

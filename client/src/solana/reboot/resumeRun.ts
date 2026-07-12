@@ -53,6 +53,8 @@ export interface RunReceiptView {
   owner: PublicKey;
   runId: bigint;
   mode: string;
+  mapId: number;
+  level: number;
   score: number;
   moves: number;
   levelStars: number;
@@ -227,6 +229,8 @@ export async function fetchReceipt(
     owner: receipt.owner,
     runId: BigInt(receipt.runId.toString()),
     mode: Object.keys(receipt.mode)[0] ?? "unknown",
+    mapId: Number(receipt.mapId),
+    level: Number(receipt.level),
     score: Number(receipt.score),
     moves: Number(receipt.moves),
     levelStars: Number(receipt.levelStars),

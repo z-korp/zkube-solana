@@ -2,7 +2,7 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { HTMLAttributes } from "react";
-import Grid from "./Grid";
+import Grid, { type ReceiptProjection } from "./Grid";
 import { BonusType } from "../../solana/reboot/bonusTypes";
 import { useMoveStore } from "../../stores/moveTxStore";
 
@@ -114,9 +114,9 @@ describe("Grid drag interactions", () => {
     fireEvent.pointerDown(block, { clientX: 10 });
     fireEvent.pointerMove(document, { clientX: 50 });
 
-    expect((container.querySelector(".svg-block") as SVGGElement).style.transform).not.toBe(
-      "translate(0px, 180px)",
-    );
+    expect(
+      (container.querySelector(".svg-block") as SVGGElement).style.transform,
+    ).not.toBe("translate(0px, 180px)");
   });
 
   it("mobile drag remains responsive after a no-move tap", () => {
@@ -135,13 +135,21 @@ describe("Grid drag interactions", () => {
     fireEvent.pointerDown(block, { clientX: 10, pointerType: "touch" });
     fireEvent.pointerMove(document, { clientX: 50, pointerType: "touch" });
 
-    expect((container.querySelector(".svg-block") as SVGGElement).style.transform).not.toBe(
-      "translate(0px, 180px)",
-    );
+    expect(
+      (container.querySelector(".svg-block") as SVGGElement).style.transform,
+    ).not.toBe("translate(0px, 180px)");
   });
 });
 
 describe("Grid move queue", () => {
+  const receipt = (): ReceiptProjection => ({
+    blocks: Array.from({ length: 10 }, (_, y) =>
+      y === 9 ? [0, 0, 1, 0, 0, 0, 0, 0] : Array(8).fill(0),
+    ),
+    nextRow: [2, 2, 0, 0, 0, 0, 0, 0],
+    over: true,
+  });
+
   const dragBlockTo = (container: HTMLElement, clientX: number) => {
     const block = container.querySelector(".svg-block") as SVGGElement;
     const surface = container.querySelector("svg") as SVGSVGElement;
@@ -223,6 +231,56 @@ describe("Grid move queue", () => {
       expect(
         (container.querySelector(".svg-block") as SVGGElement).style.transform,
       ).not.toBe("translate(40px, 180px)");
+    });
+  });
+
+  it("signals completion after an early receipt and the local cascade", async () => {
+    const onCascadeComplete = vi.fn();
+    const onMove = vi.fn(async () => receipt());
+    const { container } = render(
+      <Grid
+        {...baseProps}
+        onMove={onMove}
+        onCascadeComplete={onCascadeComplete}
+      />,
+    );
+
+    dragBlockTo(container, 50);
+
+    await waitFor(() => expect(onMove).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onCascadeComplete).toHaveBeenCalledOnce(), {
+      timeout: 5_000,
+    });
+  });
+
+  it("waits for a late receipt after the local cascade before signaling", async () => {
+    let resolveMove!: (value: ReceiptProjection) => void;
+    const pendingMove = new Promise<ReceiptProjection>((resolve) => {
+      resolveMove = resolve;
+    });
+    const onMove = vi.fn(() => pendingMove);
+    const onCascadeComplete = vi.fn();
+    const setIsTxProcessing = vi.fn();
+    const { container } = render(
+      <Grid
+        {...baseProps}
+        setIsTxProcessing={setIsTxProcessing}
+        onMove={onMove}
+        onCascadeComplete={onCascadeComplete}
+      />,
+    );
+
+    dragBlockTo(container, 50);
+
+    await waitFor(() => expect(onMove).toHaveBeenCalledOnce());
+    await waitFor(() => expect(setIsTxProcessing).toHaveBeenCalledWith(true), {
+      timeout: 5_000,
+    });
+    expect(onCascadeComplete).not.toHaveBeenCalled();
+
+    resolveMove(receipt());
+    await waitFor(() => expect(onCascadeComplete).toHaveBeenCalledOnce(), {
+      timeout: 5_000,
     });
   });
 });

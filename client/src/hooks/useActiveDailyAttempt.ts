@@ -1,40 +1,43 @@
 import { useMemo } from "react";
 
-import { useDailyController } from "@/contexts/daily";
 import { useRun } from "@/contexts/run";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { loadRunSession } from "@/solana/reboot/runSessionStore";
 
 export interface ActiveDailyRun {
   gameId: bigint;
-  challengeId: number;
   level: number;
   isReplay: boolean;
+  settled: boolean;
 }
 
 export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
   const { publicKey } = useEmbeddedIdentity();
-  const { daily } = useDailyController();
   const run = useRun();
   return useMemo(() => {
     const marker = loadRunSession(publicKey);
     const active = run.activeRun;
-    if (
-      !marker ||
-      marker.mode !== "daily" ||
-      !daily ||
-      !active ||
-      active.mode !== "daily" ||
-      active.runId !== marker.runId ||
-      !active.dailyChallenge.equals(daily.address)
-    ) {
-      return null;
+    if (!marker || marker.mode !== "daily") return null;
+    if (active && active.mode === "daily" && active.runId === marker.runId) {
+      return {
+        gameId: marker.runId,
+        level: active.level,
+        isReplay: false,
+        settled: false,
+      };
     }
-    return {
-      gameId: marker.runId,
-      challengeId: daily.dayId,
-      level: active.level,
-      isReplay: false,
-    };
-  }, [daily, publicKey, run.activeRun]);
+    if (
+      run.phase === "settled" &&
+      run.receipt?.mode === "daily" &&
+      run.receipt.runId === marker.runId
+    ) {
+      return {
+        gameId: marker.runId,
+        level: run.receipt.level,
+        isReplay: false,
+        settled: true,
+      };
+    }
+    return null;
+  }, [publicKey, run.activeRun, run.phase, run.receipt]);
 };
