@@ -40,20 +40,32 @@ The player lifecycle is fully automatic — no wallet popups, no manual chain
 steps, no player SOL required:
 
 - The embedded identity is created silently and signs programmatically;
-  session creation rides the first sponsored prepare transaction.
+  session creation rides the first sponsored prepare transaction, and expired
+  sessions renew silently on resume (one guarded attempt per lapse; failures
+  surface a retry affordance).
 - The paymaster funds all base fees, account rent, and the Magic Action
   escrow; a fresh zero-SOL identity plays campaign Map 1 Level 1 end-to-end.
 - Moves/bonuses are session-key signed on the Router-resolved ER.
 - Settlement (seal → commit/undelegate → copyback → receipt → rent reclaim)
-  runs in an auto-settle effect; there is no manual settle button. Orphaned
-  base runs are recoverable (commit `a635c4e`).
+  runs in an auto-settle effect; there is no manual settle button. Resuming
+  into an already-settled run auto-cleans its rent, and orphaned base runs
+  are recoverable.
+- Quit is an on-chain abandon (`abandonRunV1`): terminal with zero stars,
+  settled through the unchanged pipeline, ActiveRun rent reclaimed —
+  cycling-sim abort semantics. Until the program upgrade lands (see open
+  items) the client falls back to the local forget-marker path.
 - Clicks that remain are user intent (choosing a level, paid Daily entry,
   claims, unlocks, withdrawals) — the same set cycling-sim keeps.
 
-Gate: 50 test files / 164 tests, IDL check, strict + reboot typechecks,
-zero-warning lint, production build — all green. Signer-free browser
-acceptance passed on fresh desktop/mobile Chromium profiles across every
-route with zero console/network failures and zero outbound writes.
+The chain layer lives at `client/src/chain/` (generated IDL under
+`src/chain/idl/`, controllers `useRunController`/`useCampaignController`/
+`useDailyController`/`useProgressController`, contexts share single
+instances). No dojo/starknet/cartridge/torii vocabulary and no "reboot"
+codename remain in executable source.
+
+Gate: 53 test files / 197 tests, IDL check, strict + chain typechecks
+(`typecheck:chain`), zero-warning lint, production build — all green; 69
+Rust tests, formatting/Clippy/SBF/IDL clean.
 
 ## Open items
 
@@ -66,10 +78,11 @@ route with zero console/network failures and zero outbound writes.
    (simulates at 48,993 CU). Operator approval required before signing.
    Afterward: verify receipt/progress postconditions and save a sanitized
    lifecycle proof.
-2. **Remove the last click-gates** (UX parity with cycling-sim): auto-fire
-   settled-phase cleanup ("Collect rent & continue") and silent lazy session
-   renewal ("Renew session"). Prompt handed to Codex; keep the `?recover=`
-   confirmation as-is.
+2. **Program upgrade for `abandonRunV1`** — the instruction is implemented,
+   tested, and in the synced IDL, but the deployed binary predates it. Run
+   `cd client && NO_DNA=1 pnpm chain:devnet:deploy` for the dry-run preview
+   and approve its exact fingerprint to upgrade; until then Quit falls back
+   to the local forget-marker path.
 3. **Vercel dashboard**: set the project Root Directory to `client`
    (not automatable from the repo).
 4. **Signed live-Devnet acceptance**: multi-move gameplay depth, settle-through
