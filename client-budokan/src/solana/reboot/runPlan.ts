@@ -24,13 +24,18 @@ import {
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
 } from "../constants";
-import { buildTopUpMagicActionEscrowInstruction } from "./magicAction";
+import {
+  buildTopUpMagicActionEscrowInstruction,
+  deriveMagicActionEscrowPda,
+} from "./magicAction";
 import type { PaymasterClient } from "./paymasterClient";
 import { saveRunSession } from "./runSessionStore";
 import type { WalletLike } from "./sessionWallet";
 import { withSponsorshipInstruction } from "./sponsorshipClient";
 import {
   deriveCampaignProgressPda,
+  deriveDailyLeaderboardPda,
+  deriveDailyPlayerPda,
   deriveMapCatalogPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
@@ -503,6 +508,92 @@ export async function buildCloseSettledRunPlan(args: {
     connection,
     args.paymaster ?? args.wallet.publicKey,
     [instruction],
+  );
+}
+
+/**
+ * Base-layer settlement completion in ONE atomic transaction: consume the
+ * receipt (when the Magic Action stalled) and close the ActiveRun for rent.
+ * Receipt consumption needs no program-level signer (`owner` is unchecked;
+ * every account is a validated PDA); the bundled close carries the owner
+ * signature the sponsored-shape policy requires. This is both the tail of
+ * the normal settle pipeline and the recovery path for wedged runs.
+ */
+export async function buildFinalizeRunPlan(args: {
+  wallet: WalletLike;
+  owner: PublicKey;
+  runId: bigint;
+  addresses: RunAddresses;
+  mode: "campaign" | "daily";
+  dailyChallenge?: PublicKey | null;
+  receiptConsumed: boolean;
+  connection?: Connection;
+  paymaster?: PublicKey;
+}): Promise<TransactionPlan> {
+  const connection =
+    args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
+  const program = zkubeProgram(connection, args.wallet);
+  const instructions: TransactionInstruction[] = [];
+  if (!args.receiptConsumed) {
+    const escrowMetas = {
+      // #[action]-injected metas: the Magic Action escrow of the run owner.
+      escrowAuth: args.owner,
+      escrow: deriveMagicActionEscrowPda(args.owner),
+    };
+    if (args.mode === "daily") {
+      if (!args.dailyChallenge) {
+        throw new Error("Daily settlement requires the challenge address");
+      }
+      instructions.push(
+        await program.methods
+          .consumeDailyReceiptV1()
+          .accountsPartial({
+            activeRun: args.addresses.activeRun,
+            runShell: args.addresses.runShell,
+            runReceipt: args.addresses.runReceipt,
+            playerProfile: derivePlayerProfilePda(args.owner),
+            dailyChallenge: args.dailyChallenge,
+            dailyPlayer: deriveDailyPlayerPda(args.dailyChallenge, args.owner),
+            leaderboard: deriveDailyLeaderboardPda(args.dailyChallenge),
+            owner: args.owner,
+            ...escrowMetas,
+          })
+          .instruction(),
+      );
+    } else {
+      instructions.push(
+        await program.methods
+          .consumeRunReceiptV1()
+          .accountsPartial({
+            activeRun: args.addresses.activeRun,
+            runShell: args.addresses.runShell,
+            runReceipt: args.addresses.runReceipt,
+            playerProfile: derivePlayerProfilePda(args.owner),
+            campaignProgress: deriveCampaignProgressPda(args.owner),
+            owner: args.owner,
+            ...escrowMetas,
+          })
+          .instruction(),
+      );
+    }
+  }
+  instructions.push(
+    await program.methods
+      .closeSettledActiveRunV1(new BN(args.runId.toString()))
+      .accountsPartial({
+        owner: args.owner,
+        runShell: args.addresses.runShell,
+        runReceipt: args.addresses.runReceipt,
+        activeRun: args.addresses.activeRun,
+      })
+      .instruction(),
+  );
+  return plan(
+    "solana-base",
+    "Finalize run settlement",
+    connection,
+    args.paymaster ?? args.wallet.publicKey,
+    instructions,
   );
 }
 

@@ -26,7 +26,13 @@ interface RunWatcherOptions<T> {
 }
 
 function defaultResumedRunTarget(state: ResumedRun): RunWatchBindTarget | null {
-  if (state.phase !== "delegated" && state.phase !== "base") return null;
+  if (
+    state.phase !== "delegated" &&
+    state.phase !== "base" &&
+    state.phase !== "settleable"
+  ) {
+    return null;
+  }
   return {
     connection: state.connection,
     address: state.marker.addresses.activeRun,

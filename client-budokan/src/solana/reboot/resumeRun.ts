@@ -26,6 +26,16 @@ export type ResumedRun =
       sessionAuthorized: boolean;
     }
   | {
+      // Undelegated, terminal, receipt not consumed: the Magic Action never
+      // ran. Settlement can be completed directly on base (no signer needed
+      // for consumption) — this is the recovery path.
+      phase: "settleable";
+      marker: RunSessionMarker;
+      activeRun: ActiveRunView;
+      connection: Connection;
+      sessionAuthorized: boolean;
+    }
+  | {
       phase: "delegated";
       marker: RunSessionMarker;
       activeRun: ActiveRunView;
@@ -137,6 +147,18 @@ export async function resolvePersistedRun(args: {
     marker.addresses.activeRun,
   );
   if (activeRun && matchesMarker(activeRun, marker)) {
+    const terminal =
+      activeRun.lifecycle === "levelComplete" ||
+      activeRun.lifecycle === "finished";
+    if (terminal && !receipt?.consumed) {
+      return {
+        phase: "settleable",
+        marker,
+        activeRun,
+        connection: args.baseConnection,
+        sessionAuthorized,
+      };
+    }
     return {
       phase: "base",
       marker,

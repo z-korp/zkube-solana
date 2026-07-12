@@ -45,6 +45,8 @@ export const SPONSORED_GAME_DISCRIMINATORS = {
   claimQuestV1: [61, 90, 44, 10, 13, 189, 4, 3],
   consumeSponsorshipV1: [59, 233, 232, 90, 10, 245, 139, 141],
   closeSettledActiveRunV1: [15, 185, 11, 182, 7, 135, 180, 159],
+  consumeDailyReceiptV1: [167, 133, 90, 4, 83, 62, 112, 143],
+  consumeRunReceiptV1: [153, 5, 99, 189, 42, 139, 168, 22],
   delegateActiveRunV1: [197, 109, 88, 188, 239, 118, 146, 107],
   enterDailyPaidV1: [243, 167, 161, 133, 50, 97, 189, 39],
   enterDailyWithStarsV1: [35, 6, 113, 106, 140, 138, 65, 187],
@@ -94,6 +96,24 @@ const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
     discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1),
     {
       ownerAccountIndex: 0,
+      payerAccountIndex: null,
+    },
+  ],
+  [
+    // Base-layer settlement completion when the Magic Action stalled. The
+    // program needs no signer (owner is unchecked), but the sponsored-shape
+    // policy still pins the owner to a transaction signer — the bundled
+    // close instruction provides that signature.
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.consumeRunReceiptV1),
+    {
+      ownerAccountIndex: 5,
+      payerAccountIndex: null,
+    },
+  ],
+  [
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.consumeDailyReceiptV1),
+    {
+      ownerAccountIndex: 7,
       payerAccountIndex: null,
     },
   ],
