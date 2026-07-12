@@ -13,7 +13,7 @@ import { useCampaignController } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
 import { useNavigationStore } from "@/stores/navigationStore";
-import Controller from "@/ui/components/Controller";
+import AccountBadge from "@/ui/components/AccountBadge";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
@@ -280,7 +280,7 @@ const SettingsPage: React.FC = () => {
                 <ShieldCheck size={17} style={{ color: colors.accent }} />
                 zKube Vault
               </h2>
-              <Controller />
+              <AccountBadge />
             </div>
             <p className="mb-3 font-sans text-xs text-white/50">
               Your embedded Solana identity, deposits, recovery, and

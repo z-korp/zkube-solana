@@ -5,7 +5,7 @@ import { useNavigationStore } from "@/stores/navigationStore";
 import { Button } from "@/ui/elements/button";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
-export default function Controller({ className = "" }: { className?: string }) {
+export default function AccountBadge({ className = "" }: { className?: string }) {
   const { publicKey } = useEmbeddedIdentity();
   const navigate = useNavigationStore((state) => state.navigate);
   const address = publicKey.toBase58();

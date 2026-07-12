@@ -1,4 +1,4 @@
-import { Game } from "@/dojo/game/models/game";
+import { Game } from "@/game/model";
 import { Dialog, DialogContent, DialogTitle } from "../elements/dialog";
 import { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";

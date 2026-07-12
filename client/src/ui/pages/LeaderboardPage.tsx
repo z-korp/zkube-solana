@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 import { getThemeColors } from "@/config/themes";
 import { useDailyController } from "@/contexts/daily";
-import useAccountCustom from "@/hooks/useAccountCustom";
+import useAccount from "@/hooks/useAccount";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
@@ -36,7 +36,7 @@ const rowVariants = {
 const LeaderboardPage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const { account } = useAccountCustom();
+  const { address } = useAccount();
   const daily = useDailyController();
   const { challenge } = useCurrentChallenge();
   const { entries: dailyEntries, isLoading } = useDailyLeaderboard(
@@ -45,7 +45,7 @@ const LeaderboardPage: React.FC = () => {
   const loading = daily.loading || isLoading;
   const { entry: playerEntry } = usePlayerEntry(
     challenge?.challenge_id,
-    account.address,
+    address,
   );
   const navigate = useNavigationStore((state) => state.navigate);
   const setSpectateTarget = useNavigationStore(
@@ -61,31 +61,31 @@ const LeaderboardPage: React.FC = () => {
         score: entry.score,
         playerAddress: entry.player,
         runId: entry.runId,
-        isYou: account.address === entry.player,
+        isYou: address === entry.player,
       })),
-    [account.address, dailyEntries],
+    [address, dailyEntries],
   );
 
   const visiblePlayerRank = useMemo(() => {
     const ranked = dailyEntries.find(
-      (entry) => entry.player === account.address,
+      (entry) => entry.player === address,
     );
     if (ranked) {
       return {
         rank: ranked.rank,
         score: ranked.score,
-        name: `You · ${truncatePublicKey(account.address)}`,
+        name: `You · ${truncatePublicKey(address)}`,
       };
     }
     if (playerEntry && playerEntry.rank > 0 && playerEntry.bestScore > 0) {
       return {
         rank: playerEntry.rank,
         score: playerEntry.bestScore,
-        name: `You · ${truncatePublicKey(account.address)}`,
+        name: `You · ${truncatePublicKey(address)}`,
       };
     }
     return null;
-  }, [account.address, dailyEntries, playerEntry]);
+  }, [address, dailyEntries, playerEntry]);
 
   const isMyRankVisible = rankRows.some((row) => row.isYou);
   const watch = useCallback(

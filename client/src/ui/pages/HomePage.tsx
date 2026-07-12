@@ -10,7 +10,7 @@ import {
 } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
-import useAccountCustom from "@/hooks/useAccountCustom";
+import useAccount from "@/hooks/useAccount";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
@@ -66,7 +66,7 @@ const itemVariants: Variants = {
 };
 
 const HomePage: React.FC = () => {
-  const { account } = useAccountCustom();
+  const { address } = useAccount();
   const { themeTemplate } = useTheme();
   const { setMusicPlaylist } = useMusicPlayer();
   const runtime = useDevnetRuntimeStatus();
@@ -77,12 +77,12 @@ const HomePage: React.FC = () => {
   const [isDailySelected, setIsDailySelected] = useState(false);
   const [unlockZone, setUnlockZone] = useState<ZoneProgressData | null>(null);
 
-  const { playerMeta } = usePlayerMeta(account.address);
+  const { playerMeta } = usePlayerMeta(address);
   const playerLevel = getLevelFromXp(playerMeta?.lifetimeXp ?? 0);
   const playerTitle = getTitleForLevel(playerLevel);
-  const { balance: zStarBalance } = useZStarBalance(account.address);
+  const { balance: zStarBalance } = useZStarBalance(address);
   const { zones: rawZones, isLoading: zonesLoading } = useZoneProgress(
-    account.address,
+    address,
     zStarBalance,
   );
   const zones = useMemo(
@@ -109,7 +109,7 @@ const HomePage: React.FC = () => {
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { isRegistered: hasPlayedDaily } = usePlayerEntry(
     challenge?.challenge_id,
-    account.address,
+    address,
   );
   const { entries: dailyEntries } = useDailyLeaderboard(
     challenge?.challenge_id,
@@ -121,10 +121,10 @@ const HomePage: React.FC = () => {
   const dailyColors = getThemeColors(getThemeId(dailyZoneId));
   const dailyMyRank = useMemo(() => {
     const found = dailyEntries.find(
-      (entry) => entry.player === account.address,
+      (entry) => entry.player === address,
     );
     return found?.rank ?? null;
-  }, [account.address, dailyEntries]);
+  }, [address, dailyEntries]);
 
   useEffect(() => {
     setMusicPlaylist(["main", "level"]);
@@ -221,9 +221,9 @@ const HomePage: React.FC = () => {
               <div className="min-w-0">
                 <p
                   className="truncate font-sans text-[15px] font-bold text-white"
-                  title={account.address}
+                  title={address}
                 >
-                  zKube Vault · {truncatePublicKey(account.address)}
+                  zKube Vault · {truncatePublicKey(address)}
                 </p>
                 <p className="font-sans text-[11px] font-semibold text-white/75">
                   {playerTitle}

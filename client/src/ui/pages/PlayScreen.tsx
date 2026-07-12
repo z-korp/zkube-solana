@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import { useMusicPlayer } from "@/contexts/hooks";
-import { BonusType } from "@/dojo/game/types/bonusTypes";
+import { BonusType } from "@/solana/reboot/bonusTypes";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
@@ -302,7 +302,7 @@ export default function PlayScreen() {
   const basePhase = run.phase === "base" || run.phase === "settleable";
   const locked = run.busy || terminal || basePhase || !run.sessionAuthorized;
   const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
-  const nextLine = terminal ? [] : game.next_row;
+  const nextLine = terminal ? [] : game.nextRow;
   const movesDisplay =
     game.mode === 1
       ? game.levelMoves

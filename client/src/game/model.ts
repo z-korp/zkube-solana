@@ -1,23 +1,21 @@
-// Compat adapter: presents the Solana ActiveRun account through the surface
-// of the original client's Game model, so the ported UI reads it unchanged.
+// Presentation view-model over the decoded on-chain ActiveRun account.
 //
-// Semantics mapping (one on-chain run == one level of the campaign):
+// Semantics (one on-chain run == one level of the campaign):
 // - `over` is true only for a failed/ended run (`finished`); a completed
 //   level (`levelComplete`) flows through the level-completion path.
 // - `zoneCleared` marks a completed guardian trial (level 10 of a map).
 // - scores are per-run: levelScore === totalScore === score.
 import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
 import type { ActiveRunView } from "@/solana/reboot/runPlan";
-import { isBossLevel } from "@/dojo/game/helpers/runDataPacking";
+import { isBossLevel } from "@/game/constants";
 
 export class Game {
   public id: bigint;
   public blocks: number[][];
-  public next_row: number[];
+  public nextRow: number[];
   public combo: number;
-  public max_combo: number;
+  public maxCombo: number;
   public over: boolean;
-  public started_at: number;
 
   private readonly view: ActiveRunView;
   private readonly levelStars: readonly number[];
@@ -27,11 +25,10 @@ export class Game {
     this.levelStars = levelStars;
     this.id = view.runId;
     this.blocks = toDisplayGrid(view.grid);
-    this.next_row = view.nextRow ?? [];
+    this.nextRow = view.nextRow ?? [];
     this.combo = view.comboCounter;
-    this.max_combo = view.maxCombo;
+    this.maxCombo = view.maxCombo;
     this.over = view.lifecycle === "finished";
-    this.started_at = 0;
   }
 
   public get lifecycle(): string {

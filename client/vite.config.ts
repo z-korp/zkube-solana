@@ -33,15 +33,7 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: [
-      // Classic-UI compat: pages ported verbatim from the original client
-      // keep their "@/dojo/*" imports; they resolve to the Solana adapters.
-      {
-        find: /^@\/dojo\//,
-        replacement: `${path.resolve(__dirname, "./src/compat/dojo")}/`,
-      },
-      { find: "@", replacement: path.resolve(__dirname, "./src") },
-    ],
+    alias: [{ find: "@", replacement: path.resolve(__dirname, "./src") }],
   },
   server: {
     host: true,

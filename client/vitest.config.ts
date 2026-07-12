@@ -4,13 +4,7 @@ import path from "path";
 
 export default defineConfig({
   resolve: {
-    alias: [
-      {
-        find: /^@\/dojo\//,
-        replacement: `${path.resolve(__dirname, "./src/compat/dojo")}/`,
-      },
-      { find: "@", replacement: path.resolve(__dirname, "./src") },
-    ],
+    alias: [{ find: "@", replacement: path.resolve(__dirname, "./src") }],
   },
   test: {
     globals: true,

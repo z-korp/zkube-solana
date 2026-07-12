@@ -1,10 +1,10 @@
-import { Game } from "@/dojo/game/models/game";
+import { Game } from "@/game/model";
 import { Dialog, DialogContent, DialogTitle } from "../elements/dialog";
 import { useMemo } from "react";
 import { motion, type Variants } from "motion/react";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { Flame, Gem, Layers, RotateCw, Trophy, Zap } from "lucide-react";
-import { BOSS_LEVELS, PRE_BOSS_LEVELS } from "@/dojo/game/constants";
+import { BOSS_LEVELS, PRE_BOSS_LEVELS } from "@/game/constants";
 
 const ENDLESS_TIERS = [
   { name: "Very Easy", color: "#22c55e", emoji: "🟢" },

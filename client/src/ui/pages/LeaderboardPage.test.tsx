@@ -48,8 +48,8 @@ vi.mock("@/contexts/daily", () => ({
   useDailyController: () => fixtures.controller,
 }));
 
-vi.mock("@/hooks/useAccountCustom", () => ({
-  default: () => ({ account: { address: fixtures.accountAddress } }),
+vi.mock("@/hooks/useAccount", () => ({
+  default: () => ({ address: fixtures.accountAddress }),
 }));
 
 vi.mock("@/hooks/useCurrentChallenge", () => ({
