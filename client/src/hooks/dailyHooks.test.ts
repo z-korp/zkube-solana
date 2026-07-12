@@ -5,7 +5,7 @@ import {
   parseDailyStatus,
   type DailyStatus,
   type DailyView,
-} from "@/solana/reboot/dailyClient";
+} from "@/chain/dailyClient";
 import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 
 const key = () => Keypair.generate().publicKey;

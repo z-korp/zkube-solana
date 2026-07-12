@@ -3,7 +3,7 @@ import { ChevronUp } from "lucide-react";
 import Grid, { type GridProps } from "./Grid";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import NextLine from "./NextLine";
-import { BonusType } from "@/solana/reboot/bonusTypes";
+import { BonusType } from "@/chain/bonusTypes";
 import { Game } from "@/game/model";
 
 import "../../grid.css";

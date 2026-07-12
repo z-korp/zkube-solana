@@ -44,7 +44,7 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/daily", () => ({
-  useDailyController: () => fixtures.controller,
+  useDaily: () => fixtures.controller,
 }));
 
 vi.mock("@/hooks/useAccount", () => ({

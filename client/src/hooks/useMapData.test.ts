@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
-import type { ActiveRunRulesView } from "@/solana/reboot/runPlan";
+import type { CampaignMapView } from "@/chain/campaignClient";
+import type { ActiveRunRulesView } from "@/chain/runPlan";
 import { generateMapData } from "./useMapData";
 
 const rule: ActiveRunRulesView = {

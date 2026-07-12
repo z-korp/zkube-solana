@@ -1,14 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from "react";
 
-import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
+import { useProgressController } from "@/chain/useProgressController";
 
-export type ProgressController = ReturnType<typeof useRebootProgress>;
+export type ProgressController = ReturnType<typeof useProgressController>;
 
 const ProgressContext = createContext<ProgressController | null>(null);
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
-  const progress = useRebootProgress();
+  const progress = useProgressController();
   return (
     <ProgressContext.Provider value={progress}>
       {children}
@@ -16,11 +16,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useProgressController(): ProgressController {
+export function useProgress(): ProgressController {
   const progress = useContext(ProgressContext);
   if (!progress) {
     throw new Error(
-      "useProgressController must be used within ProgressProvider",
+      "useProgress must be used within ProgressProvider",
     );
   }
   return progress;

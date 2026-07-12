@@ -14,7 +14,7 @@ import {
 import AnimatedText from "../elements/animatedText";
 import { ComboMessages } from "@/enums/comboEnum";
 import { motion } from "motion/react";
-import { BonusType } from "@/solana/reboot/bonusTypes";
+import { BonusType } from "@/chain/bonusTypes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";

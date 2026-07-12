@@ -1,4 +1,4 @@
-import type { ActiveRunConstraintView } from "@/solana/reboot/runPlan";
+import type { ActiveRunConstraintView } from "@/chain/runPlan";
 
 export function constraintDescription(rule: ActiveRunConstraintView): string {
   if (rule.kind === 1) {

@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import { useMusicPlayer } from "@/contexts/hooks";
-import { BonusType } from "@/solana/reboot/bonusTypes";
+import { BonusType } from "@/chain/bonusTypes";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";

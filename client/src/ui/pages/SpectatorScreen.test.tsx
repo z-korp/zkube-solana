@@ -20,7 +20,7 @@ const fixtures = vi.hoisted(() => ({
   useSpectatedRun: vi.fn(() => ({ run: null, status: null })),
 }));
 
-vi.mock("@/solana/reboot/useSpectatedRun", () => ({
+vi.mock("@/chain/useSpectatedRun", () => ({
   useSpectatedRun: fixtures.useSpectatedRun,
 }));
 

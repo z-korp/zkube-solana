@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.chain.tsbuildinfo",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/server/**/*.ts",
+    "src/chain/**/*.ts",
+    "src/play/usePlayController.ts",
+    "src/ui/pages/PlayScreen.tsx",
+    "src/ui/pages/DailyChallengePage.tsx"
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "node_modules", "dist"]
+}

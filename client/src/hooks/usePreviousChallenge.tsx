@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { useSolanaConnection } from "@/solana/connectionContext";
+import { useSolanaConnection } from "@/chain/connectionContext";
 import {
   buildClaimDailyPrizePlan,
   buildRefundDailyEntryPlan,
   currentDailyDayId,
   fetchDailyView,
   type DailyView,
-} from "@/solana/reboot/dailyClient";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
-import { fetchPaymasterClient } from "@/solana/reboot/paymasterClient";
-import { submitSponsoredTransactionPlan } from "@/solana/reboot/runPlan";
+} from "@/chain/dailyClient";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { fetchPaymasterClient } from "@/chain/paymasterClient";
+import { submitSponsoredTransactionPlan } from "@/chain/runPlan";
 import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 
 export function usePreviousChallenge() {

@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 
-import { useProgressController } from "@/contexts/progress";
+import { useProgress } from "@/contexts/progress";
 import {
   getQuestIntervalId,
   QUEST_DEFS,
   type QuestDef,
   type QuestType,
 } from "@/config/questDefs";
-import type { QuestProgressView } from "@/solana/reboot/progressClient";
+import type { QuestProgressView } from "@/chain/progressClient";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
 export interface QuestStatus extends QuestDef {
@@ -42,7 +42,7 @@ export function projectQuests(
 }
 
 export const useQuests = () => {
-  const controller = useProgressController();
+  const controller = useProgress();
   const quests = useMemo<QuestStatus[]>(
     () => projectQuests(controller.progress?.quests ?? null),
     [controller.progress?.quests],

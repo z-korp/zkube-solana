@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const pairs = [
-  ["solana/target/idl/solana.json", "client/src/solana/generated/solana.json"],
-  ["solana/target/types/solana.ts", "client/src/solana/generated/solana.ts"],
+  ["solana/target/idl/solana.json", "client/src/chain/idl/solana.json"],
+  ["solana/target/types/solana.ts", "client/src/chain/idl/solana.ts"],
 ];
 const check = process.argv.includes("--check");
 

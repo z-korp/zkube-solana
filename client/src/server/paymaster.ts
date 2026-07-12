@@ -12,23 +12,23 @@ import { resolve } from "node:path";
 import {
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
-} from "../solana/constants";
-export { SOLANA_DEVNET_GENESIS_HASH } from "../solana/constants";
+} from "../chain/constants";
+export { SOLANA_DEVNET_GENESIS_HASH } from "../chain/constants";
 import {
   CREATE_SESSION_V2_DISCRIMINATOR,
   SESSION_KEYS_PROGRAM_ID,
   deriveSessionTokenV2Pda,
-} from "../solana/reboot/sessionV2";
+} from "../chain/sessionV2";
 import {
   DEFAULT_ACTION_ESCROW_TOP_UP_LAMPORTS,
   MAGIC_ACTION_ESCROW_INDEX,
   deriveMagicActionEscrowPda,
-} from "../solana/reboot/magicAction";
+} from "../chain/magicAction";
 import {
   deriveProtocolConfigPda,
   deriveSponsorAllowancePda,
   deriveTreasuryLedgerPda,
-} from "../solana/reboot/pdas";
+} from "../chain/pdas";
 
 const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",

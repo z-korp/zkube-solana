@@ -14,19 +14,19 @@ import {
 } from "@solana/web3.js";
 import { createTopUpEscrowInstruction } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { describe, expect, it, vi } from "vitest";
-import { IDL } from "../solana/idl";
-import { ZKUBE_PROGRAM_ID } from "../solana/constants";
+import { IDL } from "../chain/idl";
+import { ZKUBE_PROGRAM_ID } from "../chain/constants";
 import {
   DEFAULT_ACTION_ESCROW_TOP_UP_LAMPORTS,
   MAGIC_ACTION_ESCROW_INDEX,
   buildTopUpMagicActionEscrowInstruction,
   deriveMagicActionEscrowPda,
-} from "../solana/reboot/magicAction";
-import { buildCreateSessionV2Instruction } from "../solana/reboot/sessionV2";
+} from "../chain/magicAction";
+import { buildCreateSessionV2Instruction } from "../chain/sessionV2";
 import {
   buildConsumeSponsorshipInstruction,
   withSponsorshipInstruction,
-} from "../solana/reboot/sponsorshipClient";
+} from "../chain/sponsorshipClient";
 import {
   SPONSORED_GAME_DISCRIMINATORS,
   PAYMASTER_SESSION_MAX_SECONDS,

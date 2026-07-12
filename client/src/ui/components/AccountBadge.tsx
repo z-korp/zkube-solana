@@ -1,6 +1,6 @@
 import { Gamepad2 } from "lucide-react";
 
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { Button } from "@/ui/elements/button";
 import { truncatePublicKey } from "@/utils/solanaDisplay";

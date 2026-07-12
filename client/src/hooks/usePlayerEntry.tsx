@@ -1,5 +1,5 @@
-import { useDailyController } from "@/contexts/daily";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useDaily } from "@/contexts/daily";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 
 export interface PlayerEntryView {
   bestScore: number;
@@ -17,7 +17,7 @@ export function usePlayerEntry(
   challengeId: number | undefined,
   playerAddress: string | undefined,
 ) {
-  const { daily } = useDailyController();
+  const { daily } = useDaily();
   const { publicKey } = useEmbeddedIdentity();
   const matches =
     challengeId !== undefined &&

@@ -18,7 +18,7 @@ import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
-import { useDevnetRuntimeStatus } from "@/solana/reboot/useDevnetRuntimeStatus";
+import { useDevnetRuntimeStatus } from "@/chain/useDevnetRuntimeStatus";
 import { useNavigationStore } from "@/stores/navigationStore";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";

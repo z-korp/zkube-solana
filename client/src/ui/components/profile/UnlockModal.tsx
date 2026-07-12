@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 
 import type { ZoneProgressData } from "@/config/profileData";
 import type { ThemeColors } from "@/config/themes";
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
 
@@ -23,7 +23,7 @@ export function formatUsdcBaseUnits(value: bigint): string {
 }
 
 const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
-  const campaign = useCampaignController();
+  const campaign = useCampaign();
   const starCost = zone.starCost ?? 0;
   const currentStars = Number(
     campaign.campaign?.starsBalance ?? BigInt(zone.currentStars ?? 0),

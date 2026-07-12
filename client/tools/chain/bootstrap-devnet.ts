@@ -2,7 +2,7 @@ import {
   devnetBootstrapInputFromEnv,
   formatDevnetBootstrap,
   runDevnetBootstrap,
-} from "../../src/solana/reboot/devnetBootstrap";
+} from "../../src/chain/devnetBootstrap";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {

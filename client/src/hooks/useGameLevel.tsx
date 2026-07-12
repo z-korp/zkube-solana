@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useRun } from "@/contexts/run";
 import { ConstraintType } from "@/game/constraint";
 import { applyStarThresholdModifier } from "@/game/level";
-import type { ActiveRunRulesView } from "@/solana/reboot/runPlan";
+import type { ActiveRunRulesView } from "@/chain/runPlan";
 
 export interface GameLevelData {
   gameId: bigint;

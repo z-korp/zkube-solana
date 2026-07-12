@@ -1,4 +1,4 @@
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
+import type { CampaignMapView } from "@/chain/campaignClient";
 import type { PageId } from "@/stores/navigationStore";
 
 // A new identity has no CampaignProgress account until its first sponsored

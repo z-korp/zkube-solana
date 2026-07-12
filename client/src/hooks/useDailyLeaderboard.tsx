@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
-import { useDailyController } from "@/contexts/daily";
-import type { DailyLeaderboardView } from "@/solana/reboot/dailyClient";
+import { useDaily } from "@/contexts/daily";
+import type { DailyLeaderboardView } from "@/chain/dailyClient";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 export interface DailyLeaderboardEntry {
@@ -32,7 +32,7 @@ export function projectDailyLeaderboard(
 }
 
 export function useDailyLeaderboard(challengeId: number | undefined) {
-  const { daily, loading } = useDailyController();
+  const { daily, loading } = useDaily();
   const entries = useMemo<DailyLeaderboardEntry[]>(() => {
     if (challengeId === undefined || daily?.dayId !== challengeId) return [];
     return projectDailyLeaderboard(daily.leaderboard);

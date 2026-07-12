@@ -21,17 +21,17 @@ vi.mock("@/contexts/run", () => ({
   useRun: () => fixtures.run,
 }));
 vi.mock("@/contexts/campaign", () => ({
-  useCampaignController: () => ({
+  useCampaign: () => ({
     campaign: { maps: [] },
     loading: false,
     refresh: fixtures.campaignRefresh,
   }),
 }));
 vi.mock("@/contexts/progress", () => ({
-  useProgressController: () => ({ refresh: fixtures.progressRefresh }),
+  useProgress: () => ({ refresh: fixtures.progressRefresh }),
 }));
 vi.mock("@/contexts/daily", () => ({
-  useDailyController: () => ({ refresh: fixtures.dailyRefresh }),
+  useDaily: () => ({ refresh: fixtures.dailyRefresh }),
 }));
 vi.mock("@/contexts/hooks", () => ({
   useMusicPlayer: () => ({ playSfx: fixtures.playSfx }),

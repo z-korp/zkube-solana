@@ -1,7 +1,7 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import type { ActiveRunView } from "@/solana/reboot/runPlan";
+import type { ActiveRunView } from "@/chain/runPlan";
 import {
   canSettleTerminalRun,
   pendingCompletionFromRun,

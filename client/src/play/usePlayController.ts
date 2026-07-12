@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useCampaignController } from "@/contexts/campaign";
-import { useDailyController } from "@/contexts/daily";
+import { useCampaign } from "@/contexts/campaign";
+import { useDaily } from "@/contexts/daily";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useProgressController } from "@/contexts/progress";
+import { useProgress } from "@/contexts/progress";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
-import type { ActiveRunView } from "@/solana/reboot/runPlan";
-import type { RunReceiptView } from "@/solana/reboot/resumeRun";
-import type { SettleStage } from "@/solana/reboot/useRebootRun";
-import { toDisplayGrid } from "@/solana/reboot/rebootGrid";
+import type { ActiveRunView } from "@/chain/runPlan";
+import type { RunReceiptView } from "@/chain/resumeRun";
+import type { SettleStage } from "@/chain/useRunController";
+import { toDisplayGrid } from "@/chain/gridProjection";
 import {
   useNavigationStore,
   type PendingLevelCompletion,
@@ -111,9 +111,9 @@ function snapshotRun(
 
 export function usePlayController() {
   const run = useRun();
-  const campaign = useCampaignController();
-  const progress = useProgressController();
-  const daily = useDailyController();
+  const campaign = useCampaign();
+  const progress = useProgress();
+  const daily = useDaily();
   const { playSfx } = useMusicPlayer();
   const navigate = useNavigationStore((state) => state.navigate);
   const mapId = useNavigationStore((state) => state.mapZoneId);

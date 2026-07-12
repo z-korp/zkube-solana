@@ -11,7 +11,7 @@ import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import AchievementsTab from "@/ui/components/profile/AchievementsTab";
 import OverviewTab from "@/ui/components/profile/OverviewTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";

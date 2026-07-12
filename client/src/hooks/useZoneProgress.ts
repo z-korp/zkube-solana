@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 
-import { useCampaignController } from "@/contexts/campaign";
+import { useCampaign } from "@/contexts/campaign";
 import {
   ZONE_EMOJIS,
   ZONE_NAMES,
   type ZoneProgressData,
 } from "@/config/profileData";
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
-import { useEmbeddedIdentity } from "@/solana/reboot/embeddedIdentityContext";
+import type { CampaignMapView } from "@/chain/campaignClient";
+import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 import { highestClearedLevel } from "@/utils/solanaDisplay";
 
 export interface ZoneProgressResult {
@@ -70,7 +70,7 @@ export const useZoneProgress = (
   playerAddress: string | undefined,
   zStarBalance: number,
 ): ZoneProgressResult => {
-  const { campaign, loading } = useCampaignController();
+  const { campaign, loading } = useCampaign();
   const { publicKey } = useEmbeddedIdentity();
   const isCurrentPlayer =
     !playerAddress || playerAddress === publicKey.toBase58();

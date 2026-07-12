@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ActiveRunRulesView } from "@/solana/reboot/runPlan";
+import type { ActiveRunRulesView } from "@/chain/runPlan";
 import { rulesToGameLevelData } from "./useGameLevel";
 
 const rules: ActiveRunRulesView = {

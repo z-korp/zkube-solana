@@ -1,11 +1,11 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/solana/reboot/campaignClient";
+import type { CampaignMapView } from "@/chain/campaignClient";
 import type {
   AchievementProgressView,
   QuestProgressView,
-} from "@/solana/reboot/progressClient";
+} from "@/chain/progressClient";
 import { projectAchievements } from "./useAchievements";
 import { projectDailyLeaderboard } from "./useDailyLeaderboard";
 import { campaignBestLevel } from "./usePlayerMeta";

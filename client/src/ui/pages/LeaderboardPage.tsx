@@ -3,7 +3,7 @@ import { Eye, Loader2, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getThemeColors } from "@/config/themes";
-import { useDailyController } from "@/contexts/daily";
+import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
@@ -37,7 +37,7 @@ const LeaderboardPage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const { address } = useAccount();
-  const daily = useDailyController();
+  const daily = useDaily();
   const { challenge } = useCurrentChallenge();
   const { entries: dailyEntries, isLoading } = useDailyLeaderboard(
     challenge?.challenge_id,

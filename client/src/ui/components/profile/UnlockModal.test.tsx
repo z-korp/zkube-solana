@@ -24,7 +24,7 @@ const campaign = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/campaign", () => ({
-  useCampaignController: () => ({
+  useCampaign: () => ({
     ...campaign.controller,
     unlock: campaign.unlock,
   }),
