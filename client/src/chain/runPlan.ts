@@ -277,6 +277,10 @@ export async function buildPrepareCampaignRunPlan(args: {
   const instructions: TransactionInstruction[] = [];
   let sessionValidUntil =
     (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
+  // The session keypair only signs the createSessionV2 instruction. A reused
+  // session skips that instruction, so it must NOT be listed as a signer
+  // (web3.js rejects signing with a non-required key).
+  let sessionCreated = false;
 
   if (!profile) {
     instructions.push(
@@ -302,6 +306,7 @@ export async function buildPrepareCampaignRunPlan(args: {
         validUntil: sessionValidUntil,
       }),
     );
+    sessionCreated = true;
   } else if (args.sessionValidUntil) {
     // Reused session: the marker must reflect the live token's real expiry,
     // not a fresh six-day claim.
@@ -344,7 +349,7 @@ export async function buildPrepareCampaignRunPlan(args: {
       connection,
       payer,
       instructions,
-      [args.session],
+      sessionCreated ? [args.session] : [],
     ),
   };
 }
