@@ -244,6 +244,9 @@ export async function buildPrepareDailyRunPlan(args: {
   let sessionValidUntil =
     (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
   const instructions: TransactionInstruction[] = [];
+  // The session keypair signs only createSessionV2; a reused session skips it
+  // and must not be a listed signer.
+  let sessionCreated = false;
   if (!(await args.connection.getAccountInfo(sessionToken, "confirmed"))) {
     instructions.push(
       buildCreateSessionV2Instruction({
@@ -254,6 +257,7 @@ export async function buildPrepareDailyRunPlan(args: {
         validUntil: sessionValidUntil,
       }),
     );
+    sessionCreated = true;
   } else if (args.sessionValidUntil) {
     // Reused session: the marker must reflect the live token's real expiry.
     sessionValidUntil = args.sessionValidUntil;
@@ -324,7 +328,7 @@ export async function buildPrepareDailyRunPlan(args: {
       args.connection,
       payer,
       instructions,
-      [args.session],
+      sessionCreated ? [args.session] : [],
     ),
   };
 }
