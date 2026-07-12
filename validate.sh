@@ -27,7 +27,7 @@ validate_program() {
 }
 
 validate_frontend() {
-  cd "$root/client-budokan"
+  cd "$root/client"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check
   NO_DNA=1 pnpm run typecheck:reboot
