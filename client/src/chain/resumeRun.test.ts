@@ -7,7 +7,7 @@ import { resolvePersistedRun } from "./resumeRun";
 import { saveRunSession } from "./runSessionStore";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 import { SessionWallet } from "./sessionWallet";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 
 describe("persisted run resolution", () => {
   beforeEach(() => {
@@ -245,6 +245,50 @@ describe("persisted run resolution", () => {
         },
       }),
     ).rejects.toThrow("is not owned by zKube");
+  });
+
+  it("stays 'resolving' when the router delegated but the ER has not cloned yet", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 5n);
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection: {
+        getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
+      } as unknown as Connection,
+      dependencies: {
+        getStatus: vi
+          .fn()
+          .mockResolvedValue({ isDelegated: true, fqdn: "https://er.example/" }),
+        makeErConnection: () =>
+          ({
+            getAccountInfo: vi.fn().mockResolvedValue(null),
+          }) as unknown as Connection,
+      },
+    });
+    expect(result.phase).toBe("resolving");
+  });
+
+  it("stays 'resolving' when the base account is owned by the delegation program", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    persist(owner, session, 6n);
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection: {
+        getAccountInfo: vi
+          .fn()
+          .mockResolvedValue({ owner: DELEGATION_PROGRAM_ID }),
+      } as unknown as Connection,
+      dependencies: {
+        getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
+        fetchReceipt: vi.fn().mockResolvedValue(null),
+        fetchRun: vi.fn().mockResolvedValue(null),
+      },
+    });
+    expect(result.phase).toBe("resolving");
   });
 });
 

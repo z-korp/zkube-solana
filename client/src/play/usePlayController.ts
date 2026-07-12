@@ -183,6 +183,15 @@ export function usePlayController() {
     : mapId === 1;
   const startCampaignRun = run.startCampaignRun;
 
+  // A launch whose ER delegation timed out throws into startError, but the run
+  // is persisted and the watcher heals it (resolving → delegated). Clear the
+  // stale launch error once the run attaches so no dead banner lingers.
+  useEffect(() => {
+    if (run.phase === "resolving" || run.phase === "delegated") {
+      setStartError(null);
+    }
+  }, [run.phase]);
+
   useEffect(() => {
     if (
       previewLevel === null ||

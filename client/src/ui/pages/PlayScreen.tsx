@@ -273,16 +273,34 @@ export default function PlayScreen() {
   }
 
   if (!game || !activeRun || !gameLevel) {
-    const preparing = run.busy || run.watchStatus?.phase === "resolving";
+    // "resolving" = delegate confirmed on base, ER still cloning the account.
+    // It self-heals via the watcher; show a spinner + a manual retry, never a
+    // dead-end.
+    const resolving =
+      run.phase === "resolving" || run.watchStatus?.phase === "resolving";
+    const preparing = run.busy || resolving;
+    const title = resolving
+      ? "Resolving MagicBlock run…"
+      : preparing
+        ? "Preparing game"
+        : "Run unavailable";
     return (
       <PlaySurface background={images.background}>
-        <StatePanel title={preparing ? "Preparing game" : "Run unavailable"}>
+        <StatePanel title={title}>
           {preparing ? (
-            <img
-              src={images.loader}
-              alt=""
-              className="h-16 w-16 animate-bounce"
-            />
+            <>
+              <img
+                src={images.loader}
+                alt=""
+                className="h-16 w-16 animate-bounce"
+              />
+              {resolving && (
+                <p className="max-w-sm text-center text-xs text-white/55">
+                  The run is delegated on Solana and the MagicBlock validator is
+                  catching up. This usually clears in a few seconds.
+                </p>
+              )}
+            </>
           ) : (
             (() => {
               const rawError = controller.startError ?? run.error;
@@ -304,8 +322,17 @@ export default function PlayScreen() {
               );
             })()
           )}
-          {!preparing && (
-            <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
+            {resolving && (
+              <button
+                type="button"
+                onClick={run.retryResolve}
+                className="rounded-xl bg-emerald-600 px-6 py-2 font-sans text-sm font-bold text-white"
+              >
+                Retry now
+              </button>
+            )}
+            {!preparing && (
               <button
                 type="button"
                 onClick={() => navigate("home")}
@@ -313,17 +340,17 @@ export default function PlayScreen() {
               >
                 Back to Home
               </button>
-              {run.phase === "missing" && (
-                <button
-                  type="button"
-                  onClick={handleForgetLocally}
-                  className="rounded-xl border border-red-300/30 bg-red-950/60 px-6 py-2 font-sans text-sm font-bold text-red-100"
-                >
-                  Forget missing run
-                </button>
-              )}
-            </div>
-          )}
+            )}
+            {(run.phase === "missing" || resolving) && (
+              <button
+                type="button"
+                onClick={handleForgetLocally}
+                className="rounded-xl border border-red-300/30 bg-red-950/60 px-6 py-2 font-sans text-sm font-bold text-red-100"
+              >
+                {run.phase === "missing" ? "Forget missing run" : "Abandon"}
+              </button>
+            )}
+          </div>
         </StatePanel>
       </PlaySurface>
     );
