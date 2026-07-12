@@ -4,11 +4,8 @@ set -euo pipefail
 scope="${1:-all}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-validate_program() {
+validate_sbf() {
   cd "$root"
-  NO_DNA=1 cargo fmt --all -- --check
-  NO_DNA=1 cargo test --workspace
-  NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
   # Program identity is tracked separately from the generated local keypair;
   # validate SBF + IDL without mutating either identity.
   # Anchor can currently return success even when the SBF compiler reports a
@@ -26,6 +23,14 @@ validate_program() {
   rm -f "$anchor_log"
 }
 
+validate_program() {
+  cd "$root"
+  NO_DNA=1 cargo fmt --all -- --check
+  NO_DNA=1 cargo test --workspace
+  NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
+  validate_sbf
+}
+
 validate_frontend() {
   cd "$root/client"
   NO_DNA=1 pnpm install --frozen-lockfile
@@ -40,6 +45,9 @@ case "$scope" in
   program)
     validate_program
     ;;
+  program-sbf)
+    validate_sbf
+    ;;
   frontend)
     validate_frontend
     ;;
@@ -48,7 +56,7 @@ case "$scope" in
     validate_frontend
     ;;
   *)
-    echo "usage: $0 [program|frontend|all]" >&2
+    echo "usage: $0 [program|program-sbf|frontend|all]" >&2
     exit 2
     ;;
 esac
