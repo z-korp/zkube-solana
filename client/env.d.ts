@@ -1,5 +1,5 @@
 interface ImportMetaEnv {
-  // ── Solana / MagicBlock (client-budokan/.env) ──────────────────────────────
+  // ── Solana / MagicBlock (client/.env) ─────────────────────────────────────
   // Programme principal zKube
   readonly VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID?: string;
   // VRF MagicBlock

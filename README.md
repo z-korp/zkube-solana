@@ -18,8 +18,8 @@ Start with:
 - [IMPLEMENTATION.md](IMPLEMENTATION.md) — scope, architecture, iteration status, decisions, and validation evidence.
 - [MAGICBLOCK.md](MAGICBLOCK.md) — authoritative cycling-sim-derived Router, ER, VRF, embedded identity, settlement, and proof rules.
 - [OPERATIONS.md](OPERATIONS.md) — deployment identity, approval gates, custody invariants, readiness probe, and incident procedures.
-- [client-budokan/.env.example](client-budokan/.env.example) — public/server configuration inventory; never commit a real paymaster secret.
-- [client-budokan/deployment/README.md](client-budokan/deployment/README.md) — approved deployment-manifest contract and fail-closed production build gate.
+- [client/.env.example](client/.env.example) — public/server configuration inventory; never commit a real paymaster secret.
+- [client/deployment/README.md](client/deployment/README.md) — approved deployment-manifest contract and fail-closed production build gate.
 
 Sanitized Devnet evidence lives under `artifacts/`. In particular,
 `devnet-loader-rent-audit.proof.json` records the exact initial-deploy versus
@@ -30,7 +30,7 @@ failed upload leak again.
 
 ```bash
 NO_DNA=1 ./validate.sh program
-cd client-budokan
+cd client
 pnpm idl:check
 pnpm exec tsc -b --pretty false
 pnpm lint
@@ -77,7 +77,7 @@ approval. Sanitized custody, protocol, and catalog execution proofs are stored u
 ## Devnet deployment and upgrades
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:devnet:deploy
 ```
 
@@ -95,7 +95,7 @@ The protocol bootstrap is dry-run-first and deliberately staged because later
 transactions depend on accounts created by earlier stages:
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:devnet:bootstrap
 ZKUBE_BOOTSTRAP_STAGE=protocol NO_DNA=1 pnpm chain:devnet:bootstrap
 ZKUBE_BOOTSTRAP_STAGE=catalogs NO_DNA=1 pnpm chain:devnet:bootstrap
@@ -124,10 +124,10 @@ not an Iteration 1 acceptance gate and does not substitute for Devnet evidence.
 
 ## Web deployment
 
-Configure `client-budokan` as the deployment platform's project root. Its single
+Configure `client` as the deployment platform's project root. Its single
 `vercel.json` builds the Vite app and preserves `api/paymaster.ts` as the
 stateless fee-payer function. Installations use the committed lockfile. Supply
-the public and server-only values listed in `client-budokan/.env.example` through
+the public and server-only values listed in `client/.env.example` through
 the platform settings; keep `PAYMASTER_SECRET_KEY` in its secret manager.
 Production builds additionally require `ZKUBE_DEPLOYMENT_MANIFEST` to identify
 an approved sanitized manifest whose environment and SBF hash pass

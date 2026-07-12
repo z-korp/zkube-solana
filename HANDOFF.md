@@ -38,7 +38,10 @@ or delete unrelated changes.
 ## Repository and runtime
 
 - Workspace: `/home/djizus/zkube-solana`
-- Client: `/home/djizus/zkube-solana/client-budokan`
+- Client: `/home/djizus/zkube-solana/client`
+- Archived reboot client: `/home/djizus/zkube-solana/client-archive` — frozen,
+  read-only reference pending manual parity sign-off; keep it outside runtime
+  imports and validation gates, and do not delete it without a separate decision.
 - Original client reference: `/home/djizus/zkube/client-budokan`
 - MagicBlock reference: `/home/djizus/cycling-sim`
 - Base RPC: `https://rpc.magicblock.app/devnet`
@@ -143,7 +146,7 @@ Leaderboard. Payer, delegated ActiveRun, and Magic context remain writable.
 The `CallHandler` target metas retain the writability required on base.
 
 Regression coverage:
-`client-budokan/src/solana/reboot/rebootClient.test.ts`
+`client/src/solana/reboot/rebootClient.test.ts`
 
 The corrected binary is live. The exact preserved campaign commit now simulates
 successfully on the Router-resolved ER:
@@ -161,12 +164,12 @@ the base account remained owned by the delegation program, and the preview
 scheduled-commit signature did not exist.
 
 Reusable diagnostic:
-`client-budokan/tools/chain/simulate-devnet-settlement.ts`
+`client/tools/chain/simulate-devnet-settlement.ts`
 
 Example:
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm exec tsx tools/chain/simulate-devnet-settlement.ts \
   BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6 1
 ```
@@ -245,7 +248,7 @@ screens:
 - settings with audio, themes, embedded Vault, deposit address, SOL/USDC
   balances, recovery export/restore, and withdrawals.
 
-Routing is in `client-budokan/src/App.tsx`. No Phantom, Starknet, Dojo,
+Routing is in `client/src/App.tsx`. No Phantom, Starknet, Dojo,
 Cartridge, or wallet-adapter references remain in executable client source.
 `ActiveRunView` now decodes on-chain level rules, target score, maximum moves,
 both constraints and progress, mutator IDs, bonus configuration, lines, combo,
@@ -253,18 +256,20 @@ and difficulty for authoritative rendering.
 
 Important files:
 
-- `client-budokan/src/ui/pages/RebootHomePage.tsx`
-- `client-budokan/src/ui/pages/RebootMapPage.tsx`
-- `client-budokan/src/ui/pages/RebootBossRevealPage.tsx`
-- `client-budokan/src/ui/pages/RebootPlayScreen.tsx`
-- `client-budokan/src/ui/pages/RebootDailyChallengePage.tsx`
-- `client-budokan/src/ui/pages/RebootProfilePage.tsx`
-- `client-budokan/src/ui/pages/RebootRewardsPage.tsx`
-- `client-budokan/src/ui/pages/RebootLeaderboardPage.tsx`
-- `client-budokan/src/ui/pages/RebootInfoPage.tsx`
-- `client-budokan/src/ui/components/hud/RebootGameHud.tsx`
-- `client-budokan/src/ui/components/actionbar/RebootGameActionBar.tsx`
-- `client-budokan/src/solana/reboot/runPlan.ts`
+- `client/src/ui/pages/HomePage.tsx`
+- `client/src/ui/pages/MapPage.tsx`
+- `client/src/ui/pages/BossRevealPage.tsx`
+- `client/src/ui/pages/PlayScreen.tsx`
+- `client/src/ui/pages/DailyChallengePage.tsx`
+- `client/src/ui/pages/ProfilePage.tsx`
+- `client/src/ui/pages/RewardsPage.tsx`
+- `client/src/ui/pages/LeaderboardPage.tsx`
+- `client/src/ui/pages/SettingsPage.tsx`
+- `client/src/ui/pages/SpectatorScreen.tsx`
+- `client/src/play/usePlayController.ts`
+- `client/src/ui/components/hud/GameHud.tsx`
+- `client/src/ui/components/actionbar/GameActionBar.tsx`
+- `client/src/solana/reboot/runPlan.ts`
 
 The active route set is functionally ported, but continue visual testing on
 mobile and desktop. The current production bundle is large; code splitting is
@@ -289,7 +294,7 @@ Everything below is committed and gate-green:
 - Play screen: earned-star rating on level complete, bonus tooltips with
   charge triggers, HUD score count-up + combo pulse, resize-reactive board.
 - The original SVG node-graph campaign map is restored on on-chain data
-  (`RebootMapPage` + `RebootLevelPreview` + `GuardianGreeting`), with
+  (`MapPage` + `LevelPreview` + `GuardianGreeting`), with
   per-level rules exposed on `CampaignView` via `mapLevelRuleSnapshot`.
 - Profile: XP-within-level progress (previous bar was level/100 — a bug),
   achievement names/icons, lifetime stat tiles (`LifetimeStatsView`); quest
@@ -297,7 +302,7 @@ Everything below is committed and gate-green:
   Resume-run CTA and daily countdown on Home; leaderboard rank pinning,
   entrance/own-row animation, and Daily guardian art + live countdown.
 - New read-only spectator: `/?player=<pubkey>` (optional `&run=<id>`) or
-  `/?pda=<activeRun>` opens `RebootSpectatorScreen`; leaderboard rows have
+  `/?pda=<activeRun>` opens `SpectatorScreen`; leaderboard rows have
   Watch buttons. `resolveSpectatedRun` routes delegation-status-first (ER
   authoritative while delegated), falls back to consumed receipts, and uses a
   throwaway decode-only wallet — no identity/paymaster/session code on the
@@ -324,7 +329,7 @@ Chromium (cycling-sim's Playwright):
   CampaignProgress exists (previously a dead end saying "Start Map 1…" with
   nothing clickable). Map header uses the canonical ZONE_NAMES (Tiki, …).
 - Node-map SVG had zero height under `min-h-full`; fixed to `h-full`.
-- `client-budokan/.env` was MISSING in this worktree — `/api/paymaster`
+- `client/.env` was MISSING in this worktree — `/api/paymaster`
   returned 503, which breaks session renewal and all sponsored actions
   (the probable "resume does nothing" report). Recreated with the documented
   dev defaults (`PAYMASTER_KEYPAIR_PATH=../.devnet/zkube-paymaster.json`);
@@ -343,12 +348,13 @@ Chromium (cycling-sim's Playwright):
 
 ## Validation status
 
-Last full client gate after the 2026-07-12 frontend review pass:
+Last full client gate after the 2026-07-12 original-client port:
 
 - IDL check: pass
 - strict project-reference TypeScript: pass
+- focused reboot TypeScript: pass
 - lint: pass
-- tests: 28 files, 108 tests, all pass
+- tests: 48 files, 160 tests, all pass
 - production Vite build: pass
 
 Last program gate:
@@ -369,7 +375,7 @@ Canonical validation commands:
 
 ```bash
 NO_DNA=1 ./validate.sh program
-cd client-budokan
+cd client
 pnpm idl:check
 pnpm exec tsc -b --pretty false
 pnpm lint

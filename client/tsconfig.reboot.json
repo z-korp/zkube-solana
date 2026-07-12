@@ -12,8 +12,9 @@
     "src/solana/idl.ts",
     "src/solana/generated/**/*.ts",
     "src/solana/reboot/**/*.ts",
-    "src/ui/pages/RebootPlayScreen.tsx",
-    "src/ui/pages/RebootDailyChallengePage.tsx"
+    "src/play/usePlayController.ts",
+    "src/ui/pages/PlayScreen.tsx",
+    "src/ui/pages/DailyChallengePage.tsx"
   ],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "node_modules", "dist"]
 }
