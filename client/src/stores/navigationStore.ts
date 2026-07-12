@@ -1,10 +1,15 @@
 import { create } from "zustand";
 
-export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
+export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings";
 export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 
-export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana", "spectate"]);
+export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
+  "play",
+  "boss",
+  "map",
+  "spectate",
+]);
 
 export interface SpectateTargetParams {
   player?: string;
