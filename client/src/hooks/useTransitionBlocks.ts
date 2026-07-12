@@ -8,7 +8,7 @@ const useTransitionBlocks = () => {
   const blocksRef = useRef<Set<number>>(new Set());
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
-    new Map()
+    new Map(),
   );
 
   const clearBlockTimeout = useCallback((id: number) => {
@@ -35,7 +35,7 @@ const useTransitionBlocks = () => {
       }, TRANSITION_TIMEOUT_MS);
       timeoutsRef.current.set(id, timeout);
     },
-    [clearBlockTimeout]
+    [clearBlockTimeout],
   );
 
   const handleTransitionBlockEnd = useCallback(
@@ -46,7 +46,7 @@ const useTransitionBlocks = () => {
         setIsTransitioning(false);
       }
     },
-    [clearBlockTimeout]
+    [clearBlockTimeout],
   );
 
   return {

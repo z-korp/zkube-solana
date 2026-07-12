@@ -17,7 +17,9 @@ import {
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 
-const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+);
 
 describe("Daily authority client", () => {
   it("publishes PDA-domained immutable windows without a caller-supplied claim deadline", async () => {
@@ -47,7 +49,9 @@ describe("Daily authority client", () => {
     const keys = plan.transaction.instructions[0].keys;
 
     expect(keys[1].pubkey.equals(challenge)).toBe(true);
-    expect(keys[2].pubkey.equals(deriveDailyLeaderboardPda(challenge))).toBe(true);
+    expect(keys[2].pubkey.equals(deriveDailyLeaderboardPda(challenge))).toBe(
+      true,
+    );
     expect(keys[4].pubkey.equals(deriveDailyVaultPda(dayId))).toBe(true);
   });
 
@@ -56,8 +60,16 @@ describe("Daily authority client", () => {
     const caller = new SessionWallet(Keypair.generate());
     const daily = dailyFixture();
     const [cancel, finalize, distribute] = await Promise.all([
-      buildCancelDailyChallengePlan({ connection: {} as Connection, authority, daily }),
-      buildFinalizeDailyChallengePlan({ connection: {} as Connection, caller, daily }),
+      buildCancelDailyChallengePlan({
+        connection: {} as Connection,
+        authority,
+        daily,
+      }),
+      buildFinalizeDailyChallengePlan({
+        connection: {} as Connection,
+        caller,
+        daily,
+      }),
       buildDistributeDailyRakePlan({
         connection: {} as Connection,
         caller,
@@ -71,7 +83,11 @@ describe("Daily authority client", () => {
     expect(cancel.feePayer.equals(authority.publicKey)).toBe(true);
     expect(finalize.feePayer.equals(caller.publicKey)).toBe(true);
     expect(distribute.feePayer.equals(caller.publicKey)).toBe(true);
-    expect(distribute.transaction.instructions[0].keys[1].pubkey.equals(deriveTreasuryLedgerPda())).toBe(true);
+    expect(
+      distribute.transaction.instructions[0].keys[1].pubkey.equals(
+        deriveTreasuryLedgerPda(),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -103,13 +119,38 @@ function endlessRules() {
 function dailyFixture(): DailyView {
   const dayId = currentDailyDayId();
   return {
-    address: deriveDailyChallengePda(dayId), dayId, status: "open", mapId: 1,
-    opensAt: 0, entriesCloseAt: 1, runsCloseAt: 2, settlementGraceCloseAt: 3,
-    finalizedAt: 0, claimsCloseAt: 0, entryPrice: 1_000_000n, starEntryCost: 10n,
-    sponsorFunding: 0n, prizeLiability: 0n, settledPrizePool: 0n, prizeForfeited: 0n,
-    totalPaidAttempts: 0n, totalFreeAttempts: 0n, runsStarted: 0n, runsFinalized: 0n,
-    paymentMint: Keypair.generate().publicKey, paymentTokenProgram: TOKEN_PROGRAM_ID,
-    paymentVault: deriveDailyVaultPda(dayId), rewardVault: Keypair.generate().publicKey,
-    playerEligible: false, playerStars: 0n, nextRunId: 0n, player: null, leaderboard: [],
+    address: deriveDailyChallengePda(dayId),
+    dayId,
+    status: "open",
+    mapId: 1,
+    rules: endlessRules(),
+    endlessThresholds: [15, 40, 80, 150, 280, 500, 900],
+    endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
+    endlessRampMultiplierX100: 100,
+    opensAt: 0,
+    entriesCloseAt: 1,
+    runsCloseAt: 2,
+    settlementGraceCloseAt: 3,
+    finalizedAt: 0,
+    claimsCloseAt: 0,
+    entryPrice: 1_000_000n,
+    starEntryCost: 10n,
+    sponsorFunding: 0n,
+    prizeLiability: 0n,
+    settledPrizePool: 0n,
+    prizeForfeited: 0n,
+    totalPaidAttempts: 0n,
+    totalFreeAttempts: 0n,
+    runsStarted: 0n,
+    runsFinalized: 0n,
+    paymentMint: Keypair.generate().publicKey,
+    paymentTokenProgram: TOKEN_PROGRAM_ID,
+    paymentVault: deriveDailyVaultPda(dayId),
+    rewardVault: Keypair.generate().publicKey,
+    playerEligible: false,
+    playerStars: 0n,
+    nextRunId: 0n,
+    player: null,
+    leaderboard: [],
   };
 }

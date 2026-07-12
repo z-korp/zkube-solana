@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useRun } from "@/contexts/run";
+
 import { useSolanaConnection } from "../connectionContext";
 import {
   buildClaimDailyPrizePlan,
@@ -8,13 +10,12 @@ import {
 } from "./dailyClient";
 import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
-import { useRebootRun } from "./useRebootRun";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
 
 export function useRebootDaily() {
   const { connection } = useSolanaConnection();
   const { wallet } = useEmbeddedIdentity();
-  const run = useRebootRun();
+  const run = useRun();
   const [daily, setDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<string | null>(null);

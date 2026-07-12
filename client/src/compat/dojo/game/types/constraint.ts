@@ -54,7 +54,7 @@ export class Constraint {
     return new Constraint(type as ConstraintType, value, count);
   }
 
-  isSatisfied(progress: number, _bonusUsed: boolean): boolean {
+  isSatisfied(progress: number): boolean {
     switch (this.constraintType) {
       case ConstraintType.None:
         return true;

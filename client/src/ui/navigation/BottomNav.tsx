@@ -4,22 +4,28 @@ import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors } from "@/config/themes";
 import { motion } from "motion/react";
-import { useRebootProgress } from "@/solana/reboot/useRebootProgress";
+import { useProgressController } from "@/contexts/progress";
 
 const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const { progress } = useRebootProgress();
-  const claimableCount = (progress?.achievements.filter((entry) => entry.claimable).length ?? 0)
-    + (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
+  const { progress } = useProgressController();
+  const claimableCount =
+    (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
+    (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;
   }
 
-  const tabs: { id: PageId; icon: React.ElementType; label: string; badge?: number }[] = [
+  const tabs: {
+    id: PageId;
+    icon: React.ElementType;
+    label: string;
+    badge?: number;
+  }[] = [
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
     { id: "ranks", icon: Trophy, label: "Leaderboard" },
@@ -37,7 +43,9 @@ const BottomNav = () => {
             key={tab.id}
             onClick={() => navigate(tab.id)}
             className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors"
-            style={{ color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)" }}
+            style={{
+              color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)",
+            }}
           >
             <div className="relative">
               <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
@@ -54,7 +62,10 @@ const BottomNav = () => {
               <motion.div
                 layoutId="bottom-nav-indicator"
                 className="absolute -top-3 left-1/2 -translate-x-1/2 h-1 w-8 rounded-b-full shadow-[0_4px_12px_rgba(255,255,255,0.5)]"
-                style={{ backgroundColor: colors.accent, boxShadow: `0 2px 8px ${colors.accent}` }}
+                style={{
+                  backgroundColor: colors.accent,
+                  boxShadow: `0 2px 8px ${colors.accent}`,
+                }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
               />
             )}

@@ -1,6 +1,8 @@
 import { useMemo } from "react";
-import { generateLevelConfig, type Level, type GameSettings } from "@/dojo/game/types/level";
-import type { ThemeId } from "@/config/themes";
+
+import { getThemeId, type ThemeId } from "@/config/themes";
+import type { CampaignMapView } from "@/solana/reboot/campaignClient";
+import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 export type NodeType = "classic" | "boss";
 export type NodeState =
@@ -22,18 +24,11 @@ export interface MapNodeData {
   nodeInZone: number;
   type: NodeType;
   draftPhase: null;
-  contractLevel: number | null;
+  contractLevel: number;
   displayLabel: string;
   state: NodeState;
-  levelConfig: Level | null;
+  levelConfig: GameLevelData | null;
   zoneTheme: ThemeId;
-}
-
-export interface StoryZoneMapState {
-  zoneId: number;
-  unlocked: boolean;
-  highestCleared: number;
-  levelStars: number[];
 }
 
 export interface MapData {
@@ -43,139 +38,61 @@ export interface MapData {
 }
 
 export interface UseMapDataParams {
-  seed: bigint;
-  zoneId: number;
-  zoneState: StoryZoneMapState | undefined;
+  map: CampaignMapView;
   activeStoryNode?: ActiveStoryNode | null;
-  settings?: GameSettings;
-  starThresholdModifier?: number;
 }
 
 export const NODES_PER_ZONE = 10;
 export const TOTAL_ZONES = 10;
 export const GAMEPLAY_LEVELS = 10;
-const LEVELS_PER_ZONE = 10;
-
-// Must match contract config.cairo theme_id assignments per zone:
-// Zone 1=theme-1, 2=theme-2, 3=theme-3, 4=theme-4, 5=theme-6,
-export const ZONE_THEMES: ThemeId[] = [
-  "theme-1", "theme-2", "theme-3", "theme-4", "theme-5",
-  "theme-6", "theme-7", "theme-8", "theme-9", "theme-10",
-];
-
-export function getZoneTheme(zoneId: number): ThemeId {
-  return ZONE_THEMES[zoneId - 1] ?? "theme-1";
-}
-
-interface RawNode {
-  type: NodeType;
-  draftPhase: null;
-  contractLevel: number | null;
-}
-
-function buildZoneSequence(): RawNode[] {
-  const nodes: RawNode[] = [];
-
-  for (let level = 1; level < LEVELS_PER_ZONE; level++) {
-    nodes.push({ type: "classic", draftPhase: null, contractLevel: level });
-  }
-
-  nodes.push({ type: "boss", draftPhase: null, contractLevel: LEVELS_PER_ZONE });
-
-  return nodes;
-}
 
 export function contractLevelToNodeIndex(contractLevel: number): number {
-  if (contractLevel < 1 || contractLevel > LEVELS_PER_ZONE) return 0;
+  if (contractLevel < 1 || contractLevel > NODES_PER_ZONE) return 0;
   return contractLevel - 1;
 }
 
-function getNodeState(
-  node: Omit<MapNodeData, "state" | "levelConfig" | "zoneTheme">,
-  zoneState: StoryZoneMapState | undefined,
-  activeStoryNode: ActiveStoryNode | null,
-): NodeState {
-  if (!zoneState?.unlocked) return "locked";
-  const level = node.contractLevel ?? LEVELS_PER_ZONE;
-
-  if (
-    activeStoryNode !== null &&
-    node.zone === activeStoryNode.zoneId &&
-    level === activeStoryNode.level
-  ) {
-    return "playing";
-  }
-
-  const highestCleared = zoneState.highestCleared ?? 0;
-
-  if (level <= highestCleared) return "cleared";
-
-  const nextLevel = highestCleared >= LEVELS_PER_ZONE ? LEVELS_PER_ZONE : highestCleared + 1;
-  if (level === nextLevel) {
-    return "current";
-  }
-
-  return "locked";
-}
-
 export function generateMapData({
-  seed,
-  zoneId,
-  zoneState,
+  map,
   activeStoryNode = null,
-  settings,
-  starThresholdModifier = 128,
 }: UseMapDataParams): MapData {
-  const zoneTheme = getZoneTheme(zoneId);
-  const sequence = buildZoneSequence();
+  const zoneTheme = getThemeId(map.themeId);
+  const firstUncleared = map.levelStars.findIndex((stars) => stars === 0);
+  const currentNodeIndex = firstUncleared < 0 ? 9 : firstUncleared;
+  const playable = map.enabled && map.unlocked;
 
-  const nodes: MapNodeData[] = sequence.map((raw, i) => {
-    const displayLabel =
-      raw.type === "boss"
-        ? `${zoneId}-BOSS`
-        : `${raw.contractLevel ?? ""}`;
+  const nodes = Array.from({ length: NODES_PER_ZONE }, (_, nodeIndex) => {
+    const level = nodeIndex + 1;
+    const cleared =
+      map.levelStars[nodeIndex] > 0 || (map.cleared && level === 10);
+    const playing =
+      activeStoryNode?.zoneId === map.mapId && activeStoryNode.level === level;
+    let state: NodeState = "locked";
+    if (playing) state = "playing";
+    else if (cleared) state = "cleared";
+    else if (playable && nodeIndex === currentNodeIndex) state = "current";
 
-    const partial = {
-      nodeIndex: i,
-      zone: zoneId,
-      nodeInZone: i,
-      type: raw.type,
-      draftPhase: raw.draftPhase,
-      contractLevel: raw.contractLevel,
-      displayLabel,
-    };
-
-    const localLevel = raw.contractLevel ?? LEVELS_PER_ZONE;
-    const levelConfig = generateLevelConfig(seed, localLevel, settings, starThresholdModifier);
-    const state = getNodeState(partial, zoneState, activeStoryNode);
-
+    const rules = map.levels[nodeIndex];
     return {
-      ...partial,
+      nodeIndex,
+      zone: map.mapId,
+      nodeInZone: nodeIndex,
+      type: level === 10 ? ("boss" as const) : ("classic" as const),
+      draftPhase: null,
+      contractLevel: level,
+      displayLabel: level === 10 ? `${map.mapId}-BOSS` : String(level),
       state,
-      levelConfig,
+      levelConfig: rules ? rulesToGameLevelData(rules, level) : null,
       zoneTheme,
     };
   });
 
-  return {
-    nodes,
-    zoneTheme,
-    currentNodeIndex: contractLevelToNodeIndex(
-      (zoneState?.highestCleared ?? 0) + 1,
-    ),
-  };
+  return { nodes, zoneTheme, currentNodeIndex };
 }
 
-export function useMapData({
-  seed,
-  zoneId,
-  zoneState,
-  activeStoryNode = null,
-  settings,
-  starThresholdModifier = 128,
-}: UseMapDataParams): MapData {
+export function useMapData(params: UseMapDataParams): MapData {
+  const { map, activeStoryNode } = params;
   return useMemo(
-    () => generateMapData({ seed, zoneId, zoneState, activeStoryNode, settings, starThresholdModifier }),
-    [seed, zoneId, zoneState, activeStoryNode, settings, starThresholdModifier],
+    () => generateMapData({ map, activeStoryNode }),
+    [activeStoryNode, map],
   );
 }
