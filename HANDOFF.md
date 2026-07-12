@@ -208,6 +208,14 @@ base copyback, durable receipt verification, and transient rent cleanup.
 - Router validator:
   `MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e`
 
+Latest signer-free base-plan inspection (2026-07-12): the receipt exists and
+is still unconsumed. The remaining atomic `Finalize run settlement` transaction
+contains exactly two zKube-program instructions (`consumeRunReceiptV1`, then
+`closeSettledActiveRunV1`), requires embedded owner `BQNu…KTB6`, uses paymaster
+`CNhM…7SgY` as fee payer, transfers no token, and simulates successfully on
+MagicBlock Devnet at 36,123 CU. This simulation did not sign, submit, or mutate
+state; it is pre-approval evidence, not authorization.
+
 The embedded identity lives in the browser. Do not extract or print its recovery
 material. First obtain explicit user approval for the exact
 seal/commit/copyback/receipt-consumption/rent-cleanup scope. After approval, ask
