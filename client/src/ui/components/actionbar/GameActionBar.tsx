@@ -113,8 +113,9 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
                 </DialogTitle>
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
-                This forgets the local resume marker. On-chain run accounts stay
-                intact and may remain recoverable.
+                Ends this run on-chain with no stars — its accounts settle and
+                their rent is reclaimed by the protocol. What you played still
+                counts toward your lifetime stats.
               </p>
               <div className="flex gap-3">
                 <DialogClose asChild>

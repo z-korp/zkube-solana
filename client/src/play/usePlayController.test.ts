@@ -92,3 +92,23 @@ describe("play controller projections", () => {
     expect(canSettleTerminalRun("delegated", true, 1n)).toBe(false);
   });
 });
+
+describe("describeRunStartError", () => {
+  it("maps a dry-sponsor prepare simulation to service copy with raw detail", async () => {
+    const { describeRunStartError } = await import("./usePlayController");
+    const raw =
+      'Simulation failed for Prepare campaign run: {"InstructionError":[4,{"Custom":1}]}';
+    const described = describeRunStartError(raw);
+    expect(described.headline).toBe(
+      "Sponsored play is temporarily unavailable — please try again soon.",
+    );
+    expect(described.detail).toBe(raw);
+  });
+
+  it("passes ordinary errors through unchanged", async () => {
+    const { describeRunStartError } = await import("./usePlayController");
+    const described = describeRunStartError("Map 3 is locked");
+    expect(described.headline).toBe("Map 3 is locked");
+    expect(described.detail).toBeNull();
+  });
+});

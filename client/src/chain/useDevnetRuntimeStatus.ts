@@ -8,6 +8,12 @@ import {
 } from "./pdas";
 import { fetchPaymasterClient } from "./paymasterClient";
 
+/** Below this reserve (~3-4 fresh players of fronted rent) the Home banner
+ *  warns before a map tap burns into a doomed prepare simulation. */
+export const PAYMASTER_MIN_LAMPORTS = Number(
+  import.meta.env.VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS ?? 50_000_000,
+);
+
 export type DevnetRuntimePhase =
   | "checking"
   | "bootstrap-pending"
@@ -98,10 +104,11 @@ export async function probeDevnetRuntime(
         paymaster.pubkey,
         "confirmed",
       );
-      if (paymasterBalanceLamports <= 0) {
+      if (paymasterBalanceLamports < PAYMASTER_MIN_LAMPORTS) {
         return {
           phase: "paymaster-unavailable",
-          message: "Protocol live · paymaster needs Devnet SOL",
+          message:
+            "Sponsored play reserve is low — new runs may fail until it is refilled",
           paymasterBalanceLamports,
         };
       }
