@@ -813,15 +813,31 @@ pub fn handler_consume_run_receipt_v1(ctx: Context<ConsumeRunReceiptV1>) -> Resu
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
 pub struct CloseSettledActiveRunV1<'info> {
-    #[account(mut)]
+    /// The player still consents to cleanup: closing erases the on-chain
+    /// receipt, so a third party must not be able to grief-close a run.
     pub owner: Signer<'info>,
+    // No pause check on purpose: rent recovery must never be blockable.
     #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    /// CHECK: Rent destination pinned to the protocol paymaster — the
+    /// identity that fronted every run rent at prepare gets it back.
+    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        close = rent_recipient,
         seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = run_shell.bump,
         has_one = owner @ ErrorCode::Unauthorized
     )]
     pub run_shell: Box<Account<'info, RunShell>>,
     #[account(
+        mut,
+        close = rent_recipient,
         seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = run_receipt.bump,
         has_one = owner @ ErrorCode::Unauthorized
@@ -829,7 +845,7 @@ pub struct CloseSettledActiveRunV1<'info> {
     pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(
         mut,
-        close = owner,
+        close = rent_recipient,
         seeds = [RUN_SHELL_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = active_run.bump,
         has_one = owner @ ErrorCode::Unauthorized,
