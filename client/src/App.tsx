@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { useCampaign } from "@/contexts/campaign";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
+import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
 import BossRevealPage from "@/ui/pages/BossRevealPage";
 import DailyChallengePage from "@/ui/pages/DailyChallengePage";
@@ -56,6 +58,19 @@ const pageComponents: Record<PageId, ReactNode> = {
 
 export default function App() {
   const currentPage = useNavigationStore((state) => state.currentPage);
+  const { campaign, error } = useCampaign();
+  // Hold first paint behind the themed Loading screen until the initial
+  // campaign snapshot resolves (which decides the resume theme, so the app
+  // opens on the correct background). Spectator/recovery deep-links don't
+  // depend on the local campaign; never gate them. A timeout is a safety net.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+  const gated = currentPage !== "spectate" && currentPage !== "play";
+  const ready = campaign !== null || error !== null || timedOut;
+  if (gated && !ready) return <Loading />;
 
   return (
     <TooltipProvider>
