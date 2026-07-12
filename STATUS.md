@@ -10,20 +10,27 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `475813201`
+- Current deployed slot: `475833677`
 - Current deployed SBF SHA-256:
-  `89a24c891311ff384891929f6745c26b48f9f6f8a6da33595ad5ce2176e7254f`
-- Deployed code is 1,598,448 bytes in the 1,604,032-byte allocation; the 5,584
+  `8002696d5a869fe7be31fb750cc1d3b96e843591859679ee58d66e67ad010cba`
+- Deployed code is 1,600,072 bytes in the 1,604,032-byte allocation; the 3,960
   trailing bytes were independently verified as zero (post-upgrade program
   dump hashed byte-for-byte), the stable upload buffer closed, and the upgrade
   authority was preserved.
 
-This binary adds the rent-economics close (`CloseSettledActiveRunV1` closes
-ActiveRun, RunShell, and RunReceipt with rent returning to
-`ProtocolConfig.paymaster`) on top of `abandonRunV1`, the corrected
-campaign/Daily Magic Action metas, and the paymaster boundary hardening.
-Approved extend/upgrade fingerprint `20a84645e3f8d292`; the prior binary was
-slot `475787281` / SBF `65e454…646e`.
+This binary adds the **seed-row gravity settle** (`RunEngine::provide_vrf_row`
+settles after each initial row like Cairo's `initialize_grid`) — fixing the
+floating-cubes starting board and the first-move `InvalidMove`/`6002`
+divergence. Verified live: a fresh run's raw ER grid is gravity-stable
+(0 floating blocks). Approved fingerprint `e0dac48bfc4feec1`. Prior binary:
+slot `475813201` / SBF `89a24c…` (rent-economics close on top of
+`abandonRunV1`, corrected Magic Action metas, paymaster hardening).
+
+Contract soundness is a two-pass effort against the original Cairo engine
+(`/home/djizus/zkube/contracts/src`): this seed-settle fix is pass 1. Pass 2
+(pending) is the full parity sweep — Cairo row shuffle/align and verification
+of scoring/combo/difficulty/catalog numbers — with extended
+`fixtures/game-parity.json` coverage including initial multi-row seeding.
 
 ### Source is newer than the live binary
 
