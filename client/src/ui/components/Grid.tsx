@@ -5,7 +5,6 @@ import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
-  blocksMatchGrid,
   removeCompleteRows,
   removeBlocksSameWidth,
   removeBlocksInRows,
@@ -174,13 +173,11 @@ const Grid: React.FC<GridProps> = ({
     gameStateRef.current = GameState.WAITING;
     const authoritative = transformDataContractIntoBlock(parsed.blocks);
     setSaveGridStateblocks(authoritative);
-    // The local cascade normally lands exactly on the chain result — keep the
-    // visible blocks then (replacing would destroy block IDs and kill CSS
-    // transitions). Snap to the authoritative grid only on divergence, since
-    // the Grid now persists across moves and nothing else corrects it.
-    setBlocks((prev) =>
-      blocksMatchGrid(prev, parsed.blocks) ? prev : authoritative,
-    );
+    // A move's cascade is deterministic (VRF only randomizes the NEXT preview
+    // row), so the local animation already lands on the chain result — keep
+    // the visible blocks (replacing would destroy block IDs and kill CSS
+    // transitions mid-flow, the "snap" flash). The idle-resync effect below is
+    // the safety net that silently corrects any genuine drift when idle.
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
     // Update the preview in GameBoard with the receipt's next line
@@ -385,21 +382,27 @@ const Grid: React.FC<GridProps> = ({
 
   // =================== TX HELPERS ===================
 
-  const rollbackGrid = useCallback((message: string) => {
-    setBlocks(saveGridStateblocks);
-    setNextLine(nextLineData);
-    setLineExplodedCount(0);
-    setcurrentMove(null);
-    resetDragRefs();
-    setIsMoving(false);
-    setExplodingRows(new Set());
-    setBlockBonus(null);
-    gameStateRef.current = GameState.WAITING;
-    setGameState(GameState.WAITING);
-    setIsTxProcessing(false);
-    isTxProcessingRef.current = false;
-    toast.error(message);
-  }, [saveGridStateblocks, nextLineData, resetDragRefs, setIsTxProcessing]);
+  // A move/bonus that failed to confirm most often TIMED OUT while the move
+  // actually executed on-chain (full VRF round-trip). Snapping to a local
+  // pre-move snapshot would show a stale, wrong board. Instead just unlock and
+  // let the idle-resync effect pull the authoritative board — which reflects
+  // reality whether the action landed or genuinely failed.
+  const recoverMoveFailure = useCallback(
+    (message: string) => {
+      setLineExplodedCount(0);
+      setcurrentMove(null);
+      resetDragRefs();
+      setIsMoving(false);
+      setExplodingRows(new Set());
+      setBlockBonus(null);
+      gameStateRef.current = GameState.WAITING;
+      setGameState(GameState.WAITING);
+      setIsTxProcessing(false);
+      isTxProcessingRef.current = false;
+      toast.error(message);
+    },
+    [resetDragRefs, setIsTxProcessing],
+  );
 
   const triggerLocalGameOver = useCallback(() => {
     pendingReceiptRef.current = null;
@@ -473,7 +476,7 @@ const Grid: React.FC<GridProps> = ({
         store.markFailed(nextQueuedMove.id, message);
         store.clearQueueForGame(gameId);
         if (!unmountedRef.current) {
-          rollbackGrid("Move sync failed. Grid rolled back.");
+          recoverMoveFailure("Move failed to confirm — syncing with the chain…");
         }
       } finally {
         store.setQueueProcessing(false);
@@ -504,7 +507,7 @@ const Grid: React.FC<GridProps> = ({
         }
         playSfx("bonus-activate");
       } catch {
-        rollbackGrid("Bonus failed. Grid rolled back.");
+        recoverMoveFailure("Bonus failed to confirm — syncing with the chain…");
       }
     },
     [gridHeight, onBonus, playSfx, saveGridStateblocks, nextLineData, setIsTxProcessing],

@@ -185,11 +185,14 @@ describe("Grid move queue", () => {
     });
   });
 
-  it("rolls back the grid and clears the queue when the move tx fails", async () => {
+  it("clears the queue and unlocks (no stale snapback) when the move tx fails", async () => {
     const onMove = vi.fn(async () => {
       throw new Error("ER rejected the move");
     });
-    const { container } = render(<Grid {...baseProps} onMove={onMove} />);
+    const setIsTxProcessing = vi.fn();
+    const { container } = render(
+      <Grid {...baseProps} onMove={onMove} setIsTxProcessing={setIsTxProcessing} />,
+    );
 
     dragBlockTo(container, 50);
 
@@ -201,12 +204,13 @@ describe("Grid move queue", () => {
     // No stuck "submitting" entry may survive the failure.
     expect(useMoveStore.getState().queue).toHaveLength(0);
     expect(useMoveStore.getState().isQueueProcessing).toBe(false);
-    // The optimistic move was rolled back to the last authoritative board.
+    // Recovery unlocks the grid; it does NOT snap back to a stale local
+    // snapshot (the idle-resync effect reconciles from authoritative props).
     await waitFor(() =>
-      expect(
-        (container.querySelector(".svg-block") as SVGGElement).style.transform,
-      ).toBe("translate(0px, 180px)"),
+      expect(setIsTxProcessing).toHaveBeenCalledWith(false),
     );
+    const block = container.querySelector(".svg-block") as SVGGElement;
+    expect(block.style.transform).not.toBe("translate(0px, 180px)");
   });
 
   it("completes a move with an empty next line without stalling the machine", async () => {
