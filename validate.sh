@@ -16,7 +16,14 @@ validate_sbf() {
     rm -f "$anchor_log"
     return 1
   fi
-  if rg -n "Stack offset|exceeded max offset|undefined behavior|error:" "$anchor_log"; then
+  local diagnostic_pattern="Stack offset|exceeded max offset|undefined behavior|error:"
+  local -a diagnostic_scan
+  if command -v rg >/dev/null 2>&1; then
+    diagnostic_scan=(rg -n "$diagnostic_pattern")
+  else
+    diagnostic_scan=(grep -En "$diagnostic_pattern")
+  fi
+  if "${diagnostic_scan[@]}" "$anchor_log"; then
     rm -f "$anchor_log"
     return 1
   fi

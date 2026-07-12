@@ -54,8 +54,8 @@ jobs:
       - name: Activate pinned build tools
         run: |
           NO_DNA=1 avm use 1.0.2
-          NO_DNA=1 anchor --version | rg '^anchor-cli 1\.0\.2$'
-          NO_DNA=1 cargo build-sbf --version | rg '^cargo-build-sbf 4\.0\.0$'
+          test "$(NO_DNA=1 anchor --version)" = "anchor-cli 1.0.2"
+          test "$(NO_DNA=1 cargo build-sbf --version | sed -n '1p')" = "cargo-build-sbf 4.0.0"
       - name: SBF build, IDL generation, and diagnostic scan
         run: NO_DNA=1 ./validate.sh program-sbf
       - name: Upload client ABI
