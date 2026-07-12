@@ -1,7 +1,11 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import type { PaymasterClient } from "./paymasterClient";
 import type { RunSessionMarker } from "./runSessionStore";
-import { loadRunSession, saveRunSession } from "./runSessionStore";
+import {
+  isRunSessionFresh,
+  loadRunSession,
+  saveRunSession,
+} from "./runSessionStore";
 import {
   buildRotateActiveRunSessionPlan,
   buildRotateRunShellSessionPlan,
@@ -86,9 +90,14 @@ export async function resolvePersistedRun(args: {
   const marker = loadRunSession(args.owner);
   if (!marker) return { phase: "none" };
   const dependencies = args.dependencies ?? {};
-  const sessionAuthorized = Boolean(
-    await args.baseConnection.getAccountInfo(marker.sessionToken, "confirmed"),
-  );
+  const sessionAuthorized =
+    isRunSessionFresh(marker) &&
+    Boolean(
+      await args.baseConnection.getAccountInfo(
+        marker.sessionToken,
+        "confirmed",
+      ),
+    );
   const status = await (dependencies.getStatus ?? getDelegationStatus)(
     marker.addresses.activeRun,
   );

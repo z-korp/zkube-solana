@@ -28,6 +28,7 @@ export interface TerminalRunSnapshot {
 
 export type PlayOutcome = "victory" | "daily" | null;
 export type SettledCleanupStatus = "idle" | "running" | "complete" | "failed";
+export type SessionRenewalStatus = "idle" | "renewing" | "failed";
 
 export function canSettleTerminalRun(
   phase: string,
@@ -138,7 +139,11 @@ export function usePlayController() {
     useState<RunReceiptView | null>(null);
   const [settledCleanupStatus, setSettledCleanupStatus] =
     useState<SettledCleanupStatus>("idle");
+  const [sessionRenewalStatus, setSessionRenewalStatus] =
+    useState<SessionRenewalStatus>("idle");
+  const [sessionRenewalVersion, setSessionRenewalVersion] = useState(0);
   const startIntentRef = useRef<string | null>(null);
+  const renewingSessionRunRef = useRef<bigint | null>(null);
   const terminalAwaitingCascadeRef = useRef<bigint | null>(null);
   const settlingRunRef = useRef<bigint | null>(null);
   const previousLifecycleRef = useRef<{
@@ -160,6 +165,7 @@ export function usePlayController() {
       recoveryRunId !== null ||
       run.phase !== "none" ||
       run.busy ||
+      run.watchStatus?.phase === "resolving" ||
       campaign.loading ||
       !mapPlayable
     ) {
@@ -188,6 +194,7 @@ export function usePlayController() {
     recoveryRunId,
     run.busy,
     run.phase,
+    run.watchStatus?.phase,
     setGameId,
     setPreviewLevel,
     startCampaignRun,
@@ -249,6 +256,7 @@ export function usePlayController() {
 
   const settleAndAdvance = run.settleAndAdvance;
   const recoverSettlement = run.recoverSettlement;
+  const recoverSession = run.recoverSession;
   const cleanup = run.cleanup;
   const chainSettledReceipt = run.receipt;
   const campaignRefresh = campaign.refresh;
@@ -303,12 +311,46 @@ export function usePlayController() {
   }, [lifecycleRun, playSfx]);
 
   useEffect(() => {
+    const activeRun = run.activeRun;
+    if (run.phase !== "delegated" || !activeRun) {
+      // Preserve the latch across watcher reconnect/missing snapshots. Run IDs
+      // are unique, so a genuinely new run can still renew independently.
+      return;
+    }
+    if (run.sessionAuthorized) {
+      if (renewingSessionRunRef.current === activeRun.runId) {
+        renewingSessionRunRef.current = null;
+      }
+      setSessionRenewalStatus("idle");
+      return;
+    }
+    if (recoveryRunId !== null || run.busy) return;
+    if (renewingSessionRunRef.current === activeRun.runId) return;
+
+    // Session rotation is infrastructure, not a player decision. Attempt it
+    // silently once for each authorization lapse; a failure keeps this latch
+    // set until the explicit retry affordance resets it, protecting the
+    // paymaster from watcher-driven resubmission loops.
+    renewingSessionRunRef.current = activeRun.runId;
+    setSessionRenewalStatus("renewing");
+    void recoverSession().catch(() => setSessionRenewalStatus("failed"));
+  }, [
+    recoveryRunId,
+    recoverSession,
+    run.activeRun,
+    run.busy,
+    run.phase,
+    run.sessionAuthorized,
+    sessionRenewalVersion,
+  ]);
+
+  useEffect(() => {
     const canSettle = canSettleTerminalRun(
       run.phase,
       run.sessionAuthorized,
       recoveryRunId,
     );
-    if (!terminalRun || !canSettle || localActionPending) return;
+    if (!terminalRun || !canSettle || localActionPending || run.busy) return;
     if (terminalAwaitingCascadeRef.current === terminalRun.runId) return;
     if (settlingRunRef.current === terminalRun.runId) return;
 
@@ -358,6 +400,7 @@ export function usePlayController() {
     progressRefresh,
     recoveryRunId,
     run.phase,
+    run.busy,
     run.sessionAuthorized,
     recoverSettlement,
     setPendingLevelCompletion,
@@ -418,6 +461,12 @@ export function usePlayController() {
     terminalAwaitingCascadeRef.current = null;
     setSettledCleanupStatus("idle");
     setCascadeVersion((value) => value + 1);
+  }, []);
+
+  const retrySessionRenewal = useCallback(() => {
+    renewingSessionRunRef.current = null;
+    setSessionRenewalStatus("idle");
+    setSessionRenewalVersion((value) => value + 1);
   }, []);
 
   const recoverBaseRun = run.recoverBaseRun;
@@ -521,6 +570,8 @@ export function usePlayController() {
     onBonus,
     onCascadeComplete,
     retrySettlement,
+    retrySessionRenewal,
+    sessionRenewalStatus,
     continueSettled,
     settledReceipt,
     settledCleanupStatus,

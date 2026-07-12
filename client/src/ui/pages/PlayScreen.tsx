@@ -374,7 +374,9 @@ export default function PlayScreen() {
             </p>
             <p className="mt-1 font-sans text-xs font-bold text-cyan-200">
               {!run.sessionAuthorized && run.phase === "delegated"
-                ? "Renew the run session to seal this result."
+                ? controller.sessionRenewalStatus === "failed"
+                  ? "Session renewal failed."
+                  : "Renewing session…"
                 : basePhase
                   ? run.phase === "settleable"
                     ? "Finalizing settlement on Solana…"
@@ -383,16 +385,16 @@ export default function PlayScreen() {
             </p>
             {!run.sessionAuthorized && run.phase === "delegated" ? (
               <div className="mt-3 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  disabled={run.busy}
-                  onClick={() =>
-                    void run.recoverSession().catch(() => undefined)
-                  }
-                  className="rounded-xl bg-purple-600 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
-                >
-                  {run.busy ? "Renewing…" : "Renew session"}
-                </button>
+                {controller.sessionRenewalStatus === "failed" && (
+                  <button
+                    type="button"
+                    disabled={run.busy}
+                    onClick={controller.retrySessionRenewal}
+                    className="rounded-xl bg-purple-600 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    Retry session
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={run.busy}
@@ -436,17 +438,21 @@ export default function PlayScreen() {
         {!run.sessionAuthorized && run.phase === "delegated" && !terminal && (
           <div className="absolute inset-x-4 bottom-4 z-50 rounded-2xl border border-purple-300/30 bg-black/90 p-4 text-center">
             <p className="font-display text-xl text-purple-300">
-              Session expired
+              {controller.sessionRenewalStatus === "failed"
+                ? "Session renewal failed"
+                : "Renewing session…"}
             </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                disabled={run.busy}
-                onClick={() => void run.recoverSession().catch(() => undefined)}
-                className="rounded-xl bg-purple-600 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
-              >
-                {run.busy ? "Renewing…" : "Renew session"}
-              </button>
+              {controller.sessionRenewalStatus === "failed" && (
+                <button
+                  type="button"
+                  disabled={run.busy}
+                  onClick={controller.retrySessionRenewal}
+                  className="rounded-xl bg-purple-600 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
+                >
+                  Retry session
+                </button>
+              )}
               <button
                 type="button"
                 disabled={run.busy}
