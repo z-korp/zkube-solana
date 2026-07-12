@@ -1,0 +1,135 @@
+import { create } from "zustand";
+
+export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings" | "solana";
+export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
+export type PageId = TabId | OverlayId;
+
+export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set(["play", "boss", "map", "solana", "spectate"]);
+
+export interface SpectateTargetParams {
+  player?: string;
+  pda?: string;
+  runId?: string;
+}
+const NAV_TRANSITION_LOCK_MS = 300;
+
+export interface PendingLevelCompletion {
+  level: number;
+  levelMoves: number;
+  prevTotalScore: number;
+  totalScore: number;
+  gameLevel: unknown;
+  isIncomplete?: boolean;
+}
+
+interface NavigationState {
+  currentPage: PageId;
+  previousPage: PageId | null;
+  isTransitioning: boolean;
+  transitionDirection: "forward" | "back" | null;
+  gameId: bigint | null;
+  mapZoneId: number;
+  isDailyMap: boolean;
+  selectedMode: number;
+  profileAddress: string | null;
+  pendingPreviewLevel: number | null;
+  pendingLevelCompletion: PendingLevelCompletion | null;
+  greetedZones: Set<number>;
+  showEndlessGreeting: boolean;
+  navigate: (page: PageId, gameId?: bigint) => void;
+  goBack: () => void;
+  setGameId: (id: bigint | null) => void;
+  setMapZoneId: (zoneId: number) => void;
+  setIsDailyMap: (isDaily: boolean) => void;
+  setSelectedMode: (mode: number) => void;
+  setProfileAddress: (address: string | null) => void;
+  setPendingPreviewLevel: (level: number | null) => void;
+  setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
+  markZoneGreeted: (zoneId: number) => void;
+  spectateTarget: SpectateTargetParams | null;
+  setSpectateTarget: (target: SpectateTargetParams | null) => void;
+}
+
+const getBackTarget = (page: PageId): PageId => {
+  switch (page) {
+    case "play":
+      return "map";
+    case "spectate":
+      return "ranks";
+    case "daily":
+      return "home";
+    case "boss":
+      return "map";
+    case "map":
+      return "home";
+    case "settings":
+      return "home";
+    default:
+      return "home";
+  }
+};
+
+export const useNavigationStore = create<NavigationState>((set, get) => ({
+  currentPage: "home",
+  previousPage: null,
+  isTransitioning: false,
+  transitionDirection: null,
+  gameId: null,
+  mapZoneId: 1,
+  isDailyMap: false,
+  selectedMode: 0,
+  profileAddress: null,
+  pendingPreviewLevel: null,
+  pendingLevelCompletion: null,
+  greetedZones: new Set(),
+  showEndlessGreeting: false,
+
+  navigate: (page, gameId) => {
+    const { currentPage, isTransitioning } = get();
+    if (isTransitioning || page === currentPage) return;
+
+    set({
+      previousPage: currentPage,
+      currentPage: page,
+      transitionDirection: "forward",
+      isTransitioning: true,
+      ...(gameId !== undefined ? { gameId } : {}),
+    });
+
+    setTimeout(() => {
+      set({ isTransitioning: false, transitionDirection: null });
+    }, NAV_TRANSITION_LOCK_MS);
+  },
+
+  goBack: () => {
+    const { currentPage, isTransitioning } = get();
+    if (isTransitioning) return;
+
+    const target = getBackTarget(currentPage);
+    set({
+      previousPage: currentPage,
+      currentPage: target,
+      transitionDirection: "back",
+      isTransitioning: true,
+    });
+
+    setTimeout(() => {
+      set({ isTransitioning: false, transitionDirection: null });
+    }, NAV_TRANSITION_LOCK_MS);
+  },
+
+  setGameId: (id) => set({ gameId: id }),
+  setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
+  setIsDailyMap: (isDaily) => set({ isDailyMap: isDaily }),
+  setSelectedMode: (mode) => set({ selectedMode: mode }),
+  setProfileAddress: (address) => set({ profileAddress: address }),
+  spectateTarget: null,
+  setSpectateTarget: (target) => set({ spectateTarget: target }),
+  setPendingPreviewLevel: (level) => set({ pendingPreviewLevel: level }),
+  setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),
+  markZoneGreeted: (zoneId) => set((state) => {
+    const next = new Set(state.greetedZones);
+    next.add(zoneId);
+    return { greetedZones: next };
+  }),
+}));
