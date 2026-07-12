@@ -15,9 +15,9 @@ Every environment must pin:
 
 The browser checks the base genesis, executable program account, protocol account version/discriminator/PDA, and advertised paymaster identity before building a sponsored transaction. The relay independently checks its RPC genesis before signing. A mismatch is a hard failure, not a warning.
 
-Use [client-budokan/.env.example](client-budokan/.env.example) as the public configuration inventory. `PAYMASTER_SECRET_KEY` is server-only secret-manager material. Never place a real key in an env file, repository, proof artifact, browser bundle, issue, or chat.
+Use [client/.env.example](client/.env.example) as the public configuration inventory. `PAYMASTER_SECRET_KEY` is server-only secret-manager material. Never place a real key in an env file, repository, proof artifact, browser bundle, issue, or chat.
 
-The web deployment root is `client-budokan`. Its sole `vercel.json` uses the
+The web deployment root is `client`. Its sole `vercel.json` uses the
 locked install, builds the Vite application, and exposes `api/paymaster.ts` as
 the stateless server function. A repository-root deployment is invalid because
 the nested API route would not be discovered. Validate the deployed `/api/paymaster`
@@ -34,7 +34,7 @@ derives its public key and rejects a secret that does not match
 `ZKUBE_PAYMASTER_PUBLIC_KEY`.
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:manifest -- \
   --manifest deployment/approved.devnet.json \
   --artifact ../solana/target/deploy/solana.so \
@@ -54,7 +54,7 @@ Read-only/static gate:
 
 ```bash
 NO_DNA=1 ./validate.sh program
-cd client-budokan
+cd client
 pnpm idl:sync
 pnpm idl:check
 pnpm exec tsc -b --pretty false
@@ -68,7 +68,7 @@ pnpm build
 Unsigned Devnet deployment/upgrade preview:
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:devnet:deploy
 ```
 
@@ -151,7 +151,7 @@ in public artifacts.
 The Devnet bootstrap runner follows cycling-sim's dry-run-first custody model:
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:devnet:bootstrap
 ```
 
@@ -218,7 +218,7 @@ For local browser testing against Devnet, Vite serves the same stateless
 `/api/paymaster` handler used by the deployed function:
 
 ```bash
-cd client-budokan
+cd client
 PAYMASTER_KEYPAIR_PATH=../.devnet/zkube-paymaster.json \
 ZKUBE_PAYMASTER_PUBLIC_KEY=CNhMPp5p3ViMEzBpeRRjXX1G672rwxHkyNG4gVRN7SgY \
 NO_DNA=1 pnpm dev --host 127.0.0.1
@@ -238,7 +238,7 @@ complete lifecycle and recovery invariants are in `MAGICBLOCK.md`.
 Read-only treasury/readiness probe (RPC must be explicit; non-local RPCs also require an expected genesis):
 
 ```bash
-cd client-budokan
+cd client
 NO_DNA=1 pnpm chain:readiness -- \
   --rpc https://rpc.magicblock.app/devnet \
   --expected-genesis EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG \
