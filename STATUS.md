@@ -83,6 +83,14 @@ Rust tests, formatting/Clippy/SBF/IDL clean.
    lifecycle proof.
 2. **Vercel dashboard**: set the project Root Directory to `client`
    (not automatable from the repo).
+3. **Paymaster reserve ops** — the paymaster ran dry on 2026-07-12
+   (0.011 SOL left of the original 0.1), which blocked every new player with
+   a raw "Simulation failed … Custom:1" panel. Refunded to ~1 SOL from the
+   deployer. Each fresh-identity first run costs it ~0.014 SOL. Needed:
+   scheduled `pnpm chain:readiness --min-paymaster-lamports` alerting, a
+   friendly client message when sponsorship is unavailable, and a stale
+   quit-dialog copy fix (it still describes the pre-abandon local-only
+   behavior).
 4. **Signed live-Devnet acceptance**: multi-move gameplay depth, settle-through
    -to-receipt on a fresh run, Vault withdraw, and a recovery-code restore
    round-trip. Each signing step is approval-gated.
