@@ -465,6 +465,54 @@ pub fn handler_seal_run_v1(ctx: Context<SealRunV1>) -> Result<()> {
     Ok(())
 }
 
+#[derive(Accounts, Session)]
+pub struct AbandonRunV1<'info> {
+    #[account(mut, owner = crate::ID)]
+    pub active_run: Account<'info, ActiveRun>,
+    /// CHECK: Logical wallet authority, bound to the active run.
+    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
+    pub owner_authority: UncheckedAccount<'info>,
+    #[session(signer = actor, authority = owner_authority.key())]
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
+}
+
+/// Give up a run that has not reached a terminal projection. The run is
+/// forced into `Finished` (kept score, `completed == false`, zero stars), so
+/// the unchanged commit/consume/close pipeline settles it and reclaims the
+/// ActiveRun rent. Works identically on the ER clone and on a stuck
+/// undelegated base account.
+#[session_auth_or(
+    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
+    SessionError::InvalidToken
+)]
+pub fn handler_abandon_run_v1(ctx: Context<AbandonRunV1>) -> Result<()> {
+    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    let active = &mut ctx.accounts.active_run;
+    require!(
+        abandon_lifecycle_is_allowed(active.lifecycle),
+        ErrorCode::InvalidState
+    );
+    // A pending VRF request dies with the run: fulfillment is lifecycle-gated
+    // to AwaitingVrf, so a late oracle callback can no longer land.
+    active.pending_vrf_counter = 0;
+    active.lifecycle = RunLifecycle::Finished;
+    if active.finished_at == 0 {
+        active.finished_at = Clock::get()?.unix_timestamp;
+    }
+    Ok(())
+}
+
+fn abandon_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
+    matches!(
+        lifecycle,
+        RunLifecycle::Prepared
+            | RunLifecycle::Delegated
+            | RunLifecycle::AwaitingVrf
+            | RunLifecycle::Playing
+    )
+}
+
 #[derive(Accounts)]
 pub struct RotateActiveRunAuthorityV1<'info> {
     #[account(
@@ -1077,6 +1125,19 @@ mod tests {
             true,
             false,
         ));
+    }
+
+    #[test]
+    fn abandon_accepts_only_nonterminal_lifecycles() {
+        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Prepared));
+        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Delegated));
+        assert!(abandon_lifecycle_is_allowed(RunLifecycle::AwaitingVrf));
+        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Playing));
+        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::LevelComplete));
+        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Finished));
+        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Committing));
+        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Settled));
+        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Cancelled));
     }
 
     #[test]

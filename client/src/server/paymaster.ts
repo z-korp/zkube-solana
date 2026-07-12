@@ -40,6 +40,7 @@ export const PAYMASTER_MAX_TRANSACTION_BYTES = 1_232;
 export const PAYMASTER_SESSION_MAX_SECONDS = 7 * 24 * 60 * 60;
 
 export const SPONSORED_GAME_DISCRIMINATORS = {
+  abandonRunV1: [125, 40, 244, 230, 253, 139, 171, 92],
   claimAchievementV1: [89, 171, 8, 91, 40, 109, 245, 208],
   claimDailyPrizeV1: [176, 233, 126, 177, 41, 111, 81, 233],
   claimQuestV1: [61, 90, 44, 10, 13, 189, 4, 3],
@@ -64,6 +65,15 @@ interface SponsoredGamePolicy {
 }
 
 const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
+  [
+    // Owner-signed abandon of a stuck non-terminal base run; the actor is
+    // the player signer and the bundled consume/close settle it for rent.
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.abandonRunV1),
+    {
+      ownerAccountIndex: 3,
+      payerAccountIndex: null,
+    },
+  ],
   [
     discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.claimAchievementV1),
     {
@@ -300,12 +310,15 @@ export function validatePaymasterTransaction(
     if (program.equals(ComputeBudgetProgram.programId)) continue;
     if (program.equals(ZKUBE_PROGRAM_ID)) {
       gameInstructionCount += 1;
-      if (gameInstructionCount > 3)
+      // The largest sponsored envelope is abandon-first finalization:
+      // consumeSponsorshipV1 + abandonRunV1 + consumeRunReceiptV1 +
+      // closeSettledActiveRunV1.
+      if (gameInstructionCount > 4)
         return "too many zkube instructions in one sponsored transaction";
       const key = discriminatorKey(instruction.data);
       if (key === CONSUME_SPONSORSHIP_KEY) sponsorshipInstructionCount += 1;
       else gamePayloadCount += 1;
-      if (gamePayloadCount > 2) {
+      if (gamePayloadCount > 3) {
         return "too many zkube payload instructions in one sponsored transaction";
       }
       const policy = GAME_POLICIES.get(key);

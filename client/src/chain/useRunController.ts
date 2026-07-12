@@ -10,6 +10,7 @@ import {
   buildApplyBonusPlan,
   buildCommitRunPlan,
   buildDelegateRunPlan,
+  buildAbandonRunPlan,
   buildFinalizeRunPlan,
   buildPlayMovePlan,
   buildPrepareCampaignRunPlan,
@@ -47,6 +48,7 @@ import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
 
 export type SettleStage =
+  | "abandoning"
   | "sealing"
   | "committing"
   | "settling"
@@ -654,6 +656,136 @@ export function useRunController() {
     [connection, finalizeBaseSettlement, publicKey, setStage, wallet],
   );
 
+  /**
+   * Give up the current run on-chain (cycling-sim abort semantics): force it
+   * terminal with zero stars, settle through the unchanged pipeline, and
+   * reclaim the ActiveRun rent. A delegated run abandons on the ER
+   * (session-signed) and then settles normally; a stuck non-terminal base
+   * run abandons inside the single sponsored finalize envelope. Throws for
+   * callers to fall back to the local `dismissRun` (e.g. against a deployed
+   * program that predates `abandonRunV1`).
+   */
+  const abandonRun = useCallback(async () => {
+    const run = currentRun.current;
+    if (run) {
+      if (actionInFlight.current) {
+        throw new Error("Another run action is already in progress");
+      }
+      actionInFlight.current = true;
+      try {
+        await withBusy(setState, async () => {
+          // Owner-signed on purpose: abandoning must work even when the
+          // scoped session has expired, so no freshness gate applies here.
+          setStage("abandoning");
+          const abandon = await buildAbandonRunPlan({
+            owner: run.marker.owner,
+            signerWallet: wallet,
+            sessionToken: null,
+            activeRun: run.marker.addresses.activeRun,
+            erConnection: run.connection,
+          });
+          const signature = await submitWalletTransactionPlan({
+            transactionPlan: abandon,
+            wallet,
+          });
+          const abandoned = await fetchActiveRun(
+            run.connection,
+            wallet,
+            run.marker.addresses.activeRun,
+          );
+          if (abandoned) run.activeRun = abandoned;
+          return signature;
+        });
+      } finally {
+        setStage(null);
+        actionInFlight.current = false;
+      }
+      await settleAndAdvance();
+      return;
+    }
+    // No delegated attachment: recover the marker and abandon on base.
+    const marker = loadRunSession(publicKey);
+    if (!marker) throw new Error("No run marker to abandon");
+    if (actionInFlight.current) {
+      throw new Error("Another run action is already in progress");
+    }
+    actionInFlight.current = true;
+    try {
+      await withBusy(setState, async () => {
+        const delegation = await getDelegationStatus(
+          marker.addresses.activeRun,
+        );
+        if (delegation.isDelegated) {
+          throw new Error(
+            "Run is still delegated to the ER; resume it before abandoning",
+          );
+        }
+        const activeRun = await fetchActiveRun(
+          connection,
+          wallet,
+          marker.addresses.activeRun,
+        );
+        if (!activeRun) {
+          throw new Error(
+            `ActiveRun for run ${marker.runId.toString()} is missing on Solana base`,
+          );
+        }
+        if (isTerminal(activeRun.lifecycle)) {
+          // Already terminal: nothing to abandon — finish the normal
+          // consume/close settlement tail instead.
+          return finalizeBaseSettlement(
+            settlementDescriptor(marker, activeRun.dailyChallenge),
+          );
+        }
+        setStage("abandoning");
+        const sponsor =
+          paymaster.current ?? (await fetchPaymasterClient(connection));
+        paymaster.current = sponsor;
+        const finalizePlan = await buildFinalizeRunPlan({
+          wallet,
+          owner: marker.owner,
+          runId: marker.runId,
+          addresses: marker.addresses,
+          mode: marker.mode,
+          dailyChallenge: activeRun.dailyChallenge,
+          receiptConsumed: false,
+          abandonFirst: true,
+          connection,
+          paymaster: sponsor.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan: finalizePlan,
+          wallet,
+          paymaster: sponsor,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        clearRunSession(publicKey);
+        currentRun.current = null;
+        settleableRun.current = null;
+        setEpoch((value) => value + 1);
+        setState((value) => ({
+          ...value,
+          phase: "none",
+          activeRun: null,
+          receipt: null,
+          sessionAuthorized: false,
+          lastSignature: signature,
+        }));
+        return signature;
+      });
+    } finally {
+      setStage(null);
+      actionInFlight.current = false;
+    }
+  }, [
+    connection,
+    finalizeBaseSettlement,
+    publicKey,
+    setStage,
+    settleAndAdvance,
+    wallet,
+  ]);
+
   /** Local escape hatch: forget the stuck marker without touching chain
    *  accounts (they stay recoverable later). */
   const dismissRun = useCallback(() => {
@@ -775,6 +907,7 @@ export function useRunController() {
     settleAndAdvance,
     recoverSettlement,
     recoverBaseRun,
+    abandonRun,
     dismissRun,
     cleanup,
     recoverSession,

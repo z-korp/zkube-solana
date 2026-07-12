@@ -106,6 +106,39 @@ describe("sponsored transaction plans", () => {
     ).toBeNull();
   });
 
+  it("compiles the abandon-first envelope for a stuck non-terminal base run", async () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const connection = sponsoredConnection();
+    const transactionPlan = await buildFinalizeRunPlan({
+      wallet: new SessionWallet(owner),
+      owner: owner.publicKey,
+      runId: 7n,
+      addresses: deriveRunAddresses(owner.publicKey, 7n),
+      mode: "campaign",
+      receiptConsumed: false,
+      abandonFirst: true,
+      connection,
+      paymaster: paymaster.publicKey,
+    });
+
+    const transaction = await compileSponsoredTransactionPlan({
+      transactionPlan,
+      wallet: new SessionWallet(owner),
+      paymaster: paymaster.publicKey,
+    });
+
+    expect(compiledDiscriminators(transaction)).toEqual([
+      SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1,
+      SPONSORED_GAME_DISCRIMINATORS.abandonRunV1,
+      SPONSORED_GAME_DISCRIMINATORS.consumeRunReceiptV1,
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1,
+    ]);
+    expect(
+      validatePaymasterTransaction(transaction, paymaster.publicKey),
+    ).toBeNull();
+  });
+
   it("omits receipt consumption after an already-consumed campaign receipt", async () => {
     const paymaster = Keypair.generate();
     const owner = Keypair.generate();

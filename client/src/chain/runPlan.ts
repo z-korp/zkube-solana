@@ -508,6 +508,38 @@ export async function buildSealRunPlan(args: {
   );
 }
 
+/**
+ * Give up a non-terminal run on the ER: forces the delegated ActiveRun into
+ * the `finished` lifecycle (kept score, zero stars) so the unchanged
+ * commit/consume/close pipeline settles it and reclaims rent. Signed by the
+ * owner (sessionToken null) or a fresh session key.
+ */
+export async function buildAbandonRunPlan(args: {
+  owner: PublicKey;
+  signerWallet: WalletLike;
+  sessionToken: PublicKey | null;
+  activeRun: PublicKey;
+  erConnection: Connection;
+}): Promise<TransactionPlan> {
+  const program = zkubeProgram(args.erConnection, args.signerWallet);
+  const instruction = await program.methods
+    .abandonRunV1()
+    .accountsPartial({
+      activeRun: args.activeRun,
+      ownerAuthority: args.owner,
+      sessionToken: args.sessionToken,
+      actor: args.signerWallet.publicKey,
+    })
+    .instruction();
+  return plan(
+    "magicblock-er",
+    "Abandon run",
+    args.erConnection,
+    args.signerWallet.publicKey,
+    [instruction],
+  );
+}
+
 export async function buildCommitRunPlan(args: {
   owner: PublicKey;
   payerWallet: WalletLike;
@@ -582,6 +614,8 @@ export async function buildFinalizeRunPlan(args: {
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
   receiptConsumed: boolean;
+  /** Owner-signed abandon prepended for a stuck non-terminal base run. */
+  abandonFirst?: boolean;
   connection?: Connection;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
@@ -589,6 +623,19 @@ export async function buildFinalizeRunPlan(args: {
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const program = zkubeProgram(connection, args.wallet);
   const instructions: TransactionInstruction[] = [];
+  if (args.abandonFirst) {
+    instructions.push(
+      await program.methods
+        .abandonRunV1()
+        .accountsPartial({
+          activeRun: args.addresses.activeRun,
+          ownerAuthority: args.owner,
+          sessionToken: null,
+          actor: args.owner,
+        })
+        .instruction(),
+    );
+  }
   if (!args.receiptConsumed) {
     const escrowMetas = {
       // #[action]-injected metas: the Magic Action escrow of the run owner.

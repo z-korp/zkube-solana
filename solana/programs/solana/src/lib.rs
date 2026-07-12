@@ -255,6 +255,10 @@ pub mod solana {
         instructions::run_lifecycle::handler_seal_run_v1(ctx)
     }
 
+    pub fn abandon_run_v1(ctx: Context<AbandonRunV1>) -> Result<()> {
+        instructions::run_lifecycle::handler_abandon_run_v1(ctx)
+    }
+
     pub fn rotate_active_run_authority_v1(
         ctx: Context<RotateActiveRunAuthorityV1>,
         new_action_authority: Pubkey,

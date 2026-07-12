@@ -29,6 +29,7 @@ const fixtures = vi.hoisted(() => ({
     toBase58: () => "BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6",
   },
   dismissRun: vi.fn(),
+  abandonRun: vi.fn(() => Promise.reject(new Error("no chain in tests"))),
   recoverSession: vi.fn(),
   retrySessionRenewal: vi.fn(),
   sessionRenewalStatus: "renewing" as "idle" | "renewing" | "failed",
@@ -69,6 +70,7 @@ vi.mock("@/play/usePlayController", () => ({
         sessionAuthorized: fixtures.sessionAuthorized,
         publicKey: fixtures.publicKey,
         dismissRun: fixtures.dismissRun,
+        abandonRun: fixtures.abandonRun,
         recoverSession: fixtures.recoverSession,
       },
       game: fixtures.gameAvailable
