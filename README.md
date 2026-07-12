@@ -1,134 +1,81 @@
 # zKube Solana + MagicBlock
 
-This repository contains the Solana reboot of zKube: a ten-map PvE campaign and a Daily Arena whose authoritative active runs execute on MagicBlock ephemeral rollups and settle to versioned Solana accounts.
+zKube is a fully on-chain puzzle game with a ten-map campaign and a Daily
+Arena. Durable identity, progression, contests, USDC accounting, receipts, and
+governance live on Solana; latency-sensitive active runs execute on a
+MagicBlock Ephemeral Rollup (ER) and settle back to the base layer.
 
-Current product boundaries:
+The shipped client silently creates an embedded identity, signs
+programmatically, uses a stateless paymaster for base fees and rent, uses a
+scoped session key for ER gameplay, and settles automatically. Player-facing
+gameplay is not an operator-approved or manual transaction workflow.
 
-- Solana base layer owns identity, progression, Stars, content, Daily contests, USDC custody, receipts, claims, governance, sponsorship allowances, and treasury accounting.
-- MagicBlock owns only the delegated active-run state and fresh per-row VRF/action lifecycle.
-- The browser renders decoded authoritative state and builds transactions.
-- The optional zero-SOL fee-payer relay is stateless; quota entitlement is fully on-chain.
-- Payment custody is six-decimal canonical SPL Token USDC with pairwise-distinct vaults; Token-2022 extensions are rejected by protocol v1.
-- External yield deployment is disabled until a separately selected and reviewed adapter is implemented.
+## Read first
 
-Start with:
+- [STATUS.md](STATUS.md) — live Devnet identity, current evidence, incidents,
+  and remaining work.
+- [Architecture](docs/architecture.md) — product rules, authority boundaries,
+  accounts, Router/ER/VRF flow, and settlement invariants.
+- [Operations](docs/operations.md) — deployment identity, approval gates,
+  custody, monitoring, evidence hashes, and incident response.
+- [Development](docs/development.md) — repository layout, toolchain, local
+  workflow, validation, IDL, and release previews.
+- [AGENTS.md](AGENTS.md) — mandatory rules for agents and operators; it does
+  not describe product behavior.
 
-- [STATUS.md](STATUS.md) — current deployed state and open items.
-- [IMPLEMENTATION.md](IMPLEMENTATION.md) — scope, architecture, iteration status, decisions, and validation evidence.
-- [MAGICBLOCK.md](MAGICBLOCK.md) — authoritative cycling-sim-derived Router, ER, VRF, embedded identity, settlement, and proof rules.
-- [OPERATIONS.md](OPERATIONS.md) — deployment identity, approval gates, custody invariants, readiness probe, and incident procedures.
-- [AGENTS.md](AGENTS.md) — working rules for AI coding agents in this repo;
-  none of it describes product behavior.
-- [client/.env.example](client/.env.example) — public/server configuration inventory; never commit a real paymaster secret.
-- [client/deployment/README.md](client/deployment/README.md) — approved deployment-manifest contract and fail-closed production build gate.
+## Repository layout
 
-Sanitized Devnet evidence lives under `artifacts/`. In particular,
-`devnet-loader-rent-audit.proof.json` records the exact initial-deploy versus
-upgrade buffer flows so permanent ProgramData rent is never mistaken for a
-failed upload leak again.
+```text
+Anchor.toml, Cargo.toml       Anchor workspace at repository root
+programs/solana/              zKube Anchor program
+target/deploy/solana.so       local SBF build output (ignored)
+client/                       Vite app, chain clients, tools, paymaster API
+fixtures/                     shared Rust/TypeScript gameplay fixtures
+docs/                         active architecture, operations, development docs
+```
+
+`client/` is the web deployment root. The former archived client and temporary
+port plan have been removed after explicit sign-off; no runtime or validation
+path depends on them.
+
+## System boundaries
+
+- Solana base owns identity, progression, Stars, catalogs, Daily contests,
+  canonical-USDC custody, receipts, claims, governance, sponsorship allowances,
+  and treasury accounting.
+- MagicBlock owns only delegated `ActiveRun` state, authoritative moves, and
+  fresh per-row VRF while a run is active.
+- The browser renders decoded authoritative state and orchestrates
+  transactions; it does not compute rows, scores, rewards, or ranks.
+- The paymaster is a stateless, shape-limited fee payer. Sponsorship entitlement
+  and cadence quotas are program-owned.
+- Protocol v1 accepts six-decimal canonical SPL Token USDC and rejects
+  Token-2022 payment assets. External yield deployment remains disabled.
 
 ## Validation
 
+Run the complete offline/static gates from the repository root:
+
 ```bash
 NO_DNA=1 ./validate.sh program
-cd client
-NO_DNA=1 pnpm idl:check
-NO_DNA=1 pnpm exec tsc -b --pretty false
-NO_DNA=1 pnpm lint
-NO_DNA=1 pnpm exec vitest run
-NO_DNA=1 pnpm build
+NO_DNA=1 ./validate.sh frontend
 ```
 
-## Live Devnet status
-
-The zKube program is live on MagicBlock Devnet:
-
-- Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
-- ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
-- Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Latest deployment slot: `475787281`
-- Latest upgrade signature: `3k5JLn49munysN8ripfSUeJK4bB9crTBbSKjRcX1FBekZ92G8gQztmuRpYUG1vvRiRdadTWNPi9LR4kDWrc2xjuF`
-- Deployed SBF SHA-256: `65e45420574910611285f25bbaa95eb5a69a04f9ea4b8fe1a4880ffba218646e` (adds `abandonRunV1`)
-- Sanitized proofs: `artifacts/devnet-program-deployment.proof.json` for the initial deployment and `artifacts/devnet-program-upgrade.proof.json` for the current binary (upgrade proof SHA-256 `fadd75eeaea00adaab6495e91eac5ed99bcac481e671a9447464b5ffffa43ede`)
-
-The custody stage is live: five empty canonical-USDC vaults were created and the
-stateless paymaster was funded with 0.1 SOL under approved fingerprint
-`08063b99625c0a82`. Protocol initialization is also live under approved
-fingerprint `1f6cd8031b2ec13a`, and all version-1 catalogs are live under
-fingerprint `d3d34aa2e7528cad`. The first embedded-client run prepared,
-delegated, consumed VRF rows, and reached `levelComplete` on the Router-resolved
-ER. Its commit reproduced `InvalidWritableAccount`: the ER outer instruction
-marked base-only Magic Action targets writable. Campaign and Daily commit
-contexts now follow cycling-sim by keeping those outer target metas read-only
-and granting writability only inside the base-layer `CallHandler`. The
-corrected SBF
-`d075288f0c7776ed50dad38cb770ea4e2c6f277b2049b8a6336cd69b87336636`
-was deployed under approved fingerprint `21ef11168ed0fe45` at slot `475577726`,
-signature `2wrqVqv9...BR5t`. The loader drained and closed the temporary
-11.08325016-SOL buffer back to the deployer, and the on-chain code prefix
-matches the artifact byte-for-byte. The client lifecycle is fully
-automatic (silent embedded signing, sponsored fees/rent, auto-settlement); a
-single legacy first-run cleanup remains tracked in [STATUS.md](STATUS.md).
-Selected public bootstrap identities are recorded in
-`artifacts/devnet-bootstrap-identities.candidate.json`; candidate status is not
-approval. Sanitized custody, protocol, and catalog execution proofs are stored under
-`artifacts/`.
-
-## Devnet deployment and upgrades
+Or run the client directly:
 
 ```bash
 cd client
-NO_DNA=1 pnpm chain:devnet:deploy
+NO_DNA=1 pnpm install --frozen-lockfile
+NO_DNA=1 pnpm dev --host 127.0.0.1
 ```
 
-The rollout architecture follows cycling-sim: Solana base writes target
-`https://rpc.magicblock.app/devnet`, delegation selects a public validator
-through the MagicBlock Router, and live play uses the ER `fqdn` returned by
-`getDelegationStatus`. The deployment planner is dry-run-only unless the exact
-printed fingerprint is explicitly approved and supplied. It now defaults to an
-existing-program upgrade; a fresh identity migration must explicitly select
-`ZKUBE_DEPLOY_MODE=initial`. Mainnet remains a separate, disabled launch gate.
+All Solana, Anchor, and pnpm chain commands must use `NO_DNA=1`. Validation and
+dry-run previews are not authorization to sign or send a transaction.
 
-## Devnet protocol bootstrap
+## Deployment status
 
-The protocol bootstrap is dry-run-first and deliberately staged because later
-transactions depend on accounts created by earlier stages:
-
-```bash
-cd client
-NO_DNA=1 pnpm chain:devnet:bootstrap
-ZKUBE_BOOTSTRAP_STAGE=protocol NO_DNA=1 pnpm chain:devnet:bootstrap
-ZKUBE_BOOTSTRAP_STAGE=catalogs NO_DNA=1 pnpm chain:devnet:bootstrap
-```
-
-Each stage verifies Devnet genesis, the deployed ProgramData SBF hash,
-canonical six-decimal SPL USDC, signer public identities, account ownership,
-rent, and funder headroom. It performs unsigned Devnet simulations and emits a
-sanitized candidate. Sending requires the exact stage fingerprint plus explicit
-approval; approval for one stage never authorizes another.
-
-The client silently creates a stable embedded zKube identity; Phantom and other
-injected wallets are not part of the app flow. Users copy their zKube Vault
-address to top up from any external source for paid content, while sponsored
-gameplay can keep a zero SOL balance.
-
-The original `~/zkube` presentation is restored as Solana-native routes: home,
-ten-map progression, boss reveal, gameplay HUD/action bar, campaign completion,
-Daily Arena, profile, quests/rewards, leaderboard, and settings. The account
-panel is the embedded zKube Vault rather than a wallet connector. Authoritative
-gameplay and progression values are decoded from Solana/ER accounts; no
-Cairo/Dojo state path remains in the executable client.
-
-The localhost stack remains available only as an optional developer test. It is
-not an Iteration 1 acceptance gate and does not substitute for Devnet evidence.
-
-## Web deployment
-
-Configure `client` as the deployment platform's project root. Its single
-`vercel.json` builds the Vite app and preserves `api/paymaster.ts` as the
-stateless fee-payer function. Installations use the committed lockfile. Supply
-the public and server-only values listed in `client/.env.example` through
-the platform settings; keep `PAYMASTER_SECRET_KEY` in its secret manager.
-Production builds additionally require `ZKUBE_DEPLOYMENT_MANIFEST` to identify
-an approved sanitized manifest whose environment and SBF hash pass
-`pnpm chain:manifest`; candidate or mismatched manifests fail the build.
+MagicBlock Devnet is the rollout and acceptance target; mainnet is rejected by
+the current tooling. The live program is
+`5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`. See [STATUS.md](STATUS.md) for
+the exact deployed slot/hash and the important distinction between the live
+binary and newer source hardening.

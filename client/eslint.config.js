@@ -10,7 +10,17 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
-  { ignores: ["dist", "vite.config.ts"] },
+  {
+    ignores: ["dist/**", "coverage/**", "src/chain/idl/solana.ts"],
+  },
+  {
+    ...js.configs.recommended,
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -18,7 +28,7 @@ export default tseslint.config(
       ecmaVersion: 2020,
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
-        project: ["./tsconfig.app.json", "./tsconfig.tools.json"],
+        project: "./tsconfig.eslint.json",
         tsconfigRootDir: __dirname,
       },
     },
@@ -33,5 +43,5 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
-  }
+  },
 );

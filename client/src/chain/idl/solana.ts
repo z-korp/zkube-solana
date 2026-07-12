@@ -10,7 +10,7 @@ export type Solana = {
     "name": "solana",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "zKube game program for Solana and MagicBlock"
   },
   "instructions": [
     {

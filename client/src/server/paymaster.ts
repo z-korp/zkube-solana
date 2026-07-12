@@ -307,7 +307,9 @@ export function validatePaymasterTransaction(
   for (const instruction of message.compiledInstructions) {
     const program = keys[instruction.programIdIndex];
     if (!program) return "instruction program is missing";
-    if (program.equals(ComputeBudgetProgram.programId)) continue;
+    if (program.equals(ComputeBudgetProgram.programId)) {
+      return "Compute Budget instructions are not sponsored";
+    }
     if (program.equals(ZKUBE_PROGRAM_ID)) {
       gameInstructionCount += 1;
       // The largest sponsored envelope is abandon-first finalization:

@@ -82,11 +82,11 @@ export function devnetDeploymentInputFromEnv(
   }
   const workspaceDir = resolvePath(
     cwd,
-    env.ZKUBE_ANCHOR_WORKSPACE ?? "../solana",
+    env.ZKUBE_ANCHOR_WORKSPACE ?? "..",
   );
   const artifactPath = resolvePath(
     cwd,
-    env.ZKUBE_PROGRAM_ARTIFACT ?? "../solana/target/deploy/solana.so",
+    env.ZKUBE_PROGRAM_ARTIFACT ?? "../target/deploy/solana.so",
   );
   const artifactSha256 = fileSha256(artifactPath);
   const programKeypairPath = optionalPath(cwd, env.ZKUBE_PROGRAM_KEYPAIR);

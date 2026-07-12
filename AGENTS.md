@@ -26,9 +26,6 @@ document is wrong — fix the document.
 
 - Never use `git reset --hard`, `git checkout --`, or blanket cleanup; the
   worktree may carry another agent's in-flight work.
-- `client-archive/` is a frozen read-only reference (pre-port client). Never
-  import from it at runtime, never include it in gates, never delete it
-  without a separate user decision.
 - `/home/djizus/zkube` (original Starknet client) and `/home/djizus/cycling-sim`
   (MagicBlock reference implementation) are read-only external references.
 
@@ -44,8 +41,8 @@ document is wrong — fix the document.
 ## Actions that always need a separate explicit approval
 
 Program deploy/upgrade, bootstrap stages, yield adapter work, moving USDC,
-publishing a Daily challenge, governance changes, deleting `client-archive/`,
-and anything touching mainnet (currently rejected by tooling).
+publishing a Daily challenge, governance changes, and anything touching
+mainnet (currently rejected by tooling).
 
 ## Validation gates
 
@@ -62,8 +59,8 @@ NO_DNA=1 pnpm build
 ## Reading order
 
 1. `STATUS.md` — current deployed state and open items.
-2. `IMPLEMENTATION.md` — scope, architecture, iteration gates, validation log.
-3. `MAGICBLOCK.md` — Router/ER/VRF/identity/settlement architecture rules.
-4. `OPERATIONS.md` — deployment identity, custody invariants, incident runbooks.
+2. `docs/architecture.md` — product, account, Router/ER/VRF, and settlement rules.
+3. `docs/operations.md` — deployment identity, custody invariants, and incidents.
+4. `docs/development.md` — repository layout and offline validation workflow.
 5. `/home/djizus/cycling-sim/docs/magicblock-focg.md` and
    `devnet-deploy-runbook.md` — upstream MagicBlock reference patterns.

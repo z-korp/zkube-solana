@@ -90,7 +90,7 @@ const LOCAL_DIR = resolve(process.cwd(), "../.localnet");
 const PROOF_OUT = process.env.ZKUBE_LOCAL_PROOF_OUT
   ?? resolve(process.cwd(), "../artifacts/local-base-smoke.proof.json");
 const PROGRAM_ARTIFACT = process.env.ZKUBE_LOCAL_PROGRAM_ARTIFACT
-  ?? resolve(process.cwd(), "../solana/target/deploy/solana.so");
+  ?? resolve(process.cwd(), "../target/deploy/solana.so");
 const CONTENT_VERSION = 1;
 const PROGRESS_VERSION = 1;
 const AUTHORITY_AIRDROP_SOL = 20;

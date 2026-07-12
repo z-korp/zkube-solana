@@ -5,7 +5,7 @@ scope="${1:-all}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 validate_program() {
-  cd "$root/solana"
+  cd "$root"
   NO_DNA=1 cargo fmt --all -- --check
   NO_DNA=1 cargo test --workspace
   NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings

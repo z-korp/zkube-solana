@@ -107,7 +107,7 @@ function parseOptions(argv: string[]): Options {
     fromEnv,
     artifactPath: artifactSha256
       ? null
-      : explicitArtifact ?? "../solana/target/deploy/solana.so",
+      : explicitArtifact ?? "../target/deploy/solana.so",
     artifactSha256,
     requireApproved: argv.includes("--require-approved"),
     json: argv.includes("--json"),
