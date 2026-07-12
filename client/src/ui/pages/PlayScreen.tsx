@@ -10,6 +10,7 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/dojo/game/types/bonusTypes";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeId } from "@/config/themes";
+import { useGrid } from "@/hooks/useGrid";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import GameBoard from "@/ui/components/GameBoard";
@@ -36,6 +37,10 @@ export default function PlayScreen() {
   const activeRunLevel = activeRun?.level;
   const activeRunBossId = activeRun?.rules.bossId;
   const activeRunLifecycle = activeRun?.lifecycle;
+  const authoritativeGrid = useGrid({
+    gameId: activeRunId,
+    shouldLog: false,
+  });
   const onRunBonus = controller.onBonus;
   const dismissRun = run.dismissRun;
 
@@ -194,7 +199,7 @@ export default function PlayScreen() {
     activeRun.lifecycle === "settled";
   const basePhase = run.phase === "base" || run.phase === "settleable";
   const locked = run.busy || terminal || basePhase || !run.sessionAuthorized;
-  const grid = game.blocks;
+  const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
   const nextLine = terminal ? [] : game.next_row;
   const movesDisplay =
     game.mode === 1
@@ -275,14 +280,26 @@ export default function PlayScreen() {
                   : controller.settlingLabel}
             </p>
             {!run.sessionAuthorized && run.phase === "delegated" ? (
-              <button
-                type="button"
-                disabled={run.busy}
-                onClick={() => void run.recoverSession().catch(() => undefined)}
-                className="mt-3 rounded-xl bg-purple-600 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
-              >
-                {run.busy ? "Renewing…" : "Renew session"}
-              </button>
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  disabled={run.busy}
+                  onClick={() =>
+                    void run.recoverSession().catch(() => undefined)
+                  }
+                  className="rounded-xl bg-purple-600 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {run.busy ? "Renewing…" : "Renew session"}
+                </button>
+                <button
+                  type="button"
+                  disabled={run.busy}
+                  onClick={handleQuit}
+                  className="rounded-xl border border-white/20 bg-white/10 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
+                >
+                  Forget run locally
+                </button>
+              </div>
             ) : run.error && run.phase === "delegated" && terminal ? (
               <button
                 type="button"
@@ -319,14 +336,24 @@ export default function PlayScreen() {
             <p className="font-display text-xl text-purple-300">
               Session expired
             </p>
-            <button
-              type="button"
-              disabled={run.busy}
-              onClick={() => void run.recoverSession().catch(() => undefined)}
-              className="mt-3 rounded-xl bg-purple-600 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
-            >
-              Renew session
-            </button>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                disabled={run.busy}
+                onClick={() => void run.recoverSession().catch(() => undefined)}
+                className="rounded-xl bg-purple-600 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
+              >
+                {run.busy ? "Renewing…" : "Renew session"}
+              </button>
+              <button
+                type="button"
+                disabled={run.busy}
+                onClick={handleQuit}
+                className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
+              >
+                Forget run locally
+              </button>
+            </div>
           </div>
         )}
       </div>

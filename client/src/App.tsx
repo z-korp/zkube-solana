@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import "@/hooks";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";

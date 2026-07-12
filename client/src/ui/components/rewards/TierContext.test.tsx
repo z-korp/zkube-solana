@@ -12,7 +12,6 @@ describe("TierContext", () => {
         colors={getThemeColors("theme-1")}
         myRank={2}
         myScore={850}
-        totalEntries={3}
         entries={[
           { rank: 1, score: 1_000, name: "First" },
           { rank: 2, score: 850, name: "You" },
@@ -26,6 +25,8 @@ describe("TierContext", () => {
     expect(screen.getByText("You")).toBeInTheDocument();
     expect(screen.getByText("Third")).toBeInTheDocument();
     expect(screen.getByText("850 pts")).toBeInTheDocument();
+    expect(screen.getByText("Daily rank #2")).toBeInTheDocument();
+    expect(screen.queryByText(/2 of 3/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/projected|reward|★/i)).not.toBeInTheDocument();
   });
 });

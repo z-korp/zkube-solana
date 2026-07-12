@@ -209,9 +209,12 @@ base copyback, durable receipt verification, and transient rent cleanup.
   `MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e`
 
 The embedded identity lives in the browser. Do not extract or print its recovery
-material. Ask the user to refresh `http://127.0.0.1:5175`, resume the run, and
-click **Settle result**. That provides the required owner signature. After the
-click:
+material. First obtain explicit user approval for the exact
+seal/commit/copyback/receipt-consumption/rent-cleanup scope. After approval, ask
+the user to refresh `http://127.0.0.1:5175` and resume the run. The current
+Play controller starts the recovery pipeline automatically; there is no
+**Settle result** button. If the run is already shown as settled, the explicit
+UI action is **Collect rent & continue**. During that approved flow:
 
 1. Monitor Router status and the ER transaction signature.
 2. Confirm commit/undelegate succeeds with no writable-account error.
@@ -220,9 +223,9 @@ click:
    score, moves, completion flag, action hash, VRF hash, and consumed flag.
 5. Verify campaign best Stars/Profile counters changed exactly once.
 6. Refresh/resume the client and confirm it shows the settled receipt.
-7. Ask the user to click the cleanup action if another owner signature is
-   required; otherwise use the existing sponsored cleanup path only after its
-   current approval rules are satisfied.
+7. If **Collect rent & continue** is shown, ask the user to click it within the
+   same explicitly approved cleanup scope; otherwise let the existing sponsored
+   finalize plan finish only under that approval.
 8. Verify ActiveRun is closed, rent returns to the configured recipient, while
    RunShell and RunReceipt remain durable.
 9. Save a sanitized end-to-end lifecycle proof and update all four docs.
@@ -321,7 +324,7 @@ Chromium (cycling-sim's Playwright):
 - Home rebuilt as an element-for-element port of the original: bobbing theme
   logo, identity bar (level badge/title/Connected pill), Story divider with
   arrow pagination, snap-scroll zone-card rail (theme icons, star progress,
-  lock/cost), Tournaments divider, Daily Challenge art card with countdown
+  lock/cost), Daily Arena divider, Daily Challenge art card with countdown
   pill, bottom accent ArcadeButton (Play Story / Resume Story / Go to Daily).
 - Campaign flow: tapping a map node auto-starts the run (original behavior);
   the manual map/level form only remains for direct visits.
@@ -354,8 +357,21 @@ Last full client gate after the 2026-07-12 original-client port:
 - strict project-reference TypeScript: pass
 - focused reboot TypeScript: pass
 - lint: pass
-- tests: 48 files, 160 tests, all pass
+- tests: 50 files, 164 tests, all pass
 - production Vite build: pass
+
+Signer-free browser acceptance after the port:
+
+- fresh non-persistent Chromium profiles: pass on 1440×900 desktop and
+  390×844 mobile viewports;
+- Home campaign data, Home → Map, Daily, Boss, Play empty state, Rewards,
+  Leaderboard, Profile, Settings/Vault, and read-only Spectator all render;
+- Settings exposes deposit address, SOL/USDC balances, recovery controls, and
+  withdrawal controls without revealing recovery material;
+- `/api/paymaster` returns the expected `CNhM…7SgY` identity;
+- zero console errors, page errors, failed requests, paymaster POSTs,
+  `sendTransaction`, `simulateTransaction`, or `requestAirdrop` calls were
+  observed.
 
 Last program gate:
 
@@ -376,11 +392,11 @@ Canonical validation commands:
 ```bash
 NO_DNA=1 ./validate.sh program
 cd client
-pnpm idl:check
-pnpm exec tsc -b --pretty false
-pnpm lint
-pnpm exec vitest run
-pnpm build
+NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm exec tsc -b --pretty false
+NO_DNA=1 pnpm lint
+NO_DNA=1 pnpm exec vitest run
+NO_DNA=1 pnpm build
 ```
 
 ## Documentation and evidence hierarchy
@@ -424,6 +440,9 @@ Relevant sanitized artifacts:
 
 ## Recommended immediate response to the user
 
-Tell the user the handoff is loaded, then ask them to refresh the client and
-click **Settle result**. Stay active and verify the entire copyback/receipt/
-cleanup sequence rather than stopping at the ER signature.
+Tell the user the handoff is loaded, summarize the exact transaction scope,
+and request explicit approval for seal/commit/copyback/receipt-consumption/
+cleanup. Only after approval, ask them to refresh and resume the preserved run;
+the controller starts recovery automatically, or shows **Collect rent &
+continue** if only cleanup remains. Stay active through durable receipt and
+rent-cleanup verification rather than stopping at the ER signature.

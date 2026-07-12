@@ -379,7 +379,7 @@ const HomePage: React.FC = () => {
           >
             <div className="flex-1 border-t border-white/[0.06]" />
             <span className="font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
-              Tournaments
+              Daily Arena
             </span>
             <div className="flex-1 border-t border-white/[0.06]" />
           </motion.div>
@@ -422,8 +422,8 @@ const HomePage: React.FC = () => {
                         : !challenge
                           ? "Not published yet — check back soon!"
                           : hasPlayedDaily && dailyMyRank
-                            ? `#${dailyMyRank}/${dailyEntries.length} · USDC prizes`
-                            : `${challenge.total_entries.toString()} player${challenge.total_entries === 1n ? "" : "s"}`}
+                            ? `#${dailyMyRank} · USDC prizes`
+                            : `${challenge.total_attempts.toString()} attempt${challenge.total_attempts === 1n ? "" : "s"}`}
                     </p>
                   </div>
                   {dailyCountdown ? (

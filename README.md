@@ -31,11 +31,11 @@ failed upload leak again.
 ```bash
 NO_DNA=1 ./validate.sh program
 cd client
-pnpm idl:check
-pnpm exec tsc -b --pretty false
-pnpm lint
-pnpm exec vitest run
-pnpm build
+NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm exec tsc -b --pretty false
+NO_DNA=1 pnpm lint
+NO_DNA=1 pnpm exec vitest run
+NO_DNA=1 pnpm build
 ```
 
 ## Live Devnet status

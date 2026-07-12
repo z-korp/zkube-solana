@@ -29,16 +29,19 @@ The manifest is public evidence. It must never contain a wallet path, keypair,
 seed phrase, private/secret key, RPC credential, or paymaster secret.
 
 The selected Devnet identity
-`5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA` is live at slot `475536003`.
-ProgramData `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB` matches SBF SHA-256
-`1a6f1dd87811eabf7213433e3d49e104212e19b76df67cb6a3828d8a8c15161a` and is
-controlled by dedicated upgrade authority
-`2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`. Deployment signature is
-`bkhBvwRimF6xQHLbMDt5ULcQfb4sghbraK7Jdw4a3gS3t6sT3WNobDsyL5httCWBFxNVEzfHmj6k4aSb7uRCwKj`;
-sanitized proof SHA-256 is
-`620b14cad362ebbf5fd0ad23075d2da3f673b11f19454e14a1e0a835688c7b3d`.
-The retired `7zdL...Y2nN` deployment remains untouched and is not on the zKube
-rollout path.
+`5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA` is live with its current
+upgrade at slot `475577726`. ProgramData
+`ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB` has a 1,592,248-byte code
+prefix matching SBF SHA-256
+`d075288f0c7776ed50dad38cb770ea4e2c6f277b2049b8a6336cd69b87336636`;
+its remaining 1,544 allocation bytes are zero. Dedicated upgrade authority
+`2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox` is unchanged. The current
+upgrade signature is
+`2wrqVqv9C8sqK1Hrb2xFE37f48YPfVW2EoxULjc1qaJvHH63bX38Yvvbo3Ca3MefF6W49Q1FeLpuchpUuzUXBR5t`;
+approved fingerprint `21ef11168ed0fe45` and the sanitized evidence are in
+`../../artifacts/devnet-program-upgrade.proof.json`. The retired
+`7zdL...Y2nN` deployment remains untouched and is not on the zKube rollout
+path.
 
 Preview the cycling-sim-style Devnet upgrade plan from the built SBF:
 
@@ -54,17 +57,18 @@ requires the deployed authority, a funded Devnet fee payer, the explicit send
 flag, and the exact approved fingerprint. Set `ZKUBE_DEPLOY_MODE=initial` only
 for an explicitly reviewed fresh identity migration.
 
-The completed initial deployment deliberately separated roles: cycling-sim
-signer `7WFy...ZDRA` paid the one-time Devnet loader rent/fees, while dedicated
-zKube signer `2so5...gEox` became upgrade authority. The program and authority
-key files remain ignored and `0600`; stable buffer `9B7U...d6bw` closed after
-the successful upload. Program deployment precedes the still-pending,
-separately approved protocol/vault/catalog initialization and end-to-end
-Router/ER gameplay proof. No secret belongs in this directory or a deployment
-manifest.
+The completed deployment deliberately separates roles: cycling-sim signer
+`7WFy...ZDRA` pays Devnet loader fees, while dedicated zKube signer
+`2so5...gEox` remains upgrade authority. Program and authority key files stay
+ignored and `0600`. Both the initial stable upload buffer and the temporary
+upgrade buffer closed after their successful operations.
 
-Before producing the full runtime manifest, initialize custody, protocol, and
-catalogs through the separately fingerprinted `pnpm chain:devnet:bootstrap`
-stages. The program deployment proof cannot stand in for bootstrap approval.
-The browser becomes writable only after `ProtocolConfig` binds the advertised
-paymaster and the five verified canonical-USDC vaults.
+Custody, protocol, and all eleven progress/map catalogs are already live under
+approved fingerprints `08063b99625c0a82`, `1f6cd8031b2ec13a`, and
+`d3d34aa2e7528cad`; their sanitized proofs are in `../../artifacts/`.
+`ProtocolConfig` binds the advertised paymaster and five verified
+canonical-USDC vaults. Those approvals do not authorize a new upgrade,
+gameplay transaction, settlement, withdrawal, or publication of an approved
+runtime manifest. The final owner-signed Router/ER settlement and Daily-USDC
+lifecycle proofs remain separate approval-gated operations. No secret belongs
+in this directory or a deployment manifest.
