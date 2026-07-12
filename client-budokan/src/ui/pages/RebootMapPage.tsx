@@ -10,6 +10,8 @@ import {
 } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useMapLayout } from "@/hooks/useMapLayout";
+import { ZONE_NAMES } from "@/config/profileData";
+import type { CampaignMapView } from "@/solana/reboot/campaignClient";
 import { useRebootCampaign } from "@/solana/reboot/useRebootCampaign";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -17,18 +19,22 @@ import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
 import RebootLevelPreview from "@/ui/components/map/RebootLevelPreview";
 import { ZoneBackground } from "@/ui/components/map/ZoneBackground";
 
-const ZONE_NAMES = [
-  "Tides",
-  "Nile",
-  "Frost",
-  "Olympus",
-  "Dragon",
-  "Persia",
-  "Foxfire",
-  "Jungle",
-  "Rhythm",
-  "Summit",
-];
+// A brand-new career has no on-chain CampaignProgress yet — the first
+// sponsored Map 1 run initializes it. Render Map 1 as playable so the
+// player can actually take that first step.
+const UNINITIALIZED_MAP_1: CampaignMapView = {
+  mapId: 1,
+  themeId: 1,
+  enabled: true,
+  unlocked: true,
+  purchased: false,
+  cleared: false,
+  perfected: false,
+  starCost: 0n,
+  usdcCost: 0n,
+  levelStars: Array.from({ length: 10 }, () => 0),
+  levels: [],
+};
 
 const VB_W = 60;
 const VB_H = 100;
@@ -72,7 +78,11 @@ export default function RebootMapPage() {
   const setDaily = useNavigationStore((state) => state.setIsDailyMap);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [showGreeting, setShowGreeting] = useState(false);
-  const map = campaign.campaign?.maps.find((entry) => entry.mapId === zone);
+  const map =
+    campaign.campaign?.maps.find((entry) => entry.mapId === zone) ??
+    (!campaign.loading && !campaign.campaign && zone === 1
+      ? UNINITIALIZED_MAP_1
+      : undefined);
   const guardian = getZoneGuardian(zone);
   const themeId = getThemeId(zone);
   const colors = getThemeColors(themeId);
@@ -118,7 +128,7 @@ export default function RebootMapPage() {
   };
 
   return (
-    <div className="relative flex min-h-full flex-col overflow-hidden pb-24 text-white">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-24 text-white">
       <ZoneBackground zone={zone} themeId={themeId} />
       <header className="relative z-20 flex items-center justify-between px-4 pb-3 pt-5">
         <button
@@ -135,7 +145,7 @@ export default function RebootMapPage() {
             Campaign map
           </p>
           <h1 className="font-display text-2xl font-black">
-            {zone}. {ZONE_NAMES[zone - 1]}
+            {zone}. {ZONE_NAMES[zone]}
           </h1>
         </div>
         <div className="flex items-center gap-1 rounded-full border border-yellow-300/20 bg-black/35 px-3 py-2 text-sm font-black text-yellow-300">
@@ -168,7 +178,7 @@ export default function RebootMapPage() {
           Loading on-chain campaign…
         </p>
       )}
-      {!campaign.loading && !campaign.campaign && (
+      {!campaign.loading && !campaign.campaign && zone !== 1 && (
         <p className="relative z-10 pt-10 text-center text-white/55">
           Start Map 1 to initialize this zKube career.
         </p>
