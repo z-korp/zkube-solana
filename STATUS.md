@@ -10,28 +10,28 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `475787281`
-- Current signature:
-  `3k5JLn49munysN8ripfSUeJK4bB9crTBbSKjRcX1FBekZ92G8gQztmuRpYUG1vvRiRdadTWNPi9LR4kDWrc2xjuF`
+- Current deployed slot: `475813201`
 - Current deployed SBF SHA-256:
-  `65e45420574910611285f25bbaa95eb5a69a04f9ea4b8fe1a4880ffba218646e`
-- Deployed code is 1,596,600 bytes in a 1,604,032-byte allocation; the 7,432
-  trailing bytes were independently verified as zero. The stable upload buffer
-  closed and the upgrade authority was preserved.
+  `89a24c891311ff384891929f6745c26b48f9f6f8a6da33595ad5ce2176e7254f`
+- Deployed code is 1,598,448 bytes in the 1,604,032-byte allocation; the 5,584
+  trailing bytes were independently verified as zero (post-upgrade program
+  dump hashed byte-for-byte), the stable upload buffer closed, and the upgrade
+  authority was preserved.
 
-This binary includes `abandonRunV1` and the corrected campaign/Daily Magic
-Action account metas. The approved extend/upgrade fingerprint was
-`55a4efd868180f9c` and the public sanitized-proof hash is
-`fadd75eeaea00adaab6495e91eac5ed99bcac481e671a9447464b5ffffa43ede`.
+This binary adds the rent-economics close (`CloseSettledActiveRunV1` closes
+ActiveRun, RunShell, and RunReceipt with rent returning to
+`ProtocolConfig.paymaster`) on top of `abandonRunV1`, the corrected
+campaign/Daily Magic Action metas, and the paymaster boundary hardening.
+Approved extend/upgrade fingerprint `20a84645e3f8d292`; the prior binary was
+slot `475787281` / SBF `65e454…646e`.
 
 ### Source is newer than the live binary
 
-The repository source includes post-deployment hardening and is no longer
-byte-identical to the binary above. Any new `target/deploy/solana.so` is a new
-candidate, not evidence of what is live. Shipping it requires a fresh dry-run,
-SBF hash, exact fingerprint, explicit approval, signature-verified simulation,
-and post-deployment byte verification. **No program upgrade is authorized by
-the source changes or this documentation cleanup.**
+The repository source may include post-deployment hardening not byte-identical
+to the binary above. Any new `target/deploy/solana.so` is a new candidate, not
+evidence of what is live. Shipping it requires a fresh dry-run, SBF hash, exact
+fingerprint, explicit approval, signature-verified simulation, and
+post-deployment byte verification.
 
 ## Bootstrap and client
 
@@ -70,17 +70,24 @@ diagnostic line), the Home banner warns below a configurable reserve
 describes on-chain abandon. Scheduled readiness alerting and web-deployment
 verification remain operator tasks.
 
-### Rent economics (source, pending upgrade)
+### Rent economics — live, measured
 
-Measured against the live binary, the paymaster spends ~0.014 SOL per fresh
-player and ~0.011 SOL per run (rent gifted to players at cleanup, durable
-RunShell/RunReceipt per run, a new session token per run). Source now closes
-all three run accounts at cleanup with rent returning to the protocol
-paymaster (`CloseSettledActiveRunV1` pins the recipient to
-`ProtocolConfig.paymaster`), and one session token is reused across runs for
-its whole validity (`zkube:session:v1`). Expected after the next approved
-upgrade: recurring per-run paymaster cost ≈ fees + the 10k-lamport Magic
-Action top-up; spectating an already-cleaned run shows an "archived" state.
+The rent-economics upgrade is live (slot `475813201`). Cleanup closes all
+three run accounts with rent returning to `ProtocolConfig.paymaster`, and one
+session token is reused across runs for its whole validity (`zkube:session:v1`,
+one-hour reuse margin). Two-run headless measurement on a fresh identity
+(2026-07-12):
+
+- Run 1 net paymaster cost: **0.0085 SOL** — includes the one-time
+  PlayerProfile, CampaignProgress, and session token that persist.
+- Run 2 (recurring) net paymaster cost: **0.00034 SOL** — a ~32× drop from the
+  pre-upgrade ~0.011 SOL/run, now essentially fees + the 10k-lamport Magic
+  Action top-up.
+- Session reuse confirmed (identical keypair across both runs; run 2 prepared
+  with no `createSessionV2`). Zero console/page errors.
+
+Board entry ~3–5.4 s, quit→abandon-settled 4.4–12.3 s, all unregressed.
+Spectating an already-cleaned run shows the "settled and archived" state.
 
 ## Open work
 
