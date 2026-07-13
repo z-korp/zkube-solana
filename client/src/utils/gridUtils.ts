@@ -62,6 +62,47 @@ export const transformDataContractIntoBlock = (grid: number[][]): Block[] => {
   });
 };
 
+/**
+ * Reconcile the currently-rendered blocks onto the authoritative chain grid.
+ *
+ * The returned list represents the chain grid EXACTLY (same occupied cells and
+ * widths), so the visible board can never diverge from the chain. The only
+ * thing carried over from `current` is block identity: a target block reuses
+ * the id of a current block with the same column (x) and width, choosing the
+ * nearest row — so React keeps the same element and CSS transitions animate the
+ * fall/shift. Genuinely new cells (e.g. the freshly inserted floor row) keep
+ * their fresh id and simply appear. Cleared/shifted-out blocks are dropped.
+ *
+ * Vertical gravity, line clears and the bottom-row insert never change a
+ * block's column, so matching on exact x is sound; the swipe (the only
+ * horizontal move) has already been applied to both `current` and the grid.
+ */
+export const reconcileBlocksToGrid = (
+  current: Block[],
+  grid: number[][]
+): Block[] => {
+  const targets = transformDataContractIntoBlock(grid);
+  const used = new Set<number>();
+  return targets.map((target) => {
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    current.forEach((block, index) => {
+      if (used.has(index)) return;
+      if (block.width !== target.width || block.x !== target.x) return;
+      const distance = Math.abs(block.y - target.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+    if (bestIndex >= 0) {
+      used.add(bestIndex);
+      return { ...target, id: current[bestIndex].id };
+    }
+    return target;
+  });
+};
+
 export const blocksMatchGrid = (
   blocks: Block[],
   grid: number[][]
