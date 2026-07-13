@@ -89,9 +89,31 @@ client-side next-line insert) that could diverge from the Rust engine when the
 VRF next row was still hydrating, splitting the board and causing repeated
 `InvalidMove`/`6002`. Do not reintroduce client-side game simulation.
 
-The current merge candidate passes 210 client tests across 53 files plus IDL,
-strict/chain typechecks, zero-warning lint, and the production build. The
-program gate passes 73 Rust tests plus formatting, Clippy, SBF, and IDL.
+Moves are **animation-led**: the client plays the full local cascade (gravity →
+line clears → the new row rising in) at a pleasing pace while the transaction
+settles on-chain in the background; the held receipt reconciles as a visual
+no-op once the animation finishes, and the level-complete overlay waits for that
+cascade to end. VRF-row readiness (post-move) and the settlement copyback are
+driven by **websocket account subscriptions** (`onAccountChange` via
+`awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
+polling, with a slow poll only as a dropped-socket fallback.
+
+This work is merged to `main`. The client gate passes 214 tests across 54 files
+plus IDL, strict/chain typechecks, zero-warning lint, and the production build.
+The program gate passes 73 Rust tests plus formatting, Clippy, SBF, and IDL.
+
+### Web deployment (Vercel)
+
+Live at `https://zkube-solana.vercel.app` — project `zkube-solana` (team
+`z-labs`), root `client`, framework Vite, git-connected to `z-korp/zkube-solana`
+and auto-deploying on push to `main`. Build is plain `pnpm run build` (the
+former `deploy:build` approved-manifest gate is dropped for the web build);
+production is public, preview is team-only. `PAYMASTER_SECRET_KEY` (+
+`PAYMASTER_GENESIS_HASH`, `SOLANA_DEVNET_RPC_URL`, `ZKUBE_PAYMASTER_PUBLIC_KEY`)
+are set in the project's secret store; `/api/paymaster` returns the paymaster
+pubkey. No `VITE_PUBLIC_*` program vars are set, so the client uses its
+hard-coded devnet config (a stale program-id override previously failed the
+IDL/program-address check). See `docs/operations.md` → Web deployment.
 
 ## Paymaster reserve incident
 
@@ -142,8 +164,8 @@ Spectating an already-cleaned run shows the "settled and archived" state.
    lifecycle; verify a Vault withdrawal and Recovery Code round-trip. Each
    signed scope is separately approved.
 3. **Operations.** Schedule `pnpm chain:readiness` with a meaningful paymaster
-   threshold, deploy alert aggregation, and configure the web project root as
-   `client`.
+   threshold and deploy alert aggregation. (Web project root is now `client` on
+   the live Vercel `zkube-solana` project.)
 4. **Security and launch debt.** Complete independent program/paymaster/
    treasury review, validator/RPC concurrency and failure-recovery evidence,
    production bundle splitting, jurisdiction/terms/age policy, operator and

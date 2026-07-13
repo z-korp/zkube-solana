@@ -93,20 +93,30 @@ NO_DNA=1 pnpm chain:devnet:bootstrap
 Custody, protocol, and catalogs are already live. Re-running, publishing a new
 Daily, or changing governance is a new approval scope.
 
-Production web builds require an approved sanitized manifest:
+## Web deployment (Vercel)
 
-```bash
-cd client
-NO_DNA=1 pnpm chain:manifest -- \
-  --manifest deployment/approved.devnet.json \
-  --artifact ../target/deploy/solana.so \
-  --require-approved
-```
+The web client deploys to the Vercel project `zkube-solana` (team `z-labs`):
+root directory `client`, framework Vite, connected to `z-korp/zkube-solana` and
+auto-deploying on push to `main`. The build is plain `pnpm run build`
+(`client/vercel.json`); production is public, preview deployments are team-only
+via Deployment Protection. `api/paymaster.ts` is a Node serverless function
+(declared with `maxDuration: 30`); the SPA rewrite excludes `/api/` so the
+function is reachable, and the function's relative imports carry `.js`
+extensions for ESM runtime resolution (`"type": "module"`).
 
-The manifest is public metadata and must contain no secret, seed, keypair path,
-recovery material, or RPC credential. `PAYMASTER_SECRET_KEY` belongs only in the
-deployment platform's secret manager. Configure `client` as the web project
-root so `api/paymaster.ts` is deployed.
+Required Production env vars (never `VITE_`-prefix the secret):
+
+- `PAYMASTER_SECRET_KEY` — the paymaster fee-payer keypair (64-int JSON array),
+  set only in Vercel's secret manager.
+- `PAYMASTER_GENESIS_HASH`, `SOLANA_DEVNET_RPC_URL`, `ZKUBE_PAYMASTER_PUBLIC_KEY`
+  — devnet pin plus a self-check that the secret matches the expected paymaster.
+
+The client hard-codes its devnet program/RPC config, so no `VITE_PUBLIC_*`
+program vars are needed — and a stale `VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID`
+must NOT be set, or it fails the IDL/program-address check at runtime.
+
+`chain:manifest --require-approved` remains available as an optional operator
+provenance attestation; it is no longer a Vercel build gate.
 
 ## Readiness and monitoring
 
