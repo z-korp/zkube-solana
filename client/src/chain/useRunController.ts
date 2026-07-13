@@ -48,12 +48,24 @@ import {
 } from "./dailyClient";
 import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { toDisplayGrid } from "./gridProjection";
 
 /** Visible perf/telemetry logger (console.log, not console.debug which the
  *  browser hides by default). DEV-only. Use to spot delays/bottlenecks while
  *  playing: level creation, per move, and settlement stage timings. */
 const plog = (label: string, data: Record<string, unknown>): void => {
   if (import.meta.env.DEV) console.log(`[perf] ${label}`, data);
+};
+
+/** DEV-only: render the authoritative chain board (display orientation: index
+ *  0 = screen top, 9 = floor) so we can watch what the CONTRACT engine emits,
+ *  independent of what the client renders. '.' = empty, else the block width. */
+const clog = (label: string, grid: number[][], nextRow: number[]): void => {
+  if (!import.meta.env.DEV) return;
+  const body = grid
+    .map((row, y) => `r${y}|${row.map((c) => (c ? String(c) : ".")).join(" ")}`)
+    .join("\n");
+  console.log(`[chain] ${label}\n${body}\nnextRow=${JSON.stringify(nextRow)}`);
 };
 
 export type SettleStage =
@@ -275,6 +287,11 @@ export function useRunController() {
         level,
         reusedSession: Boolean(reusable),
       });
+      clog(
+        "seed board at launch",
+        toDisplayGrid(activeRun.grid),
+        activeRun.nextRow ?? [],
+      );
       currentRun.current = {
         phase: "delegated",
         marker: loadRunSession(publicKey)!,
@@ -424,6 +441,11 @@ export function useRunController() {
             newScore: activeRun.score,
             lifecycle: activeRun.lifecycle,
           });
+          clog(
+            `board after move ${activeRun.moves} (score=${activeRun.score})`,
+            toDisplayGrid(activeRun.grid),
+            activeRun.nextRow ?? [],
+          );
           run.activeRun = activeRun;
           setState((value) => ({
             ...value,

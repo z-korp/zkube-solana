@@ -29,6 +29,49 @@ export interface ReceiptProjection {
   over: boolean;
 }
 
+// ==================== Divergence diagnostics ====================
+// Build a width-encoded matrix from client Block[] (same encoding the chain
+// grid uses: each cell holds the block width).
+const gridFromBlocks = (
+  blocks: Block[],
+  width: number,
+  height: number,
+): number[][] => {
+  const m = Array.from({ length: height }, () => Array(width).fill(0));
+  for (const b of blocks) {
+    for (let i = 0; i < b.width; i++) {
+      const x = b.x + i;
+      if (b.y >= 0 && b.y < height && x >= 0 && x < width) m[b.y][x] = b.width;
+    }
+  }
+  return m;
+};
+
+// Render a grid in display orientation (index 0 = screen top, index 9 = floor),
+// printed top-to-bottom so it reads like the board. '.' = empty, else width.
+const renderGrid = (g: number[][]): string =>
+  g
+    .map((row, y) => `r${y}|${row.map((c) => (c ? String(c) : ".")).join(" ")}`)
+    .join("\n");
+
+const diffGrids = (
+  client: number[][],
+  chain: number[][],
+): Array<{ y: number; x: number; client: number; chain: number }> => {
+  const diffs: Array<{ y: number; x: number; client: number; chain: number }> =
+    [];
+  const h = Math.max(client.length, chain.length);
+  const w = Math.max(client[0]?.length ?? 0, chain[0]?.length ?? 0);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const cv = client[y]?.[x] ?? 0;
+      const kv = chain[y]?.[x] ?? 0;
+      if (cv !== kv) diffs.push({ y, x, client: cv, chain: kv });
+    }
+  }
+  return diffs;
+};
+
 export interface GridProps {
   gameId: bigint;
   initialData: Block[];
@@ -183,12 +226,27 @@ const Grid: React.FC<GridProps> = ({
       blocksMatchGrid(prev, parsed.blocks) ? prev : authoritative,
     );
     if (import.meta.env.DEV) {
-      console.debug("[grid] applyReceipt", {
+      const diverged = !blocksMatchGrid(blocks, parsed.blocks);
+      console.log("[grid] applyReceipt", {
         gameId: gameId.toString(),
         chainBlocks: parsed.blocks.flat().filter(Boolean).length,
         nextRow: parsed.nextRow,
-        diverged: !blocksMatchGrid(blocks, parsed.blocks),
+        diverged,
       });
+      if (diverged) {
+        // The client's local cascade produced a different board than the Rust
+        // chain engine. Dump both (row 0 = floor at the bottom) plus the exact
+        // differing cells so the engine mismatch can be pinpointed.
+        const clientGrid = gridFromBlocks(blocks, gridWidth, gridHeight);
+        const diffs = diffGrids(clientGrid, parsed.blocks);
+        console.log(
+          `[grid] DIVERGENCE game=${gameId.toString()} — client (what player saw) vs chain (authoritative)\n` +
+            `CLIENT:\n${renderGrid(clientGrid)}\n` +
+            `CHAIN:\n${renderGrid(parsed.blocks)}\n` +
+            `nextRow=${JSON.stringify(parsed.nextRow)}`,
+        );
+        console.log("[grid] DIVERGENCE diffs {y,x,client,chain}", diffs);
+      }
     }
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
