@@ -1035,10 +1035,14 @@ async function waitForVrf(
   wallet: WalletLike,
   activeRunAddress: import("@solana/web3.js").PublicKey,
 ): Promise<void> {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  // Poll tightly: after a move the run sits in AwaitingVrf until the MagicBlock
+  // oracle delivers the next row. The wait is dominated by the oracle round-trip
+  // (~400-550ms on Devnet); a coarse interval just adds granularity latency on
+  // top. 120ms × 160 keeps a ~19s safety budget while shaving perceived lag.
+  for (let attempt = 0; attempt < 160; attempt += 1) {
     const active = await fetchActiveRun(connection, wallet, activeRunAddress);
     if (active && active.pendingVrfCounter === 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 120));
   }
   throw new Error("Timed out waiting for the MagicBlock VRF callback");
 }

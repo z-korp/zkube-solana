@@ -142,10 +142,10 @@ const Grid: React.FC<GridProps> = ({
 
   // ==================== Constants ====================
   const gravitySpeed = 100;
-  // Match the fall transition to the gravity tick so each one-row step finishes
-  // before the next tick fires — overlapping 300ms transitions on a 100ms tick
-  // meant every block was perpetually mid-transition, repainting the SVG.
-  const transitionDuration = gravitySpeed;
+  // Longer than the 100ms tick on purpose: the overlapping transitions blend
+  // into a smooth continuous glide (a tick-matched 100ms is crisp but steppy).
+  // The overlap is cheap now that falling blocks are GPU-promoted (Block.tsx).
+  const transitionDuration = 300;
 
   // SVG dimensions
   const svgW = gridWidth * gridSize;
