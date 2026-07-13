@@ -48,6 +48,7 @@ import {
 } from "./dailyClient";
 import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { awaitAccountCondition } from "./awaitAccountCondition";
 
 /** Visible perf/telemetry logger (console.log, not console.debug which the
  *  browser hides by default). DEV-only. Use to spot delays/bottlenecks while
@@ -545,21 +546,29 @@ export function useRunController() {
             wallet,
           });
           setStage("settling");
+          // Wait for the commit-and-undelegate to copy back to Solana base.
+          // Subscribe to the base ActiveRun account and re-check delegation on
+          // each write, instead of polling every 1.5s; on timeout we proceed to
+          // finalize anyway (matching the old break-and-continue behaviour).
           const pollStart = Date.now();
-          const deadline = pollStart + 90_000;
-          let polls = 0;
-          while (Date.now() < deadline) {
-            const status = await getDelegationStatus(
-              run.marker.addresses.activeRun,
-            );
-            polls += 1;
-            if (!status.isDelegated) break;
-            await sleep(1_500);
+          let timedOut = false;
+          try {
+            await awaitAccountCondition({
+              connection,
+              address: run.marker.addresses.activeRun,
+              isSatisfied: async () =>
+                !(await getDelegationStatus(run.marker.addresses.activeRun))
+                  .isDelegated,
+              fallbackPollMs: 1_500,
+              timeoutMs: 90_000,
+              timeoutMessage: "Timed out waiting for undelegation copyback",
+            });
+          } catch {
+            timedOut = true;
           }
           plog("settle:copyback", {
-            polls,
             waitedMs: Date.now() - pollStart,
-            timedOut: Date.now() >= deadline,
+            timedOut,
           });
           const finalizeStart = Date.now();
           await finalizeBaseSettlement(
@@ -589,7 +598,7 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [finalizeBaseSettlement, launchCampaignRun, setStage, wallet],
+    [connection, finalizeBaseSettlement, launchCampaignRun, setStage, wallet],
   );
 
   /**
@@ -985,10 +994,6 @@ export function useRunController() {
   };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function hydrateRows(args: {
   prepared: PreparedRunPlan;
   session: Keypair;
@@ -1035,16 +1040,21 @@ async function waitForVrf(
   wallet: WalletLike,
   activeRunAddress: import("@solana/web3.js").PublicKey,
 ): Promise<void> {
-  // Poll tightly: after a move the run sits in AwaitingVrf until the MagicBlock
-  // oracle delivers the next row. The wait is dominated by the oracle round-trip
-  // (~400-550ms on Devnet); a coarse interval just adds granularity latency on
-  // top. 120ms × 160 keeps a ~19s safety budget while shaving perceived lag.
-  for (let attempt = 0; attempt < 160; attempt += 1) {
-    const active = await fetchActiveRun(connection, wallet, activeRunAddress);
-    if (active && active.pendingVrfCounter === 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 120));
-  }
-  throw new Error("Timed out waiting for the MagicBlock VRF callback");
+  // After a move the run sits in AwaitingVrf until the MagicBlock oracle writes
+  // the next row (pendingVrfCounter → 0). Subscribe to the ER account and
+  // resolve the instant that write lands, instead of polling — the ~1s fallback
+  // is only a dropped-socket safety net.
+  await awaitAccountCondition({
+    connection,
+    address: activeRunAddress,
+    isSatisfied: async () => {
+      const active = await fetchActiveRun(connection, wallet, activeRunAddress);
+      return active !== null && active.pendingVrfCounter === 0;
+    },
+    fallbackPollMs: 1_000,
+    timeoutMs: 20_000,
+    timeoutMessage: "Timed out waiting for the MagicBlock VRF callback",
+  });
 }
 
 function isTerminal(lifecycle: string): boolean {
