@@ -10,25 +10,35 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `475927355`
+- Current deployed slot: `475941320`
 - Current deployed SBF SHA-256:
-  `e758847493897dccd30fb3bb40adeabdf960d154159d527ad0271766b28382a7`
-- Deployed code is 1,600,056 bytes in the 1,604,032-byte allocation; the 3,976
+  `1cf8f3d17ce7ab109b1df4b8df1620d77e5014947cd7a366adcb0b1117790119`
+- Deployed code is 1,599,912 bytes in the 1,604,032-byte allocation; the 4,120
   trailing bytes were independently verified as zero (post-upgrade ProgramData
   dump hashed byte-for-byte to the approved artifact) and the upgrade authority
   was preserved.
 
-This binary **de-gates the per-player daily sponsored-transaction count** in
-`SponsorAllowance::consume`: the count is still tracked (saturating) for
-telemetry but no longer rejected, so free gameplay/settlement transactions are
-no longer capped. This removes the `SponsorshipLimitExceeded`/`6040` that was
-stranding runs at "finalizing settlement" once a player crossed the daily free
-quota; the paid Daily-attempt (USDC) economic limit and daily rollover are
-still enforced. Rent from settled/abandoned runs already returns to the
-paymaster (self-sustaining) and the stateless relay bounds abuse by instruction
-shape + IP rate limit. Approved fingerprint `885ced2a717ddc12`.
+This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
+blocks**. `Grid::swipe` used to reject moving any but the first block of a
+same-width run (`cells[start-1]==size` merged e.g. a trailing `1 1` into one
+block), so sliding the second of two adjacent width-1 blocks — legal on the
+client and in the Cairo engine — was rejected on-chain as `InvalidMove`/`6002`
+(confirmed live: `gridsEqual:true`, client board matched the ER exactly, only
+the geometry check diverged). `block_start` (Hammer/bonus targeting) had the
+same flaw. Both now resolve blocks via `block_left_edge()` greedy packing
+(width-N block = N consecutive N-cells), matching Cairo's `check_row_coherence`
++ block-by-column swipe and the client's `transformDataContractIntoBlock`.
+Interior-of-a-wider-block and empty-cell selections are still rejected. No IDL
+change. Approved fingerprint `ecd694f0177d8566`.
 
-The prior binary added the **seed-row gravity settle**
+The prior binary **de-gated the per-player daily sponsored-transaction count**
+in `SponsorAllowance::consume` (count still tracked saturating for telemetry,
+no longer rejected) — removing the `SponsorshipLimitExceeded`/`6040` that
+stranded runs at "finalizing settlement"; the paid Daily-attempt (USDC) limit
+and daily rollover stay enforced. Fingerprint `885ced2a717ddc12`, slot
+`475927355` / SBF `e758847…`.
+
+Before that, one binary added the **seed-row gravity settle**
 (`RunEngine::provide_vrf_row` settles after each initial row like Cairo's
 `initialize_grid`) — fixing the floating-cubes starting board and the
 first-move `InvalidMove`/`6002` divergence (verified live: a fresh run's raw ER
@@ -37,11 +47,13 @@ slot `475833677` / SBF `8002696d…`. Before that: slot `475813201` / SBF
 `89a24c…` (rent-economics close on top of `abandonRunV1`, corrected Magic
 Action metas, paymaster hardening).
 
-Contract soundness is a two-pass effort against the original Cairo engine
-(`/home/djizus/zkube/contracts/src`): this seed-settle fix is pass 1. Pass 2
-(pending) is the full parity sweep — Cairo row shuffle/align and verification
-of scoring/combo/difficulty/catalog numbers — with extended
-`fixtures/game-parity.json` coverage including initial multi-row seeding.
+Contract soundness is an ongoing parity effort against the original Cairo engine
+(`/home/djizus/zkube/contracts/src`). Fixed so far: seed-row gravity settle, and
+swipe/bonus block-boundary detection for adjacent same-width blocks. Still
+pending is the full parity sweep — Cairo row shuffle/align and verification of
+scoring/combo/difficulty/catalog numbers — with extended
+`fixtures/game-parity.json` coverage including initial multi-row seeding and
+same-width-run move cases.
 
 ### Source is newer than the live binary
 
@@ -79,7 +91,7 @@ VRF next row was still hydrating, splitting the board and causing repeated
 
 The current merge candidate passes 210 client tests across 53 files plus IDL,
 strict/chain typechecks, zero-warning lint, and the production build. The
-program gate passes 71 Rust tests plus formatting, Clippy, SBF, and IDL.
+program gate passes 73 Rust tests plus formatting, Clippy, SBF, and IDL.
 
 ## Paymaster reserve incident
 
