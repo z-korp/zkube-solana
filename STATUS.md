@@ -67,7 +67,17 @@ auto-settles, resumes/recover runs, supports on-chain quit/abandon, and exposes
 the embedded Vault for deposits, balances, recovery, and simulation-first
 withdrawals. There is no injected-wallet requirement or manual settle button.
 
-The current merge candidate passes 199 client tests across 53 files plus IDL,
+The board is a **pure renderer of the chain**: the client never computes board
+state. `reconcileBlocksToGrid` rebuilds the visible board from the authoritative
+grid on every receipt, reusing block ids so persisting blocks tween to their new
+positions and the inserted floor row rises in — so the visible board is always
+cell-for-cell the chain board and a drag can never send coordinates the program
+rejects. The prior client ran a local physics simulation (gravity/clears + a
+client-side next-line insert) that could diverge from the Rust engine when the
+VRF next row was still hydrating, splitting the board and causing repeated
+`InvalidMove`/`6002`. Do not reintroduce client-side game simulation.
+
+The current merge candidate passes 210 client tests across 53 files plus IDL,
 strict/chain typechecks, zero-warning lint, and the production build. The
 program gate passes 71 Rust tests plus formatting, Clippy, SBF, and IDL.
 
