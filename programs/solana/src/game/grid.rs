@@ -117,21 +117,20 @@ impl Grid {
         }
 
         let offset = row * GRID_WIDTH;
-        let size = self.cells[offset + start] as usize;
-        if size == 0 {
-            return Err(GridError::EmptySelection);
-        }
-        if size > 4 || start + size > GRID_WIDTH || destination + size > GRID_WIDTH {
-            return Err(GridError::InvalidBlock);
-        }
-        if start > 0 && self.cells[offset + start - 1] as usize == size {
+        // `start` must be the LEFT EDGE of a greedily-packed block. Blocks are
+        // read left to right, a width-N block being N consecutive cells of
+        // value N, so adjacent same-width blocks are distinct and independently
+        // movable — e.g. "1 1" is two width-1 blocks and "2 2 2 2" is two
+        // width-2 blocks. This matches the Cairo engine (check_row_coherence /
+        // block-by-index swipe) and the client. A naive `cells[start-1]==size`
+        // test wrongly merges them and rejected valid moves (InvalidMove/6002).
+        let left_edge = Self::block_left_edge(&self.cells[offset..offset + GRID_WIDTH], start)?;
+        if left_edge != start {
             return Err(GridError::SelectionInsideBlock);
         }
-        if self.cells[offset + start..offset + start + size]
-            .iter()
-            .any(|cell| *cell as usize != size)
-        {
-            return Err(GridError::IncoherentRow);
+        let size = self.cells[offset + start] as usize;
+        if size > 4 || start + size > GRID_WIDTH || destination + size > GRID_WIDTH {
+            return Err(GridError::InvalidBlock);
         }
         if start == destination {
             return Ok(());
@@ -264,18 +263,41 @@ impl Grid {
 
     fn block_start(&self, row: usize, column: usize) -> Result<usize, GridError> {
         let offset = row * GRID_WIDTH;
-        let size = self.cells[offset + column];
-        if size == 0 || size > 4 {
-            return Err(GridError::InvalidBlock);
+        Self::block_left_edge(&self.cells[offset..offset + GRID_WIDTH], column)
+    }
+
+    /// Left-edge column of the greedily-packed block occupying `column`.
+    ///
+    /// Blocks are packed left to right: a width-N block is N consecutive cells
+    /// of value N. Adjacent same-width blocks are therefore distinct (e.g.
+    /// "1 1" is two width-1 blocks, "2 2 2 2" is two width-2 blocks) — this is
+    /// the boundary model shared by the Cairo engine and the client. Errors if
+    /// `column` sits in an empty cell or the row is malformed.
+    fn block_left_edge(row_cells: &[u8], column: usize) -> Result<usize, GridError> {
+        let mut cursor = 0usize;
+        while cursor < GRID_WIDTH {
+            let size = row_cells[cursor] as usize;
+            if size == 0 {
+                if cursor == column {
+                    return Err(GridError::EmptySelection);
+                }
+                cursor += 1;
+                continue;
+            }
+            if size > 4
+                || cursor + size > GRID_WIDTH
+                || row_cells[cursor..cursor + size]
+                    .iter()
+                    .any(|cell| *cell as usize != size)
+            {
+                return Err(GridError::IncoherentRow);
+            }
+            if column >= cursor && column < cursor + size {
+                return Ok(cursor);
+            }
+            cursor += size;
         }
-        let mut start = column;
-        while start > 0 && self.cells[offset + start - 1] == size {
-            start -= 1;
-        }
-        if column >= start + size as usize {
-            return Err(GridError::IncoherentRow);
-        }
-        Ok(start)
+        Err(GridError::EmptySelection)
     }
 }
 
@@ -311,6 +333,33 @@ mod tests {
         assert_eq!(grid.row(0).unwrap(), &[0, 0, 2, 2, 1, 0, 0, 0]);
         assert_eq!(grid.swipe(0, 2, 3), Err(GridError::DestinationOccupied));
         assert_eq!(grid.swipe(0, 3, 0), Err(GridError::SelectionInsideBlock));
+    }
+
+    #[test]
+    fn swipe_moves_non_leading_block_of_a_same_width_run() {
+        // The exact live row that 6002'd: two width-1 blocks at cols 5,6 (the
+        // trailing "1 1"). Moving the col-6 one into empty col 7 is legal —
+        // the old cells[start-1]==size check wrongly rejected it.
+        let mut grid = grid_with_rows(&[(0, [1, 1, 3, 3, 3, 1, 1, 0])]);
+        grid.swipe(0, 6, 7).unwrap();
+        assert_eq!(grid.row(0).unwrap(), &[1, 1, 3, 3, 3, 1, 0, 1]);
+        // The second block of the LEADING "1 1" (col 1) is independently movable.
+        let mut grid2 = grid_with_rows(&[(0, [1, 1, 3, 3, 3, 1, 1, 0])]);
+        grid2.swipe(0, 1, 7).unwrap();
+        assert_eq!(grid2.row(0).unwrap(), &[1, 0, 3, 3, 3, 1, 1, 1]);
+        // Selecting the interior of the width-3 block (col 3) is still rejected.
+        let mut grid3 = grid_with_rows(&[(0, [1, 1, 3, 3, 3, 1, 1, 0])]);
+        assert_eq!(grid3.swipe(0, 3, 7), Err(GridError::SelectionInsideBlock));
+        // Selecting an empty cell is rejected.
+        assert_eq!(grid3.swipe(0, 7, 7), Err(GridError::EmptySelection));
+    }
+
+    #[test]
+    fn hammer_targets_non_leading_block_of_a_same_width_run() {
+        // Hammer on the col-6 block of a trailing "1 1" clears only that cell.
+        let mut grid = grid_with_rows(&[(0, [1, 1, 3, 3, 3, 1, 1, 0])]);
+        grid.apply_bonus(Bonus::Hammer, 0, 6).unwrap();
+        assert_eq!(grid.row(0).unwrap(), &[1, 1, 3, 3, 3, 1, 0, 0]);
     }
 
     #[test]
