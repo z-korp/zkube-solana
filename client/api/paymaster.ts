@@ -2,7 +2,7 @@ import {
   createDevnetPaymasterConnection,
   handlePaymasterRequest,
   paymasterKeypairFromEnv,
-} from "../src/server/paymaster";
+} from "../src/server/paymaster.js";
 
 interface RequestLike {
   method?: string;

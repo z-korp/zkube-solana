@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { ZKUBE_PROGRAM_ID } from "./constants.js";
 
 export interface RunAddresses {
   runShell: PublicKey;
