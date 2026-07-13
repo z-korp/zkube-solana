@@ -874,16 +874,19 @@ impl SponsorAllowance {
             self.sponsored_transactions = 0;
             self.paid_daily_attempts = 0;
         }
-        let transactions = self
-            .sponsored_transactions
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        // The per-player daily sponsored-transaction count is tracked for
+        // telemetry but no longer gated: rent from settled/abandoned runs
+        // returns to the paymaster (self-sustaining) and the stateless relay
+        // already bounds abuse by instruction shape and IP rate limit, so
+        // capping gameplay/settlement here only stranded runs. Only the paid
+        // Daily-attempt (USDC) economic limit is still enforced.
+        let transactions = self.sponsored_transactions.saturating_add(1);
         let paid = self
             .paid_daily_attempts
             .checked_add(paid_attempts)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         require!(
-            transactions <= transaction_limit && paid <= paid_attempt_limit,
+            paid <= paid_attempt_limit,
             ErrorCode::SponsorshipLimitExceeded
         );
         self.sponsored_transactions = transactions;
@@ -1547,15 +1550,23 @@ mod tests {
     }
 
     #[test]
-    fn sponsorship_allowance_rolls_daily_and_enforces_both_limits_atomically() {
+    fn sponsorship_allowance_rolls_daily_and_gates_only_paid_attempts() {
         let owner = Pubkey::new_unique();
         let mut allowance = SponsorAllowance::initialize(owner, 10, 1);
-        allowance.consume(10, 1, 2, 1).unwrap();
+        // The sponsored-transaction COUNT is no longer capped: many free
+        // gameplay/settlement txs in a day all succeed and are only tracked.
         allowance.consume(10, 0, 2, 1).unwrap();
-        assert!(allowance.consume(10, 0, 2, 1).is_err());
-        assert!(allowance.consume(10, 1, 3, 1).is_err());
-        assert_eq!(allowance.sponsored_transactions, 2);
+        allowance.consume(10, 0, 2, 1).unwrap();
+        allowance.consume(10, 0, 2, 1).unwrap();
+        allowance.consume(10, 0, 2, 1).unwrap();
+        assert_eq!(allowance.sponsored_transactions, 4);
+        assert_eq!(allowance.paid_daily_attempts, 0);
+        // The paid Daily-attempt (USDC) limit is still enforced.
+        allowance.consume(10, 1, 2, 1).unwrap();
         assert_eq!(allowance.paid_daily_attempts, 1);
+        assert!(allowance.consume(10, 1, 2, 1).is_err());
+        assert_eq!(allowance.paid_daily_attempts, 1);
+        // Daily rollover resets both counters.
         allowance.consume(11, 1, 2, 1).unwrap();
         assert_eq!(allowance.sponsored_transactions, 1);
         assert_eq!(allowance.paid_daily_attempts, 1);
