@@ -6,6 +6,7 @@ import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
   blocksMatchGrid,
+  reconcileBlocksToGrid,
   removeCompleteRows,
   removeBlocksSameWidth,
   removeBlocksInRows,
@@ -217,37 +218,37 @@ const Grid: React.FC<GridProps> = ({
     gameStateRef.current = GameState.WAITING;
     const authoritative = transformDataContractIntoBlock(parsed.blocks);
     setSaveGridStateblocks(authoritative);
-    // The board is AUTHORITATIVE: when the local cascade matches the chain
-    // result (the common case) keep the visible blocks so CSS transitions
-    // stay smooth; on any divergence snap to the chain board. Skipping this
-    // left a stale board — the next VRF row never appeared and the next drag
-    // sent coordinates the program rejected (InvalidMove / 6002).
-    setBlocks((prev) =>
-      blocksMatchGrid(prev, parsed.blocks) ? prev : authoritative,
-    );
+    // The board is ALWAYS the chain's. reconcileBlocksToGrid rebuilds the board
+    // from the authoritative grid but reuses existing block ids (matched by
+    // column + width) so blocks that persisted animate to their new positions
+    // and the freshly inserted floor row rises in — the client never computes
+    // the resulting board, it only tweens toward the chain's. This makes the
+    // visible board provably equal to the chain board, so the next drag can
+    // never send coordinates the program rejects (InvalidMove / 6002).
     if (import.meta.env.DEV) {
       const diverged = !blocksMatchGrid(blocks, parsed.blocks);
       console.log("[grid] applyReceipt", {
         gameId: gameId.toString(),
         chainBlocks: parsed.blocks.flat().filter(Boolean).length,
         nextRow: parsed.nextRow,
-        diverged,
+        // True only when the local swipe/settle animation transiently differed
+        // from the chain before this reconcile corrected it — purely cosmetic
+        // now (the board below is always the chain's), kept as a health signal.
+        localAnimationDiffered: diverged,
       });
       if (diverged) {
-        // The client's local cascade produced a different board than the Rust
-        // chain engine. Dump both (row 0 = floor at the bottom) plus the exact
-        // differing cells so the engine mismatch can be pinpointed.
         const clientGrid = gridFromBlocks(blocks, gridWidth, gridHeight);
         const diffs = diffGrids(clientGrid, parsed.blocks);
         console.log(
-          `[grid] DIVERGENCE game=${gameId.toString()} — client (what player saw) vs chain (authoritative)\n` +
-            `CLIENT:\n${renderGrid(clientGrid)}\n` +
+          `[grid] pre-reconcile local vs chain game=${gameId.toString()}\n` +
+            `LOCAL:\n${renderGrid(clientGrid)}\n` +
             `CHAIN:\n${renderGrid(parsed.blocks)}\n` +
             `nextRow=${JSON.stringify(parsed.nextRow)}`,
         );
-        console.log("[grid] DIVERGENCE diffs {y,x,client,chain}", diffs);
+        console.log("[grid] pre-reconcile diffs {y,x,client,chain}", diffs);
       }
     }
+    setBlocks((prev) => reconcileBlocksToGrid(prev, parsed.blocks));
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
     // Update the preview in GameBoard with the receipt's next line
@@ -715,7 +716,15 @@ const Grid: React.FC<GridProps> = ({
         break;
 
       case GameState.LINE_CLEAR:
-        clearCompleteLine(GameState.GRAVITY, GameState.ADD_LINE);
+        // After the local swipe settles, hand off directly to the receipt: the
+        // chain is authoritative for the inserted floor row and the final
+        // board, which applyReceipt tweens in via reconcileBlocksToGrid. We no
+        // longer insert next-line blocks locally (that used a client-side
+        // nextLine that could be stale/empty and split the board from the
+        // chain → InvalidMove/6002). ADD_LINE / ADD_LINE_SHIFT / GRAVITY2 /
+        // LINE_CLEAR2 are consequently dead for moves (bonuses still cascade
+        // via GRAVITY_BONUS / LINE_CLEAR_BONUS).
+        clearCompleteLine(GameState.GRAVITY, GameState.UPDATE_AFTER_MOVE);
         break;
       case GameState.LINE_CLEAR2:
         clearCompleteLine(GameState.GRAVITY2, GameState.UPDATE_AFTER_MOVE);
