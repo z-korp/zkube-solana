@@ -155,6 +155,12 @@ export function usePlayController() {
   );
   const [localActionPending, setLocalActionPending] = useState(false);
   const [cascadeVersion, setCascadeVersion] = useState(0);
+  // Observable twin of terminalAwaitingCascadeRef: true from the moment a
+  // move/bonus lands a terminal lifecycle until the client cascade finishes
+  // (onCascadeComplete). The board keeps rendering/animating the final cascade
+  // while this is true; PlayScreen defers the level-complete overlay on it, so
+  // the chain settling in the background never cuts the animation short.
+  const [awaitingTerminalCascade, setAwaitingTerminalCascade] = useState(false);
   const [terminalSnapshot, setTerminalSnapshot] =
     useState<TerminalRunSnapshot | null>(null);
   const [outcome, setOutcome] = useState<PlayOutcome>(null);
@@ -254,6 +260,7 @@ export function usePlayController() {
         const activeRun = await playMove(row, start, destination);
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
+          setAwaitingTerminalCascade(true);
           rememberTerminal(activeRun);
         }
         return projectRunReceipt(activeRun);
@@ -272,6 +279,7 @@ export function usePlayController() {
         const activeRun = await applyBonus(row, column);
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
+          setAwaitingTerminalCascade(true);
           rememberTerminal(activeRun);
         }
         return projectRunReceipt(activeRun);
@@ -284,8 +292,18 @@ export function usePlayController() {
 
   const onCascadeComplete = useCallback(() => {
     terminalAwaitingCascadeRef.current = null;
+    setAwaitingTerminalCascade(false);
     setCascadeVersion((value) => value + 1);
   }, []);
+
+  // Defensive: never let the level-complete overlay be stranded if the cascade
+  // signal is missed (e.g. a Grid unmount). Once the run has settled or gone
+  // away, there is no cascade left to wait for.
+  useEffect(() => {
+    if (run.phase === "settled" || run.phase === "none") {
+      setAwaitingTerminalCascade(false);
+    }
+  }, [run.phase]);
 
   const settleAndAdvance = run.settleAndAdvance;
   const recoverSettlement = run.recoverSettlement;
@@ -602,6 +620,7 @@ export function usePlayController() {
     onMove,
     onBonus,
     onCascadeComplete,
+    awaitingTerminalCascade,
     retrySettlement,
     retrySessionRenewal,
     sessionRenewalStatus,

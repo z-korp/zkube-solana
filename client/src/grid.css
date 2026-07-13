@@ -33,40 +33,47 @@
 }
 
 /* ─── SVG Danger: Warning (orange, row 1) ─── */
+/* Pulse element `opacity` (compositable) rather than stroke-/fill-opacity
+   (which re-rasterize the SVG each frame). Each pulse lives on its own rect
+   with a single paint (stroke-only or fill-only), so the look is identical. */
 @keyframes svgWarningBorderPulse {
-  0%, 100% { stroke-opacity: 0.1; }
-  50% { stroke-opacity: 0.5; }
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.5; }
 }
 @keyframes svgWarningFillPulse {
-  0%, 100% { fill-opacity: 0; }
-  50% { fill-opacity: 0.04; }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.04; }
 }
 
 .svg-danger-border-warning {
   animation: svgWarningBorderPulse 2s ease-in-out infinite;
+  will-change: opacity;
   pointer-events: none;
 }
 .svg-danger-fill-warning {
   animation: svgWarningFillPulse 2s ease-in-out infinite;
+  will-change: opacity;
   pointer-events: none;
 }
 
 /* ─── SVG Danger: Critical (red, row 0) ─── */
 @keyframes svgCriticalBorderPulse {
-  0%, 100% { stroke-opacity: 0.2; }
-  50% { stroke-opacity: 0.9; }
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.9; }
 }
 @keyframes svgCriticalFillPulse {
-  0%, 100% { fill-opacity: 0; }
-  50% { fill-opacity: 0.1; }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.1; }
 }
 
 .svg-danger-border-critical {
   animation: svgCriticalBorderPulse 1.2s ease-in-out infinite;
+  will-change: opacity;
   pointer-events: none;
 }
 .svg-danger-fill-critical {
   animation: svgCriticalFillPulse 1.2s ease-in-out infinite;
+  will-change: opacity;
   pointer-events: none;
 }
 
@@ -164,17 +171,15 @@
 }
 
 /* ─── Combo text shine ─── */
+/* A single text-stroke gives the same black outline as the old 8-layer
+   text-shadow but at a fraction of the paint cost — critical because this text
+   is scaled/rotated by framer-motion, and re-rasterizing 8 shadow passes per
+   frame was the main cause of the ~3fps combo. paint-order draws the stroke
+   behind the white fill for a clean outline. */
 .text-shine {
   color: white;
-  text-shadow:
-    -2px -2px 0 #000,
-     2px -2px 0 #000,
-    -2px  2px 0 #000,
-     2px  2px 0 #000,
-     0   -2px 0 #000,
-     0    2px 0 #000,
-    -2px  0   0 #000,
-     2px  0   0 #000;
+  -webkit-text-stroke: 2px #000;
+  paint-order: stroke fill;
   pointer-events: none;
 }
 

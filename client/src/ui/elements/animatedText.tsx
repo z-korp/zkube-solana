@@ -13,6 +13,10 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ textEnum, reset }) => {
   return (
     <motion.div
       key={textEnum}
+      // Promote to its own compositor layer so the keyframed scale/rotate
+      // (custom bezier → main-thread rAF) composites instead of repainting the
+      // glyphs + text-shadow over the whole SVG board every frame.
+      style={{ willChange: "transform, opacity" }}
       initial={{ scale: 0, rotate: -20, opacity: 0 }}
       animate={{
         scale: [0, 1.4, 1.1, 1.1, 1.2, 0],
@@ -28,6 +32,7 @@ const AnimatedText: React.FC<AnimatedTextProps> = ({ textEnum, reset }) => {
     >
       <motion.span
         className="inline-block text-5xl text-shine p-4 font-display font-black"
+        style={{ willChange: "transform" }}
         animate={{ y: [0, -6, 0, -3, 0] }}
         transition={{ duration: 4.2, times: [0, 0.1, 0.3, 0.5, 0.75], ease: "easeInOut" }}
       >

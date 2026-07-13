@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef } from "react";
-import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 
 interface BlockProps {
@@ -8,7 +7,13 @@ interface BlockProps {
   gridHeight?: number;
   isTxProcessing?: boolean;
   transitionDuration?: number;
-  state?: GameState;
+  /**
+   * True while the board is in a gravity/shift phase — the only time a block's
+   * position change should tween. Passing this narrow boolean (instead of the
+   * full GameState) means a non-gravity state change doesn't re-render all the
+   * memoized blocks; they only re-render when the tween actually toggles.
+   */
+  isGravity?: boolean;
   isExploding?: boolean;
   /** Map of block width (1-4) → image URL */
   blockImages: Record<number, string>;
@@ -25,7 +30,7 @@ const BlockContainer: React.FC<BlockProps> = ({
   gridSize,
   transitionDuration = 100,
   isTxProcessing = false,
-  state,
+  isGravity = false,
   isExploding = false,
   blockImages,
   onPointerDown,
@@ -33,12 +38,6 @@ const BlockContainer: React.FC<BlockProps> = ({
   onTransitionBlockEnd,
 }) => {
   const ref = useRef<SVGGElement | null>(null);
-
-  const isGravity =
-    state === GameState.GRAVITY ||
-    state === GameState.GRAVITY2 ||
-    state === GameState.GRAVITY_BONUS ||
-    state === GameState.ADD_LINE_SHIFT;
 
   useEffect(() => {
     const element = ref.current;
@@ -79,6 +78,10 @@ const BlockContainer: React.FC<BlockProps> = ({
         transition: isGravity
           ? `transform ${transitionDuration / 1000}s linear`
           : "none",
+        // Promote to a compositor layer only while it can move, so the fall
+        // composites on the GPU instead of repainting the SVG each tick; drop
+        // the layer at rest to avoid holding ~40 layers idle.
+        willChange: isGravity ? "transform" : "auto",
         cursor: isTxProcessing ? "wait" : "grab",
       }}
       onPointerDown={(e) => onPointerDown?.(e, block)}

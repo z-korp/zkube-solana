@@ -48,24 +48,12 @@ import {
 } from "./dailyClient";
 import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
-import { toDisplayGrid } from "./gridProjection";
 
 /** Visible perf/telemetry logger (console.log, not console.debug which the
  *  browser hides by default). DEV-only. Use to spot delays/bottlenecks while
  *  playing: level creation, per move, and settlement stage timings. */
 const plog = (label: string, data: Record<string, unknown>): void => {
   if (import.meta.env.DEV) console.log(`[perf] ${label}`, data);
-};
-
-/** DEV-only: render the authoritative chain board (display orientation: index
- *  0 = screen top, 9 = floor) so we can watch what the CONTRACT engine emits,
- *  independent of what the client renders. '.' = empty, else the block width. */
-const clog = (label: string, grid: number[][], nextRow: number[]): void => {
-  if (!import.meta.env.DEV) return;
-  const body = grid
-    .map((row, y) => `r${y}|${row.map((c) => (c ? String(c) : ".")).join(" ")}`)
-    .join("\n");
-  console.log(`[chain] ${label}\n${body}\nnextRow=${JSON.stringify(nextRow)}`);
 };
 
 export type SettleStage =
@@ -287,11 +275,6 @@ export function useRunController() {
         level,
         reusedSession: Boolean(reusable),
       });
-      clog(
-        "seed board at launch",
-        toDisplayGrid(activeRun.grid),
-        activeRun.nextRow ?? [],
-      );
       currentRun.current = {
         phase: "delegated",
         marker: loadRunSession(publicKey)!,
@@ -404,49 +387,6 @@ export function useRunController() {
             start,
             destination,
           });
-          if (import.meta.env.DEV) {
-            // Dump the board the client is playing against (cached, what's
-            // rendered) vs a FRESH live fetch of the ER account the move will
-            // actually be simulated against. Any mismatch here is the direct
-            // cause of an InvalidMove/6002 — the player dragged on a board the
-            // ER no longer holds. row is chain-oriented (0 = floor).
-            clog(
-              `CLIENT board (cached) — move=${run.activeRun.moves} action=${run.activeRun.actionCounter} · swipe row=${row} start=${start} dest=${destination}`,
-              toDisplayGrid(run.activeRun.grid),
-              run.activeRun.nextRow ?? [],
-            );
-            try {
-              const liveEr = await fetchActiveRun(
-                run.connection,
-                wallet!,
-                run.marker.addresses.activeRun,
-              );
-              if (liveEr) {
-                clog(
-                  `ER board (live) — move=${liveEr.moves} action=${liveEr.actionCounter}`,
-                  toDisplayGrid(liveEr.grid),
-                  liveEr.nextRow ?? [],
-                );
-                const gridsEqual =
-                  run.activeRun.grid.length === liveEr.grid.length &&
-                  run.activeRun.grid.every((c, i) => c === liveEr.grid[i]);
-                console.log("[chain] client-vs-ER", {
-                  gridsEqual,
-                  cachedMove: run.activeRun.moves,
-                  liveMove: liveEr.moves,
-                  cachedAction: run.activeRun.actionCounter,
-                  liveAction: liveEr.actionCounter,
-                });
-              } else {
-                console.log("[chain] client-vs-ER: live ER fetch returned null");
-              }
-            } catch (error) {
-              console.log(
-                "[chain] client-vs-ER: live ER fetch failed",
-                error instanceof Error ? error.message : String(error),
-              );
-            }
-          }
           const plan = await buildPlayMovePlan({
             owner: run.marker.owner,
             sessionWallet,
@@ -484,11 +424,6 @@ export function useRunController() {
             newScore: activeRun.score,
             lifecycle: activeRun.lifecycle,
           });
-          clog(
-            `board after move ${activeRun.moves} (score=${activeRun.score})`,
-            toDisplayGrid(activeRun.grid),
-            activeRun.nextRow ?? [],
-          );
           run.activeRun = activeRun;
           setState((value) => ({
             ...value,
