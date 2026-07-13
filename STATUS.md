@@ -1,6 +1,6 @@
 # zKube Solana — status
 
-Updated: 2026-07-12 (Europe/Paris). Devnet is the rollout and acceptance
+Updated: 2026-07-13 (Europe/Paris). Devnet is the rollout and acceptance
 target. Mainnet remains a separate disabled gate.
 
 ## Live Devnet
@@ -10,21 +10,32 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `475833677`
+- Current deployed slot: `475927355`
 - Current deployed SBF SHA-256:
-  `8002696d5a869fe7be31fb750cc1d3b96e843591859679ee58d66e67ad010cba`
-- Deployed code is 1,600,072 bytes in the 1,604,032-byte allocation; the 3,960
-  trailing bytes were independently verified as zero (post-upgrade program
-  dump hashed byte-for-byte), the stable upload buffer closed, and the upgrade
-  authority was preserved.
+  `e758847493897dccd30fb3bb40adeabdf960d154159d527ad0271766b28382a7`
+- Deployed code is 1,600,056 bytes in the 1,604,032-byte allocation; the 3,976
+  trailing bytes were independently verified as zero (post-upgrade ProgramData
+  dump hashed byte-for-byte to the approved artifact) and the upgrade authority
+  was preserved.
 
-This binary adds the **seed-row gravity settle** (`RunEngine::provide_vrf_row`
-settles after each initial row like Cairo's `initialize_grid`) — fixing the
-floating-cubes starting board and the first-move `InvalidMove`/`6002`
-divergence. Verified live: a fresh run's raw ER grid is gravity-stable
-(0 floating blocks). Approved fingerprint `e0dac48bfc4feec1`. Prior binary:
-slot `475813201` / SBF `89a24c…` (rent-economics close on top of
-`abandonRunV1`, corrected Magic Action metas, paymaster hardening).
+This binary **de-gates the per-player daily sponsored-transaction count** in
+`SponsorAllowance::consume`: the count is still tracked (saturating) for
+telemetry but no longer rejected, so free gameplay/settlement transactions are
+no longer capped. This removes the `SponsorshipLimitExceeded`/`6040` that was
+stranding runs at "finalizing settlement" once a player crossed the daily free
+quota; the paid Daily-attempt (USDC) economic limit and daily rollover are
+still enforced. Rent from settled/abandoned runs already returns to the
+paymaster (self-sustaining) and the stateless relay bounds abuse by instruction
+shape + IP rate limit. Approved fingerprint `885ced2a717ddc12`.
+
+The prior binary added the **seed-row gravity settle**
+(`RunEngine::provide_vrf_row` settles after each initial row like Cairo's
+`initialize_grid`) — fixing the floating-cubes starting board and the
+first-move `InvalidMove`/`6002` divergence (verified live: a fresh run's raw ER
+grid is gravity-stable, 0 floating blocks). Fingerprint `e0dac48bfc4feec1`,
+slot `475833677` / SBF `8002696d…`. Before that: slot `475813201` / SBF
+`89a24c…` (rent-economics close on top of `abandonRunV1`, corrected Magic
+Action metas, paymaster hardening).
 
 Contract soundness is a two-pass effort against the original Cairo engine
 (`/home/djizus/zkube/contracts/src`): this seed-settle fix is pass 1. Pass 2
@@ -58,7 +69,7 @@ withdrawals. There is no injected-wallet requirement or manual settle button.
 
 The current merge candidate passes 199 client tests across 53 files plus IDL,
 strict/chain typechecks, zero-warning lint, and the production build. The
-program gate passes 70 Rust tests plus formatting, Clippy, SBF, and IDL.
+program gate passes 71 Rust tests plus formatting, Clippy, SBF, and IDL.
 
 ## Paymaster reserve incident
 
