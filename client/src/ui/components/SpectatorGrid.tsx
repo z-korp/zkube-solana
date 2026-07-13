@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import BlockContainer from "./Block";
-import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import { getThemeImages, type ThemeId } from "@/config/themes";
 
@@ -119,7 +118,7 @@ export default function SpectatorGrid({
               gridSize={gridSize}
               gridHeight={gridHeight}
               transitionDuration={300}
-              state={GameState.GRAVITY}
+              isGravity
               blockImages={blockImages}
             />
           ))}

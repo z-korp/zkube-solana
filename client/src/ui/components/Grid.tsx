@@ -5,7 +5,6 @@ import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
-  blocksMatchGrid,
   reconcileBlocksToGrid,
   removeCompleteRows,
   removeBlocksSameWidth,
@@ -29,49 +28,6 @@ export interface ReceiptProjection {
   nextRow: number[];
   over: boolean;
 }
-
-// ==================== Divergence diagnostics ====================
-// Build a width-encoded matrix from client Block[] (same encoding the chain
-// grid uses: each cell holds the block width).
-const gridFromBlocks = (
-  blocks: Block[],
-  width: number,
-  height: number,
-): number[][] => {
-  const m = Array.from({ length: height }, () => Array(width).fill(0));
-  for (const b of blocks) {
-    for (let i = 0; i < b.width; i++) {
-      const x = b.x + i;
-      if (b.y >= 0 && b.y < height && x >= 0 && x < width) m[b.y][x] = b.width;
-    }
-  }
-  return m;
-};
-
-// Render a grid in display orientation (index 0 = screen top, index 9 = floor),
-// printed top-to-bottom so it reads like the board. '.' = empty, else width.
-const renderGrid = (g: number[][]): string =>
-  g
-    .map((row, y) => `r${y}|${row.map((c) => (c ? String(c) : ".")).join(" ")}`)
-    .join("\n");
-
-const diffGrids = (
-  client: number[][],
-  chain: number[][],
-): Array<{ y: number; x: number; client: number; chain: number }> => {
-  const diffs: Array<{ y: number; x: number; client: number; chain: number }> =
-    [];
-  const h = Math.max(client.length, chain.length);
-  const w = Math.max(client[0]?.length ?? 0, chain[0]?.length ?? 0);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const cv = client[y]?.[x] ?? 0;
-      const kv = chain[y]?.[x] ?? 0;
-      if (cv !== kv) diffs.push({ y, x, client: cv, chain: kv });
-    }
-  }
-  return diffs;
-};
 
 export interface GridProps {
   gameId: bigint;
@@ -186,7 +142,10 @@ const Grid: React.FC<GridProps> = ({
 
   // ==================== Constants ====================
   const gravitySpeed = 100;
-  const transitionDuration = 300;
+  // Match the fall transition to the gravity tick so each one-row step finishes
+  // before the next tick fires — overlapping 300ms transitions on a 100ms tick
+  // meant every block was perpetually mid-transition, repainting the SVG.
+  const transitionDuration = gravitySpeed;
 
   // SVG dimensions
   const svgW = gridWidth * gridSize;
@@ -225,29 +184,6 @@ const Grid: React.FC<GridProps> = ({
     // the resulting board, it only tweens toward the chain's. This makes the
     // visible board provably equal to the chain board, so the next drag can
     // never send coordinates the program rejects (InvalidMove / 6002).
-    if (import.meta.env.DEV) {
-      const diverged = !blocksMatchGrid(blocks, parsed.blocks);
-      console.log("[grid] applyReceipt", {
-        gameId: gameId.toString(),
-        chainBlocks: parsed.blocks.flat().filter(Boolean).length,
-        nextRow: parsed.nextRow,
-        // True only when the local swipe/settle animation transiently differed
-        // from the chain before this reconcile corrected it — purely cosmetic
-        // now (the board below is always the chain's), kept as a health signal.
-        localAnimationDiffered: diverged,
-      });
-      if (diverged) {
-        const clientGrid = gridFromBlocks(blocks, gridWidth, gridHeight);
-        const diffs = diffGrids(clientGrid, parsed.blocks);
-        console.log(
-          `[grid] pre-reconcile local vs chain game=${gameId.toString()}\n` +
-            `LOCAL:\n${renderGrid(clientGrid)}\n` +
-            `CHAIN:\n${renderGrid(parsed.blocks)}\n` +
-            `nextRow=${JSON.stringify(parsed.nextRow)}`,
-        );
-        console.log("[grid] pre-reconcile diffs {y,x,client,chain}", diffs);
-      }
-    }
     setBlocks((prev) => reconcileBlocksToGrid(prev, parsed.blocks));
     setNextLine(newNextLine);
     setGameState(GameState.WAITING);
@@ -716,15 +652,14 @@ const Grid: React.FC<GridProps> = ({
         break;
 
       case GameState.LINE_CLEAR:
-        // After the local swipe settles, hand off directly to the receipt: the
-        // chain is authoritative for the inserted floor row and the final
-        // board, which applyReceipt tweens in via reconcileBlocksToGrid. We no
-        // longer insert next-line blocks locally (that used a client-side
-        // nextLine that could be stale/empty and split the board from the
-        // chain → InvalidMove/6002). ADD_LINE / ADD_LINE_SHIFT / GRAVITY2 /
-        // LINE_CLEAR2 are consequently dead for moves (bonuses still cascade
-        // via GRAVITY_BONUS / LINE_CLEAR_BONUS).
-        clearCompleteLine(GameState.GRAVITY, GameState.UPDATE_AFTER_MOVE);
+        // Once the swipe settles, animate the next-row insertion locally
+        // (ADD_LINE → ADD_LINE_SHIFT → GRAVITY2 → LINE_CLEAR2): the new floor
+        // row rises in and the stack shifts up, all tweened. The engine now
+        // matches the client, so this local cascade reaches the same board the
+        // chain does — applyReceipt's reconcileBlocksToGrid is then a visual
+        // no-op safety net (any rare residual diff self-corrects there while
+        // input is still locked, so it can never produce an InvalidMove/6002).
+        clearCompleteLine(GameState.GRAVITY, GameState.ADD_LINE);
         break;
       case GameState.LINE_CLEAR2:
         clearCompleteLine(GameState.GRAVITY2, GameState.UPDATE_AFTER_MOVE);
@@ -777,6 +712,13 @@ const Grid: React.FC<GridProps> = ({
   }, [gameState, isMoving, isTransitioning, onLocalGameOver, triggerLocalGameOver]);
 
   // =================== RENDER ===================
+
+  // Shared across all blocks — the only phases where a position change tweens.
+  const blocksAreFalling =
+    gameState === GameState.GRAVITY ||
+    gameState === GameState.GRAVITY2 ||
+    gameState === GameState.GRAVITY_BONUS ||
+    gameState === GameState.ADD_LINE_SHIFT;
 
   return (
     <motion.div
@@ -901,7 +843,7 @@ const Grid: React.FC<GridProps> = ({
               gridHeight={gridHeight}
               isTxProcessing={isTxProcessing}
               transitionDuration={transitionDuration}
-              state={gameState}
+              isGravity={blocksAreFalling}
               isExploding={explodingRows.has(block.y)}
               blockImages={blockImages}
               onPointerDown={stablePointerDown}

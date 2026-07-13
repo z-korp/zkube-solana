@@ -373,12 +373,21 @@ export default function PlayScreen() {
     );
   }
 
-  const terminal =
+  const chainTerminal =
     activeRun.lifecycle === "levelComplete" ||
     activeRun.lifecycle === "finished" ||
     activeRun.lifecycle === "settled";
+  // Hold the level-complete PRESENTATION until the client cascade for the final
+  // move has finished. The chain settles in the background, but the overlay,
+  // next-line clear and terminal styling wait for onCascadeComplete so the
+  // player actually sees the last cascade play out instead of it snapping to
+  // the completion screen mid-animation.
+  const terminal = chainTerminal && !controller.awaitingTerminalCascade;
   const basePhase = run.phase === "base" || run.phase === "settleable";
-  const locked = run.busy || terminal || basePhase || !run.sessionAuthorized;
+  // Lock input across the whole terminal window (including the final cascade),
+  // so `chainTerminal` here — not the gated `terminal`.
+  const locked =
+    run.busy || chainTerminal || basePhase || !run.sessionAuthorized;
   const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
   const nextLine = terminal ? [] : game.nextRow;
   const movesDisplay =
@@ -413,7 +422,7 @@ export default function PlayScreen() {
         endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
         zoneId={game.zoneId}
         onBack={
-          terminal || basePhase || run.busy
+          chainTerminal || basePhase || run.busy
             ? undefined
             : () => navigate(game.mode === 1 ? "daily" : "map")
         }
