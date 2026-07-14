@@ -1,6 +1,6 @@
 import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { Connection, PublicKey, type Commitment } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { ZKUBE_PROGRAM_ID } from "./constants.js";
 
 export const MAGICBLOCK_DEVNET_ROUTER_RPC =
   "https://devnet-router.magicblock.app/";

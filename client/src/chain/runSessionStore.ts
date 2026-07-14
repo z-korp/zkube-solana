@@ -1,6 +1,6 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { deriveRunAddresses, type RunAddresses } from "./pdas";
-import { deriveSessionTokenV2Pda } from "./sessionV2";
+import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
+import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v1";
 export const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;

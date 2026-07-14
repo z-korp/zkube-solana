@@ -5,7 +5,7 @@ import {
   type AccountInfo,
   type Connection,
 } from "@solana/web3.js";
-import type { WalletLike } from "./sessionWallet";
+import type { WalletLike } from "./sessionWallet.js";
 import {
   deriveCampaignProgressPda,
   deriveEconomyConfigPda,
@@ -13,15 +13,15 @@ import {
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveStarSalesLedgerPda,
-} from "./pdas";
+} from "./pdas.js";
 import {
   mapLevelRuleSnapshot,
   zkubeProgram,
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
   type TransactionPlan,
-} from "./runPlan";
-import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog";
+} from "./runPlan.js";
+import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog.js";
 
 export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",

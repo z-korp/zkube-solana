@@ -2,7 +2,7 @@
 // Keeping the import pointed at the build artifact makes ABI drift a TypeScript
 // build failure instead of silently shipping a stale handwritten IDL.
 import generatedIdl from "./solana.json";
-import type { Solana } from "./solana";
+import type { Solana } from "./solana.js";
 
 export const IDL = generatedIdl as Solana;
 export type ZkubeProgram = Solana;
