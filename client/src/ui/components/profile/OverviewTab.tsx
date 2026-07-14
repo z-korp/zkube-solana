@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 
 import type { ThemeColors } from "@/config/themes";
+import StatTile from "@/ui/components/shared/StatTile";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -65,27 +66,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </motion.p>
         <div className="grid grid-cols-2 gap-2.5">
           {stats.map((stat) => (
-            <motion.div
-              variants={itemVariants}
-              key={stat.label}
-              className="rounded-2xl px-3 py-3 text-center backdrop-blur-xl"
-              style={{
-                background: "rgba(255,255,255,0.1)",
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              <p
-                className="font-sans text-2xl font-black"
-                style={{ color: colors.text }}
-              >
-                {stat.value}
-              </p>
-              <p
-                className="font-sans text-xs font-semibold"
-                style={{ color: colors.textMuted }}
-              >
-                {stat.label}
-              </p>
+            <motion.div variants={itemVariants} key={stat.label}>
+              <StatTile
+                label={stat.label}
+                value={stat.value}
+                color={colors.text}
+                labelColor={colors.textMuted}
+                className="bg-white/[0.1]"
+              />
             </motion.div>
           ))}
         </div>

@@ -26,6 +26,7 @@ import {
 } from "./pdas";
 import { mapActiveRunAccount } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
+import { deriveSessionTokenV2Pda } from "./sessionV2";
 
 describe("Daily client", () => {
   it("projects authoritative challenge scoring and pressure tuning", () => {
@@ -144,7 +145,6 @@ describe("Daily client", () => {
   it("builds the Star entry path with a bounded session accepted by paymaster policy", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
-    const wallet = new SessionWallet(owner);
     const nowUnix = Math.floor(Date.now() / 1_000);
     const connection = {
       getAccountInfo: vi.fn().mockResolvedValue(null),
@@ -152,13 +152,18 @@ describe("Daily client", () => {
     const daily = dailyFixture(owner.publicKey);
 
     const session = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: session.publicKey,
+    }).sessionToken;
     const prepared = await buildPrepareDailyRunPlan({
       connection,
-      wallet,
-      session,
+      wallet: new SessionWallet(session),
+      ownerAuthority: owner.publicKey,
+      sessionToken,
       daily,
       paymaster: paymaster.publicKey,
-      nowUnix,
+      sessionValidUntil: nowUnix + 3_600,
     });
     const transaction = new VersionedTransaction(
       new TransactionMessage({
@@ -167,7 +172,7 @@ describe("Daily client", () => {
         instructions: prepared.transactionPlan.transaction.instructions,
       }).compileToV0Message(),
     );
-    transaction.sign([owner, session]);
+    transaction.sign([session]);
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
     ).toBeNull();
@@ -176,20 +181,24 @@ describe("Daily client", () => {
   it("uses the canonical 10-Star Daily entry", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
-    const wallet = new SessionWallet(owner);
     const nowUnix = Math.floor(Date.now() / 1_000);
     const connection = {
       getAccountInfo: vi.fn().mockResolvedValue(null),
     } as unknown as Connection;
     const daily = dailyFixture(owner.publicKey);
     const session = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: session.publicKey,
+    }).sessionToken;
     const prepared = await buildPrepareDailyRunPlan({
       connection,
-      wallet,
-      session,
+      wallet: new SessionWallet(session),
+      ownerAuthority: owner.publicKey,
+      sessionToken,
       daily,
       paymaster: paymaster.publicKey,
-      nowUnix,
+      sessionValidUntil: nowUnix + 3_600,
     });
     const transaction = new VersionedTransaction(
       new TransactionMessage({
@@ -198,7 +207,7 @@ describe("Daily client", () => {
         instructions: prepared.transactionPlan.transaction.instructions,
       }).compileToV0Message(),
     );
-    transaction.sign([owner, session]);
+    transaction.sign([session]);
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
     ).toBeNull();
@@ -215,6 +224,8 @@ describe("Daily client", () => {
     const plan = await buildRefundDailyEntryPlan({
       connection,
       wallet,
+      ownerAuthority: owner.publicKey,
+      sessionToken: null,
       daily,
       paymaster: paymaster.publicKey,
     });

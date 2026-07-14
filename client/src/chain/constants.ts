@@ -30,6 +30,9 @@ export const ZKUBE_PROGRAM_ID = new PublicKey(
     "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA",
 );
 
+/** The first per-player run identifier on every fresh deployment. */
+export const INITIAL_RUN_ID = 1n;
+
 export const CANONICAL_DEVNET_USDC_MINT = new PublicKey(
   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
 );
@@ -46,7 +49,8 @@ export const SOLANA_EXPECTED_GENESIS_HASH =
   (isLocalEndpoint(SOLANA_ENDPOINT) ? null : SOLANA_DEVNET_GENESIS_HASH);
 
 export const PAYMASTER_ENDPOINT =
-  clientEnv.VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT ?? "/api/paymaster";
+  clientEnv.VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT ??
+  "https://zkube-solana-devnet-paymaster.fly.dev/api/paymaster";
 
 function isLocalEndpoint(endpoint: string): boolean {
   try {

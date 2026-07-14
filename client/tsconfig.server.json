@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist-server",
+    "rootDir": "src",
+    "types": ["node"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true
+  },
+  "include": [
+    "src/server/paymasterHttpServer.ts",
+    "src/server/keeperWorker.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "node_modules", "dist"]
+}

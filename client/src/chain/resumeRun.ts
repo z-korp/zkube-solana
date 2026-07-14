@@ -1,17 +1,8 @@
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import type { PaymasterClient } from "./paymasterClient";
+import { Connection, PublicKey } from "@solana/web3.js";
 import type { RunSessionMarker } from "./runSessionStore";
+import { isRunSessionFresh, loadRunSession } from "./runSessionStore";
 import {
-  isRunSessionFresh,
-  loadRunSession,
-  saveRunSession,
-} from "./runSessionStore";
-import {
-  buildRotateActiveRunSessionPlan,
-  buildRotateRunShellSessionPlan,
   fetchActiveRun,
-  submitSponsoredTransactionPlan,
-  submitWalletTransactionPlan,
   type ActiveRunView,
   zkubeProgram,
 } from "./runPlan";
@@ -205,49 +196,6 @@ export async function resolvePersistedRun(args: {
     return { phase: "resolving", marker, sessionAuthorized };
   }
   return { phase: "missing", marker, sessionAuthorized };
-}
-
-export async function recoverDelegatedRunSession(args: {
-  run: Extract<ResumedRun, { phase: "delegated" }>;
-  wallet: WalletLike;
-  paymaster: PaymasterClient;
-}): Promise<RunSessionMarker> {
-  const newSession = Keypair.generate();
-  const basePlan = await buildRotateRunShellSessionPlan({
-    wallet: args.wallet,
-    runId: args.run.marker.runId,
-    addresses: args.run.marker.addresses,
-    newSession,
-    paymaster: args.paymaster.pubkey,
-  });
-  const baseSignature = await submitSponsoredTransactionPlan({
-    transactionPlan: basePlan.transactionPlan,
-    wallet: args.wallet,
-    paymaster: args.paymaster,
-  });
-  await basePlan.transactionPlan.connection.confirmTransaction(
-    baseSignature,
-    "confirmed",
-  );
-  const erPlan = await buildRotateActiveRunSessionPlan({
-    wallet: args.wallet,
-    activeRun: args.run.marker.addresses.activeRun,
-    newSession: newSession.publicKey,
-    erConnection: args.run.connection,
-  });
-  await submitWalletTransactionPlan({
-    transactionPlan: erPlan,
-    wallet: args.wallet,
-  });
-  const marker: RunSessionMarker = {
-    ...args.run.marker,
-    session: newSession,
-    sessionToken: basePlan.sessionToken,
-    validUntil: basePlan.sessionValidUntil,
-    createdAt: Math.floor(Date.now() / 1_000),
-  };
-  saveRunSession(marker);
-  return marker;
 }
 
 export async function fetchReceipt(

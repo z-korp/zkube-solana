@@ -52,6 +52,9 @@ export interface ZkubeDevnetDeploymentResult {
 const PROGRAM_KEYPAIR_TARGET = "target/deploy/solana-keypair.json";
 const DEFAULT_BASE_RPC = "https://rpc.magicblock.app/devnet";
 const PROGRAM_DATA_HEADER_BYTES = 45;
+const UPGRADEABLE_LOADER_ID = new PublicKey(
+  "BPFLoaderUpgradeab1e11111111111111111111111",
+);
 const MINIMUM_DEPLOY_FEE_HEADROOM_LAMPORTS = 50_000_000;
 const EXECUTABLE_OWNERS = new Set([
   "BPFLoader1111111111111111111111111111111111",
@@ -248,13 +251,15 @@ export async function runZkubeDevnetDeployment(
     "confirmed",
   );
   if (input.deploymentMode === "upgrade") {
-    const authority = await deployedUpgradeAuthority(
-      connection,
-      existing?.data,
-    );
-    if (authority !== input.upgradeAuthorityPublicKey) {
+    const state = await inspectUpgradeableProgram(connection, ZKUBE_PROGRAM_ID);
+    if (state.upgradeAuthority !== input.upgradeAuthorityPublicKey) {
       throw new Error(
-        `upgrade authority ${input.upgradeAuthorityPublicKey} does not match deployed authority ${authority ?? "none"}`,
+        `upgrade authority ${input.upgradeAuthorityPublicKey} does not match deployed authority ${state.upgradeAuthority ?? "none"}`,
+      );
+    }
+    if (artifactBytes > state.programCapacityBytes) {
+      throw new Error(
+        `program upgrade requires ${artifactBytes - state.programCapacityBytes} additional ProgramData bytes; approve and execute a separate extension first`,
       );
     }
     if (deployerBalance < requiredBalance) {
@@ -399,6 +404,7 @@ function deploymentCommands(args: {
       args.programId,
       "--max-len",
       String(args.artifactBytes),
+      "--no-auto-extend",
       "--url",
       args.baseRpc,
       "--output",
@@ -539,31 +545,56 @@ function publicCommand(
   };
 }
 
-async function deployedUpgradeAuthority(
+export interface UpgradeableProgramState {
+  programDataAddress: PublicKey;
+  programCapacityBytes: number;
+  programDataLamports: number;
+  upgradeAuthority: string | null;
+}
+
+export async function inspectUpgradeableProgram(
   connection: Connection,
-  programData: Buffer | undefined,
-): Promise<string | null> {
+  programId: PublicKey,
+): Promise<UpgradeableProgramState> {
+  const program = await connection.getAccountInfo(programId, "confirmed");
   if (
-    !programData ||
-    programData.length < 36 ||
-    programData.readUInt32LE(0) !== 2
+    !program ||
+    !program.executable ||
+    !program.owner.equals(UPGRADEABLE_LOADER_ID) ||
+    program.data.length < 36 ||
+    program.data.readUInt32LE(0) !== 2
   ) {
     throw new Error(
       "declared program is not an upgradeable-loader Program account",
     );
   }
-  const programDataAddress = new PublicKey(programData.subarray(4, 36));
+  const programDataAddress = new PublicKey(program.data.subarray(4, 36));
   const info = await connection.getAccountInfo(programDataAddress, "confirmed");
-  if (!info || info.data.length < 13 || info.data.readUInt32LE(0) !== 3) {
+  if (
+    !info ||
+    !info.owner.equals(UPGRADEABLE_LOADER_ID) ||
+    info.executable ||
+    info.data.length < PROGRAM_DATA_HEADER_BYTES ||
+    info.data.readUInt32LE(0) !== 3
+  ) {
     throw new Error("deployed ProgramData account is missing or malformed");
   }
   if (info.data[12] === 1 && info.data.length < 45) {
     throw new Error("deployed upgrade authority is truncated");
   }
-  if (info.data[12] !== 1) return null;
-  if (info.data.length < 45)
-    throw new Error("deployed upgrade authority is truncated");
-  return new PublicKey(info.data.subarray(13, 45)).toBase58();
+  if (info.data[12] !== 0 && info.data[12] !== 1) {
+    throw new Error("deployed upgrade authority option is malformed");
+  }
+  const upgradeAuthority =
+    info.data[12] === 1
+      ? new PublicKey(info.data.subarray(13, 45)).toBase58()
+      : null;
+  return {
+    programDataAddress,
+    programCapacityBytes: info.data.length - PROGRAM_DATA_HEADER_BYTES,
+    programDataLamports: info.lamports,
+    upgradeAuthority,
+  };
 }
 
 function deploymentModeFromEnv(

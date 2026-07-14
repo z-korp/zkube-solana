@@ -54,12 +54,16 @@ describe("Weekly client", () => {
       buildClaimWeeklyCashPlan({
         connection,
         wallet,
+        ownerAuthority: owner.publicKey,
+        sessionToken: null,
         weekly,
         paymaster: paymaster.publicKey,
       }),
       buildClaimWeeklyStarsPlan({
         connection,
         wallet,
+        ownerAuthority: owner.publicKey,
+        sessionToken: null,
         weekly,
         paymaster: paymaster.publicKey,
       }),

@@ -5,9 +5,10 @@ import { useDaily } from "@/contexts/daily";
 import { useSolanaConnection } from "./connectionContext";
 import { currentDailyDayId, fetchDailyView } from "./dailyClient";
 import { fetchEconomyRuntime } from "./economyClient";
-import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { useConnectedPlayer } from "./connectedPlayerContext";
 import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
+import { SessionWallet } from "./sessionWallet";
 import {
   buildClaimWeeklyCashPlan,
   buildClaimWeeklyStarsPlan,
@@ -24,7 +25,8 @@ import {
 
 export function useWeeklyController() {
   const { connection } = useSolanaConnection();
-  const { wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const wallet = player.readOnlyWallet;
   const daily = useDaily();
   const [weekly, setWeekly] = useState<WeeklyView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,6 @@ export function useWeeklyController() {
   const maintaining = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (!wallet) return null;
     setLoading(true);
     try {
       const current = currentWeeklyId();
@@ -57,9 +58,11 @@ export function useWeeklyController() {
   }, [connection, wallet]);
 
   const maintain = useCallback(async () => {
-    if (!wallet || maintaining.current) return;
+    if (player.sessionStatus !== "ready" || maintaining.current) return;
     maintaining.current = true;
     try {
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       const runtime = await fetchEconomyRuntime({ connection, wallet });
       if (!runtime) {
         await refresh();
@@ -71,13 +74,13 @@ export function useWeeklyController() {
       if (!current) {
         const transactionPlan = await buildOpenWeeklyPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
           weekId,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -116,14 +119,14 @@ export function useWeeklyController() {
         if (!rollupWeek) continue;
         const transactionPlan = await buildRollupDailyPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
           daily: candidate,
           weekly: rollupWeek,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -171,7 +174,7 @@ export function useWeeklyController() {
               if (rolledOwners.has(key)) continue;
               const transactionPlan = await buildRollupDailyPlan({
                 connection,
-                wallet,
+                wallet: sessionWallet,
                 daily: candidate,
                 weekly: previous,
                 paymaster: paymaster.pubkey,
@@ -179,7 +182,7 @@ export function useWeeklyController() {
               });
               const signature = await submitSponsoredTransactionPlan({
                 transactionPlan,
-                wallet,
+                wallet: sessionWallet,
                 paymaster,
               });
               await connection.confirmTransaction(signature, "confirmed");
@@ -194,13 +197,13 @@ export function useWeeklyController() {
           }
           const transactionPlan = await buildFinalizeWeeklyPlan({
             connection,
-            wallet,
+            wallet: sessionWallet,
             weekly: previous,
             paymaster: paymaster.pubkey,
           });
           const signature = await submitSponsoredTransactionPlan({
             transactionPlan,
-            wallet,
+            wallet: sessionWallet,
             paymaster,
           });
           await connection.confirmTransaction(signature, "confirmed");
@@ -231,7 +234,9 @@ export function useWeeklyController() {
           transactionPlans.push(
             await buildClaimWeeklyStarsPlan({
               connection,
-              wallet,
+              wallet: sessionWallet,
+              ownerAuthority: session.owner,
+              sessionToken: session.sessionToken,
               weekly: claimable,
               paymaster: paymaster.pubkey,
             }),
@@ -241,7 +246,9 @@ export function useWeeklyController() {
           transactionPlans.push(
             await buildClaimWeeklyCashPlan({
               connection,
-              wallet,
+              wallet: sessionWallet,
+              ownerAuthority: session.owner,
+              sessionToken: session.sessionToken,
               weekly: claimable,
               paymaster: paymaster.pubkey,
             }),
@@ -250,7 +257,7 @@ export function useWeeklyController() {
         for (const transactionPlan of transactionPlans) {
           const signature = await submitSponsoredTransactionPlan({
             transactionPlan,
-            wallet,
+            wallet: sessionWallet,
             paymaster,
           });
           await connection.confirmTransaction(signature, "confirmed");
@@ -271,13 +278,13 @@ export function useWeeklyController() {
         ) {
           const transactionPlan = await buildForfeitWeeklyCashPlan({
             connection,
-            wallet,
+            wallet: sessionWallet,
             weekly: expiring,
             paymaster: paymaster.pubkey,
           });
           const signature = await submitSponsoredTransactionPlan({
             transactionPlan,
-            wallet,
+            wallet: sessionWallet,
             paymaster,
           });
           await connection.confirmTransaction(signature, "confirmed");
@@ -289,17 +296,25 @@ export function useWeeklyController() {
     } finally {
       maintaining.current = false;
     }
-  }, [connection, daily, refresh, wallet]);
+  }, [connection, daily, player, refresh, wallet]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   useEffect(() => {
     void maintain();
-    const timer = window.setInterval(() => void maintain(), 60_000);
-    return () => window.clearInterval(timer);
+    const timer = globalThis.setInterval(() => void maintain(), 60_000);
+    return () => globalThis.clearInterval(timer);
   }, [maintain]);
 
   const claim = useCallback(
     async (kind: "cash" | "stars") => {
-      if (!wallet || !weekly) throw new Error("Weekly rewards are not ready");
+      if (!weekly) throw new Error("Weekly rewards are not ready");
+      const owner = player.publicKey;
+      if (!owner) throw new Error("Connect a wallet before claiming rewards");
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       setAction(`claim:${kind}`);
       try {
         const paymaster = await fetchPaymasterClient(connection);
@@ -307,19 +322,23 @@ export function useWeeklyController() {
           kind === "cash"
             ? await buildClaimWeeklyCashPlan({
                 connection,
-                wallet,
+                wallet: sessionWallet,
+                ownerAuthority: owner,
+                sessionToken: session.sessionToken,
                 weekly,
                 paymaster: paymaster.pubkey,
               })
             : await buildClaimWeeklyStarsPlan({
                 connection,
-                wallet,
+                wallet: sessionWallet,
+                ownerAuthority: owner,
+                sessionToken: session.sessionToken,
                 weekly,
                 paymaster: paymaster.pubkey,
               });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -332,7 +351,7 @@ export function useWeeklyController() {
         setAction(null);
       }
     },
-    [connection, refresh, wallet, weekly],
+    [connection, player, refresh, weekly],
   );
 
   return {

@@ -4,7 +4,13 @@ import { motion } from "motion/react";
 
 import type { ThemeColors } from "@/config/themes";
 import { groupQuests, useQuests, type QuestStatus } from "@/hooks/useQuests";
+import EmptyState from "@/ui/components/shared/EmptyState";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import {
+  formatDurationCoarse,
+  nextDailyResetUnix,
+  nextWeeklyResetUnix,
+} from "@/utils/time";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -59,8 +65,9 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
         colors={colors}
         title="Daily Quests"
         subtitle="Three new objectives every day"
-        badge="Daily"
-        badgeColor={colors.accent}
+        resetHint={`New quests in ${formatDurationCoarse(
+          nextDailyResetUnix() - Math.floor(Date.now() / 1_000),
+        )}`}
         quests={combinedDaily}
         getQuestColor={getQuestColor}
         onClaim={(quest) => void claimQuest(quest.index).catch(() => undefined)}
@@ -71,8 +78,9 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
         colors={colors}
         title="Weekly Quests"
         subtitle="Long-run objectives awarding XP and Stars"
-        badge="Weekly"
-        badgeColor="#B89BFF"
+        resetHint={`New quests in ${formatDurationCoarse(
+          nextWeeklyResetUnix() - Math.floor(Date.now() / 1_000),
+        )}`}
         quests={activeWeekly}
         getQuestColor={getQuestColor}
         onClaim={(quest) => void claimQuest(quest.index).catch(() => undefined)}
@@ -106,8 +114,7 @@ interface QuestSectionProps {
   subtitle: string;
   quests: QuestStatus[];
   getQuestColor: (quest: QuestStatus) => string;
-  badge: string;
-  badgeColor: string;
+  resetHint: string;
   onClaim: (quest: QuestStatus) => void;
   claiming: string | null;
   showFinisherDivider?: boolean;
@@ -119,8 +126,7 @@ const QuestSection: React.FC<QuestSectionProps> = ({
   subtitle,
   quests,
   getQuestColor,
-  badge,
-  badgeColor,
+  resetHint,
   onClaim,
   claiming,
   showFinisherDivider = false,
@@ -140,38 +146,30 @@ const QuestSection: React.FC<QuestSectionProps> = ({
         borderColor: "rgba(255,255,255,0.15)",
       }}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p
-            className="font-sans text-[12px] font-extrabold uppercase tracking-[0.12em]"
-            style={{ color: colors.text }}
-          >
-            {title}
-          </p>
-          <p
-            className="mt-0.5 font-sans text-[11px] font-semibold"
-            style={{ color: colors.textMuted }}
-          >
-            {subtitle}
-          </p>
-        </div>
-
-        <span
-          className="rounded-full px-2 py-1 font-sans text-[10px] font-extrabold uppercase tracking-[0.08em]"
-          style={{
-            color: badgeColor,
-            background: `${badgeColor}22`,
-            border: `1px solid ${badgeColor}55`,
-          }}
+      <div className="mb-3">
+        <p
+          className="font-sans text-[12px] font-extrabold uppercase tracking-[0.12em]"
+          style={{ color: colors.text }}
         >
-          {badge}
-        </span>
+          {title}
+        </p>
+        <p
+          className="mt-0.5 font-sans text-[11px] font-semibold"
+          style={{ color: colors.textMuted }}
+        >
+          {subtitle}
+        </p>
       </div>
 
       {sortedQuests.length === 0 ? (
-        <p className="rounded-xl border border-white/[0.14] bg-white/[0.08] px-3 py-4 text-center font-sans text-sm font-semibold text-white/70">
-          No active quests right now.
-        </p>
+        <div className="rounded-xl border border-white/[0.14] bg-white/[0.08]">
+          <EmptyState
+            compact
+            title="No active quests right now"
+            hint={resetHint}
+            titleColor="rgba(255,255,255,0.7)"
+          />
+        </div>
       ) : (
         <div className="flex flex-col gap-2.5">
           {sortedQuests.map((quest, index) => (

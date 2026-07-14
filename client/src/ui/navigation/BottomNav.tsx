@@ -1,4 +1,5 @@
-import { Home, ShoppingBag, Star, Trophy, Settings, User } from "lucide-react";
+import { Home, ShoppingBag, Star, Trophy, User } from "lucide-react";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
@@ -13,6 +14,8 @@ const BottomNav = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const { progress } = useProgress();
+  // The menu stays visible but locked until a wallet is connected.
+  const connected = useConnectedPlayer().publicKey !== null;
   const claimableCount =
     (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
     (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
@@ -29,10 +32,9 @@ const BottomNav = () => {
   }[] = [
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
-    { id: "ranks", icon: Trophy, label: "Ranks" },
+    { id: "ranks", icon: Trophy, label: "Leaderboard" },
     { id: "shop", icon: ShoppingBag, label: "Shop" },
     { id: "profile", icon: User, label: "Profile" },
-    { id: "settings", icon: Settings, label: "Settings" },
   ];
 
   return (
@@ -43,10 +45,11 @@ const BottomNav = () => {
         return (
           <button
             key={tab.id}
+            disabled={!connected}
             onClick={() =>
               tab.id === "shop" ? openShop(null) : navigate(tab.id)
             }
-            className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors disabled:opacity-40"
             style={{
               color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)",
             }}

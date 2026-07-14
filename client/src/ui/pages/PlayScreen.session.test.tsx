@@ -259,7 +259,7 @@ describe("PlayScreen orphaned base-run recovery", () => {
     fixtures.recoveryRunId = 1n;
   });
 
-  it("confirms before recovering the requested settled run", async () => {
+  it("recovers the requested settled run with the enabled session", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     fixtures.recoverBaseRun.mockResolvedValue("signature");
 
@@ -270,22 +270,24 @@ describe("PlayScreen orphaned base-run recovery", () => {
       );
     });
 
-    expect(confirm).toHaveBeenCalledWith(
-      "Sign one sponsored Devnet transaction for recovered run 1 and Vault BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6? It contains consumeRunReceipt (if still unconsumed) and closeSettledActiveRun. The paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.",
-    );
+    expect(confirm).not.toHaveBeenCalled();
     expect(fixtures.recoverBaseRun).toHaveBeenCalledOnce();
     expect(fixtures.recoverBaseRun).toHaveBeenCalledWith(1n);
   });
 
-  it("does not recover when the confirmation is cancelled", () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("does not request an external wallet confirmation for safe cleanup", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fixtures.recoverBaseRun.mockResolvedValue("signature");
 
     render(<PlayScreen />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Recover settled run 1" }),
-    );
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Recover settled run 1" }),
+      );
+    });
 
-    expect(fixtures.recoverBaseRun).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(fixtures.recoverBaseRun).toHaveBeenCalledWith(1n);
   });
 
   it("keeps recovery modal and hides unrelated run controls", () => {

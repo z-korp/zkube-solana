@@ -59,6 +59,8 @@ describe("campaign client", () => {
     const stars = await buildUnlockMapWithStarsPlan({
       connection,
       wallet,
+      ownerAuthority: owner.publicKey,
+      sessionToken: null,
       contentVersion: campaign.contentVersion,
       mapId: 2,
       paymaster: paymaster.publicKey,
@@ -86,6 +88,8 @@ describe("campaign client", () => {
     const plans = [await buildUnlockMapWithStarsPlan({
       connection,
       wallet,
+      ownerAuthority: owner.publicKey,
+      sessionToken: null,
       contentVersion: campaign.contentVersion,
       mapId: 2,
       paymaster: paymaster.publicKey,

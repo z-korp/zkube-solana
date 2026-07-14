@@ -1,11 +1,13 @@
 import { useProgress } from "@/contexts/progress";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
 export const useZStarBalance = (address: string | undefined) => {
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const controller = useProgress();
-  const isCurrentPlayer = !address || address === publicKey.toBase58();
+  const isCurrentPlayer = Boolean(
+    publicKey && (!address || address === publicKey.toBase58()),
+  );
   return {
     refetch: controller.refresh,
     isLoading: isCurrentPlayer && controller.loading,

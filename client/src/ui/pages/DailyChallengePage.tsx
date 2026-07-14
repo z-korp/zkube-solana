@@ -15,10 +15,13 @@ import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { useNavigationStore } from "@/stores/navigationStore";
+import { DailyScoringRules } from "@/ui/components/rewards/dailyRulesCopy";
 import TierContext from "@/ui/components/rewards/TierContext";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { formatCountdown } from "@/utils/time";
 
 const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
   const [sec, setSec] = useState(() =>
@@ -32,15 +35,7 @@ const CountdownText: React.FC<{ endTime: number }> = ({ endTime }) => {
     return () => window.clearInterval(id);
   }, [endTime]);
 
-  const h = Math.floor(sec / 3600)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor((sec % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = (sec % 60).toString().padStart(2, "0");
-
-  return <>{sec > 0 ? `${h}:${m}:${s}` : "ENDED"}</>;
+  return <>{sec > 0 ? formatCountdown(sec) : "ENDED"}</>;
 };
 
 const DailyChallengePage: React.FC = () => {
@@ -265,15 +260,6 @@ const DailyChallengePage: React.FC = () => {
                       <p className="mt-0.5 font-sans text-xs leading-relaxed text-white/65">
                         {dailyScoringRuleDescription(scoringRule)}
                       </p>
-                      <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-white/40">
-                        Daily = engine + challenge bonus · 100 moves maximum ·
-                        objective weight {scoringRule.bonusMultiplierX100 / 100}
-                        ×
-                      </p>
-                      <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-white/40">
-                        Ranking: daily, challenge bonus, engine, moves, player
-                        ID
-                      </p>
                     </div>
                   )}
 
@@ -311,38 +297,23 @@ const DailyChallengePage: React.FC = () => {
 
               {/* Your Position — score-based Solana daily ranking */}
               {playerRank && (
-                <div>
-                  <TierContext
-                    colors={zoneColors}
-                    myRank={playerRank.rank}
-                    myScore={playerRank.dailyScore ?? playerRank.score}
-                    myName={`You · ${truncatePublicKey(playerRank.player)}`}
-                    entries={leaderboard.map((entry) => ({
-                      rank: entry.rank,
-                      score: entry.dailyScore ?? entry.score,
-                      name: truncatePublicKey(entry.player),
-                    }))}
-                    scoreLabel=" daily"
-                  />
-                  <p className="mt-1 text-center font-sans text-[10px] text-white/45">
-                    Tie-break: +
-                    {Math.max(
-                      0,
-                      (playerRank.dailyScore ?? playerRank.score) -
-                        (playerRank.engineScore ?? playerRank.score),
-                    ).toLocaleString()}{" "}
-                    challenge ·{" "}
-                    {(
-                      playerRank.engineScore ?? playerRank.score
-                    ).toLocaleString()}{" "}
-                    engine · {playerRank.moves ?? 0} moves
-                  </p>
-                </div>
+                <TierContext
+                  colors={zoneColors}
+                  myRank={playerRank.rank}
+                  myScore={playerRank.dailyScore ?? playerRank.score}
+                  myName={`You · ${truncatePublicKey(playerRank.player)}`}
+                  entries={leaderboard.map((entry) => ({
+                    rank: entry.rank,
+                    score: entry.dailyScore ?? entry.score,
+                    name: truncatePublicKey(entry.player),
+                  }))}
+                  scoreLabel=" daily"
+                />
               )}
 
               {!daily.daily?.playerEligible && (
                 <p className="rounded-xl border border-yellow-300/20 bg-yellow-950/50 px-3 py-2 text-center text-xs font-semibold text-yellow-200">
-                  Clear Campaign Map 1 to unlock the Daily Challenge.
+                  Clear Zone 1 to unlock the Daily Challenge.
                 </p>
               )}
               {daily.error && (
@@ -366,6 +337,7 @@ const DailyChallengePage: React.FC = () => {
       {!challengeLoading &&
         challenge &&
         daily.daily &&
+        daily.daily.playerEligible &&
         !hasActiveDailyRun &&
         runAvailable &&
         entriesOpen && (
@@ -378,23 +350,35 @@ const DailyChallengePage: React.FC = () => {
             >
               {starting
                 ? "Preparing..."
-                : `${daily.daily.starEntryCost.toString()} Stars`}
+                : `Enter Daily · ${daily.daily.starEntryCost.toString()}★`}
             </ArcadeButton>
-            <div className="col-span-full -mt-1 flex flex-col gap-2">
-              <p className="text-center font-sans text-[11px] font-semibold text-white/50">
-                Unlimited retries at {daily.daily.starEntryCost.toString()}{" "}
-                Stars · best finalized score counts · +100 XP first finish · +50
-                XP first Tier 7 today
-              </p>
-              <button
-                type="button"
-                onClick={() => openShop("daily")}
-                className="text-center font-sans text-xs font-extrabold text-yellow-200"
-              >
-                {insufficientStars
-                  ? `Need ${(daily.daily.starEntryCost - daily.daily.playerStars).toString()} more Stars · Open Shop`
-                  : `${daily.daily.playerStars.toString()} Stars available · Visit Shop`}
-              </button>
+            <div className="col-span-full -mt-1 flex flex-col items-center gap-1.5">
+              {insufficientStars ? (
+                <button
+                  type="button"
+                  onClick={() => openShop("daily")}
+                  className="text-center font-sans text-xs font-extrabold text-yellow-200"
+                >
+                  Need{" "}
+                  {(
+                    daily.daily.starEntryCost - daily.daily.playerStars
+                  ).toString()}{" "}
+                  more ★ · Get Stars
+                </button>
+              ) : (
+                <p className="text-center font-sans text-[11px] font-semibold text-white/50">
+                  Unlimited retries · best score counts · +100 XP first finish
+                </p>
+              )}
+              <InfoSheet title="How Daily scoring works">
+                <DailyScoringRules
+                  objectiveWeight={
+                    scoringRule
+                      ? scoringRule.bonusMultiplierX100 / 100
+                      : undefined
+                  }
+                />
+              </InfoSheet>
             </div>
           </div>
         )}

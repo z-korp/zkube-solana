@@ -89,7 +89,7 @@ describe("UnlockModal", () => {
 
     expect(screen.queryByText("2.5 USDC")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /unlock with stars/i }));
+    fireEvent.click(screen.getByRole("button", { name: /unlock for 40★/i }));
     await waitFor(() =>
       expect(campaign.unlock).toHaveBeenCalledWith(2),
     );
@@ -110,8 +110,23 @@ describe("UnlockModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Open Star Shop/i }));
+    fireEvent.click(screen.getByRole("button", { name: /get stars/i }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(navigation.openShop).toHaveBeenCalledWith("home");
+  });
+
+  it("shows a disabled loading state while the price is unknown", () => {
+    render(
+      <UnlockModal
+        colors={getThemeColors("theme-2")}
+        zone={{ ...zone, starCost: undefined }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const cta = screen.getByRole("button", { name: /loading price/i });
+    expect(cta).toBeDisabled();
+    expect(screen.queryByText(/0★ /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unlock for/i)).not.toBeInTheDocument();
   });
 });

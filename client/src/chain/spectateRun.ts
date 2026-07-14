@@ -1,6 +1,7 @@
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import { derivePlayerProfilePda, deriveRunAddresses } from "./pdas";
+import { createReadOnlyWallet } from "./readOnlyWallet";
 import { fetchReceipt, type RunReceiptView } from "./resumeRun";
 import { getDelegationStatus } from "./router";
 import {
@@ -8,14 +9,7 @@ import {
   zkubeProgram,
   type ActiveRunView,
 } from "./runPlan";
-import { SessionWallet } from "./sessionWallet";
-
-/**
- * Decode-only wallet. Anchor needs a wallet to build a provider, but nothing
- * on the spectate path ever signs or submits — this throwaway key must never
- * reach a submit/paymaster/session function.
- */
-const READ_ONLY_WALLET = new SessionWallet(Keypair.generate());
+const READ_ONLY_WALLET = createReadOnlyWallet();
 
 export interface SpectateTarget {
   /** Direct ActiveRun PDA. */
@@ -143,7 +137,7 @@ async function resolveAddresses(
       connection,
       target.player,
     );
-    if (nextRunId === null || nextRunId <= 1n) return null;
+    if (nextRunId === null || nextRunId <= INITIAL_RUN_ID) return null;
     runId = nextRunId - 1n;
   }
   const addresses = deriveRunAddresses(target.player, runId);

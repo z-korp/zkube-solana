@@ -1,11 +1,9 @@
-import { X } from "lucide-react";
-
 import type { ZoneProgressData } from "@/config/profileData";
 import type { ThemeColors } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-import ProgressBar from "@/ui/components/shared/ProgressBar";
+import Sheet from "@/ui/components/shared/Sheet";
 
 interface UnlockModalProps {
   colors: ThemeColors;
@@ -16,13 +14,17 @@ interface UnlockModalProps {
 const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
   const campaign = useCampaign();
   const openShop = useNavigationStore((state) => state.openShop);
-  const starCost = zone.starCost ?? 0;
+  // undefined means the unlock price is not known yet — never show 0★.
+  const starCost = zone.starCost;
+  const priceKnown = starCost !== undefined;
   const currentStars = Number(
     campaign.campaign?.starsBalance ?? BigInt(zone.currentStars ?? 0),
   );
-  const canUnlockWithStars = currentStars >= starCost;
+  const canUnlockWithStars = priceKnown && currentStars >= starCost;
   const canSubmit = campaign.campaign !== null && !campaign.unlocking;
-  const starsRemaining = Math.max(starCost - currentStars, 0);
+  const starsRemaining = priceKnown
+    ? Math.max(starCost - currentStars, 0)
+    : 0;
 
   const handleUnlock = async () => {
     try {
@@ -39,117 +41,60 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-3 pb-[110px] pt-3 md:p-6">
-      <button
-        type="button"
-        aria-label="Close unlock modal"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/65 backdrop-blur-md"
-      />
-
-      <div
-        className="relative max-h-full w-full max-w-[980px] overflow-y-auto rounded-3xl border border-white/[0.2] bg-slate-950/92 px-4 pb-4 pt-4 shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur-2xl md:px-6 md:pb-6"
-        style={{
-          background: `linear-gradient(180deg, ${colors.backgroundGradientStart}F2, ${colors.background}F0)`,
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onClose}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-black/25 text-white/80"
-        >
-          <X size={16} />
-        </button>
-
-        <div className="mb-3 flex justify-center md:hidden">
-          <div className="h-1 w-10 rounded bg-white/20" />
-        </div>
-
-        <div className="mb-4 flex items-center gap-3">
-          <span className="text-[32px] md:text-[38px]">{zone.emoji}</span>
-          <div className="min-w-0 flex-1">
-            <p
-              className="font-sans text-[11px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: colors.accent }}
-            >
-              Unlock Zone
-            </p>
-            <p className="truncate font-display text-2xl font-black text-white md:text-3xl">
-              {zone.name}
-            </p>
-          </div>
-        </div>
-
-        <div
-          className="grid grid-cols-1 gap-3 md:gap-4"
-        >
-          <section
-            className="flex flex-col rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4 backdrop-blur-xl"
-            style={{ boxShadow: `inset 0 0 12px ${colors.accent2}1F` }}
+    <Sheet
+      open
+      onClose={onClose}
+      srTitle={`Unlock ${zone.name}`}
+      dismissible={!campaign.unlocking}
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <span className="text-[34px]">{zone.emoji}</span>
+        <div className="min-w-0 flex-1">
+          <p
+            className="font-sans text-[11px] font-bold uppercase tracking-[0.14em]"
+            style={{ color: colors.accent }}
           >
-            <p
-              className="mb-2 font-sans text-xs font-bold uppercase tracking-[0.12em]"
-              style={{ color: colors.accent2 }}
-            >
-              Earn It
-            </p>
-            <p
-              className="font-sans text-3xl font-black leading-none"
-              style={{ color: colors.accent2 }}
-            >
-              {starCost}★
-            </p>
-            <p className="mb-3 mt-1 font-sans text-sm font-semibold text-white/70">
-              Stars required
-            </p>
-
-            <ProgressBar
-              value={currentStars}
-              max={starCost}
-              color={colors.accent2}
-              height={8}
-              glow
-            />
-            <p
-              className="mt-2 font-sans text-sm font-bold"
-              style={{ color: colors.accent2 }}
-            >
-              {currentStars}/{starCost}★
-            </p>
-            <p className="mt-0.5 font-sans text-sm text-white/70">
-              {starsRemaining} stars to go
-            </p>
-
-            <div className="mt-auto pt-3">
-              {canUnlockWithStars ? (
-                <ArcadeButton
-                  disabled={!canSubmit}
-                  onClick={() => void handleUnlock()}
-                >
-                  Unlock with Stars
-                </ArcadeButton>
-              ) : (
-                <div>
-                  <p className="mb-3 font-sans text-sm font-semibold text-white/65">
-                    Earn Stars in Campaign and Weekly play, or visit the Shop.
-                  </p>
-                  <ArcadeButton onClick={handleOpenShop}>
-                    Open Star Shop
-                  </ArcadeButton>
-                </div>
-              )}
-            </div>
-          </section>
-
-        </div>
-        {campaign.error && (
-          <p className="mt-3 text-center font-sans text-sm text-red-300">
-            {campaign.error}
+            Unlock Zone
           </p>
-        )}
+          <p className="truncate font-display text-2xl font-black text-white">
+            {zone.name}
+          </p>
+        </div>
       </div>
-    </div>
+
+      <p className="mb-4 font-sans text-sm font-semibold text-white/70">
+        {priceKnown ? (
+          canUnlockWithStars ? (
+            <>You have {currentStars}★</>
+          ) : (
+            <>
+              You have {currentStars}★ ·{" "}
+              <span style={{ color: colors.accent2 }}>
+                Need {starsRemaining} more
+              </span>
+            </>
+          )
+        ) : (
+          <>You have {currentStars}★</>
+        )}
+      </p>
+
+      {!priceKnown ? (
+        <ArcadeButton disabled>Loading price...</ArcadeButton>
+      ) : canUnlockWithStars ? (
+        <ArcadeButton disabled={!canSubmit} onClick={() => void handleUnlock()}>
+          {campaign.unlocking ? "Unlocking..." : `Unlock for ${starCost}★`}
+        </ArcadeButton>
+      ) : (
+        <ArcadeButton onClick={handleOpenShop}>Get Stars</ArcadeButton>
+      )}
+
+      {campaign.error && (
+        <p className="mt-3 text-center font-sans text-sm text-red-300">
+          {campaign.error}
+        </p>
+      )}
+    </Sheet>
   );
 };
 

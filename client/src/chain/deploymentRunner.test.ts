@@ -3,11 +3,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   devnetDeploymentInputFromEnv,
   formatDevnetDeployment,
+  inspectUpgradeableProgram,
   runZkubeDevnetDeployment,
 } from "./deploymentRunner";
 
@@ -40,6 +41,7 @@ describe("Devnet deployment runner", () => {
       "Upgrade existing program",
       "Verify deployed program",
     ]);
+    expect(input.commands[1]?.args).toContain("--no-auto-extend");
     expect(
       formatDevnetDeployment({
         mode: "dry-run",
@@ -146,6 +148,47 @@ describe("Devnet deployment runner", () => {
     await expect(runZkubeDevnetDeployment(input)).rejects.toThrow(
       "does not match declared program",
     );
+  });
+
+  it("decodes and validates the live ProgramData allocation", async () => {
+    const programId = Keypair.generate().publicKey;
+    const programDataAddress = Keypair.generate().publicKey;
+    const authority = Keypair.generate().publicKey;
+    const loader = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+    const programData = Buffer.alloc(36);
+    programData.writeUInt32LE(2, 0);
+    programDataAddress.toBuffer().copy(programData, 4);
+    const deployedData = Buffer.alloc(45 + 1_096);
+    deployedData.writeUInt32LE(3, 0);
+    deployedData[12] = 1;
+    authority.toBuffer().copy(deployedData, 13);
+    const connection = {
+      getAccountInfo: async (address: PublicKey) =>
+        address.equals(programId)
+          ? {
+              data: programData,
+              executable: true,
+              lamports: 1,
+              owner: loader,
+              rentEpoch: 0,
+            }
+          : address.equals(programDataAddress)
+            ? {
+                data: deployedData,
+                executable: false,
+                lamports: 2,
+                owner: loader,
+                rentEpoch: 0,
+              }
+            : null,
+    } as Connection;
+
+    await expect(inspectUpgradeableProgram(connection, programId)).resolves.toEqual({
+      programDataAddress,
+      programCapacityBytes: 1_096,
+      programDataLamports: 2,
+      upgradeAuthority: authority.toBase58(),
+    });
   });
 });
 

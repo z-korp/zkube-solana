@@ -263,6 +263,8 @@ async function main(): Promise<void> {
   });
   const closeRun = await buildCloseSettledRunPlan({
     wallet: playerWallet,
+    owner: player.publicKey,
+    sessionToken: null,
     runId: 1n,
     addresses: deriveRunAddresses(player.publicKey, 1n),
     connection,
@@ -565,7 +567,7 @@ async function buildLocalPrepareRunPlan(args: {
 }): Promise<TransactionPlan> {
   const addresses = deriveRunAddresses(args.playerWallet.publicKey, 1n);
   const prepare = await zkubeProgram(args.connection, args.playerWallet)
-    .methods.prepareCampaignRun(new BN(1), 1, 1, args.runSession.publicKey)
+    .methods.prepareCampaignRun(new BN(1), 1, 1)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerProfile: derivePlayerProfilePda(args.playerWallet.publicKey),
@@ -578,7 +580,9 @@ async function buildLocalPrepareRunPlan(args: {
       activeRun: addresses.activeRun,
       runReceipt: addresses.runReceipt,
       payer: args.paymaster.publicKey,
-      owner: args.playerWallet.publicKey,
+      ownerAuthority: args.playerWallet.publicKey,
+      sessionToken: null,
+      actor: args.playerWallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
@@ -617,7 +621,9 @@ async function buildLocalDelegateRunPlan(args: {
     .methods.delegateActiveRun()
     .accountsPartial({
       payer: args.paymaster.publicKey,
-      owner: args.playerWallet.publicKey,
+      ownerAuthority: args.playerWallet.publicKey,
+      sessionToken: null,
+      actor: args.playerWallet.publicKey,
       runShell: addresses.runShell,
       pda: addresses.activeRun,
     })

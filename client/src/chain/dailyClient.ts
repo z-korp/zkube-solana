@@ -39,10 +39,6 @@ import {
   type RawDailyPressureProfile,
   type RawDailyScoringRule,
 } from "./dailyRules.js";
-import {
-  buildCreateSessionV2Instruction,
-  deriveSessionTokenV2Pda,
-} from "./sessionV2.js";
 import type { WalletLike } from "./sessionWallet.js";
 
 export interface DailyLeaderboardView {
@@ -298,43 +294,19 @@ export async function fetchDailyView(args: {
 export async function buildPrepareDailyRunPlan(args: {
   connection: Connection;
   wallet: WalletLike;
-  session: Keypair;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey;
   daily: DailyView;
   paymaster?: PublicKey;
-  nowUnix?: number;
-  /** Live expiry of a REUSED session token (marker correctness). */
-  sessionValidUntil?: number;
+  sessionValidUntil: number;
 }): Promise<PreparedRunPlan> {
   if (args.daily.nextRunId <= 0n)
     throw new Error("Daily eligibility requires a player profile");
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
+  const actor = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
   const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
-  const { sessionToken } = deriveSessionTokenV2Pda({
-    authority: owner,
-    sessionSigner: args.session.publicKey,
-  });
-  let sessionValidUntil =
-    (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
   const instructions: TransactionInstruction[] = [];
-  // The session keypair signs only createSessionV2; a reused session skips it
-  // and must not be a listed signer.
-  let sessionCreated = false;
-  if (!(await args.connection.getAccountInfo(sessionToken, "confirmed"))) {
-    instructions.push(
-      buildCreateSessionV2Instruction({
-        authority: owner,
-        sessionSigner: args.session.publicKey,
-        feePayer: payer,
-        topUp: false,
-        validUntil: sessionValidUntil,
-      }),
-    );
-    sessionCreated = true;
-  } else if (args.sessionValidUntil) {
-    // Reused session: the marker must reflect the live token's real expiry.
-    sessionValidUntil = args.sessionValidUntil;
-  }
   instructions.push(
     buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),
   );
@@ -348,11 +320,13 @@ export async function buildPrepareDailyRunPlan(args: {
     activeRun: addresses.activeRun,
     runReceipt: addresses.runReceipt,
     payer,
-    owner,
+    ownerAuthority: owner,
+    sessionToken: args.sessionToken,
+    actor,
     systemProgram: SystemProgram.programId,
   };
   const enter = await program.methods
-    .enterDaily(new BN(args.daily.nextRunId.toString()), args.session.publicKey)
+    .enterDaily(new BN(args.daily.nextRunId.toString()))
     .accountsPartial({
       ...common,
       economyConfig: deriveEconomyConfigPda(),
@@ -363,14 +337,14 @@ export async function buildPrepareDailyRunPlan(args: {
   return {
     runId: args.daily.nextRunId,
     addresses,
-    sessionToken,
-    sessionValidUntil,
+    sessionToken: args.sessionToken,
+    sessionValidUntil: args.sessionValidUntil,
     transactionPlan: basePlan(
       `Enter Daily with ${args.daily.starEntryCost.toString()} Stars`,
       args.connection,
       payer,
       instructions,
-      sessionCreated ? [args.session] : [],
+      [],
     ),
   };
 }
@@ -413,17 +387,21 @@ export async function buildCommitDailyRunPlan(args: {
 export async function buildRefundDailyEntryPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   daily: DailyView;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.refundDailyStars()
     .accountsPartial({
       dailyChallenge: args.daily.address,
       dailyPlayer: deriveDailyPlayerPda(args.daily.address, owner),
       playerProfile: derivePlayerProfilePda(owner),
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
     })
     .instruction();
   return basePlan(

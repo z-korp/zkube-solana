@@ -82,6 +82,7 @@ describe("sponsored transaction plans", () => {
     const transactionPlan = await buildFinalizeRunPlan({
       wallet: new SessionWallet(owner),
       owner: owner.publicKey,
+      sessionToken: null,
       runId: 7n,
       addresses: deriveRunAddresses(owner.publicKey, 7n),
       mode: "campaign",
@@ -112,6 +113,7 @@ describe("sponsored transaction plans", () => {
     const transactionPlan = await buildFinalizeRunPlan({
       wallet: new SessionWallet(owner),
       owner: owner.publicKey,
+      sessionToken: null,
       runId: 7n,
       addresses: deriveRunAddresses(owner.publicKey, 7n),
       mode: "campaign",
@@ -144,6 +146,7 @@ describe("sponsored transaction plans", () => {
     const transactionPlan = await buildFinalizeRunPlan({
       wallet: new SessionWallet(owner),
       owner: owner.publicKey,
+      sessionToken: null,
       runId: 7n,
       addresses: deriveRunAddresses(owner.publicKey, 7n),
       mode: "campaign",
@@ -166,10 +169,10 @@ describe("sponsored transaction plans", () => {
     expect(close).toBeDefined();
     expect(keys[close.accountKeyIndexes[0]].equals(owner.publicKey)).toBe(true);
     expect(
-      keys[close.accountKeyIndexes[1]].equals(deriveProtocolConfigPda()),
+      keys[close.accountKeyIndexes[3]].equals(deriveProtocolConfigPda()),
     ).toBe(true);
     expect(
-      keys[close.accountKeyIndexes[2]].equals(paymaster.publicKey),
+      keys[close.accountKeyIndexes[4]].equals(paymaster.publicKey),
     ).toBe(true);
   });
 
@@ -182,6 +185,7 @@ describe("sponsored transaction plans", () => {
     const transactionPlan = await buildFinalizeRunPlan({
       wallet: new SessionWallet(owner),
       owner: owner.publicKey,
+      sessionToken: null,
       runId: 7n,
       addresses: deriveRunAddresses(owner.publicKey, 7n),
       mode: "campaign",
@@ -208,6 +212,7 @@ describe("sponsored transaction plans", () => {
     const transactionPlan = await buildFinalizeRunPlan({
       wallet: new SessionWallet(owner),
       owner: owner.publicKey,
+      sessionToken: null,
       runId: 7n,
       addresses: deriveRunAddresses(owner.publicKey, 7n),
       mode: "campaign",
@@ -266,6 +271,8 @@ function initializePlayerInstruction(
         isWritable: true,
       },
       { pubkey: paymaster.publicKey, isSigner: true, isWritable: true },
+      { pubkey: owner.publicKey, isSigner: false, isWritable: false },
+      { pubkey: ZKUBE_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: owner.publicKey, isSigner: true, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],

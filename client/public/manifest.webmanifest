@@ -1,0 +1,27 @@
+{
+  "name": "zKube",
+  "short_name": "zKube",
+  "description": "A real-time on-chain puzzle game on Solana.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080414",
+  "theme_color": "#080414",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "/assets/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ export type TabId =
 export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 export type ShopOrigin = "daily" | "home";
-export type SettingsFocus = "vault";
+export type SettingsFocus = "wallet";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
@@ -56,7 +56,7 @@ interface NavigationState {
   settingsReturnPage: PageId | null;
   navigate: (page: PageId, gameId?: bigint) => void;
   openShop: (origin?: ShopOrigin | null) => void;
-  openVaultSettings: (returnPage?: PageId | null) => void;
+  openWalletSettings: (returnPage?: PageId | null) => void;
   clearSettingsFocus: () => void;
   goBack: () => void;
   setGameId: (id: bigint | null) => void;
@@ -85,7 +85,7 @@ const getBackTarget = (page: PageId): PageId => {
     case "map":
       return "home";
     case "settings":
-      return "home";
+      return "profile";
     case "shop":
       return "home";
     default:
@@ -141,8 +141,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     get().navigate("shop");
   },
 
-  openVaultSettings: (returnPage = "shop") => {
-    set({ settingsFocus: "vault", settingsReturnPage: returnPage });
+  openWalletSettings: (returnPage = "shop") => {
+    set({ settingsFocus: "wallet", settingsReturnPage: returnPage });
     get().navigate("settings");
   },
 

@@ -1,8 +1,7 @@
 import {
   PublicKey,
   type Connection,
-  type Transaction,
-  VersionedTransaction,
+  type VersionedTransaction,
 } from "@solana/web3.js";
 import {
   PAYMASTER_ENDPOINT,
@@ -10,25 +9,15 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "./constants.js";
 import { deriveProtocolConfigPda } from "./pdas.js";
+import { createReadOnlyWallet } from "./readOnlyWallet.js";
 import { zkubeProgram } from "./runPlan.js";
-import type { WalletLike } from "./sessionWallet.js";
 
 export interface PaymasterClient {
   pubkey: PublicKey;
   submit(transaction: Uint8Array): Promise<string>;
 }
 
-const READ_ONLY_WALLET: WalletLike = {
-  publicKey: ZKUBE_PROGRAM_ID,
-  async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
-    void transaction;
-    throw new Error("read-only paymaster verifier cannot sign");
-  },
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]> {
-    void transactions;
-    throw new Error("read-only paymaster verifier cannot sign");
-  },
-};
+const READ_ONLY_WALLET = createReadOnlyWallet(ZKUBE_PROGRAM_ID);
 
 export async function fetchPaymasterClient(
   connection: Connection,
@@ -38,8 +27,13 @@ export async function fetchPaymasterClient(
   assertClusterIdentity(genesisHash, SOLANA_EXPECTED_GENESIS_HASH);
   const programInfo = await connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed");
   if (!programInfo?.executable) throw new Error("configured zkube program is missing or not executable");
-  const response = await fetch(endpoint);
-  const body = await response.json() as { pubkey?: string; error?: string };
+  let response: Response;
+  try {
+    response = await fetch(endpoint);
+  } catch {
+    throw new Error("paymaster is unavailable");
+  }
+  const body = await paymasterResponseBody(response);
   if (!response.ok || !body.pubkey) {
     throw new Error(body.error ?? "paymaster is unavailable");
   }
@@ -51,12 +45,17 @@ export async function fetchPaymasterClient(
   return {
     pubkey,
     async submit(transaction: Uint8Array) {
-      const submitted = await fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ transaction: bytesToBase64(transaction) }),
-      });
-      const result = await submitted.json() as { signature?: string; error?: string };
+      let submitted: Response;
+      try {
+        submitted = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ transaction: bytesToBase64(transaction) }),
+        });
+      } catch {
+        throw new Error("paymaster is unavailable");
+      }
+      const result = await paymasterResponseBody(submitted);
       if (!submitted.ok || !result.signature) {
         throw new Error(result.error ?? "paymaster submission failed");
       }
@@ -85,4 +84,18 @@ function bytesToBase64(value: Uint8Array): string {
   let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+async function paymasterResponseBody(
+  response: Response,
+): Promise<{ pubkey?: string; signature?: string; error?: string }> {
+  try {
+    return (await response.json()) as {
+      pubkey?: string;
+      signature?: string;
+      error?: string;
+    };
+  } catch {
+    throw new Error("paymaster returned an invalid response");
+  }
 }

@@ -49,7 +49,7 @@ describe("navigation recovery intent", () => {
     });
   });
 
-  it("preserves Daily origin through Vault funding and returns through Shop", () => {
+  it("preserves Daily origin through wallet settings and returns through Shop", () => {
     useNavigationStore.getState().openShop("daily");
     expect(useNavigationStore.getState()).toMatchObject({
       currentPage: "shop",
@@ -57,10 +57,10 @@ describe("navigation recovery intent", () => {
     });
     vi.advanceTimersByTime(300);
 
-    useNavigationStore.getState().openVaultSettings("shop");
+    useNavigationStore.getState().openWalletSettings("shop");
     expect(useNavigationStore.getState()).toMatchObject({
       currentPage: "settings",
-      settingsFocus: "vault",
+      settingsFocus: "wallet",
       settingsReturnPage: "shop",
       shopOrigin: "daily",
     });
@@ -79,6 +79,16 @@ describe("navigation recovery intent", () => {
     expect(useNavigationStore.getState()).toMatchObject({
       currentPage: "daily",
       shopOrigin: null,
+    });
+  });
+
+  it("returns from settings to profile when no return page is set", () => {
+    useNavigationStore.setState({ currentPage: "settings" });
+
+    useNavigationStore.getState().goBack();
+
+    expect(useNavigationStore.getState()).toMatchObject({
+      currentPage: "profile",
     });
   });
 });

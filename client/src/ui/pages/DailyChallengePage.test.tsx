@@ -132,7 +132,9 @@ describe("DailyChallengePage", () => {
   it("shows the live Star entry without executing a transaction", () => {
     render(<DailyChallengePage />);
 
-    expect(screen.getByRole("button", { name: "3 Stars" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Enter Daily · 3★" }),
+    ).toBeEnabled();
     expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/2 attempts/)).toBeInTheDocument();
     expect(screen.getByTestId("tier-context")).toHaveTextContent(
@@ -155,30 +157,50 @@ describe("DailyChallengePage", () => {
     );
 
     expect(fixtures.navigation.navigate).toHaveBeenCalledWith("play", 41n);
-    expect(screen.queryByRole("button", { name: "3 Stars" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Enter Daily · 3★" }),
+    ).toBeNull();
   });
 
-  it("shows unlimited retries and the once-daily XP reward", () => {
+  it("shows unlimited retries and moves reward detail into the rules sheet", () => {
     render(<DailyChallengePage />);
 
-    expect(screen.getByRole("button", { name: "3 Stars" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Enter Daily · 3★" }),
+    ).toBeEnabled();
     expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
       "+100 XP first finish",
     );
-    expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
-      "+50 XP first Tier 7 today",
-    );
-    expect(screen.getByRole("button", { name: /Visit Shop/ })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /How it works/i }));
+    expect(screen.getByText("How Daily scoring works")).toBeInTheDocument();
+    expect(screen.getByText("+50 XP")).toBeInTheDocument();
+    expect(screen.getByText(/100\/60\/30\/10\/2 Weekly points/)).toBeInTheDocument();
   });
 
   it("routes to the Shop when the player cannot afford an entry", () => {
     fixtures.controller.daily.playerStars = 1n;
     render(<DailyChallengePage />);
 
-    expect(screen.getByRole("button", { name: "3 Stars" })).toBeDisabled();
-    expect(screen.getByText(/Need 2 more Stars/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Open Shop/ }));
+    expect(
+      screen.getByRole("button", { name: "Enter Daily · 3★" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Get Stars/ }));
     expect(fixtures.navigation.openShop).toHaveBeenCalledWith("daily");
+  });
+
+  it("shows only the Zone 1 gate for ineligible players", () => {
+    fixtures.controller.daily.playerEligible = false;
+    render(<DailyChallengePage />);
+
+    expect(
+      screen.getByText(/Clear Zone 1 to unlock the Daily Challenge/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Enter Daily · 3★" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Get Stars/ })).toBeNull();
+    fixtures.controller.daily.playerEligible = true;
   });
 });

@@ -206,11 +206,13 @@ export async function fetchProgressView(args: {
 export async function buildClaimLevelMilestonePlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   milestoneIndex: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   assertIndex(args.milestoneIndex, 10, "milestoneIndex");
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const payer = args.paymaster ?? owner;
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.claimLevelMilestone(args.milestoneIndex)
@@ -220,7 +222,9 @@ export async function buildClaimLevelMilestonePlan(args: {
       playerProfile: derivePlayerProfilePda(owner),
       levelMilestones: deriveLevelMilestonesPda(owner),
       payer,
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
@@ -235,18 +239,22 @@ export async function buildClaimLevelMilestonePlan(args: {
 export async function buildClaimAchievementPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   achievementIndex: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   assertIndex(args.achievementIndex, 24, "achievementIndex");
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.claimAchievement(args.achievementIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerProfile: derivePlayerProfilePda(owner),
       campaignProgress: deriveCampaignProgressPda(owner),
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
     })
     .instruction();
   return basePlan(
@@ -260,11 +268,13 @@ export async function buildClaimAchievementPlan(args: {
 export async function buildClaimQuestPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   questIndex: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   assertIndex(args.questIndex, 12, "questIndex");
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const payer = args.paymaster ?? owner;
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.claimQuest(args.questIndex)
@@ -274,7 +284,9 @@ export async function buildClaimQuestPlan(args: {
       questClaims: deriveQuestClaimsPda(owner),
       weeklyStipend: deriveWeeklyStipendPda(owner),
       payer,
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();

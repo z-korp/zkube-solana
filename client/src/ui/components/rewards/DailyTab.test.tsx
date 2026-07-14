@@ -22,8 +22,8 @@ vi.mock("@/hooks/usePreviousChallenge", () => ({
   usePreviousChallenge: () => hooks.previous,
 }));
 
-vi.mock("@/chain/embeddedIdentityContext", () => ({
-  useEmbeddedIdentity: () => hooks.identity,
+vi.mock("@/chain/connectedPlayerContext", () => ({
+  useConnectedPlayer: () => hooks.identity,
 }));
 
 vi.mock("@/ui/components/rewards/TierContext", () => ({
@@ -52,7 +52,13 @@ describe("DailyTab", () => {
     render(<DailyTab colors={getThemeColors("theme-1")} />);
 
     expect(screen.getByText("ROLLING UP")).toBeInTheDocument();
-    expect(screen.getByText(/cash and Star rewards settle from the Weekly/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Daily ranks feed your Weekly score/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /How it works/i }));
+    expect(
+      screen.getByText(/Cash and Star rewards settle from the Weekly/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Claim USDC/i })).toBeNull();
   });
 

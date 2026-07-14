@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { loadRunSession } from "@/chain/runSessionStore";
 
 export interface ActiveDailyRun {
@@ -12,10 +12,10 @@ export interface ActiveDailyRun {
 }
 
 export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const run = useRun();
   return useMemo(() => {
-    const marker = loadRunSession(publicKey);
+    const marker = publicKey ? loadRunSession(publicKey) : null;
     const active = run.activeRun;
     if (!marker || marker.mode !== "daily") return null;
     if (active && active.mode === "daily" && active.runId === marker.runId) {

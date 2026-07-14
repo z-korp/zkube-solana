@@ -319,7 +319,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -343,18 +343,21 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile",
-            "campaignProgress"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": [
@@ -434,7 +437,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -467,7 +470,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -478,11 +481,15 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "systemProgram",
@@ -547,7 +554,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -576,7 +583,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -607,7 +614,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -618,11 +625,15 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "systemProgram",
@@ -730,7 +741,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -749,7 +760,7 @@ export type Solana = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "const",
@@ -842,7 +853,14 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         },
         {
@@ -949,7 +967,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -972,17 +990,21 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -1245,17 +1267,15 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "docs": [
-            "The player still consents to cleanup: closing erases the on-chain",
-            "receipt, so a third party must not be able to grief-close a run."
-          ],
-          "signer": true,
-          "relations": [
-            "runShell",
-            "runReceipt",
-            "activeRun"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "protocol",
@@ -1299,7 +1319,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -1327,7 +1347,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -1362,7 +1382,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -2305,11 +2325,15 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "runShell"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "runShell",
@@ -2326,7 +2350,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "account",
@@ -2556,7 +2580,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -2612,7 +2636,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -2643,7 +2667,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -2663,7 +2687,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -2698,7 +2722,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -2726,7 +2750,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -2741,11 +2765,15 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "systemProgram",
@@ -2756,10 +2784,6 @@ export type Solana = {
         {
           "name": "runId",
           "type": "u64"
-        },
-        {
-          "name": "actionAuthority",
-          "type": "pubkey"
         }
       ]
     },
@@ -3143,7 +3167,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -3168,7 +3192,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -3179,7 +3203,14 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         },
         {
@@ -3662,7 +3693,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -3686,7 +3717,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -3709,7 +3740,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -3744,7 +3775,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -3772,7 +3803,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               },
               {
                 "kind": "arg",
@@ -3787,12 +3818,15 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile",
-            "campaignProgress"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "systemProgram",
@@ -3811,10 +3845,6 @@ export type Solana = {
         {
           "name": "level",
           "type": "u8"
-        },
-        {
-          "name": "actionAuthority",
-          "type": "pubkey"
         }
       ]
     },
@@ -4198,7 +4228,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -4221,17 +4251,21 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -4571,94 +4605,6 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "rotateActiveRunAuthority",
-      "discriminator": [
-        219,
-        166,
-        35,
-        208,
-        238,
-        104,
-        124,
-        16
-      ],
-      "accounts": [
-        {
-          "name": "activeRun",
-          "writable": true
-        },
-        {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "activeRun"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "newActionAuthority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "rotateRunShellAuthority",
-      "discriminator": [
-        101,
-        234,
-        115,
-        157,
-        0,
-        246,
-        19,
-        255
-      ],
-      "accounts": [
-        {
-          "name": "runShell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "arg",
-                "path": "runId"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "runShell"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "runId",
-          "type": "u64"
-        },
-        {
-          "name": "newActionAuthority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "scheduleSale",
       "discriminator": [
         131,
@@ -4926,7 +4872,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -4951,7 +4897,7 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "ownerAuthority"
               }
             ]
           }
@@ -4960,12 +4906,15 @@ export type Solana = {
           "name": "mapCatalog"
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "playerProfile",
-            "campaignProgress"
-          ]
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -6034,6 +5983,16 @@ export type Solana = {
       "code": 6041,
       "name": "priceChanged",
       "msg": "The Star pack price changed; refresh the quote"
+    },
+    {
+      "code": 6042,
+      "name": "invalidSession",
+      "msg": "The scoped player session is invalid"
+    },
+    {
+      "code": 6043,
+      "name": "sessionExpired",
+      "msg": "The scoped player session has expired"
     }
   ],
   "types": [
@@ -6097,10 +6056,6 @@ export type Solana = {
                 "name": "runLifecycle"
               }
             }
-          },
-          {
-            "name": "actionAuthority",
-            "type": "pubkey"
           },
           {
             "name": "contentVersion",
@@ -8331,10 +8286,6 @@ export type Solana = {
           },
           {
             "name": "dailyChallenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "actionAuthority",
             "type": "pubkey"
           },
           {
