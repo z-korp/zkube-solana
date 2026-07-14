@@ -12,6 +12,8 @@ import { describe, expect, it, vi } from "vitest";
 import { validatePaymasterTransaction } from "../server/paymaster";
 import {
   buildPrepareDailyRunPlan,
+  buildCloseDailyChallengePlan,
+  buildCloseDailyPlayerPlan,
   buildRefundDailyEntryPlan,
   currentDailyDayId,
   mapDailyGameRulesSnapshot,
@@ -228,6 +230,40 @@ describe("Daily client", () => {
       validatePaymasterTransaction(transaction, paymaster.publicKey),
     ).toBeNull();
   });
+
+  it("builds permissionless Daily cleanup with rent pinned to the paymaster", async () => {
+    const caller = Keypair.generate();
+    const player = Keypair.generate().publicKey;
+    const paymaster = Keypair.generate();
+    const wallet = new SessionWallet(caller);
+    const daily = { ...dailyFixture(player), status: "claimable" as const };
+    const plans = await Promise.all([
+      buildCloseDailyPlayerPlan({
+        connection: {} as Connection,
+        wallet,
+        daily,
+        owner: player,
+        paymaster: paymaster.publicKey,
+      }),
+      buildCloseDailyChallengePlan({
+        connection: {} as Connection,
+        wallet,
+        daily,
+        paymaster: paymaster.publicKey,
+      }),
+    ]);
+    for (const plan of plans) {
+      const transaction = new VersionedTransaction(
+        new TransactionMessage({
+          payerKey: paymaster.publicKey,
+          recentBlockhash: "11111111111111111111111111111111",
+          instructions: plan.transaction.instructions,
+        }).compileToV0Message(),
+      );
+      transaction.sign([caller]);
+      expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
+    }
+  });
 });
 
 function dailyFixture(owner: PublicKey): DailyView {
@@ -273,6 +309,7 @@ function dailyFixture(owner: PublicKey): DailyView {
     finalizedAt: 0,
     starEntryCost: 10n,
     uniquePlayers: 1,
+    closedPlayers: 0,
     weeklyEligiblePlayers: 1,
     weeklyRollups: 0,
     attemptsStarted: 0n,

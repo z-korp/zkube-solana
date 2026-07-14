@@ -7,6 +7,7 @@ import {
   buildFinalizeDailyChallengePlan,
   buildOpenDailyChallengePlan,
   buildRefundDailyEntryPlan,
+  fetchOwnerCancelledDailyIds,
   fetchDailyView,
   type DailyView,
 } from "./dailyClient";
@@ -106,6 +107,23 @@ export function useDailyController() {
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();
+      }
+      const cancelledDayIds = await fetchOwnerCancelledDailyIds({ connection, wallet });
+      for (const dayId of cancelledDayIds.slice(0, 4)) {
+        const cancelled = await fetchDailyView({ connection, wallet, dayId });
+        if (!cancelled?.player || cancelled.player.starRefunded) continue;
+        const transactionPlan = await buildRefundDailyEntryPlan({
+          connection,
+          wallet,
+          daily: cancelled,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
       }
     } catch (cause) {
       // Keeper races are expected; a fresh read resolves already-created or

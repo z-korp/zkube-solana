@@ -10,13 +10,13 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `475941320`
+- Current deployed slot: `476217217`
 - Current deployed SBF SHA-256:
-  `1cf8f3d17ce7ab109b1df4b8df1620d77e5014947cd7a366adcb0b1117790119`
-- Deployed code is 1,599,912 bytes in the 1,604,032-byte allocation; the 4,120
-  trailing bytes were independently verified as zero (post-upgrade ProgramData
-  dump hashed byte-for-byte to the approved artifact) and the upgrade authority
-  was preserved.
+  `dd187f69f8c0c3cfb3fcdb9366c5af88a948a27e41ac26e6db3a1d4fc6268be5`
+- Deployed code is 1,716,784 bytes. The post-upgrade ProgramData dump matched
+  the approved artifact byte-for-byte with no trailing payload, and the upgrade
+  authority was preserved. Upgrade signature:
+  `2RPsjCL8Pb7XvzKks4gMtTB2EHmGonM1Q1Gjvb7mD8yjdcvV7eecDwW7YKJQRSZsph1sWWbZf12Hfi4FZHgGSZdh`.
 
 This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
 blocks**. `Grid::swipe` used to reject moving any but the first block of a
@@ -55,15 +55,9 @@ scoring/combo/difficulty/catalog numbers — with extended
 `fixtures/game-parity.json` coverage including initial multi-row seeding and
 same-width-run move cases.
 
-### Source is newer than the live binary
+### Lean Stars baseline is live
 
-The repository source may include post-deployment hardening not byte-identical
-to the binary above. Any new `target/deploy/solana.so` is a new candidate, not
-evidence of what is live. Shipping it requires a fresh dry-run, SBF hash, exact
-fingerprint, explicit approval, signature-verified simulation, and
-post-deployment byte verification.
-
-The current source candidate is a breaking, lean Stars baseline described in
+The deployed program is the breaking, lean Stars baseline described in
 `docs/stars-economy-v2.md`: non-transferable Star packs, 20-Star zones, 10-Star
 unlimited Daily entries, 40,200 achievement XP, 20-Star/1,000-XP map perfection,
 a deterministic three-of-nine Daily quest mix with 2-Star Finishers, two
@@ -76,23 +70,45 @@ Daily scoring, independent pressure tiers, no absolute-time tie-break, 100 XP
 for the first finish, and 50 XP for the first tier-7 finish that day. Star
 purchases split USDC atomically 10% team, 10% rewards, and 80% plus dust
 treasury. There is no compatibility migration path; Devnet state may be reset.
-It is **not deployed or initialized**.
 
-The validated local SBF is 1,619,912 bytes (SHA-256
-`469595e5c96e203b5fd89eaf82a25010819e1f15a631a816ed473397d7522f28`),
-15,880 bytes above the live 1,604,032-byte ProgramData allocation. Shipping
-therefore requires a separately approved ProgramData extension or clean Devnet
-redeploy, followed by the fresh three-destination bootstrap and acceptance run.
+The program also contains four permissionless contest-cleanup
+instructions. They preserve unsettled Daily attempts, rollups, refunds, and
+every Weekly winner claim while returning eligible Daily/Weekly player,
+leaderboard, challenge, and empty vault rent to the paymaster. The client source
+adds a bounded five-minute Vercel keeper, silent all-history owner
+claims/refunds, structured base/Router/ER/VRF/Magic-Action/paymaster logs, and a
+signer-free Devnet cost report. The Vercel keeper secrets are installed, but
+`KEEPER_ENABLED=false` until the new client deployment is live and a separate
+approval enables autonomous writes.
+
+The one-time reset closed 141 incompatible program-owned accounts and returned
+316,993,200 lamports to the paymaster. The reset entrypoint is permanently
+unreachable against the new `ProtocolConfig` size. Twelve legacy delegated run
+accounts remain outside base-layer program ownership; fresh run IDs start at
+`2 << 32`, so they cannot collide with the new generation.
 
 ## Bootstrap and client
 
-Custody, protocol, and catalogs are live under approved fingerprints:
+Fresh custody, protocol, economy, Daily rules, and all ten campaign maps are
+live under separately approved fingerprints:
 
-- custody `08063b99625c0a82` — five segregated canonical-USDC vaults and the
-  paymaster;
-- protocol `1f6cd8031b2ec13a` — `ProtocolConfig`, `TreasuryLedger`, and a
-  disabled yield policy;
-- catalogs `d3d34aa2e7528cad` — progress v1 and ten content-v1 maps.
+- reset `899180fad26f2c41` — removed the incompatible Devnet generation;
+- custody `036eb845d33ff109` — three segregated canonical-USDC destinations and
+  a paymaster balance of exactly 1.5 SOL;
+- protocol `d6f6dd2f2c8a59b6` — the lean `ProtocolConfig` with no treasury
+  ledger, yield policy, or payment vault;
+- economy `11a6dba882eca219` — `EconomyConfig` and `StarSalesLedger`;
+- Daily rules `1b9c26c9015e91b8` — immutable scoring catalog v1;
+- maps `882aead7984e19d0` — ten authored content-v1 map accounts;
+- activation `af8a01d43bf6b64e` — contiguous active campaign range 1–10,
+  signature `2HsoYvXgjBjzaM3eGKCVowBCgz4x71JiWcNG8jPFaWGheeiBjcbr6sERbsGoGtDDmsLcHercqeL8KjNJKk9AcVBG`.
+
+The live three-way USDC destinations are team
+`8nBx66VUXcn3Snm9ZbGhNChz3KDVYhE3EnSs9HuQFivG`, treasury
+`9E69kpXv6qrkBgJvJGr2s7NWji6W9voSJibYn8vy8Fxu`, and reward reserve
+`FpRj2mAWFg4DtCvXGAM1dHb3FLiQYKJ8HctndwKH1oTV`. Each is owned by the expected
+external governance identity or protocol PDA, uses canonical Devnet USDC, and
+currently holds 0 USDC.
 
 The active product is `client/`. It silently creates a stable embedded
 identity, sponsors base fees/rent, signs moves with a scoped ER session,
@@ -119,22 +135,22 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 `awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
 polling, with a slow poll only as a dropped-socket fallback.
 
-The previously deployed/client work is merged to `main`. The lean Stars source
-is a new local candidate. Program gates pass: 78 active Rust tests, formatting,
-warnings-denied Clippy, optimized SBF/IDL generation, and diagnostic scan. One
-additional ignored 3,840-run Daily tuning harness found no stuck nonterminal
-boards. The generated IDL contains 46 instructions and 19 account types. Client
-gate counts are 56 test files and 224 tests, with IDL parity, typecheck, lint,
-and production build all passing.
+The prior client remains live until this deployment commit reaches `main` and
+Vercel finishes its production build. Final release gates pass: 81 active Rust
+tests (one offline Daily tuning harness ignored), formatting, warnings-denied
+Clippy, optimized SBF/IDL generation, and diagnostics; the generated IDL has 51
+instructions and 19 account types. Client IDL parity, typechecking, strict lint,
+production build, and 57 test files / 232 tests all pass.
 
-The candidate Campaign is now fully authored rather than generated: ten active
+The Campaign is fully authored rather than generated: ten active
 maps use one fixed mutator/bonus identity across each map, compact per-level
 rows, exact approved difficulty tables, corrected theme IDs, and the revised
 perfect-clear/Combo Meter mechanics. Accounts reserve 32-map capacity and
 `ProtocolConfig.campaign_map_count` exposes a contiguous activated catalog
 range. Map 1 remains free; maps 2–32 use the global 20-Star price in any order,
-with no previous-boss or free-perfection unlock path. This schema intentionally
-requires the planned Devnet reset; it has not been deployed or bootstrapped.
+with no previous-boss or free-perfection unlock path. The active Devnet catalog
+exposes all ten maps. Additional maps up to the reserved 32-map capacity need
+content publication plus activation, but not a new program address.
 
 ### Web deployment (Vercel)
 
@@ -149,6 +165,12 @@ pubkey. No `VITE_PUBLIC_*` program vars are set, so the client uses its
 hard-coded devnet config (a stale program-id override previously failed the
 IDL/program-address check). See `docs/operations.md` → Web deployment.
 
+The dedicated keeper identity `6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg`,
+cron secret, eight-write pass bound, and 1.5 SOL reserve floor are installed as
+server-only production variables. `KEEPER_ENABLED=false` remains the final
+safety gate until the new production deployment is verified and autonomous
+writes receive their separate approval.
+
 ## Paymaster reserve incident
 
 On 2026-07-12 the paymaster fell to about 0.011 SOL from its original 0.1 SOL.
@@ -162,9 +184,9 @@ instructions, including unit-limit and unit-price requests. Client-side
 follow-up landed on 2026-07-12: dry-sponsor prepare failures render honest
 "sponsored play temporarily unavailable" copy (raw error demoted to a
 diagnostic line), the Home banner warns below a configurable reserve
-(`VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS`, default 0.05 SOL), and the quit dialog
-describes on-chain abandon. Scheduled readiness alerting and web-deployment
-verification remain operator tasks.
+(`VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS`, candidate default 1.5 SOL), and the quit
+dialog describes on-chain abandon. Deploying the new readiness/keeper source
+and verifying its production logs remain rollout tasks.
 
 ### Rent economics — live, measured
 
@@ -185,15 +207,32 @@ one-hour reuse margin). Two-run headless measurement on a fresh identity
 Board entry ~3–5.4 s, quit→abandon-settled 4.4–12.3 s, all unregressed.
 Spectating an already-cleaned run shows the "settled and archived" state.
 
+A signer-free confirmed probe after the reset/bootstrap on 2026-07-14 found
+exactly **1.5 SOL** in the paymaster. The reclaimable-working-capital model
+recommends 0.740649216,
+0.994285920, 1.417013760, and 3.530652960 SOL for fresh cohorts of 1, 10, 25,
+and 100 active players respectively (seven Daily generations, thirteen claim
+weeks, winner retention, observed fresh-player durable cost, and 20%
+contingency). The initial source default is therefore a **1.5 SOL warning
+floor** for the 25-player scenario. The current balance meets that floor.
+
+The post-reset read-only report sampled the latest 100 paymaster signatures:
+84 successful and 16 failed historical attempts. Successful transactions used
+0.0012258 SOL in base fees, sent 0.24584016 SOL to rent/escrow, and returned
+1.1044368 SOL (including the reset and 0.5815256 SOL top-up), for a net
+0.85817664 SOL inflow. Historical instructions outside the current IDL remain
+conservatively labelled `magicblock_or_system`.
+
 ## Open work
 
 1. **Live acceptance.** Repeat multi-move campaign play through durable receipt
    and cleanup from a fresh identity; complete the canonical-USDC Daily
    lifecycle; verify a Vault withdrawal and Recovery Code round-trip. Each
    signed scope is separately approved.
-2. **Operations.** Schedule `pnpm chain:readiness` with a meaningful paymaster
-   threshold and deploy alert aggregation. (Web project root is now `client` on
-   the live Vercel `zkube-solana` project.)
+2. **Operations rollout.** Deploy the client candidate, then separately approve
+   `KEEPER_ENABLED=true` and verify five-minute `keeper_*`, `paymaster_request`,
+   and `run_metric` logs. Secrets, schedule, write bound, and the 1.5 SOL floor
+   are installed; autonomous writes remain disabled.
 3. **Security and launch debt.** Complete independent program/paymaster/
    treasury review, validator/RPC concurrency and failure-recovery evidence,
    production bundle splitting, jurisdiction/terms/age policy, operator and
@@ -201,9 +240,9 @@ Spectating an already-cleaned run shows the "settled and archived" state.
 4. **Yield remains external and off.** No adapter, valuation, withdrawal, or
    executable strategy CPI is implemented or authorized. Reward liabilities
    are never treasury capital.
-5. **Lean Stars rollout.** Complete review and instruction-level integration
-   tests, then separately approve the upgrade, fresh account bootstrap, and
-   Devnet acceptance. No lean economy account is currently live.
+5. **Reward reserve.** The canonical-USDC reward reserve is valid but empty.
+   Funding it is a separately approved USDC movement; the treasury/yield adapter
+   remains intentionally external and off.
 
 ## Validation
 

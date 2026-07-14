@@ -17,7 +17,39 @@ import { zkubeProgram } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 
 const DAILY_LEADERBOARD_CAPACITY = 50;
+const DAILY_CLEANUP_WARNING_SECONDS = 8 * 86_400;
 const U64_MAX = (1n << 64n) - 1n;
+
+// Prospective rent for the lean Stars account model, measured against the
+// Devnet rent schedule on 2026-07-14. Cleanup returns this working capital to
+// ProtocolConfig.paymaster; it is not a permanent per-run fee.
+const DAILY_GLOBAL_RENT_LAMPORTS = 36_087_600n;
+const DAILY_PLAYER_RENT_LAMPORTS = 1_893_120n;
+const WEEKLY_GLOBAL_RENT_LAMPORTS = 12_374_880n;
+const WEEKLY_PLAYER_RENT_LAMPORTS = 1_733_040n;
+const FRESH_PLAYER_DURABLE_COST_LAMPORTS = 8_500_000n;
+const DAILY_RETENTION_DAYS = 7;
+const CLAIM_RETENTION_WEEKS = 13;
+const MAX_RETAINED_WINNERS_PER_WEEK = 8;
+const RESERVE_CONTINGENCY_BPS = 2_000n;
+const BPS_DENOMINATOR = 10_000n;
+
+export const DEFAULT_MIN_PAYMASTER_LAMPORTS = 1_500_000_000n;
+
+export interface PaymasterReserveProjection {
+  activePlayers: number;
+  assumptions: {
+    dailyRetentionDays: number;
+    claimRetentionWeeks: number;
+    retainedWinnersPerWeek: number;
+    contingencyBps: number;
+  };
+  challengeWorkingCapitalLamports: bigint;
+  playerWorkingCapitalLamports: bigint;
+  freshPlayerOnboardingLamports: bigint;
+  subtotalLamports: bigint;
+  recommendedMinimumLamports: bigint;
+}
 
 export interface DailyOperationalSnapshot {
   address: PublicKey;
@@ -31,6 +63,7 @@ export interface DailyOperationalSnapshot {
   finalizedAt: number;
   entryStars: bigint;
   uniquePlayers: bigint;
+  closedPlayers: bigint;
   weeklyEligiblePlayers: bigint;
   weeklyRollups: bigint;
   attemptsStarted: bigint;
@@ -47,11 +80,58 @@ export interface OperationalReadiness {
     status: string;
     outstandingRuns: bigint | null;
     outstandingRollups: bigint | null;
+    outstandingCleanup: bigint | null;
   }>;
 }
 
 export interface OperationalThresholds {
   minPaymasterLamports?: bigint | null;
+}
+
+export function projectPaymasterReserve(
+  activePlayers: number,
+): PaymasterReserveProjection {
+  if (
+    !Number.isSafeInteger(activePlayers) ||
+    activePlayers < 1 ||
+    activePlayers > 1_000_000
+  ) {
+    throw new Error("activePlayers must be an integer between 1 and 1000000");
+  }
+  const players = BigInt(activePlayers);
+  const challengeWorkingCapitalLamports =
+    BigInt(DAILY_RETENTION_DAYS) * DAILY_GLOBAL_RENT_LAMPORTS +
+    BigInt(CLAIM_RETENTION_WEEKS) * WEEKLY_GLOBAL_RENT_LAMPORTS;
+  const playerWorkingCapitalLamports =
+    BigInt(DAILY_RETENTION_DAYS) * players * DAILY_PLAYER_RENT_LAMPORTS +
+    players * WEEKLY_PLAYER_RENT_LAMPORTS +
+    BigInt(CLAIM_RETENTION_WEEKS) *
+      BigInt(MAX_RETAINED_WINNERS_PER_WEEK) *
+      WEEKLY_PLAYER_RENT_LAMPORTS;
+  const freshPlayerOnboardingLamports =
+    players * FRESH_PLAYER_DURABLE_COST_LAMPORTS;
+  const subtotalLamports =
+    challengeWorkingCapitalLamports +
+    playerWorkingCapitalLamports +
+    freshPlayerOnboardingLamports;
+  const recommendedMinimumLamports = divideRoundUp(
+    subtotalLamports * (BPS_DENOMINATOR + RESERVE_CONTINGENCY_BPS),
+    BPS_DENOMINATOR,
+  );
+  return {
+    activePlayers,
+    assumptions: {
+      dailyRetentionDays: DAILY_RETENTION_DAYS,
+      claimRetentionWeeks: CLAIM_RETENTION_WEEKS,
+      retainedWinnersPerWeek: MAX_RETAINED_WINNERS_PER_WEEK,
+      contingencyBps: Number(RESERVE_CONTINGENCY_BPS),
+    },
+    challengeWorkingCapitalLamports,
+    playerWorkingCapitalLamports,
+    freshPlayerOnboardingLamports,
+    subtotalLamports,
+    recommendedMinimumLamports,
+  };
 }
 
 interface DecodedDailyChallenge {
@@ -67,6 +147,7 @@ interface DecodedDailyChallenge {
   finalizedAt: Numeric;
   entryStars: Numeric;
   uniquePlayers: Numeric;
+  closedPlayers: Numeric;
   weeklyEligiblePlayers: Numeric;
   weeklyRollups: Numeric;
   attemptsStarted: Numeric;
@@ -197,6 +278,10 @@ export async function fetchDailyOperationalSnapshots(args: {
         challenge.uniquePlayers,
         `Daily ${dayId} uniquePlayers`,
       ),
+      closedPlayers: asU64(
+        challenge.closedPlayers,
+        `Daily ${dayId} closedPlayers`,
+      ),
       weeklyEligiblePlayers: asU64(
         challenge.weeklyEligiblePlayers,
         `Daily ${dayId} weeklyEligiblePlayers`,
@@ -259,6 +344,7 @@ export function evaluateOperationalReadiness(args: {
     const context = `Daily ${daily.dayId}`;
     let outstandingRuns: bigint | null = null;
     let outstandingRollups: bigint | null = null;
+    let outstandingCleanup: bigint | null = null;
     if (
       !(
         daily.opensAt < daily.entriesCloseAt &&
@@ -315,6 +401,31 @@ export function evaluateOperationalReadiness(args: {
         ),
       );
     }
+    if (daily.closedPlayers > daily.uniquePlayers) {
+      alerts.push(
+        alert(
+          "critical",
+          "DAILY_CLEANUP_COUNTERS",
+          `${context} closed more player records than were created`,
+        ),
+      );
+    } else {
+      outstandingCleanup = daily.uniquePlayers - daily.closedPlayers;
+      if (
+        outstandingCleanup > 0n &&
+        (daily.status === "claimable" || daily.status === "cancelled") &&
+        args.nowUnix >=
+          daily.settlementGraceCloseAt + DAILY_CLEANUP_WARNING_SECONDS
+      ) {
+        alerts.push(
+          alert(
+            "warning",
+            "DAILY_CLEANUP_BACKLOG",
+            `${context} still retains completed/refundable player records`,
+          ),
+        );
+      }
+    }
     if (daily.weeklyRollups > daily.weeklyEligiblePlayers) {
       alerts.push(
         alert(
@@ -358,6 +469,7 @@ export function evaluateOperationalReadiness(args: {
       status: daily.status,
       outstandingRuns,
       outstandingRollups,
+      outstandingCleanup,
     };
   });
 
@@ -439,6 +551,10 @@ function dailyEntryOutranks(
     return candidate.engineScore > current.engineScore;
   if (candidate.moves !== current.moves) return candidate.moves > current.moves;
   return candidate.player.toBase58() < current.player.toBase58();
+}
+
+function divideRoundUp(value: bigint, divisor: bigint): bigint {
+  return (value + divisor - 1n) / divisor;
 }
 
 function asU64(value: Numeric, label: string): bigint {

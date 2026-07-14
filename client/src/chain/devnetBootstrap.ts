@@ -17,6 +17,7 @@ import {
   Transaction,
   TransactionMessage,
   VersionedTransaction,
+  type AccountInfo,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
@@ -54,9 +55,15 @@ export const DEVNET_USDC_MINT = CANONICAL_DEVNET_USDC_MINT;
 export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
 export const DEFAULT_PAYMASTER_FUNDING_LAMPORTS = 100_000_000;
 export const DEPLOYED_ZKUBE_SBF_SHA256 =
-  "1a6f1dd87811eabf7213433e3d49e104212e19b76df67cb6a3828d8a8c15161a";
+  "dd187f69f8c0c3cfb3fcdb9366c5af88a948a27e41ac26e6db3a1d4fc6268be5";
 
-export type DevnetBootstrapStage = "custody" | "protocol" | "catalogs";
+export type DevnetBootstrapStage =
+  | "custody"
+  | "protocol"
+  | "economy"
+  | "daily-rules"
+  | "maps"
+  | "activation";
 
 type VaultName = "team" | "treasury" | "reward";
 
@@ -65,6 +72,20 @@ interface BootstrapIdentities {
   authority: Keypair;
   paymaster: Keypair;
   vaults: Record<VaultName, Keypair>;
+}
+
+interface ProtocolConfigView {
+  version: number;
+  authority: PublicKey;
+  pricingOperator: PublicKey;
+  paymaster: PublicKey;
+  teamDestination: PublicKey;
+  treasuryDestination: PublicKey;
+  rewardVault: PublicKey;
+  paymentMint: PublicKey;
+  paymentTokenProgram: PublicKey;
+  contentVersion: number;
+  campaignMapCount: number;
 }
 
 interface BootstrapBatch {
@@ -390,8 +411,14 @@ async function buildStageBatches(
       return buildCustodyBatches(input);
     case "protocol":
       return buildProtocolBatches(input);
-    case "catalogs":
-      return buildCatalogBatches(input);
+    case "economy":
+      return buildEconomyBatches(input);
+    case "daily-rules":
+      return buildDailyRulesBatches(input);
+    case "maps":
+      return buildMapBatches(input);
+    case "activation":
+      return buildActivationBatches(input);
   }
 }
 
@@ -524,21 +551,30 @@ async function buildProtocolBatches(
   return [batch];
 }
 
-async function buildCatalogBatches(
+async function fetchVerifiedProtocol(
   input: DevnetBootstrapInput,
-): Promise<BootstrapBatch[]> {
+): Promise<ProtocolConfigView> {
   await verifyAllVaults(input);
-  const { funder, authority } = input.identities;
+  const { authority } = input.identities;
   const wallet = new SessionWallet(authority);
   const program = zkubeProgram(input.connection, wallet);
   const protocol = await program.account.protocolConfig.fetchNullable(
     deriveProtocolConfigPda(),
   );
   if (!protocol) {
-    throw new Error("ProtocolConfig must be initialized before catalogs");
+    throw new Error("ProtocolConfig must be initialized before this stage");
   }
   verifyProtocolConfig(protocol, input);
-  const batches: BootstrapBatch[] = [];
+  return protocol;
+}
+
+async function buildEconomyBatches(
+  input: DevnetBootstrapInput,
+): Promise<BootstrapBatch[]> {
+  await fetchVerifiedProtocol(input);
+  const { funder, authority } = input.identities;
+  const wallet = new SessionWallet(authority);
+  const program = zkubeProgram(input.connection, wallet);
   const economyAddress = deriveEconomyConfigPda();
   const salesAddress = deriveStarSalesLedgerPda();
   const [economyInfo, salesInfo] =
@@ -551,67 +587,100 @@ async function buildCatalogBatches(
       "partial economy foundation exists; manual recovery is required",
     );
   }
-  if (!economyInfo) {
-    const rent = await Promise.all(
-      [
-        program.account.economyConfig.size,
-        program.account.starSalesLedger.size,
-      ].map((size) =>
-        input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
-      ),
-    );
-    const economy = await buildInitializeEconomyPlan({
-      connection: input.connection,
-      authority: wallet,
-      config: {
-        dailyRulesVersion: POLICY.dailyRulesVersion,
-        paymentMint: DEVNET_USDC_MINT,
-      },
-    });
-    batches.push(
-      fundedAuthorityBatch({
-        id: "initialize-economy",
-        label: "Initialize canonical Stars economy",
-        funder,
-        authority,
-        rent: rent[0] + rent[1],
-        instructions: economy.transaction.instructions,
-        creates: [economyAddress.toBase58(), salesAddress.toBase58()],
-      }),
-    );
+  if (economyInfo) {
+    await verifyEconomyFoundation(input);
+    return [];
   }
+  const rent = await Promise.all(
+    [
+      program.account.economyConfig.size,
+      program.account.starSalesLedger.size,
+    ].map((size) =>
+      input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
+    ),
+  );
+  const economy = await buildInitializeEconomyPlan({
+    connection: input.connection,
+    authority: wallet,
+    config: {
+      dailyRulesVersion: POLICY.dailyRulesVersion,
+      paymentMint: DEVNET_USDC_MINT,
+    },
+  });
+  const batch = fundedAuthorityBatch({
+    id: "initialize-economy",
+    label: "Initialize canonical Stars economy",
+    funder,
+    authority,
+    rent: rent[0] + rent[1],
+    instructions: economy.transaction.instructions,
+    creates: [economyAddress.toBase58(), salesAddress.toBase58()],
+  });
+  await assertFunderHeadroom(input, [batch]);
+  return [batch];
+}
+
+async function buildDailyRulesBatches(
+  input: DevnetBootstrapInput,
+): Promise<BootstrapBatch[]> {
+  await fetchVerifiedProtocol(input);
+  await verifyEconomyFoundation(input);
+  const { funder, authority } = input.identities;
+  const wallet = new SessionWallet(authority);
+  const program = zkubeProgram(input.connection, wallet);
   const rulesAddress = deriveDailyRulesCatalogPda(POLICY.dailyRulesVersion);
-  if (!(await input.connection.getAccountInfo(rulesAddress, "confirmed"))) {
-    const rent = await input.connection.getMinimumBalanceForRentExemption(
-      program.account.dailyRulesCatalog.size,
-      "confirmed",
-    );
-    const rules = await buildPublishDailyRulesPlan({
-      connection: input.connection,
-      authority: wallet,
-      publication: canonicalDailyRulesPublication(),
-    });
-    batches.push(
-      fundedAuthorityBatch({
-        id: "publish-daily-rules",
-        label: "Publish canonical Daily rules",
-        funder,
-        authority,
-        rent,
-        instructions: rules.transaction.instructions,
-        creates: [rulesAddress.toBase58()],
-      }),
-    );
+  const existing = await input.connection.getAccountInfo(
+    rulesAddress,
+    "confirmed",
+  );
+  if (existing) {
+    requireProgramOwned(existing, rulesAddress, "Daily rules catalog");
+    return [];
   }
+  const rent = await input.connection.getMinimumBalanceForRentExemption(
+    program.account.dailyRulesCatalog.size,
+    "confirmed",
+  );
+  const rules = await buildPublishDailyRulesPlan({
+    connection: input.connection,
+    authority: wallet,
+    publication: canonicalDailyRulesPublication(),
+  });
+  const batch = fundedAuthorityBatch({
+    id: "publish-daily-rules",
+    label: "Publish canonical Daily rules",
+    funder,
+    authority,
+    rent,
+    instructions: rules.transaction.instructions,
+    creates: [rulesAddress.toBase58()],
+  });
+  await assertFunderHeadroom(input, [batch]);
+  return [batch];
+}
+
+async function buildMapBatches(
+  input: DevnetBootstrapInput,
+): Promise<BootstrapBatch[]> {
+  await fetchVerifiedProtocol(input);
+  const { funder, authority } = input.identities;
+  const wallet = new SessionWallet(authority);
+  const program = zkubeProgram(input.connection, wallet);
+  const batches: BootstrapBatch[] = [];
   const mapRent = await input.connection.getMinimumBalanceForRentExemption(
     program.account.mapCatalog.size,
     "confirmed",
   );
-  let missingMapCatalog = false;
   for (let mapId = 1; mapId <= CANONICAL_CAMPAIGN_MAP_COUNT; mapId += 1) {
     const address = deriveMapCatalogPda(POLICY.contentVersion, mapId);
-    if (await input.connection.getAccountInfo(address, "confirmed")) continue;
-    missingMapCatalog = true;
+    const existing = await input.connection.getAccountInfo(
+      address,
+      "confirmed",
+    );
+    if (existing) {
+      requireProgramOwned(existing, address, `campaign map ${mapId}`);
+      continue;
+    }
     const map = await buildPublishCanonicalMapsPlan({
       connection: input.connection,
       authority: wallet,
@@ -631,31 +700,43 @@ async function buildCatalogBatches(
       }),
     );
   }
+  await assertFunderHeadroom(input, batches);
+  return batches;
+}
+
+async function buildActivationBatches(
+  input: DevnetBootstrapInput,
+): Promise<BootstrapBatch[]> {
+  const protocol = await fetchVerifiedProtocol(input);
+  await verifyMapAccounts(input);
+  const { funder, authority } = input.identities;
+  const wallet = new SessionWallet(authority);
   const activeMapCount = Number(protocol.campaignMapCount);
-  if (!missingMapCatalog && activeMapCount < CANONICAL_CAMPAIGN_MAP_COUNT) {
-    const activations = await Promise.all(
-      Array.from(
-        { length: CANONICAL_CAMPAIGN_MAP_COUNT - activeMapCount },
-        (_, index) => activeMapCount + index + 1,
-      ).map((mapId) => buildActivateCampaignMapPlan({
+  if (activeMapCount >= CANONICAL_CAMPAIGN_MAP_COUNT) return [];
+  const activations = await Promise.all(
+    Array.from(
+      { length: CANONICAL_CAMPAIGN_MAP_COUNT - activeMapCount },
+      (_, index) => activeMapCount + index + 1,
+    ).map((mapId) =>
+      buildActivateCampaignMapPlan({
         connection: input.connection,
         authority: wallet,
         contentVersion: POLICY.contentVersion,
         mapId,
-      })),
-    );
-    batches.push(fundedAuthorityBatch({
-      id: "activate-campaign-maps",
-      label: `Activate campaign maps ${activeMapCount + 1}-${CANONICAL_CAMPAIGN_MAP_COUNT}`,
-      funder,
-      authority,
-      rent: 0,
-      instructions: activations.flatMap((plan) => plan.transaction.instructions),
-      creates: [],
-    }));
-  }
-  await assertFunderHeadroom(input, batches);
-  return batches;
+      }),
+    ),
+  );
+  const batch = fundedAuthorityBatch({
+    id: "activate-campaign-maps",
+    label: `Activate campaign maps ${activeMapCount + 1}-${CANONICAL_CAMPAIGN_MAP_COUNT}`,
+    funder,
+    authority,
+    rent: 0,
+    instructions: activations.flatMap((plan) => plan.transaction.instructions),
+    creates: [],
+  });
+  await assertFunderHeadroom(input, [batch]);
+  return [batch];
 }
 
 function fundedAuthorityBatch(args: {
@@ -726,19 +807,7 @@ async function verifyVault(
 }
 
 function verifyProtocolConfig(
-  protocol: {
-    version: number;
-    authority: PublicKey;
-    pricingOperator: PublicKey;
-    paymaster: PublicKey;
-    teamDestination: PublicKey;
-    treasuryDestination: PublicKey;
-    rewardVault: PublicKey;
-    paymentMint: PublicKey;
-    paymentTokenProgram: PublicKey;
-    contentVersion: number;
-    campaignMapCount: number;
-  },
+  protocol: ProtocolConfigView,
   input: DevnetBootstrapInput,
 ): void {
   const { authority, paymaster, vaults } = input.identities;
@@ -763,15 +832,80 @@ function verifyProtocolConfig(
       "content version",
     ],
     [
-      Number.isInteger(Number(protocol.campaignMapCount))
-        && Number(protocol.campaignMapCount) >= 0
-        && Number(protocol.campaignMapCount) <= CANONICAL_CAMPAIGN_MAP_COUNT,
+      Number.isInteger(Number(protocol.campaignMapCount)) &&
+        Number(protocol.campaignMapCount) >= 0 &&
+        Number(protocol.campaignMapCount) <= CANONICAL_CAMPAIGN_MAP_COUNT,
       "campaign map count",
     ],
   ];
   const mismatch = checks.find(([valid]) => !valid);
   if (mismatch)
     throw new Error(`existing ProtocolConfig ${mismatch[1]} mismatch`);
+}
+
+async function verifyEconomyFoundation(
+  input: DevnetBootstrapInput,
+): Promise<void> {
+  const program = zkubeProgram(
+    input.connection,
+    new SessionWallet(input.identities.authority),
+  );
+  const [economy, sales] = await Promise.all([
+    program.account.economyConfig.fetchNullable(deriveEconomyConfigPda()),
+    program.account.starSalesLedger.fetchNullable(deriveStarSalesLedgerPda()),
+  ]);
+  if (!economy || !sales) {
+    throw new Error("EconomyConfig and StarSalesLedger must be initialized");
+  }
+  const validEconomy =
+    Number(economy.version) === 1 &&
+    economy.protocol.equals(deriveProtocolConfigPda()) &&
+    economy.paymentMint.equals(DEVNET_USDC_MINT) &&
+    economy.paymentTokenProgram.equals(TOKEN_PROGRAM_ID) &&
+    Number(economy.contentVersion) === POLICY.contentVersion &&
+    Number(economy.dailyRulesVersion) === POLICY.dailyRulesVersion &&
+    BigInt(economy.revision.toString()) >= 1n &&
+    economy.active;
+  const validSales =
+    Number(sales.version) === 1 &&
+    sales.economyConfig.equals(deriveEconomyConfigPda()) &&
+    sales.paymentMint.equals(DEVNET_USDC_MINT);
+  if (!validEconomy || !validSales) {
+    throw new Error("existing Stars economy foundation mismatch");
+  }
+}
+
+async function verifyMapAccounts(input: DevnetBootstrapInput): Promise<void> {
+  const addresses = Array.from(
+    { length: CANONICAL_CAMPAIGN_MAP_COUNT },
+    (_, index) => deriveMapCatalogPda(POLICY.contentVersion, index + 1),
+  );
+  const accounts = await input.connection.getMultipleAccountsInfo(
+    addresses,
+    "confirmed",
+  );
+  accounts.forEach((account, index) => {
+    if (!account) {
+      throw new Error(`campaign map ${index + 1} is not published`);
+    }
+    requireProgramOwned(
+      account,
+      addresses[index]!,
+      `campaign map ${index + 1}`,
+    );
+  });
+}
+
+function requireProgramOwned(
+  account: AccountInfo<Buffer>,
+  address: PublicKey,
+  label: string,
+): void {
+  if (!account.owner.equals(ZKUBE_PROGRAM_ID) || account.data.length < 8) {
+    throw new Error(
+      `${label} ${address.toBase58()} has an invalid owner or size`,
+    );
+  }
 }
 
 async function assertFunderHeadroom(
@@ -968,20 +1102,21 @@ async function verifyStagePostconditions(
   );
   if (!protocol) throw new Error("ProtocolConfig postcondition failed");
   verifyProtocolConfig(protocol, input);
-  if (input.stage === "catalogs") {
-    const accounts = await input.connection.getMultipleAccountsInfo(
-      [
-        deriveEconomyConfigPda(),
-        deriveStarSalesLedgerPda(),
-        deriveDailyRulesCatalogPda(POLICY.dailyRulesVersion),
-        ...Array.from({ length: CANONICAL_CAMPAIGN_MAP_COUNT }, (_, index) =>
-          deriveMapCatalogPda(POLICY.contentVersion, index + 1),
-        ),
-      ],
-      "confirmed",
-    );
-    if (accounts.some((account) => !account?.owner.equals(ZKUBE_PROGRAM_ID))) {
-      throw new Error("catalog postcondition failed");
+  if (input.stage === "economy") {
+    await verifyEconomyFoundation(input);
+  } else if (input.stage === "daily-rules") {
+    await verifyEconomyFoundation(input);
+    const address = deriveDailyRulesCatalogPda(POLICY.dailyRulesVersion);
+    const account = await input.connection.getAccountInfo(address, "confirmed");
+    if (!account)
+      throw new Error("Daily rules publication postcondition failed");
+    requireProgramOwned(account, address, "Daily rules catalog");
+  } else if (input.stage === "maps") {
+    await verifyMapAccounts(input);
+  } else if (input.stage === "activation") {
+    await verifyMapAccounts(input);
+    if (Number(protocol.campaignMapCount) !== CANONICAL_CAMPAIGN_MAP_COUNT) {
+      throw new Error("campaign activation postcondition failed");
     }
   }
 }
@@ -1053,9 +1188,16 @@ function loadKeypair(path: string, label: string): Keypair {
 
 function bootstrapStage(value: string | undefined): DevnetBootstrapStage {
   const stage = value?.trim().toLowerCase() || "custody";
-  if (stage !== "custody" && stage !== "protocol" && stage !== "catalogs") {
+  if (
+    stage !== "custody" &&
+    stage !== "protocol" &&
+    stage !== "economy" &&
+    stage !== "daily-rules" &&
+    stage !== "maps" &&
+    stage !== "activation"
+  ) {
     throw new Error(
-      "ZKUBE_BOOTSTRAP_STAGE must be custody, protocol, or catalogs",
+      "ZKUBE_BOOTSTRAP_STAGE must be custody, protocol, economy, daily-rules, maps, or activation",
     );
   }
   return stage;

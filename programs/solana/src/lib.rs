@@ -22,6 +22,16 @@ pub mod solana {
         instructions::v2_instructions::handler_initialize_protocol(ctx, args)
     }
 
+    pub fn reset_legacy_devnet_state(
+        ctx: Context<ResetLegacyDevnetState>,
+        close_protocol: bool,
+    ) -> Result<()> {
+        instructions::devnet_reset_instructions::handler_reset_legacy_devnet_state(
+            ctx,
+            close_protocol,
+        )
+    }
+
     pub fn initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         instructions::v2_instructions::handler_initialize_player(ctx)
     }
@@ -112,6 +122,14 @@ pub mod solana {
         instructions::economy_v2_instructions::handler_refund_daily_stars(ctx)
     }
 
+    pub fn close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_close_daily_player(ctx)
+    }
+
+    pub fn close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_close_daily_challenge(ctx)
+    }
+
     pub fn open_weekly_challenge(ctx: Context<OpenWeeklyChallenge>, week_id: u32) -> Result<()> {
         instructions::economy_v2_instructions::handler_open_weekly_challenge(ctx, week_id)
     }
@@ -134,6 +152,14 @@ pub mod solana {
 
     pub fn forfeit_weekly_cash(ctx: Context<ForfeitWeeklyCash>) -> Result<()> {
         instructions::economy_v2_instructions::handler_forfeit_weekly_cash(ctx)
+    }
+
+    pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_close_weekly_player(ctx)
+    }
+
+    pub fn close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_close_weekly_challenge(ctx)
     }
 
     pub fn set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) -> Result<()> {

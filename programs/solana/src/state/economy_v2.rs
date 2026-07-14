@@ -680,6 +680,8 @@ pub struct DailyChallenge {
     pub finalized_at: i64,
     pub entry_stars: u64,
     pub unique_players: u32,
+    /// Number of DailyPlayer records whose rent has returned to the paymaster.
+    pub closed_players: u32,
     pub weekly_eligible_players: u32,
     pub weekly_rollups: u32,
     pub attempts_started: u64,
@@ -781,6 +783,8 @@ pub struct WeeklyChallenge {
     pub cash_claimed: u64,
     pub cash_forfeited: u64,
     pub participants: u32,
+    /// Number of WeeklyPlayer records whose rent has returned to the paymaster.
+    pub closed_players: u32,
     pub cash_winner_count: u8,
     pub star_winner_count: u8,
     pub bump: u8,

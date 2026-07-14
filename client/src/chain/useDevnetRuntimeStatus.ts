@@ -10,10 +10,9 @@ import {
 } from "./pdas";
 import { fetchPaymasterClient } from "./paymasterClient";
 
-/** Below this reserve (~3-4 fresh players of fronted rent) the Home banner
- *  warns before a map tap burns into a doomed prepare simulation. */
+/** Reclaimable-working-capital floor for the modeled 25-player fresh cohort. */
 export const PAYMASTER_MIN_LAMPORTS = Number(
-  import.meta.env.VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS ?? 50_000_000,
+  import.meta.env.VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS ?? 1_500_000_000,
 );
 
 export type DevnetRuntimePhase =

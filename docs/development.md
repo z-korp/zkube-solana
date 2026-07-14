@@ -90,11 +90,16 @@ acceptance. All chain tools are dry-run-first:
 cd client
 NO_DNA=1 pnpm chain:local:smoke
 NO_DNA=1 pnpm chain:devnet:deploy
+NO_DNA=1 pnpm chain:devnet:reset
 NO_DNA=1 pnpm chain:devnet:bootstrap
 NO_DNA=1 pnpm chain:readiness -- --help
+NO_DNA=1 pnpm chain:devnet:cost-report -- --limit 100
 NO_DNA=1 pnpm chain:manifest -- --help
 ```
 
+The cost report is signer-free: it validates the configured Devnet genesis and
+summarizes paymaster fees, net deltas, rent/escrow outflow, rent refunds, and
+current-IDL operations. It cannot classify older deployed instruction ABIs.
 No command above authorizes a send. Live signed flows require the exact current
 scope and fingerprint after simulation. Mainnet is rejected by tooling.
 

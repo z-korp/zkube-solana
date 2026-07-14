@@ -14,6 +14,8 @@ import { SessionWallet } from "./sessionWallet";
 import {
   buildClaimWeeklyCashPlan,
   buildClaimWeeklyStarsPlan,
+  buildCloseWeeklyChallengePlan,
+  buildCloseWeeklyPlayerPlan,
   buildFinalizeWeeklyPlan,
   buildForfeitWeeklyCashPlan,
   buildRollupDailyPlan,
@@ -154,6 +156,41 @@ describe("Weekly client", () => {
     transaction.sign([caller]);
     expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
   });
+
+  it("builds bounded Weekly cleanup plans with paymaster-only rent recovery", async () => {
+    const caller = Keypair.generate();
+    const player = Keypair.generate().publicKey;
+    const paymaster = Keypair.generate();
+    const wallet = new SessionWallet(caller);
+    const weekly = { ...weeklyFixture(player), status: "closed" as const };
+    const plans = await Promise.all([
+      buildCloseWeeklyPlayerPlan({
+        connection: {} as Connection,
+        wallet,
+        weekly,
+        owner: player,
+        paymaster: paymaster.publicKey,
+      }),
+      buildCloseWeeklyChallengePlan({
+        connection: {} as Connection,
+        wallet,
+        weekly,
+        paymaster: paymaster.publicKey,
+      }),
+    ]);
+    for (const plan of plans) {
+      const transaction = new VersionedTransaction(
+        new TransactionMessage({
+          payerKey: paymaster.publicKey,
+          recentBlockhash: "11111111111111111111111111111111",
+          instructions: plan.transaction.instructions,
+        }).compileToV0Message(),
+      );
+      transaction.sign([caller]);
+      expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
+      expect(transaction.serialize().length).toBeLessThanOrEqual(1_232);
+    }
+  });
 });
 
 function weeklyFixture(owner: PublicKey): WeeklyView {
@@ -170,6 +207,7 @@ function weeklyFixture(owner: PublicKey): WeeklyView {
     committedCashPool: 10_000_000n,
     cashClaimed: 0n,
     participants: 20,
+    closedPlayers: 0,
     cashWinnerCount: 1,
     starWinnerCount: 1,
     paymentMint: Keypair.generate().publicKey,

@@ -7,6 +7,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import {
   SOLANA_DEVNET_GENESIS_HASH,
@@ -40,7 +41,11 @@ export const SPONSORED_GAME_DISCRIMINATORS = {
   claimLevelMilestone: [212, 186, 244, 141, 11, 8, 204, 154],
   claimWeeklyCash: [60, 227, 120, 57, 125, 67, 55, 176],
   claimWeeklyStars: [136, 218, 136, 233, 28, 37, 249, 118],
+  closeDailyChallenge: [52, 152, 153, 153, 162, 13, 187, 175],
+  closeDailyPlayer: [242, 245, 165, 74, 209, 162, 36, 96],
   closeSettledActiveRun: [156, 85, 34, 175, 240, 226, 191, 171],
+  closeWeeklyChallenge: [35, 240, 187, 33, 13, 224, 94, 168],
+  closeWeeklyPlayer: [51, 43, 88, 88, 15, 27, 82, 179],
   consumeDailyReceipt: [50, 99, 137, 88, 226, 117, 6, 58],
   consumeRunReceipt: [219, 125, 28, 198, 150, 131, 196, 252],
   delegateActiveRun: [219, 238, 221, 207, 119, 217, 2, 99],
@@ -71,7 +76,11 @@ const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
   policy("claimLevelMilestone", 5, 4),
   policy("claimWeeklyCash", 8, 7),
   policy("claimWeeklyStars", 4, null),
+  policy("closeDailyChallenge", 5, 2),
+  policy("closeDailyPlayer", 6, 5),
   policy("closeSettledActiveRun", 0, 2),
+  policy("closeWeeklyChallenge", 7, 1),
+  policy("closeWeeklyPlayer", 6, 5),
   policy("consumeDailyReceipt", 8, null),
   policy("consumeRunReceipt", 5, null),
   policy("delegateActiveRun", 1, 0),
@@ -104,6 +113,11 @@ function policy(
 export interface PaymasterResult {
   status: number;
   body: { signature?: string; pubkey?: string; error?: string };
+  telemetry?: {
+    operation?: string;
+    unitsConsumed?: number;
+    signature?: string;
+  };
 }
 
 export interface PaymasterDependencies {
@@ -112,14 +126,21 @@ export interface PaymasterDependencies {
   now?: () => number;
   expectedGenesisHash?: string;
   telemetry?: (event: PaymasterTelemetryEvent) => void;
+  requestId?: () => string;
 }
 
 export interface PaymasterTelemetryEvent {
+  schemaVersion: 1;
   event: "paymaster_request";
+  traceId: string;
+  layer: "solana-base";
   method: string;
   status: number;
   outcome: string;
   durationMs: number;
+  operation?: string;
+  unitsConsumed?: number;
+  signature?: string;
 }
 
 export function paymasterKeypairFromEnv(
@@ -146,7 +167,13 @@ export function paymasterKeypairFromEnv(
     );
   }
   const parsed = JSON.parse(encoded) as unknown;
-  if (!Array.isArray(parsed) || parsed.length !== 64) {
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length !== 64 ||
+    !parsed.every(
+      (byte) => Number.isInteger(byte) && Number(byte) >= 0 && Number(byte) <= 255,
+    )
+  ) {
     throw new Error("PAYMASTER_SECRET_KEY must be a 64-byte JSON array");
   }
   const keypair = Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
@@ -278,6 +305,7 @@ export async function handlePaymasterRequest(
   dependencies: PaymasterDependencies,
 ): Promise<PaymasterResult> {
   const startedAt = dependencies.now?.() ?? Date.now();
+  const traceId = dependencies.requestId?.() ?? randomUUID();
   const result = await processPaymasterRequest(
     method,
     payload,
@@ -286,11 +314,19 @@ export async function handlePaymasterRequest(
   );
   try {
     dependencies.telemetry?.({
+      schemaVersion: 1,
       event: "paymaster_request",
+      traceId,
+      layer: "solana-base",
       method: method.toUpperCase().slice(0, 12),
       status: result.status,
       outcome: paymasterOutcome(result),
       durationMs: Math.max(0, (dependencies.now?.() ?? Date.now()) - startedAt),
+      ...(result.telemetry?.operation ? { operation: result.telemetry.operation } : {}),
+      ...(result.telemetry?.unitsConsumed !== undefined
+        ? { unitsConsumed: result.telemetry.unitsConsumed }
+        : {}),
+      ...(result.telemetry?.signature ? { signature: result.telemetry.signature } : {}),
     });
   } catch {
     // Observability must never acquire signing or availability authority.
@@ -333,6 +369,7 @@ async function processPaymasterRequest(
     Math.floor(now / 1_000),
   );
   if (rejection) return { status: 403, body: { error: rejection } };
+  const operation = sponsoredOperation(transaction);
   try {
     const genesisHash = await dependencies.connection.getGenesisHash();
     if (
@@ -359,7 +396,16 @@ async function processPaymasterRequest(
     },
   );
   if (simulation.value.err) {
-    return { status: 422, body: { error: "transaction simulation failed" } };
+    return {
+      status: 422,
+      body: { error: "transaction simulation failed" },
+      telemetry: {
+        operation,
+        ...(simulation.value.unitsConsumed !== undefined
+          ? { unitsConsumed: simulation.value.unitsConsumed }
+          : {}),
+      },
+    };
   }
   try {
     const signature = await dependencies.connection.sendRawTransaction(
@@ -369,7 +415,17 @@ async function processPaymasterRequest(
         skipPreflight: false,
       },
     );
-    return { status: 200, body: { signature } };
+    return {
+      status: 200,
+      body: { signature },
+      telemetry: {
+        operation,
+        signature,
+        ...(simulation.value.unitsConsumed !== undefined
+          ? { unitsConsumed: simulation.value.unitsConsumed }
+          : {}),
+      },
+    };
   } catch (error) {
     return {
       status: 502,
@@ -379,6 +435,20 @@ async function processPaymasterRequest(
       },
     };
   }
+}
+
+function sponsoredOperation(transaction: VersionedTransaction): string {
+  const keys = transaction.message.staticAccountKeys;
+  const names: string[] = [];
+  for (const instruction of transaction.message.compiledInstructions) {
+    if (!keys[instruction.programIdIndex]?.equals(ZKUBE_PROGRAM_ID)) continue;
+    const key = discriminatorKey(instruction.data);
+    const name = Object.entries(SPONSORED_GAME_DISCRIMINATORS).find(
+      ([, discriminator]) => discriminatorKey(discriminator) === key,
+    )?.[0];
+    if (name) names.push(name);
+  }
+  return names.join("+") || "unknown";
 }
 
 function paymasterOutcome(result: PaymasterResult): string {

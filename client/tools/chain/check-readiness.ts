@@ -1,8 +1,10 @@
 import { Connection } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 import {
+  DEFAULT_MIN_PAYMASTER_LAMPORTS,
   evaluateOperationalReadiness,
   fetchDailyOperationalSnapshots,
+  projectPaymasterReserve,
 } from "../../src/chain/monitoring";
 import { evaluateTreasuryReadiness } from "../../src/chain/readiness";
 import { fetchTreasuryView } from "../../src/chain/treasuryClient";
@@ -22,7 +24,7 @@ async function main(): Promise<void> {
       "Options:",
       "  --expected-genesis <HASH|none>        Required for non-local RPCs",
       "  --lookback-days <1..366>              Daily account window (default: 120)",
-      "  --min-paymaster-lamports <u64>        Optional low-SOL warning threshold",
+      "  --min-paymaster-lamports <u64>        Low-SOL warning threshold (default: 1500000000)",
       "",
       "Environment fallback:",
       "  ZKUBE_READ_RPC_URL",
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     },
     readiness,
     operations,
+    paymasterReserveProjections: [1, 10, 25, 100].map(projectPaymasterReserve),
   };
   process.stdout.write(`${JSON.stringify(report, bigintJson, 2)}\n`);
   if (!readiness.ok || !operations.ok) process.exitCode = 2;
@@ -111,7 +114,7 @@ export function parseOptions(
   const rawMinimum = option(argv, "--min-paymaster-lamports")
     ?? env.ZKUBE_MIN_PAYMASTER_LAMPORTS;
   const minPaymasterLamports = rawMinimum === undefined
-    ? null
+    ? DEFAULT_MIN_PAYMASTER_LAMPORTS
     : boundedU64(rawMinimum, "--min-paymaster-lamports");
   return {
     rpc: parsed.toString(),
