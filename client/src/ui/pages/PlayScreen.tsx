@@ -8,7 +8,11 @@ import {
 
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
-import { dailyScoringRuleName } from "@/chain/dailyRules";
+import {
+  dailyScoringRuleDescription,
+  dailyScoringRuleName,
+  dailyScoringRuleStatus,
+} from "@/chain/dailyRules";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
@@ -252,13 +256,31 @@ export default function PlayScreen() {
   }
 
   if (controller.settledReceipt) {
+    const receipt = controller.settledReceipt;
+    const isDailyReceipt = receipt.mode === "daily";
+    const dailyBonus = Math.max(0, receipt.dailyScore - receipt.score);
     return (
       <PlaySurface>
         <StatePanel title="Run settled">
           <p className="text-white/75">
-            Score {controller.settledReceipt.score} ·{" "}
-            {controller.settledReceipt.moves} moves
+            {isDailyReceipt ? "Daily" : "Score"}{" "}
+            {isDailyReceipt ? receipt.dailyScore : receipt.score} ·{" "}
+            {receipt.moves} moves
           </p>
+          {isDailyReceipt && (
+            <div className="text-center text-xs text-cyan-100/80">
+              <p>
+                Engine {receipt.score} · Challenge +{dailyBonus} · Pressure{" "}
+                {receipt.pressureScore}
+              </p>
+              <p>
+                Final tier {receipt.finalPressureTier}/7
+                {receipt.finalPressureTier === 7
+                  ? " · Master pressure reached"
+                  : ""}
+              </p>
+            </div>
+          )}
           {controller.settledCleanupStatus === "running" && (
             <p className="text-center text-xs text-cyan-200">
               Recovering ActiveRun rent…
@@ -394,6 +416,11 @@ export default function PlayScreen() {
   const locked =
     run.busy || chainTerminal || basePhase || !run.sessionAuthorized;
   const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
+  const firstOccupiedRow = grid.findIndex((row) =>
+    row.some((cell) => cell !== 0),
+  );
+  const occupiedHeight =
+    firstOccupiedRow < 0 ? 0 : grid.length - firstOccupiedRow;
   const nextLine = terminal ? [] : game.nextRow;
   const movesDisplay =
     game.mode === 1
@@ -428,10 +455,21 @@ export default function PlayScreen() {
         mode={game.mode}
         totalScore={game.totalScore}
         engineScore={game.engineScore}
+        challengeBonus={game.challengeBonus}
         pressureScore={game.pressureScore}
         dailyRuleName={
           game.mode === 1
             ? dailyScoringRuleName(activeRun.dailyScoringRule)
+            : undefined
+        }
+        dailyRuleDescription={
+          game.mode === 1
+            ? dailyScoringRuleDescription(activeRun.dailyScoringRule)
+            : undefined
+        }
+        dailyObjectiveState={
+          game.mode === 1
+            ? dailyScoringRuleStatus(activeRun.dailyScoringRule, occupiedHeight)
             : undefined
         }
         currentDifficulty={game.currentDifficulty}

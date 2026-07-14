@@ -78,7 +78,7 @@ interface DecodedDailyLeaderboard {
   challenge: PublicKey;
   entries: Array<{
     player: PublicKey;
-    featuredScore: number;
+    dailyScore: number;
     engineScore: number;
     moves: number;
     submittedAt: Numeric;
@@ -408,6 +408,11 @@ function assertLeaderboard(
     if (!entry || players.has(entry.player.toBase58())) {
       throw new Error(`Daily leaderboard ${dayId} contains duplicate players`);
     }
+    if (entry.dailyScore < entry.engineScore) {
+      throw new Error(
+        `Daily leaderboard ${dayId} contains an invalid score breakdown`,
+      );
+    }
     players.add(entry.player.toBase58());
     if (index > 0) {
       const previous = leaderboard.entries[index - 1];
@@ -422,14 +427,17 @@ function dailyEntryOutranks(
   candidate: DecodedDailyLeaderboard["entries"][number],
   current: DecodedDailyLeaderboard["entries"][number],
 ): boolean {
-  if (candidate.featuredScore !== current.featuredScore)
-    return candidate.featuredScore > current.featuredScore;
+  if (candidate.dailyScore !== current.dailyScore)
+    return candidate.dailyScore > current.dailyScore;
+  const candidateBonus = Math.max(
+    0,
+    candidate.dailyScore - candidate.engineScore,
+  );
+  const currentBonus = Math.max(0, current.dailyScore - current.engineScore);
+  if (candidateBonus !== currentBonus) return candidateBonus > currentBonus;
   if (candidate.engineScore !== current.engineScore)
     return candidate.engineScore > current.engineScore;
   if (candidate.moves !== current.moves) return candidate.moves > current.moves;
-  const candidateTime = BigInt(candidate.submittedAt.toString());
-  const currentTime = BigInt(current.submittedAt.toString());
-  if (candidateTime !== currentTime) return candidateTime < currentTime;
   return candidate.player.toBase58() < current.player.toBase58();
 }
 

@@ -9,32 +9,44 @@ import {
 } from "@/config/questDefs";
 import type { QuestProgressView } from "@/chain/progressClient";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
+import { blockQuestVariant } from "@/chain/progressCatalog";
 
 export interface QuestStatus extends QuestDef {
   index: number;
+  blockSize: number | null;
   intervalId: number;
   progress: number;
   completed: boolean;
   claimed: boolean;
   claimable: boolean;
   active: boolean;
-  rewardUnit: "Stars" | "XP";
 }
 
 export function projectQuests(
   entries: readonly QuestProgressView[] | null,
   now = Math.floor(Date.now() / 1_000),
 ): QuestStatus[] {
+  const day = Math.max(0, Math.floor(now / 86_400));
   return QUEST_DEFS.map((definition, index) => {
     const value = entries?.[index];
+    const blockSize =
+      index === 7
+        ? (value?.blockSize ?? blockQuestVariant(day).blockSize)
+        : null;
+    const target = value?.threshold ?? definition.target;
     return {
       ...definition,
       index,
-      target: value?.threshold ?? definition.target,
-      reward: value
-        ? bigintToSafeNumber(value.rewardAmount)
-        : definition.reward * (definition.type === "weekly" ? 1 : 100),
-      rewardUnit: value?.rewardUnit ?? (definition.type === "weekly" ? "Stars" : "XP"),
+      description:
+        blockSize === null
+          ? definition.description
+          : `Destroy ${target} size-${blockSize} blocks`,
+      target,
+      blockSize,
+      xpReward: value?.xpReward ?? definition.xpReward,
+      starReward: value
+        ? bigintToSafeNumber(value.starReward)
+        : definition.starReward,
       intervalId: getQuestIntervalId(definition, now),
       progress: value?.progress ?? 0,
       completed: Boolean(value?.claimable || value?.claimed),

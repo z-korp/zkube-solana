@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { useRun } from "@/contexts/run";
 
 import { useSolanaConnection } from "./connectionContext";
@@ -13,6 +14,7 @@ import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
 import { fetchEconomyRuntime } from "./economyClient";
+import { deriveDailyLeaderboardPda } from "./pdas";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();
@@ -120,71 +122,80 @@ export function useDailyController() {
     return () => window.clearInterval(timer);
   }, [maintain]);
 
-  const enter = useCallback(
-    async () => {
-      if (!daily) throw new Error("Today's Daily challenge is not available");
-      if (!daily.playerEligible)
-        throw new Error("Clear Campaign Map 1 to unlock Daily Arena");
-      if (run.phase !== "none" && run.phase !== "missing") {
-        throw new Error(
-          "Settle and clean up the current run before starting another",
-        );
-      }
-      const now = Math.floor(Date.now() / 1_000);
-      if (
-        daily.status !== "open" ||
-        now < daily.opensAt ||
-        now >= daily.entriesCloseAt
-      ) {
-        throw new Error("Daily entries are closed");
-      }
-      if (daily.playerStars < daily.starEntryCost) throw new Error("Not enough Stars");
-      setAction("enter:stars");
-      try {
-        const active = await run.startDailyRun(daily);
-        await refresh();
-        setError(null);
-        return active;
-      } catch (cause) {
-        setError(message(cause));
-        throw cause;
-      } finally {
-        setAction(null);
-      }
-    },
-    [daily, refresh, run],
-  );
+  const dailyAddress = daily?.address.toBase58() ?? null;
+  useEffect(() => {
+    if (!dailyAddress) return;
+    const leaderboard = deriveDailyLeaderboardPda(new PublicKey(dailyAddress));
+    const subscription = connection.onAccountChange(
+      leaderboard,
+      () => void refresh(),
+      "confirmed",
+    );
+    return () => {
+      void connection.removeAccountChangeListener(subscription);
+    };
+  }, [connection, dailyAddress, refresh]);
 
-  const refund = useCallback(
-    async () => {
-      if (!wallet || !daily) throw new Error("Daily state is not ready");
-      setAction("refund");
-      try {
-        const paymaster = await fetchPaymasterClient(connection);
-        const transactionPlan = await buildRefundDailyEntryPlan({
-          connection,
-          wallet,
-          daily,
-          paymaster: paymaster.pubkey,
-        });
-        const signature = await submitSponsoredTransactionPlan({
-          transactionPlan,
-          wallet,
-          paymaster,
-        });
-        await connection.confirmTransaction(signature, "confirmed");
-        await refresh();
-        setError(null);
-        return signature;
-      } catch (cause) {
-        setError(message(cause));
-        throw cause;
-      } finally {
-        setAction(null);
-      }
-    },
-    [connection, daily, refresh, wallet],
-  );
+  const enter = useCallback(async () => {
+    if (!daily) throw new Error("Today's Daily challenge is not available");
+    if (!daily.playerEligible)
+      throw new Error("Clear Campaign Map 1 to unlock Daily Arena");
+    if (run.phase !== "none" && run.phase !== "missing") {
+      throw new Error(
+        "Settle and clean up the current run before starting another",
+      );
+    }
+    const now = Math.floor(Date.now() / 1_000);
+    if (
+      daily.status !== "open" ||
+      now < daily.opensAt ||
+      now >= daily.entriesCloseAt
+    ) {
+      throw new Error("Daily entries are closed");
+    }
+    if (daily.playerStars < daily.starEntryCost)
+      throw new Error("Not enough Stars");
+    setAction("enter:stars");
+    try {
+      const active = await run.startDailyRun(daily);
+      await refresh();
+      setError(null);
+      return active;
+    } catch (cause) {
+      setError(message(cause));
+      throw cause;
+    } finally {
+      setAction(null);
+    }
+  }, [daily, refresh, run]);
+
+  const refund = useCallback(async () => {
+    if (!wallet || !daily) throw new Error("Daily state is not ready");
+    setAction("refund");
+    try {
+      const paymaster = await fetchPaymasterClient(connection);
+      const transactionPlan = await buildRefundDailyEntryPlan({
+        connection,
+        wallet,
+        daily,
+        paymaster: paymaster.pubkey,
+      });
+      const signature = await submitSponsoredTransactionPlan({
+        transactionPlan,
+        wallet,
+        paymaster,
+      });
+      await connection.confirmTransaction(signature, "confirmed");
+      await refresh();
+      setError(null);
+      return signature;
+    } catch (cause) {
+      setError(message(cause));
+      throw cause;
+    } finally {
+      setAction(null);
+    }
+  }, [connection, daily, refresh, wallet]);
 
   return {
     daily,

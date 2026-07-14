@@ -158,7 +158,14 @@ export default function SpectatorScreen() {
               {run.receipt.completed ? "Run completed" : "Run finished"}
             </h2>
             <div className="grid w-full grid-cols-3 gap-2 text-center">
-              <Metric label="Score" value={run.receipt.score} />
+              <Metric
+                label={run.receipt.mode === "daily" ? "Daily" : "Score"}
+                value={
+                  run.receipt.mode === "daily"
+                    ? run.receipt.dailyScore
+                    : run.receipt.score
+                }
+              />
               <Metric label="Moves" value={run.receipt.moves} />
               <Metric
                 label={run.receipt.mode === "daily" ? "Mode" : "Stars"}
@@ -168,6 +175,19 @@ export default function SpectatorScreen() {
                     : `${run.receipt.levelStars}★`
                 }
               />
+              {run.receipt.mode === "daily" && (
+                <>
+                  <Metric label="Engine" value={run.receipt.score} />
+                  <Metric
+                    label="Challenge"
+                    value={`+${Math.max(0, run.receipt.dailyScore - run.receipt.score)}`}
+                  />
+                  <Metric
+                    label="Pressure"
+                    value={`${run.receipt.pressureScore} · T${run.receipt.finalPressureTier}`}
+                  />
+                </>
+              )}
             </div>
             <BackButton onClick={() => navigate("ranks")} />
           </Panel>

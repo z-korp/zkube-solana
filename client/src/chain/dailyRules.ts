@@ -1,5 +1,5 @@
 export const DAILY_SCORING_RULE_CAPACITY = 16;
-export const DAILY_SCORING_RULE_COUNT = 14;
+export const DAILY_SCORING_RULE_COUNT = 15;
 export const CANONICAL_DAILY_SEASON_SEED = [
   122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 115, 101, 97, 115,
   111, 110, 45, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100,
@@ -8,7 +8,6 @@ export const CANONICAL_DAILY_SEASON_SEED = [
 export const DAILY_SCORE_CLASSIC = 0;
 export const DAILY_SCORE_COMBO = 1;
 export const DAILY_SCORE_EXACT_LINES = 2;
-export const DAILY_SCORE_TOTAL_LINES = 3;
 export const DAILY_SCORE_BLOCKS = 4;
 export const DAILY_SCORE_CLUTCH = 5;
 export const DAILY_SCORE_CLEAN = 6;
@@ -19,6 +18,7 @@ export interface DailyScoringRuleView {
   family: number;
   kind: number;
   parameter: number;
+  bonusMultiplierX100: number;
 }
 
 export type DailyPressureThresholds = [
@@ -64,6 +64,7 @@ export interface RawDailyScoringRule {
   family: unknown;
   kind: unknown;
   parameter: unknown;
+  bonusMultiplierX100: unknown;
 }
 
 export interface RawDailyPressureProfile {
@@ -75,26 +76,116 @@ export interface RawDailyPressureProfile {
 }
 
 export const CANONICAL_DAILY_SCORING_RULES: readonly DailyScoringRuleView[] = [
-  { id: 1, family: 0, kind: DAILY_SCORE_CLASSIC, parameter: 0 },
-  { id: 2, family: 1, kind: DAILY_SCORE_COMBO, parameter: 2 },
-  { id: 3, family: 1, kind: DAILY_SCORE_COMBO, parameter: 3 },
-  { id: 4, family: 2, kind: DAILY_SCORE_EXACT_LINES, parameter: 1 },
-  { id: 5, family: 2, kind: DAILY_SCORE_TOTAL_LINES, parameter: 0 },
-  { id: 6, family: 3, kind: DAILY_SCORE_BLOCKS, parameter: 1 },
-  { id: 7, family: 3, kind: DAILY_SCORE_BLOCKS, parameter: 2 },
-  { id: 8, family: 3, kind: DAILY_SCORE_BLOCKS, parameter: 3 },
-  { id: 9, family: 3, kind: DAILY_SCORE_BLOCKS, parameter: 4 },
-  { id: 10, family: 4, kind: DAILY_SCORE_CLUTCH, parameter: 6 },
-  { id: 11, family: 4, kind: DAILY_SCORE_CLUTCH, parameter: 7 },
-  { id: 12, family: 5, kind: DAILY_SCORE_CLEAN, parameter: 2 },
-  { id: 13, family: 5, kind: DAILY_SCORE_CLEAN, parameter: 3 },
-  { id: 14, family: 6, kind: DAILY_SCORE_SURVIVAL, parameter: 0 },
-  { id: 0, family: 0, kind: 0, parameter: 0 },
-  { id: 0, family: 0, kind: 0, parameter: 0 },
+  {
+    id: 1,
+    family: 0,
+    kind: DAILY_SCORE_CLASSIC,
+    parameter: 0,
+    bonusMultiplierX100: 0,
+  },
+  {
+    id: 2,
+    family: 1,
+    kind: DAILY_SCORE_COMBO,
+    parameter: 2,
+    bonusMultiplierX100: 200,
+  },
+  {
+    id: 3,
+    family: 1,
+    kind: DAILY_SCORE_COMBO,
+    parameter: 3,
+    bonusMultiplierX100: 1_250,
+  },
+  {
+    id: 4,
+    family: 2,
+    kind: DAILY_SCORE_EXACT_LINES,
+    parameter: 1,
+    bonusMultiplierX100: 100,
+  },
+  {
+    id: 5,
+    family: 2,
+    kind: DAILY_SCORE_EXACT_LINES,
+    parameter: 2,
+    bonusMultiplierX100: 250,
+  },
+  {
+    id: 6,
+    family: 2,
+    kind: DAILY_SCORE_EXACT_LINES,
+    parameter: 3,
+    bonusMultiplierX100: 1_250,
+  },
+  {
+    id: 7,
+    family: 3,
+    kind: DAILY_SCORE_BLOCKS,
+    parameter: 1,
+    bonusMultiplierX100: 50,
+  },
+  {
+    id: 8,
+    family: 3,
+    kind: DAILY_SCORE_BLOCKS,
+    parameter: 2,
+    bonusMultiplierX100: 125,
+  },
+  {
+    id: 9,
+    family: 3,
+    kind: DAILY_SCORE_BLOCKS,
+    parameter: 3,
+    bonusMultiplierX100: 140,
+  },
+  {
+    id: 10,
+    family: 3,
+    kind: DAILY_SCORE_BLOCKS,
+    parameter: 4,
+    bonusMultiplierX100: 200,
+  },
+  {
+    id: 11,
+    family: 4,
+    kind: DAILY_SCORE_CLUTCH,
+    parameter: 6,
+    bonusMultiplierX100: 200,
+  },
+  {
+    id: 12,
+    family: 4,
+    kind: DAILY_SCORE_CLUTCH,
+    parameter: 7,
+    bonusMultiplierX100: 270,
+  },
+  {
+    id: 13,
+    family: 5,
+    kind: DAILY_SCORE_CLEAN,
+    parameter: 2,
+    bonusMultiplierX100: 450,
+  },
+  {
+    id: 14,
+    family: 5,
+    kind: DAILY_SCORE_CLEAN,
+    parameter: 3,
+    bonusMultiplierX100: 250,
+  },
+  {
+    id: 15,
+    family: 6,
+    kind: DAILY_SCORE_SURVIVAL,
+    parameter: 0,
+    bonusMultiplierX100: 100,
+  },
+  { id: 0, family: 0, kind: 0, parameter: 0, bonusMultiplierX100: 0 },
 ] as const;
 
 export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
-  thresholds: [15, 40, 80, 150, 280, 500, 900],
+  thresholds: [8, 18, 30, 42, 54, 66, 78],
   scoreMultipliersX100: [100, 110, 125, 140, 160, 180, 210, 250],
   blockWeights: [
     [25, 30, 25, 15, 5],
@@ -107,7 +198,7 @@ export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
     [10, 14, 16, 30, 30],
   ],
   startingHeight: 4,
-  maxMoves: 180,
+  maxMoves: 100,
 };
 
 export function mapDailyScoringRule(
@@ -118,6 +209,7 @@ export function mapDailyScoringRule(
     family: Number(rule.family),
     kind: Number(rule.kind),
     parameter: Number(rule.parameter),
+    bonusMultiplierX100: Number(rule.bonusMultiplierX100),
   };
 }
 
@@ -162,9 +254,7 @@ export function dailyScoringRuleName(
     case DAILY_SCORE_COMBO:
       return `${rule.parameter}+ Line Combos`;
     case DAILY_SCORE_EXACT_LINES:
-      return "Single-Line Precision";
-    case DAILY_SCORE_TOTAL_LINES:
-      return "Line Rush";
+      return `Exact ${rule.parameter} Precision`;
     case DAILY_SCORE_BLOCKS:
       return `Size ${rule.parameter} Hunter`;
     case DAILY_SCORE_CLUTCH:
@@ -184,22 +274,49 @@ export function dailyScoringRuleDescription(
   if (!rule) return "This challenge uses an unsupported scoring rule.";
   switch (rule.kind) {
     case DAILY_SCORE_CLASSIC:
-      return "Featured score equals the engine score.";
+      return "Every normal engine point counts toward the Daily score.";
     case DAILY_SCORE_COMBO:
-      return `Only clears of ${rule.parameter} or more lines score; bigger combos are worth increasingly more.`;
+      return `Normal score always counts. Clears of ${rule.parameter}+ lines earn an amplified challenge bonus before pressure.`;
     case DAILY_SCORE_EXACT_LINES:
-      return "Only moves that clear exactly one line score.";
-    case DAILY_SCORE_TOTAL_LINES:
-      return "Every line cleared adds one featured point.";
+      return `Normal score always counts. Clearing exactly ${rule.parameter} ${rule.parameter === 1 ? "line" : "lines"} repeats that clear's raw value as a challenge bonus.`;
     case DAILY_SCORE_BLOCKS:
-      return `Each size ${rule.parameter} block destroyed by a normal move adds one featured point.`;
+      return `Normal score always counts. Each size-${rule.parameter} block destroyed adds a weighted challenge bonus before pressure.`;
     case DAILY_SCORE_CLUTCH:
-      return `Clear lines while the stack starts at height ${rule.parameter} or higher; bigger clears score more.`;
+      return `Start at height ${rule.parameter}+ and clear lines to repeat the clear's raw value as a challenge bonus.`;
     case DAILY_SCORE_CLEAN:
-      return `Lines score only when the board ends the move at height ${rule.parameter} or lower.`;
+      return `End at height ${rule.parameter} or lower after a clear to repeat its raw value as a challenge bonus.`;
     case DAILY_SCORE_SURVIVAL:
-      return "Every completed move scores more as the pressure tier rises.";
+      return "Every completed move earns a challenge bonus, amplified by the current pressure tier.";
     default:
       return "This challenge uses an unsupported scoring rule.";
+  }
+}
+
+export function dailyScoringRuleStatus(
+  rule: DailyScoringRuleView | null | undefined,
+  occupiedHeight: number,
+): string {
+  if (!rule) return "Objective unavailable";
+  switch (rule.kind) {
+    case DAILY_SCORE_CLASSIC:
+      return "Every engine point counts";
+    case DAILY_SCORE_COMBO:
+      return `Qualify by clearing ${rule.parameter}+ lines`;
+    case DAILY_SCORE_EXACT_LINES:
+      return `Qualify by clearing exactly ${rule.parameter}`;
+    case DAILY_SCORE_BLOCKS:
+      return `Destroy size-${rule.parameter} blocks`;
+    case DAILY_SCORE_CLUTCH:
+      return occupiedHeight >= rule.parameter
+        ? `ARMED at height ${occupiedHeight}`
+        : `Build to height ${rule.parameter} · now ${occupiedHeight}`;
+    case DAILY_SCORE_CLEAN:
+      return occupiedHeight <= rule.parameter
+        ? `CLEAN at height ${occupiedHeight}`
+        : `Clear down to height ${rule.parameter} · now ${occupiedHeight}`;
+    case DAILY_SCORE_SURVIVAL:
+      return "Every completed move qualifies";
+    default:
+      return "Unsupported objective";
   }
 }

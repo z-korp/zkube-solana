@@ -48,10 +48,10 @@ export interface DailyLeaderboardView {
   player: PublicKey;
   receipt: PublicKey;
   runId: bigint;
-  featuredScore: number;
+  dailyScore: number;
   engineScore: number;
   moves: number;
-  /** Featured score compatibility alias for existing rank components. */
+  /** Daily score compatibility alias for generic rank components. */
   score: number;
   submittedAt: number;
 }
@@ -60,13 +60,14 @@ export interface DailyPlayerView {
   attempts: number;
   finalizedAttempts: number;
   bestRunId: bigint;
-  bestFeaturedScore: number;
+  bestDailyScore: number;
   bestEngineScore: number;
   bestMoves: number;
-  /** Featured score compatibility alias for existing rank components. */
+  /** Daily score compatibility alias for generic rank components. */
   bestScore: number;
   starRefunded: boolean;
   dailyXpAwarded: boolean;
+  pressureMasteryXpAwarded: boolean;
   weeklyRolledUp: boolean;
 }
 
@@ -268,12 +269,13 @@ export async function fetchDailyView(args: {
           attempts: Number(player.attempts),
           finalizedAttempts: Number(player.finalizedAttempts),
           bestRunId: asBigInt(player.bestRunId),
-          bestFeaturedScore: Number(player.bestFeaturedScore),
+          bestDailyScore: Number(player.bestDailyScore),
           bestEngineScore: Number(player.bestEngineScore),
           bestMoves: Number(player.bestMoves),
-          bestScore: Number(player.bestFeaturedScore),
+          bestScore: Number(player.bestDailyScore),
           starRefunded: Boolean(player.starRefunded),
           dailyXpAwarded: Boolean(player.dailyXpAwarded),
+          pressureMasteryXpAwarded: Boolean(player.pressureMasteryXpAwarded),
           weeklyRolledUp: Boolean(player.weeklyRolledUp),
         }
       : null,
@@ -281,10 +283,10 @@ export async function fetchDailyView(args: {
       player: entry.player,
       receipt: entry.receipt,
       runId: asBigInt(entry.runId),
-      featuredScore: Number(entry.featuredScore),
+      dailyScore: Number(entry.dailyScore),
       engineScore: Number(entry.engineScore),
       moves: Number(entry.moves),
-      score: Number(entry.featuredScore),
+      score: Number(entry.dailyScore),
       submittedAt: Number(entry.submittedAt),
     })),
   };

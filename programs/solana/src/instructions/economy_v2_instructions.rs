@@ -518,7 +518,7 @@ pub fn handler_claim_level_milestone(
         ErrorCode::RewardAlreadyClaimed
     );
     let required_level = (milestone_index + 1) * 10;
-    let current_level = player_level(ctx.accounts.player_profile.achievement_xp);
+    let current_level = player_level(ctx.accounts.player_profile.lifetime_xp);
     require!(current_level >= required_level, ErrorCode::RewardNotEarned);
     milestones.claimed |= mask;
     milestones.total_stars_claimed = milestones
@@ -772,11 +772,12 @@ pub fn handler_enter_daily(
         daily_player.finalized_attempts = 0;
         daily_player.best_run_id = 0;
         daily_player.best_receipt = Pubkey::default();
-        daily_player.best_featured_score = 0;
+        daily_player.best_daily_score = 0;
         daily_player.best_engine_score = 0;
         daily_player.best_moves = 0;
         daily_player.best_submitted_at = 0;
         daily_player.daily_xp_awarded = false;
+        daily_player.pressure_mastery_xp_awarded = false;
         daily_player.weekly_rolled_up = false;
         daily_player.star_refunded = false;
         daily_player.bump = ctx.bumps.daily_player;
@@ -902,7 +903,7 @@ fn initialize_daily_run(
     active.next_row = [0; 8];
     active.has_next_row = false;
     active.score = 0;
-    active.featured_score = 0;
+    active.daily_score = 0;
     active.pressure_score = 0;
     active.daily_scoring_rule = challenge.scoring_rule;
     active.daily_pressure = challenge.pressure;
@@ -919,6 +920,7 @@ fn initialize_daily_run(
     active.combo3_hits = 0;
     active.combo4_hits = 0;
     active.high_combo_hits = 0;
+    active.blocks_destroyed_by_size = [0; 4];
     active.bonus_type = 0;
     active.bonus_charges = 0;
     active.perfect_trigger_available = true;
@@ -944,7 +946,9 @@ fn initialize_daily_run(
     receipt.map_id = challenge.map_id;
     receipt.level = 1;
     receipt.score = 0;
-    receipt.featured_score = 0;
+    receipt.daily_score = 0;
+    receipt.pressure_score = 0;
+    receipt.final_pressure_tier = 0;
     receipt.daily_scoring_rule = challenge.scoring_rule;
     receipt.moves = 0;
     receipt.level_stars = 0;
@@ -954,6 +958,7 @@ fn initialize_daily_run(
     receipt.combo3_hits = 0;
     receipt.combo4_hits = 0;
     receipt.high_combo_hits = 0;
+    receipt.blocks_destroyed_by_size = [0; 4];
     receipt.max_combo = 0;
     receipt.completed = false;
     receipt.action_hash = [0; 32];
@@ -1158,7 +1163,9 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
     receipt.score = active.score;
-    receipt.featured_score = active.featured_score;
+    receipt.daily_score = active.daily_score;
+    receipt.pressure_score = active.pressure_score;
+    receipt.final_pressure_tier = active.current_difficulty;
     receipt.daily_scoring_rule = active.daily_scoring_rule;
     receipt.moves = active.moves;
     receipt.level_stars = 0;
@@ -1168,6 +1175,7 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     receipt.combo3_hits = active.combo3_hits;
     receipt.combo4_hits = active.combo4_hits;
     receipt.high_combo_hits = active.high_combo_hits;
+    receipt.blocks_destroyed_by_size = active.blocks_destroyed_by_size;
     receipt.max_combo = active.max_combo;
     receipt.completed = true;
     receipt.action_hash = active.action_hash;
@@ -1184,8 +1192,10 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
             combo3_hits: receipt.combo3_hits,
             combo4_hits: receipt.combo4_hits,
             high_combo_hits: receipt.high_combo_hits,
+            blocks_destroyed_by_size: receipt.blocks_destroyed_by_size,
             max_combo: receipt.max_combo,
-            perfect_level: false,
+            campaign_level_completed: false,
+            new_perfect_level: false,
             boss_cleared: false,
         },
         receipt.consumed_at,
@@ -1195,22 +1205,28 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
         .finalized_attempts
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    if !player.daily_xp_awarded {
-        ctx.accounts.player_profile.achievement_xp = ctx
-            .accounts
+    let (xp_awarded, pressure_mastery_awarded) =
+        daily_progression_xp(player, active.current_difficulty)?;
+    if xp_awarded > 0 {
+        ctx.accounts
             .player_profile
-            .achievement_xp
-            .checked_add(u64::from(DAILY_XP))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+            .credit_progression_rewards(0, xp_awarded)?;
         let week = cadence_week(receipt.consumed_at);
         ctx.accounts
             .weekly_stipend
-            .record_recurring_xp(week, DAILY_XP)?;
+            .record_recurring_xp(week, xp_awarded)?;
         crate::instructions::progress_instructions::emit_stipend_if_awarded(
             &mut ctx.accounts.weekly_stipend,
             &mut ctx.accounts.player_profile,
         )?;
-        player.daily_xp_awarded = true;
+    }
+    if pressure_mastery_awarded {
+        emit!(DailyPressureMasteryAwarded {
+            challenge: ctx.accounts.daily_challenge.key(),
+            owner: active.owner,
+            pressure_tier: active.current_difficulty,
+            xp: DAILY_PRESSURE_MASTERY_XP,
+        });
     }
     ctx.accounts.daily_challenge.runs_finalized = ctx
         .accounts
@@ -1220,14 +1236,25 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     let eligible = active.finished_at <= ctx.accounts.daily_challenge.runs_close_at
         && ctx.accounts.daily_challenge.status == DailyStatus::Open;
-    let improves = active.featured_score > player.best_featured_score
-        || active.featured_score == player.best_featured_score
-            && (active.score > player.best_engine_score
-                || active.score == player.best_engine_score
-                    && (active.moves > player.best_moves
-                        || active.moves == player.best_moves
-                            && (player.best_run_id == 0
-                                || active.finished_at < player.best_submitted_at)));
+    let candidate = DailyLeaderboardEntry {
+        player: active.owner,
+        receipt: receipt.key(),
+        run_id: active.run_id,
+        daily_score: active.daily_score,
+        engine_score: active.score,
+        moves: active.moves,
+        submitted_at: active.finished_at,
+    };
+    let current = DailyLeaderboardEntry {
+        player: active.owner,
+        receipt: player.best_receipt,
+        run_id: player.best_run_id,
+        daily_score: player.best_daily_score,
+        engine_score: player.best_engine_score,
+        moves: player.best_moves,
+        submitted_at: player.best_submitted_at,
+    };
+    let improves = player.best_run_id == 0 || daily_entry_is_better(&candidate, &current);
     if eligible && improves {
         if player.best_run_id == 0 {
             ctx.accounts.daily_challenge.weekly_eligible_players = ctx
@@ -1239,24 +1266,34 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
         }
         player.best_run_id = active.run_id;
         player.best_receipt = receipt.key();
-        player.best_featured_score = active.featured_score;
+        player.best_daily_score = active.daily_score;
         player.best_engine_score = active.score;
         player.best_moves = active.moves;
         player.best_submitted_at = active.finished_at;
-        ctx.accounts.leaderboard.record_best(DailyLeaderboardEntry {
-            player: active.owner,
-            receipt: receipt.key(),
-            run_id: active.run_id,
-            featured_score: active.featured_score,
-            engine_score: active.score,
-            moves: active.moves,
-            submitted_at: active.finished_at,
-        });
+        ctx.accounts.leaderboard.record_best(candidate);
     }
     ctx.accounts.run_shell.lifecycle = RunLifecycle::Settled;
     ctx.accounts.run_shell.settled_at = receipt.consumed_at;
     ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
     Ok(())
+}
+
+fn daily_progression_xp(player: &mut DailyPlayer, final_pressure_tier: u8) -> Result<(u32, bool)> {
+    let mut xp = 0u32;
+    if !player.daily_xp_awarded {
+        xp = xp
+            .checked_add(DAILY_XP)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        player.daily_xp_awarded = true;
+    }
+    let pressure_mastery_awarded = final_pressure_tier == 7 && !player.pressure_mastery_xp_awarded;
+    if pressure_mastery_awarded {
+        xp = xp
+            .checked_add(DAILY_PRESSURE_MASTERY_XP)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        player.pressure_mastery_xp_awarded = true;
+    }
+    Ok((xp, pressure_mastery_awarded))
 }
 
 #[derive(Accounts)]
@@ -2127,6 +2164,14 @@ pub struct DailyEntered {
 }
 
 #[event]
+pub struct DailyPressureMasteryAwarded {
+    pub challenge: Pubkey,
+    pub owner: Pubkey,
+    pub pressure_tier: u8,
+    pub xp: u32,
+}
+
+#[event]
 pub struct DailyFinalized {
     pub challenge: Pubkey,
     pub day_id: u32,
@@ -2185,6 +2230,35 @@ pub struct WeeklyCashForfeited {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn daily_player() -> DailyPlayer {
+        DailyPlayer {
+            version: ECONOMY_ACCOUNT_VERSION,
+            challenge: Pubkey::new_unique(),
+            player: Pubkey::new_unique(),
+            attempts: 1,
+            finalized_attempts: 0,
+            best_run_id: 0,
+            best_receipt: Pubkey::default(),
+            best_daily_score: 0,
+            best_engine_score: 0,
+            best_moves: 0,
+            best_submitted_at: 0,
+            daily_xp_awarded: false,
+            pressure_mastery_xp_awarded: false,
+            weekly_rolled_up: false,
+            star_refunded: false,
+            bump: 1,
+        }
+    }
+
+    #[test]
+    fn daily_progression_xp_awards_participation_and_tier_seven_once() {
+        let mut player = daily_player();
+        assert_eq!(daily_progression_xp(&mut player, 3).unwrap(), (100, false));
+        assert_eq!(daily_progression_xp(&mut player, 7).unwrap(), (50, true));
+        assert_eq!(daily_progression_xp(&mut player, 7).unwrap(), (0, false));
+    }
 
     #[test]
     fn weekly_finalization_requires_every_eligible_daily_rollup() {

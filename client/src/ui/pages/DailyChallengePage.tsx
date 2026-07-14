@@ -286,8 +286,13 @@ const DailyChallengePage: React.FC = () => {
                         {dailyScoringRuleDescription(scoringRule)}
                       </p>
                       <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-white/40">
-                        Featured score ranks first · engine score, moves, then
-                        finish time break ties
+                        Daily = engine + challenge bonus · 100 moves maximum ·
+                        objective weight {scoringRule.bonusMultiplierX100 / 100}
+                        ×
+                      </p>
+                      <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                        Ranking: daily, challenge bonus, engine, moves, player
+                        ID
                       </p>
                     </div>
                   )}
@@ -330,17 +335,23 @@ const DailyChallengePage: React.FC = () => {
                   <TierContext
                     colors={zoneColors}
                     myRank={playerRank.rank}
-                    myScore={playerRank.featuredScore ?? playerRank.score}
+                    myScore={playerRank.dailyScore ?? playerRank.score}
                     myName={`You · ${truncatePublicKey(playerRank.player)}`}
                     entries={leaderboard.map((entry) => ({
                       rank: entry.rank,
-                      score: entry.featuredScore ?? entry.score,
+                      score: entry.dailyScore ?? entry.score,
                       name: truncatePublicKey(entry.player),
                     }))}
-                    scoreLabel=" featured"
+                    scoreLabel=" daily"
                   />
                   <p className="mt-1 text-center font-sans text-[10px] text-white/45">
-                    Tie-break:{" "}
+                    Tie-break: +
+                    {Math.max(
+                      0,
+                      (playerRank.dailyScore ?? playerRank.score) -
+                        (playerRank.engineScore ?? playerRank.score),
+                    ).toLocaleString()}{" "}
+                    challenge ·{" "}
                     {(
                       playerRank.engineScore ?? playerRank.score
                     ).toLocaleString()}{" "}
@@ -391,8 +402,9 @@ const DailyChallengePage: React.FC = () => {
             </ArcadeButton>
             <div className="col-span-full -mt-1 flex flex-col gap-2">
               <p className="text-center font-sans text-[11px] font-semibold text-white/50">
-                Unlimited retries · only your best finalized score counts · +100
-                XP once today
+                Unlimited retries at {daily.daily.starEntryCost.toString()}{" "}
+                Stars · best finalized score counts · +100 XP first finish · +50
+                XP first Tier 7 today
               </p>
               <button
                 type="button"

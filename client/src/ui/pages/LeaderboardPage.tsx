@@ -58,7 +58,7 @@ const LeaderboardPage: React.FC = () => {
         id: `daily-${entry.rank}`,
         rank: entry.rank,
         name: truncatePublicKey(entry.player),
-        score: entry.featuredScore ?? entry.score,
+        score: entry.dailyScore ?? entry.score,
         engineScore: entry.engineScore ?? entry.score,
         moves: entry.moves ?? 0,
         playerAddress: entry.player,
@@ -73,18 +73,18 @@ const LeaderboardPage: React.FC = () => {
     if (ranked) {
       return {
         rank: ranked.rank,
-        score: ranked.featuredScore ?? ranked.score,
+        score: ranked.dailyScore ?? ranked.score,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
     if (
       playerEntry &&
       playerEntry.rank > 0 &&
-      (playerEntry.bestFeaturedScore ?? playerEntry.bestScore) > 0
+      (playerEntry.bestDailyScore ?? playerEntry.bestScore) > 0
     ) {
       return {
         rank: playerEntry.rank,
-        score: playerEntry.bestFeaturedScore ?? playerEntry.bestScore,
+        score: playerEntry.bestDailyScore ?? playerEntry.bestScore,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
@@ -233,10 +233,15 @@ const LeaderboardPage: React.FC = () => {
                       className="font-sans text-[16px] font-extrabold tracking-wide"
                       style={{ color: colors.text }}
                     >
-                      {entry.score.toLocaleString()} featured
+                      {entry.score.toLocaleString()} daily
                     </div>
                     <span className="font-sans text-[10px] text-white/40">
-                      {entry.engineScore.toLocaleString()} engine ·{" "}
+                      +
+                      {Math.max(
+                        0,
+                        entry.score - entry.engineScore,
+                      ).toLocaleString()}{" "}
+                      challenge · {entry.engineScore.toLocaleString()} engine ·{" "}
                       {entry.moves} moves
                     </span>
                     <Eye size={15} style={{ color: colors.textMuted }} />

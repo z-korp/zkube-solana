@@ -158,7 +158,7 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
                 myScore={currentPosition.score}
                 myName="You"
                 entries={currentEntries}
-                scoreLabel=" featured"
+                scoreLabel=" daily"
               />
             </motion.section>
           )}
@@ -237,10 +237,15 @@ function DailyCard({
             {position ? (
               <>
                 <p className="font-sans text-[11px] text-white/60">
-                  #{position.rank} · {position.score.toLocaleString()} featured
+                  #{position.rank} · {position.score.toLocaleString()} daily
                 </p>
                 <p className="font-sans text-[10px] text-white/40">
-                  {position.engineScore.toLocaleString()} engine ·{" "}
+                  +
+                  {Math.max(
+                    0,
+                    position.score - position.engineScore,
+                  ).toLocaleString()}{" "}
+                  challenge · {position.engineScore.toLocaleString()} engine ·{" "}
                   {position.moves} moves
                 </p>
               </>
@@ -357,7 +362,7 @@ function getPlayerPosition(
   if (rank === null) return null;
   return {
     rank,
-    score: daily.player.bestFeaturedScore ?? daily.player.bestScore,
+    score: daily.player.bestDailyScore ?? daily.player.bestScore,
     engineScore: daily.player.bestEngineScore ?? daily.player.bestScore,
     moves: daily.player.bestMoves ?? 0,
   };
@@ -368,7 +373,7 @@ function toRankEntries(daily: DailyView | null): RankContextEntry[] {
     const address = entry.player.toBase58();
     return {
       rank: index + 1,
-      score: entry.featuredScore ?? entry.score,
+      score: entry.dailyScore ?? entry.score,
       name: truncatePublicKey(address),
     };
   });

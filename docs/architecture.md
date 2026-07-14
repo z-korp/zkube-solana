@@ -9,10 +9,11 @@ zKube has two authoritative game loops:
   results, and bosses. Protocol state and progress bitmaps reserve capacity for
   32 maps; authority publication plus contiguous activation can add maps in a
   program upgrade without replacing player accounts.
-- Daily Arena: an asynchronous endless contest with one procedurally selected
-  featured scoring rule per day. Every generated row uses a fresh MagicBlock
-  VRF result and only a player's best finalized attempt ranks. The full scoring
-  pool and pressure profile are in
+- Daily Arena: an asynchronous 100-move endurance contest with one
+  procedurally selected challenge-bonus rule per day. Every move retains its
+  normal pressure-adjusted engine score, every generated row uses a fresh
+  MagicBlock VRF result, and only a player's best finalized attempt ranks. The
+  full scoring pool and pressure profile are in
   [daily-challenge-design.md](daily-challenge-design.md).
 
 Stars are the sole gameplay currency. They are checked `u64` points held in a
@@ -35,8 +36,10 @@ reward reserve, with a 10-USDC minimum pool. Cash winners also receive 30 Stars;
 the following placement band receives 30/25/20/15/10 Stars. Cash claims expire
 after 90 days and unclaimed USDC returns only to the reward reserve.
 
-Progression uses 40,200 finite achievement XP, 100 finite level-milestone
-Stars, Daily quest XP, two 5-Star Weekly quests, and a level-100 weekly Mastery
+Progression uses 40,200 finite achievement XP, 1,000 XP plus 20 Stars for each
+perfected map, 100 finite level-milestone Stars, a deterministic three-of-nine
+Daily quest mix (including a day-specific block-size/count objective) with a
+2-Star Finisher, two 500-XP/5-Star Weekly quests, and a level-100 weekly Mastery
 faucet of 30 Stars after 2,500 qualifying recurring XP. Full constants and
 per-player projections are in [stars-economy-v2.md](stars-economy-v2.md).
 
@@ -127,12 +130,13 @@ conservation equations.
    regional ER endpoint.
 5. On the ER, request fresh scoped VRF for each row. Owner or bound session-key
    actions validate counters, phase, coordinates, rules, and grid legality.
-   Daily records featured, engine, and pressure scores independently.
+   Daily records engine, challenge-bonus, combined Daily, and pressure scores.
 6. Seal a terminal projection, then commit and undelegate. Base-only Magic
    Action targets stay read-only in the outer ER instruction.
 7. Verify copyback owner, discriminator, run identity, lifecycle, action hash,
    and VRF hash. Consume the durable receipt idempotently and update Campaign
-   or Daily state. The first finalized Daily attempt records 100 recurring XP.
+   or Daily state. The first finalized Daily attempt records 100 recurring XP;
+   the first tier-7 finish that day records another 50 recurring XP.
 8. Close transient run accounts only after durable receipt/postcondition
    evidence. ER success alone is never permission to delete evidence.
 

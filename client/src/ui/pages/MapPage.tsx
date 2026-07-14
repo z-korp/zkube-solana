@@ -273,12 +273,17 @@ const MapPage: React.FC = () => {
         </div>
 
         {/* Right: stars */}
-        <div className="pointer-events-none flex items-center gap-[clamp(4px,1vw,8px)]">
+        <div className="pointer-events-none flex flex-col items-end">
           <span
             className="font-display text-[clamp(14px,3.5vw,22px)] font-black drop-shadow-md"
             style={{ color: colors.accent }}
           >
             {zoneStars}/30 ★
+          </span>
+          <span className="font-sans text-[clamp(8px,2vw,11px)] font-bold text-white/70 drop-shadow-md">
+            {map?.perfected
+              ? "Perfect reward earned"
+              : "30/30: +20★ + 1,000 XP"}
           </span>
         </div>
       </motion.div>

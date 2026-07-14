@@ -1,4 +1,10 @@
-import { useState, useEffect, useMemo, useSyncExternalStore } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft } from "lucide-react";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
@@ -37,8 +43,11 @@ interface GameHudProps {
   mode?: number;
   totalScore?: number;
   engineScore?: number;
+  challengeBonus?: number;
   pressureScore?: number;
   dailyRuleName?: string;
+  dailyRuleDescription?: string;
+  dailyObjectiveState?: string;
   currentDifficulty?: number;
   endlessThresholds?: readonly number[];
   endlessScoreMultipliersX100?: readonly number[];
@@ -154,8 +163,11 @@ const GameHud: React.FC<GameHudProps> = ({
   mode = 0,
   totalScore = 0,
   engineScore = 0,
+  challengeBonus = 0,
   pressureScore = 0,
   dailyRuleName,
+  dailyRuleDescription,
+  dailyObjectiveState,
   currentDifficulty = 0,
   endlessThresholds = [],
   endlessScoreMultipliersX100 = [],
@@ -187,6 +199,22 @@ const GameHud: React.FC<GameHudProps> = ({
     useLerpNumber(totalScore, { duration: 300, integer: true }) ?? 0;
   const animatedPressureScore =
     useLerpNumber(pressureScore, { duration: 300, integer: true }) ?? 0;
+  const animatedChallengeBonus =
+    useLerpNumber(challengeBonus, { duration: 300, integer: true }) ?? 0;
+  const previousChallengeBonus = useRef(challengeBonus);
+  const [bonusGain, setBonusGain] = useState(0);
+
+  useEffect(() => {
+    const gain = challengeBonus - previousChallengeBonus.current;
+    previousChallengeBonus.current = challengeBonus;
+    if (gain <= 0) {
+      if (challengeBonus === 0) setBonusGain(0);
+      return;
+    }
+    setBonusGain(gain);
+    const timer = setTimeout(() => setBonusGain(0), 1_500);
+    return () => clearTimeout(timer);
+  }, [challengeBonus]);
 
   // Contract thresholds are moves-USED caps; convert to moves-REMAINING floors
   const maxMoves = gameLevel?.maxMoves ?? 0;
@@ -286,6 +314,16 @@ const GameHud: React.FC<GameHudProps> = ({
       {dailyRuleName && (
         <div className="font-sans text-[11px] font-semibold text-cyan-300">
           {dailyRuleName}
+        </div>
+      )}
+      {dailyObjectiveState && (
+        <div className="font-sans text-[10px] font-bold text-amber-300">
+          {dailyObjectiveState}
+        </div>
+      )}
+      {dailyRuleDescription && (
+        <div className="font-sans text-[10px] text-slate-300">
+          {dailyRuleDescription}
         </div>
       )}
       {activeMutatorId > 0 && (
@@ -401,7 +439,7 @@ const GameHud: React.FC<GameHudProps> = ({
               </Tooltip>
             </TooltipProvider>
 
-            {/* Featured score is the leaderboard metric; pressure drives the tier bar. */}
+            {/* Daily score is engine score plus objective bonus; pressure drives the tier bar. */}
             <div className="absolute" style={scorePos}>
               <div className="relative w-full h-full flex items-center">
                 <div className="w-full h-[clamp(8px,2.5vw,16px)] overflow-hidden rounded-full bg-black/50">
@@ -414,12 +452,26 @@ const GameHud: React.FC<GameHudProps> = ({
                   />
                 </div>
                 <span className="absolute inset-0 flex items-center justify-center font-sans text-[clamp(8px,2.2vw,14px)] font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-white">
-                  FEATURED {animatedTotalScore}
+                  DAILY {animatedTotalScore}
                 </span>
                 <span className="absolute left-0 right-0 top-[70%] text-center font-sans text-[clamp(6px,1.5vw,9px)] font-semibold tabular-nums text-slate-300">
-                  Engine {engineScore} · Pressure {animatedPressureScore}
+                  Engine {engineScore} · Bonus +{animatedChallengeBonus} · P{" "}
+                  {animatedPressureScore}
                   {nextTier ? `/${nextTier.threshold}` : " MAX"}
                 </span>
+                <AnimatePresence>
+                  {bonusGain > 0 && (
+                    <motion.span
+                      key={`${challengeBonus}-${bonusGain}`}
+                      initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 1.1 }}
+                      className="absolute inset-x-0 -top-5 text-center font-display text-[clamp(8px,2vw,12px)] font-black text-amber-300 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]"
+                    >
+                      {dailyRuleName} +{bonusGain} BONUS
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -447,7 +499,7 @@ const GameHud: React.FC<GameHudProps> = ({
               </motion.div>
             </div>
 
-            {/* Multiplier (replaces moves) */}
+            {/* Pressure multiplier and 100-move endurance cap. */}
             <div
               className="absolute flex flex-col items-center justify-center"
               style={movesPos}
@@ -460,6 +512,9 @@ const GameHud: React.FC<GameHudProps> = ({
                 style={{ color: currentTier.color }}
               >
                 {currentTier.multiplier}
+              </span>
+              <span className="font-sans text-[clamp(5px,1.3vw,8px)] font-bold leading-none text-slate-300">
+                {movesRemaining}/{maxMoves} MOVES
               </span>
             </div>
           </div>

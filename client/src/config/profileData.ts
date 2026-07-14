@@ -1,5 +1,3 @@
-export const XP_PER_STAR = 100;
-
 // Quadratic curve: threshold(L) = 16 * L²
 // L1 = 0, L2 = 64, L10 = 1600, L50 = 40 000, L100 = 160 000.
 // Formula picked so the early game (L1–L10) keeps roughly the previous

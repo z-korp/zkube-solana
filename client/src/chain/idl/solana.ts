@@ -4912,6 +4912,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "dailyPressureMasteryAwarded",
+      "discriminator": [
+        137,
+        219,
+        151,
+        231,
+        147,
+        124,
+        142,
+        57
+      ]
+    },
+    {
       "name": "dailyQuestXpClaimed",
       "discriminator": [
         115,
@@ -5013,6 +5026,19 @@ export type Solana = {
         71,
         232,
         83
+      ]
+    },
+    {
+      "name": "mapPerfected",
+      "discriminator": [
+        49,
+        192,
+        204,
+        18,
+        33,
+        218,
+        88,
+        122
       ]
     },
     {
@@ -5532,7 +5558,10 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "featuredScore",
+            "name": "dailyScore",
+            "docs": [
+              "Daily leaderboard score: engine score plus pressure-scaled challenge bonus."
+            ],
             "type": "u32"
           },
           {
@@ -5606,6 +5635,15 @@ export type Solana = {
           {
             "name": "highComboHits",
             "type": "u16"
+          },
+          {
+            "name": "blocksDestroyedBySize",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
           },
           {
             "name": "bonusType",
@@ -6100,7 +6138,7 @@ export type Solana = {
             "type": "u64"
           },
           {
-            "name": "featuredScore",
+            "name": "dailyScore",
             "type": "u32"
           },
           {
@@ -6197,7 +6235,7 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "bestFeaturedScore",
+            "name": "bestDailyScore",
             "type": "u32"
           },
           {
@@ -6217,6 +6255,10 @@ export type Solana = {
             "type": "bool"
           },
           {
+            "name": "pressureMasteryXpAwarded",
+            "type": "bool"
+          },
+          {
             "name": "weeklyRolledUp",
             "type": "bool"
           },
@@ -6227,6 +6269,30 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dailyPressureMasteryAwarded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "pressureTier",
+            "type": "u8"
+          },
+          {
+            "name": "xp",
+            "type": "u32"
           }
         ]
       }
@@ -6299,6 +6365,10 @@ export type Solana = {
           {
             "name": "xpReward",
             "type": "u32"
+          },
+          {
+            "name": "stars",
+            "type": "u64"
           }
         ]
       }
@@ -6455,6 +6525,13 @@ export type Solana = {
           {
             "name": "parameter",
             "type": "u8"
+          },
+          {
+            "name": "bonusMultiplierX100",
+            "docs": [
+              "Raw objective points are scaled by this value before pressure."
+            ],
+            "type": "u16"
           }
         ]
       }
@@ -6948,6 +7025,30 @@ export type Solana = {
       }
     },
     {
+      "name": "mapPerfected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "mapId",
+            "type": "u8"
+          },
+          {
+            "name": "stars",
+            "type": "u64"
+          },
+          {
+            "name": "xp",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "playerProfile",
       "type": {
         "kind": "struct",
@@ -6990,7 +7091,11 @@ export type Solana = {
             }
           },
           {
-            "name": "achievementXp",
+            "name": "lifetimeXp",
+            "docs": [
+              "All progression XP, regardless of whether it came from achievements,",
+              "quests, Daily play, or finite Campaign rewards."
+            ],
             "type": "u64"
           },
           {
@@ -7406,8 +7511,16 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "featuredScore",
+            "name": "dailyScore",
             "type": "u32"
+          },
+          {
+            "name": "pressureScore",
+            "type": "u32"
+          },
+          {
+            "name": "finalPressureTier",
+            "type": "u8"
           },
           {
             "name": "dailyScoringRule",
@@ -7448,6 +7561,15 @@ export type Solana = {
           {
             "name": "highComboHits",
             "type": "u16"
+          },
+          {
+            "name": "blocksDestroyedBySize",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
           },
           {
             "name": "maxCombo",
@@ -8078,6 +8200,10 @@ export type Solana = {
           },
           {
             "name": "cadenceId",
+            "type": "u32"
+          },
+          {
+            "name": "xpReward",
             "type": "u32"
           },
           {

@@ -32,14 +32,16 @@ pub const WEEKLY_COUNTED_DAYS: usize = 5;
 pub const DAILY_SCORE_RULE_CAPACITY: usize = 16;
 pub const DAILY_SCORE_FAMILY_COUNT: usize = 7;
 pub const DAILY_PRESSURE_TIERS: usize = 8;
-pub const DAILY_MAX_MOVES: u16 = 180;
+pub const DAILY_MAX_MOVES: u16 = 100;
 pub const DAILY_ENTRY_STARS: u64 = 10;
 pub const ZONE_UNLOCK_STARS: u64 = 20;
 pub const DAILY_XP: u32 = 100;
-pub const QUEST_XP_PER_LEGACY_STAR: u32 = 100;
+pub const DAILY_PRESSURE_MASTERY_XP: u32 = 50;
 pub const LEVEL_100_XP: u64 = 160_000;
 pub const WEEKLY_STIPEND_XP: u32 = 2_500;
 pub const WEEKLY_STIPEND_STARS: u64 = 30;
+pub const PERFECT_MAP_STARS: u64 = 20;
+pub const PERFECT_MAP_XP: u32 = 1_000;
 pub const CASH_WINNER_STARS: u64 = 30;
 pub const WEEKLY_MIN_CASH_POOL: u64 = 10_000_000;
 pub const WEEKLY_MAX_CASH_POOL: u64 = 100_000_000;
@@ -70,7 +72,6 @@ pub const DAILY_FAMILY_SURVIVAL: u8 = 6;
 pub const DAILY_SCORE_CLASSIC: u8 = 0;
 pub const DAILY_SCORE_COMBO: u8 = 1;
 pub const DAILY_SCORE_EXACT_LINES: u8 = 2;
-pub const DAILY_SCORE_TOTAL_LINES: u8 = 3;
 pub const DAILY_SCORE_BLOCKS: u8 = 4;
 pub const DAILY_SCORE_CLUTCH: u8 = 5;
 pub const DAILY_SCORE_CLEAN: u8 = 6;
@@ -317,7 +318,7 @@ impl WeeklyStipend {
     pub fn maybe_award(&mut self, player: &mut PlayerProfile) -> Result<bool> {
         if self.stars_awarded
             || self.recurring_xp < WEEKLY_STIPEND_XP
-            || player.achievement_xp < LEVEL_100_XP
+            || player.lifetime_xp < LEVEL_100_XP
         {
             return Ok(false);
         }
@@ -339,6 +340,8 @@ pub struct DailyScoringRule {
     pub family: u8,
     pub kind: u8,
     pub parameter: u8,
+    /// Raw objective points are scaled by this value before pressure.
+    pub bonus_multiplier_x100: u16,
 }
 
 impl DailyScoringRule {
@@ -347,14 +350,18 @@ impl DailyScoringRule {
             (self.family, self.kind, self.parameter),
             (DAILY_FAMILY_CLASSIC, DAILY_SCORE_CLASSIC, 0)
                 | (DAILY_FAMILY_COMBO, DAILY_SCORE_COMBO, 2 | 3)
-                | (DAILY_FAMILY_LINES, DAILY_SCORE_EXACT_LINES, 1)
-                | (DAILY_FAMILY_LINES, DAILY_SCORE_TOTAL_LINES, 0)
+                | (DAILY_FAMILY_LINES, DAILY_SCORE_EXACT_LINES, 1..=3)
                 | (DAILY_FAMILY_BLOCKS, DAILY_SCORE_BLOCKS, 1..=4)
                 | (DAILY_FAMILY_CLUTCH, DAILY_SCORE_CLUTCH, 6 | 7)
                 | (DAILY_FAMILY_CLEAN, DAILY_SCORE_CLEAN, 2 | 3)
                 | (DAILY_FAMILY_SURVIVAL, DAILY_SCORE_SURVIVAL, 0)
         );
-        require!(self.id > 0 && valid, ErrorCode::InvalidLevel);
+        let bonus_valid = if self.kind == DAILY_SCORE_CLASSIC {
+            self.bonus_multiplier_x100 == 0
+        } else {
+            (25..=10_000).contains(&self.bonus_multiplier_x100)
+        };
+        require!(self.id > 0 && valid && bonus_valid, ErrorCode::InvalidLevel);
         Ok(())
     }
 }
@@ -377,7 +384,7 @@ impl Default for DailyPressureProfile {
 impl DailyPressureProfile {
     pub const fn canonical() -> Self {
         Self {
-            thresholds: [15, 40, 80, 150, 280, 500, 900],
+            thresholds: [8, 18, 30, 42, 54, 66, 78],
             score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
             block_weights: [
                 [25, 30, 25, 15, 5],
@@ -412,7 +419,7 @@ impl DailyPressureProfile {
             ErrorCode::InvalidBlockWeights
         );
         require!(
-            (1..=9).contains(&self.starting_height) && self.max_moves > 0,
+            (1..=9).contains(&self.starting_height) && self.max_moves == DAILY_MAX_MOVES,
             ErrorCode::InvalidLevel
         );
         Ok(())
@@ -433,96 +440,112 @@ pub const fn canonical_daily_scoring_rules() -> [DailyScoringRule; DAILY_SCORE_R
             family: DAILY_FAMILY_CLASSIC,
             kind: DAILY_SCORE_CLASSIC,
             parameter: 0,
+            bonus_multiplier_x100: 0,
         },
         DailyScoringRule {
             id: 2,
             family: DAILY_FAMILY_COMBO,
             kind: DAILY_SCORE_COMBO,
             parameter: 2,
+            bonus_multiplier_x100: 200,
         },
         DailyScoringRule {
             id: 3,
             family: DAILY_FAMILY_COMBO,
             kind: DAILY_SCORE_COMBO,
             parameter: 3,
+            bonus_multiplier_x100: 1_250,
         },
         DailyScoringRule {
             id: 4,
             family: DAILY_FAMILY_LINES,
             kind: DAILY_SCORE_EXACT_LINES,
             parameter: 1,
+            bonus_multiplier_x100: 100,
         },
         DailyScoringRule {
             id: 5,
             family: DAILY_FAMILY_LINES,
-            kind: DAILY_SCORE_TOTAL_LINES,
-            parameter: 0,
+            kind: DAILY_SCORE_EXACT_LINES,
+            parameter: 2,
+            bonus_multiplier_x100: 250,
         },
         DailyScoringRule {
             id: 6,
-            family: DAILY_FAMILY_BLOCKS,
-            kind: DAILY_SCORE_BLOCKS,
-            parameter: 1,
+            family: DAILY_FAMILY_LINES,
+            kind: DAILY_SCORE_EXACT_LINES,
+            parameter: 3,
+            bonus_multiplier_x100: 1_250,
         },
         DailyScoringRule {
             id: 7,
             family: DAILY_FAMILY_BLOCKS,
             kind: DAILY_SCORE_BLOCKS,
-            parameter: 2,
+            parameter: 1,
+            bonus_multiplier_x100: 50,
         },
         DailyScoringRule {
             id: 8,
             family: DAILY_FAMILY_BLOCKS,
             kind: DAILY_SCORE_BLOCKS,
-            parameter: 3,
+            parameter: 2,
+            bonus_multiplier_x100: 125,
         },
         DailyScoringRule {
             id: 9,
             family: DAILY_FAMILY_BLOCKS,
             kind: DAILY_SCORE_BLOCKS,
-            parameter: 4,
+            parameter: 3,
+            bonus_multiplier_x100: 140,
         },
         DailyScoringRule {
             id: 10,
-            family: DAILY_FAMILY_CLUTCH,
-            kind: DAILY_SCORE_CLUTCH,
-            parameter: 6,
+            family: DAILY_FAMILY_BLOCKS,
+            kind: DAILY_SCORE_BLOCKS,
+            parameter: 4,
+            bonus_multiplier_x100: 200,
         },
         DailyScoringRule {
             id: 11,
             family: DAILY_FAMILY_CLUTCH,
             kind: DAILY_SCORE_CLUTCH,
-            parameter: 7,
+            parameter: 6,
+            bonus_multiplier_x100: 200,
         },
         DailyScoringRule {
             id: 12,
-            family: DAILY_FAMILY_CLEAN,
-            kind: DAILY_SCORE_CLEAN,
-            parameter: 2,
+            family: DAILY_FAMILY_CLUTCH,
+            kind: DAILY_SCORE_CLUTCH,
+            parameter: 7,
+            bonus_multiplier_x100: 270,
         },
         DailyScoringRule {
             id: 13,
             family: DAILY_FAMILY_CLEAN,
             kind: DAILY_SCORE_CLEAN,
-            parameter: 3,
+            parameter: 2,
+            bonus_multiplier_x100: 450,
         },
         DailyScoringRule {
             id: 14,
+            family: DAILY_FAMILY_CLEAN,
+            kind: DAILY_SCORE_CLEAN,
+            parameter: 3,
+            bonus_multiplier_x100: 250,
+        },
+        DailyScoringRule {
+            id: 15,
             family: DAILY_FAMILY_SURVIVAL,
             kind: DAILY_SCORE_SURVIVAL,
             parameter: 0,
+            bonus_multiplier_x100: 100,
         },
         DailyScoringRule {
             id: 0,
             family: 0,
             kind: 0,
             parameter: 0,
-        },
-        DailyScoringRule {
-            id: 0,
-            family: 0,
-            kind: 0,
-            parameter: 0,
+            bonus_multiplier_x100: 0,
         },
     ]
 }
@@ -674,11 +697,12 @@ pub struct DailyPlayer {
     pub finalized_attempts: u32,
     pub best_run_id: u64,
     pub best_receipt: Pubkey,
-    pub best_featured_score: u32,
+    pub best_daily_score: u32,
     pub best_engine_score: u32,
     pub best_moves: u16,
     pub best_submitted_at: i64,
     pub daily_xp_awarded: bool,
+    pub pressure_mastery_xp_awarded: bool,
     pub weekly_rolled_up: bool,
     pub star_refunded: bool,
     pub bump: u8,
@@ -701,7 +725,7 @@ pub struct DailyLeaderboardEntry {
     pub player: Pubkey,
     pub receipt: Pubkey,
     pub run_id: u64,
-    pub featured_score: u32,
+    pub daily_score: u32,
     pub engine_score: u32,
     pub moves: u16,
     pub submitted_at: i64,
@@ -719,6 +743,13 @@ impl DailyLeaderboard {
     pub fn rank_of(&self, player: Pubkey) -> Option<usize> {
         self.entries.iter().position(|entry| entry.player == player)
     }
+}
+
+pub fn daily_entry_is_better(
+    candidate: &DailyLeaderboardEntry,
+    current: &DailyLeaderboardEntry,
+) -> bool {
+    compare_daily_entries(candidate, current).is_lt()
 }
 
 #[derive(
@@ -961,11 +992,16 @@ fn compare_daily_entries(
     right: &DailyLeaderboardEntry,
 ) -> std::cmp::Ordering {
     right
-        .featured_score
-        .cmp(&left.featured_score)
+        .daily_score
+        .cmp(&left.daily_score)
+        .then_with(|| {
+            right
+                .daily_score
+                .saturating_sub(right.engine_score)
+                .cmp(&left.daily_score.saturating_sub(left.engine_score))
+        })
         .then_with(|| right.engine_score.cmp(&left.engine_score))
         .then_with(|| right.moves.cmp(&left.moves))
-        .then_with(|| left.submitted_at.cmp(&right.submitted_at))
         .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
 }
 
@@ -1010,7 +1046,7 @@ mod tests {
             season_id: 1,
             starts_day: 0,
             season_seed: [7; 32],
-            scoring_rule_count: 14,
+            scoring_rule_count: 15,
             scoring_rules: canonical_daily_scoring_rules(),
             pressure: DailyPressureProfile::canonical(),
             bump: 1,
@@ -1040,6 +1076,22 @@ mod tests {
                 Some(amount)
             );
         }
+    }
+
+    #[test]
+    fn canonical_daily_catalog_has_fifteen_unique_weighted_rules() {
+        let catalog = daily_catalog();
+        catalog.validate().unwrap();
+        let active = &catalog.scoring_rules[..usize::from(catalog.scoring_rule_count)];
+        assert_eq!(active.len(), 15);
+        assert_eq!(active[0].bonus_multiplier_x100, 0);
+        assert!(active[1..]
+            .iter()
+            .all(|rule| rule.bonus_multiplier_x100 > 0));
+        assert_eq!(
+            active.iter().map(|rule| rule.id).collect::<Vec<_>>(),
+            (1..=15).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1111,46 +1163,58 @@ mod tests {
     fn pressure_profile_is_playable_and_advances_at_boundaries() {
         let pressure = DailyPressureProfile::canonical();
         pressure.validate().unwrap();
-        assert_eq!(pressure.difficulty_for_score(14), 0);
-        assert_eq!(pressure.difficulty_for_score(15), 1);
-        assert_eq!(pressure.difficulty_for_score(900), 7);
+        assert_eq!(pressure.max_moves, 100);
+        assert_eq!(pressure.difficulty_for_score(7), 0);
+        assert_eq!(pressure.difficulty_for_score(8), 1);
+        assert_eq!(pressure.difficulty_for_score(78), 7);
     }
 
     #[test]
-    fn daily_leaderboard_uses_featured_engine_moves_then_time() {
+    fn daily_leaderboard_uses_daily_bonus_engine_moves_without_time_bias() {
         let player = Pubkey::new_unique();
         let mut entries = vec![
             DailyLeaderboardEntry {
                 player,
                 receipt: Pubkey::new_unique(),
                 run_id: 1,
-                featured_score: 10,
-                engine_score: 99,
-                moves: 80,
-                submitted_at: 1,
+                daily_score: 10,
+                engine_score: 5,
+                moves: 70,
+                submitted_at: 99,
             },
             DailyLeaderboardEntry {
                 player: Pubkey::new_unique(),
                 receipt: Pubkey::new_unique(),
                 run_id: 2,
-                featured_score: 10,
-                engine_score: 100,
-                moves: 70,
-                submitted_at: 2,
+                daily_score: 10,
+                engine_score: 8,
+                moves: 90,
+                submitted_at: 1,
             },
             DailyLeaderboardEntry {
                 player: Pubkey::new_unique(),
                 receipt: Pubkey::new_unique(),
                 run_id: 3,
-                featured_score: 11,
+                daily_score: 11,
                 engine_score: 1,
                 moves: 1,
                 submitted_at: 3,
             },
+            DailyLeaderboardEntry {
+                player: Pubkey::new_unique(),
+                receipt: Pubkey::new_unique(),
+                run_id: 4,
+                daily_score: 10,
+                engine_score: 5,
+                moves: 80,
+                submitted_at: 200,
+            },
         ];
         entries.sort_unstable_by(compare_daily_entries);
-        assert_eq!(entries[0].featured_score, 11);
-        assert_eq!(entries[1].engine_score, 100);
+        assert_eq!(entries[0].run_id, 3);
+        assert_eq!(entries[1].run_id, 4);
+        assert_eq!(entries[2].run_id, 1);
+        assert_eq!(entries[3].run_id, 2);
     }
 
     #[test]
@@ -1223,7 +1287,7 @@ mod tests {
     fn level_one_hundred_stipend_awards_once_and_never_backfills() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerProfile::initialize(owner, 1);
-        player.achievement_xp = LEVEL_100_XP;
+        player.lifetime_xp = LEVEL_100_XP;
         let mut stipend = WeeklyStipend::initialize(owner, 8, 2);
 
         stipend.record_recurring_xp(8, 2_499).unwrap();

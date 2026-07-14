@@ -41,7 +41,7 @@ export class Game {
 
   public get levelScore(): number {
     return this.mode === 1
-      ? (this.view.featuredScore ?? this.view.score)
+      ? (this.view.dailyScore ?? this.view.score)
       : this.view.score;
   }
 
@@ -63,7 +63,7 @@ export class Game {
 
   public get totalScore(): number {
     return this.mode === 1
-      ? (this.view.featuredScore ?? this.view.score)
+      ? (this.view.dailyScore ?? this.view.score)
       : this.view.score;
   }
 
@@ -71,8 +71,12 @@ export class Game {
     return this.view.score;
   }
 
-  public get featuredScore(): number {
-    return this.view.featuredScore ?? this.view.score;
+  public get dailyScore(): number {
+    return this.view.dailyScore ?? this.view.score;
+  }
+
+  public get challengeBonus(): number {
+    return Math.max(0, this.dailyScore - this.engineScore);
   }
 
   public get pressureScore(): number {

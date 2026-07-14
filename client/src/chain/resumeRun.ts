@@ -68,6 +68,9 @@ export interface RunReceiptView {
   mapId: number;
   level: number;
   score: number;
+  dailyScore: number;
+  pressureScore: number;
+  finalPressureTier: number;
   moves: number;
   levelStars: number;
   completed: boolean;
@@ -264,6 +267,9 @@ export async function fetchReceipt(
     mapId: Number(receipt.mapId),
     level: Number(receipt.level),
     score: Number(receipt.score),
+    dailyScore: Number(receipt.dailyScore),
+    pressureScore: Number(receipt.pressureScore),
+    finalPressureTier: Number(receipt.finalPressureTier),
     moves: Number(receipt.moves),
     levelStars: Number(receipt.levelStars),
     completed: Boolean(receipt.completed),
