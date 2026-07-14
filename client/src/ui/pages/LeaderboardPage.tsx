@@ -9,7 +9,9 @@ import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { useNavigationStore } from "@/stores/navigationStore";
+import EmptyState from "@/ui/components/shared/EmptyState";
 import PageHeader from "@/ui/components/shared/PageHeader";
+import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
@@ -110,16 +112,13 @@ const LeaderboardPage: React.FC = () => {
         >
           <PageHeader title="Leaderboard" />
         </motion.div>
-        <div className="mx-6 mt-2 flex rounded-full border border-white/[0.16] bg-white/[0.1] p-1 shadow-[inset_0_2px_8px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <div className="relative z-10 flex-1 rounded-full px-3 py-1.5 text-center font-sans text-[12px] font-bold uppercase tracking-wide text-white">
-            <motion.div
-              layoutId="leaderboard-tab-indicator"
-              className="absolute inset-0 rounded-full border border-white/[0.08] bg-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]"
-              transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-            />
-            <span className="relative z-20 drop-shadow-sm">Daily Scores</span>
-          </div>
-        </div>
+        <SegmentedTabs
+          tabs={["Daily Scores"] as const}
+          active="Daily Scores"
+          onChange={() => undefined}
+          layoutId="leaderboard-tab-indicator"
+          className="mx-6 mt-2"
+        />
       </div>
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
@@ -135,23 +134,13 @@ const LeaderboardPage: React.FC = () => {
             <p className="font-sans text-sm font-medium">Loading rankings...</p>
           </div>
         ) : rankRows.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-16 text-center"
-            style={{ color: colors.textMuted }}
-          >
-            <Trophy className="mb-4 h-12 w-12 opacity-50" />
-            <p
-              className="mb-1 font-sans text-xl font-semibold"
-              style={{ color: colors.text }}
-            >
-              No entries yet
-            </p>
-            <p className="font-sans text-base">
-              Finish a run to claim rank #1.
-            </p>
-          </motion.div>
+          <EmptyState
+            icon={<Trophy className="h-12 w-12" />}
+            title="No entries yet"
+            hint="Finish a run to claim rank #1."
+            titleColor={colors.text}
+            hintColor={colors.textMuted}
+          />
         ) : (
           <motion.div
             initial="hidden"

@@ -1,15 +1,12 @@
 import { unpackAccount } from "@solana/spl-token";
 import {
-  Transaction,
   type Connection,
   type PublicKey,
-  type VersionedTransaction,
 } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "./constants";
 import { deriveProtocolConfigPda, deriveStarSalesLedgerPda } from "./pdas";
+import { createReadOnlyWallet } from "./readOnlyWallet";
 import { zkubeProgram } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
 
 export interface TreasuryView {
   paymentMint: PublicKey;
@@ -36,17 +33,7 @@ export interface StarSalesAccounting {
   purchaseCount: bigint;
 }
 
-const READ_ONLY_WALLET: WalletLike = {
-  publicKey: ZKUBE_PROGRAM_ID,
-  async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
-    void transaction;
-    throw new Error("read-only treasury client cannot sign");
-  },
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]> {
-    void transactions;
-    throw new Error("read-only treasury client cannot sign");
-  },
-};
+const READ_ONLY_WALLET = createReadOnlyWallet();
 
 export async function fetchTreasuryView(connection: Connection): Promise<TreasuryView | null> {
   const program = zkubeProgram(connection, READ_ONLY_WALLET);

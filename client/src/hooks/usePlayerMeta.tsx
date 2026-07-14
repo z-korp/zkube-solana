@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useCampaign } from "@/contexts/campaign";
 import { useProgress } from "@/contexts/progress";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { bigintToSafeNumber, highestClearedLevel } from "@/utils/solanaDisplay";
 import type { CampaignMapView } from "@/chain/campaignClient";
 
@@ -23,11 +23,13 @@ export function campaignBestLevel(maps: readonly CampaignMapView[]): number {
 }
 
 export const usePlayerMeta = (overrideAddress?: string) => {
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const { campaign, loading: campaignLoading } = useCampaign();
   const { progress, loading: progressLoading } = useProgress();
-  const address = publicKey.toBase58();
-  const isCurrentPlayer = !overrideAddress || overrideAddress === address;
+  const address = publicKey?.toBase58() ?? "";
+  const isCurrentPlayer = Boolean(
+    publicKey && (!overrideAddress || overrideAddress === address),
+  );
 
   const playerMeta = useMemo<PlayerMeta | null>(() => {
     if (!isCurrentPlayer) return null;

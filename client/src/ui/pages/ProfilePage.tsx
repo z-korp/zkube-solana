@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Settings } from "lucide-react";
 import { motion } from "motion/react";
 
 import {
@@ -11,13 +12,15 @@ import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useProgress } from "@/contexts/progress";
+import { useNavigationStore } from "@/stores/navigationStore";
 import AchievementsTab from "@/ui/components/profile/AchievementsTab";
 import OverviewTab from "@/ui/components/profile/OverviewTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
@@ -43,8 +46,8 @@ const itemVariants = {
 const ProfilePage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const identity = useEmbeddedIdentity();
-  const address = identity.publicKey.toBase58();
+  const player = useConnectedPlayer();
+  const address = player.publicKey?.toBase58() ?? "";
   const { playerMeta } = usePlayerMeta(address);
   const { balance: starBalance } = useZStarBalance(address);
   const { zones, totalStars } = useZoneProgress(address, starBalance);
@@ -65,10 +68,23 @@ const ProfilePage: React.FC = () => {
   );
 
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const navigate = useNavigationStore((state) => state.navigate);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-12">
-      <PageHeader title="Profile" />
+      <PageHeader
+        title="Profile"
+        rightSlot={
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => navigate("settings")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] shadow-lg backdrop-blur-md transition-all hover:bg-white/[0.08] active:scale-95"
+          >
+            <Settings size={18} className="text-white/80" />
+          </button>
+        }
+      />
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
         <motion.div
@@ -96,19 +112,26 @@ const ProfilePage: React.FC = () => {
 
               <div className="min-w-0 flex-1">
                 <p
-                  className="truncate font-mono text-xl font-extrabold"
+                  className="truncate font-sans text-lg font-extrabold"
                   style={{ color: colors.text }}
-                  title={address}
-                  aria-label={`Embedded identity ${address}`}
-                >
-                  {truncatePublicKey(address)}
-                </p>
-                <p
-                  className="font-sans text-sm font-semibold"
-                  style={{ color: colors.textMuted }}
                 >
                   {title}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("settings")}
+                  title={address || undefined}
+                  aria-label={
+                    address
+                      ? `Connected wallet ${address}`
+                      : "Wallet disconnected"
+                  }
+                  className="mt-1 inline-flex max-w-full items-center rounded-full border border-white/[0.12] bg-white/[0.06] px-2 py-0.5"
+                >
+                  <span className="truncate font-mono text-[11px] font-semibold text-white/60">
+                    {address ? truncatePublicKey(address) : "Not connected"}
+                  </span>
+                </button>
               </div>
 
               <div className="text-right">
@@ -201,36 +224,14 @@ const ProfilePage: React.FC = () => {
             )}
           </motion.section>
 
-          <motion.div
-            variants={itemVariants}
-            className="flex rounded-full border border-white/[0.12] bg-white/[0.06] p-1 backdrop-blur-xl"
-          >
-            {TABS.map((tabName) => {
-              const active = tab === tabName;
-              return (
-                <button
-                  key={tabName}
-                  type="button"
-                  onClick={() => setTab(tabName)}
-                  className="relative flex-1 rounded-full py-2 text-center font-sans text-[12px] font-bold"
-                  style={{
-                    color: active ? colors.accent : colors.textMuted,
-                  }}
-                >
-                  <span className="relative z-10">{tabName}</span>
-                  {active && (
-                    <motion.div
-                      layoutId="profile-tab-indicator"
-                      className="absolute inset-0 rounded-full border"
-                      style={{
-                        backgroundColor: `${colors.accent}1F`,
-                        borderColor: `${colors.accent}55`,
-                      }}
-                    />
-                  )}
-                </button>
-              );
-            })}
+          <motion.div variants={itemVariants}>
+            <SegmentedTabs
+              tabs={TABS}
+              active={tab}
+              onChange={setTab}
+              layoutId="profile-tab-indicator"
+              accent={colors.accent}
+            />
           </motion.div>
 
           <motion.div variants={itemVariants} className="px-0.5">

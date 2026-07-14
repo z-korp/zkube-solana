@@ -6,7 +6,7 @@ import {
   type AchievementCategory,
   type AchievementDef,
 } from "@/config/achievementDefs";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import type { AchievementProgressView } from "@/chain/progressClient";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
@@ -38,9 +38,9 @@ export function projectAchievements(
 
 export const useAchievements = (playerAddress?: string) => {
   const controller = useProgress();
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const isCurrentPlayer =
-    !playerAddress || playerAddress === publicKey.toBase58();
+    Boolean(publicKey && (!playerAddress || playerAddress === publicKey.toBase58()));
   const achievements = useMemo<AchievementStatus[]>(() => {
     if (!isCurrentPlayer) return [];
     return projectAchievements(controller.progress?.achievements ?? null);

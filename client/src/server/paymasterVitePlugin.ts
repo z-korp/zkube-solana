@@ -1,6 +1,6 @@
 /**
- * Development mount for the same stateless paymaster handler used by Vercel.
- * This follows cycling-sim: the browser always calls /api/paymaster, while
+ * Local-development mount for the same stateless paymaster policy used by the
+ * Fly service. Set VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT=/api/paymaster locally;
  * signer material remains server-only and never enters Vite's client env.
  */
 import type { Plugin } from "vite";

@@ -2,13 +2,18 @@ import { Loader2, Trophy } from "lucide-react";
 
 import type { ThemeColors } from "@/config/themes";
 import { useWeekly } from "@/contexts/weekly";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { currentWeeklyId } from "@/chain/weeklyClient";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import EmptyState from "@/ui/components/shared/EmptyState";
+import InfoSheet, { InfoRow } from "@/ui/components/shared/InfoSheet";
+import StatTile from "@/ui/components/shared/StatTile";
+import { formatDurationCoarse } from "@/utils/time";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
   const controller = useWeekly();
-  const owner = useEmbeddedIdentity().publicKey;
+  const owner = useConnectedPlayer().publicKey;
   const weekly = controller.weekly;
 
   if (controller.loading && !weekly) {
@@ -26,7 +31,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
     );
   }
 
-  const rank = weekly.leaderboard.findIndex((entry) => entry.player.equals(owner));
+  const rank = owner
+    ? weekly.leaderboard.findIndex((entry) => entry.player.equals(owner))
+    : -1;
   const isCashWinner = rank >= 0 && rank < weekly.cashWinnerCount;
   const isStarWinner =
     rank >= 0 &&
@@ -40,27 +47,82 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
     isStarWinner &&
     !weekly.player?.starsClaimed;
 
+  // The controller intentionally surfaces the previous week while its claims
+  // stay open, so the human label must not pretend it is still running.
+  const nowUnix = Math.floor(Date.now() / 1_000);
+  const isCurrentWeek = weekly.weekId === currentWeeklyId(nowUnix);
+  const weekLabel = isCurrentWeek ? "This week" : "Last week";
+  const timingLine = isCurrentWeek
+    ? weekly.finalizesAt > nowUnix
+      ? `Ends in ${formatDurationCoarse(weekly.finalizesAt - nowUnix)}`
+      : "Finalizing"
+    : weekly.status === "claimable" && weekly.claimsCloseAt > nowUnix
+      ? `Claims close in ${formatDurationCoarse(weekly.claimsCloseAt - nowUnix)}`
+      : "Finished";
+  const hasCommittedPool =
+    weekly.cashWinnerCount > 0 && weekly.committedCashPool > 0n;
+
   return (
     <div className="mx-auto flex max-w-[640px] flex-col gap-3">
       <section className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-display text-xl font-black text-white">Week {weekly.weekId}</p>
+            <p className="font-display text-xl font-black text-white">{weekLabel}</p>
             <p className="mt-1 text-xs font-semibold text-white/55">
-              Best 5 Daily results · missing days score 0
+              {timingLine} · best 5 Daily results count
             </p>
           </div>
           <Trophy className="h-7 w-7" style={{ color: colors.accent2 }} />
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <Metric label="Your score" value={weekly.player?.score.toString() ?? "0"} />
-          <Metric label="Days" value={weekly.player?.resultCount.toString() ?? "0"} />
-          <Metric label="Cash pool" value={formatUsdc(weekly.committedCashPool)} />
+          <StatTile
+            size="sm"
+            label="Your score"
+            value={weekly.player?.score.toString() ?? "0"}
+            className="border-transparent bg-black/20"
+          />
+          <StatTile
+            size="sm"
+            label="Days"
+            value={weekly.player?.resultCount.toString() ?? "0"}
+            className="border-transparent bg-black/20"
+          />
+          <StatTile
+            size="sm"
+            label="Cash pool"
+            value={formatUsdc(weekly.committedCashPool)}
+            className="border-transparent bg-black/20"
+          />
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-white/55">
-          Top {weekly.cashWinnerCount} receive cash (55/30/15, renormalized) plus 30 Stars. The next{" "}
-          {weekly.starWinnerCount} receive 30/25/20/15/10 Stars by rank quantile.
-        </p>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-xs leading-relaxed text-white/55">
+            {hasCommittedPool
+              ? `Top ${weekly.cashWinnerCount} share the cash pool · next ${weekly.starWinnerCount} win Stars.`
+              : "The cash pool builds from Star purchases during the week."}
+          </p>
+          <InfoSheet title="How Weekly payouts work">
+            <p>
+              Your best five Daily results add up to your Weekly score; days
+              you skip count as zero.
+            </p>
+            <div>
+              <InfoRow
+                label="Cash winners"
+                value={`Top ${weekly.cashWinnerCount} · 55/30/15 split, renormalized`}
+              />
+              <InfoRow
+                label="Star winners"
+                value={`Next ${weekly.starWinnerCount} · 30/25/20/15/10 Stars by rank quantile`}
+              />
+              <InfoRow label="Cash winner bonus" value="+30 Stars" />
+              <InfoRow label="Week" value={`#${weekly.weekId}`} />
+            </div>
+            <p>
+              Rewards become claimable after the week finalizes and stay open
+              for a limited claim window.
+            </p>
+          </InfoSheet>
+        </div>
         {(canClaimCash || canClaimStars) && (
           <div className="mt-3 flex flex-col gap-2">
             {canClaimStars && (
@@ -93,7 +155,7 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
               {index + 1}
             </span>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/75">
-              {entry.player.equals(owner)
+              {owner && entry.player.equals(owner)
                 ? `You · ${truncatePublicKey(entry.player.toBase58())}`
                 : truncatePublicKey(entry.player.toBase58())}
             </span>
@@ -101,19 +163,15 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
           </div>
         ))}
         {weekly.leaderboard.length === 0 && (
-          <p className="p-5 text-center text-sm text-white/45">No Daily rollups yet.</p>
+          <EmptyState
+            compact
+            icon={<Trophy className="h-8 w-8" />}
+            title="No Daily rollups yet"
+            hint="Finish a Daily run and it rolls into this week's score."
+          />
         )}
       </section>
       {controller.error && <p className="text-center text-xs text-red-300">{controller.error}</p>}
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-black/20 px-2 py-2">
-      <p className="font-sans text-lg font-black text-white">{value}</p>
-      <p className="font-sans text-[10px] font-bold uppercase text-white/40">{label}</p>
     </div>
   );
 }

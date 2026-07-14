@@ -11,7 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "coverage/**", "src/chain/idl/solana.ts"],
+    ignores: [
+      "dist/**",
+      "dist-server/**",
+      "coverage/**",
+      "src/chain/idl/solana.ts",
+    ],
   },
   {
     ...js.configs.recommended,

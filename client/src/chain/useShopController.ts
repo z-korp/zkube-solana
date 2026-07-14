@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { useConnectedPlayer } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
 import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
@@ -21,7 +21,8 @@ export class StarShopQuoteChangedError extends Error {
 
 export function useShopController() {
   const { connection } = useSolanaConnection();
-  const { wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const queryWallet = player.readOnlyWallet;
   const [shop, setShop] = useState<StarShopView | null>(null);
   const [loading, setLoading] = useState(false);
   const [purchasingPack, setPurchasingPack] = useState<number | null>(null);
@@ -31,7 +32,7 @@ export function useShopController() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const next = await fetchStarShopView({ connection, wallet });
+      const next = await fetchStarShopView({ connection, wallet: queryWallet });
       setShop(next);
       setError(next ? null : "The Star Shop is not configured yet.");
       return next;
@@ -41,7 +42,7 @@ export function useShopController() {
     } finally {
       setLoading(false);
     }
-  }, [connection, wallet]);
+  }, [connection, queryWallet]);
 
   useEffect(() => {
     void refresh();
@@ -56,6 +57,8 @@ export function useShopController() {
       setPurchasingPack(quotedPack.index);
       setError(null);
       try {
+        const wallet = player.wallet;
+        if (!wallet) throw new Error("Connect a wallet before buying Stars");
         const fresh = await fetchStarShopView({ connection, wallet });
         if (!fresh) throw new Error("The Star Shop is not configured yet");
         setShop(fresh);
@@ -88,7 +91,7 @@ export function useShopController() {
         setPurchasingPack(null);
       }
     },
-    [connection, refresh, wallet],
+    [connection, player, refresh],
   );
 
   return { shop, loading, purchasingPack, error, refresh, purchase };

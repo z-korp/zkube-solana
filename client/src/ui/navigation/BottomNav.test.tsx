@@ -2,11 +2,21 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PublicKey } from "@solana/web3.js";
+
 import { useNavigationStore } from "@/stores/navigationStore";
 import BottomNav from "./BottomNav";
 
+const fixtures = vi.hoisted(() => ({
+  publicKey: null as unknown,
+}));
+
 vi.mock("@/contexts/progress", () => ({
   useProgress: () => ({ progress: null }),
+}));
+
+vi.mock("@/chain/connectedPlayerContext", () => ({
+  useConnectedPlayer: () => ({ publicKey: fixtures.publicKey }),
 }));
 
 vi.mock("@/ui/elements/theme-provider/hooks", () => ({
@@ -32,11 +42,29 @@ beforeEach(() => {
 });
 
 describe("BottomNav", () => {
-  it("places Shop between Ranks and Profile and uses the compact Ranks label", () => {
+  it("places Shop between Leaderboard and Profile", () => {
+    fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 
-    expect(
-      screen.getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["Home", "Rewards", "Ranks", "Shop", "Profile", "Settings"]);
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Home",
+      "Rewards",
+      "Leaderboard",
+      "Shop",
+      "Profile",
+    ]);
+    expect(buttons.every((button) => !button.hasAttribute("disabled"))).toBe(
+      true,
+    );
+  });
+
+  it("locks every tab until a wallet is connected", () => {
+    fixtures.publicKey = null;
+    render(<BottomNav />);
+
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeDisabled();
+    }
   });
 });

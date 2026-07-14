@@ -18,6 +18,7 @@ import {
 } from "@solana/web3.js";
 import { IDL, type ZkubeProgram } from "./idl/index.js";
 import {
+  INITIAL_RUN_ID,
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
   SOLANA_ENDPOINT,
@@ -29,7 +30,7 @@ import {
   deriveMagicActionEscrowPda,
 } from "./magicAction.js";
 import type { PaymasterClient } from "./paymasterClient.js";
-import { saveReusableSession, saveRunSession } from "./runSessionStore.js";
+import { saveRunSession } from "./runSessionStore.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
   deriveCampaignProgressPda,
@@ -43,10 +44,6 @@ import {
   type RunAddresses,
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
-import {
-  buildCreateSessionV2Instruction,
-  deriveSessionTokenV2Pda,
-} from "./sessionV2.js";
 import {
   mapDailyPressureProfile,
   mapDailyScoringRule,
@@ -68,12 +65,6 @@ export interface TransactionPlan {
 export interface PreparedRunPlan {
   runId: bigint;
   addresses: RunAddresses;
-  sessionToken: PublicKey;
-  sessionValidUntil: number;
-  transactionPlan: TransactionPlan;
-}
-
-export interface RotatedSessionPlan {
   sessionToken: PublicKey;
   sessionValidUntil: number;
   transactionPlan: TransactionPlan;
@@ -226,19 +217,19 @@ export function zkubeProgram(
 
 export async function buildPrepareCampaignRunPlan(args: {
   wallet: WalletLike;
-  session: Keypair;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey;
   mapId: number;
   level: number;
   connection?: Connection;
-  nowUnix?: number;
   paymaster?: PublicKey;
-  /** Live expiry of a REUSED session token (marker correctness). */
-  sessionValidUntil?: number;
+  sessionValidUntil: number;
 }): Promise<PreparedRunPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const program = zkubeProgram(connection, args.wallet);
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
+  const actor = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
   const profileAddress = derivePlayerProfilePda(owner);
   const campaignAddress = deriveCampaignProgressPda(owner);
@@ -246,23 +237,12 @@ export async function buildPrepareCampaignRunPlan(args: {
     await program.account.playerProfile.fetchNullable(profileAddress);
   const protocolAddress = deriveProtocolConfigPda();
   const protocol = await program.account.protocolConfig.fetch(protocolAddress);
-  const runId = profile ? BigInt(profile.nextRunId.toString()) : 1n;
-  const addresses = deriveRunAddresses(owner, runId);
+  const { runId, addresses } = resolvePreparedRunAddresses(owner, profile);
   const mapCatalog = deriveMapCatalogPda(
     Number(protocol.contentVersion),
     args.mapId,
   );
-  const { sessionToken } = deriveSessionTokenV2Pda({
-    authority: owner,
-    sessionSigner: args.session.publicKey,
-  });
   const instructions: TransactionInstruction[] = [];
-  let sessionValidUntil =
-    (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
-  // The session keypair only signs the createSessionV2 instruction. A reused
-  // session skips that instruction, so it must NOT be listed as a signer
-  // (web3.js rejects signing with a non-required key).
-  let sessionCreated = false;
 
   if (!profile) {
     instructions.push(
@@ -272,39 +252,20 @@ export async function buildPrepareCampaignRunPlan(args: {
           playerProfile: profileAddress,
           campaignProgress: campaignAddress,
           payer,
-          owner,
+          ownerAuthority: owner,
+          sessionToken: args.sessionToken,
+          actor,
           systemProgram: SystemProgram.programId,
         })
         .instruction(),
     );
-  }
-  if (!(await connection.getAccountInfo(sessionToken, "confirmed"))) {
-    instructions.push(
-      buildCreateSessionV2Instruction({
-        authority: owner,
-        sessionSigner: args.session.publicKey,
-        feePayer: payer,
-        topUp: false,
-        validUntil: sessionValidUntil,
-      }),
-    );
-    sessionCreated = true;
-  } else if (args.sessionValidUntil) {
-    // Reused session: the marker must reflect the live token's real expiry,
-    // not a fresh six-day claim.
-    sessionValidUntil = args.sessionValidUntil;
   }
   instructions.push(
     buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),
   );
   instructions.push(
     await program.methods
-      .prepareCampaignRun(
-        new BN(runId.toString()),
-        args.mapId,
-        args.level,
-        args.session.publicKey,
-      )
+      .prepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
       .accountsPartial({
         protocol: protocolAddress,
         playerProfile: profileAddress,
@@ -314,7 +275,9 @@ export async function buildPrepareCampaignRunPlan(args: {
         activeRun: addresses.activeRun,
         runReceipt: addresses.runReceipt,
         payer,
-        owner,
+        ownerAuthority: owner,
+        sessionToken: args.sessionToken,
+        actor,
         systemProgram: SystemProgram.programId,
       })
       .instruction(),
@@ -323,21 +286,31 @@ export async function buildPrepareCampaignRunPlan(args: {
   return {
     runId,
     addresses,
-    sessionToken,
-    sessionValidUntil,
+    sessionToken: args.sessionToken,
+    sessionValidUntil: args.sessionValidUntil,
     transactionPlan: plan(
       "solana-base",
       "Prepare campaign run",
       connection,
       payer,
       instructions,
-      sessionCreated ? [args.session] : [],
+      [],
     ),
   };
 }
 
+export function resolvePreparedRunAddresses(
+  owner: PublicKey,
+  profile: { nextRunId: { toString(): string } } | null,
+): { runId: bigint; addresses: RunAddresses } {
+  const runId = profile ? BigInt(profile.nextRunId.toString()) : INITIAL_RUN_ID;
+  return { runId, addresses: deriveRunAddresses(owner, runId) };
+}
+
 export async function buildDelegateRunPlan(args: {
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   addresses: RunAddresses;
   connection?: Connection;
   paymaster?: PublicKey;
@@ -351,7 +324,9 @@ export async function buildDelegateRunPlan(args: {
     .delegateActiveRun()
     .accountsPartial({
       payer,
-      owner: args.wallet.publicKey,
+      ownerAuthority: args.ownerAuthority,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       runShell: args.addresses.runShell,
       pda: args.addresses.activeRun,
     })
@@ -570,6 +545,8 @@ export async function buildCommitRunPlan(args: {
 
 export async function buildCloseSettledRunPlan(args: {
   wallet: WalletLike;
+  owner: PublicKey;
+  sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
   connection?: Connection;
@@ -583,7 +560,9 @@ export async function buildCloseSettledRunPlan(args: {
   const instruction = await program.methods
     .closeSettledActiveRun(new BN(args.runId.toString()))
     .accountsPartial({
-      owner: args.wallet.publicKey,
+      ownerAuthority: args.owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       protocol: deriveProtocolConfigPda(),
       rentRecipient: args.paymaster,
       runShell: args.addresses.runShell,
@@ -611,6 +590,7 @@ export async function buildCloseSettledRunPlan(args: {
 export async function buildFinalizeRunPlan(args: {
   wallet: WalletLike;
   owner: PublicKey;
+  sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
   mode: "campaign" | "daily";
@@ -634,8 +614,8 @@ export async function buildFinalizeRunPlan(args: {
         .accountsPartial({
           activeRun: args.addresses.activeRun,
           ownerAuthority: args.owner,
-          sessionToken: null,
-          actor: args.owner,
+          sessionToken: args.sessionToken,
+          actor: args.wallet.publicKey,
         })
         .instruction(),
     );
@@ -703,7 +683,9 @@ export async function buildFinalizeRunPlan(args: {
     await program.methods
       .closeSettledActiveRun(new BN(args.runId.toString()))
       .accountsPartial({
-        owner: args.owner,
+        ownerAuthority: args.owner,
+        sessionToken: args.sessionToken,
+        actor: args.wallet.publicKey,
         protocol: deriveProtocolConfigPda(),
         rentRecipient: args.paymaster,
         runShell: args.addresses.runShell,
@@ -718,80 +700,6 @@ export async function buildFinalizeRunPlan(args: {
     connection,
     args.paymaster,
     instructions,
-  );
-}
-
-export async function buildRotateRunShellSessionPlan(args: {
-  wallet: WalletLike;
-  runId: bigint;
-  addresses: RunAddresses;
-  newSession: Keypair;
-  paymaster: PublicKey;
-  connection?: Connection;
-  nowUnix?: number;
-}): Promise<RotatedSessionPlan> {
-  const connection =
-    args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
-  const owner = args.wallet.publicKey;
-  const sessionValidUntil =
-    (args.nowUnix ?? Math.floor(Date.now() / 1_000)) + 6 * 24 * 60 * 60;
-  const sessionToken = deriveSessionTokenV2Pda({
-    authority: owner,
-    sessionSigner: args.newSession.publicKey,
-  }).sessionToken;
-  const program = zkubeProgram(connection, args.wallet);
-  const rotate = await program.methods
-    .rotateRunShellAuthority(
-      new BN(args.runId.toString()),
-      args.newSession.publicKey,
-    )
-    .accountsPartial({
-      runShell: args.addresses.runShell,
-      owner,
-    })
-    .instruction();
-  return {
-    sessionToken,
-    sessionValidUntil,
-    transactionPlan: plan(
-      "solana-base",
-      "Authorize replacement run session",
-      connection,
-      args.paymaster,
-      [
-        buildCreateSessionV2Instruction({
-          authority: owner,
-          sessionSigner: args.newSession.publicKey,
-          feePayer: args.paymaster,
-          topUp: false,
-          validUntil: sessionValidUntil,
-        }),
-        rotate,
-      ],
-      [args.newSession],
-    ),
-  };
-}
-
-export async function buildRotateActiveRunSessionPlan(args: {
-  wallet: WalletLike;
-  activeRun: PublicKey;
-  newSession: PublicKey;
-  erConnection: Connection;
-}): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.erConnection, args.wallet)
-    .methods.rotateActiveRunAuthority(args.newSession)
-    .accountsPartial({
-      activeRun: args.activeRun,
-      owner: args.wallet.publicKey,
-    })
-    .instruction();
-  return plan(
-    "magicblock-er",
-    "Bind replacement session to active run",
-    args.erConnection,
-    args.wallet.publicKey,
-    [instruction],
   );
 }
 
@@ -963,9 +871,10 @@ export async function submitSponsoredTransactionPlan(args: {
 
 export async function submitPreparedRunPlan(args: {
   preparedRun: PreparedRunPlan;
+  owner: PublicKey;
   wallet: WalletLike;
   paymaster: PaymasterClient;
-  session: Keypair;
+  sessionSigner: Keypair;
   mode?: "campaign" | "daily";
   dailyVersion?: 1 | 2;
 }): Promise<string> {
@@ -979,23 +888,16 @@ export async function submitPreparedRunPlan(args: {
     "confirmed",
   );
   saveRunSession({
-    owner: args.wallet.publicKey,
+    owner: args.owner,
     runId: args.preparedRun.runId,
     mode: args.mode ?? "campaign",
     dailyVersion: args.dailyVersion ?? 1,
-    session: args.session,
+    session: args.sessionSigner,
     sessionToken: args.preparedRun.sessionToken,
     addresses: args.preparedRun.addresses,
     validUntil: args.preparedRun.sessionValidUntil,
     createdAt: Math.floor(Date.now() / 1_000),
   });
-  // The session identity outlives this run: later runs reuse it (and its
-  // on-chain token) instead of paying new session rent.
-  saveReusableSession(
-    args.wallet.publicKey,
-    args.session,
-    args.preparedRun.sessionValidUntil,
-  );
   return signature;
 }
 

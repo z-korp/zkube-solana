@@ -1,4 +1,5 @@
 import {
+  type AccountInfo,
   PublicKey,
   SystemProgram,
   TransactionInstruction,
@@ -10,6 +11,16 @@ export const SESSION_KEYS_PROGRAM_ID = new PublicKey(
 );
 export const SESSION_TOKEN_V2_SEED = "session_token_v2";
 export const CREATE_SESSION_V2_DISCRIMINATOR = [223, 233, 108, 7, 65, 194, 235, 38] as const;
+export const SESSION_TOKEN_V2_DISCRIMINATOR = [178, 3, 85, 254, 13, 116, 128, 41] as const;
+export const SESSION_TOKEN_V2_ACCOUNT_BYTES = 144;
+
+export interface SessionTokenV2View {
+  authority: PublicKey;
+  targetProgram: PublicKey;
+  sessionSigner: PublicKey;
+  feePayer: PublicKey;
+  validUntil: number;
+}
 
 export interface CreateSessionV2Args {
   authority: PublicKey;
@@ -62,6 +73,51 @@ export function buildCreateSessionV2Instruction(args: CreateSessionV2Args): Tran
       ...optionU64(args.lamports),
     ]) as TransactionInstruction["data"],
   });
+}
+
+export function decodeSessionTokenV2Account(
+  address: PublicKey,
+  info: AccountInfo<Buffer>,
+): SessionTokenV2View {
+  if (!info.owner.equals(SESSION_KEYS_PROGRAM_ID) || info.executable) {
+    throw new Error("Session token has the wrong account owner");
+  }
+  if (info.data.length !== SESSION_TOKEN_V2_ACCOUNT_BYTES) {
+    throw new Error("Session token has an invalid data length");
+  }
+  if (
+    !SESSION_TOKEN_V2_DISCRIMINATOR.every(
+      (byte, index) => info.data[index] === byte,
+    )
+  ) {
+    throw new Error("Session token discriminator is invalid");
+  }
+  const authority = new PublicKey(info.data.subarray(8, 40));
+  const targetProgram = new PublicKey(info.data.subarray(40, 72));
+  const sessionSigner = new PublicKey(info.data.subarray(72, 104));
+  const feePayer = new PublicKey(info.data.subarray(104, 136));
+  const validUntilBig = info.data.readBigInt64LE(136);
+  if (
+    validUntilBig < BigInt(Number.MIN_SAFE_INTEGER) ||
+    validUntilBig > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    throw new Error("Session token expiry is outside the safe integer range");
+  }
+  const expected = deriveSessionTokenV2Pda({
+    authority,
+    sessionSigner,
+    targetProgram,
+  }).sessionToken;
+  if (!address.equals(expected)) {
+    throw new Error("Session token PDA does not match its serialized fields");
+  }
+  return {
+    authority,
+    targetProgram,
+    sessionSigner,
+    feePayer,
+    validUntil: Number(validUntilBig),
+  };
 }
 
 function meta(pubkey: PublicKey, isSigner: boolean, isWritable: boolean) {

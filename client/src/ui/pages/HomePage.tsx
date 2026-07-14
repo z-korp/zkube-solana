@@ -18,12 +18,16 @@ import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useDevnetRuntimeStatus } from "@/chain/useDevnetRuntimeStatus";
 import { useNavigationStore } from "@/stores/navigationStore";
+import CtaGuardian from "@/ui/components/CtaGuardian";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import ConnectCta from "@/ui/components/shared/ConnectCta";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { formatCountdown } from "@/utils/time";
 
 const useDailyCountdown = (endTime: number | undefined) => {
   const [remaining, setRemaining] = useState(() =>
@@ -40,10 +44,7 @@ const useDailyCountdown = (endTime: number | undefined) => {
   }, [endTime]);
 
   if (!endTime || remaining <= 0) return null;
-  const hours = Math.floor(remaining / 3600);
-  const minutes = Math.floor((remaining % 3600) / 60);
-  const seconds = remaining % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return formatCountdown(remaining);
 };
 
 const containerVariants: Variants = {
@@ -67,6 +68,11 @@ const itemVariants: Variants = {
 
 const HomePage: React.FC = () => {
   const { address } = useAccount();
+  const player = useConnectedPlayer();
+  const playerReady =
+    player.connectionStatus === "connected" &&
+    player.publicKey !== null &&
+    player.sessionStatus === "ready";
   const { themeTemplate } = useTheme();
   const { setMusicPlaylist } = useMusicPlayer();
   const runtime = useDevnetRuntimeStatus();
@@ -74,7 +80,6 @@ const HomePage: React.FC = () => {
   const mapZoneId = useNavigationStore((state) => state.mapZoneId);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
   const setIsDailyMap = useNavigationStore((state) => state.setIsDailyMap);
-  const [isDailySelected, setIsDailySelected] = useState(false);
   const [unlockZone, setUnlockZone] = useState<ZoneProgressData | null>(null);
 
   const { playerMeta } = usePlayerMeta(address);
@@ -101,7 +106,6 @@ const HomePage: React.FC = () => {
     (index: number) => {
       const zone = zones[index];
       if (zone) setMapZoneId(zone.zoneId);
-      setIsDailySelected(false);
     },
     [zones, setMapZoneId],
   );
@@ -209,8 +213,12 @@ const HomePage: React.FC = () => {
           variants={containerVariants}
           initial={false}
           animate="show"
-          className="flex-1 space-y-3 overflow-y-auto pb-3"
+          className="flex flex-1 flex-col space-y-3 overflow-y-auto pb-3"
         >
+          {!playerReady ? (
+            <CtaGuardian />
+          ) : (
+            <>
           <motion.div
             variants={itemVariants}
             className="flex items-center justify-between rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-1.5 backdrop-blur-xl"
@@ -230,7 +238,7 @@ const HomePage: React.FC = () => {
                   className="truncate font-sans text-[15px] font-bold text-white"
                   title={address}
                 >
-                  zKube Vault · {truncatePublicKey(address)}
+                  Connected wallet · {truncatePublicKey(address)}
                 </p>
                 <p className="font-sans text-[11px] font-semibold text-white/75">
                   {playerTitle}
@@ -288,8 +296,7 @@ const HomePage: React.FC = () => {
               >
                 {zones.map((candidate, index) => {
                   const isSelectable = candidate.unlocked;
-                  const isSelected =
-                    !isDailySelected && index === activeZone && isSelectable;
+                  const isSelected = index === activeZone && isSelectable;
                   const statusText =
                     !candidate.unlocked && !candidate.isFree
                       ? (candidate.starCost ?? 0) > 0
@@ -304,7 +311,13 @@ const HomePage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         if (isSelectable) {
-                          setActiveZone(index);
+                          if (isSelected) {
+                            // Second tap on the selected zone enters its map.
+                            setIsDailyMap(false);
+                            navigate("map");
+                          } else {
+                            setActiveZone(index);
+                          }
                         } else if (!candidate.isFree) {
                           setUnlockZone(candidate);
                         }
@@ -330,6 +343,12 @@ const HomePage: React.FC = () => {
                         className="absolute inset-0 h-full w-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      {isSelected && (
+                        <span className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-0.5 rounded-full bg-black/60 py-0.5 pl-2 pr-1 font-sans text-[9px] font-bold uppercase tracking-[0.08em] text-white/90 backdrop-blur-sm">
+                          Tap to enter
+                          <ChevronRight size={10} />
+                        </span>
+                      )}
                       <div className="relative z-10 w-full">
                         <span
                           className="mb-1 inline-flex rounded-full px-2 py-0.5 font-sans text-[9px] font-extrabold uppercase tracking-[0.12em]"
@@ -385,16 +404,13 @@ const HomePage: React.FC = () => {
           <motion.div variants={itemVariants}>
             <button
               type="button"
-              onClick={() => setIsDailySelected((selected) => !selected)}
-              className="relative w-full overflow-hidden rounded-2xl text-left transition-all"
-              style={{
-                border: isDailySelected
-                  ? `2px solid ${dailyColors.accent}`
-                  : "1px solid rgba(255,255,255,0.16)",
-                boxShadow: isDailySelected
-                  ? `0 0 16px ${dailyColors.accent}66, 0 0 4px ${dailyColors.accent}44`
-                  : "none",
+              onClick={() => {
+                // Daily runs have their own entry screen and never route
+                // through Map; one tap goes straight there.
+                setIsDailyMap(false);
+                navigate("daily");
               }}
+              className="relative w-full overflow-hidden rounded-2xl border border-white/[0.16] text-left transition-all active:scale-[0.99]"
             >
               <img
                 src={getThemeImages(getThemeId(dailyZoneId)).background}
@@ -424,37 +440,33 @@ const HomePage: React.FC = () => {
                             : `${challenge.total_attempts.toString()} attempt${challenge.total_attempts === 1n ? "" : "s"}`}
                     </p>
                   </div>
-                  {dailyCountdown ? (
-                    <span
-                      className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
-                      style={{ background: dailyColors.accent }}
-                    >
-                      {dailyCountdown}
-                    </span>
-                  ) : challenge ? (
-                    <span className="rounded-full bg-red-500 px-3 py-1.5 font-sans text-xs font-bold text-white">
-                      ENDED
-                    </span>
-                  ) : null}
+                  <span className="flex items-center gap-1.5">
+                    {dailyCountdown ? (
+                      <span
+                        className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
+                        style={{ background: dailyColors.accent }}
+                      >
+                        {dailyCountdown}
+                      </span>
+                    ) : challenge ? (
+                      <span className="rounded-full bg-red-500 px-3 py-1.5 font-sans text-xs font-bold text-white">
+                        ENDED
+                      </span>
+                    ) : null}
+                    <ChevronRight size={16} className="text-white/50" />
+                  </span>
                 </div>
               </div>
             </button>
           </motion.div>
+            </>
+          )}
         </motion.div>
       </div>
 
       <div className="relative z-20 mt-auto flex flex-col gap-2.5 px-4 pb-3">
-        {isDailySelected ? (
-          <ArcadeButton
-            onClick={() => {
-              // Daily runs have their own entry screen and never route through Map.
-              setIsDailyMap(false);
-              navigate("daily");
-            }}
-            accentOverride={dailyColors.accent}
-          >
-            Go to Daily
-          </ArcadeButton>
+        {!playerReady ? (
+          <ConnectCta label="PLAY NOW" />
         ) : (
           <ArcadeButton
             disabled={!selectedZonePlayable && !hasActiveStoryRun}

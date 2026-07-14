@@ -62,12 +62,12 @@ describe("base-run recovery validation", () => {
     );
   });
 
-  it("rejects an ActiveRun owned by another Vault", () => {
+  it("rejects an ActiveRun owned by another wallet", () => {
     expect(() =>
       validate({
         activeRun: activeRun({ owner: Keypair.generate().publicKey }),
       }),
-    ).toThrow(/owner.*embedded Vault/i);
+    ).toThrow(/owner.*connected wallet/i);
   });
 
   it("rejects an ActiveRun with a different run ID", () => {

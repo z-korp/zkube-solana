@@ -1,5 +1,5 @@
 import { useProgress } from "@/contexts/progress";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
 export interface PlayerStats {
@@ -11,9 +11,9 @@ export interface PlayerStats {
 }
 
 export const usePlayerStats = (overrideAddress?: string): PlayerStats => {
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const { progress } = useProgress();
-  if (overrideAddress && overrideAddress !== publicKey.toBase58()) {
+  if (!publicKey || (overrideAddress && overrideAddress !== publicKey.toBase58())) {
     return { totalLines: 0, totalBosses: 0, maxCombo: 0, combo4Count: 0 };
   }
   const maxCombo = progress?.lifetime.maxCombo ?? 0;

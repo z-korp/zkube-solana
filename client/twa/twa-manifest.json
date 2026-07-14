@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "applicationId": "com.zkorp.zkube",
+  "host": "zkube-solana.vercel.app",
+  "startUrl": "/",
+  "webManifestUrl": "https://zkube-solana.vercel.app/manifest.webmanifest",
+  "assetLinksUrl": "https://zkube-solana.vercel.app/.well-known/assetlinks.json",
+  "displayMode": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#080414",
+  "navigationColor": "#080414",
+  "requiredSeekerWallet": "Seed Vault Wallet",
+  "walletProtocol": "Mobile Wallet Adapter 2.0",
+  "signing": "external-release-keystore-required"
+}

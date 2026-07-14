@@ -59,4 +59,23 @@ describe("campaignMapsToZones", () => {
       false,
     ]);
   });
+
+  it("leaves placeholder unlock prices unknown instead of zero", () => {
+    const zones = campaignMapsToZones(null, 0);
+    expect(zones[0].starCost).toBe(0);
+    expect(zones.slice(1).every((zone) => zone.starCost === undefined)).toBe(
+      true,
+    );
+  });
+
+  it("prices placeholder maps from the economy fallback when known", () => {
+    const zones = campaignMapsToZones(null, 0, 20);
+    expect(zones[0].starCost).toBe(0);
+    expect(zones.slice(1).every((zone) => zone.starCost === 20)).toBe(true);
+  });
+
+  it("treats a zero cost on a paid map as unknown, never free", () => {
+    const zones = campaignMapsToZones([map({ starCost: 0n })], 0, null);
+    expect(zones[0].starCost).toBeUndefined();
+  });
 });

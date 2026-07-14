@@ -1,19 +1,13 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
+import {
+  browserLocalStorage,
+  type StorageLike,
+} from "../platform/browserStorage.js";
 import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v1";
 export const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
-export const REUSABLE_SESSION_STORAGE_KEY = "zkube:session:v1";
-/** Reuse a session only when a whole run comfortably fits inside its
- *  remaining validity; below this, mint a fresh one at run start. */
-export const REUSABLE_SESSION_MIN_REMAINING_SECONDS = 60 * 60;
-
-interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
 
 interface StoredRunSession {
   version: 1;
@@ -44,7 +38,7 @@ export interface RunSessionMarker {
 
 export function saveRunSession(
   marker: RunSessionMarker,
-  storage = browserStorage(),
+  storage = browserLocalStorage(),
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
@@ -74,7 +68,7 @@ export function loadRunSession(
   options: { storage?: StorageLike | null } = {},
 ): RunSessionMarker | null {
   const storage =
-    options.storage === undefined ? browserStorage() : options.storage;
+    options.storage === undefined ? browserLocalStorage() : options.storage;
   if (!storage) return null;
   const sessions = loadStoredSessions(storage);
   const stored = sessions[owner.toBase58()];
@@ -93,7 +87,7 @@ export function isRunSessionFresh(
 
 export function clearRunSession(
   owner: PublicKey,
-  storage = browserStorage(),
+  storage = browserLocalStorage(),
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
@@ -107,102 +101,13 @@ export function clearRunSession(
   }
 }
 
-interface StoredReusableSession {
-  version: 1;
-  owner: string;
-  sessionSecretKey: number[];
-  validUntil: number;
-  createdAt: number;
-}
-
-export interface ReusableSession {
-  session: Keypair;
-  validUntil: number;
-}
-
-/**
- * The session identity outlives individual runs (run markers are cleared at
- * settlement): one SessionTokenV2 serves every run inside its validity, so a
- * new run costs no session-token rent. Keyed per owner, separate from the
- * per-run marker store.
- */
-export function saveReusableSession(
-  owner: PublicKey,
-  session: Keypair,
-  validUntil: number,
-  storage = browserStorage(),
-): void {
-  if (!storage) return;
-  const sessions = loadStoredReusableSessions(storage);
-  sessions[owner.toBase58()] = {
-    version: 1,
-    owner: owner.toBase58(),
-    sessionSecretKey: Array.from(session.secretKey),
-    validUntil,
-    createdAt: Math.floor(Date.now() / 1_000),
-  };
-  try {
-    storage.setItem(REUSABLE_SESSION_STORAGE_KEY, JSON.stringify(sessions));
-  } catch {
-    // Losing reuse only costs one session-token rent on the next run.
-  }
-}
-
-export function loadReusableSession(
-  owner: PublicKey,
-  options: {
-    storage?: StorageLike | null;
-    nowUnix?: number;
-    minRemainingSeconds?: number;
-  } = {},
-): ReusableSession | null {
-  const storage =
-    options.storage === undefined ? browserStorage() : options.storage;
-  if (!storage) return null;
-  const stored = loadStoredReusableSessions(storage)[owner.toBase58()];
-  if (!stored || stored.owner !== owner.toBase58()) return null;
-  if (
-    !Array.isArray(stored.sessionSecretKey) ||
-    stored.sessionSecretKey.length !== 64 ||
-    !Number.isFinite(stored.validUntil)
-  ) {
-    return null;
-  }
-  const nowUnix = options.nowUnix ?? Math.floor(Date.now() / 1_000);
-  const minRemaining =
-    options.minRemainingSeconds ?? REUSABLE_SESSION_MIN_REMAINING_SECONDS;
-  if (stored.validUntil - nowUnix <= minRemaining) return null;
-  try {
-    return {
-      session: Keypair.fromSecretKey(Uint8Array.from(stored.sessionSecretKey)),
-      validUntil: stored.validUntil,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function loadStoredReusableSessions(
-  storage: StorageLike,
-): Record<string, StoredReusableSession> {
-  try {
-    const raw = storage.getItem(REUSABLE_SESSION_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed as Record<string, StoredReusableSession>;
-  } catch {
-    return {};
-  }
-}
-
 function restoreStoredRunSession(
   stored: StoredRunSession,
   owner: PublicKey,
 ): RunSessionMarker | null {
   // Expiry invalidates the session authorization, not the marker. The marker
-  // remains the durable run locator needed to rotate an expired token or
-  // finish cleanup after a long absence.
+  // remains the durable run locator needed to attach a renewed device session
+  // or finish cleanup after a long absence.
   if (stored.owner !== owner.toBase58()) return null;
   try {
     const runId = BigInt(stored.runId);
@@ -280,14 +185,6 @@ function validSecretKey(value: unknown): value is number[] {
     value.length === 64 &&
     value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
   );
-}
-
-function browserStorage(): StorageLike | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

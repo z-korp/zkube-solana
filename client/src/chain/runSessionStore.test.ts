@@ -119,37 +119,3 @@ class MemoryStorage {
     this.values.delete(key);
   }
 }
-
-describe("reusable session store", () => {
-  it("reuses a fresh session and refuses a nearly-expired one", async () => {
-    const { Keypair } = await import("@solana/web3.js");
-    const { saveReusableSession, loadReusableSession } = await import(
-      "./runSessionStore"
-    );
-    const storage = new MemoryStorage();
-    const owner = Keypair.generate();
-    const session = Keypair.generate();
-    const now = 1_700_000_000;
-    saveReusableSession(owner.publicKey, session, now + 6 * 24 * 3600, storage);
-
-    const fresh = loadReusableSession(owner.publicKey, {
-      storage,
-      nowUnix: now,
-    });
-    expect(fresh?.session.publicKey.equals(session.publicKey)).toBe(true);
-    expect(fresh?.validUntil).toBe(now + 6 * 24 * 3600);
-
-    // Under the one-hour reuse margin a fresh keypair must be minted instead.
-    const nearExpiry = loadReusableSession(owner.publicKey, {
-      storage,
-      nowUnix: now + 6 * 24 * 3600 - 30 * 60,
-    });
-    expect(nearExpiry).toBeNull();
-
-    // Another owner never sees this session.
-    const other = Keypair.generate();
-    expect(
-      loadReusableSession(other.publicKey, { storage, nowUnix: now }),
-    ).toBeNull();
-  });
-});

@@ -138,7 +138,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
               className="font-sans text-[12px] font-bold uppercase tracking-[0.12em]"
               style={{ color: colors.textMuted }}
             >
-              Achievement Vault
+              Achievement Collection
             </p>
             <p
               className="mt-1 font-sans text-[20px] font-extrabold leading-tight"

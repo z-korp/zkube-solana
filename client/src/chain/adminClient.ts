@@ -173,7 +173,9 @@ export async function buildInitializePlayerPlan(args: {
       playerProfile: derivePlayerProfilePda(args.owner.publicKey),
       campaignProgress: deriveCampaignProgressPda(args.owner.publicKey),
       payer,
-      owner: args.owner.publicKey,
+      ownerAuthority: args.owner.publicKey,
+      sessionToken: null,
+      actor: args.owner.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();

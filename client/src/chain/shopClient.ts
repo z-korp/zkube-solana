@@ -267,7 +267,9 @@ export async function buildStarPurchasePlan(args: {
           playerProfile: derivePlayerProfilePda(owner),
           campaignProgress: deriveCampaignProgressPda(owner),
           payer: feePayer,
-          owner,
+          ownerAuthority: owner,
+          sessionToken: null,
+          actor: owner,
           systemProgram: SystemProgram.programId,
         })
         .instruction(),

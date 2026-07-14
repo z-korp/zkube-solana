@@ -238,10 +238,12 @@ export async function buildFinalizeWeeklyPlan(args: {
 export async function buildClaimWeeklyStarsPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   weekly: WeeklyView;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet).methods
     .claimWeeklyStars()
     .accountsPartial({
@@ -249,7 +251,9 @@ export async function buildClaimWeeklyStarsPlan(args: {
       leaderboard: deriveWeeklyLeaderboardPda(args.weekly.address),
       weeklyPlayer: deriveWeeklyPlayerPda(args.weekly.address, owner),
       playerProfile: derivePlayerProfilePda(owner),
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
     })
     .instruction();
   return plan("Claim Weekly Stars", args.connection, args.paymaster ?? owner, instruction);
@@ -258,10 +262,12 @@ export async function buildClaimWeeklyStarsPlan(args: {
 export async function buildClaimWeeklyCashPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   weekly: WeeklyView;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet).methods
     .claimWeeklyCash()
     .accountsPartial({
@@ -277,7 +283,9 @@ export async function buildClaimWeeklyCashPlan(args: {
       ),
       tokenProgram: args.weekly.paymentTokenProgram,
       payer: args.paymaster ?? owner,
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })

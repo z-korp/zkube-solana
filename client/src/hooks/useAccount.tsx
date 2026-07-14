@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 
-/** The embedded identity as the app's account: always connected, no wallet. */
+/** The exact connected Solana address; the application gate keeps this present. */
 export default function useAccount(): { address: string } {
-  const { publicKey } = useEmbeddedIdentity();
-  return useMemo(() => ({ address: publicKey.toBase58() }), [publicKey]);
+  const { publicKey } = useConnectedPlayer();
+  return useMemo(() => ({ address: publicKey?.toBase58() ?? "" }), [publicKey]);
 }

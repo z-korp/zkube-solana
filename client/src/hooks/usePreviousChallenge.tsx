@@ -7,14 +7,16 @@ import {
   fetchDailyView,
   type DailyView,
 } from "@/chain/dailyClient";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { SessionWallet } from "@/chain/sessionWallet";
 import { fetchPaymasterClient } from "@/chain/paymasterClient";
 import { submitSponsoredTransactionPlan } from "@/chain/runPlan";
 import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 
 export function usePreviousChallenge() {
   const { connection } = useSolanaConnection();
-  const { wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const wallet = player.readOnlyWallet;
   const [daily, setDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<"refund" | null>(null);
@@ -46,18 +48,23 @@ export function usePreviousChallenge() {
   const refund = useCallback(
     async () => {
       if (!daily) throw new Error("Previous Daily state is not ready");
+      if (!player.publicKey) throw new Error("Connect a wallet before requesting a refund");
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       setAction("refund");
       try {
         const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildRefundDailyEntryPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: player.publicKey,
+          sessionToken: session.sessionToken,
           daily,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -70,7 +77,7 @@ export function usePreviousChallenge() {
         setAction(null);
       }
     },
-    [connection, daily, refresh, wallet],
+    [connection, daily, player, refresh],
   );
 
   return {

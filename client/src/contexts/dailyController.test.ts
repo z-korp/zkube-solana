@@ -15,7 +15,7 @@ const fixtures = vi.hoisted(() => ({
     startDailyRun: vi.fn(),
   },
   useRun: vi.fn(),
-  wallet: { publicKey: { toBase58: () => "embedded-wallet" } },
+  wallet: { publicKey: { toBase58: () => "connected-wallet" } },
 }));
 
 vi.mock("@/contexts/run", () => ({
@@ -31,8 +31,11 @@ vi.mock("@/chain/dailyClient", () => ({
   fetchDailyView: fixtures.fetchDailyView,
 }));
 
-vi.mock("@/chain/embeddedIdentityContext", () => ({
-  useEmbeddedIdentity: () => ({ wallet: fixtures.wallet }),
+vi.mock("@/chain/connectedPlayerContext", () => ({
+  useConnectedPlayer: () => ({
+    readOnlyWallet: fixtures.wallet,
+    sessionStatus: "missing",
+  }),
 }));
 
 vi.mock("@/chain/paymasterClient", () => ({

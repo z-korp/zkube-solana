@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.vercel
+dist
+dist-server
+node_modules
+coverage
+api
+public
+tools
+twa
+twa/*.keystore
+*.log

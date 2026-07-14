@@ -1,15 +1,15 @@
 import React from "react";
-import { EmbeddedIdentityProvider } from "./EmbeddedIdentityProvider";
+import { ConnectedPlayerProvider } from "./ConnectedPlayerProvider";
 import { SolanaConnectionProvider } from "./SolanaConnectionProvider";
 
 /**
- * The app owns a stable embedded Solana identity. Gameplay never requires an
- * injected wallet or popup; the paymaster remains the base fee payer.
+ * Wallet Standard owns the durable player identity. The local provider keeps
+ * only a scoped, expiring device session for silent safe actions.
  */
 export function SolanaProvider({ children }: { children: React.ReactNode }) {
   return (
     <SolanaConnectionProvider>
-      <EmbeddedIdentityProvider>{children}</EmbeddedIdentityProvider>
+      <ConnectedPlayerProvider>{children}</ConnectedPlayerProvider>
     </SolanaConnectionProvider>
   );
 }

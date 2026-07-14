@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import {
   StarShopQuoteChangedError,
   useShopController,
@@ -29,7 +29,7 @@ import { formatUsdcBaseUnits, splitStarPurchase } from "@/utils/currency";
 const ShopPage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
-  const identity = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
   const campaign = useCampaign();
   const progress = useProgress();
   const daily = useDaily();
@@ -39,8 +39,8 @@ const ShopPage: React.FC = () => {
   const shopOrigin = useNavigationStore((state) => state.shopOrigin);
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
-  const openVaultSettings = useNavigationStore(
-    (state) => state.openVaultSettings,
+  const openWalletSettings = useNavigationStore(
+    (state) => state.openWalletSettings,
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -80,18 +80,19 @@ const ShopPage: React.FC = () => {
   const selectedPack =
     selectedIndex === null ? null : controller.shop?.packs[selectedIndex] ?? null;
 
-  const fundVault = () => {
+  const openWallet = () => {
     setSelectedIndex(null);
-    openVaultSettings("shop");
+    openWalletSettings("shop");
   };
 
   const handlePack = (pack: StarPackQuote) => {
     setStatus(null);
     if (
-      identity.usdcBaseUnits !== null &&
-      identity.usdcBaseUnits < pack.currentPrice
+      !player.publicKey ||
+      (player.usdcBaseUnits !== null &&
+        player.usdcBaseUnits < pack.currentPrice)
     ) {
-      fundVault();
+      openWallet();
       return;
     }
     setSelectedIndex(pack.index);
@@ -106,7 +107,7 @@ const ShopPage: React.FC = () => {
         campaign.refresh(),
         progress.refresh(),
         daily.refresh(),
-        identity.refreshBalance(),
+        player.refreshBalance(),
       ]);
       setSelectedIndex(null);
       setSuccess(
@@ -171,17 +172,17 @@ const ShopPage: React.FC = () => {
                   Devnet · Test USDC
                 </span>
                 <p className="mt-3 font-sans text-lg font-black text-white">
-                  {identity.usdcBaseUnits === null
+                  {player.usdcBaseUnits === null
                     ? "—"
-                    : formatUsdcBaseUnits(identity.usdcBaseUnits)}{" "}
+                    : formatUsdcBaseUnits(player.usdcBaseUnits)}{" "}
                   <span className="text-xs text-white/50">USDC</span>
                 </p>
                 <button
                   type="button"
-                  onClick={fundVault}
+                  onClick={openWallet}
                   className="mt-1 inline-flex items-center gap-1 font-sans text-xs font-bold text-cyan-200"
                 >
-                  <WalletCards size={13} /> Fund Vault
+                  <WalletCards size={13} /> Wallet &amp; funding
                 </button>
               </div>
             </div>
@@ -242,7 +243,8 @@ const ShopPage: React.FC = () => {
                     key={pack.index}
                     pack={pack}
                     shop={controller.shop!}
-                    usdcBalance={identity.usdcBaseUnits}
+                    usdcBalance={player.usdcBaseUnits}
+                    connected={Boolean(player.publicKey)}
                     busy={controller.purchasingPack !== null}
                     paused={controller.shop!.protocolPaused}
                     accent={colors.accent2}
@@ -272,7 +274,7 @@ const ShopPage: React.FC = () => {
               <div className="font-sans text-xs leading-5 text-white/55">
                 <p className="font-bold text-white/80">Know what you buy</p>
                 <p>
-                  Stars are bound to this zKube Vault. They cannot be transferred,
+                  Stars are bound to this connected Solana address. They cannot be transferred,
                   withdrawn, or redeemed for cash. Purchases use Devnet test USDC.
                 </p>
                 <p className="mt-1">
@@ -289,10 +291,10 @@ const ShopPage: React.FC = () => {
         <PurchaseConfirmation
           pack={selectedPack}
           shop={controller.shop}
-          usdcBalance={identity.usdcBaseUnits}
+          usdcBalance={player.usdcBaseUnits}
           busy={controller.purchasingPack === selectedPack.index}
           onClose={() => setSelectedIndex(null)}
-          onFund={fundVault}
+          onFund={openWallet}
           onConfirm={() => void confirmPurchase()}
         />
       )}
@@ -304,6 +306,7 @@ function PackCard({
   pack,
   shop,
   usdcBalance,
+  connected,
   busy,
   paused,
   accent,
@@ -312,6 +315,7 @@ function PackCard({
   pack: StarPackQuote;
   shop: StarShopView;
   usdcBalance: bigint | null;
+  connected: boolean;
   busy: boolean;
   paused: boolean;
   accent: string;
@@ -340,7 +344,7 @@ function PackCard({
       type="button"
       whileTap={{ scale: 0.98 }}
       onClick={onSelect}
-      disabled={!pack.enabled || busy || paused || usdcBalance === null}
+      disabled={!pack.enabled || busy || paused}
       className="relative min-h-[188px] overflow-hidden rounded-2xl border border-white/[0.13] bg-white/[0.07] p-3 text-left shadow-lg shadow-black/20 backdrop-blur-xl transition hover:bg-white/[0.11] disabled:opacity-45"
       aria-label={`${pack.stars.toString()} Stars for ${formatUsdcBaseUnits(pack.currentPrice)} USDC`}
     >
@@ -380,10 +384,12 @@ function PackCard({
           ? "Unavailable"
           : paused
             ? "Shop paused"
-            : usdcBalance === null
-              ? "Checking Vault…"
+            : !connected
+              ? "Connect wallet"
+              : usdcBalance === null
+                ? "Checking wallet…"
               : insufficient
-                ? "Fund Vault"
+                ? "Funding guidance"
                 : "Review purchase"}
       </p>
     </motion.button>
@@ -476,7 +482,7 @@ function PurchaseConfirmation({
             value={`${formatUsdcBaseUnits(pack.currentPrice)} USDC`}
           />
           <ConfirmMetric
-            label="Vault USDC"
+            label="Wallet USDC"
             value={
               usdcBalance === null
                 ? "—"
@@ -498,7 +504,8 @@ function PurchaseConfirmation({
 
         <p className="mt-3 font-sans text-[11px] leading-4 text-white/45">
           The Shop re-checks the on-chain quote before submission. If a sale or
-          pack changes, you will be asked to review the new price.
+          pack changes, you will be asked to review the new price. Your wallet
+          must approve this exact USDC purchase; a zKube session cannot spend USDC.
         </p>
 
         {insufficient ? (
@@ -507,7 +514,7 @@ function PurchaseConfirmation({
             onClick={onFund}
             className="mt-4 w-full rounded-xl bg-cyan-300 py-3 font-sans text-sm font-black text-cyan-950"
           >
-            Fund Vault
+            Open wallet funding guidance
           </button>
         ) : (
           <button
@@ -519,7 +526,7 @@ function PurchaseConfirmation({
             {busy && <Loader2 size={16} className="animate-spin" />}
             {busy
               ? "Purchasing…"
-              : `Pay up to ${formatUsdcBaseUnits(pack.currentPrice)} USDC`}
+              : `Approve ${formatUsdcBaseUnits(pack.currentPrice)} USDC in wallet`}
           </button>
         )}
       </section>

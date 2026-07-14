@@ -23,7 +23,13 @@ import {
   buildTopUpMagicActionEscrowInstruction,
   deriveMagicActionEscrowPda,
 } from "../chain/magicAction";
-import { buildCreateSessionV2Instruction } from "../chain/sessionV2";
+import {
+  buildCreateSessionV2Instruction,
+  SESSION_KEYS_PROGRAM_ID,
+  SESSION_TOKEN_V2_ACCOUNT_BYTES,
+  SESSION_TOKEN_V2_DISCRIMINATOR,
+  deriveSessionTokenV2Pda,
+} from "../chain/sessionV2";
 import {
   SPONSORED_GAME_DISCRIMINATORS,
   PAYMASTER_SESSION_MAX_SECONDS,
@@ -139,29 +145,7 @@ describe("paymaster policy", () => {
     const transaction = transactionWith(
       paymaster.publicKey,
       owner,
-      new TransactionInstruction({
-        programId: ZKUBE_PROGRAM_ID,
-        keys: [
-          {
-            pubkey: Keypair.generate().publicKey,
-            isSigner: false,
-            isWritable: true,
-          },
-          {
-            pubkey: Keypair.generate().publicKey,
-            isSigner: false,
-            isWritable: true,
-          },
-          { pubkey: paymaster.publicKey, isSigner: true, isWritable: true },
-          { pubkey: owner.publicKey, isSigner: true, isWritable: false },
-          {
-            pubkey: SystemProgram.programId,
-            isSigner: false,
-            isWritable: false,
-          },
-        ],
-        data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
-      }),
+      initializePlayerInstruction(paymaster, owner),
     );
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
@@ -252,9 +236,19 @@ describe("paymaster policy", () => {
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
     ).toContain("has not signed");
+
+    const corrupted = transactionWith(
+      paymaster.publicKey,
+      owner,
+      initializePlayerInstruction(paymaster, owner),
+    );
+    corrupted.signatures[1]![0] ^= 0xff;
+    expect(
+      validatePaymasterTransaction(corrupted, paymaster.publicKey),
+    ).toContain("invalid signature");
   });
 
-  it("accepts only the bounded SessionTokenV2 and Magic Action setup", () => {
+  it("accepts only a separate bounded SessionTokenV2 enablement", () => {
     const paymaster = Keypair.generate();
     const owner = Keypair.generate();
     const session = Keypair.generate();
@@ -270,16 +264,29 @@ describe("paymaster policy", () => {
           topUp: false,
           validUntil: nowUnix + PAYMASTER_SESSION_MAX_SECONDS,
         }),
-        buildTopUpMagicActionEscrowInstruction({
-          authority: owner.publicKey,
-          payer: paymaster.publicKey,
-        }),
-        initializePlayerInstruction(paymaster, owner),
       ],
     );
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
     ).toBeNull();
+
+    const combined = transactionWithMany(
+      paymaster.publicKey,
+      [owner, session],
+      [
+        buildCreateSessionV2Instruction({
+          authority: owner.publicKey,
+          sessionSigner: session.publicKey,
+          feePayer: paymaster.publicKey,
+          topUp: false,
+          validUntil: nowUnix + PAYMASTER_SESSION_MAX_SECONDS,
+        }),
+        initializePlayerInstruction(paymaster, owner),
+      ],
+    );
+    expect(validatePaymasterTransaction(combined, paymaster.publicKey)).toContain(
+      "separate owner-approved",
+    );
 
     const topUpSession = transactionWithMany(
       paymaster.publicKey,
@@ -368,42 +375,167 @@ describe("paymaster policy", () => {
     ).toContain("exactly one player authority");
   });
 
-  it("accepts a player-signed shell rotation paired with a fresh scoped session", () => {
+  it("verifies live scoped-session fields before relay signing", async () => {
     const paymaster = Keypair.generate();
     const owner = Keypair.generate();
-    const session = Keypair.generate();
-    const nowUnix = Math.floor(Date.now() / 1_000);
-    const rotate = new TransactionInstruction({
-      programId: ZKUBE_PROGRAM_ID,
-      keys: [
-        {
-          pubkey: Keypair.generate().publicKey,
-          isSigner: false,
-          isWritable: true,
-        },
-        { pubkey: owner.publicKey, isSigner: true, isWritable: false },
-      ],
-      data: Buffer.from(
-        SPONSORED_GAME_DISCRIMINATORS.rotateRunShellAuthority,
-      ),
-    });
+    const actor = Keypair.generate();
+    const nowUnix = 1_800_000_000;
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: actor.publicKey,
+    }).sessionToken;
     const transaction = transactionWithMany(
       paymaster.publicKey,
-      [owner, session],
+      [actor],
+      [sessionActionInstruction(owner.publicKey, actor.publicKey, sessionToken)],
+    );
+    const connection = relayConnection([
+      sessionAccountInfo({
+        authority: owner.publicKey,
+        actor: actor.publicKey,
+        paymaster: paymaster.publicKey,
+        validUntil: nowUnix + 600,
+      }),
+    ]);
+
+    const result = await handlePaymasterRequest(
+      "POST",
+      { transaction: Buffer.from(transaction.serialize()).toString("base64") },
+      { keypair: paymaster, connection, now: () => nowUnix * 1_000 },
+    );
+
+    expect(result.status).toBe(200);
+    expect(connection.getMultipleAccountsInfo).toHaveBeenCalledWith(
+      [sessionToken],
+      "confirmed",
+    );
+  });
+
+  it("rejects expired, cross-owner, wrong-actor, wrong-target, and malformed live sessions", async () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const actor = Keypair.generate();
+    const nowUnix = 1_800_000_000;
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: actor.publicKey,
+    }).sessionToken;
+    const transaction = transactionWithMany(
+      paymaster.publicKey,
+      [actor],
+      [sessionActionInstruction(owner.publicKey, actor.publicKey, sessionToken)],
+    );
+    const cases = [
+      sessionAccountInfo({ authority: owner.publicKey, actor: actor.publicKey, paymaster: paymaster.publicKey, validUntil: nowUnix }),
+      sessionAccountInfo({ authority: Keypair.generate().publicKey, actor: actor.publicKey, paymaster: paymaster.publicKey, validUntil: nowUnix + 600 }),
+      sessionAccountInfo({ authority: owner.publicKey, actor: Keypair.generate().publicKey, paymaster: paymaster.publicKey, validUntil: nowUnix + 600 }),
+      sessionAccountInfo({ authority: owner.publicKey, actor: actor.publicKey, paymaster: paymaster.publicKey, validUntil: nowUnix + 600, target: Keypair.generate().publicKey }),
+      { ...sessionAccountInfo({ authority: owner.publicKey, actor: actor.publicKey, paymaster: paymaster.publicKey, validUntil: nowUnix + 600 }), data: Buffer.alloc(3) },
+    ];
+
+    for (const info of cases) {
+      const result = await handlePaymasterRequest(
+        "POST",
+        { transaction: Buffer.from(transaction.serialize()).toString("base64") },
+        {
+          keypair: paymaster,
+          connection: relayConnection([info]),
+          now: () => nowUnix * 1_000,
+        },
+      );
+      expect(result.status).toBe(403);
+    }
+  });
+
+  it("never lets a session sign a Star purchase or expand into a transfer", () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const actor = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: actor.publicKey,
+    }).sessionToken;
+    const purchase = new TransactionInstruction({
+      programId: ZKUBE_PROGRAM_ID,
+      keys: Array.from({ length: 11 }, (_, index) => ({
+        pubkey:
+          index === 0
+            ? actor.publicKey
+            : index === 10
+              ? owner.publicKey
+              : Keypair.generate().publicKey,
+        isSigner: index === 0,
+        isWritable: index < 10,
+      })),
+      data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.purchaseStars),
+    });
+    expect(
+      validatePaymasterTransaction(
+        transactionWithMany(paymaster.publicKey, [actor], [purchase]),
+        paymaster.publicKey,
+      ),
+    ).toContain("owner must be");
+
+    const expanded = transactionWithMany(
+      paymaster.publicKey,
+      [actor],
       [
-        buildCreateSessionV2Instruction({
-          authority: owner.publicKey,
-          sessionSigner: session.publicKey,
-          feePayer: paymaster.publicKey,
-          topUp: false,
-          validUntil: nowUnix + PAYMASTER_SESSION_MAX_SECONDS,
+        sessionActionInstruction(owner.publicKey, actor.publicKey, sessionToken),
+        SystemProgram.transfer({
+          fromPubkey: actor.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 1,
         }),
-        rotate,
       ],
     );
+    expect(validatePaymasterTransaction(expanded, paymaster.publicKey)).toContain(
+      "is not sponsored",
+    );
+
+    const ownerPurchase = purchaseStarsInstruction(owner.publicKey);
     expect(
-      validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
+      validatePaymasterTransaction(
+        transactionWithMany(paymaster.publicKey, [owner], [ownerPurchase]),
+        paymaster.publicKey,
+      ),
     ).toBeNull();
+    expect(
+      validatePaymasterTransaction(
+        transactionWithMany(
+          paymaster.publicKey,
+          [owner],
+          [ownerPurchase, ownerPurchase],
+        ),
+        paymaster.publicKey,
+      ),
+    ).toContain("one owner-approved purchase");
+    expect(
+      validatePaymasterTransaction(
+        transactionWithMany(
+          paymaster.publicKey,
+          [owner],
+          [initializePlayerInstruction(paymaster, owner), ownerPurchase],
+        ),
+        paymaster.publicKey,
+      ),
+    ).toBeNull();
+    expect(
+      validatePaymasterTransaction(
+        transactionWithMany(
+          paymaster.publicKey,
+          [owner],
+          [
+            ownerPurchase,
+            sessionActionInstruction(
+              owner.publicKey,
+              owner.publicKey,
+              ZKUBE_PROGRAM_ID,
+            ),
+          ],
+        ),
+        paymaster.publicKey,
+      ),
+    ).toContain("one owner-approved purchase");
   });
 
   it("verifies the cluster, adds only the paymaster signature, simulates, and submits", async () => {
@@ -414,11 +546,17 @@ describe("paymaster policy", () => {
       owner,
       initializePlayerInstruction(paymaster, owner),
     );
-    const simulateTransaction = vi.fn().mockImplementation(async (signed) => {
-      expect(Array.from(signed.signatures[0])).not.toEqual(Array(64).fill(0));
+    const ownerSignature = Uint8Array.from(transaction.signatures[1]!);
+    const simulateTransaction = vi.fn().mockImplementation(async (unsigned) => {
+      expect(Array.from(unsigned.signatures[0])).toEqual(Array(64).fill(0));
       return { value: { err: null } };
     });
-    const sendRawTransaction = vi.fn().mockResolvedValue("devnet-signature");
+    const sendRawTransaction = vi.fn().mockImplementation(async (raw) => {
+      const signed = VersionedTransaction.deserialize(raw);
+      expect(Array.from(signed.signatures[0])).not.toEqual(Array(64).fill(0));
+      expect(signed.signatures[1]).toEqual(ownerSignature);
+      return "devnet-signature";
+    });
     const connection = {
       getGenesisHash: vi.fn().mockResolvedValue(SOLANA_DEVNET_GENESIS_HASH),
       simulateTransaction,
@@ -506,9 +644,79 @@ function initializePlayerInstruction(
         isWritable: true,
       },
       { pubkey: paymaster.publicKey, isSigner: true, isWritable: true },
+      { pubkey: owner.publicKey, isSigner: false, isWritable: false },
+      { pubkey: ZKUBE_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: owner.publicKey, isSigner: true, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
   });
+}
+
+function sessionActionInstruction(
+  owner: PublicKey,
+  actor: PublicKey,
+  sessionToken: PublicKey,
+): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: ZKUBE_PROGRAM_ID,
+    keys: [
+      ...Array.from({ length: 5 }, () => ({
+        pubkey: Keypair.generate().publicKey,
+        isSigner: false,
+        isWritable: true,
+      })),
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: sessionToken, isSigner: false, isWritable: false },
+      { pubkey: actor, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.unlockZone),
+  });
+}
+
+function purchaseStarsInstruction(owner: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: ZKUBE_PROGRAM_ID,
+    keys: [
+      ...Array.from({ length: 10 }, () => ({
+        pubkey: Keypair.generate().publicKey,
+        isSigner: false,
+        isWritable: true,
+      })),
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.purchaseStars),
+  });
+}
+
+function sessionAccountInfo(args: {
+  authority: PublicKey;
+  actor: PublicKey;
+  paymaster: PublicKey;
+  validUntil: number;
+  target?: PublicKey;
+}) {
+  const data = Buffer.alloc(SESSION_TOKEN_V2_ACCOUNT_BYTES);
+  Buffer.from(SESSION_TOKEN_V2_DISCRIMINATOR).copy(data, 0);
+  args.authority.toBuffer().copy(data, 8);
+  (args.target ?? ZKUBE_PROGRAM_ID).toBuffer().copy(data, 40);
+  args.actor.toBuffer().copy(data, 72);
+  args.paymaster.toBuffer().copy(data, 104);
+  data.writeBigInt64LE(BigInt(args.validUntil), 136);
+  return {
+    data,
+    owner: SESSION_KEYS_PROGRAM_ID,
+    executable: false,
+    lamports: 1,
+    rentEpoch: 0,
+  };
+}
+
+function relayConnection(infos: unknown[]): Connection {
+  return {
+    getGenesisHash: vi.fn().mockResolvedValue(SOLANA_DEVNET_GENESIS_HASH),
+    getMultipleAccountsInfo: vi.fn().mockResolvedValue(infos),
+    simulateTransaction: vi.fn().mockResolvedValue({ value: { err: null } }),
+    sendRawTransaction: vi.fn().mockResolvedValue("devnet-signature"),
+  } as unknown as Connection;
 }

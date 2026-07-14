@@ -9,21 +9,19 @@ import {
   type ProgressView,
 } from "./progressClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
-import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { useConnectedPlayer } from "./connectedPlayerContext";
+import { SessionWallet } from "./sessionWallet";
 
 export function useProgressController() {
   const { connection } = useSolanaConnection();
-  const { wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const wallet = player.readOnlyWallet;
   const [progress, setProgress] = useState<ProgressView | null>(null);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!wallet) {
-      setProgress(null);
-      return null;
-    }
     setLoading(true);
     try {
       const next = await fetchProgressView({ connection, wallet });
@@ -44,19 +42,25 @@ export function useProgressController() {
 
   const claimAchievement = useCallback(
     async (index: number) => {
-      if (!wallet || !progress) throw new Error("Progress is not ready");
+      if (!progress) throw new Error("Progress is not ready");
+      const owner = player.publicKey;
+      if (!owner) throw new Error("Connect a wallet before claiming rewards");
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`achievement:${index}`);
       try {
         const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimAchievementPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: owner,
+          sessionToken: session.sessionToken,
           achievementIndex: index,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -69,24 +73,30 @@ export function useProgressController() {
         setClaiming(null);
       }
     },
-    [connection, progress, refresh, wallet],
+    [connection, player, progress, refresh],
   );
 
   const claimQuest = useCallback(
     async (index: number) => {
-      if (!wallet || !progress) throw new Error("Progress is not ready");
+      if (!progress) throw new Error("Progress is not ready");
+      const owner = player.publicKey;
+      if (!owner) throw new Error("Connect a wallet before claiming rewards");
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`quest:${index}`);
       try {
         const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimQuestPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: owner,
+          sessionToken: session.sessionToken,
           questIndex: index,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -99,26 +109,32 @@ export function useProgressController() {
         setClaiming(null);
       }
     },
-    [connection, progress, refresh, wallet],
+    [connection, player, progress, refresh],
   );
 
   const claimLevelMilestone = useCallback(
     async (index: number) => {
-      if (!wallet || !progress) {
+      if (!progress) {
         throw new Error("Level milestones are not active");
       }
+      const owner = player.publicKey;
+      if (!owner) throw new Error("Connect a wallet before claiming rewards");
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`milestone:${index}`);
       try {
         const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimLevelMilestonePlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: owner,
+          sessionToken: session.sessionToken,
           milestoneIndex: index,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -131,7 +147,7 @@ export function useProgressController() {
         setClaiming(null);
       }
     },
-    [connection, progress, refresh, wallet],
+    [connection, player, progress, refresh],
   );
 
   return {

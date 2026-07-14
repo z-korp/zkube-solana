@@ -7,7 +7,11 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import {
+  createPublicKey,
+  randomUUID,
+  verify as verifyEd25519Signature,
+} from "node:crypto";
 import { resolve } from "node:path";
 import {
   SOLANA_DEVNET_GENESIS_HASH,
@@ -17,6 +21,7 @@ export { SOLANA_DEVNET_GENESIS_HASH } from "../chain/constants.js";
 import {
   CREATE_SESSION_V2_DISCRIMINATOR,
   SESSION_KEYS_PROGRAM_ID,
+  decodeSessionTokenV2Account,
   deriveSessionTokenV2Pda,
 } from "../chain/sessionV2.js";
 import {
@@ -29,6 +34,7 @@ const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
 );
 const ZERO_SIGNATURE = new Uint8Array(64);
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const TOP_UP_ESCROW_DISCRIMINATOR = [9, 0, 0, 0, 0, 0, 0, 0] as const;
 
 export const PAYMASTER_MAX_TRANSACTION_BYTES = 1_232;
@@ -59,44 +65,78 @@ export const SPONSORED_GAME_DISCRIMINATORS = {
   openWeeklyChallenge: [95, 148, 167, 122, 7, 205, 68, 192],
   purchaseStars: [161, 75, 221, 133, 179, 252, 180, 141],
   refundDailyStars: [40, 40, 190, 173, 41, 249, 98, 211],
-  rotateRunShellAuthority: [101, 234, 115, 157, 0, 246, 19, 255],
   rollupDailyToWeekly: [129, 76, 32, 146, 86, 220, 255, 198],
   unlockZone: [53, 23, 251, 131, 76, 21, 202, 35],
 } as const;
 
 interface SponsoredGamePolicy {
+  authorization: "owner" | "session" | "linked" | "purchase";
+  accountCount: number;
   ownerAccountIndex: number;
+  sessionAccountIndex?: number;
+  actorAccountIndex?: number;
   payerAccountIndex: number | null;
 }
 
+const GAME_ACCOUNT_COUNTS: Record<
+  keyof typeof SPONSORED_GAME_DISCRIMINATORS,
+  number
+> = {
+  abandonRun: 4,
+  claimAchievement: 6,
+  claimQuest: 9,
+  claimLevelMilestone: 9,
+  claimWeeklyCash: 13,
+  claimWeeklyStars: 7,
+  closeDailyChallenge: 6,
+  closeDailyPlayer: 7,
+  closeSettledActiveRun: 8,
+  closeWeeklyChallenge: 15,
+  closeWeeklyPlayer: 7,
+  consumeDailyReceipt: 11,
+  consumeRunReceipt: 8,
+  delegateActiveRun: 12,
+  enterDaily: 14,
+  finalizeDailyChallenge: 3,
+  finalizeWeeklyChallenge: 10,
+  forfeitWeeklyCash: 7,
+  initializePlayer: 7,
+  prepareCampaignRun: 12,
+  openDailyChallenge: 8,
+  openWeeklyChallenge: 11,
+  purchaseStars: 11,
+  refundDailyStars: 6,
+  rollupDailyToWeekly: 10,
+  unlockZone: 8,
+};
+
 const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
-  policy("abandonRun", 3, null),
-  policy("claimAchievement", 3, null),
-  policy("claimQuest", 5, 4),
-  policy("claimLevelMilestone", 5, 4),
-  policy("claimWeeklyCash", 8, 7),
-  policy("claimWeeklyStars", 4, null),
+  sessionPolicy("abandonRun", 1, 2, 3, null),
+  sessionPolicy("claimAchievement", 3, 4, 5, null),
+  sessionPolicy("claimQuest", 5, 6, 7, 4),
+  sessionPolicy("claimLevelMilestone", 5, 6, 7, 4),
+  sessionPolicy("claimWeeklyCash", 8, 9, 10, 7),
+  sessionPolicy("claimWeeklyStars", 4, 5, 6, null),
   policy("closeDailyChallenge", 5, 2),
   policy("closeDailyPlayer", 6, 5),
-  policy("closeSettledActiveRun", 0, 2),
+  sessionPolicy("closeSettledActiveRun", 0, 1, 2, 4),
   policy("closeWeeklyChallenge", 7, 1),
   policy("closeWeeklyPlayer", 6, 5),
-  policy("consumeDailyReceipt", 8, null),
-  policy("consumeRunReceipt", 5, null),
-  policy("delegateActiveRun", 1, 0),
-  policy("enterDaily", 10, 9),
+  linkedPolicy("consumeDailyReceipt", 8, null),
+  linkedPolicy("consumeRunReceipt", 5, null),
+  sessionPolicy("delegateActiveRun", 1, 2, 3, 0),
+  sessionPolicy("enterDaily", 10, 11, 12, 9),
   policy("finalizeDailyChallenge", 2, null),
   policy("finalizeWeeklyChallenge", 2, null),
   policy("forfeitWeeklyCash", 6, null),
-  policy("initializePlayer", 3, 2),
-  policy("prepareCampaignRun", 8, 7),
+  sessionPolicy("initializePlayer", 3, 4, 5, 2),
+  sessionPolicy("prepareCampaignRun", 8, 9, 10, 7),
   policy("openDailyChallenge", 6, 5),
   policy("openWeeklyChallenge", 9, 8),
-  policy("purchaseStars", 10, null),
-  policy("refundDailyStars", 3, null),
-  policy("rotateRunShellAuthority", 1, null),
+  purchasePolicy("purchaseStars", 10),
+  sessionPolicy("refundDailyStars", 3, 4, 5, null),
   policy("rollupDailyToWeekly", 8, 7),
-  policy("unlockZone", 5, null),
+  sessionPolicy("unlockZone", 5, 6, 7, null),
 ]);
 
 function policy(
@@ -106,7 +146,66 @@ function policy(
 ): [string, SponsoredGamePolicy] {
   return [
     discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
-    { ownerAccountIndex, payerAccountIndex },
+    {
+      authorization: "owner",
+      accountCount: GAME_ACCOUNT_COUNTS[name],
+      ownerAccountIndex,
+      payerAccountIndex,
+    },
+  ];
+}
+
+function sessionPolicy(
+  name: keyof typeof SPONSORED_GAME_DISCRIMINATORS,
+  ownerAccountIndex: number,
+  sessionAccountIndex: number,
+  actorAccountIndex: number,
+  payerAccountIndex: number | null,
+): [string, SponsoredGamePolicy] {
+  return [
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
+    {
+      authorization: "session",
+      accountCount: GAME_ACCOUNT_COUNTS[name],
+      ownerAccountIndex,
+      sessionAccountIndex,
+      actorAccountIndex,
+      payerAccountIndex,
+    },
+  ];
+}
+
+function purchasePolicy(
+  name: "purchaseStars",
+  ownerAccountIndex: number,
+): [string, SponsoredGamePolicy] {
+  return [
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
+    {
+      authorization: "purchase",
+      accountCount: GAME_ACCOUNT_COUNTS[name],
+      ownerAccountIndex,
+      payerAccountIndex: null,
+    },
+  ];
+}
+
+/** Permissionless settlement instructions carry an unchecked player owner
+ * whose PDA relationships are verified on-chain. The owner must match every
+ * other instruction in the envelope, but does not need to sign. */
+function linkedPolicy(
+  name: keyof typeof SPONSORED_GAME_DISCRIMINATORS,
+  ownerAccountIndex: number,
+  payerAccountIndex: number | null,
+): [string, SponsoredGamePolicy] {
+  return [
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
+    {
+      authorization: "linked",
+      accountCount: GAME_ACCOUNT_COUNTS[name],
+      ownerAccountIndex,
+      payerAccountIndex,
+    },
   ];
 }
 
@@ -218,21 +317,30 @@ export function validatePaymasterTransaction(
   ) {
     return "instruction count is outside the sponsored policy";
   }
+  const serializedMessage = message.serialize();
   for (
     let index = 1;
     index < message.header.numRequiredSignatures;
     index += 1
   ) {
-    if (
-      !transaction.signatures[index] ||
-      bytesEqual(transaction.signatures[index], ZERO_SIGNATURE)
-    ) {
+    const signature = transaction.signatures[index];
+    const signer = keys[index];
+    if (!signature || bytesEqual(signature, ZERO_SIGNATURE)) {
       return `required signer ${keys[index]?.toBase58() ?? index} has not signed`;
+    }
+    if (
+      !signer ||
+      !verifyRequiredSignature(signer, signature, serializedMessage)
+    ) {
+      return `required signer ${signer?.toBase58() ?? index} has an invalid signature`;
     }
   }
 
   const authorities = new Set<string>();
   let gameInstructionCount = 0;
+  let purchaseInstructionCount = 0;
+  let purchaseInitializationCount = 0;
+  let purchaseInitializationIsOwnerDirect = true;
   let sessionInstructionCount = 0;
   let escrowInstructionCount = 0;
   for (const instruction of message.compiledInstructions) {
@@ -250,6 +358,27 @@ export function validatePaymasterTransaction(
       const key = discriminatorKey(instruction.data);
       const policy = GAME_POLICIES.get(key);
       if (!policy) return "zkube instruction is not sponsored";
+      if (policy.authorization === "purchase") purchaseInstructionCount += 1;
+      if (
+        key ===
+        discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.initializePlayer)
+      ) {
+        purchaseInitializationCount += 1;
+        const initializationOwner =
+          keys[instruction.accountKeyIndexes[policy.ownerAccountIndex]];
+        const initializationActor =
+          policy.actorAccountIndex === undefined
+            ? undefined
+            : keys[instruction.accountKeyIndexes[policy.actorAccountIndex]];
+        const initializationToken =
+          policy.sessionAccountIndex === undefined
+            ? undefined
+            : keys[instruction.accountKeyIndexes[policy.sessionAccountIndex]];
+        purchaseInitializationIsOwnerDirect &&=
+          Boolean(initializationOwner) &&
+          Boolean(initializationActor?.equals(initializationOwner!)) &&
+          Boolean(initializationToken?.equals(ZKUBE_PROGRAM_ID));
+      }
       const rejection = validateGameInstruction(
         instruction.accountKeyIndexes,
         keys,
@@ -295,7 +424,22 @@ export function validatePaymasterTransaction(
   }
   if (authorities.size !== 1)
     return "transaction must sponsor exactly one player authority";
-  if (gameInstructionCount === 0) return "transaction must contain a zkube instruction";
+  if (sessionInstructionCount !== 0 && gameInstructionCount !== 0)
+    return "session enablement must be a separate owner-approved transaction";
+  if (gameInstructionCount === 0 && sessionInstructionCount !== 1)
+    return "transaction must contain a zkube instruction or session enablement";
+  if (gameInstructionCount === 0 && escrowInstructionCount !== 0)
+    return "session enablement cannot include a Magic Action escrow top-up";
+  if (
+    purchaseInstructionCount !== 0 &&
+    (purchaseInstructionCount !== 1 ||
+      purchaseInitializationCount > 1 ||
+      !purchaseInitializationIsOwnerDirect ||
+      gameInstructionCount !== 1 + purchaseInitializationCount ||
+      escrowInstructionCount !== 0)
+  ) {
+    return "Star purchase sponsorship allows only one owner-approved purchase and optional player initialization";
+  }
   return null;
 }
 
@@ -387,11 +531,26 @@ async function processPaymasterRequest(
       body: { error: "unable to verify paymaster RPC cluster" },
     };
   }
-  transaction.sign([dependencies.keypair]);
+  try {
+    const sessionRejection = await validateLiveSessionAccounts(
+      transaction,
+      dependencies.connection,
+      dependencies.keypair.publicKey,
+      Math.floor(now / 1_000),
+    );
+    if (sessionRejection) {
+      return { status: 403, body: { error: sessionRejection } };
+    }
+  } catch {
+    return {
+      status: 503,
+      body: { error: "unable to verify scoped session accounts" },
+    };
+  }
   const simulation = await dependencies.connection.simulateTransaction(
     transaction,
     {
-      sigVerify: true,
+      sigVerify: false,
       replaceRecentBlockhash: false,
     },
   );
@@ -407,6 +566,7 @@ async function processPaymasterRequest(
       },
     };
   }
+  transaction.sign([dependencies.keypair]);
   try {
     const signature = await dependencies.connection.sendRawTransaction(
       transaction.serialize(),
@@ -484,14 +644,47 @@ function validateGameInstruction(
   policy: SponsoredGamePolicy,
   authorities: Set<string>,
 ): string | null {
+  if (accountIndexes.length !== policy.accountCount) {
+    return `zkube instruction account layout is invalid: expected ${policy.accountCount}, received ${accountIndexes.length}`;
+  }
   const ownerKeyIndex = accountIndexes[policy.ownerAccountIndex];
   const owner = keys[ownerKeyIndex];
+  if (!owner || owner.equals(paymaster)) {
+    return "zkube owner authority is invalid";
+  }
   if (
-    !owner ||
-    ownerKeyIndex >= requiredSignatures ||
-    owner.equals(paymaster)
+    policy.authorization === "owner" ||
+    policy.authorization === "purchase"
   ) {
-    return "zkube owner must be a non-paymaster transaction signer";
+    if (ownerKeyIndex >= requiredSignatures) {
+      return "zkube owner must be a non-paymaster transaction signer";
+    }
+  } else if (policy.authorization === "session") {
+    const sessionIndex = policy.sessionAccountIndex;
+    const actorIndex = policy.actorAccountIndex;
+    if (sessionIndex === undefined || actorIndex === undefined) {
+      return "zkube session policy is malformed";
+    }
+    const actorKeyIndex = accountIndexes[actorIndex];
+    const actor = keys[actorKeyIndex];
+    const sessionToken = keys[accountIndexes[sessionIndex]];
+    if (!actor || actor.equals(paymaster) || actorKeyIndex >= requiredSignatures) {
+      return "zkube actor must be a non-paymaster transaction signer";
+    }
+    if (actor.equals(owner)) {
+      if (!sessionToken?.equals(ZKUBE_PROGRAM_ID)) {
+        return "direct owner authorization must not include a session token";
+      }
+    } else {
+      const expected = deriveSessionTokenV2Pda({
+        authority: owner,
+        sessionSigner: actor,
+        targetProgram: ZKUBE_PROGRAM_ID,
+      }).sessionToken;
+      if (!sessionToken?.equals(expected)) {
+        return "zkube session token PDA does not match owner and actor";
+      }
+    }
   }
   authorities.add(owner.toBase58());
   const payerOccurrences = Array.from(accountIndexes).filter((index) =>
@@ -571,6 +764,62 @@ function validateSessionInstruction(
   return null;
 }
 
+async function validateLiveSessionAccounts(
+  transaction: VersionedTransaction,
+  connection: Connection,
+  paymaster: PublicKey,
+  nowUnix: number,
+): Promise<string | null> {
+  const keys = transaction.message.staticAccountKeys;
+  const requested = new Map<
+    string,
+    { address: PublicKey; owner: PublicKey; actor: PublicKey }
+  >();
+  for (const instruction of transaction.message.compiledInstructions) {
+    if (!keys[instruction.programIdIndex]?.equals(ZKUBE_PROGRAM_ID)) continue;
+    const policy = GAME_POLICIES.get(discriminatorKey(instruction.data));
+    if (!policy || policy.authorization !== "session") continue;
+    const sessionIndex = policy.sessionAccountIndex;
+    const actorIndex = policy.actorAccountIndex;
+    if (sessionIndex === undefined || actorIndex === undefined) {
+      return "zkube session policy is malformed";
+    }
+    const owner = keys[instruction.accountKeyIndexes[policy.ownerAccountIndex]];
+    const actor = keys[instruction.accountKeyIndexes[actorIndex]];
+    const address = keys[instruction.accountKeyIndexes[sessionIndex]];
+    if (!owner || !actor || !address) return "zkube session accounts are missing";
+    if (actor.equals(owner)) continue;
+    requested.set(address.toBase58(), { address, owner, actor });
+  }
+  if (requested.size === 0) return null;
+
+  const expected = [...requested.values()];
+  const infos = await connection.getMultipleAccountsInfo(
+    expected.map(({ address }) => address),
+    "confirmed",
+  );
+  for (const [index, authorization] of expected.entries()) {
+    const info = infos[index];
+    if (!info) return "scoped session token account is missing";
+    let token;
+    try {
+      token = decodeSessionTokenV2Account(authorization.address, info);
+    } catch (error) {
+      return error instanceof Error ? error.message : "scoped session token is malformed";
+    }
+    if (
+      !token.authority.equals(authorization.owner) ||
+      !token.sessionSigner.equals(authorization.actor) ||
+      !token.targetProgram.equals(ZKUBE_PROGRAM_ID) ||
+      !token.feePayer.equals(paymaster)
+    ) {
+      return "scoped session token fields do not match the sponsored action";
+    }
+    if (token.validUntil <= nowUnix) return "scoped session token has expired";
+  }
+  return null;
+}
+
 function validateEscrowInstruction(
   accountIndexes: readonly number[],
   data: Uint8Array,
@@ -620,6 +869,28 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
     left.length === right.length &&
     left.every((byte, index) => byte === right[index])
   );
+}
+
+function verifyRequiredSignature(
+  signer: PublicKey,
+  signature: Uint8Array,
+  message: Uint8Array,
+): boolean {
+  try {
+    const publicKey = createPublicKey({
+      key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signer.toBytes())]),
+      format: "der",
+      type: "spki",
+    });
+    return verifyEd25519Signature(
+      null,
+      Buffer.from(message),
+      publicKey,
+      Buffer.from(signature),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

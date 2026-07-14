@@ -54,7 +54,7 @@ export default function PlayScreen() {
   const onRunBonus = controller.onBonus;
   const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
-  const recoveryOwner = run.publicKey.toBase58();
+  const recoveryOwner = run.publicKey?.toBase58() ?? "disconnected wallet";
 
   useEffect(() => {
     if (!activeRun) return;
@@ -162,13 +162,6 @@ export default function PlayScreen() {
 
   const handleRecoverBaseRun = useCallback(async () => {
     if (recoveryRunId === null || recoveringRun) return;
-    if (
-      !window.confirm(
-        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeRunReceipt (if still unconsumed) and closeSettledActiveRun. The paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.`,
-      )
-    ) {
-      return;
-    }
     setRecoveringRun(true);
     try {
       await recoverBaseRun(recoveryRunId);
@@ -177,7 +170,7 @@ export default function PlayScreen() {
     } finally {
       setRecoveringRun(false);
     }
-  }, [recoverBaseRun, recoveringRun, recoveryOwner, recoveryRunId]);
+  }, [recoverBaseRun, recoveringRun, recoveryRunId]);
 
   if (quitting) {
     return (
@@ -224,7 +217,7 @@ export default function PlayScreen() {
               {run.error ??
                 (attachedRun
                   ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
-                  : `Recovery verifies Vault ${recoveryOwner} and requests one sponsored signature for consumeRunReceipt and closeSettledActiveRun.`)}
+                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for sponsored receipt consumption and cleanup.`)}
             </p>
           )}
           {!resolving && (

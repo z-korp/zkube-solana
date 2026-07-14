@@ -1,0 +1,32 @@
+app = "zkube-solana-devnet-keeper"
+primary_region = "cdg"
+kill_signal = "SIGTERM"
+kill_timeout = "240s"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[processes]
+  worker = "node dist-server/server/keeperWorker.js"
+
+[env]
+  NODE_ENV = "production"
+  SOLANA_DEVNET_RPC_URL = "https://rpc.magicblock.app/devnet"
+  PAYMASTER_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+  PAYMASTER_ENDPOINT = "https://zkube-solana-devnet-paymaster.fly.dev/api/paymaster"
+  ZKUBE_PAYMASTER_PUBLIC_KEY = "CNhMPp5p3ViMEzBpeRRjXX1G672rwxHkyNG4gVRN7SgY"
+  ZKUBE_KEEPER_PUBLIC_KEY = "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg"
+  KEEPER_ENABLED = "false"
+  KEEPER_INTERVAL_MS = "300000"
+  KEEPER_MAX_WRITES = "8"
+  MIN_PAYMASTER_LAMPORTS = "1500000000"
+
+[[restart]]
+  policy = "always"
+  processes = ["worker"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
+  processes = ["worker"]

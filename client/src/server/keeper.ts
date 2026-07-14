@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Connection, Keypair } from "@solana/web3.js";
 
 import {
@@ -15,6 +15,7 @@ import {
 } from "../chain/dailyClient.js";
 import { fetchEconomyRuntime } from "../chain/economyClient.js";
 import { deriveDailyChallengePda } from "../chain/pdas.js";
+import type { PaymasterClient } from "../chain/paymasterClient.js";
 import { submitSponsoredTransactionPlan, type TransactionPlan } from "../chain/runPlan.js";
 import { SessionWallet, type WalletLike } from "../chain/sessionWallet.js";
 import {
@@ -32,13 +33,6 @@ import {
   type WeeklyPlayerRecord,
   type WeeklyView,
 } from "../chain/weeklyClient.js";
-import {
-  createDevnetPaymasterConnection,
-  handlePaymasterRequest,
-  paymasterKeypairFromEnv,
-  type PaymasterTelemetryEvent,
-} from "./paymaster.js";
-
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 const DEFAULT_MIN_PAYMASTER_LAMPORTS = 1_500_000_000;
@@ -75,21 +69,11 @@ export interface KeeperPassResult {
 export interface KeeperDependencies {
   connection: Connection;
   keeper: Keypair;
-  paymaster: Keypair;
+  paymaster: PaymasterClient;
   now?: () => number;
   maxWrites?: number;
   minimumBalanceLamports?: number;
-  log?: (event: KeeperLogEvent | PaymasterTelemetryEvent) => void;
-}
-
-export interface KeeperRequestLike {
-  method?: string;
-  headers?: Record<string, string | string[] | undefined>;
-}
-
-export interface KeeperHttpResult {
-  status: number;
-  body: KeeperPassResult | { error: string };
+  log?: (event: KeeperLogEvent) => void;
 }
 
 export function keeperKeypairFromEnv(
@@ -115,50 +99,6 @@ export function keeperKeypairFromEnv(
   return keypair;
 }
 
-export async function handleKeeperRequest(
-  request: KeeperRequestLike,
-  env: Record<string, string | undefined> = process.env,
-  dependencies?: KeeperDependencies,
-): Promise<KeeperHttpResult> {
-  if ((request.method ?? "GET").toUpperCase() !== "GET") {
-    return { status: 405, body: { error: "method not allowed" } };
-  }
-  if (env.KEEPER_ENABLED !== "true") {
-    return { status: 503, body: { error: "keeper is disabled" } };
-  }
-  const secret = env.CRON_SECRET;
-  const authorization = header(request.headers, "authorization");
-  if (!secret || !constantTimeEqual(authorization, `Bearer ${secret}`)) {
-    return { status: 401, body: { error: "unauthorized" } };
-  }
-  try {
-    const log =
-      dependencies?.log ??
-      ((event: KeeperLogEvent | PaymasterTelemetryEvent) =>
-        process.stdout.write(`${JSON.stringify(event)}\n`));
-    const result = await runKeeperPass(
-      dependencies ?? {
-        connection: createDevnetPaymasterConnection(env),
-        keeper: keeperKeypairFromEnv(env),
-        paymaster: paymasterKeypairFromEnv(env),
-        maxWrites: boundedInteger(env.KEEPER_MAX_WRITES, DEFAULT_MAX_WRITES, MAX_MAX_WRITES),
-        minimumBalanceLamports: boundedInteger(
-          env.MIN_PAYMASTER_LAMPORTS,
-          DEFAULT_MIN_PAYMASTER_LAMPORTS,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        log,
-      },
-    );
-    return { status: result.ok ? 200 : 503, body: result };
-  } catch (error) {
-    return {
-      status: 500,
-      body: { error: error instanceof Error ? error.message : "keeper failed" },
-    };
-  }
-}
-
 export async function runKeeperPass(dependencies: KeeperDependencies): Promise<KeeperPassResult> {
   const startedAt = Date.now();
   const now = Math.floor((dependencies.now?.() ?? Date.now()) / 1_000);
@@ -172,7 +112,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   const log = dependencies.log ?? (() => undefined);
   const wallet = new SessionWallet(dependencies.keeper);
   const balanceLamports = await dependencies.connection.getBalance(
-    dependencies.paymaster.publicKey,
+    dependencies.paymaster.pubkey,
     "confirmed",
   );
   log({
@@ -189,25 +129,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   let writes = 0;
   let backlog = 0;
   let operationFailures = 0;
-  const paymasterClient = {
-    pubkey: dependencies.paymaster.publicKey,
-    submit: async (serialized: Uint8Array) => {
-      const result = await handlePaymasterRequest(
-        "POST",
-        { transaction: Buffer.from(serialized).toString("base64") },
-        {
-          keypair: dependencies.paymaster,
-          connection: dependencies.connection,
-          telemetry: log,
-        },
-      );
-      if (result.status !== 200 || !result.body.signature) {
-        throw new Error(result.body.error ?? "paymaster rejected keeper transaction");
-      }
-      return result.body.signature;
-    },
-  };
-
   const execute = async (operation: string, plan: TransactionPlan): Promise<boolean> => {
     if (
       writes >= maxWrites ||
@@ -221,7 +142,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
       const signature = await submitSponsoredTransactionPlan({
         transactionPlan: plan,
         wallet,
-        paymaster: paymasterClient,
+        paymaster: dependencies.paymaster,
       });
       await dependencies.connection.confirmTransaction(signature, "confirmed");
       writes += 1;
@@ -264,7 +185,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         connection: dependencies.connection,
         wallet,
         weekId,
-        paymaster: dependencies.paymaster.publicKey,
+        paymaster: dependencies.paymaster.pubkey,
       }),
     );
     currentWeekly = await fetchWeeklyView({
@@ -285,7 +206,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         connection: dependencies.connection,
         wallet,
         dayId,
-        paymaster: dependencies.paymaster.publicKey,
+        paymaster: dependencies.paymaster.pubkey,
       }),
     );
     currentDaily = await fetchDailyView({
@@ -314,7 +235,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           daily,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -351,7 +272,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
             wallet,
             daily,
             weekly,
-            paymaster: dependencies.paymaster.publicKey,
+            paymaster: dependencies.paymaster.pubkey,
             playerOwner: owner,
           }),
         )) &&
@@ -387,7 +308,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
             connection: dependencies.connection,
             wallet,
             weekly,
-            paymaster: dependencies.paymaster.publicKey,
+            paymaster: dependencies.paymaster.pubkey,
           }),
         );
         weekly = await fetchWeeklyView({
@@ -405,7 +326,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           weekly,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -441,7 +362,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           wallet,
           daily,
           owner: player.owner,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
       if (writes >= maxWrites) break;
@@ -458,7 +379,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           daily,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -488,7 +409,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           wallet,
           weekly,
           owner: player.owner,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
       if (writes >= maxWrites) break;
@@ -509,7 +430,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           weekly,
-          paymaster: dependencies.paymaster.publicKey,
+          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -599,23 +520,11 @@ async function weeklyDailiesClosed(args: {
   return infos.every((info) => info === null);
 }
 
-function header(
-  headers: Record<string, string | string[] | undefined> | undefined,
-  name: string,
-): string {
-  if (!headers) return "";
-  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name);
-  const value = entry?.[1];
-  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
-}
-
-function constantTimeEqual(left: string, right: string): boolean {
-  const leftBytes = Buffer.from(left);
-  const rightBytes = Buffer.from(right);
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
-}
-
-function boundedInteger(value: string | undefined, fallback: number, maximum: number): number {
+export function boundedKeeperInteger(
+  value: string | undefined,
+  fallback: number,
+  maximum: number,
+): number {
   const parsed = value ? Number(value) : fallback;
   if (!Number.isSafeInteger(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, maximum);

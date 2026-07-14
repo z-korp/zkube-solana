@@ -14,11 +14,15 @@ import {
 import { useDaily } from "@/contexts/daily";
 import { usePreviousChallenge } from "@/hooks/usePreviousChallenge";
 import type { DailyView } from "@/chain/dailyClient";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { DailyScoringRules } from "@/ui/components/rewards/dailyRulesCopy";
 import TierContext, {
   type RankContextEntry,
 } from "@/ui/components/rewards/TierContext";
+import EmptyState from "@/ui/components/shared/EmptyState";
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { formatCountdown } from "@/utils/time";
 
 interface CountdownProps {
   endTime: number;
@@ -47,16 +51,12 @@ const Countdown: React.FC<CountdownProps> = ({ endTime, colors }) => {
     );
   }
 
-  const hours = Math.floor(seconds / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remainder = seconds % 60;
   return (
     <span
       className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
       style={{ background: colors.accent }}
     >
-      {String(hours).padStart(2, "0")}:{String(minutes).padStart(2, "0")}:
-      {String(remainder).padStart(2, "0")}
+      {formatCountdown(seconds)}
     </span>
   );
 };
@@ -68,8 +68,8 @@ interface DailyTabProps {
 const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
   const current = useDaily();
   const previous = usePreviousChallenge();
-  const { publicKey } = useEmbeddedIdentity();
-  const address = publicKey.toBase58();
+  const { publicKey } = useConnectedPlayer();
+  const address = publicKey?.toBase58() ?? "";
 
   const currentPosition = useMemo(
     () => getPlayerPosition(current.daily, address),
@@ -122,21 +122,13 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
       )}
 
       {!current.daily ? (
-        <div
-          className="flex flex-col items-center justify-center py-16 text-center"
-          style={{ color: colors.textMuted }}
-        >
-          <span className="mb-4 text-4xl">📅</span>
-          <p
-            className="font-sans text-lg font-semibold"
-            style={{ color: colors.text }}
-          >
-            No daily challenge yet
-          </p>
-          <p className="mt-1 font-sans text-sm">
-            Today&apos;s challenge has not been published.
-          </p>
-        </div>
+        <EmptyState
+          icon={<span className="text-4xl">📅</span>}
+          title="No daily challenge yet"
+          hint="Today's challenge has not been published."
+          titleColor={colors.text}
+          hintColor={colors.textMuted}
+        />
       ) : (
         <>
           <DailyCard
@@ -168,13 +160,14 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-center"
+        className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5"
       >
         <p className="font-sans text-[11px] font-semibold text-white/50">
-          Daily rank awards 100/60/30/10/2 Weekly points. Only your best
-          finalized score counts; cash and Star rewards settle from the Weekly
-          leaderboard.
+          Daily ranks feed your Weekly score.
         </p>
+        <InfoSheet title="How Daily scoring works">
+          <DailyScoringRules />
+        </InfoSheet>
       </motion.section>
 
       {(current.error || previous.error) && (

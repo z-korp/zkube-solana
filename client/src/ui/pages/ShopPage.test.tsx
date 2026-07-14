@@ -16,6 +16,7 @@ import ShopPage from "./ShopPage";
 
 const fixtures = vi.hoisted(() => ({
   identity: {
+    publicKey: null as PublicKey | null,
     usdcBaseUnits: 20_000_000n as bigint | null,
     refreshBalance: vi.fn(),
   },
@@ -26,7 +27,7 @@ const fixtures = vi.hoisted(() => ({
     shopOrigin: "daily" as "daily" | "home" | null,
     navigate: vi.fn(),
     goBack: vi.fn(),
-    openVaultSettings: vi.fn(),
+    openWalletSettings: vi.fn(),
   },
   controller: {
     shop: null as StarShopView | null,
@@ -38,8 +39,8 @@ const fixtures = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/chain/embeddedIdentityContext", () => ({
-  useEmbeddedIdentity: () => fixtures.identity,
+vi.mock("@/chain/connectedPlayerContext", () => ({
+  useConnectedPlayer: () => fixtures.identity,
 }));
 
 vi.mock("@/chain/useShopController", () => ({
@@ -80,6 +81,7 @@ afterAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   fixtures.identity.usdcBaseUnits = 20_000_000n;
+  fixtures.identity.publicKey = PublicKey.default;
   fixtures.identity.refreshBalance.mockResolvedValue(0);
   fixtures.campaignRefresh.mockResolvedValue(null);
   fixtures.progressRefresh.mockResolvedValue(null);
@@ -116,7 +118,7 @@ describe("ShopPage", () => {
     expect(screen.getAllByText("0.5 USDC")).toHaveLength(2);
     expect(screen.getByText("4 USDC")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Pay up to 5 USDC" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve 5 USDC in wallet" }));
     await waitFor(() =>
       expect(fixtures.controller.purchase).toHaveBeenCalledWith(
         expect.objectContaining({ index: 1, stars: 100n }),
@@ -131,14 +133,14 @@ describe("ShopPage", () => {
     expect(screen.getByRole("button", { name: "Return to Daily" })).toBeEnabled();
   });
 
-  it("routes an underfunded pack directly to the Settings Vault", () => {
+  it("routes an underfunded pack directly to wallet settings", () => {
     fixtures.identity.usdcBaseUnits = 0n;
     render(<ShopPage />);
 
     fireEvent.click(
       screen.getByRole("button", { name: "10 Stars for 1 USDC" }),
     );
-    expect(fixtures.navigation.openVaultSettings).toHaveBeenCalledWith("shop");
+    expect(fixtures.navigation.openWalletSettings).toHaveBeenCalledWith("shop");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

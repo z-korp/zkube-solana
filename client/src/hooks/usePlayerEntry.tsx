@@ -1,5 +1,5 @@
 import { useDaily } from "@/contexts/daily";
-import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 
 export interface PlayerEntryView {
   bestDailyScore: number;
@@ -17,16 +17,18 @@ export function usePlayerEntry(
   playerAddress: string | undefined,
 ) {
   const { daily } = useDaily();
-  const { publicKey } = useEmbeddedIdentity();
+  const { publicKey } = useConnectedPlayer();
   const matches =
     challengeId !== undefined &&
     daily?.dayId === challengeId &&
-    (!playerAddress || playerAddress === publicKey.toBase58());
+    Boolean(publicKey && (!playerAddress || playerAddress === publicKey.toBase58()));
   const player = matches ? daily.player : null;
   const rank =
-    daily?.leaderboard.findIndex((candidate) =>
-      candidate.player.equals(publicKey),
-    ) ?? -1;
+    publicKey
+      ? (daily?.leaderboard.findIndex((candidate) =>
+          candidate.player.equals(publicKey),
+        ) ?? -1)
+      : -1;
   const entry: PlayerEntryView | null = player
     ? {
         bestDailyScore: player.bestDailyScore ?? player.bestScore,

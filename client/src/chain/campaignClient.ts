@@ -232,18 +232,22 @@ export function unpackLevelStars(packedStars: number): number[] {
 export async function buildUnlockMapWithStarsPlan(args: {
   connection: Connection;
   wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
   contentVersion: number;
   mapId: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
-  const owner = args.wallet.publicKey;
+  const owner = args.ownerAuthority;
   const program = zkubeProgram(args.connection, args.wallet);
   const accounts = {
     protocol: deriveProtocolConfigPda(),
     playerProfile: derivePlayerProfilePda(owner),
     campaignProgress: deriveCampaignProgressPda(owner),
     mapCatalog: deriveMapCatalogPda(args.contentVersion, args.mapId),
-    owner,
+    ownerAuthority: owner,
+    sessionToken: args.sessionToken,
+    actor: args.wallet.publicKey,
   };
   const instruction = await program.methods
     .unlockZone()
@@ -253,7 +257,9 @@ export async function buildUnlockMapWithStarsPlan(args: {
       playerProfile: accounts.playerProfile,
       campaignProgress: accounts.campaignProgress,
       mapCatalog: accounts.mapCatalog,
-      owner,
+      ownerAuthority: accounts.ownerAuthority,
+      sessionToken: accounts.sessionToken,
+      actor: accounts.actor,
     })
     .instruction();
   return plan("Unlock map with Stars", args.connection, args.paymaster ?? owner, instruction);

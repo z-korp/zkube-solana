@@ -26,7 +26,6 @@ import {
 } from "./runPlan";
 import {
   fetchReceipt,
-  recoverDelegatedRunSession,
   resolvePersistedRun,
   type ResumedRun,
   type RunReceiptView,
@@ -34,12 +33,11 @@ import {
 import { getDelegationStatus } from "./router";
 import {
   clearRunSession,
-  isRunSessionFresh,
-  loadReusableSession,
   loadRunSession,
-  saveReusableSession,
+  saveRunSession,
   type RunSessionMarker,
 } from "./runSessionStore";
+import { loadDeviceSession } from "./deviceSessionStore";
 import { deriveRunAddresses, type RunAddresses } from "./pdas";
 import {
   buildCommitDailyRunPlan,
@@ -47,7 +45,7 @@ import {
   type DailyView,
 } from "./dailyClient";
 import { withTransientErRetry } from "./erRetry";
-import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { useConnectedPlayer } from "./connectedPlayerContext";
 import { awaitAccountCondition } from "./awaitAccountCondition";
 import { createChainTraceId, emitChainMetric, type ChainMetricLayer } from "./telemetry";
 
@@ -127,7 +125,7 @@ export function validateBaseRunRecovery(args: {
     );
   }
   if (!args.activeRun.owner.equals(args.owner)) {
-    throw new Error("ActiveRun owner does not match the embedded Vault");
+    throw new Error("ActiveRun owner does not match the connected wallet");
   }
   if (args.activeRun.runId !== runId) {
     throw new Error(
@@ -155,7 +153,8 @@ export function validateBaseRunRecovery(args: {
 
 export function useRunController() {
   const { connection } = useSolanaConnection();
-  const { publicKey, wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const { publicKey, wallet, readOnlyWallet } = player;
   const [epoch, setEpoch] = useState(0);
   const [state, setState] = useState<RunControllerState>({
     activeRun: null,
@@ -186,11 +185,23 @@ export function useRunController() {
   }, [connection.rpcEndpoint]);
 
   useEffect(() => {
+    if (!publicKey || !wallet) {
+      currentRun.current = null;
+      settleableRun.current = null;
+      setState((value) => ({
+        ...value,
+        phase: "none",
+        activeRun: null,
+        receipt: null,
+        sessionAuthorized: false,
+      }));
+      return;
+    }
     const watcher = new PersistedRunWatcher({
       resolve: () =>
         resolvePersistedRun({
           owner: publicKey,
-          wallet,
+          wallet: readOnlyWallet,
           baseConnection: connection,
         }),
       onState: (run) => {
@@ -226,10 +237,40 @@ export function useRunController() {
     });
     watcher.start();
     return () => void watcher.stop();
-  }, [connection, epoch, publicKey, wallet]);
+  }, [connection, epoch, publicKey, readOnlyWallet, wallet]);
+
+  useEffect(() => {
+    if (!publicKey || player.sessionStatus !== "ready") return;
+    const device = player.session;
+    if (!device || !device.owner.equals(publicKey)) return;
+    const marker = loadRunSession(publicKey);
+    if (!marker || marker.session.publicKey.equals(device.signer.publicKey)) return;
+    saveRunSession({
+      ...marker,
+      session: device.signer,
+      sessionToken: device.sessionToken,
+      validUntil: device.validUntil,
+    });
+    if (currentRun.current?.marker.runId === marker.runId) {
+      currentRun.current.marker = {
+        ...marker,
+        session: device.signer,
+        sessionToken: device.sessionToken,
+        validUntil: device.validUntil,
+      };
+      currentRun.current.sessionAuthorized = true;
+    }
+    setEpoch((value) => value + 1);
+  }, [player.session, player.sessionStatus, publicKey]);
 
   const launchCampaignRun = useCallback(
     async (mapId: number, level: number) => {
+      if (!wallet || !publicKey) {
+        throw new Error("Connect a wallet before starting a run");
+      }
+      const device = player.requireSession();
+      const session = device.signer;
+      const sessionWallet = new SessionWallet(session);
       telemetryTrace.current = createChainTraceId();
       const traceId = telemetryTrace.current;
       const launchStart = Date.now();
@@ -246,33 +287,35 @@ export function useRunController() {
         paymaster.current ?? (await fetchPaymasterClient(connection));
       paymaster.current = sponsor;
       lap("paymaster");
-      const reusable = loadReusableSession(publicKey);
-      const session = reusable?.session ?? Keypair.generate();
       const prepared = await buildPrepareCampaignRunPlan({
-        wallet,
-        session,
+        wallet: sessionWallet,
+        ownerAuthority: publicKey,
+        sessionToken: device.sessionToken,
         mapId,
         level,
         connection,
         paymaster: sponsor.pubkey,
-        sessionValidUntil: reusable?.validUntil,
+        sessionValidUntil: device.validUntil,
       });
       const prepareSignature = await submitPreparedRunPlan({
         preparedRun: prepared,
-        wallet,
+        owner: publicKey,
+        wallet: sessionWallet,
         paymaster: sponsor,
-        session,
+        sessionSigner: session,
       });
       lap("prepare", { signature: prepareSignature });
       const delegate = await buildDelegateRunPlan({
-        wallet,
+        wallet: sessionWallet,
+        ownerAuthority: publicKey,
+        sessionToken: device.sessionToken,
         addresses: prepared.addresses,
         connection,
         paymaster: sponsor.pubkey,
       });
       const delegateSignature = await submitSponsoredTransactionPlan({
         transactionPlan: delegate,
-        wallet,
+        wallet: sessionWallet,
         paymaster: sponsor,
       });
       await connection.confirmTransaction(delegateSignature, "confirmed");
@@ -289,7 +332,7 @@ export function useRunController() {
         prepared,
         session,
         erConnection,
-        ownerWallet: wallet,
+        owner: publicKey,
         traceId,
       });
       lap("vrf-hydrate");
@@ -297,7 +340,7 @@ export function useRunController() {
         durationMs: Date.now() - launchStart,
         mapId,
         level,
-        reusedSession: Boolean(reusable),
+        reusedSession: true,
       });
       currentRun.current = {
         phase: "delegated",
@@ -317,7 +360,7 @@ export function useRunController() {
       }));
       return activeRun;
     },
-    [connection, publicKey, wallet],
+    [connection, player, publicKey, wallet],
   );
 
   const startCampaignRun = useCallback(
@@ -330,6 +373,12 @@ export function useRunController() {
   const startDailyRun = useCallback(
     async (daily: DailyView) => {
       return withBusy(setState, async () => {
+        if (!wallet || !publicKey) {
+          throw new Error("Connect a wallet before starting a run");
+        }
+        const device = player.requireSession();
+        const session = device.signer;
+        const sessionWallet = new SessionWallet(session);
         telemetryTrace.current = createChainTraceId();
         const traceId = telemetryTrace.current;
         const launchStart = Date.now();
@@ -347,34 +396,36 @@ export function useRunController() {
           paymaster.current ?? (await fetchPaymasterClient(connection));
         paymaster.current = sponsor;
         lap("paymaster");
-        const reusable = loadReusableSession(publicKey);
-        const session = reusable?.session ?? Keypair.generate();
         const prepared = await buildPrepareDailyRunPlan({
-          wallet,
-          session,
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
           daily,
           connection,
           paymaster: sponsor.pubkey,
-          sessionValidUntil: reusable?.validUntil,
+          sessionValidUntil: device.validUntil,
         });
         const prepareSignature = await submitPreparedRunPlan({
           preparedRun: prepared,
-          wallet,
+          owner: publicKey,
+          wallet: sessionWallet,
           paymaster: sponsor,
-          session,
+          sessionSigner: session,
           mode: "daily",
           dailyVersion: daily.economyVersion,
         });
         lap("prepare", { signature: prepareSignature });
         const delegate = await buildDelegateRunPlan({
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
           addresses: prepared.addresses,
           connection,
           paymaster: sponsor.pubkey,
         });
         const delegateSignature = await submitSponsoredTransactionPlan({
           transactionPlan: delegate,
-          wallet,
+          wallet: sessionWallet,
           paymaster: sponsor,
         });
         await connection.confirmTransaction(delegateSignature, "confirmed");
@@ -392,7 +443,7 @@ export function useRunController() {
           prepared,
           session,
           erConnection,
-          ownerWallet: wallet,
+          owner: publicKey,
           traceId,
         });
         lap("vrf-hydrate");
@@ -400,7 +451,7 @@ export function useRunController() {
           durationMs: Date.now() - launchStart,
           mode: "daily",
           dayId: daily.dayId,
-          reusedSession: Boolean(reusable),
+          reusedSession: true,
         });
         currentRun.current = {
           phase: "delegated",
@@ -421,7 +472,7 @@ export function useRunController() {
         return activeRun;
       });
     },
-    [connection, publicKey, wallet],
+    [connection, player, publicKey, wallet],
   );
 
   const playMove = useCallback(
@@ -431,8 +482,8 @@ export function useRunController() {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
-          requireFreshRunSession(run);
-          const sessionWallet = new SessionWallet(run.marker.session);
+          const device = player.requireSession();
+          const sessionWallet = new SessionWallet(device.signer);
           const moveStart = Date.now();
           plog(telemetryTrace.current, "move:start", "magicblock-er", {
             move: run.activeRun.moves,
@@ -444,7 +495,7 @@ export function useRunController() {
           const plan = await buildPlayMovePlan({
             owner: run.marker.owner,
             sessionWallet,
-            sessionToken: run.marker.sessionToken,
+            sessionToken: device.sessionToken,
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
             expectedMove: run.activeRun.moves,
@@ -467,13 +518,13 @@ export function useRunController() {
             prepared: {
               runId: run.marker.runId,
               addresses: run.marker.addresses,
-              sessionToken: run.marker.sessionToken,
-              sessionValidUntil: run.marker.validUntil,
+              sessionToken: device.sessionToken,
+              sessionValidUntil: device.validUntil,
               transactionPlan: plan,
             },
-            session: run.marker.session,
+            session: device.signer,
             erConnection: run.connection,
-            ownerWallet: wallet!,
+            owner: device.owner,
             traceId: telemetryTrace.current,
           });
           plog(telemetryTrace.current, "move:total", "magicblock-er", {
@@ -495,7 +546,7 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [wallet],
+    [player],
   );
 
   const setStage = useCallback(
@@ -506,18 +557,22 @@ export function useRunController() {
 
   /**
    * Base-layer settlement tail: consume the receipt (signerless, sponsored
-   * fee only) if the Magic Action didn't, then close the ActiveRun for rent
+   * fee only) if the Magic Action didn't, then close the ActiveRun with the
+   * current device session
    * and clear the local marker. Shared by the normal pipeline and the
    * stuck-run recovery.
    */
   const finalizeBaseSettlement = useCallback(
     async (descriptor: PublicRunSettlementDescriptor) => {
+      if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
+      const device = player.requireSession();
+      const sessionWallet = new SessionWallet(device.signer);
       const sponsor =
         paymaster.current ?? (await fetchPaymasterClient(connection));
       paymaster.current = sponsor;
       const receipt = await fetchReceipt(
         connection,
-        wallet,
+        readOnlyWallet,
         descriptor.addresses.runReceipt,
       );
       plog(telemetryTrace.current, "settle:finalize-start", "solana-base", {
@@ -527,8 +582,9 @@ export function useRunController() {
       });
       setStage(receipt?.consumed ? "cleaning" : "consuming");
       const finalizePlan = await buildFinalizeRunPlan({
-        wallet,
+        wallet: sessionWallet,
         owner: descriptor.owner,
+        sessionToken: device.sessionToken,
         runId: descriptor.runId,
         addresses: descriptor.addresses,
         mode: descriptor.mode,
@@ -540,7 +596,7 @@ export function useRunController() {
       });
       const signature = await submitSponsoredTransactionPlan({
         transactionPlan: finalizePlan,
-        wallet,
+        wallet: sessionWallet,
         paymaster: sponsor,
       });
       await connection.confirmTransaction(signature, "confirmed");
@@ -554,12 +610,12 @@ export function useRunController() {
       }
       return signature;
     },
-    [connection, publicKey, setStage, wallet],
+    [connection, player, publicKey, readOnlyWallet, setStage, wallet],
   );
 
   /**
    * Full auto-settle pipeline for the attached delegated run:
-   * seal (session) → commit-and-undelegate (owner) → wait for the base
+   * seal (session) → commit-and-undelegate (session) → wait for the base
    * copyback → consume receipt if the Magic Action stalled → close for rent
    * → optionally launch the next campaign level. No manual settle button.
    */
@@ -570,14 +626,14 @@ export function useRunController() {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
-          requireFreshRunSession(run);
-          const sessionWallet = new SessionWallet(run.marker.session);
+          const device = player.requireSession();
+          const sessionWallet = new SessionWallet(device.signer);
           setStage("sealing");
           const sealStartedAt = Date.now();
           const seal = await buildSealRunPlan({
             owner: run.marker.owner,
             sessionWallet,
-            sessionToken: run.marker.sessionToken,
+            sessionToken: device.sessionToken,
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
           });
@@ -595,7 +651,7 @@ export function useRunController() {
             run.marker.mode === "daily"
               ? await buildCommitDailyRunPlan({
                   owner: run.marker.owner,
-                  payerWallet: wallet,
+                  payerWallet: sessionWallet,
                   addresses: run.marker.addresses,
                   dailyChallenge: run.activeRun.dailyChallenge,
                   economyVersion: run.marker.dailyVersion ?? 1,
@@ -603,13 +659,13 @@ export function useRunController() {
                 })
               : await buildCommitRunPlan({
                   owner: run.marker.owner,
-                  payerWallet: wallet,
+                  payerWallet: sessionWallet,
                   addresses: run.marker.addresses,
                   erConnection: run.connection,
                 });
           const signature = await submitWalletTransactionPlan({
             transactionPlan: commit,
-            wallet,
+            wallet: sessionWallet,
           });
           plog(
             telemetryTrace.current,
@@ -677,7 +733,7 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [connection, finalizeBaseSettlement, launchCampaignRun, setStage, wallet],
+    [connection, finalizeBaseSettlement, launchCampaignRun, player, setStage, wallet],
   );
 
   /**
@@ -718,11 +774,12 @@ export function useRunController() {
 
   /**
    * Recover an undelegated terminal campaign ActiveRun using only its public run ID.
-   * Every PDA is reconstructed from the current embedded owner, so this path
+   * Every PDA is reconstructed from the connected owner, so this path
    * remains available when the local RunSessionMarker has been lost.
    */
   const recoverBaseRun = useCallback(
     async (runId: bigint): Promise<string> => {
+      if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
       if (actionInFlight.current) {
         throw new Error("Another run action is already in progress");
       }
@@ -732,7 +789,7 @@ export function useRunController() {
           const validRunId = requirePositiveRunId(runId);
           if (!wallet.publicKey.equals(publicKey)) {
             throw new Error(
-              "Embedded Vault identity changed before run recovery",
+              "Connected wallet changed before run recovery",
             );
           }
           requireNoAttachedRunSession({
@@ -770,7 +827,7 @@ export function useRunController() {
           }
           const activeRun = await fetchActiveRun(
             connection,
-            wallet,
+            readOnlyWallet,
             addresses.activeRun,
           );
           const descriptor = validateBaseRunRecovery({
@@ -804,7 +861,14 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [connection, finalizeBaseSettlement, publicKey, setStage, wallet],
+    [
+      connection,
+      finalizeBaseSettlement,
+      publicKey,
+      readOnlyWallet,
+      setStage,
+      wallet,
+    ],
   );
 
   /**
@@ -817,6 +881,9 @@ export function useRunController() {
    * program that predates `abandonRun`).
    */
   const abandonRun = useCallback(async () => {
+    if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
+    const device = player.requireSession();
+    const sessionWallet = new SessionWallet(device.signer);
     const run = currentRun.current;
     if (run) {
       if (actionInFlight.current) {
@@ -825,23 +892,21 @@ export function useRunController() {
       actionInFlight.current = true;
       try {
         await withBusy(setState, async () => {
-          // Owner-signed on purpose: abandoning must work even when the
-          // scoped session has expired, so no freshness gate applies here.
           setStage("abandoning");
           const abandon = await buildAbandonRunPlan({
             owner: run.marker.owner,
-            signerWallet: wallet,
-            sessionToken: null,
+            signerWallet: sessionWallet,
+            sessionToken: device.sessionToken,
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
           });
           const signature = await submitWalletTransactionPlan({
             transactionPlan: abandon,
-            wallet,
+            wallet: sessionWallet,
           });
           const abandoned = await fetchActiveRun(
             run.connection,
-            wallet,
+            sessionWallet,
             run.marker.addresses.activeRun,
           );
           if (abandoned) run.activeRun = abandoned;
@@ -873,7 +938,7 @@ export function useRunController() {
         }
         const activeRun = await fetchActiveRun(
           connection,
-          wallet,
+          readOnlyWallet,
           marker.addresses.activeRun,
         );
         if (!activeRun) {
@@ -893,8 +958,9 @@ export function useRunController() {
           paymaster.current ?? (await fetchPaymasterClient(connection));
         paymaster.current = sponsor;
         const finalizePlan = await buildFinalizeRunPlan({
-          wallet,
+          wallet: sessionWallet,
           owner: marker.owner,
+          sessionToken: device.sessionToken,
           runId: marker.runId,
           addresses: marker.addresses,
           mode: marker.mode,
@@ -907,7 +973,7 @@ export function useRunController() {
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan: finalizePlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster: sponsor,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -932,15 +998,18 @@ export function useRunController() {
   }, [
     connection,
     finalizeBaseSettlement,
+    player,
     publicKey,
     setStage,
     settleAndAdvance,
+    readOnlyWallet,
     wallet,
   ]);
 
   /** Local escape hatch: forget the stuck marker without touching chain
    *  accounts (they stay recoverable later). */
   const dismissRun = useCallback(() => {
+    if (!publicKey) return;
     clearRunSession(publicKey);
     currentRun.current = null;
     settleableRun.current = null;
@@ -956,18 +1025,19 @@ export function useRunController() {
     }));
   }, [publicKey]);
 
-  const applyBonus = useCallback(async (row: number, column: number) => {
-    const run = currentRun.current;
-    if (!run) throw new Error("No delegated run is attached");
-    actionInFlight.current = true;
-    try {
-      return await withBusy(setState, async () => {
-        requireFreshRunSession(run);
-        const sessionWallet = new SessionWallet(run.marker.session);
+  const applyBonus = useCallback(
+    async (row: number, column: number) => {
+      const run = currentRun.current;
+      if (!run) throw new Error("No delegated run is attached");
+      actionInFlight.current = true;
+      try {
+        return await withBusy(setState, async () => {
+          const device = player.requireSession();
+          const sessionWallet = new SessionWallet(device.signer);
         const plan = await buildApplyBonusPlan({
           owner: run.marker.owner,
           sessionWallet,
-          sessionToken: run.marker.sessionToken,
+            sessionToken: device.sessionToken,
           activeRun: run.marker.addresses.activeRun,
           erConnection: run.connection,
           expectedAction: run.activeRun.actionCounter,
@@ -991,14 +1061,17 @@ export function useRunController() {
           activeRun,
           lastSignature: signature,
         }));
-        return activeRun;
-      });
-    } finally {
-      actionInFlight.current = false;
-    }
-  }, []);
+          return activeRun;
+        });
+      } finally {
+        actionInFlight.current = false;
+      }
+    },
+    [player],
+  );
 
   const cleanup = useCallback(async () => {
+    if (!publicKey) throw new Error("Connect the run owner wallet");
     const marker = loadRunSession(publicKey);
     if (!marker) return null;
     return withBusy(setState, async () => {
@@ -1022,24 +1095,27 @@ export function useRunController() {
 
   const recoverSession = useCallback(async () => {
     const run = currentRun.current;
-    if (!run || !wallet) throw new Error("No delegated run is attached");
+    if (!run || !wallet || !publicKey)
+      throw new Error("No delegated run is attached");
     if (actionInFlight.current) {
       throw new Error("Another run action is already in progress");
     }
     actionInFlight.current = true;
     try {
       return await withBusy(setState, async () => {
-        const sponsor =
-          paymaster.current ?? (await fetchPaymasterClient(connection));
-        paymaster.current = sponsor;
-        const marker = await recoverDelegatedRunSession({
-          run,
-          wallet,
-          paymaster: sponsor,
-        });
+        await player.renew();
+        const device = loadDeviceSession(publicKey);
+        if (!device) throw new Error("Renewed device session was not persisted");
+        const marker: RunSessionMarker = {
+          ...run.marker,
+          session: device.signer,
+          sessionToken: device.sessionToken,
+          validUntil: device.validUntil,
+          createdAt: device.createdAt,
+        };
+        saveRunSession(marker);
         run.marker = marker;
         run.sessionAuthorized = true;
-        saveReusableSession(publicKey, marker.session, marker.validUntil);
         setEpoch((value) => value + 1);
         setState((value) => ({ ...value, sessionAuthorized: true }));
         return marker;
@@ -1047,7 +1123,7 @@ export function useRunController() {
     } finally {
       actionInFlight.current = false;
     }
-  }, [connection, publicKey, wallet]);
+  }, [player, publicKey, wallet]);
 
   // Force an immediate watcher re-resolve (restarts the resolve/subscribe
   // loop). Used to retry a run stuck "resolving" while the ER catches up.
@@ -1057,7 +1133,7 @@ export function useRunController() {
 
   return {
     ...state,
-    connected: true,
+    connected: Boolean(publicKey && wallet),
     publicKey,
     startCampaignRun,
     startDailyRun,
@@ -1078,7 +1154,7 @@ async function hydrateRows(args: {
   prepared: PreparedRunPlan;
   session: Keypair;
   erConnection: import("@solana/web3.js").Connection;
-  ownerWallet: WalletLike;
+  owner: PublicKey;
   traceId: string;
 }): Promise<ActiveRunView> {
   const sessionWallet = new SessionWallet(args.session);
@@ -1097,7 +1173,7 @@ async function hydrateRows(args: {
       let signature = "";
       await withTransientErRetry(async () => {
         const request = await buildRequestRowPlan({
-          owner: args.ownerWallet.publicKey,
+          owner: args.owner,
           sessionWallet,
           sessionToken: args.prepared.sessionToken,
           activeRun: args.prepared.addresses.activeRun,
@@ -1167,14 +1243,6 @@ function requirePositiveRunId(runId: bigint | null | undefined): bigint {
   return runId;
 }
 
-function requireFreshRunSession(
-  run: Extract<ResumedRun, { phase: "delegated" }>,
-): void {
-  if (!run.sessionAuthorized || !isRunSessionFresh(run.marker)) {
-    throw new Error("Run session renewal is required before this action");
-  }
-}
-
 export function requireNoAttachedRunSession(args: {
   owner: PublicKey;
   requestedRunId: bigint;
@@ -1185,7 +1253,7 @@ export function requireNoAttachedRunSession(args: {
   const attached = args.stored ?? args.active ?? args.settleable;
   if (!attached) return;
   throw new Error(
-    `Vault ${args.owner.toBase58()} already has local run ${attached.runId.toString()} attached; leave recovery mode and resume or forget it before recovering run ${args.requestedRunId.toString()}`,
+    `Wallet ${args.owner.toBase58()} already has local run ${attached.runId.toString()} attached; leave recovery mode and resume or forget it before recovering run ${args.requestedRunId.toString()}`,
   );
 }
 

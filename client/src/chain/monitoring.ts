@@ -1,9 +1,7 @@
 import {
   PublicKey,
-  Transaction,
   type AccountInfo,
   type Connection,
-  type VersionedTransaction,
 } from "@solana/web3.js";
 
 import { ZKUBE_PROGRAM_ID } from "./constants";
@@ -13,8 +11,8 @@ import {
   deriveDailyLeaderboardPda,
   deriveEconomyConfigPda,
 } from "./pdas";
+import { createReadOnlyWallet } from "./readOnlyWallet";
 import { zkubeProgram } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
 
 const DAILY_LEADERBOARD_CAPACITY = 50;
 const DAILY_CLEANUP_WARNING_SECONDS = 8 * 86_400;
@@ -170,21 +168,7 @@ interface Numeric {
   toString(radix?: number): string;
 }
 
-const READ_ONLY_WALLET: WalletLike = {
-  publicKey: ZKUBE_PROGRAM_ID,
-  async signTransaction<T extends Transaction | VersionedTransaction>(
-    transaction: T,
-  ): Promise<T> {
-    void transaction;
-    throw new Error("read-only monitor cannot sign");
-  },
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(
-    transactions: T[],
-  ): Promise<T[]> {
-    void transactions;
-    throw new Error("read-only monitor cannot sign");
-  },
-};
+const READ_ONLY_WALLET = createReadOnlyWallet(ZKUBE_PROGRAM_ID);
 
 export async function fetchDailyOperationalSnapshots(args: {
   connection: Connection;

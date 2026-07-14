@@ -284,7 +284,7 @@ describe("usePlayController silent session renewal", () => {
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
   });
 
-  it("allows a later authorization lapse to rotate once again", async () => {
+  it("allows a later authorization lapse to renew once again", async () => {
     const recoverSession = vi.fn().mockResolvedValue({});
     fixtures.run = delegatedRun(recoverSession);
 
@@ -304,7 +304,7 @@ describe("usePlayController silent session renewal", () => {
     await waitFor(() => expect(recoverSession).toHaveBeenCalledTimes(2));
   });
 
-  it("never rotates automatically inside diagnostic recovery mode", async () => {
+  it("never renews automatically inside diagnostic recovery mode", async () => {
     const recoverSession = vi.fn().mockResolvedValue({});
     fixtures.run = delegatedRun(recoverSession);
     fixtures.recoveryRunId = 1n;

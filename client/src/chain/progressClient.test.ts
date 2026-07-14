@@ -32,12 +32,16 @@ describe("progress reward client", () => {
       buildClaimAchievementPlan({
         connection,
         wallet,
+        ownerAuthority: owner.publicKey,
+        sessionToken: null,
         achievementIndex: 0,
         paymaster: paymaster.publicKey,
       }),
       buildClaimQuestPlan({
         connection,
         wallet,
+        ownerAuthority: owner.publicKey,
+        sessionToken: null,
         questIndex: 0,
         paymaster: paymaster.publicKey,
       }),

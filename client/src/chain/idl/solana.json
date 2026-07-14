@@ -313,7 +313,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -337,18 +337,21 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile",
-            "campaign_progress"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": [
@@ -428,7 +431,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -461,7 +464,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -472,11 +475,15 @@
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "system_program",
@@ -541,7 +548,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -570,7 +577,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -601,7 +608,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -612,11 +619,15 @@
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "system_program",
@@ -724,7 +735,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -743,7 +754,7 @@
             "seeds": [
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "const",
@@ -836,7 +847,14 @@
           "signer": true
         },
         {
-          "name": "owner",
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         },
         {
@@ -943,7 +961,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -966,17 +984,21 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -1239,17 +1261,15 @@
       ],
       "accounts": [
         {
-          "name": "owner",
-          "docs": [
-            "The player still consents to cleanup: closing erases the on-chain",
-            "receipt, so a third party must not be able to grief-close a run."
-          ],
-          "signer": true,
-          "relations": [
-            "run_shell",
-            "run_receipt",
-            "active_run"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "protocol",
@@ -1293,7 +1313,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -1321,7 +1341,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -1356,7 +1376,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -2299,11 +2319,15 @@
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "run_shell"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "run_shell",
@@ -2320,7 +2344,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "account",
@@ -2550,7 +2574,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -2606,7 +2630,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -2637,7 +2661,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -2657,7 +2681,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -2692,7 +2716,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -2720,7 +2744,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -2735,11 +2759,15 @@
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "system_program",
@@ -2750,10 +2778,6 @@
         {
           "name": "run_id",
           "type": "u64"
-        },
-        {
-          "name": "action_authority",
-          "type": "pubkey"
         }
       ]
     },
@@ -3137,7 +3161,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -3162,7 +3186,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -3173,7 +3197,14 @@
           "signer": true
         },
         {
-          "name": "owner",
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         },
         {
@@ -3656,7 +3687,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -3680,7 +3711,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -3703,7 +3734,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -3738,7 +3769,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -3766,7 +3797,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               },
               {
                 "kind": "arg",
@@ -3781,12 +3812,15 @@
           "signer": true
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile",
-            "campaign_progress"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         },
         {
           "name": "system_program",
@@ -3805,10 +3839,6 @@
         {
           "name": "level",
           "type": "u8"
-        },
-        {
-          "name": "action_authority",
-          "type": "pubkey"
         }
       ]
     },
@@ -4192,7 +4222,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -4215,17 +4245,21 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -4565,94 +4599,6 @@
       "args": []
     },
     {
-      "name": "rotate_active_run_authority",
-      "discriminator": [
-        219,
-        166,
-        35,
-        208,
-        238,
-        104,
-        124,
-        16
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "active_run"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "new_action_authority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "rotate_run_shell_authority",
-      "discriminator": [
-        101,
-        234,
-        115,
-        157,
-        0,
-        246,
-        19,
-        255
-      ],
-      "accounts": [
-        {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "run_shell"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        },
-        {
-          "name": "new_action_authority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "schedule_sale",
       "discriminator": [
         131,
@@ -4920,7 +4866,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -4945,7 +4891,7 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "owner_authority"
               }
             ]
           }
@@ -4954,12 +4900,15 @@
           "name": "map_catalog"
         },
         {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "player_profile",
-            "campaign_progress"
-          ]
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
         }
       ],
       "args": []
@@ -6028,6 +5977,16 @@
       "code": 6041,
       "name": "PriceChanged",
       "msg": "The Star pack price changed; refresh the quote"
+    },
+    {
+      "code": 6042,
+      "name": "InvalidSession",
+      "msg": "The scoped player session is invalid"
+    },
+    {
+      "code": 6043,
+      "name": "SessionExpired",
+      "msg": "The scoped player session has expired"
     }
   ],
   "types": [
@@ -6091,10 +6050,6 @@
                 "name": "RunLifecycle"
               }
             }
-          },
-          {
-            "name": "action_authority",
-            "type": "pubkey"
           },
           {
             "name": "content_version",
@@ -8325,10 +8280,6 @@
           },
           {
             "name": "daily_challenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "action_authority",
             "type": "pubkey"
           },
           {

@@ -8,31 +8,11 @@ import type { WeeklyPlayerRecord, WeeklyView } from "../chain/weeklyClient";
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
-  handleKeeperRequest,
   keeperKeypairFromEnv,
   weeklyPlayerCanClose,
 } from "./keeper";
 
 describe("autonomous challenge keeper", () => {
-  it("authenticates Vercel cron requests and stays disabled by default", async () => {
-    await expect(handleKeeperRequest({ method: "GET" }, {})).resolves.toEqual({
-      status: 503,
-      body: { error: "keeper is disabled" },
-    });
-    await expect(
-      handleKeeperRequest(
-        { method: "GET", headers: { authorization: "Bearer wrong" } },
-        { KEEPER_ENABLED: "true", CRON_SECRET: "correct" },
-      ),
-    ).resolves.toEqual({ status: 401, body: { error: "unauthorized" } });
-    await expect(
-      handleKeeperRequest(
-        { method: "POST" },
-        { KEEPER_ENABLED: "true", CRON_SECRET: "correct" },
-      ),
-    ).resolves.toEqual({ status: 405, body: { error: "method not allowed" } });
-  });
-
   it("pins the keeper secret to its public identity", () => {
     const keeper = Keypair.generate();
     const secret = JSON.stringify(Array.from(keeper.secretKey));

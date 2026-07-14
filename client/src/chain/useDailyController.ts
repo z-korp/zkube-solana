@@ -13,13 +13,15 @@ import {
 } from "./dailyClient";
 import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
-import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { useConnectedPlayer } from "./connectedPlayerContext";
+import { SessionWallet } from "./sessionWallet";
 import { fetchEconomyRuntime } from "./economyClient";
 import { deriveDailyLeaderboardPda } from "./pdas";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();
-  const { wallet } = useEmbeddedIdentity();
+  const player = useConnectedPlayer();
+  const wallet = player.readOnlyWallet;
   const run = useRun();
   const [daily, setDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,10 +30,6 @@ export function useDailyController() {
   const maintaining = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (!wallet) {
-      setDaily(null);
-      return null;
-    }
     setLoading(true);
     try {
       const next = await fetchDailyView({ connection, wallet });
@@ -47,9 +45,11 @@ export function useDailyController() {
   }, [connection, wallet]);
 
   const maintain = useCallback(async () => {
-    if (!wallet || maintaining.current) return;
+    if (player.sessionStatus !== "ready" || maintaining.current) return;
     maintaining.current = true;
     try {
+      const session = player.requireSession();
+      const sessionWallet = new SessionWallet(session.signer);
       let next = await refresh();
       const runtime = await fetchEconomyRuntime({ connection, wallet });
       if (!runtime) return;
@@ -58,12 +58,12 @@ export function useDailyController() {
       if (!next && now % 86_400 < 23 * 60 * 60) {
         const transactionPlan = await buildOpenDailyChallengePlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -77,13 +77,13 @@ export function useDailyController() {
       ) {
         const transactionPlan = await buildFinalizeDailyChallengePlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
           daily: next,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -96,13 +96,15 @@ export function useDailyController() {
       ) {
         const transactionPlan = await buildRefundDailyEntryPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: session.owner,
+          sessionToken: session.sessionToken,
           daily: next,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -114,13 +116,15 @@ export function useDailyController() {
         if (!cancelled?.player || cancelled.player.starRefunded) continue;
         const transactionPlan = await buildRefundDailyEntryPlan({
           connection,
-          wallet,
+          wallet: sessionWallet,
+          ownerAuthority: session.owner,
+          sessionToken: session.sessionToken,
           daily: cancelled,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
-          wallet,
+          wallet: sessionWallet,
           paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
@@ -132,12 +136,16 @@ export function useDailyController() {
     } finally {
       maintaining.current = false;
     }
-  }, [connection, refresh, wallet]);
+  }, [connection, player, refresh, wallet]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   useEffect(() => {
     void maintain();
-    const timer = window.setInterval(() => void maintain(), 60_000);
-    return () => window.clearInterval(timer);
+    const timer = globalThis.setInterval(() => void maintain(), 60_000);
+    return () => globalThis.clearInterval(timer);
   }, [maintain]);
 
   const dailyAddress = daily?.address.toBase58() ?? null;
@@ -188,19 +196,25 @@ export function useDailyController() {
   }, [daily, refresh, run]);
 
   const refund = useCallback(async () => {
-    if (!wallet || !daily) throw new Error("Daily state is not ready");
+    if (!daily) throw new Error("Daily state is not ready");
+    const owner = player.publicKey;
+    if (!owner) throw new Error("Connect a wallet before requesting a refund");
+    const session = player.requireSession();
+    const sessionWallet = new SessionWallet(session.signer);
     setAction("refund");
     try {
       const paymaster = await fetchPaymasterClient(connection);
       const transactionPlan = await buildRefundDailyEntryPlan({
         connection,
-        wallet,
+        wallet: sessionWallet,
+        ownerAuthority: owner,
+        sessionToken: session.sessionToken,
         daily,
         paymaster: paymaster.pubkey,
       });
       const signature = await submitSponsoredTransactionPlan({
         transactionPlan,
-        wallet,
+        wallet: sessionWallet,
         paymaster,
       });
       await connection.confirmTransaction(signature, "confirmed");
@@ -213,7 +227,7 @@ export function useDailyController() {
     } finally {
       setAction(null);
     }
-  }, [connection, daily, refresh, wallet]);
+  }, [connection, daily, player, refresh]);
 
   return {
     daily,
