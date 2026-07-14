@@ -1,9 +1,17 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-export type TabId = "home" | "rewards" | "profile" | "ranks" | "settings";
+export type TabId =
+  | "home"
+  | "rewards"
+  | "ranks"
+  | "shop"
+  | "profile"
+  | "settings";
 export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
+export type ShopOrigin = "daily" | "home";
+export type SettingsFocus = "vault";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
@@ -43,7 +51,13 @@ interface NavigationState {
   pendingLevelCompletion: PendingLevelCompletion | null;
   greetedZones: Set<number>;
   showEndlessGreeting: boolean;
+  shopOrigin: ShopOrigin | null;
+  settingsFocus: SettingsFocus | null;
+  settingsReturnPage: PageId | null;
   navigate: (page: PageId, gameId?: bigint) => void;
+  openShop: (origin?: ShopOrigin | null) => void;
+  openVaultSettings: (returnPage?: PageId | null) => void;
+  clearSettingsFocus: () => void;
   goBack: () => void;
   setGameId: (id: bigint | null) => void;
   setRecoveryRunId: (id: bigint | null) => void;
@@ -72,6 +86,8 @@ const getBackTarget = (page: PageId): PageId => {
       return "home";
     case "settings":
       return "home";
+    case "shop":
+      return "home";
     default:
       return "home";
   }
@@ -92,6 +108,9 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   pendingLevelCompletion: null,
   greetedZones: new Set(),
   showEndlessGreeting: false,
+  shopOrigin: null,
+  settingsFocus: null,
+  settingsReturnPage: null,
 
   navigate: (page, gameId) => {
     const { currentPage, isTransitioning } = get();
@@ -104,6 +123,12 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       isTransitioning: true,
       ...(gameId !== undefined ? { gameId } : {}),
       ...(page !== "play" ? { recoveryRunId: null } : {}),
+      ...(page !== "settings"
+        ? { settingsFocus: null, settingsReturnPage: null }
+        : {}),
+      ...(page !== "shop" && !(currentPage === "shop" && page === "settings")
+        ? { shopOrigin: null }
+        : {}),
     });
 
     setTimeout(() => {
@@ -111,17 +136,43 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     }, NAV_TRANSITION_LOCK_MS);
   },
 
+  openShop: (origin = null) => {
+    set({ shopOrigin: origin });
+    get().navigate("shop");
+  },
+
+  openVaultSettings: (returnPage = "shop") => {
+    set({ settingsFocus: "vault", settingsReturnPage: returnPage });
+    get().navigate("settings");
+  },
+
+  clearSettingsFocus: () => set({ settingsFocus: null }),
+
   goBack: () => {
-    const { currentPage, isTransitioning } = get();
+    const {
+      currentPage,
+      isTransitioning,
+      settingsReturnPage,
+      shopOrigin,
+    } = get();
     if (isTransitioning) return;
 
-    const target = getBackTarget(currentPage);
+    const target =
+      currentPage === "settings" && settingsReturnPage
+        ? settingsReturnPage
+        : currentPage === "shop" && shopOrigin
+          ? shopOrigin
+          : getBackTarget(currentPage);
     set({
       previousPage: currentPage,
       currentPage: target,
       transitionDirection: "back",
       isTransitioning: true,
       recoveryRunId: null,
+      ...(currentPage === "settings"
+        ? { settingsFocus: null, settingsReturnPage: null }
+        : {}),
+      ...(currentPage === "shop" ? { shopOrigin: null } : {}),
     });
 
     setTimeout(() => {

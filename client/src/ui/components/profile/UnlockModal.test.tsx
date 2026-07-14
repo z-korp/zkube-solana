@@ -12,16 +12,14 @@ import {
 
 import { getThemeColors } from "@/config/themes";
 import type { ZoneProgressData } from "@/config/profileData";
-import UnlockModal, { formatUsdcBaseUnits } from "./UnlockModal";
+import UnlockModal from "./UnlockModal";
 
 const campaign = vi.hoisted(() => ({
   unlock: vi.fn(),
-  buyStars: vi.fn(),
   controller: {
     campaign: {
       starsBalance: 50n,
       economyVersion: 2 as const,
-      starPacks: [] as { stars: bigint; price: bigint; enabled: boolean }[],
     },
     unlocking: false,
     error: null as string | null,
@@ -32,8 +30,15 @@ vi.mock("@/contexts/campaign", () => ({
   useCampaign: () => ({
     ...campaign.controller,
     unlock: campaign.unlock,
-    buyStars: campaign.buyStars,
   }),
+}));
+
+const navigation = vi.hoisted(() => ({ openShop: vi.fn() }));
+
+vi.mock("@/stores/navigationStore", () => ({
+  useNavigationStore: (
+    selector: (state: typeof navigation) => unknown,
+  ) => selector(navigation),
 }));
 
 beforeAll(() => {
@@ -48,12 +53,10 @@ afterAll(() => {
 beforeEach(() => {
   campaign.unlock.mockReset();
   campaign.unlock.mockResolvedValue("signature");
-  campaign.buyStars.mockReset();
-  campaign.buyStars.mockResolvedValue("signature");
+  navigation.openShop.mockReset();
   campaign.controller.campaign = {
     starsBalance: 50n,
     economyVersion: 2,
-    starPacks: [],
   };
   campaign.controller.unlocking = false;
   campaign.controller.error = null;
@@ -74,11 +77,6 @@ const zone: ZoneProgressData = {
 };
 
 describe("UnlockModal", () => {
-  it("formats six-decimal USDC base units without floating point", () => {
-    expect(formatUsdcBaseUnits(2_500_000n)).toBe("2.5");
-    expect(formatUsdcBaseUnits(1_000_001n)).toBe("1.000001");
-  });
-
   it("unlocks zones only with Stars", async () => {
     const onClose = vi.fn();
     render(
@@ -98,25 +96,22 @@ describe("UnlockModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("exposes canonical Star packs", async () => {
+  it("routes insufficient players to the dedicated Shop", () => {
     campaign.controller.campaign = {
       starsBalance: 10n,
       economyVersion: 2,
-      starPacks: [{ stars: 10n, price: 1_000_000n, enabled: true }],
     };
+    const onClose = vi.fn();
     render(
       <UnlockModal
         colors={getThemeColors("theme-2")}
         zone={zone}
-        onClose={vi.fn()}
+        onClose={onClose}
       />,
     );
 
-    expect(screen.queryByText("2.5 USDC")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /buy now/i })).toBeNull();
-    expect(screen.getByText(/bound to this Vault/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /10★.*1 USDC/i }));
-    await waitFor(() => expect(campaign.buyStars).toHaveBeenCalledWith(0));
+    fireEvent.click(screen.getByRole("button", { name: /Open Star Shop/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(navigation.openShop).toHaveBeenCalledWith("home");
   });
 });

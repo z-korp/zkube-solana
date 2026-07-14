@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { motion } from "motion/react";
 import { Check, ChevronLeft, Copy, Palette, ShieldCheck } from "lucide-react";
@@ -27,6 +27,10 @@ const SettingsPage: React.FC = () => {
   const { themeTemplate, setThemeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const goBack = useNavigationStore((state) => state.goBack);
+  const settingsFocus = useNavigationStore((state) => state.settingsFocus);
+  const clearSettingsFocus = useNavigationStore(
+    (state) => state.clearSettingsFocus,
+  );
   const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
     useMusicPlayer();
   const [copied, setCopied] = useState(false);
@@ -38,7 +42,17 @@ const SettingsPage: React.FC = () => {
   const [usdcAmount, setUsdcAmount] = useState("");
   const [vaultBusy, setVaultBusy] = useState(false);
   const [vaultStatus, setVaultStatus] = useState("");
+  const vaultRef = useRef<HTMLElement>(null);
   const address = identity.publicKey.toBase58();
+
+  useEffect(() => {
+    if (settingsFocus !== "vault") return;
+    const frame = window.requestAnimationFrame(() => {
+      vaultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      clearSettingsFocus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [clearSettingsFocus, settingsFocus]);
 
   const unlockedThemes = useMemo(() => {
     const unlocked = new Set<ThemeId>(["theme-1"]);
@@ -270,6 +284,7 @@ const SettingsPage: React.FC = () => {
           </motion.section>
 
           <motion.section
+            ref={vaultRef}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, delay: 0.08 }}

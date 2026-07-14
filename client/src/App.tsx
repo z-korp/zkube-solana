@@ -15,6 +15,7 @@ import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
 import RewardsPage from "@/ui/pages/RewardsPage";
 import SettingsPage from "@/ui/pages/SettingsPage";
+import ShopPage from "@/ui/pages/ShopPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 
@@ -48,6 +49,7 @@ const pageComponents: Record<PageId, ReactNode> = {
   rewards: <RewardsPage />,
   profile: <ProfilePage />,
   ranks: <LeaderboardPage />,
+  shop: <ShopPage />,
   settings: <SettingsPage />,
   play: <PlayScreen />,
   daily: <DailyChallengePage />,
@@ -58,7 +60,7 @@ const pageComponents: Record<PageId, ReactNode> = {
 
 export default function App() {
   const currentPage = useNavigationStore((state) => state.currentPage);
-  const { campaign, error } = useCampaign();
+  const { campaign, error, loaded } = useCampaign();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app
   // opens on the correct background). Spectator/recovery deep-links don't
@@ -69,7 +71,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
   const gated = currentPage !== "spectate" && currentPage !== "play";
-  const ready = campaign !== null || error !== null || timedOut;
+  const ready = campaign !== null || error !== null || loaded || timedOut;
   if (gated && !ready) return <Loading />;
 
   return (

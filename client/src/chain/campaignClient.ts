@@ -1,4 +1,4 @@
-import BN from "bn.js";
+import type BN from "bn.js";
 import {
   PublicKey,
   Transaction,
@@ -12,7 +12,6 @@ import {
   deriveMapCatalogPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
-  deriveStarSalesLedgerPda,
 } from "./pdas.js";
 import {
   mapLevelRuleSnapshot,
@@ -44,12 +43,6 @@ export interface CampaignView {
   economyVersion: 2;
   contentVersion: number;
   starsBalance: bigint;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
-  teamDestination: PublicKey;
-  rewardVault: PublicKey;
-  treasuryDestination: PublicKey;
-  starPacks: readonly { stars: bigint; price: bigint; enabled: boolean }[];
   maps: CampaignMapView[];
 }
 
@@ -202,16 +195,6 @@ export async function fetchCampaignView(args: {
     economyVersion: 2,
     contentVersion,
     starsBalance: BigInt(player.starsBalance.toString()),
-    paymentMint: protocol.paymentMint,
-    paymentTokenProgram: protocol.paymentTokenProgram,
-    teamDestination: protocol.teamDestination,
-    rewardVault: protocol.rewardVault,
-    treasuryDestination: protocol.treasuryDestination,
-    starPacks: economy.starPackStars.map((stars, index) => ({
-      stars: BigInt(stars.toString()),
-      price: currentPackPrice(economy, index),
-      enabled: Boolean(economy.starPackEnabled[index]),
-    })),
     maps,
   };
 }
@@ -276,49 +259,6 @@ export async function buildUnlockMapWithStarsPlan(args: {
   return plan("Unlock map with Stars", args.connection, args.paymaster ?? owner, instruction);
 }
 
-export async function buildPurchaseStarsPlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  campaign: CampaignView;
-  packIndex: number;
-  playerPaymentAccount?: PublicKey;
-  paymaster?: PublicKey;
-}): Promise<TransactionPlan> {
-  if (!Number.isInteger(args.packIndex) || args.packIndex < 0 || args.packIndex >= args.campaign.starPacks.length) {
-    throw new Error("Unknown Star pack");
-  }
-  const owner = args.wallet.publicKey;
-  const pack = args.campaign.starPacks[args.packIndex];
-  if (!pack.enabled) throw new Error("Star pack is disabled");
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .purchaseStars(
-      args.packIndex,
-      new BN(pack.stars.toString()),
-      new BN(pack.price.toString()),
-    )
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
-      starSalesLedger: deriveStarSalesLedgerPda(),
-      playerProfile: derivePlayerProfilePda(owner),
-      paymentMint: args.campaign.paymentMint,
-      playerPaymentAccount:
-        args.playerPaymentAccount ??
-        deriveAssociatedTokenAddress(
-          owner,
-          args.campaign.paymentMint,
-          args.campaign.paymentTokenProgram,
-        ),
-      teamDestination: args.campaign.teamDestination,
-      rewardVault: args.campaign.rewardVault,
-      treasuryDestination: args.campaign.treasuryDestination,
-      tokenProgram: args.campaign.paymentTokenProgram,
-      owner,
-    })
-    .instruction();
-  return plan("Purchase Stars", args.connection, args.paymaster ?? owner, instruction);
-}
-
 export function deriveAssociatedTokenAddress(
   owner: PublicKey,
   mint: PublicKey,
@@ -344,23 +284,4 @@ function plan(
     feePayer,
     signers: [],
   };
-}
-
-function currentPackPrice(
-  economy: {
-    saleEnabled: boolean;
-    saleStartsAt: { toString(): string };
-    saleEndsAt: { toString(): string };
-    salePrices: readonly { toString(): string }[];
-    starPackPrices: readonly { toString(): string }[];
-  },
-  index: number,
-  now = BigInt(Math.floor(Date.now() / 1_000)),
-): bigint {
-  const startsAt = BigInt(economy.saleStartsAt.toString());
-  const endsAt = BigInt(economy.saleEndsAt.toString());
-  const saleIsLive = economy.saleEnabled && now >= startsAt && now < endsAt;
-  return BigInt(
-    (saleIsLive ? economy.salePrices[index] : economy.starPackPrices[index]).toString(),
-  );
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CampaignMapView } from "@/chain/campaignClient";
 import type { ActiveRunRulesView } from "@/chain/runPlan";
 import { generateMapData } from "./useMapData";
+import { UNINITIALIZED_MAP_1 } from "@/ui/components/map/mapLogic";
 
 const rule: ActiveRunRulesView = {
   pointsRequired: 10,
@@ -66,5 +67,21 @@ describe("generateMapData", () => {
     });
     expect(locked.nodes[2].state).toBe("locked");
     expect(locked.nodes[3].state).toBe("playing");
+  });
+
+  it("provides authored Map 1 preview rules before player initialization", () => {
+    const result = generateMapData({ map: UNINITIALIZED_MAP_1 });
+    expect(result.nodes[0].levelConfig).toMatchObject({
+      level: 1,
+      pointsRequired: 10,
+      maxMoves: 16,
+      difficulty: 0,
+    });
+    expect(result.nodes[9].levelConfig).toMatchObject({
+      level: 10,
+      pointsRequired: 68,
+      maxMoves: 50,
+      difficulty: 3,
+    });
   });
 });
