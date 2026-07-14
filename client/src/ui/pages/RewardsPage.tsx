@@ -5,10 +5,11 @@ import { getThemeColors } from "@/config/themes";
 import { useClaimableCounts } from "@/hooks/useClaimableCount";
 import DailyTab from "@/ui/components/rewards/DailyTab";
 import QuestsRewardsTab from "@/ui/components/rewards/QuestsRewardsTab";
+import WeeklyTab from "@/ui/components/rewards/WeeklyTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 
-const TABS = ["Quests", "Daily"] as const;
+const TABS = ["Quests", "Daily", "Weekly"] as const;
 
 const RewardsPage: React.FC = () => {
   const { themeTemplate } = useTheme();
@@ -64,6 +65,7 @@ const RewardsPage: React.FC = () => {
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
         {activeTab === "Daily" && <DailyTab colors={colors} />}
+        {activeTab === "Weekly" && <WeeklyTab colors={colors} />}
         {activeTab === "Quests" && <QuestsRewardsTab colors={colors} />}
       </div>
     </div>

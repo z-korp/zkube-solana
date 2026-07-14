@@ -12,7 +12,7 @@ export const BOSS_IDENTITIES: Record<number, BossDisplayData> = {
     name: "COMBO MASTER",
     emoji: "🔥",
     title: "Lord of Chains",
-    description: "Chains endless combos into devastating streaks",
+    description: "Chains endless combos into devastating sequences",
   },
   2: {
     id: 2,

@@ -11,7 +11,7 @@ import { projectDailyLeaderboard } from "./useDailyLeaderboard";
 import { campaignBestLevel } from "./usePlayerMeta";
 import { projectQuests } from "./useQuests";
 
-describe("progress compatibility projections", () => {
+describe("progress projections", () => {
   it("uses authoritative achievement thresholds and XP", () => {
     const entries: AchievementProgressView[] = Array.from(
       { length: 12 },
@@ -20,7 +20,6 @@ describe("progress compatibility projections", () => {
         metric: 0,
         progress: index === 8 ? 3n : 0n,
         threshold: index === 8 ? 3n : 1n,
-        starReward: 0n,
         xpReward: index === 8 ? 333 : 1,
         claimed: false,
         claimable: index === 8,
@@ -42,17 +41,32 @@ describe("progress compatibility projections", () => {
       cadence: "daily",
       progress: 6,
       threshold: 7,
-      starReward: 2n,
+      rewardAmount: 200n,
+      rewardUnit: "XP",
       active: true,
       claimed: false,
       claimable: false,
     };
     expect(projectQuests([entry], 86_400)[0]).toMatchObject({
       target: 7,
-      reward: 2,
+      reward: 200,
+      rewardUnit: "XP",
       progress: 6,
       active: true,
     });
+
+    const weekly = {
+      ...entry,
+      index: 10,
+      cadence: "weekly" as const,
+      rewardAmount: 5n,
+      rewardUnit: "Stars" as const,
+    };
+    const entries = Array.from({ length: 11 }, (_, index) =>
+      index === 10 ? weekly : { ...entry, index },
+    );
+    expect(projectQuests(entries, 86_400)[10])
+      .toMatchObject({ reward: 5, rewardUnit: "Stars" });
   });
 
   it("derives the highest global campaign level from map and level", () => {
@@ -69,7 +83,6 @@ describe("progress compatibility projections", () => {
       cleared,
       perfected: false,
       starCost: 0n,
-      usdcCost: 0n,
       levelStars: stars,
       levels: [],
     });

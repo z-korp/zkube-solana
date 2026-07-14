@@ -17,10 +17,8 @@ interface TierContextProps {
 }
 
 /**
- * Keeps the original compact position card, but uses adjacent live leaderboard
- * rows instead of projecting static reward tiers. Daily prizes are USDC amounts
- * calculated from the finalized on-chain pool and are only authoritative once
- * claimed.
+ * Keeps the compact position card while using adjacent live leaderboard rows.
+ * Daily standings feed the Weekly points and reward calculation on-chain.
  */
 const TierContext: React.FC<TierContextProps> = ({
   colors,

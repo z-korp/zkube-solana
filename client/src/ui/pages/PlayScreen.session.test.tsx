@@ -271,7 +271,7 @@ describe("PlayScreen orphaned base-run recovery", () => {
     });
 
     expect(confirm).toHaveBeenCalledWith(
-      "Sign one sponsored Devnet transaction for recovered run 1 and Vault BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.",
+      "Sign one sponsored Devnet transaction for recovered run 1 and Vault BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6? It contains consumeRunReceipt (if still unconsumed) and closeSettledActiveRun. The paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.",
     );
     expect(fixtures.recoverBaseRun).toHaveBeenCalledOnce();
     expect(fixtures.recoverBaseRun).toHaveBeenCalledWith(1n);

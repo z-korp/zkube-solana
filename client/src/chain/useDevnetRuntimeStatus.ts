@@ -3,8 +3,10 @@ import { useSolanaConnection } from "./connectionContext";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 import {
   deriveMapCatalogPda,
-  deriveProgressCatalogPda,
+  deriveDailyRulesCatalogPda,
+  deriveEconomyConfigPda,
   deriveProtocolConfigPda,
+  deriveStarSalesLedgerPda,
 } from "./pdas";
 import { fetchPaymasterClient } from "./paymasterClient";
 
@@ -53,7 +55,9 @@ export async function probeDevnetRuntime(
 ): Promise<DevnetRuntimeStatus> {
   try {
     const catalogAddresses = [
-      deriveProgressCatalogPda(1),
+      deriveEconomyConfigPda(),
+      deriveStarSalesLedgerPda(),
+      deriveDailyRulesCatalogPda(1),
       ...Array.from({ length: 10 }, (_, index) =>
         deriveMapCatalogPda(1, index + 1),
       ),

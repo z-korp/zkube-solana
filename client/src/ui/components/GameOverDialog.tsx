@@ -99,9 +99,9 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
     const combo = game.maxComboRun;
 
     if (isEndless) {
-      const tweetMsg = `${endlessTier.emoji} Reached ${endlessTier.name} rank in @zkube_game Endless!
+      const tweetMsg = `${endlessTier.emoji} Reached ${endlessTier.name} pressure in the @zkube_game Daily!
 
-${score.toLocaleString()} pts | ${endlessTier.multiplier} multiplier | ${combo}x best combo
+${score.toLocaleString()} featured | ${game.engineScore.toLocaleString()} engine | ${combo}x best combo
 
 Can you beat my score?
 
@@ -139,6 +139,7 @@ app.zkube.xyz`;
     game.totalScore,
     game.maxComboRun,
     game.zoneId,
+    game.engineScore,
     isEndless,
     endlessTier,
   ]);
@@ -214,7 +215,7 @@ app.zkube.xyz`;
 
           {isEndless ? (
             <>
-              {/* Endless: Score as hero number */}
+              {/* Daily: featured leaderboard score as hero number. */}
               <motion.div variants={levelVariants} className="text-center py-2">
                 <div
                   className="text-6xl font-bold text-cyan-400 mb-1"
@@ -224,11 +225,11 @@ app.zkube.xyz`;
                 </div>
                 <div className="text-lg text-slate-400 flex items-center justify-center gap-2">
                   <Gem size={16} className="text-cyan-400" />
-                  <span>Total Score</span>
+                  <span>Featured Score</span>
                 </div>
               </motion.div>
 
-              {/* Endless stats: Rank, Multiplier, Best Combo */}
+              {/* Daily secondary score and pressure context. */}
               <motion.div
                 variants={itemVariants}
                 className="flex gap-3 justify-center items-stretch"
@@ -247,7 +248,7 @@ app.zkube.xyz`;
                   >
                     {endlessTier.name}
                   </div>
-                  <div className="text-xs text-slate-400">Rank</div>
+                  <div className="text-xs text-slate-400">Pressure Tier</div>
                 </div>
 
                 {/* Multiplier */}
@@ -256,19 +257,19 @@ app.zkube.xyz`;
                     className="text-2xl flex gap-1.5 items-center font-bold"
                     style={{ color: endlessTier.color }}
                   >
-                    {endlessTier.multiplier}
+                    {game.engineScore.toLocaleString()}
                     <Zap size={20} />
                   </div>
-                  <div className="text-xs text-slate-400">Multiplier</div>
+                  <div className="text-xs text-slate-400">Engine Score</div>
                 </div>
 
-                {/* Combo Streak */}
+                {/* Combo meter */}
                 <div className="flex flex-col items-center gap-1 bg-slate-800/50 px-3 py-3 rounded-lg flex-1">
                   <div className="text-2xl flex gap-1.5 items-center text-orange-500">
                     {game.combo}x
                     <Flame size={20} />
                   </div>
-                  <div className="text-xs text-slate-400">Combo Streak</div>
+                  <div className="text-xs text-slate-400">Combo Meter</div>
                 </div>
               </motion.div>
             </>

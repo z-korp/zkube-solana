@@ -10,8 +10,8 @@ export enum ConstraintType {
   ComboLines = 1,
   /** Must destroy X blocks of a specific size (accumulating) */
   BreakBlocks = 2,
-  /** Must reach a combo of X (one-shot) */
-  ComboStreak = 3,
+  /** Must reach X on the cumulative Combo Meter (one-shot) */
+  ComboMeter = 3,
 }
 
 export interface LevelConstraint {
@@ -46,8 +46,8 @@ export class Constraint {
     return new Constraint(ConstraintType.BreakBlocks, targetSize, count);
   }
 
-  static achieveCombo(comboTarget: number): Constraint {
-    return new Constraint(ConstraintType.ComboStreak, comboTarget, 1);
+  static reachComboMeter(comboTarget: number): Constraint {
+    return new Constraint(ConstraintType.ComboMeter, comboTarget, 1);
   }
 
   static fromContractValues(type: number, value: number, count: number): Constraint {
@@ -62,7 +62,7 @@ export class Constraint {
         return progress >= this.requiredCount;
       case ConstraintType.BreakBlocks:
         return progress >= this.requiredCount;
-      case ConstraintType.ComboStreak:
+      case ConstraintType.ComboMeter:
         return progress >= 1;
       default:
         return true;
@@ -77,8 +77,8 @@ export class Constraint {
         return `Make ${this.value}+ combos ${this.requiredCount} time${this.requiredCount > 1 ? "s" : ""}`;
       case ConstraintType.BreakBlocks:
         return `Break ${this.requiredCount} size-${this.value} blocks`;
-      case ConstraintType.ComboStreak:
-        return `Reach ${this.value}x combo`;
+      case ConstraintType.ComboMeter:
+        return `Reach ${this.value} on the Combo Meter`;
       default:
         return "Unknown";
     }
@@ -92,8 +92,8 @@ export class Constraint {
         return `${this.value}+ combos x${this.requiredCount}`;
       case ConstraintType.BreakBlocks:
         return `Break ${this.requiredCount}x size-${this.value}`;
-      case ConstraintType.ComboStreak:
-        return `${this.value}x combo`;
+      case ConstraintType.ComboMeter:
+        return `Combo Meter ${this.value}`;
       default:
         return "";
     }

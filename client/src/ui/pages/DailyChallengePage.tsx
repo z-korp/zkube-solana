@@ -3,9 +3,14 @@ import { ChevronLeft, Loader2 } from "lucide-react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { getMutatorDef } from "@/config/mutatorConfig";
+import {
+  dailyScoringRuleDescription,
+  dailyScoringRuleName,
+} from "@/chain/dailyRules";
 import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
+import { useCampaign } from "@/contexts/campaign";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
@@ -46,11 +51,14 @@ const DailyChallengePage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
   const daily = useDaily();
+  const campaign = useCampaign();
   const activeDailyRun = useActiveDailyAttempt();
 
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entries: leaderboard } = useDailyLeaderboard(challenge?.challenge_id);
-  const [starting, setStarting] = useState<"stars" | "usdc" | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [buyingPack, setBuyingPack] = useState<number | null>(null);
+  const [showPacks, setShowPacks] = useState(false);
 
   const now = Math.floor(Date.now() / 1000);
   const hasActiveDailyRun = Boolean(activeDailyRun);
@@ -78,6 +86,7 @@ const DailyChallengePage: React.FC = () => {
   const zoneImages = getThemeImages(themeId);
   const zoneColors = getThemeColors(themeId);
   const guardian = getZoneGuardian(zoneId);
+  const scoringRule = daily.daily?.scoringRule ?? null;
 
   const activeMutator = challenge?.active_mutator_id
     ? getMutatorDef(challenge.active_mutator_id)
@@ -88,9 +97,7 @@ const DailyChallengePage: React.FC = () => {
 
   const playerRank = useMemo(() => {
     if (!leaderboard.length) return null;
-    return (
-      leaderboard.find((entry) => entry.player === address) ?? null
-    );
+    return leaderboard.find((entry) => entry.player === address) ?? null;
   }, [address, leaderboard]);
 
   const openRun = useCallback(() => {
@@ -98,21 +105,18 @@ const DailyChallengePage: React.FC = () => {
     navigate("play", activeDailyRun.gameId);
   }, [activeDailyRun, navigate]);
 
-  const enter = useCallback(
-    async (payment: "stars" | "usdc") => {
-      if (starting || hasActiveDailyRun) return;
-      setStarting(payment);
-      try {
-        const run = await daily.enter(payment);
-        navigate("play", run.runId);
-      } catch {
-        // The shared controller projects transaction failures into daily.error.
-      } finally {
-        setStarting(null);
-      }
-    },
-    [daily, hasActiveDailyRun, navigate, starting],
-  );
+  const enter = useCallback(async () => {
+    if (starting || hasActiveDailyRun) return;
+    setStarting(true);
+    try {
+      const run = await daily.enter();
+      navigate("play", run.runId);
+    } catch {
+      // The shared controller projects transaction failures into daily.error.
+    } finally {
+      setStarting(false);
+    }
+  }, [daily, hasActiveDailyRun, navigate, starting]);
 
   const starAttemptDisabled = Boolean(
     starting ||
@@ -120,15 +124,27 @@ const DailyChallengePage: React.FC = () => {
     !entriesOpen ||
     !runAvailable ||
     !daily.daily?.playerEligible ||
-    daily.daily?.player?.freeAttemptUsed ||
     (daily.daily && daily.daily.playerStars < daily.daily.starEntryCost),
   );
-  const usdcAttemptDisabled = Boolean(
-    starting ||
-    daily.action ||
-    !entriesOpen ||
-    !runAvailable ||
-    !daily.daily?.playerEligible,
+  const insufficientStars = Boolean(
+    daily.daily && daily.daily.playerStars < daily.daily.starEntryCost,
+  );
+
+  const buyStars = useCallback(
+    async (packIndex: number) => {
+      if (buyingPack !== null) return;
+      setBuyingPack(packIndex);
+      try {
+        await campaign.buyStars(packIndex);
+        await daily.refresh();
+        setShowPacks(false);
+      } catch {
+        // The campaign controller exposes the USDC/payment failure.
+      } finally {
+        setBuyingPack(null);
+      }
+    },
+    [buyingPack, campaign, daily],
   );
 
   return (
@@ -185,7 +201,7 @@ const DailyChallengePage: React.FC = () => {
                 {guardian.title}
               </p>
               <p className="mt-2 font-sans text-sm text-white/60">
-                Today&apos;s challenge has not been published yet.
+                Today&apos;s challenge is being opened by the keeper.
               </p>
             </div>
           )}
@@ -261,6 +277,21 @@ const DailyChallengePage: React.FC = () => {
                     &ldquo;{guardian.dailyGreeting}&rdquo;
                   </p>
 
+                  {scoringRule && (
+                    <div className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-2">
+                      <p className="font-display text-sm font-black text-cyan-200">
+                        {dailyScoringRuleName(scoringRule)}
+                      </p>
+                      <p className="mt-0.5 font-sans text-xs leading-relaxed text-white/65">
+                        {dailyScoringRuleDescription(scoringRule)}
+                      </p>
+                      <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                        Featured score ranks first · engine score, moves, then
+                        finish time break ties
+                      </p>
+                    </div>
+                  )}
+
                   {/* Mutators */}
                   {(activeMutator || passiveMutator) && (
                     <div className="mt-2.5 flex flex-col gap-1.5">
@@ -295,18 +326,27 @@ const DailyChallengePage: React.FC = () => {
 
               {/* Your Position — score-based Solana daily ranking */}
               {playerRank && (
-                <TierContext
-                  colors={zoneColors}
-                  myRank={playerRank.rank}
-                  myScore={playerRank.score}
-                  myName={`You · ${truncatePublicKey(playerRank.player)}`}
-                  entries={leaderboard.map((entry) => ({
-                    rank: entry.rank,
-                    score: entry.score,
-                    name: truncatePublicKey(entry.player),
-                  }))}
-                  scoreLabel=" pts"
-                />
+                <div>
+                  <TierContext
+                    colors={zoneColors}
+                    myRank={playerRank.rank}
+                    myScore={playerRank.featuredScore ?? playerRank.score}
+                    myName={`You · ${truncatePublicKey(playerRank.player)}`}
+                    entries={leaderboard.map((entry) => ({
+                      rank: entry.rank,
+                      score: entry.featuredScore ?? entry.score,
+                      name: truncatePublicKey(entry.player),
+                    }))}
+                    scoreLabel=" featured"
+                  />
+                  <p className="mt-1 text-center font-sans text-[10px] text-white/45">
+                    Tie-break:{" "}
+                    {(
+                      playerRank.engineScore ?? playerRank.score
+                    ).toLocaleString()}{" "}
+                    engine · {playerRank.moves ?? 0} moves
+                  </p>
+                </div>
               )}
 
               {!daily.daily?.playerEligible && (
@@ -324,7 +364,7 @@ const DailyChallengePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Resume or choose the on-chain Daily entry payment. */}
+      {/* Resume or enter with the canonical on-chain Star cost. */}
       {!challengeLoading && hasActiveDailyRun && (
         <div className="relative z-20 mt-auto px-4 pb-3">
           <ArcadeButton onClick={openRun} accentOverride={zoneColors.accent}>
@@ -338,27 +378,65 @@ const DailyChallengePage: React.FC = () => {
         !hasActiveDailyRun &&
         runAvailable &&
         entriesOpen && (
-          <div className="relative z-20 mt-auto grid grid-cols-2 gap-3 px-4 pb-3">
+          <div className="relative z-20 mt-auto grid grid-cols-1 gap-3 px-4 pb-3">
             <ArcadeButton
               disabled={starAttemptDisabled}
-              onClick={() => void enter("stars")}
+              onClick={() => void enter()}
               accentOverride="#facc15"
               className="text-[13px]"
             >
-              {starting === "stars"
+              {starting
                 ? "Preparing..."
                 : `${daily.daily.starEntryCost.toString()} Stars`}
             </ArcadeButton>
-            <ArcadeButton
-              disabled={usdcAttemptDisabled}
-              onClick={() => void enter("usdc")}
-              accentOverride={zoneColors.accent}
-              className="text-[13px]"
-            >
-              {starting === "usdc"
-                ? "Preparing..."
-                : `${formatUsdc(daily.daily.entryPrice)} USDC`}
-            </ArcadeButton>
+            <div className="col-span-full -mt-1 flex flex-col gap-2">
+              <p className="text-center font-sans text-[11px] font-semibold text-white/50">
+                Unlimited retries · only your best finalized score counts · +100
+                XP once today
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPacks((visible) => !visible)}
+                className="text-center font-sans text-xs font-extrabold text-yellow-200"
+              >
+                {insufficientStars
+                  ? `Need ${(daily.daily.starEntryCost - daily.daily.playerStars).toString()} more Stars · Buy a pack`
+                  : `${daily.daily.playerStars.toString()} Stars available · Top up`}
+              </button>
+              {(showPacks || insufficientStars) && campaign.campaign && (
+                <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                  {campaign.campaign.starPacks.map((pack, index) => (
+                    <button
+                      key={pack.stars.toString()}
+                      type="button"
+                      disabled={
+                        buyingPack !== null ||
+                        campaign.unlocking ||
+                        !pack.enabled
+                      }
+                      onClick={() => void buyStars(index)}
+                      className="min-w-[88px] flex-1 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-2 py-2 text-center disabled:opacity-50"
+                    >
+                      <span className="block font-display text-sm font-black text-yellow-200">
+                        {buyingPack === index
+                          ? "Buying..."
+                          : `${pack.stars.toString()}★`}
+                      </span>
+                      <span className="block font-sans text-[10px] font-bold text-white/55">
+                        {pack.enabled
+                          ? `${formatUsdc(pack.price)} USDC`
+                          : "Unavailable"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {campaign.error && (
+              <p className="col-span-full text-center font-sans text-[11px] text-red-200">
+                {campaign.error}
+              </p>
+            )}
           </div>
         )}
     </div>

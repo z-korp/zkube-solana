@@ -27,7 +27,6 @@ vi.mock("@/chain/connectionContext", () => ({
 }));
 
 vi.mock("@/chain/dailyClient", () => ({
-  buildClaimDailyPrizePlan: vi.fn(),
   buildRefundDailyEntryPlan: vi.fn(),
   fetchDailyView: fixtures.fetchDailyView,
 }));

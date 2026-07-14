@@ -43,16 +43,19 @@ import {
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
-  buildPublishProgressCatalogPlan,
 } from "../../src/chain/adminClient";
 import {
+  buildInitializeEconomyPlan,
+  buildPublishDailyRulesPlan,
+} from "../../src/chain/economyAdminClient";
+import {
   deriveCampaignProgressPda,
+  deriveDailyRulesCatalogPda,
+  deriveEconomyConfigPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveSponsorAllowancePda,
-  deriveTreasuryLedgerPda,
-  deriveYieldPolicyPda,
+  deriveStarSalesLedgerPda,
 } from "../../src/chain/pdas";
 import {
   CANONICAL_ACHIEVEMENT_RULES,
@@ -80,21 +83,43 @@ import {
   deriveSessionTokenV2Pda,
 } from "../../src/chain/sessionV2";
 import { SessionWallet } from "../../src/chain/sessionWallet";
-import { withSponsorshipInstruction } from "../../src/chain/sponsorshipClient";
+import {
+  CANONICAL_DAILY_PRESSURE,
+  CANONICAL_DAILY_SCORING_RULES,
+  CANONICAL_DAILY_SEASON_SEED,
+  DAILY_SCORING_RULE_COUNT,
+} from "../../src/chain/dailyRules";
 
 const RPC = process.env.ZKUBE_LOCAL_RPC ?? "http://127.0.0.1:8899";
-const ROUTER_RPC = process.env.ZKUBE_LOCAL_ROUTER_RPC ?? "http://127.0.0.1:6699";
+const ROUTER_RPC =
+  process.env.ZKUBE_LOCAL_ROUTER_RPC ?? "http://127.0.0.1:6699";
 const LOCAL_ER_RPC = process.env.ZKUBE_LOCAL_ER_RPC ?? "http://127.0.0.1:7799";
-const LOCAL_ER_VALIDATOR = new PublicKey("mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev");
+const LOCAL_ER_VALIDATOR = new PublicKey(
+  "mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev",
+);
 const LOCAL_DIR = resolve(process.cwd(), "../.localnet");
-const PROOF_OUT = process.env.ZKUBE_LOCAL_PROOF_OUT
-  ?? resolve(process.cwd(), "../artifacts/local-base-smoke.proof.json");
-const PROGRAM_ARTIFACT = process.env.ZKUBE_LOCAL_PROGRAM_ARTIFACT
-  ?? resolve(process.cwd(), "../target/deploy/solana.so");
+const PROOF_OUT =
+  process.env.ZKUBE_LOCAL_PROOF_OUT ??
+  resolve(process.cwd(), "../artifacts/local-base-smoke.proof.json");
+const PROGRAM_ARTIFACT =
+  process.env.ZKUBE_LOCAL_PROGRAM_ARTIFACT ??
+  resolve(process.cwd(), "../target/deploy/solana.so");
 const CONTENT_VERSION = 1;
-const PROGRESS_VERSION = 1;
+const DAILY_RULES_VERSION = 1;
 const AUTHORITY_AIRDROP_SOL = 20;
 const PAYMASTER_AIRDROP_SOL = 10;
+
+function localDailyRulesPublication() {
+  return {
+    rulesVersion: DAILY_RULES_VERSION,
+    seasonId: 1,
+    startsDay: 0,
+    seasonSeed: CANONICAL_DAILY_SEASON_SEED,
+    scoringRuleCount: DAILY_SCORING_RULE_COUNT,
+    scoringRules: CANONICAL_DAILY_SCORING_RULES,
+    pressure: CANONICAL_DAILY_PRESSURE,
+  };
+}
 
 interface LocalBatch {
   id: string;
@@ -145,27 +170,33 @@ async function main(): Promise<void> {
   const runSession = loadOrCreateKeypair("run-session");
   const flowConfig = loadOrCreateFlowConfig();
   const vaultKeypairs = Object.fromEntries(
-    ["team", "paymaster", "treasury", "reward", "payment"].map((name) => [
+    ["team", "treasury", "reward"].map((name) => [
       name,
       loadOrCreateKeypair(`${name}-vault`),
     ]),
-  ) as Record<"team" | "paymaster" | "treasury" | "reward" | "payment", Keypair>;
+  ) as Record<"team" | "treasury" | "reward", Keypair>;
   const authorityWallet = new SessionWallet(authority);
   const playerWallet = new SessionWallet(player);
-  const mintRent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE, "confirmed");
-  const tokenAccountRent = await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE, "confirmed");
+  const mintRent = await connection.getMinimumBalanceForRentExemption(
+    MINT_SIZE,
+    "confirmed",
+  );
+  const tokenAccountRent = await connection.getMinimumBalanceForRentExemption(
+    ACCOUNT_SIZE,
+    "confirmed",
+  );
   const protocolAddress = deriveProtocolConfigPda();
   const vaultOwners = {
     team: authority.publicKey,
-    paymaster: protocolAddress,
-    treasury: protocolAddress,
+    treasury: authority.publicKey,
     reward: protocolAddress,
-    payment: protocolAddress,
   };
-  const vaults = Object.fromEntries(Object.entries(vaultKeypairs).map(([name, keypair]) => [
-    name,
-    keypair.publicKey,
-  ])) as Record<keyof typeof vaultKeypairs, PublicKey>;
+  const vaults = Object.fromEntries(
+    Object.entries(vaultKeypairs).map(([name, keypair]) => [
+      name,
+      keypair.publicKey,
+    ]),
+  ) as Record<keyof typeof vaultKeypairs, PublicKey>;
 
   const tokenMint = tokenMintPlan({ connection, authority, mint, mintRent });
   const tokenVaults = tokenVaultsPlan({
@@ -181,34 +212,38 @@ async function main(): Promise<void> {
     authority: authorityWallet,
     config: {
       paymaster: paymaster.publicKey,
-      teamVault: vaults.team,
-      paymasterVault: vaults.paymaster,
-      treasuryVault: vaults.treasury,
+      pricingOperator: authority.publicKey,
+      teamDestination: vaults.team,
+      treasuryDestination: vaults.treasury,
       rewardVault: vaults.reward,
-      paymasterCap: 100_000_000n,
-      revenueRewardBps: 0,
-      sponsorshipDailyTxLimit: 20,
-      sponsorshipDailyPaidAttemptLimit: 3,
       paymentMint: mint.publicKey,
       paymentTokenProgram: TOKEN_PROGRAM_ID,
-      paymentVault: vaults.payment,
       contentVersion: CONTENT_VERSION,
-      governanceDelaySeconds: 3_600,
-      governanceExecutionWindowSeconds: 86_400,
     },
   });
-  const progress = await buildPublishProgressCatalogPlan({
+  const economy = await buildInitializeEconomyPlan({
     connection,
     authority: authorityWallet,
-    progressVersion: PROGRESS_VERSION,
+    config: {
+      dailyRulesVersion: DAILY_RULES_VERSION,
+      paymentMint: mint.publicKey,
+    },
   });
-  const mapPlans = await Promise.all(Array.from({ length: 10 }, async (_, index) =>
-    buildPublishCanonicalMapsPlan({
-      connection,
-      authority: authorityWallet,
-      contentVersion: CONTENT_VERSION,
-      mapIds: [index + 1],
-    })));
+  const dailyRules = await buildPublishDailyRulesPlan({
+    connection,
+    authority: authorityWallet,
+    publication: localDailyRulesPublication(),
+  });
+  const mapPlans = await Promise.all(
+    Array.from({ length: 10 }, async (_, index) =>
+      buildPublishCanonicalMapsPlan({
+        connection,
+        authority: authorityWallet,
+        contentVersion: CONTENT_VERSION,
+        mapIds: [index + 1],
+      }),
+    ),
+  );
   const initializePlayer = await buildInitializePlayerPlan({
     connection,
     owner: playerWallet,
@@ -221,7 +256,11 @@ async function main(): Promise<void> {
     runSession,
     sessionValidUntil: flowConfig.sessionValidUntil,
   });
-  const delegateRun = await buildLocalDelegateRunPlan({ connection, playerWallet, paymaster });
+  const delegateRun = await buildLocalDelegateRunPlan({
+    connection,
+    playerWallet,
+    paymaster,
+  });
   const closeRun = await buildCloseSettledRunPlan({
     wallet: playerWallet,
     runId: 1n,
@@ -235,15 +274,36 @@ async function main(): Promise<void> {
     paymaster,
   });
   const baseBatches: LocalBatch[] = [
-    { id: "base-mock-usdc-mint", plan: tokenMint, localSigners: [mint], walletSigner: authority },
+    {
+      id: "base-mock-usdc-mint",
+      plan: tokenMint,
+      localSigners: [mint],
+      walletSigner: authority,
+    },
     {
       id: "base-segregated-vaults",
       plan: tokenVaults,
       localSigners: Object.values(vaultKeypairs),
       walletSigner: authority,
     },
-    { id: "base-protocol", plan: protocol, localSigners: [], walletSigner: authority },
-    { id: "base-progress-catalog", plan: progress, localSigners: [], walletSigner: authority },
+    {
+      id: "base-protocol",
+      plan: protocol,
+      localSigners: [],
+      walletSigner: authority,
+    },
+    {
+      id: "base-economy",
+      plan: economy,
+      localSigners: [],
+      walletSigner: authority,
+    },
+    {
+      id: "base-daily-rules",
+      plan: dailyRules,
+      localSigners: [],
+      walletSigner: authority,
+    },
     ...mapPlans.map((plan, index) => ({
       id: `base-map-${index + 1}`,
       plan,
@@ -294,8 +354,16 @@ async function main(): Promise<void> {
     programArtifactSha256,
     genesisLoadedProgram: true,
     funding: [
-      { recipient: authority.publicKey.toBase58(), amountSol: AUTHORITY_AIRDROP_SOL, source: "local faucet" },
-      { recipient: paymaster.publicKey.toBase58(), amountSol: PAYMASTER_AIRDROP_SOL, source: "local faucet" },
+      {
+        recipient: authority.publicKey.toBase58(),
+        amountSol: AUTHORITY_AIRDROP_SOL,
+        source: "local faucet",
+      },
+      {
+        recipient: paymaster.publicKey.toBase58(),
+        amountSol: PAYMASTER_AIRDROP_SOL,
+        source: "local faucet",
+      },
       { recipient: player.publicKey.toBase58(), amountSol: 0, source: "none" },
     ],
     mockUsdc: {
@@ -304,21 +372,20 @@ async function main(): Promise<void> {
       mintedBaseUnits: "0",
       mintRentLamports: mintRent,
       tokenAccountRentLamports: tokenAccountRent,
-      vaults: Object.fromEntries(Object.entries(vaults).map(([key, value]) => [key, value.toBase58()])),
+      vaults: Object.fromEntries(
+        Object.entries(vaults).map(([key, value]) => [key, value.toBase58()]),
+      ),
     },
     policy: {
       paymaster: paymaster.publicKey.toBase58(),
-      paymasterCapBaseUnits: "100000000",
-      revenueRewardBps: 0,
-      yieldStrategy: "unconfigured and deposits disabled",
-      realizedYieldRouting: "100% rewards by default; timelocked governance can change it",
-      sponsorshipDailyTxLimit: 20,
-      sponsorshipDailyPaidAttemptLimit: 3,
-      progressVersion: PROGRESS_VERSION,
+      revenueSplit: "10% team / 10% rewards / 80% external treasury",
+      dailyRulesVersion: DAILY_RULES_VERSION,
       achievementCount: CANONICAL_ACHIEVEMENT_RULES.length,
-      achievementXpTotal: CANONICAL_ACHIEVEMENT_RULES
-        .reduce((sum, rule) => sum + rule.xpReward, 0),
-      questRewards: CANONICAL_QUEST_RULES.map((rule) => rule.starReward),
+      achievementXpTotal: CANONICAL_ACHIEVEMENT_RULES.reduce(
+        (sum, rule) => sum + rule.xpReward,
+        0,
+      ),
+      questRewardUnits: CANONICAL_QUEST_RULES.map((rule) => rule.rewardUnits),
       questThresholds: CANONICAL_QUEST_RULES.map((rule) => rule.threshold),
       dailyQuestRotation: "three of nine by UTC day modulo 3, plus finisher",
       sessionSigner: runSession.publicKey.toBase58(),
@@ -332,7 +399,16 @@ async function main(): Promise<void> {
       maxVrfRequests: 64,
       maxPlayerActions: 64,
       tokenTransfers: "none",
-      lifecycle: ["router-resolved delegation", "fresh VRF rows", "valid moves/bonuses", "seal", "commit+undelegate", "copyback", "idempotent receipt", "cleanup"],
+      lifecycle: [
+        "router-resolved delegation",
+        "fresh VRF rows",
+        "valid moves/bonuses",
+        "seal",
+        "commit+undelegate",
+        "copyback",
+        "idempotent receipt",
+        "cleanup",
+      ],
     },
     excluded: [
       "No USDC is minted or transferred",
@@ -350,19 +426,32 @@ async function main(): Promise<void> {
     return;
   }
   if (process.env.ZKUBE_LOCAL_APPROVAL !== approvalFingerprint) {
-    throw new Error(`send blocked: set ZKUBE_LOCAL_APPROVAL=${approvalFingerprint} after approval`);
+    throw new Error(
+      `send blocked: set ZKUBE_LOCAL_APPROVAL=${approvalFingerprint} after approval`,
+    );
   }
 
   await fund(connection, authority.publicKey, AUTHORITY_AIRDROP_SOL);
   await fund(connection, paymaster.publicKey, PAYMASTER_AIRDROP_SOL);
-  const authorityBefore = await connection.getBalance(authority.publicKey, "confirmed");
-  const paymasterBefore = await connection.getBalance(paymaster.publicKey, "confirmed");
-  const playerBefore = await connection.getBalance(player.publicKey, "confirmed");
+  const authorityBefore = await connection.getBalance(
+    authority.publicKey,
+    "confirmed",
+  );
+  const paymasterBefore = await connection.getBalance(
+    paymaster.publicKey,
+    "confirmed",
+  );
+  const playerBefore = await connection.getBalance(
+    player.publicKey,
+    "confirmed",
+  );
   const executed: ExecutedBatch[] = [];
   for (const batch of baseBatches) {
-    executed.push(batch.sponsoredOwner
-      ? await executeSponsoredBatch(connection, batch, paymaster)
-      : await executeWalletBatch(connection, batch));
+    executed.push(
+      batch.sponsoredOwner
+        ? await executeSponsoredBatch(connection, batch, paymaster)
+        : await executeWalletBatch(connection, batch),
+    );
   }
   const magic = await executeMagicBlockLifecycle({
     baseConnection: connection,
@@ -387,7 +476,11 @@ async function main(): Promise<void> {
     programArtifactSha256,
     executed,
     magic,
-    before: { authority: authorityBefore, paymaster: paymasterBefore, player: playerBefore },
+    before: {
+      authority: authorityBefore,
+      paymaster: paymasterBefore,
+      player: playerBefore,
+    },
   });
   mkdirSync(dirname(PROOF_OUT), { recursive: true });
   writeFileSync(PROOF_OUT, JSON.stringify(proof, null, 2));
@@ -434,24 +527,26 @@ function tokenVaultsPlan(args: {
   vaultOwners: Record<string, PublicKey>;
   vaultKeypairs: Record<string, Keypair>;
 }): TransactionPlan {
-  const instructions = Object.entries(args.vaultKeypairs).flatMap(([name, keypair]) => [
-    SystemProgram.createAccount({
-      fromPubkey: args.authority.publicKey,
-      newAccountPubkey: keypair.publicKey,
-      lamports: args.tokenAccountRent,
-      space: ACCOUNT_SIZE,
-      programId: TOKEN_PROGRAM_ID,
-    }),
-    createInitializeAccount3Instruction(
-      keypair.publicKey,
-      args.mint.publicKey,
-      args.vaultOwners[name],
-      TOKEN_PROGRAM_ID,
-    ),
-  ]);
+  const instructions = Object.entries(args.vaultKeypairs).flatMap(
+    ([name, keypair]) => [
+      SystemProgram.createAccount({
+        fromPubkey: args.authority.publicKey,
+        newAccountPubkey: keypair.publicKey,
+        lamports: args.tokenAccountRent,
+        space: ACCOUNT_SIZE,
+        programId: TOKEN_PROGRAM_ID,
+      }),
+      createInitializeAccount3Instruction(
+        keypair.publicKey,
+        args.mint.publicKey,
+        args.vaultOwners[name],
+        TOKEN_PROGRAM_ID,
+      ),
+    ],
+  );
   return {
     layer: "solana-base",
-    label: "Create five segregated mock-USDC vaults with program-owned internal custody",
+    label: "Create three segregated mock-USDC destinations",
     connection: args.connection,
     transaction: new Transaction().add(...instructions),
     feePayer: args.authority.publicKey,
@@ -467,8 +562,8 @@ async function buildLocalPrepareRunPlan(args: {
   sessionValidUntil: number;
 }): Promise<TransactionPlan> {
   const addresses = deriveRunAddresses(args.playerWallet.publicKey, 1n);
-  const prepare = await zkubeProgram(args.connection, args.playerWallet).methods
-    .prepareCampaignRunV1(new BN(1), 1, 1, args.runSession.publicKey)
+  const prepare = await zkubeProgram(args.connection, args.playerWallet)
+    .methods.prepareCampaignRun(new BN(1), 1, 1, args.runSession.publicKey)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerProfile: derivePlayerProfilePda(args.playerWallet.publicKey),
@@ -501,7 +596,8 @@ async function buildLocalPrepareRunPlan(args: {
   ];
   return {
     layer: "solana-base",
-    label: "Authorize session, fund Magic Action escrow, and prepare Campaign map 1 level 1",
+    label:
+      "Authorize session, fund Magic Action escrow, and prepare Campaign map 1 level 1",
     connection: args.connection,
     transaction: new Transaction().add(...instructions),
     feePayer: args.paymaster.publicKey,
@@ -515,19 +611,21 @@ async function buildLocalDelegateRunPlan(args: {
   paymaster: Keypair;
 }): Promise<TransactionPlan> {
   const addresses = deriveRunAddresses(args.playerWallet.publicKey, 1n);
-  const instruction = await zkubeProgram(args.connection, args.playerWallet).methods
-    .delegateActiveRunV1()
+  const instruction = await zkubeProgram(args.connection, args.playerWallet)
+    .methods.delegateActiveRun()
     .accountsPartial({
       payer: args.paymaster.publicKey,
       owner: args.playerWallet.publicKey,
       runShell: addresses.runShell,
       pda: addresses.activeRun,
     })
-    .remainingAccounts([{
-      pubkey: LOCAL_ER_VALIDATOR,
-      isSigner: false,
-      isWritable: false,
-    }])
+    .remainingAccounts([
+      {
+        pubkey: LOCAL_ER_VALIDATOR,
+        isSigner: false,
+        isWritable: false,
+      },
+    ])
     .instruction();
   return {
     layer: "solana-base",
@@ -546,8 +644,8 @@ async function buildLocalReplaySettlementPlan(args: {
 }): Promise<TransactionPlan> {
   const owner = args.playerWallet.publicKey;
   const addresses = deriveRunAddresses(owner, 1n);
-  const instruction = await zkubeProgram(args.connection, args.playerWallet).methods
-    .consumeRunReceiptV1()
+  const instruction = await zkubeProgram(args.connection, args.playerWallet)
+    .methods.consumeRunReceipt()
     .accountsPartial({
       activeRun: addresses.activeRun,
       runShell: addresses.runShell,
@@ -590,7 +688,11 @@ async function executeMagicBlockLifecycle(args: {
   const transactions: ExecutedBatch[] = [];
   let vrfRequests = 0;
   let playerActions = 0;
-  let active = await waitForActiveRun(erConnection, sessionWallet, args.addresses.activeRun);
+  let active = await waitForActiveRun(
+    erConnection,
+    sessionWallet,
+    args.addresses.activeRun,
+  );
 
   for (let iteration = 0; iteration < 128; iteration += 1) {
     active = await hydrateLocalRows({
@@ -600,7 +702,9 @@ async function executeMagicBlockLifecycle(args: {
       owner: args.player.publicKey,
       active,
       transactions,
-      onRequest: () => { vrfRequests += 1; },
+      onRequest: () => {
+        vrfRequests += 1;
+      },
     });
     if (isTerminal(active.lifecycle)) break;
     if (active.lifecycle !== "playing") {
@@ -630,16 +734,26 @@ async function executeMagicBlockLifecycle(args: {
             ...firstOccupiedCell(active.grid),
           })
         : null;
-    if (!actionPlan) throw new Error("no valid move or bonus is available for the local smoke solver");
-    transactions.push(await executeDynamicWalletPlan(
-      `er-player-action-${playerActions + 1}`,
-      actionPlan,
-      args.session,
-    ));
+    if (!actionPlan)
+      throw new Error(
+        "no valid move or bonus is available for the local smoke solver",
+      );
+    transactions.push(
+      await executeDynamicWalletPlan(
+        `er-player-action-${playerActions + 1}`,
+        actionPlan,
+        args.session,
+      ),
+    );
     playerActions += 1;
-    active = await waitForActiveRun(erConnection, sessionWallet, args.addresses.activeRun);
+    active = await waitForActiveRun(
+      erConnection,
+      sessionWallet,
+      args.addresses.activeRun,
+    );
   }
-  if (!isTerminal(active.lifecycle)) throw new Error("local ER run did not reach a terminal state");
+  if (!isTerminal(active.lifecycle))
+    throw new Error("local ER run did not reach a terminal state");
   const seal = await buildSealRunPlan({
     owner: args.player.publicKey,
     sessionWallet,
@@ -647,9 +761,13 @@ async function executeMagicBlockLifecycle(args: {
     activeRun: args.addresses.activeRun,
     erConnection,
   });
-  transactions.push(await executeDynamicWalletPlan("er-seal-run", seal, args.session));
-  const terminalAccount = await zkubeProgram(erConnection, sessionWallet).account.activeRun
-    .fetch(args.addresses.activeRun);
+  transactions.push(
+    await executeDynamicWalletPlan("er-seal-run", seal, args.session),
+  );
+  const terminalAccount = await zkubeProgram(
+    erConnection,
+    sessionWallet,
+  ).account.activeRun.fetch(args.addresses.activeRun);
   const terminal = {
     lifecycle: Object.keys(terminalAccount.lifecycle)[0] ?? "unknown",
     score: Number(terminalAccount.score),
@@ -663,7 +781,9 @@ async function executeMagicBlockLifecycle(args: {
     addresses: args.addresses,
     erConnection,
   });
-  transactions.push(await executeDynamicWalletPlan("er-commit-undelegate", commit, args.player));
+  transactions.push(
+    await executeDynamicWalletPlan("er-commit-undelegate", commit, args.player),
+  );
   const copybackStartedAt = Date.now();
   const receipt = await waitForConsumedReceipt(
     args.baseConnection,
@@ -672,7 +792,10 @@ async function executeMagicBlockLifecycle(args: {
   );
   const receiptActionHash = Buffer.from(receipt.actionHash).toString("hex");
   const receiptVrfHash = Buffer.from(receipt.vrfHash).toString("hex");
-  if (receiptActionHash !== terminal.actionHashHex || receiptVrfHash !== terminal.vrfHashHex) {
+  if (
+    receiptActionHash !== terminal.actionHashHex ||
+    receiptVrfHash !== terminal.vrfHashHex
+  ) {
     throw new Error("copyback receipt commitment hash mismatch");
   }
   return {
@@ -698,7 +821,8 @@ async function hydrateLocalRows(args: {
 }): Promise<ActiveRunView> {
   let active = args.active;
   for (let attempt = 0; attempt < 64; attempt += 1) {
-    if (active.lifecycle === "playing" || isTerminal(active.lifecycle)) return active;
+    if (active.lifecycle === "playing" || isTerminal(active.lifecycle))
+      return active;
     if (active.lifecycle === "awaitingVrf" && active.pendingVrfCounter > 0) {
       active = await waitForVrfFulfillment(
         args.erConnection,
@@ -708,8 +832,9 @@ async function hydrateLocalRows(args: {
       continue;
     }
     if (
-      (active.lifecycle === "delegated" || active.lifecycle === "awaitingVrf")
-      && active.pendingVrfCounter === 0
+      (active.lifecycle === "delegated" ||
+        active.lifecycle === "awaitingVrf") &&
+      active.pendingVrfCounter === 0
     ) {
       const clientSeed = createHash("sha256")
         .update("zkube-local-vrf")
@@ -725,11 +850,13 @@ async function hydrateLocalRows(args: {
         erConnection: args.erConnection,
         clientSeed,
       });
-      args.transactions.push(await executeDynamicWalletPlan(
-        `er-vrf-request-${active.pendingVrfCounter + attempt + 1}`,
-        request,
-        args.sessionWallet.keypair,
-      ));
+      args.transactions.push(
+        await executeDynamicWalletPlan(
+          `er-vrf-request-${active.pendingVrfCounter + attempt + 1}`,
+          request,
+          args.sessionWallet.keypair,
+        ),
+      );
       args.onRequest();
       active = await waitForActiveRun(
         args.erConnection,
@@ -750,11 +877,17 @@ async function waitForVrfFulfillment(
 ): Promise<ActiveRunView> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < 30_000) {
-    const active = await waitForActiveRun(connection, wallet, activeAddress(initial));
+    const active = await waitForActiveRun(
+      connection,
+      wallet,
+      activeAddress(initial),
+    );
     if (active.pendingVrfCounter === 0) return active;
     await delay(500);
   }
-  throw new Error("local VRF oracle did not fulfill within 30 seconds; run pnpm chain:local:vrf");
+  throw new Error(
+    "local VRF oracle did not fulfill within 30 seconds; run pnpm chain:local:vrf",
+  );
 }
 
 async function waitForActiveRun(
@@ -782,7 +915,9 @@ async function waitForConsumedReceipt(
     if (receipt?.consumed) return receipt;
     await delay(500);
   }
-  throw new Error(`copyback receipt ${address.toBase58()} was not consumed within 90 seconds`);
+  throw new Error(
+    `copyback receipt ${address.toBase58()} was not consumed within 90 seconds`,
+  );
 }
 
 async function executeDynamicWalletPlan(
@@ -794,11 +929,13 @@ async function executeDynamicWalletPlan(
   let lastError = "unknown ER execution error";
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const latest = await plan.connection.getLatestBlockhash("confirmed");
-    const transaction = new VersionedTransaction(new TransactionMessage({
-      payerKey: plan.feePayer,
-      recentBlockhash: latest.blockhash,
-      instructions: plan.transaction.instructions,
-    }).compileToV0Message());
+    const transaction = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: plan.feePayer,
+        recentBlockhash: latest.blockhash,
+        instructions: plan.transaction.instructions,
+      }).compileToV0Message(),
+    );
     transaction.sign([signer]);
     const simulation = await plan.connection.simulateTransaction(transaction, {
       sigVerify: true,
@@ -813,11 +950,17 @@ async function executeDynamicWalletPlan(
       break;
     }
     try {
-      const signature = await plan.connection.sendRawTransaction(transaction.serialize(), {
-        skipPreflight: false,
-        maxRetries: 5,
-      });
-      await plan.connection.confirmTransaction({ signature, ...latest }, "confirmed");
+      const signature = await plan.connection.sendRawTransaction(
+        transaction.serialize(),
+        {
+          skipPreflight: false,
+          maxRetries: 5,
+        },
+      );
+      await plan.connection.confirmTransaction(
+        { signature, ...latest },
+        "confirmed",
+      );
       console.log(`✓ ${id} ${signature}`);
       return {
         id,
@@ -825,11 +968,18 @@ async function executeDynamicWalletPlan(
         signature,
         feePayer: plan.feePayer.toBase58(),
         requiredSigners: [signer.publicKey.toBase58()],
-        programIds: unique(plan.transaction.instructions.map((instruction) => instruction.programId.toBase58())),
+        programIds: unique(
+          plan.transaction.instructions.map((instruction) =>
+            instruction.programId.toBase58(),
+          ),
+        ),
       };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
-      if (attempt < 5 && /cloner|pending request owner|blockhash/i.test(lastError)) {
+      if (
+        attempt < 5 &&
+        /cloner|pending request owner|blockhash/i.test(lastError)
+      ) {
         await delay(attempt * 500);
         continue;
       }
@@ -839,7 +989,9 @@ async function executeDynamicWalletPlan(
   throw new Error(`${id} failed after bounded ER retries: ${lastError}`);
 }
 
-function findAdjacentMove(grid: number[]): { row: number; start: number; destination: number } | null {
+function findAdjacentMove(
+  grid: number[],
+): { row: number; start: number; destination: number } | null {
   for (let row = 0; row < 10; row += 1) {
     let column = 0;
     while (column < 8) {
@@ -879,21 +1031,19 @@ function delay(ms: number): Promise<void> {
 }
 
 function previewBatch(batch: LocalBatch) {
-  const instructions = batch.sponsoredOwner
-    ? withSponsorshipInstruction({
-        owner: batch.sponsoredOwner.publicKey,
-        paymaster: batch.plan.feePayer,
-        instructions: batch.plan.transaction.instructions,
-      })
-    : batch.plan.transaction.instructions;
-  const transaction = new VersionedTransaction(new TransactionMessage({
-    payerKey: batch.plan.feePayer,
-    recentBlockhash: "11111111111111111111111111111111",
-    instructions,
-  }).compileToV0Message());
+  const instructions = batch.plan.transaction.instructions;
+  const transaction = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: batch.plan.feePayer,
+      recentBlockhash: "11111111111111111111111111111111",
+      instructions,
+    }).compileToV0Message(),
+  );
   const serializedBytes = transaction.serialize().length;
   if (serializedBytes > 1_232) {
-    throw new Error(`${batch.id} is ${serializedBytes} bytes and exceeds Solana's transaction limit`);
+    throw new Error(
+      `${batch.id} is ${serializedBytes} bytes and exceeds Solana's transaction limit`,
+    );
   }
   return {
     id: batch.id,
@@ -902,38 +1052,57 @@ function previewBatch(batch: LocalBatch) {
     feePayer: batch.plan.feePayer.toBase58(),
     requiredSigners: unique([
       batch.plan.feePayer.toBase58(),
-      ...instructions.flatMap((instruction) => instruction.keys
-        .filter((key) => key.isSigner)
-        .map((key) => key.pubkey.toBase58())),
+      ...instructions.flatMap((instruction) =>
+        instruction.keys
+          .filter((key) => key.isSigner)
+          .map((key) => key.pubkey.toBase58()),
+      ),
     ]),
-    programIds: unique(instructions.map((instruction) => instruction.programId.toBase58())),
-    instructionDataSha256: instructions.map((instruction) => createHash("sha256")
-      .update(instruction.data)
-      .digest("hex")),
+    programIds: unique(
+      instructions.map((instruction) => instruction.programId.toBase58()),
+    ),
+    instructionDataSha256: instructions.map((instruction) =>
+      createHash("sha256").update(instruction.data).digest("hex"),
+    ),
     serializedBytes,
-    writableAccounts: unique(instructions.flatMap((instruction) => instruction.keys
-      .filter((key) => key.isWritable)
-      .map((key) => key.pubkey.toBase58()))),
+    writableAccounts: unique(
+      instructions.flatMap((instruction) =>
+        instruction.keys
+          .filter((key) => key.isWritable)
+          .map((key) => key.pubkey.toBase58()),
+      ),
+    ),
   };
 }
 
-async function executeWalletBatch(connection: Connection, batch: LocalBatch): Promise<ExecutedBatch> {
+async function executeWalletBatch(
+  connection: Connection,
+  batch: LocalBatch,
+): Promise<ExecutedBatch> {
   const latest = await connection.getLatestBlockhash("confirmed");
-  const transaction = new VersionedTransaction(new TransactionMessage({
-    payerKey: batch.plan.feePayer,
-    recentBlockhash: latest.blockhash,
-    instructions: batch.plan.transaction.instructions,
-  }).compileToV0Message());
+  const transaction = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: batch.plan.feePayer,
+      recentBlockhash: latest.blockhash,
+      instructions: batch.plan.transaction.instructions,
+    }).compileToV0Message(),
+  );
   transaction.sign([...batch.localSigners, batch.walletSigner]);
   const simulation = await connection.simulateTransaction(transaction, {
     sigVerify: true,
     replaceRecentBlockhash: false,
   });
-  if (simulation.value.err) throw new Error(`${batch.id} simulation failed: ${JSON.stringify(simulation.value.err)}`);
-  const signature = await connection.sendRawTransaction(transaction.serialize(), {
-    skipPreflight: false,
-    maxRetries: 5,
-  });
+  if (simulation.value.err)
+    throw new Error(
+      `${batch.id} simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+  const signature = await connection.sendRawTransaction(
+    transaction.serialize(),
+    {
+      skipPreflight: false,
+      maxRetries: 5,
+    },
+  );
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
   console.log(`✓ ${batch.id} ${signature}`);
   return executedBatch(batch, signature, previewBatch(batch));
@@ -947,34 +1116,46 @@ async function executeSponsoredBatch(
   const owner = batch.sponsoredOwner;
   if (!owner) throw new Error("missing sponsored owner");
   const latest = await connection.getLatestBlockhash("confirmed");
-  const instructions = withSponsorshipInstruction({
-    owner: owner.publicKey,
-    paymaster: paymaster.publicKey,
-    instructions: batch.plan.transaction.instructions,
-  });
-  const transaction = new VersionedTransaction(new TransactionMessage({
-    payerKey: paymaster.publicKey,
-    recentBlockhash: latest.blockhash,
-    instructions,
-  }).compileToV0Message());
+  const instructions = batch.plan.transaction.instructions;
+  const transaction = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: paymaster.publicKey,
+      recentBlockhash: latest.blockhash,
+      instructions,
+    }).compileToV0Message(),
+  );
   transaction.sign([...batch.localSigners, owner, paymaster]);
-  const rejection = validatePaymasterTransaction(transaction, paymaster.publicKey);
-  if (rejection) throw new Error(`${batch.id} paymaster policy rejected: ${rejection}`);
+  const rejection = validatePaymasterTransaction(
+    transaction,
+    paymaster.publicKey,
+  );
+  if (rejection)
+    throw new Error(`${batch.id} paymaster policy rejected: ${rejection}`);
   const simulation = await connection.simulateTransaction(transaction, {
     sigVerify: true,
     replaceRecentBlockhash: false,
   });
-  if (simulation.value.err) throw new Error(`${batch.id} simulation failed: ${JSON.stringify(simulation.value.err)}`);
-  const signature = await connection.sendRawTransaction(transaction.serialize(), {
-    skipPreflight: false,
-    maxRetries: 5,
-  });
+  if (simulation.value.err)
+    throw new Error(
+      `${batch.id} simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+  const signature = await connection.sendRawTransaction(
+    transaction.serialize(),
+    {
+      skipPreflight: false,
+      maxRetries: 5,
+    },
+  );
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
   console.log(`✓ ${batch.id} ${signature}`);
   return executedBatch(batch, signature, previewBatch(batch));
 }
 
-function executedBatch(batch: LocalBatch, signature: string, preview: ReturnType<typeof previewBatch>): ExecutedBatch {
+function executedBatch(
+  batch: LocalBatch,
+  signature: string,
+  preview: ReturnType<typeof previewBatch>,
+): ExecutedBatch {
   return {
     id: batch.id,
     label: batch.plan.label,
@@ -1001,50 +1182,74 @@ async function verifyAndBuildProof(args: {
   const wallet = new SessionWallet(args.player);
   const program = zkubeProgram(args.connection, wallet);
   const addresses = deriveRunAddresses(args.player.publicKey, 1n);
-  const [protocol, ledger, yieldPolicy, player, campaign, allowance, shell, activeInfo, receipt] = await Promise.all([
+  const [
+    protocol,
+    economy,
+    sales,
+    dailyRules,
+    player,
+    campaign,
+    shell,
+    activeInfo,
+    receipt,
+  ] = await Promise.all([
     program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
-    program.account.treasuryLedger.fetch(deriveTreasuryLedgerPda()),
-    program.account.yieldStrategyPolicy.fetch(deriveYieldPolicyPda()),
-    program.account.playerProfile.fetch(derivePlayerProfilePda(args.player.publicKey)),
-    program.account.campaignProgress.fetch(deriveCampaignProgressPda(args.player.publicKey)),
-    program.account.sponsorAllowance.fetch(deriveSponsorAllowancePda(args.player.publicKey)),
+    program.account.economyConfig.fetch(deriveEconomyConfigPda()),
+    program.account.starSalesLedger.fetch(deriveStarSalesLedgerPda()),
+    program.account.dailyRulesCatalog.fetch(
+      deriveDailyRulesCatalogPda(DAILY_RULES_VERSION),
+    ),
+    program.account.playerProfile.fetch(
+      derivePlayerProfilePda(args.player.publicKey),
+    ),
+    program.account.campaignProgress.fetch(
+      deriveCampaignProgressPda(args.player.publicKey),
+    ),
     program.account.runShell.fetch(addresses.runShell),
     args.connection.getAccountInfo(addresses.activeRun, "confirmed"),
     program.account.runReceipt.fetch(addresses.runReceipt),
   ]);
   if (
-    !protocol.yieldPolicy.equals(deriveYieldPolicyPda())
-    || !yieldPolicy.protocol.equals(deriveProtocolConfigPda())
-    || yieldPolicy.depositsEnabled
-    || yieldPolicy.emergencyExit
-    || Number(yieldPolicy.yieldRewardBps) !== 10_000
-    || Number(yieldPolicy.strategyVersion) !== 0
-    || ledger.lifetimeStrategyDeposited.toString() !== "0"
-    || ledger.lifetimeStrategyPrincipalRepaid.toString() !== "0"
-    || ledger.strategyPrincipal.toString() !== "0"
-    || ledger.realizedYield.toString() !== "0"
-    || ledger.yieldAllocatedToRewards.toString() !== "0"
-    || ledger.yieldRetainedInTreasury.toString() !== "0"
-    || ledger.realizedStrategyLosses.toString() !== "0"
-  ) throw new Error("local yield policy is not safely disabled");
+    !economy.protocol.equals(deriveProtocolConfigPda()) ||
+    !sales.economyConfig.equals(deriveEconomyConfigPda()) ||
+    Number(dailyRules.rulesVersion) !== DAILY_RULES_VERSION ||
+    sales.lifetimeGrossSales.toString() !== "0"
+  )
+    throw new Error("local economy foundation is invalid");
   const vaultEntries = Object.entries(args.vaults);
   const vaultInfos = await args.connection.getMultipleAccountsInfo(
     vaultEntries.map(([, address]) => address),
     "confirmed",
   );
-  const decodedVaultOwners = Object.fromEntries(vaultEntries.map(([name, address], index) => {
-    const info = vaultInfos[index];
-    if (!info) throw new Error(`verified vault ${name} is missing`);
-    const account = unpackAccount(address, info, TOKEN_PROGRAM_ID);
-    if (!account.mint.equals(args.mint.publicKey)) throw new Error(`verified vault ${name} mint mismatch`);
-    const expectedOwner = name === "team" ? args.authority.publicKey : deriveProtocolConfigPda();
-    if (!account.owner.equals(expectedOwner)) throw new Error(`verified vault ${name} custody mismatch`);
-    return [name, account.owner.toBase58()];
-  }));
+  const decodedVaultOwners = Object.fromEntries(
+    vaultEntries.map(([name, address], index) => {
+      const info = vaultInfos[index];
+      if (!info) throw new Error(`verified vault ${name} is missing`);
+      const account = unpackAccount(address, info, TOKEN_PROGRAM_ID);
+      if (!account.mint.equals(args.mint.publicKey))
+        throw new Error(`verified vault ${name} mint mismatch`);
+      const expectedOwner =
+        name === "reward"
+          ? deriveProtocolConfigPda()
+          : args.authority.publicKey;
+      if (!account.owner.equals(expectedOwner))
+        throw new Error(`verified vault ${name} custody mismatch`);
+      return [name, account.owner.toBase58()];
+    }),
+  );
   const after = {
-    authority: await args.connection.getBalance(args.authority.publicKey, "confirmed"),
-    paymaster: await args.connection.getBalance(args.paymaster.publicKey, "confirmed"),
-    player: await args.connection.getBalance(args.player.publicKey, "confirmed"),
+    authority: await args.connection.getBalance(
+      args.authority.publicKey,
+      "confirmed",
+    ),
+    paymaster: await args.connection.getBalance(
+      args.paymaster.publicKey,
+      "confirmed",
+    ),
+    player: await args.connection.getBalance(
+      args.player.publicKey,
+      "confirmed",
+    ),
   };
   return {
     generatedAtUnix: Math.floor(Date.now() / 1_000),
@@ -1055,40 +1260,35 @@ async function verifyAndBuildProof(args: {
     transactions: args.executed,
     accounts: {
       protocol: deriveProtocolConfigPda().toBase58(),
-      treasuryLedger: deriveTreasuryLedgerPda().toBase58(),
-      yieldPolicy: deriveYieldPolicyPda().toBase58(),
+      economy: deriveEconomyConfigPda().toBase58(),
+      starSalesLedger: deriveStarSalesLedgerPda().toBase58(),
+      dailyRulesCatalog:
+        deriveDailyRulesCatalogPda(DAILY_RULES_VERSION).toBase58(),
       playerProfile: derivePlayerProfilePda(args.player.publicKey).toBase58(),
-      campaignProgress: deriveCampaignProgressPda(args.player.publicKey).toBase58(),
-      sponsorAllowance: deriveSponsorAllowancePda(args.player.publicKey).toBase58(),
+      campaignProgress: deriveCampaignProgressPda(
+        args.player.publicKey,
+      ).toBase58(),
       runShell: addresses.runShell.toBase58(),
       activeRun: addresses.activeRun.toBase58(),
       runReceipt: addresses.runReceipt.toBase58(),
       mint: args.mint.publicKey.toBase58(),
-      vaults: Object.fromEntries(Object.entries(args.vaults).map(([key, value]) => [key, value.toBase58()])),
+      vaults: Object.fromEntries(
+        Object.entries(args.vaults).map(([key, value]) => [
+          key,
+          value.toBase58(),
+        ]),
+      ),
     },
     state: {
       protocolPaymaster: protocol.paymaster.toBase58(),
-      treasuryLedgerProtocol: ledger.protocol.toBase58(),
-      yieldPolicyProtocol: yieldPolicy.protocol.toBase58(),
-      yieldStrategyVersion: Number(yieldPolicy.strategyVersion),
-      yieldDepositsEnabled: Boolean(yieldPolicy.depositsEnabled),
-      yieldEmergencyExit: Boolean(yieldPolicy.emergencyExit),
-      yieldRewardBps: Number(yieldPolicy.yieldRewardBps),
+      pricingOperator: protocol.pricingOperator.toBase58(),
+      economyProtocol: economy.protocol.toBase58(),
+      dailyRulesVersion: Number(dailyRules.rulesVersion),
       vaultOwners: decodedVaultOwners,
-      progressVersion: Number(protocol.progressVersion),
       playerOwner: player.owner.toBase58(),
       unlockedMaps: Number(campaign.unlockedMaps),
-      sponsoredTransactions: Number(allowance.sponsoredTransactions),
-      sponsoredPaidAttempts: Number(allowance.paidDailyAttempts),
-      lifetimeRakeReceived: ledger.lifetimeRakeReceived.toString(),
-      lifetimeMapSales: ledger.lifetimeMapSales.toString(),
-      realizedYield: ledger.realizedYield.toString(),
-      yieldAllocatedToRewards: ledger.yieldAllocatedToRewards.toString(),
-      yieldRetainedInTreasury: ledger.yieldRetainedInTreasury.toString(),
-      lifetimeStrategyDeposited: ledger.lifetimeStrategyDeposited.toString(),
-      lifetimeStrategyPrincipalRepaid: ledger.lifetimeStrategyPrincipalRepaid.toString(),
-      strategyPrincipal: ledger.strategyPrincipal.toString(),
-      realizedStrategyLosses: ledger.realizedStrategyLosses.toString(),
+      lifetimeGrossSales: sales.lifetimeGrossSales.toString(),
+      lifetimeStarsSold: sales.lifetimeStarsSold.toString(),
       runId: shell.runId.toString(),
       runOwner: shell.owner.toBase58(),
       activeRunClosed: activeInfo === null,
@@ -1103,8 +1303,15 @@ async function verifyAndBuildProof(args: {
   };
 }
 
-async function fund(connection: Connection, recipient: PublicKey, sol: number): Promise<void> {
-  const signature = await connection.requestAirdrop(recipient, sol * 1_000_000_000);
+async function fund(
+  connection: Connection,
+  recipient: PublicKey,
+  sol: number,
+): Promise<void> {
+  const signature = await connection.requestAirdrop(
+    recipient,
+    sol * 1_000_000_000,
+  );
   const latest = await connection.getLatestBlockhash("confirmed");
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
 }
@@ -1113,11 +1320,15 @@ function loadOrCreateKeypair(name: string): Keypair {
   const path = resolve(LOCAL_DIR, `${name}.json`);
   mkdirSync(dirname(path), { recursive: true });
   try {
-    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(path, "utf8")) as number[]));
+    return Keypair.fromSecretKey(
+      Uint8Array.from(JSON.parse(readFileSync(path, "utf8")) as number[]),
+    );
   } catch (error) {
     if (error instanceof SyntaxError) throw error;
     const keypair = Keypair.generate();
-    writeFileSync(path, JSON.stringify(Array.from(keypair.secretKey)), { mode: 0o600 });
+    writeFileSync(path, JSON.stringify(Array.from(keypair.secretKey)), {
+      mode: 0o600,
+    });
     chmodSync(path, 0o600);
     return keypair;
   }
@@ -1128,13 +1339,16 @@ function loadOrCreateFlowConfig(): { sessionValidUntil: number } {
   mkdirSync(dirname(path), { recursive: true });
   const now = Math.floor(Date.now() / 1_000);
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as { sessionValidUntil?: unknown };
+    const value = JSON.parse(readFileSync(path, "utf8")) as {
+      sessionValidUntil?: unknown;
+    };
     if (
-      typeof value.sessionValidUntil === "number"
-      && Number.isSafeInteger(value.sessionValidUntil)
-      && value.sessionValidUntil > now + 3_600
-      && value.sessionValidUntil <= now + 7 * 86_400
-    ) return { sessionValidUntil: value.sessionValidUntil };
+      typeof value.sessionValidUntil === "number" &&
+      Number.isSafeInteger(value.sessionValidUntil) &&
+      value.sessionValidUntil > now + 3_600 &&
+      value.sessionValidUntil <= now + 7 * 86_400
+    )
+      return { sessionValidUntil: value.sessionValidUntil };
   } catch (error) {
     if (error instanceof SyntaxError) throw error;
   }
@@ -1144,21 +1358,33 @@ function loadOrCreateFlowConfig(): { sessionValidUntil: number } {
   return config;
 }
 
-async function assertLocalValidatorReady(connection: Connection): Promise<void> {
+async function assertLocalValidatorReady(
+  connection: Connection,
+): Promise<void> {
   try {
     await connection.getGenesisHash();
   } catch {
-    throw new Error(`local validator is unavailable at ${RPC}; run pnpm chain:local:validator first`);
+    throw new Error(
+      `local validator is unavailable at ${RPC}; run pnpm chain:local:validator first`,
+    );
   }
-  const program = await connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed");
+  const program = await connection.getAccountInfo(
+    ZKUBE_PROGRAM_ID,
+    "confirmed",
+  );
   if (!program?.executable) {
-    throw new Error(`zKube program ${ZKUBE_PROGRAM_ID.toBase58()} is not genesis-loaded on the local validator`);
+    throw new Error(
+      `zKube program ${ZKUBE_PROGRAM_ID.toBase58()} is not genesis-loaded on the local validator`,
+    );
   }
 }
 
 function assertLocalRpc(endpoint: string): void {
   const url = new URL(endpoint);
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname)) {
+  if (
+    url.protocol !== "http:" ||
+    !["127.0.0.1", "localhost"].includes(url.hostname)
+  ) {
     throw new Error("local smoke accepts only an explicit localhost HTTP RPC");
   }
 }

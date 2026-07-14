@@ -11,8 +11,7 @@ const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({
   purchased: false,
   cleared: false,
   perfected: false,
-  starCost: 100n,
-  usdcCost: 5_000_000n,
+  starCost: 20n,
   levelStars: [3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
   levels: [],
   ...overrides,
@@ -27,8 +26,7 @@ describe("campaignMapsToZones", () => {
       stars: 6,
       maxStars: 30,
       highestCleared: 3,
-      starCost: 100,
-      price: 5_000_000n,
+      starCost: 20,
       currentStars: 44,
     });
   });

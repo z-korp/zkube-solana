@@ -20,16 +20,21 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  buildActivateCampaignMapPlan,
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
-  buildPublishProgressCatalogPlan,
 } from "./adminClient";
+import { CANONICAL_CAMPAIGN_MAP_COUNT } from "./campaignCatalog";
 import {
+  buildInitializeEconomyPlan,
+  buildPublishDailyRulesPlan,
+} from "./economyAdminClient";
+import {
+  deriveDailyRulesCatalogPda,
+  deriveEconomyConfigPda,
   deriveMapCatalogPda,
-  deriveProgressCatalogPda,
   deriveProtocolConfigPda,
-  deriveTreasuryLedgerPda,
-  deriveYieldPolicyPda,
+  deriveStarSalesLedgerPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 import { zkubeProgram } from "./runPlan";
@@ -38,6 +43,12 @@ import {
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
 } from "./constants";
+import {
+  CANONICAL_DAILY_PRESSURE,
+  CANONICAL_DAILY_SCORING_RULES,
+  CANONICAL_DAILY_SEASON_SEED,
+  DAILY_SCORING_RULE_COUNT,
+} from "./dailyRules";
 
 export const DEVNET_USDC_MINT = CANONICAL_DEVNET_USDC_MINT;
 export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
@@ -47,7 +58,7 @@ export const DEPLOYED_ZKUBE_SBF_SHA256 =
 
 export type DevnetBootstrapStage = "custody" | "protocol" | "catalogs";
 
-type VaultName = "team" | "paymaster" | "treasury" | "reward" | "payment";
+type VaultName = "team" | "treasury" | "reward";
 
 interface BootstrapIdentities {
   funder: Keypair;
@@ -106,20 +117,14 @@ export interface PublicBootstrapPlan {
   vaults: Record<VaultName, string>;
   pdas: {
     protocol: string;
-    treasuryLedger: string;
-    yieldPolicy: string;
-    progressCatalogV1: string;
+    economy: string;
+    starSalesLedger: string;
+    dailyRulesCatalog: string;
   };
   policy: {
     paymasterFundingLamports: number;
-    paymasterCapBaseUnits: string;
-    revenueRewardBps: number;
-    sponsorshipDailyTxLimit: number;
-    sponsorshipDailyPaidAttemptLimit: number;
     contentVersion: number;
-    progressVersion: number;
-    governanceDelaySeconds: number;
-    governanceExecutionWindowSeconds: number;
+    dailyRulesVersion: number;
   };
   batches: PublicBootstrapBatch[];
 }
@@ -158,23 +163,27 @@ interface LiveProgramDeployment {
 }
 
 const POLICY = {
-  paymasterCapBaseUnits: 100_000_000n,
-  revenueRewardBps: 0,
-  sponsorshipDailyTxLimit: 20,
-  sponsorshipDailyPaidAttemptLimit: 3,
   contentVersion: 1,
-  progressVersion: 1,
-  governanceDelaySeconds: 3_600,
-  governanceExecutionWindowSeconds: 86_400,
+  dailyRulesVersion: 1,
 } as const;
 
 const VAULT_PATHS: Record<VaultName, string> = {
   team: "../.devnet/zkube-team-vault.json",
-  paymaster: "../.devnet/zkube-paymaster-vault.json",
   treasury: "../.devnet/zkube-treasury-vault.json",
   reward: "../.devnet/zkube-reward-vault.json",
-  payment: "../.devnet/zkube-payment-vault.json",
 };
+
+function canonicalDailyRulesPublication() {
+  return {
+    rulesVersion: POLICY.dailyRulesVersion,
+    seasonId: 1,
+    startsDay: 0,
+    seasonSeed: CANONICAL_DAILY_SEASON_SEED,
+    scoringRuleCount: DAILY_SCORING_RULE_COUNT,
+    scoringRules: CANONICAL_DAILY_SCORING_RULES,
+    pressure: CANONICAL_DAILY_PRESSURE,
+  };
+}
 
 export function devnetBootstrapInputFromEnv(
   env: Record<string, string | undefined> = process.env,
@@ -215,10 +224,10 @@ export function devnetBootstrapInputFromEnv(
       authority: loadKeypair(
         resolve(
           cwd,
-          env.ZKUBE_GOVERNANCE_AUTHORITY_KEYPAIR ??
-            "../.devnet/zkube-governance-authority.json",
+          env.ZKUBE_PROTOCOL_AUTHORITY_KEYPAIR ??
+            "../.devnet/zkube-protocol-authority.json",
         ),
-        "governance authority",
+        "protocol authority",
       ),
       paymaster: loadKeypair(
         resolve(
@@ -393,10 +402,8 @@ async function buildCustodyBatches(
   const protocol = deriveProtocolConfigPda();
   const vaultOwners: Record<VaultName, PublicKey> = {
     team: authority.publicKey,
-    paymaster: protocol,
-    treasury: protocol,
+    treasury: authority.publicKey,
     reward: protocol,
-    payment: protocol,
   };
   const rent = await input.connection.getMinimumBalanceForRentExemption(
     ACCOUNT_SIZE,
@@ -478,45 +485,22 @@ async function buildProtocolBatches(
     verifyProtocolConfig(protocol, input);
     return [];
   }
-  const existingFoundation = await input.connection.getMultipleAccountsInfo(
-    [deriveTreasuryLedgerPda(), deriveYieldPolicyPda()],
+  const rentFunding = await input.connection.getMinimumBalanceForRentExemption(
+    program.account.protocolConfig.size,
     "confirmed",
   );
-  if (existingFoundation.some(Boolean)) {
-    throw new Error(
-      "partial protocol foundation exists without ProtocolConfig; manual recovery is required",
-    );
-  }
-  const sizes = [
-    program.account.protocolConfig.size,
-    program.account.treasuryLedger.size,
-    program.account.yieldStrategyPolicy.size,
-  ];
-  const rents = await Promise.all(
-    sizes.map((size) =>
-      input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
-    ),
-  );
-  const rentFunding = rents.reduce((sum, value) => sum + value, 0);
   const plan = await buildInitializeProtocolPlan({
     connection: input.connection,
     authority: new SessionWallet(authority),
     config: {
       paymaster: paymaster.publicKey,
-      teamVault: vaults.team.publicKey,
-      paymasterVault: vaults.paymaster.publicKey,
-      treasuryVault: vaults.treasury.publicKey,
+      pricingOperator: authority.publicKey,
+      teamDestination: vaults.team.publicKey,
+      treasuryDestination: vaults.treasury.publicKey,
       rewardVault: vaults.reward.publicKey,
-      paymasterCap: POLICY.paymasterCapBaseUnits,
-      revenueRewardBps: POLICY.revenueRewardBps,
-      sponsorshipDailyTxLimit: POLICY.sponsorshipDailyTxLimit,
-      sponsorshipDailyPaidAttemptLimit: POLICY.sponsorshipDailyPaidAttemptLimit,
       paymentMint: DEVNET_USDC_MINT,
       paymentTokenProgram: TOKEN_PROGRAM_ID,
-      paymentVault: vaults.payment.publicKey,
       contentVersion: POLICY.contentVersion,
-      governanceDelaySeconds: POLICY.governanceDelaySeconds,
-      governanceExecutionWindowSeconds: POLICY.governanceExecutionWindowSeconds,
     },
   });
   const transaction = new Transaction().add(
@@ -530,15 +514,11 @@ async function buildProtocolBatches(
   transaction.feePayer = funder.publicKey;
   const batch = {
     id: "initialize-protocol",
-    label: "Initialize protocol, treasury ledger, and disabled yield policy",
+    label: "Initialize protocol with external revenue destinations",
     transaction,
     signers: [funder, authority],
     fundingLamports: rentFunding,
-    creates: [
-      deriveProtocolConfigPda().toBase58(),
-      deriveTreasuryLedgerPda().toBase58(),
-      deriveYieldPolicyPda().toBase58(),
-    ],
+    creates: [deriveProtocolConfigPda().toBase58()],
   };
   await assertFunderHeadroom(input, [batch]);
   return [batch];
@@ -559,27 +539,67 @@ async function buildCatalogBatches(
   }
   verifyProtocolConfig(protocol, input);
   const batches: BootstrapBatch[] = [];
-  const progressAddress = deriveProgressCatalogPda(POLICY.progressVersion);
-  if (!(await input.connection.getAccountInfo(progressAddress, "confirmed"))) {
-    const rent = await input.connection.getMinimumBalanceForRentExemption(
-      program.account.progressCatalog.size,
+  const economyAddress = deriveEconomyConfigPda();
+  const salesAddress = deriveStarSalesLedgerPda();
+  const [economyInfo, salesInfo] =
+    await input.connection.getMultipleAccountsInfo(
+      [economyAddress, salesAddress],
       "confirmed",
     );
-    const progress = await buildPublishProgressCatalogPlan({
+  if (Boolean(economyInfo) !== Boolean(salesInfo)) {
+    throw new Error(
+      "partial economy foundation exists; manual recovery is required",
+    );
+  }
+  if (!economyInfo) {
+    const rent = await Promise.all(
+      [
+        program.account.economyConfig.size,
+        program.account.starSalesLedger.size,
+      ].map((size) =>
+        input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
+      ),
+    );
+    const economy = await buildInitializeEconomyPlan({
       connection: input.connection,
       authority: wallet,
-      progressVersion: POLICY.progressVersion,
+      config: {
+        dailyRulesVersion: POLICY.dailyRulesVersion,
+        paymentMint: DEVNET_USDC_MINT,
+      },
     });
     batches.push(
       fundedAuthorityBatch({
-        id: "publish-progress-catalog",
-        label: "Publish canonical achievements and 5/day + 10/week quests",
+        id: "initialize-economy",
+        label: "Initialize canonical Stars economy",
+        funder,
+        authority,
+        rent: rent[0] + rent[1],
+        instructions: economy.transaction.instructions,
+        creates: [economyAddress.toBase58(), salesAddress.toBase58()],
+      }),
+    );
+  }
+  const rulesAddress = deriveDailyRulesCatalogPda(POLICY.dailyRulesVersion);
+  if (!(await input.connection.getAccountInfo(rulesAddress, "confirmed"))) {
+    const rent = await input.connection.getMinimumBalanceForRentExemption(
+      program.account.dailyRulesCatalog.size,
+      "confirmed",
+    );
+    const rules = await buildPublishDailyRulesPlan({
+      connection: input.connection,
+      authority: wallet,
+      publication: canonicalDailyRulesPublication(),
+    });
+    batches.push(
+      fundedAuthorityBatch({
+        id: "publish-daily-rules",
+        label: "Publish canonical Daily rules",
         funder,
         authority,
         rent,
-        computeUnitLimit: 400_000,
-        instructions: progress.transaction.instructions,
-        creates: [progressAddress.toBase58()],
+        instructions: rules.transaction.instructions,
+        creates: [rulesAddress.toBase58()],
       }),
     );
   }
@@ -587,9 +607,11 @@ async function buildCatalogBatches(
     program.account.mapCatalog.size,
     "confirmed",
   );
-  for (let mapId = 1; mapId <= 10; mapId += 1) {
+  let missingMapCatalog = false;
+  for (let mapId = 1; mapId <= CANONICAL_CAMPAIGN_MAP_COUNT; mapId += 1) {
     const address = deriveMapCatalogPda(POLICY.contentVersion, mapId);
     if (await input.connection.getAccountInfo(address, "confirmed")) continue;
+    missingMapCatalog = true;
     const map = await buildPublishCanonicalMapsPlan({
       connection: input.connection,
       authority: wallet,
@@ -608,6 +630,29 @@ async function buildCatalogBatches(
         creates: [address.toBase58()],
       }),
     );
+  }
+  const activeMapCount = Number(protocol.campaignMapCount);
+  if (!missingMapCatalog && activeMapCount < CANONICAL_CAMPAIGN_MAP_COUNT) {
+    const activations = await Promise.all(
+      Array.from(
+        { length: CANONICAL_CAMPAIGN_MAP_COUNT - activeMapCount },
+        (_, index) => activeMapCount + index + 1,
+      ).map((mapId) => buildActivateCampaignMapPlan({
+        connection: input.connection,
+        authority: wallet,
+        contentVersion: POLICY.contentVersion,
+        mapId,
+      })),
+    );
+    batches.push(fundedAuthorityBatch({
+      id: "activate-campaign-maps",
+      label: `Activate campaign maps ${activeMapCount + 1}-${CANONICAL_CAMPAIGN_MAP_COUNT}`,
+      funder,
+      authority,
+      rent: 0,
+      instructions: activations.flatMap((plan) => plan.transaction.instructions),
+      creates: [],
+    }));
   }
   await assertFunderHeadroom(input, batches);
   return batches;
@@ -655,10 +700,12 @@ async function verifyAllVaults(input: DevnetBootstrapInput): Promise<void> {
   const protocol = deriveProtocolConfigPda();
   await Promise.all([
     verifyVault(input.connection, vaults.team.publicKey, authority.publicKey),
-    verifyVault(input.connection, vaults.paymaster.publicKey, protocol),
-    verifyVault(input.connection, vaults.treasury.publicKey, protocol),
+    verifyVault(
+      input.connection,
+      vaults.treasury.publicKey,
+      authority.publicKey,
+    ),
     verifyVault(input.connection, vaults.reward.publicKey, protocol),
-    verifyVault(input.connection, vaults.payment.publicKey, protocol),
   ]);
 }
 
@@ -682,15 +729,15 @@ function verifyProtocolConfig(
   protocol: {
     version: number;
     authority: PublicKey;
+    pricingOperator: PublicKey;
     paymaster: PublicKey;
-    teamVault: PublicKey;
-    paymasterVault: PublicKey;
-    treasuryVault: PublicKey;
+    teamDestination: PublicKey;
+    treasuryDestination: PublicKey;
     rewardVault: PublicKey;
     paymentMint: PublicKey;
     paymentTokenProgram: PublicKey;
-    paymentVault: PublicKey;
     contentVersion: number;
+    campaignMapCount: number;
   },
   input: DevnetBootstrapInput,
 ): void {
@@ -698,23 +745,28 @@ function verifyProtocolConfig(
   const checks: Array<[boolean, string]> = [
     [Number(protocol.version) === 1, "version"],
     [protocol.authority.equals(authority.publicKey), "authority"],
+    [protocol.pricingOperator.equals(authority.publicKey), "pricing operator"],
     [protocol.paymaster.equals(paymaster.publicKey), "paymaster"],
-    [protocol.teamVault.equals(vaults.team.publicKey), "team vault"],
     [
-      protocol.paymasterVault.equals(vaults.paymaster.publicKey),
-      "paymaster vault",
+      protocol.teamDestination.equals(vaults.team.publicKey),
+      "team destination",
     ],
     [
-      protocol.treasuryVault.equals(vaults.treasury.publicKey),
-      "treasury vault",
+      protocol.treasuryDestination.equals(vaults.treasury.publicKey),
+      "treasury destination",
     ],
     [protocol.rewardVault.equals(vaults.reward.publicKey), "reward vault"],
     [protocol.paymentMint.equals(DEVNET_USDC_MINT), "payment mint"],
     [protocol.paymentTokenProgram.equals(TOKEN_PROGRAM_ID), "token program"],
-    [protocol.paymentVault.equals(vaults.payment.publicKey), "payment vault"],
     [
       Number(protocol.contentVersion) === POLICY.contentVersion,
       "content version",
+    ],
+    [
+      Number.isInteger(Number(protocol.campaignMapCount))
+        && Number(protocol.campaignMapCount) >= 0
+        && Number(protocol.campaignMapCount) <= CANONICAL_CAMPAIGN_MAP_COUNT,
+      "campaign map count",
     ],
   ];
   const mismatch = checks.find(([valid]) => !valid);
@@ -775,22 +827,16 @@ function publicPlan(
     ) as Record<VaultName, string>,
     pdas: {
       protocol: deriveProtocolConfigPda().toBase58(),
-      treasuryLedger: deriveTreasuryLedgerPda().toBase58(),
-      yieldPolicy: deriveYieldPolicyPda().toBase58(),
-      progressCatalogV1: deriveProgressCatalogPda(
-        POLICY.progressVersion,
+      economy: deriveEconomyConfigPda().toBase58(),
+      starSalesLedger: deriveStarSalesLedgerPda().toBase58(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(
+        POLICY.dailyRulesVersion,
       ).toBase58(),
     },
     policy: {
       paymasterFundingLamports: input.paymasterFundingLamports,
-      paymasterCapBaseUnits: POLICY.paymasterCapBaseUnits.toString(),
-      revenueRewardBps: POLICY.revenueRewardBps,
-      sponsorshipDailyTxLimit: POLICY.sponsorshipDailyTxLimit,
-      sponsorshipDailyPaidAttemptLimit: POLICY.sponsorshipDailyPaidAttemptLimit,
       contentVersion: POLICY.contentVersion,
-      progressVersion: POLICY.progressVersion,
-      governanceDelaySeconds: POLICY.governanceDelaySeconds,
-      governanceExecutionWindowSeconds: POLICY.governanceExecutionWindowSeconds,
+      dailyRulesVersion: POLICY.dailyRulesVersion,
     },
     batches: batches.map(publicBatch),
   };
@@ -925,8 +971,10 @@ async function verifyStagePostconditions(
   if (input.stage === "catalogs") {
     const accounts = await input.connection.getMultipleAccountsInfo(
       [
-        deriveProgressCatalogPda(POLICY.progressVersion),
-        ...Array.from({ length: 10 }, (_, index) =>
+        deriveEconomyConfigPda(),
+        deriveStarSalesLedgerPda(),
+        deriveDailyRulesCatalogPda(POLICY.dailyRulesVersion),
+        ...Array.from({ length: CANONICAL_CAMPAIGN_MAP_COUNT }, (_, index) =>
           deriveMapCatalogPda(POLICY.contentVersion, index + 1),
         ),
       ],

@@ -12,7 +12,7 @@ export interface MutatorDef {
   effectsEndless?: string[];
 }
 
-// Trigger types: 1=combo, 2=lines, 3=score
+// Campaign trigger types are authored once per map and remain fixed for all ten levels.
 // Bonus types: 1=Hammer (destroy 1 block), 2=Totem (destroy all blocks of same size), 3=Wave (clear entire row)
 
 export const MUTATOR_DEFS: Record<number, MutatorDef> = {
@@ -24,21 +24,17 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     effects: [],
   },
 
-  // ── Active Mutators (odd IDs 1-19) — at run start, one trigger from the
-  // enabled pool is rolled. Completing it during play earns a charge of the
-  // zone's bonus (Hammer / Totem / Wave). Listed effects describe the pool.
+  // ── Active Mutators (odd IDs 1-19) ──
 
   // Zone 1 — Mako 🐢 / Tiki / Ocean
   1: {
     id: 1,
     name: "Mako's Gift",
     description:
-      "The sea turtle offers a rolling Wave. Any path through the tide earns a charge.",
+      "The sea turtle rewards a strong clear with a Wave.",
     icon: "🐢",
     effects: [
       "Clear 3+ lines in a move → Wave charge",
-      "Every 10 lines cleared → Wave charge",
-      "Every 30 points scored → Wave charge",
       "Start with 1 charge",
     ],
   },
@@ -47,11 +43,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 3,
     name: "Sobek's Strike",
     description:
-      "The Nile crocodile snaps precise and sudden. Combos or clears earn the Hammer.",
+      "The Nile crocodile rewards exact two-line clears with the Hammer.",
     icon: "🐊",
     effects: [
-      "Clear 4+ lines in a move → Hammer charge",
-      "Every 20 lines cleared → Hammer charge",
+      "Clear exactly 2 lines in a move → Hammer charge",
       "Start with 1 charge",
     ],
   },
@@ -60,11 +55,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 5,
     name: "Fenris Howl",
     description:
-      "The frost wolf's cry shatters the alike. Combos or scoring unleash the Totem.",
+      "The frost wolf answers a strong clear with the Totem.",
     icon: "🐺",
     effects: [
-      "Clear 4+ lines in a move → Totem charge",
-      "Every 30 points scored → Totem charge",
+      "Clear 3+ lines in a move → Totem charge",
       "Start with 1 charge",
     ],
   },
@@ -73,11 +67,11 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 7,
     name: "Noctua's Sight",
     description:
-      "The owl sees the single flaw. Combos or scoring guide the Hammer home.",
+      "The owl rewards a perfectly empty board with the Hammer.",
     icon: "🦉",
     effects: [
-      "Clear 4+ lines in a move → Hammer charge",
-      "Every 30 points scored → Hammer charge",
+      "Perfect clear after a move or bonus → Hammer charge",
+      "At most 1 perfect-clear charge between moves",
       "Start with 1 charge",
     ],
   },
@@ -86,11 +80,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 9,
     name: "Long's Breath",
     description:
-      "The dragon's sweeping flame clears a row. Ride the lines or the score to earn a Wave.",
+      "The dragon rewards sustained line clearing with a Wave.",
     icon: "🐲",
     effects: [
-      "Every 20 lines cleared → Wave charge",
-      "Every 30 points scored → Wave charge",
+      "Every 15 lines cleared by moves → Wave charge",
       "Start with 1 charge",
     ],
   },
@@ -99,11 +92,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 11,
     name: "Lamassu's Gaze",
     description:
-      "The gate guardian shatters the alike. Lines or scores fuel the Totem.",
+      "The gate guardian rewards one move that breaks every block size.",
     icon: "🦁",
     effects: [
-      "Every 20 lines cleared → Totem charge",
-      "Every 30 points scored → Totem charge",
+      "Destroy sizes 1, 2, 3, and 4 in one move → Totem charge",
       "Start with 1 charge",
     ],
   },
@@ -112,11 +104,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 13,
     name: "Kitsune's Spark",
     description:
-      "The spirit fox darts and a single block vanishes. Combos or clears earn the Hammer.",
+      "The spirit fox rewards exact three-line clears with the Hammer.",
     icon: "🦊",
     effects: [
-      "Clear 4+ lines in a move → Hammer charge",
-      "Every 20 lines cleared → Hammer charge",
+      "Clear exactly 3 lines in a move → Hammer charge",
       "Start with 1 charge",
     ],
   },
@@ -125,12 +116,11 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 15,
     name: "Balam's Rite",
     description:
-      "The three-eyed jaguar accepts any offering and answers in Waves. 2 charges to start.",
+      "The jaguar rewards a perfectly empty board with a Wave.",
     icon: "🐆",
     effects: [
-      "Clear 5+ lines in a move → Wave charge",
-      "Every 30 lines cleared → Wave charge",
-      "Every 50 points scored → Wave charge",
+      "Perfect clear after a move or bonus → Wave charge",
+      "At most 1 perfect-clear charge between moves",
       "Start with 2 charges",
     ],
   },
@@ -139,11 +129,11 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 17,
     name: "Mamba's Rhythm",
     description:
-      "The serpent's drum shatters the alike. Combos or scores feed the Totem.",
+      "The serpent turns Combo Meter milestones into Totems.",
     icon: "🐍",
     effects: [
-      "Clear 4+ lines in a move → Totem charge",
-      "Every 50 points scored → Totem charge",
+      "Every 8 Combo Meter points → Totem charge",
+      "Moves and bonuses can trigger it; at most 1 charge per action",
       "Start with 1 charge",
     ],
   },
@@ -152,11 +142,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 19,
     name: "Kuntur's Trial",
     description:
-      "The condor accepts only mastery. Deep combos or long grinds earn the Hammer.",
+      "The condor rewards exact four-line clears with the Hammer.",
     icon: "🦅",
     effects: [
-      "Clear 5+ lines in a move → Hammer charge",
-      "Every 30 lines cleared → Hammer charge",
+      "Clear exactly 4 lines in a move → Hammer charge",
       "Start with 1 charge",
     ],
   },
@@ -168,26 +157,25 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 2,
     name: "Calm Tides",
     description:
-      "Gentle waters. Each line clear trickles a bonus and stars come more easily.",
+      "Gentle waters make Campaign Stars easier to earn.",
     icon: "🌊",
     effects: [
-      "+1 per line clear",
-      "−5% star thresholds (easier)",
+      "−10% star thresholds (easier)",
       "4 starting rows",
     ],
-    effectsEndless: ["+1 per line clear", "4 starting rows"],
+    effectsEndless: ["4 starting rows"],
   },
   // Zone 2 — Sobek 🐊 / Egypt
   4: {
     id: 4,
     name: "Foundation Stone",
     description:
-      "Every scored move doubles in value, and a perfect clear pays big.",
+      "Measured scoring and perfect clears make the desert more forgiving.",
     icon: "☀️",
-    effects: ["Move score ×2.0", "+20 on perfect clears", "5 starting rows"],
+    effects: ["Move score ×1.25", "+10 on perfect clears", "−5% star thresholds (easier)", "5 starting rows"],
     effectsEndless: [
-      "Move score ×2.0",
-      "+20 on perfect clears",
+      "Move score ×1.25",
+      "+10 on perfect clears",
       "5 starting rows",
     ],
   },
@@ -200,12 +188,12 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     icon: "❄️",
     effects: [
       "×1.5 combo bonus on multi-line clears",
-      "+3 per line clear",
+      "+1 per line clear",
       "4 starting rows",
     ],
     effectsEndless: [
       "×1.5 combo bonus on multi-line clears",
-      "+3 per line clear",
+      "+1 per line clear",
       "4 starting rows",
     ],
   },
@@ -214,16 +202,15 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 8,
     name: "Marble Discipline",
     description:
-      "Precision demanded. Stars are harder, but every move pays well.",
+      "Precision pays through stronger moves and perfect clears.",
     icon: "🏛️",
     effects: [
-      "Move score ×2.5",
+      "Move score ×1.25",
       "+15 on perfect clears",
-      "+10% star thresholds (harder)",
       "5 starting rows",
     ],
     effectsEndless: [
-      "Move score ×2.5",
+      "Move score ×1.25",
       "+15 on perfect clears",
       "5 starting rows",
     ],
@@ -235,26 +222,23 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Waves roll in from the dragon's domain. Every line you break pays a steady toll.",
     icon: "🐉",
-    effects: ["+4 per line clear", "6 starting rows"],
-    effectsEndless: ["+4 per line clear", "6 starting rows"],
+    effects: ["+1 per line clear", "6 starting rows"],
+    effectsEndless: ["+1 per line clear", "6 starting rows"],
   },
   // Zone 6 — Lamassu 🦁 / Persia
   12: {
     id: 12,
     name: "Geometric Flow",
     description:
-      "Patterns reward skilled combos. Stars are tighter, but every multi-line clear explodes.",
+      "Patterns reward skilled combos and perfect clears.",
     icon: "🕌",
     effects: [
-      "×2.0 combo bonus on multi-line clears",
-      "+1 per line clear",
+      "×1.5 combo bonus on multi-line clears",
       "+10 on perfect clears",
-      "+5% star thresholds (harder)",
       "5 starting rows",
     ],
     effectsEndless: [
-      "×2.0 combo bonus on multi-line clears",
-      "+1 per line clear",
+      "×1.5 combo bonus on multi-line clears",
       "+10 on perfect clears",
       "5 starting rows",
     ],
@@ -264,17 +248,14 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 14,
     name: "Bushido",
     description:
-      "The warrior's code. A strong flat multiplier — but only the cleanest runs earn stars.",
+      "The warrior's code turns every scored move into a sharper strike.",
     icon: "🗡️",
     effects: [
-      "Move score ×3.0",
-      "+10 on perfect clears",
-      "+15% star thresholds (quite hard)",
+      "Move score ×1.75",
       "5 starting rows",
     ],
     effectsEndless: [
-      "Move score ×3.0",
-      "+10 on perfect clears",
+      "Move score ×1.75",
       "5 starting rows",
     ],
   },
@@ -283,11 +264,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 16,
     name: "Jungle Altar",
     description:
-      "The jaguar favors the skilled. Combos detonate ×2 — but stars demand perfection.",
+      "The jaguar favors the skilled. Combos detonate at double strength.",
     icon: "🌿",
     effects: [
       "×2.0 combo bonus on multi-line clears",
-      "+10% star thresholds (harder)",
       "6 starting rows",
     ],
     effectsEndless: [
@@ -304,13 +284,12 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     icon: "🔥",
     effects: [
       "×2.0 combo bonus on multi-line clears",
-      "+2 per line clear",
-      "+10% star thresholds (harder)",
+      "+1 per line clear",
       "6 starting rows",
     ],
     effectsEndless: [
       "×2.0 combo bonus on multi-line clears",
-      "+2 per line clear",
+      "+1 per line clear",
       "6 starting rows",
     ],
   },
@@ -319,19 +298,19 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 20,
     name: "Altitude",
     description:
-      "Thin air, crushing pressure. Massive scoring, ×2.5 combos, perfect-clear rewards — but stars are brutal.",
+      "Thin air, strong scoring, double combos, and perfect-clear rewards at the summit.",
     icon: "⛰️",
     effects: [
-      "Move score ×3.0",
-      "×2.5 combo bonus on multi-line clears",
-      "+30 on perfect clears",
-      "+20% star thresholds (hardest)",
+      "Move score ×1.5",
+      "×2.0 combo bonus on multi-line clears",
+      "+20 on perfect clears",
+      "+5% star thresholds (harder)",
       "7 starting rows",
     ],
     effectsEndless: [
-      "Move score ×3.0",
-      "×2.5 combo bonus on multi-line clears",
-      "+30 on perfect clears",
+      "Move score ×1.5",
+      "×2.0 combo bonus on multi-line clears",
+      "+20 on perfect clears",
       "7 starting rows",
     ],
   },

@@ -82,7 +82,10 @@ describe("zKube deployment manifest", () => {
       },
       {
         ...base,
-        vaults: { ...base.vaults, reward: base.vaults.treasury },
+        destinations: {
+          ...base.destinations,
+          reward: base.destinations.treasury,
+        },
       },
       {
         ...base,
@@ -135,10 +138,13 @@ describe("zKube deployment manifest", () => {
 });
 
 function candidate(): ZkubeDeploymentManifest {
-  const vaults = Array.from({ length: 5 }, () => Keypair.generate().publicKey.toBase58());
+  const destinations = Array.from(
+    { length: 3 },
+    () => Keypair.generate().publicKey.toBase58(),
+  );
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 1,
+    schemaVersion: 2,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -163,23 +169,20 @@ function candidate(): ZkubeDeploymentManifest {
       tokenProgram: TOKEN_PROGRAM_ID.toBase58(),
       decimals: 6,
     },
-    vaults: {
-      team: vaults[0]!,
-      paymaster: vaults[1]!,
-      treasury: vaults[2]!,
-      reward: vaults[3]!,
-      payment: vaults[4]!,
+    destinations: {
+      team: destinations[0]!,
+      treasury: destinations[1]!,
+      reward: destinations[2]!,
     },
     paymaster: {
       publicKey: Keypair.generate().publicKey.toBase58(),
       endpoint: "/api/paymaster",
     },
-    governance: {
+    protocol: {
       authority: Keypair.generate().publicKey.toBase58(),
-      delaySeconds: 3_600,
-      executionWindowSeconds: 86_400,
+      pricingOperator: Keypair.generate().publicKey.toBase58(),
     },
-    versions: { content: 1, progress: 1, strategy: 0 },
+    versions: { content: 1, dailyRules: 1 },
   };
 }
 
@@ -199,19 +202,13 @@ function environment(manifest: ZkubeDeploymentManifest): Record<string, string> 
     ZKUBE_PROGRAM_ARTIFACT_SHA256: manifest.program.artifactSha256,
     ZKUBE_PAYMENT_MINT: manifest.payment.mint,
     ZKUBE_PAYMENT_TOKEN_PROGRAM: manifest.payment.tokenProgram,
-    ZKUBE_TEAM_VAULT: manifest.vaults.team,
-    ZKUBE_PAYMASTER_VAULT: manifest.vaults.paymaster,
-    ZKUBE_TREASURY_VAULT: manifest.vaults.treasury,
-    ZKUBE_REWARD_VAULT: manifest.vaults.reward,
-    ZKUBE_PAYMENT_VAULT: manifest.vaults.payment,
+    ZKUBE_TEAM_DESTINATION: manifest.destinations.team,
+    ZKUBE_TREASURY_DESTINATION: manifest.destinations.treasury,
+    ZKUBE_REWARD_VAULT: manifest.destinations.reward,
     ZKUBE_PAYMASTER_PUBLIC_KEY: manifest.paymaster.publicKey,
-    ZKUBE_GOVERNANCE_AUTHORITY: manifest.governance.authority,
-    ZKUBE_GOVERNANCE_DELAY_SECONDS: String(manifest.governance.delaySeconds),
-    ZKUBE_GOVERNANCE_EXECUTION_WINDOW_SECONDS: String(
-      manifest.governance.executionWindowSeconds,
-    ),
+    ZKUBE_PROTOCOL_AUTHORITY: manifest.protocol.authority,
+    ZKUBE_PRICING_OPERATOR: manifest.protocol.pricingOperator,
     ZKUBE_CONTENT_VERSION: String(manifest.versions.content),
-    ZKUBE_PROGRESS_VERSION: String(manifest.versions.progress),
-    ZKUBE_STRATEGY_VERSION: String(manifest.versions.strategy),
+    ZKUBE_DAILY_RULES_VERSION: String(manifest.versions.dailyRules),
   };
 }

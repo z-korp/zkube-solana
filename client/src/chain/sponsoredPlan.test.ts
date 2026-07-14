@@ -97,9 +97,8 @@ describe("sponsored transaction plans", () => {
     });
 
     expect(compiledDiscriminators(transaction)).toEqual([
-      SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1,
-      SPONSORED_GAME_DISCRIMINATORS.consumeRunReceiptV1,
-      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1,
+      SPONSORED_GAME_DISCRIMINATORS.consumeRunReceipt,
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRun,
     ]);
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
@@ -129,10 +128,9 @@ describe("sponsored transaction plans", () => {
     });
 
     expect(compiledDiscriminators(transaction)).toEqual([
-      SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1,
-      SPONSORED_GAME_DISCRIMINATORS.abandonRunV1,
-      SPONSORED_GAME_DISCRIMINATORS.consumeRunReceiptV1,
-      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1,
+      SPONSORED_GAME_DISCRIMINATORS.abandonRun,
+      SPONSORED_GAME_DISCRIMINATORS.consumeRunReceipt,
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRun,
     ]);
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
@@ -161,7 +159,7 @@ describe("sponsored transaction plans", () => {
     const message = transaction.message;
     const keys = message.staticAccountKeys;
     const close = message.compiledInstructions.find((ix) =>
-      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1.every(
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRun.every(
         (byte, i) => ix.data[i] === byte,
       ),
     );
@@ -225,8 +223,7 @@ describe("sponsored transaction plans", () => {
     });
 
     expect(compiledDiscriminators(transaction)).toEqual([
-      SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1,
-      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1,
+      SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRun,
     ]);
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey),
@@ -272,6 +269,6 @@ function initializePlayerInstruction(
       { pubkey: owner.publicKey, isSigner: true, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayerV1),
+    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
   });
 }

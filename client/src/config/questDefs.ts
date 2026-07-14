@@ -59,10 +59,10 @@ export const QUEST_DEFS: QuestDef[] = [
     interval: THREE_DAYS_SECONDS,
   },
   {
-    id: feltFromShortString("QUEST_STREAK_HUNTER"),
-    shortId: "QUEST_STREAK_HUNTER",
-    name: "Streak Hunter",
-    description: "Reach a 10+ combo streak",
+    id: feltFromShortString("QUEST_METER_MASTER"),
+    shortId: "QUEST_METER_MASTER",
+    name: "Meter Master",
+    description: "Reach 10 on the Combo Meter",
     target: 1,
     reward: 1,
     type: "daily",
@@ -74,10 +74,10 @@ export const QUEST_DEFS: QuestDef[] = [
   },
   // ── Group 2 daily (start=DAY, duration=DAY, interval=THREE_DAYS) ──
   {
-    id: feltFromShortString("QUEST_COMBO_STREAK"),
-    shortId: "QUEST_COMBO_STREAK",
-    name: "Combo Streak",
-    description: "Hit 3+ combo twice",
+    id: feltFromShortString("QUEST_COMBO_METER"),
+    shortId: "QUEST_COMBO_METER",
+    name: "Combo Meter",
+    description: "Add 3+ to the Combo Meter twice",
     target: 2,
     reward: 1,
     type: "daily",
@@ -204,7 +204,10 @@ export const QUEST_DEFS: QuestDef[] = [
   },
 ];
 
-export const getQuestIntervalId = (quest: QuestDef, nowSeconds: number): number => {
+export const getQuestIntervalId = (
+  quest: QuestDef,
+  nowSeconds: number,
+): number => {
   if (nowSeconds < quest.start || quest.interval <= 0) return 0;
   return Math.floor((nowSeconds - quest.start) / quest.interval);
 };

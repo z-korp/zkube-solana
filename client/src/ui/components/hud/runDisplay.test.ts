@@ -30,6 +30,6 @@ describe("runDisplay", () => {
         value: 5,
         requiredCount: 0,
       }),
-    ).toBe("Reach a 5× combo");
+    ).toBe("Reach 5 on the Combo Meter");
   });
 });

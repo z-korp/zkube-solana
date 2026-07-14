@@ -172,15 +172,15 @@
     }
   ],
   "mapCatalog": [
-    { "mapId": 1, "themeId": 1, "bossId": 1, "bossName": "COMBO MASTER", "starCost": 0, "usdcCost": 0 },
-    { "mapId": 2, "themeId": 2, "bossId": 2, "bossName": "DEMOLISHER", "starCost": 40, "usdcCost": 2000000 },
-    { "mapId": 3, "themeId": 3, "bossId": 3, "bossName": "DAREDEVIL", "starCost": 40, "usdcCost": 2000000 },
-    { "mapId": 4, "themeId": 4, "bossId": 4, "bossName": "PURIST", "starCost": 40, "usdcCost": 2000000 },
-    { "mapId": 5, "themeId": 6, "bossId": 6, "bossName": "TIDECALLER", "starCost": 100, "usdcCost": 5000000 },
-    { "mapId": 6, "themeId": 7, "bossId": 7, "bossName": "STACKER", "starCost": 100, "usdcCost": 5000000 },
-    { "mapId": 7, "themeId": 5, "bossId": 5, "bossName": "HARVESTER", "starCost": 100, "usdcCost": 5000000 },
-    { "mapId": 8, "themeId": 8, "bossId": 8, "bossName": "SURGEON", "starCost": 200, "usdcCost": 10000000 },
-    { "mapId": 9, "themeId": 9, "bossId": 9, "bossName": "ASCETIC", "starCost": 200, "usdcCost": 10000000 },
-    { "mapId": 10, "themeId": 10, "bossId": 10, "bossName": "PERFECTIONIST", "starCost": 200, "usdcCost": 10000000 }
+    { "mapId": 1, "themeId": 1, "bossId": 1, "bossName": "COMBO MASTER" },
+    { "mapId": 2, "themeId": 2, "bossId": 2, "bossName": "DEMOLISHER" },
+    { "mapId": 3, "themeId": 3, "bossId": 3, "bossName": "DAREDEVIL" },
+    { "mapId": 4, "themeId": 4, "bossId": 4, "bossName": "PURIST" },
+    { "mapId": 5, "themeId": 5, "bossId": 6, "bossName": "TIDECALLER" },
+    { "mapId": 6, "themeId": 6, "bossId": 7, "bossName": "STACKER" },
+    { "mapId": 7, "themeId": 7, "bossId": 5, "bossName": "HARVESTER" },
+    { "mapId": 8, "themeId": 8, "bossId": 8, "bossName": "SURGEON" },
+    { "mapId": 9, "themeId": 9, "bossId": 9, "bossName": "ASCETIC" },
+    { "mapId": 10, "themeId": 10, "bossId": 10, "bossName": "PERFECTIONIST" }
   ]
 }

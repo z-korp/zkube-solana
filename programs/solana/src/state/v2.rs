@@ -5,6 +5,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
+use crate::state::economy_v2::{DailyPressureProfile, DailyScoringRule};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_PROFILE_SEED: &[u8] = b"player";
@@ -12,38 +13,16 @@ pub const CAMPAIGN_PROGRESS_SEED: &[u8] = b"campaign";
 pub const MAP_CATALOG_SEED: &[u8] = b"map";
 pub const RUN_SHELL_SEED: &[u8] = b"run";
 pub const RUN_RECEIPT_SEED: &[u8] = b"receipt";
-pub const DAILY_CHALLENGE_SEED: &[u8] = b"daily";
-pub const DAILY_PLAYER_SEED: &[u8] = b"daily_player";
-pub const DAILY_VAULT_SEED: &[u8] = b"daily_vault";
-pub const DAILY_LEADERBOARD_SEED: &[u8] = b"daily_board";
-pub const PROGRESS_CATALOG_SEED: &[u8] = b"progress_catalog";
 pub const QUEST_CLAIMS_SEED: &[u8] = b"quest_claims";
-pub const SPONSOR_ALLOWANCE_SEED: &[u8] = b"sponsor_allowance";
-pub const TREASURY_LEDGER_SEED: &[u8] = b"treasury_ledger";
-pub const GOVERNANCE_PROPOSAL_SEED: &[u8] = b"governance";
-pub const YIELD_POLICY_SEED: &[u8] = b"yield_policy";
 
-pub const ACCOUNT_VERSION_V1: u8 = 1;
-pub const MAX_MAPS: usize = 10;
+pub const ACCOUNT_VERSION: u8 = 1;
+pub const MAX_MAPS: usize = 32;
 pub const LEVELS_PER_MAP: usize = 10;
 pub const MAX_QUEST_COUNTERS: usize = 16;
-pub const DAILY_WINNERS: usize = 10;
 pub const MAX_ACHIEVEMENTS: usize = 24;
 pub const MAX_QUESTS: usize = 12;
-pub const MAX_PROGRESS_REWARD: u64 = 1_000;
-pub const MAX_ACHIEVEMENT_XP_REWARD: u32 = 1_000;
-pub const ACTIVATION_QUEST_COUNT: u8 = 12;
-pub const DAILY_ROTATING_QUESTS: usize = 9;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
 pub const DAILY_FINISHER_INDEX: usize = 9;
-pub const PRIZE_CLAIM_WINDOW_SECONDS: i64 = 90 * 86_400;
-pub const MIN_GOVERNANCE_DELAY_SECONDS: u32 = 60 * 60;
-pub const MAX_GOVERNANCE_DELAY_SECONDS: u32 = 30 * 86_400;
-pub const MAX_YIELD_EXPOSURE_BPS: u16 = 5_000;
-pub const MIN_YIELD_LIQUID_RESERVE_BPS: u16 = 5_000;
-pub const MAX_YIELD_SLIPPAGE_BPS: u16 = 100;
-pub const MAX_YIELD_LOSS_BPS: u16 = 1_000;
-pub const DEFAULT_YIELD_REWARD_BPS: u16 = 10_000;
 
 #[account]
 #[derive(InitSpace)]
@@ -51,336 +30,18 @@ pub struct ProtocolConfig {
     pub version: u8,
     pub authority: Pubkey,
     pub pending_authority: Pubkey,
+    pub pricing_operator: Pubkey,
     pub paymaster: Pubkey,
-    pub team_vault: Pubkey,
-    pub paymaster_vault: Pubkey,
-    pub treasury_vault: Pubkey,
+    pub team_destination: Pubkey,
+    pub treasury_destination: Pubkey,
     pub reward_vault: Pubkey,
-    pub paymaster_cap: u64,
-    pub revenue_reward_bps: u16,
-    pub sponsorship_daily_tx_limit: u16,
-    pub sponsorship_daily_paid_attempt_limit: u16,
     pub payment_mint: Pubkey,
     pub payment_token_program: Pubkey,
-    pub payment_vault: Pubkey,
-    pub yield_policy: Pubkey,
-    pub treasury_ledger: Pubkey,
     pub content_version: u32,
-    pub progress_version: u32,
-    pub governance_delay_seconds: u32,
-    pub governance_execution_window_seconds: u32,
-    pub next_governance_proposal_id: u64,
+    /// Number of contiguous, authority-activated Campaign maps.
+    pub campaign_map_count: u8,
     pub paused: bool,
     pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct TreasuryLedger {
-    pub version: u8,
-    pub protocol: Pubkey,
-    pub payment_mint: Pubkey,
-    pub lifetime_rake_received: u64,
-    pub lifetime_team_distributed: u64,
-    pub lifetime_paymaster_distributed: u64,
-    pub lifetime_treasury_distributed: u64,
-    pub lifetime_prizes_forfeited_to_rewards: u64,
-    pub lifetime_map_sales: u64,
-    pub lifetime_revenue_swept: u64,
-    pub lifetime_revenue_to_treasury: u64,
-    pub lifetime_revenue_to_rewards: u64,
-    pub realized_yield: u64,
-    pub yield_allocated_to_rewards: u64,
-    pub yield_retained_in_treasury: u64,
-    pub lifetime_strategy_deposited: u64,
-    pub lifetime_strategy_principal_repaid: u64,
-    pub strategy_principal: u64,
-    pub realized_strategy_losses: u64,
-    pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct YieldStrategyPolicy {
-    pub version: u8,
-    pub protocol: Pubkey,
-    pub strategy_version: u32,
-    pub adapter_program: Pubkey,
-    pub market: Pubkey,
-    pub reserve: Pubkey,
-    pub receipt_mint: Pubkey,
-    pub max_principal: u64,
-    pub max_exposure_bps: u16,
-    pub min_liquid_reserve_bps: u16,
-    pub max_slippage_bps: u16,
-    pub max_loss_bps: u16,
-    pub yield_reward_bps: u16,
-    pub deposits_enabled: bool,
-    pub emergency_exit: bool,
-    pub bump: u8,
-}
-
-impl YieldStrategyPolicy {
-    pub fn initialize(protocol: Pubkey, bump: u8) -> Self {
-        Self {
-            version: ACCOUNT_VERSION_V1,
-            protocol,
-            strategy_version: 0,
-            adapter_program: Pubkey::default(),
-            market: Pubkey::default(),
-            reserve: Pubkey::default(),
-            receipt_mint: Pubkey::default(),
-            max_principal: 0,
-            max_exposure_bps: 0,
-            min_liquid_reserve_bps: 10_000,
-            max_slippage_bps: 0,
-            max_loss_bps: 0,
-            yield_reward_bps: DEFAULT_YIELD_REWARD_BPS,
-            deposits_enabled: false,
-            emergency_exit: false,
-            bump,
-        }
-    }
-
-    pub fn is_configured(&self) -> bool {
-        self.adapter_program != Pubkey::default()
-            && self.strategy_version > 0
-            && self.market != Pubkey::default()
-            && self.reserve != Pubkey::default()
-            && self.receipt_mint != Pubkey::default()
-            && self.max_principal > 0
-    }
-}
-
-impl TreasuryLedger {
-    pub fn initialize(protocol: Pubkey, payment_mint: Pubkey, bump: u8) -> Self {
-        Self {
-            version: ACCOUNT_VERSION_V1,
-            protocol,
-            payment_mint,
-            lifetime_rake_received: 0,
-            lifetime_team_distributed: 0,
-            lifetime_paymaster_distributed: 0,
-            lifetime_treasury_distributed: 0,
-            lifetime_prizes_forfeited_to_rewards: 0,
-            lifetime_map_sales: 0,
-            lifetime_revenue_swept: 0,
-            lifetime_revenue_to_treasury: 0,
-            lifetime_revenue_to_rewards: 0,
-            realized_yield: 0,
-            yield_allocated_to_rewards: 0,
-            yield_retained_in_treasury: 0,
-            lifetime_strategy_deposited: 0,
-            lifetime_strategy_principal_repaid: 0,
-            strategy_principal: 0,
-            realized_strategy_losses: 0,
-            bump,
-        }
-    }
-
-    pub fn record_rake_distribution(
-        &mut self,
-        rake: u64,
-        team: u64,
-        paymaster: u64,
-        treasury: u64,
-    ) -> Result<()> {
-        require!(
-            team.checked_add(paymaster)
-                .and_then(|value| value.checked_add(treasury))
-                == Some(rake),
-            ErrorCode::AccountingInvariant
-        );
-        self.lifetime_rake_received = checked_add_u64(self.lifetime_rake_received, rake)?;
-        self.lifetime_team_distributed = checked_add_u64(self.lifetime_team_distributed, team)?;
-        self.lifetime_paymaster_distributed =
-            checked_add_u64(self.lifetime_paymaster_distributed, paymaster)?;
-        self.lifetime_treasury_distributed =
-            checked_add_u64(self.lifetime_treasury_distributed, treasury)?;
-        Ok(())
-    }
-
-    pub fn record_prize_forfeiture(&mut self, amount: u64) -> Result<()> {
-        self.lifetime_prizes_forfeited_to_rewards =
-            checked_add_u64(self.lifetime_prizes_forfeited_to_rewards, amount)?;
-        Ok(())
-    }
-
-    pub fn record_map_sale(&mut self, amount: u64) -> Result<()> {
-        self.lifetime_map_sales = checked_add_u64(self.lifetime_map_sales, amount)?;
-        Ok(())
-    }
-
-    pub fn unswept_map_revenue(&self) -> Result<u64> {
-        self.lifetime_map_sales
-            .checked_sub(self.lifetime_revenue_swept)
-            .ok_or_else(|| error!(ErrorCode::AccountingInvariant))
-    }
-
-    pub fn record_revenue_sweep(&mut self, amount: u64, treasury: u64, rewards: u64) -> Result<()> {
-        require!(
-            treasury.checked_add(rewards) == Some(amount)
-                && amount <= self.unswept_map_revenue()?,
-            ErrorCode::AccountingInvariant
-        );
-        self.lifetime_revenue_swept = checked_add_u64(self.lifetime_revenue_swept, amount)?;
-        self.lifetime_revenue_to_treasury =
-            checked_add_u64(self.lifetime_revenue_to_treasury, treasury)?;
-        self.lifetime_revenue_to_rewards =
-            checked_add_u64(self.lifetime_revenue_to_rewards, rewards)?;
-        Ok(())
-    }
-
-    pub fn record_strategy_deposit(&mut self, amount: u64) -> Result<()> {
-        self.validate_strategy_accounting()?;
-        require!(amount > 0, ErrorCode::AccountingInvariant);
-        let next_principal = checked_add_u64(self.strategy_principal, amount)?;
-        let next_lifetime_deposited = checked_add_u64(self.lifetime_strategy_deposited, amount)?;
-        self.strategy_principal = next_principal;
-        self.lifetime_strategy_deposited = next_lifetime_deposited;
-        Ok(())
-    }
-
-    pub fn record_strategy_settlement(
-        &mut self,
-        principal_repaid: u64,
-        realized_yield: u64,
-        realized_loss: u64,
-    ) -> Result<()> {
-        self.validate_strategy_accounting()?;
-        require!(
-            principal_repaid > 0 || realized_yield > 0 || realized_loss > 0,
-            ErrorCode::AccountingInvariant
-        );
-        let principal_closed = principal_repaid
-            .checked_add(realized_loss)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        require!(
-            principal_closed <= self.strategy_principal,
-            ErrorCode::AccountingInvariant
-        );
-        let next_principal = self
-            .strategy_principal
-            .checked_sub(principal_closed)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        let next_realized_yield = checked_add_u64(self.realized_yield, realized_yield)?;
-        let next_realized_losses = checked_add_u64(self.realized_strategy_losses, realized_loss)?;
-        let next_lifetime_repaid =
-            checked_add_u64(self.lifetime_strategy_principal_repaid, principal_repaid)?;
-        self.strategy_principal = next_principal;
-        self.realized_yield = next_realized_yield;
-        self.realized_strategy_losses = next_realized_losses;
-        self.lifetime_strategy_principal_repaid = next_lifetime_repaid;
-        Ok(())
-    }
-
-    pub fn validate_strategy_accounting(&self) -> Result<()> {
-        let accounted_principal = self
-            .strategy_principal
-            .checked_add(self.lifetime_strategy_principal_repaid)
-            .and_then(|value| value.checked_add(self.realized_strategy_losses))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        require!(
-            accounted_principal == self.lifetime_strategy_deposited,
-            ErrorCode::AccountingInvariant
-        );
-        self.unallocated_realized_yield()?;
-        Ok(())
-    }
-
-    pub fn unallocated_realized_yield(&self) -> Result<u64> {
-        self.realized_yield
-            .checked_sub(self.yield_allocated_to_rewards)
-            .and_then(|value| value.checked_sub(self.yield_retained_in_treasury))
-            .ok_or_else(|| error!(ErrorCode::AccountingInvariant))
-    }
-
-    pub fn record_yield_allocation(
-        &mut self,
-        amount: u64,
-        treasury: u64,
-        rewards: u64,
-    ) -> Result<()> {
-        require!(
-            amount > 0
-                && treasury.checked_add(rewards) == Some(amount)
-                && amount <= self.unallocated_realized_yield()?,
-            ErrorCode::AccountingInvariant
-        );
-        let next_rewards = checked_add_u64(self.yield_allocated_to_rewards, rewards)?;
-        let next_treasury = checked_add_u64(self.yield_retained_in_treasury, treasury)?;
-        self.yield_allocated_to_rewards = next_rewards;
-        self.yield_retained_in_treasury = next_treasury;
-        Ok(())
-    }
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
-pub enum GovernanceAction {
-    SetPendingAuthority {
-        new_authority: Pubkey,
-    },
-    SetPaymasterPolicy {
-        paymaster: Pubkey,
-        daily_transaction_limit: u16,
-        daily_paid_attempt_limit: u16,
-        paymaster_cap: u64,
-    },
-    ConfigureYieldStrategy {
-        strategy_version: u32,
-        adapter_program: Pubkey,
-        market: Pubkey,
-        reserve: Pubkey,
-        receipt_mint: Pubkey,
-        max_principal: u64,
-        max_exposure_bps: u16,
-        min_liquid_reserve_bps: u16,
-        max_slippage_bps: u16,
-        max_loss_bps: u16,
-    },
-    SetYieldStrategyStatus {
-        deposits_enabled: bool,
-        emergency_exit: bool,
-    },
-    SetYieldAllocation {
-        reward_bps: u16,
-    },
-    SetRevenueAllocation {
-        reward_bps: u16,
-    },
-    SetContentVersion {
-        content_version: u32,
-    },
-    SetProgressVersion {
-        progress_version: u32,
-    },
-    SetGovernanceTiming {
-        delay_seconds: u32,
-        execution_window_seconds: u32,
-    },
-    Unpause,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct GovernanceProposal {
-    pub version: u8,
-    pub protocol: Pubkey,
-    pub proposal_id: u64,
-    pub proposer: Pubkey,
-    pub action: GovernanceAction,
-    pub created_at: i64,
-    pub execute_after: i64,
-    pub expires_at: i64,
-    pub executed_at: i64,
-    pub cancelled_at: i64,
-    pub bump: u8,
-}
-
-impl GovernanceProposal {
-    pub fn is_pending(&self) -> bool {
-        self.executed_at == 0 && self.cancelled_at == 0
-    }
 }
 
 #[account]
@@ -412,7 +73,7 @@ pub struct PlayerProfile {
 impl PlayerProfile {
     pub fn initialize(owner: Pubkey, bump: u8) -> Self {
         Self {
-            version: ACCOUNT_VERSION_V1,
+            version: ACCOUNT_VERSION,
             owner,
             stars_balance: 0,
             lifetime_stars_earned: 0,
@@ -582,10 +243,10 @@ pub struct CampaignProgress {
     pub version: u8,
     pub owner: Pubkey,
     /// Bit `map_id - 1`; Map 1 is set on initialization.
-    pub unlocked_maps: u16,
-    pub purchased_maps: u16,
-    pub cleared_maps: u16,
-    pub perfected_maps: u16,
+    pub unlocked_maps: u32,
+    pub purchased_maps: u32,
+    pub cleared_maps: u32,
+    pub perfected_maps: u32,
     /// Two bits per level, ten levels per map.
     pub level_stars: [u32; MAX_MAPS],
     /// Prevents replayed receipts from changing progress twice.
@@ -596,7 +257,7 @@ pub struct CampaignProgress {
 impl CampaignProgress {
     pub fn initialize(owner: Pubkey, bump: u8) -> Self {
         Self {
-            version: ACCOUNT_VERSION_V1,
+            version: ACCOUNT_VERSION,
             owner,
             unlocked_maps: 1,
             purchased_maps: 0,
@@ -649,10 +310,71 @@ pub struct MapCatalog {
     pub map_id: u8,
     pub theme_id: u8,
     pub enabled: bool,
-    pub star_unlock_cost: u64,
-    pub usdc_unlock_cost: u64,
-    pub levels: [LevelRuleSnapshot; LEVELS_PER_MAP],
+    /// Rules that define one consistent identity across the whole map.
+    pub map_rules: CampaignMapRuleSnapshot,
+    pub levels: [CampaignLevelSnapshot; LEVELS_PER_MAP],
     pub bump: u8,
+}
+
+impl MapCatalog {
+    pub fn expanded_level(&self, level: u8) -> Result<LevelRuleSnapshot> {
+        require!(
+            (1..=LEVELS_PER_MAP as u8).contains(&level),
+            ErrorCode::InvalidLevel
+        );
+        let authored = self.levels[usize::from(level - 1)];
+        let map = self.map_rules;
+        Ok(LevelRuleSnapshot {
+            level: authored.level,
+            points_required: authored.points_required,
+            max_moves: authored.max_moves,
+            difficulty: authored.difficulty,
+            primary: authored.primary,
+            secondary: authored.secondary,
+            active_mutator_id: map.active_mutator_id,
+            passive_mutator_id: map.passive_mutator_id,
+            boss_id: u8::from(level == LEVELS_PER_MAP as u8) * map.boss_id,
+            block_weights: authored.block_weights,
+            score_multiplier_x100: map.score_multiplier_x100,
+            combo_multiplier_x100: map.combo_multiplier_x100,
+            line_clear_bonus: map.line_clear_bonus,
+            perfect_clear_bonus: map.perfect_clear_bonus,
+            star_threshold_modifier: map.star_threshold_modifier,
+            bonus_type: map.bonus_type,
+            bonus_trigger_type: map.bonus_trigger_type,
+            bonus_threshold: map.bonus_threshold,
+            starting_charges: map.starting_charges,
+            starting_rows: map.starting_rows,
+        })
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
+pub struct CampaignMapRuleSnapshot {
+    pub active_mutator_id: u8,
+    pub passive_mutator_id: u8,
+    pub boss_id: u8,
+    pub score_multiplier_x100: u16,
+    pub combo_multiplier_x100: u16,
+    pub line_clear_bonus: u16,
+    pub perfect_clear_bonus: u16,
+    pub star_threshold_modifier: u8,
+    pub bonus_type: u8,
+    pub bonus_trigger_type: u8,
+    pub bonus_threshold: u16,
+    pub starting_charges: u8,
+    pub starting_rows: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
+pub struct CampaignLevelSnapshot {
+    pub level: u8,
+    pub points_required: u32,
+    pub max_moves: u16,
+    pub difficulty: u8,
+    pub primary: ConstraintSnapshot,
+    pub secondary: ConstraintSnapshot,
+    pub block_weights: [u16; 5],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
@@ -726,6 +448,10 @@ pub struct ActiveRun {
     pub next_row: [u8; 8],
     pub has_next_row: bool,
     pub score: u32,
+    pub featured_score: u32,
+    pub pressure_score: u32,
+    pub daily_scoring_rule: DailyScoringRule,
+    pub daily_pressure: DailyPressureProfile,
     pub action_counter: u32,
     pub moves: u16,
     pub combo_counter: u8,
@@ -741,11 +467,10 @@ pub struct ActiveRun {
     pub high_combo_hits: u16,
     pub bonus_type: u8,
     pub bonus_charges: u8,
-    pub initial_rows_remaining: u8,
+    /// Perfect-clear trigger may award at most once between player moves.
+    pub perfect_trigger_available: bool,
+    pub starting_height_target: u8,
     pub current_difficulty: u8,
-    pub endless_thresholds: [u32; 7],
-    pub endless_score_multipliers_x100: [u16; 8],
-    pub endless_ramp_multiplier_x100: u16,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
     pub vrf_requested_at: i64,
@@ -770,6 +495,8 @@ pub struct RunReceipt {
     pub map_id: u8,
     pub level: u8,
     pub score: u32,
+    pub featured_score: u32,
+    pub daily_scoring_rule: DailyScoringRule,
     pub moves: u16,
     pub level_stars: u8,
     pub lines_cleared: u16,
@@ -791,108 +518,14 @@ pub struct RunReceipt {
 
 #[account]
 #[derive(InitSpace)]
-pub struct ProgressCatalog {
-    pub version: u8,
-    pub progress_version: u32,
-    pub achievement_count: u8,
-    pub quest_count: u8,
-    pub achievements: [AchievementRule; MAX_ACHIEVEMENTS],
-    pub quests: [QuestRule; MAX_QUESTS],
-    pub bump: u8,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct AchievementRule {
-    pub metric: u8,
-    pub enabled: bool,
-    pub threshold: u64,
-    pub star_reward: u64,
-    pub xp_reward: u32,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct QuestRule {
-    pub metric: u8,
-    /// 0=daily, 1=weekly.
-    pub cadence: u8,
-    pub rotation_modulus: u8,
-    pub rotation_remainder: u8,
-    pub enabled: bool,
-    pub threshold: u32,
-    pub star_reward: u64,
-}
-
-#[account]
-#[derive(InitSpace)]
 pub struct QuestClaims {
     pub version: u8,
     pub owner: Pubkey,
-    pub progress_version: u32,
     pub daily_cadence_id: u32,
     pub weekly_cadence_id: u32,
     pub daily_claimed: u16,
     pub weekly_claimed: u16,
     pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct SponsorAllowance {
-    pub version: u8,
-    pub owner: Pubkey,
-    pub cadence_day: u32,
-    pub sponsored_transactions: u16,
-    pub paid_daily_attempts: u16,
-    pub bump: u8,
-}
-
-impl SponsorAllowance {
-    pub fn initialize(owner: Pubkey, day: u32, bump: u8) -> Self {
-        Self {
-            version: ACCOUNT_VERSION_V1,
-            owner,
-            cadence_day: day,
-            sponsored_transactions: 0,
-            paid_daily_attempts: 0,
-            bump,
-        }
-    }
-
-    pub fn consume(
-        &mut self,
-        day: u32,
-        paid_attempts: u16,
-        transaction_limit: u16,
-        paid_attempt_limit: u16,
-    ) -> Result<()> {
-        require!(
-            transaction_limit > 0 && paid_attempt_limit > 0,
-            ErrorCode::SponsorshipLimitExceeded
-        );
-        if self.cadence_day != day {
-            self.cadence_day = day;
-            self.sponsored_transactions = 0;
-            self.paid_daily_attempts = 0;
-        }
-        // The per-player daily sponsored-transaction count is tracked for
-        // telemetry but no longer gated: rent from settled/abandoned runs
-        // returns to the paymaster (self-sustaining) and the stateless relay
-        // already bounds abuse by instruction shape and IP rate limit, so
-        // capping gameplay/settlement here only stranded runs. Only the paid
-        // Daily-attempt (USDC) economic limit is still enforced.
-        let transactions = self.sponsored_transactions.saturating_add(1);
-        let paid = self
-            .paid_daily_attempts
-            .checked_add(paid_attempts)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        require!(
-            paid <= paid_attempt_limit,
-            ErrorCode::SponsorshipLimitExceeded
-        );
-        self.sponsored_transactions = transactions;
-        self.paid_daily_attempts = paid;
-        Ok(())
-    }
 }
 
 impl QuestClaims {
@@ -906,194 +539,6 @@ impl QuestClaims {
             self.weekly_claimed = 0;
         }
     }
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct DailyChallenge {
-    pub version: u8,
-    pub day_id: u32,
-    pub authority: Pubkey,
-    pub status: DailyStatus,
-    pub content_version: u32,
-    pub rules_hash: [u8; 32],
-    pub map_id: u8,
-    pub rules: LevelRuleSnapshot,
-    pub endless_thresholds: [u32; 7],
-    pub endless_score_multipliers_x100: [u16; 8],
-    pub endless_ramp_multiplier_x100: u16,
-    pub payment_mint: Pubkey,
-    pub payment_token_program: Pubkey,
-    pub payment_vault: Pubkey,
-    pub opens_at: i64,
-    pub entries_close_at: i64,
-    pub runs_close_at: i64,
-    pub settlement_grace_close_at: i64,
-    pub finalized_at: i64,
-    pub claims_close_at: i64,
-    pub entry_price: u64,
-    pub star_entry_cost: u64,
-    pub prize_bps: u16,
-    pub rake_bps: u16,
-    pub sponsor_funding: u64,
-    pub paid_entry_funding: u64,
-    pub prize_liability: u64,
-    pub rake_accrued: u64,
-    pub rake_distributed: u64,
-    pub refunds_paid: u64,
-    pub prize_claimed: u64,
-    pub prize_forfeited: u64,
-    pub settled_prize_pool: u64,
-    pub sponsor_reclaimed: bool,
-    pub payout_bps: [u16; DAILY_WINNERS],
-    pub total_paid_attempts: u64,
-    pub total_free_attempts: u64,
-    pub runs_started: u64,
-    pub runs_finalized: u64,
-    pub bump: u8,
-}
-
-impl DailyChallenge {
-    pub fn validate_policy(&self) -> Result<()> {
-        let total = self
-            .prize_bps
-            .checked_add(self.rake_bps)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        require!(total == 10_000, ErrorCode::InvalidBasisPoints);
-        require!(self.prize_bps == 9_000, ErrorCode::InvalidBasisPoints);
-        require!(self.rake_bps == 1_000, ErrorCode::InvalidBasisPoints);
-        let payout_total = self.payout_bps.iter().try_fold(0u16, |sum, share| {
-            sum.checked_add(*share).ok_or(ErrorCode::ArithmeticOverflow)
-        })?;
-        require!(payout_total == 10_000, ErrorCode::InvalidBasisPoints);
-        Ok(())
-    }
-
-    pub fn split_entry(&self, amount: u64) -> Result<(u64, u64)> {
-        self.validate_policy()?;
-        let prize = u128::from(amount)
-            .checked_mul(u128::from(self.prize_bps))
-            .ok_or(ErrorCode::ArithmeticOverflow)?
-            .checked_div(10_000)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        let prize = u64::try_from(prize).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-        let rake = amount
-            .checked_sub(prize)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok((prize, rake))
-    }
-
-    /// Returns the token balance that must remain in the challenge vault after
-    /// every recorded inflow and outflow. This identity keeps refundable entry
-    /// principal, rake, prize liabilities, sponsor returns, claims, and
-    /// forfeitures in one checked equation.
-    pub fn expected_vault_balance(&self) -> Result<u64> {
-        let inflows = self
-            .paid_entry_funding
-            .checked_add(self.sponsor_funding)
-            .ok_or(ErrorCode::AccountingInvariant)?;
-        let sponsor_returned = if self.sponsor_reclaimed {
-            self.sponsor_funding
-        } else {
-            0
-        };
-        let outflows = self
-            .refunds_paid
-            .checked_add(sponsor_returned)
-            .and_then(|value| value.checked_add(self.rake_distributed))
-            .and_then(|value| value.checked_add(self.prize_claimed))
-            .and_then(|value| value.checked_add(self.prize_forfeited))
-            .ok_or(ErrorCode::AccountingInvariant)?;
-        inflows
-            .checked_sub(outflows)
-            .ok_or_else(|| error!(ErrorCode::AccountingInvariant))
-    }
-
-    pub fn assert_accounting_invariant(&self) -> Result<()> {
-        let outstanding_rake = self
-            .rake_accrued
-            .checked_sub(self.rake_distributed)
-            .ok_or(ErrorCode::AccountingInvariant)?;
-        let tracked_balance = self
-            .prize_liability
-            .checked_add(outstanding_rake)
-            .ok_or(ErrorCode::AccountingInvariant)?;
-        require!(
-            self.expected_vault_balance()? == tracked_balance,
-            ErrorCode::AccountingInvariant
-        );
-        require!(
-            self.prize_claimed
-                .checked_add(self.prize_forfeited)
-                .is_some_and(
-                    |resolved| resolved <= self.settled_prize_pool || self.finalized_at == 0
-                ),
-            ErrorCode::AccountingInvariant
-        );
-        Ok(())
-    }
-}
-
-impl DailyLeaderboard {
-    pub fn record_best(&mut self, entry: DailyLeaderboardEntry) {
-        self.entries
-            .retain(|existing| existing.player != entry.player);
-        self.entries.push(entry);
-        self.entries.sort_by(|left, right| {
-            right
-                .score
-                .cmp(&left.score)
-                .then_with(|| left.submitted_at.cmp(&right.submitted_at))
-                .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
-        });
-        self.entries.truncate(DAILY_WINNERS);
-    }
-
-    pub fn rank_of(&self, player: Pubkey) -> Option<usize> {
-        self.entries.iter().position(|entry| entry.player == player)
-    }
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct DailyPlayer {
-    pub version: u8,
-    pub challenge: Pubkey,
-    pub player: Pubkey,
-    pub free_attempt_used: bool,
-    pub paid_attempts: u32,
-    pub finalized_attempts: u32,
-    pub best_run_id: u64,
-    pub best_receipt: Pubkey,
-    pub best_score: u32,
-    pub best_submitted_at: i64,
-    pub rank: u32,
-    pub prize_amount: u64,
-    pub claimed: bool,
-    pub refunded_amount: u64,
-    pub star_refunded: bool,
-    pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct DailyLeaderboard {
-    pub version: u8,
-    pub challenge: Pubkey,
-    #[max_len(DAILY_WINNERS)]
-    pub entries: Vec<DailyLeaderboardEntry>,
-    pub bump: u8,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub struct DailyLeaderboardEntry {
-    pub player: Pubkey,
-    pub receipt: Pubkey,
-    pub run_id: u64,
-    pub score: u32,
-    pub submitted_at: i64,
 }
 
 #[derive(
@@ -1144,10 +589,10 @@ pub enum DailyStatus {
     Closed,
 }
 
-fn map_bit(map_id: u8) -> Option<u16> {
+fn map_bit(map_id: u8) -> Option<u32> {
     (1..=MAX_MAPS as u8)
         .contains(&map_id)
-        .then(|| 1u16 << (map_id - 1))
+        .then(|| 1u32 << (map_id - 1))
 }
 
 fn star_position(map_id: u8, level: u8) -> Result<(usize, u32)> {
@@ -1202,15 +647,7 @@ mod tests {
             RunShell::INIT_SPACE,
             ActiveRun::INIT_SPACE,
             RunReceipt::INIT_SPACE,
-            DailyChallenge::INIT_SPACE,
-            DailyPlayer::INIT_SPACE,
-            DailyLeaderboard::INIT_SPACE,
-            ProgressCatalog::INIT_SPACE,
             QuestClaims::INIT_SPACE,
-            SponsorAllowance::INIT_SPACE,
-            TreasuryLedger::INIT_SPACE,
-            YieldStrategyPolicy::INIT_SPACE,
-            GovernanceProposal::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
     }
@@ -1224,6 +661,56 @@ mod tests {
         progress.unlock_map(2, true).unwrap();
         assert!(progress.is_map_unlocked(2));
         assert_eq!(progress.purchased_maps, 0b10);
+        progress.unlock_map(32, true).unwrap();
+        assert!(progress.is_map_unlocked(32));
+        assert_eq!(progress.purchased_maps, 0x8000_0002);
+        assert_eq!(progress.record_level_stars(32, 10, 3).unwrap(), 3);
+        assert_eq!(progress.best_stars(32, 10).unwrap(), 3);
+    }
+
+    #[test]
+    fn map_catalog_expands_one_identity_across_all_ten_levels() {
+        let map_rules = CampaignMapRuleSnapshot {
+            active_mutator_id: 13,
+            passive_mutator_id: 14,
+            boss_id: 5,
+            score_multiplier_x100: 175,
+            combo_multiplier_x100: 100,
+            star_threshold_modifier: 128,
+            bonus_type: 1,
+            bonus_trigger_type: 4,
+            bonus_threshold: 3,
+            starting_charges: 1,
+            starting_rows: 5,
+            ..CampaignMapRuleSnapshot::default()
+        };
+        let levels = std::array::from_fn(|index| CampaignLevelSnapshot {
+            level: index as u8 + 1,
+            points_required: 20 + index as u32,
+            max_moves: 30,
+            difficulty: index.min(7) as u8,
+            block_weights: [20; 5],
+            ..CampaignLevelSnapshot::default()
+        });
+        let catalog = MapCatalog {
+            version: ACCOUNT_VERSION,
+            content_version: 1,
+            map_id: 7,
+            theme_id: 7,
+            enabled: true,
+            map_rules,
+            levels,
+            bump: 1,
+        };
+
+        let first = catalog.expanded_level(1).unwrap();
+        let boss = catalog.expanded_level(10).unwrap();
+        assert_eq!(first.active_mutator_id, boss.active_mutator_id);
+        assert_eq!(first.bonus_trigger_type, 4);
+        assert_eq!(first.bonus_threshold, 3);
+        assert_eq!(first.boss_id, 0);
+        assert_eq!(boss.boss_id, 5);
+        assert_eq!(boss.level, 10);
     }
 
     #[test]
@@ -1277,207 +764,6 @@ mod tests {
         );
         assert!(player.spend_stars(16).is_err());
         assert_eq!(player.stars_balance, 15);
-    }
-
-    #[test]
-    fn entry_split_conserves_every_base_unit() {
-        let challenge = daily_challenge_fixture();
-        for amount in [0, 1, 9, 10, 11, 999_999, 1_000_000, u64::MAX] {
-            let (prize, rake) = challenge.split_entry(amount).unwrap();
-            assert_eq!(prize.checked_add(rake), Some(amount));
-        }
-    }
-
-    #[test]
-    fn daily_vault_accounting_conserves_large_scenario_matrix() {
-        for paid_attempts in 0..=2_048u64 {
-            let mut challenge = daily_challenge_fixture();
-            let paid = paid_attempts.checked_mul(challenge.entry_price).unwrap();
-            let sponsor = paid_attempts
-                .checked_mul(17_003)
-                .unwrap()
-                .checked_add(29)
-                .unwrap();
-            let (paid_prize, paid_rake) = challenge.split_entry(paid).unwrap();
-            challenge.paid_entry_funding = paid;
-            challenge.sponsor_funding = sponsor;
-            challenge.prize_liability = paid_prize.checked_add(sponsor).unwrap();
-            challenge.rake_accrued = paid_rake;
-            challenge.total_paid_attempts = paid_attempts;
-            challenge.assert_accounting_invariant().unwrap();
-            assert_eq!(challenge.expected_vault_balance().unwrap(), paid + sponsor);
-
-            challenge.finalized_at = 1;
-            challenge.settled_prize_pool = challenge.prize_liability;
-            challenge.status = DailyStatus::Claimable;
-            let claim = challenge.settled_prize_pool / 3;
-            let forfeit = (challenge.settled_prize_pool - claim) / 2;
-            challenge.prize_claimed = claim;
-            challenge.prize_forfeited = forfeit;
-            challenge.prize_liability = challenge
-                .settled_prize_pool
-                .checked_sub(claim)
-                .and_then(|value| value.checked_sub(forfeit))
-                .unwrap();
-            challenge.rake_distributed = paid_rake;
-            challenge.assert_accounting_invariant().unwrap();
-            assert_eq!(
-                challenge.expected_vault_balance().unwrap(),
-                challenge.prize_liability
-            );
-
-            let mut cancelled = daily_challenge_fixture();
-            cancelled.status = DailyStatus::Cancelled;
-            cancelled.paid_entry_funding = paid;
-            cancelled.sponsor_funding = sponsor;
-            cancelled.refunds_paid = paid;
-            cancelled.sponsor_reclaimed = true;
-            cancelled.assert_accounting_invariant().unwrap();
-            assert_eq!(cancelled.expected_vault_balance().unwrap(), 0);
-        }
-    }
-
-    #[test]
-    fn daily_vault_accounting_rejects_drift_and_overflow() {
-        let mut challenge = daily_challenge_fixture();
-        challenge.paid_entry_funding = 1_000_000;
-        challenge.prize_liability = 899_999;
-        challenge.rake_accrued = 100_000;
-        assert!(challenge.assert_accounting_invariant().is_err());
-
-        let mut impossible_outflow = daily_challenge_fixture();
-        impossible_outflow.refunds_paid = 1;
-        assert!(impossible_outflow.expected_vault_balance().is_err());
-
-        let mut overflow = daily_challenge_fixture();
-        overflow.paid_entry_funding = u64::MAX;
-        overflow.sponsor_funding = 1;
-        assert!(overflow.expected_vault_balance().is_err());
-    }
-
-    #[test]
-    fn daily_leaderboard_keeps_one_best_score_and_deterministic_ties() {
-        let challenge = Pubkey::new_unique();
-        let early = Pubkey::new_unique();
-        let late = Pubkey::new_unique();
-        let mut board = DailyLeaderboard {
-            version: 1,
-            challenge,
-            entries: Vec::new(),
-            bump: 1,
-        };
-        board.record_best(DailyLeaderboardEntry {
-            player: late,
-            receipt: Pubkey::new_unique(),
-            run_id: 1,
-            score: 100,
-            submitted_at: 20,
-        });
-        board.record_best(DailyLeaderboardEntry {
-            player: early,
-            receipt: Pubkey::new_unique(),
-            run_id: 2,
-            score: 100,
-            submitted_at: 10,
-        });
-        board.record_best(DailyLeaderboardEntry {
-            player: late,
-            receipt: Pubkey::new_unique(),
-            run_id: 3,
-            score: 120,
-            submitted_at: 30,
-        });
-        assert_eq!(board.entries.len(), 2);
-        assert_eq!(board.entries[0].player, late);
-        assert_eq!(board.entries[0].run_id, 3);
-        assert_eq!(board.rank_of(early), Some(1));
-    }
-
-    #[test]
-    fn daily_leaderboard_remains_bounded_and_sorted_under_load() {
-        let mut board = DailyLeaderboard {
-            version: 1,
-            challenge: Pubkey::new_unique(),
-            entries: Vec::new(),
-            bump: 1,
-        };
-        for run_id in 1..=5_000u64 {
-            let player_id = run_id % 257;
-            let mut player_bytes = [0u8; 32];
-            player_bytes[..8].copy_from_slice(&player_id.to_le_bytes());
-            let mut receipt_bytes = [0u8; 32];
-            receipt_bytes[..8].copy_from_slice(&run_id.to_le_bytes());
-            board.record_best(DailyLeaderboardEntry {
-                player: Pubkey::new_from_array(player_bytes),
-                receipt: Pubkey::new_from_array(receipt_bytes),
-                run_id,
-                score: ((run_id * 7_919) % 100_000) as u32,
-                submitted_at: (run_id % 97) as i64,
-            });
-            assert!(board.entries.len() <= DAILY_WINNERS);
-        }
-        assert_eq!(board.entries.len(), DAILY_WINNERS);
-        for pair in board.entries.windows(2) {
-            let [left, right] = pair else { unreachable!() };
-            assert!(
-                left.score > right.score
-                    || left.score == right.score
-                        && (left.submitted_at < right.submitted_at
-                            || left.submitted_at == right.submitted_at
-                                && left.player.to_bytes() < right.player.to_bytes())
-            );
-        }
-        let unique = board
-            .entries
-            .iter()
-            .map(|entry| entry.player)
-            .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(unique.len(), board.entries.len());
-    }
-
-    fn daily_challenge_fixture() -> DailyChallenge {
-        DailyChallenge {
-            version: 1,
-            day_id: 1,
-            authority: Pubkey::new_unique(),
-            status: DailyStatus::Open,
-            content_version: 1,
-            rules_hash: [0; 32],
-            map_id: 1,
-            rules: LevelRuleSnapshot::default(),
-            endless_thresholds: [15, 40, 80, 150, 280, 500, 900],
-            endless_score_multipliers_x100: [100, 150, 200, 300, 400, 600, 800, 1_000],
-            endless_ramp_multiplier_x100: 100,
-            payment_mint: Pubkey::new_unique(),
-            payment_token_program: Pubkey::new_unique(),
-            payment_vault: Pubkey::new_unique(),
-            opens_at: 0,
-            entries_close_at: 1,
-            runs_close_at: 2,
-            settlement_grace_close_at: 3,
-            finalized_at: 0,
-            claims_close_at: 0,
-            entry_price: 1_000_000,
-            star_entry_cost: 10,
-            prize_bps: 9_000,
-            rake_bps: 1_000,
-            sponsor_funding: 0,
-            paid_entry_funding: 0,
-            prize_liability: 0,
-            rake_accrued: 0,
-            rake_distributed: 0,
-            refunds_paid: 0,
-            prize_claimed: 0,
-            prize_forfeited: 0,
-            settled_prize_pool: 0,
-            sponsor_reclaimed: false,
-            payout_bps: [4_000, 2_000, 1_200, 800, 600, 400, 300, 300, 200, 200],
-            total_paid_attempts: 0,
-            total_free_attempts: 0,
-            runs_started: 0,
-            runs_finalized: 0,
-            bump: 1,
-        }
     }
 
     #[test]
@@ -1535,7 +821,6 @@ mod tests {
         let mut claims = QuestClaims {
             version: 1,
             owner: Pubkey::new_unique(),
-            progress_version: 1,
             daily_cadence_id: 10,
             weekly_cadence_id: 2,
             daily_claimed: 0b11,
@@ -1547,66 +832,5 @@ mod tests {
         assert_eq!(claims.weekly_claimed, 0b100);
         claims.roll(11, 3);
         assert_eq!(claims.weekly_claimed, 0);
-    }
-
-    #[test]
-    fn sponsorship_allowance_rolls_daily_and_gates_only_paid_attempts() {
-        let owner = Pubkey::new_unique();
-        let mut allowance = SponsorAllowance::initialize(owner, 10, 1);
-        // The sponsored-transaction COUNT is no longer capped: many free
-        // gameplay/settlement txs in a day all succeed and are only tracked.
-        allowance.consume(10, 0, 2, 1).unwrap();
-        allowance.consume(10, 0, 2, 1).unwrap();
-        allowance.consume(10, 0, 2, 1).unwrap();
-        allowance.consume(10, 0, 2, 1).unwrap();
-        assert_eq!(allowance.sponsored_transactions, 4);
-        assert_eq!(allowance.paid_daily_attempts, 0);
-        // The paid Daily-attempt (USDC) limit is still enforced.
-        allowance.consume(10, 1, 2, 1).unwrap();
-        assert_eq!(allowance.paid_daily_attempts, 1);
-        assert!(allowance.consume(10, 1, 2, 1).is_err());
-        assert_eq!(allowance.paid_daily_attempts, 1);
-        // Daily rollover resets both counters.
-        allowance.consume(11, 1, 2, 1).unwrap();
-        assert_eq!(allowance.sponsored_transactions, 1);
-        assert_eq!(allowance.paid_daily_attempts, 1);
-    }
-
-    #[test]
-    fn treasury_ledger_preserves_flow_classification_and_conservation() {
-        let mut ledger = TreasuryLedger::initialize(Pubkey::new_unique(), Pubkey::new_unique(), 1);
-        ledger.record_rake_distribution(101, 25, 25, 51).unwrap();
-        ledger.record_prize_forfeiture(77).unwrap();
-        ledger.record_map_sale(2_000_000).unwrap();
-        ledger
-            .record_revenue_sweep(2_000_000, 1_750_000, 250_000)
-            .unwrap();
-        assert_eq!(ledger.lifetime_rake_received, 101);
-        assert_eq!(ledger.lifetime_team_distributed, 25);
-        assert_eq!(ledger.lifetime_paymaster_distributed, 25);
-        assert_eq!(ledger.lifetime_treasury_distributed, 51);
-        assert_eq!(ledger.lifetime_prizes_forfeited_to_rewards, 77);
-        assert_eq!(ledger.lifetime_map_sales, 2_000_000);
-        assert_eq!(ledger.lifetime_revenue_swept, 2_000_000);
-        assert_eq!(ledger.lifetime_revenue_to_treasury, 1_750_000);
-        assert_eq!(ledger.lifetime_revenue_to_rewards, 250_000);
-        assert_eq!(ledger.unswept_map_revenue().unwrap(), 0);
-        ledger.record_strategy_deposit(1_000).unwrap();
-        ledger.record_strategy_settlement(250, 50, 10).unwrap();
-        ledger.record_strategy_settlement(0, 20, 0).unwrap();
-        assert_eq!(ledger.lifetime_strategy_deposited, 1_000);
-        assert_eq!(ledger.lifetime_strategy_principal_repaid, 250);
-        assert_eq!(ledger.strategy_principal, 740);
-        assert_eq!(ledger.realized_yield, 70);
-        assert_eq!(ledger.realized_strategy_losses, 10);
-        assert_eq!(ledger.unallocated_realized_yield().unwrap(), 70);
-        ledger.record_yield_allocation(70, 10, 60).unwrap();
-        assert_eq!(ledger.yield_allocated_to_rewards, 60);
-        assert_eq!(ledger.yield_retained_in_treasury, 10);
-        assert_eq!(ledger.unallocated_realized_yield().unwrap(), 0);
-        ledger.validate_strategy_accounting().unwrap();
-        assert!(ledger.record_strategy_settlement(741, 0, 0).is_err());
-        assert!(ledger.record_yield_allocation(1, 0, 1).is_err());
-        assert!(ledger.record_rake_distribution(100, 25, 25, 49).is_err());
     }
 }

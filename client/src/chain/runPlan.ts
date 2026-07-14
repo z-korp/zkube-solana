@@ -31,7 +31,6 @@ import {
 import type { PaymasterClient } from "./paymasterClient";
 import { saveReusableSession, saveRunSession } from "./runSessionStore";
 import type { WalletLike } from "./sessionWallet";
-import { withSponsorshipInstruction } from "./sponsorshipClient";
 import {
   deriveCampaignProgressPda,
   deriveDailyLeaderboardPda,
@@ -40,6 +39,7 @@ import {
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
+  deriveWeeklyStipendPda,
   type RunAddresses,
 } from "./pdas";
 import { getClosestValidator, waitForDelegation } from "./router";
@@ -47,6 +47,12 @@ import {
   buildCreateSessionV2Instruction,
   deriveSessionTokenV2Pda,
 } from "./sessionV2";
+import {
+  mapDailyPressureProfile,
+  mapDailyScoringRule,
+  type DailyPressureProfileView,
+  type DailyScoringRuleView,
+} from "./dailyRules";
 
 export type RunLayer = "solana-base" | "magicblock-er";
 
@@ -100,34 +106,6 @@ export interface EndlessRulesView {
   endlessRampMultiplierX100: number;
 }
 
-export interface RawEndlessRulesSnapshot {
-  endlessThresholds: readonly unknown[];
-  endlessScoreMultipliersX100: readonly unknown[];
-  endlessRampMultiplierX100: unknown;
-}
-
-export function mapEndlessRulesSnapshot(
-  rules: RawEndlessRulesSnapshot,
-): EndlessRulesView {
-  if (rules.endlessThresholds.length !== 7) {
-    throw new Error("Decoded endless rules must contain exactly 7 thresholds");
-  }
-  if (rules.endlessScoreMultipliersX100.length !== 8) {
-    throw new Error(
-      "Decoded endless rules must contain exactly 8 score multipliers",
-    );
-  }
-  return {
-    endlessThresholds: rules.endlessThresholds.map(
-      Number,
-    ) as EndlessThresholdsView,
-    endlessScoreMultipliersX100: rules.endlessScoreMultipliersX100.map(
-      Number,
-    ) as EndlessScoreMultipliersX100View,
-    endlessRampMultiplierX100: Number(rules.endlessRampMultiplierX100),
-  };
-}
-
 export interface ActiveRunView extends EndlessRulesView {
   owner: PublicKey;
   runId: bigint;
@@ -138,6 +116,10 @@ export interface ActiveRunView extends EndlessRulesView {
   rules: ActiveRunRulesView;
   lifecycle: string;
   score: number;
+  featuredScore: number;
+  pressureScore: number;
+  dailyScoringRule: DailyScoringRuleView;
+  dailyPressure: DailyPressureProfileView;
   actionCounter: number;
   moves: number;
   comboCounter: number;
@@ -285,7 +267,7 @@ export async function buildPrepareCampaignRunPlan(args: {
   if (!profile) {
     instructions.push(
       await program.methods
-        .initializePlayerV1()
+        .initializePlayer()
         .accountsPartial({
           playerProfile: profileAddress,
           campaignProgress: campaignAddress,
@@ -317,7 +299,7 @@ export async function buildPrepareCampaignRunPlan(args: {
   );
   instructions.push(
     await program.methods
-      .prepareCampaignRunV1(
+      .prepareCampaignRun(
         new BN(runId.toString()),
         args.mapId,
         args.level,
@@ -366,7 +348,7 @@ export async function buildDelegateRunPlan(args: {
   const validator = await getClosestValidator();
   const payer = args.paymaster ?? args.wallet.publicKey;
   const instruction = await program.methods
-    .delegateActiveRunV1()
+    .delegateActiveRun()
     .accountsPartial({
       payer,
       owner: args.wallet.publicKey,
@@ -413,7 +395,7 @@ export async function buildRequestRowPlan(args: {
   if (clientSeed.length !== 32)
     throw new Error("clientSeed must contain 32 bytes");
   const instruction = await program.methods
-    .requestRowVrfV1([...clientSeed])
+    .requestRowVrf([...clientSeed])
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -446,7 +428,7 @@ export async function buildPlayMovePlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.sessionWallet);
   const instruction = await program.methods
-    .playMoveV1(
+    .playMove(
       args.expectedAction,
       args.expectedMove,
       args.row,
@@ -481,7 +463,7 @@ export async function buildApplyBonusPlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.sessionWallet);
   const instruction = await program.methods
-    .applyBonusV1(args.expectedAction, args.row, args.column)
+    .applyBonus(args.expectedAction, args.row, args.column)
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -507,7 +489,7 @@ export async function buildSealRunPlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.sessionWallet);
   const instruction = await program.methods
-    .sealRunV1()
+    .sealRun()
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -539,7 +521,7 @@ export async function buildAbandonRunPlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.signerWallet);
   const instruction = await program.methods
-    .abandonRunV1()
+    .abandonRun()
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -564,7 +546,7 @@ export async function buildCommitRunPlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.payerWallet);
   const instruction = await program.methods
-    .commitRunV1()
+    .commitRun()
     .accountsPartial({
       payer: args.payerWallet.publicKey,
       activeRun: args.addresses.activeRun,
@@ -599,7 +581,7 @@ export async function buildCloseSettledRunPlan(args: {
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const program = zkubeProgram(connection, args.wallet);
   const instruction = await program.methods
-    .closeSettledActiveRunV1(new BN(args.runId.toString()))
+    .closeSettledActiveRun(new BN(args.runId.toString()))
     .accountsPartial({
       owner: args.wallet.publicKey,
       protocol: deriveProtocolConfigPda(),
@@ -633,6 +615,7 @@ export async function buildFinalizeRunPlan(args: {
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
+  dailyVersion?: 1 | 2;
   receiptConsumed: boolean;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
@@ -647,7 +630,7 @@ export async function buildFinalizeRunPlan(args: {
   if (args.abandonFirst) {
     instructions.push(
       await program.methods
-        .abandonRunV1()
+        .abandonRun()
         .accountsPartial({
           activeRun: args.addresses.activeRun,
           ownerAuthority: args.owner,
@@ -667,26 +650,42 @@ export async function buildFinalizeRunPlan(args: {
       if (!args.dailyChallenge) {
         throw new Error("Daily settlement requires the challenge address");
       }
+      const dailyVersion = args.dailyVersion ?? 1;
+      const accounts = {
+        activeRun: args.addresses.activeRun,
+        runShell: args.addresses.runShell,
+        runReceipt: args.addresses.runReceipt,
+        playerProfile: derivePlayerProfilePda(args.owner),
+        dailyChallenge: args.dailyChallenge,
+        dailyPlayer:
+          dailyVersion === 2
+            ? deriveDailyPlayerPda(args.dailyChallenge, args.owner)
+            : deriveDailyPlayerPda(args.dailyChallenge, args.owner),
+        leaderboard:
+          dailyVersion === 2
+            ? deriveDailyLeaderboardPda(args.dailyChallenge)
+            : deriveDailyLeaderboardPda(args.dailyChallenge),
+        ...(dailyVersion === 2
+          ? { weeklyStipend: deriveWeeklyStipendPda(args.owner) }
+          : {}),
+        owner: args.owner,
+        ...escrowMetas,
+      };
       instructions.push(
-        await program.methods
-          .consumeDailyReceiptV1()
-          .accountsPartial({
-            activeRun: args.addresses.activeRun,
-            runShell: args.addresses.runShell,
-            runReceipt: args.addresses.runReceipt,
-            playerProfile: derivePlayerProfilePda(args.owner),
-            dailyChallenge: args.dailyChallenge,
-            dailyPlayer: deriveDailyPlayerPda(args.dailyChallenge, args.owner),
-            leaderboard: deriveDailyLeaderboardPda(args.dailyChallenge),
-            owner: args.owner,
-            ...escrowMetas,
-          })
-          .instruction(),
+        dailyVersion === 2
+          ? await program.methods
+              .consumeDailyReceipt()
+              .accountsPartial(accounts)
+              .instruction()
+          : await program.methods
+              .consumeDailyReceipt()
+              .accountsPartial(accounts)
+              .instruction(),
       );
     } else {
       instructions.push(
         await program.methods
-          .consumeRunReceiptV1()
+          .consumeRunReceipt()
           .accountsPartial({
             activeRun: args.addresses.activeRun,
             runShell: args.addresses.runShell,
@@ -702,7 +701,7 @@ export async function buildFinalizeRunPlan(args: {
   }
   instructions.push(
     await program.methods
-      .closeSettledActiveRunV1(new BN(args.runId.toString()))
+      .closeSettledActiveRun(new BN(args.runId.toString()))
       .accountsPartial({
         owner: args.owner,
         protocol: deriveProtocolConfigPda(),
@@ -742,7 +741,7 @@ export async function buildRotateRunShellSessionPlan(args: {
   }).sessionToken;
   const program = zkubeProgram(connection, args.wallet);
   const rotate = await program.methods
-    .rotateRunShellAuthorityV1(
+    .rotateRunShellAuthority(
       new BN(args.runId.toString()),
       args.newSession.publicKey,
     )
@@ -781,7 +780,7 @@ export async function buildRotateActiveRunSessionPlan(args: {
   erConnection: Connection;
 }): Promise<TransactionPlan> {
   const instruction = await zkubeProgram(args.erConnection, args.wallet)
-    .methods.rotateActiveRunAuthorityV1(args.newSession)
+    .methods.rotateActiveRunAuthority(args.newSession)
     .accountsPartial({
       activeRun: args.activeRun,
       owner: args.wallet.publicKey,
@@ -817,6 +816,7 @@ export function mapActiveRunAccount(
   account: DecodedActiveRunAccount,
 ): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
+  const dailyPressure = mapDailyPressureProfile(account.dailyPressure);
   return {
     owner: account.owner,
     runId: BigInt(account.runId.toString()),
@@ -827,6 +827,10 @@ export function mapActiveRunAccount(
     rules: mapLevelRuleSnapshot(account.rules),
     lifecycle,
     score: Number(account.score),
+    featuredScore: Number(account.featuredScore),
+    pressureScore: Number(account.pressureScore),
+    dailyScoringRule: mapDailyScoringRule(account.dailyScoringRule),
+    dailyPressure,
     actionCounter: Number(account.actionCounter),
     moves: Number(account.moves),
     comboCounter: Number(account.comboCounter),
@@ -837,7 +841,11 @@ export function mapActiveRunAccount(
     totalLinesCleared: Number(account.totalLinesCleared),
     bonusUses: Number(account.bonusUses),
     currentDifficulty: Number(account.currentDifficulty),
-    ...mapEndlessRulesSnapshot(account),
+    // Presentation aliases retained while the HUD terminology migrates from
+    // the old Cairo endless mode to Daily pressure tiers.
+    endlessThresholds: dailyPressure.thresholds,
+    endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
+    endlessRampMultiplierX100: 100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
     grid: [...account.grid].map(Number),
@@ -919,11 +927,7 @@ export async function compileSponsoredTransactionPlan(args: {
   const message = new TransactionMessage({
     payerKey: args.paymaster,
     recentBlockhash: blockhash,
-    instructions: withSponsorshipInstruction({
-      owner: args.wallet.publicKey,
-      paymaster: args.paymaster,
-      instructions: transactionPlan.transaction.instructions,
-    }),
+    instructions: transactionPlan.transaction.instructions,
   }).compileToV0Message();
   let transaction = new VersionedTransaction(message);
   if (transactionPlan.signers.length > 0)
@@ -963,6 +967,7 @@ export async function submitPreparedRunPlan(args: {
   paymaster: PaymasterClient;
   session: Keypair;
   mode?: "campaign" | "daily";
+  dailyVersion?: 1 | 2;
 }): Promise<string> {
   const signature = await submitSponsoredTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,
@@ -977,6 +982,7 @@ export async function submitPreparedRunPlan(args: {
     owner: args.wallet.publicKey,
     runId: args.preparedRun.runId,
     mode: args.mode ?? "campaign",
+    dailyVersion: args.dailyVersion ?? 1,
     session: args.session,
     sessionToken: args.preparedRun.sessionToken,
     addresses: args.preparedRun.addresses,

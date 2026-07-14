@@ -83,7 +83,6 @@ export interface ZoneProgressData {
   cleared: boolean;
   isFree: boolean;
   starCost?: number;
-  price?: bigint;
   currentStars?: number;
   levelStars?: number[];
   highestCleared?: number;

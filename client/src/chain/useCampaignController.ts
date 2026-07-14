@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSolanaConnection } from "./connectionContext";
 import {
-  buildPurchaseMapWithUsdcPlan,
+  buildPurchaseStarsPlan,
   buildUnlockMapWithStarsPlan,
   fetchCampaignView,
   type CampaignView,
@@ -39,27 +39,18 @@ export function useCampaignController() {
   }, [refresh]);
 
   const unlock = useCallback(
-    async (mapId: number, payment: "stars" | "usdc") => {
+    async (mapId: number) => {
       if (!wallet || !campaign) throw new Error("Campaign state is not ready");
       setUnlocking(true);
       try {
         const paymaster = await fetchPaymasterClient(connection);
-        const transactionPlan =
-          payment === "stars"
-            ? await buildUnlockMapWithStarsPlan({
-                connection,
-                wallet,
-                contentVersion: campaign.contentVersion,
-                mapId,
-                paymaster: paymaster.pubkey,
-              })
-            : await buildPurchaseMapWithUsdcPlan({
-                connection,
-                wallet,
-                campaign,
-                mapId,
-                paymaster: paymaster.pubkey,
-              });
+        const transactionPlan = await buildUnlockMapWithStarsPlan({
+          connection,
+          wallet,
+          contentVersion: campaign.contentVersion,
+          mapId,
+          paymaster: paymaster.pubkey,
+        });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
           wallet,
@@ -78,5 +69,36 @@ export function useCampaignController() {
     [campaign, connection, refresh, wallet],
   );
 
-  return { campaign, loading, unlocking, error, refresh, unlock };
+  const buyStars = useCallback(
+    async (packIndex: number) => {
+      if (!wallet || !campaign) throw new Error("Campaign state is not ready");
+      setUnlocking(true);
+      try {
+        const paymaster = await fetchPaymasterClient(connection);
+        const transactionPlan = await buildPurchaseStarsPlan({
+          connection,
+          wallet,
+          campaign,
+          packIndex,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        await refresh();
+        return signature;
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
+      } finally {
+        setUnlocking(false);
+      }
+    },
+    [campaign, connection, refresh, wallet],
+  );
+
+  return { campaign, loading, unlocking, error, refresh, unlock, buyStars };
 }

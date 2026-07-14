@@ -2,11 +2,17 @@ import { SystemProgram, Transaction, type Connection, type PublicKey } from "@so
 import type { WalletLike } from "./sessionWallet";
 import {
   deriveCampaignProgressPda,
+  deriveEconomyConfigPda,
+  deriveLevelMilestonesPda,
   derivePlayerProfilePda,
-  deriveProgressCatalogPda,
   deriveProtocolConfigPda,
   deriveQuestClaimsPda,
+  deriveWeeklyStipendPda,
 } from "./pdas";
+import {
+  CANONICAL_ACHIEVEMENT_RULES,
+  CANONICAL_QUEST_RULES,
+} from "./progressCatalog";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 
 export interface AchievementProgressView {
@@ -14,7 +20,6 @@ export interface AchievementProgressView {
   metric: number;
   progress: bigint;
   threshold: bigint;
-  starReward: bigint;
   xpReward: number;
   claimed: boolean;
   claimable: boolean;
@@ -26,7 +31,8 @@ export interface QuestProgressView {
   cadence: "daily" | "weekly";
   progress: number;
   threshold: number;
-  starReward: bigint;
+  rewardAmount: bigint;
+  rewardUnit: "XP" | "Stars";
   active: boolean;
   claimed: boolean;
   claimable: boolean;
@@ -43,12 +49,18 @@ export interface LifetimeStatsView {
 }
 
 export interface ProgressView {
-  progressVersion: number;
   starsBalance: bigint;
   achievementXp: bigint;
   lifetime: LifetimeStatsView;
   achievements: AchievementProgressView[];
   quests: QuestProgressView[];
+  levelMilestones: { claimed: number; totalStarsClaimed: bigint } | null;
+  weeklyStipend: {
+    weekId: number;
+    recurringXp: number;
+    starsAwarded: boolean;
+    lifetimeStarsAwarded: bigint;
+  } | null;
 }
 
 export async function fetchProgressView(args: {
@@ -63,34 +75,29 @@ export async function fetchProgressView(args: {
   const campaign = await program.account.campaignProgress.fetchNullable(
     deriveCampaignProgressPda(owner),
   );
-  if (!protocol || !player || !campaign || Number(protocol.progressVersion) === 0) return null;
-  const progressVersion = Number(protocol.progressVersion);
-  const catalog = await program.account.progressCatalog.fetch(
-    deriveProgressCatalogPda(progressVersion),
-  );
-  const claims = await program.account.questClaims.fetchNullable(
-    deriveQuestClaimsPda(owner, progressVersion),
-  );
+  if (!protocol || !player || !campaign) return null;
+  const [claims, milestones, weeklyStipend] = await Promise.all([
+    program.account.questClaims.fetchNullable(deriveQuestClaimsPda(owner)),
+    program.account.levelMilestones.fetchNullable(deriveLevelMilestonesPda(owner)),
+    program.account.weeklyStipend.fetchNullable(deriveWeeklyStipendPda(owner)),
+  ]);
   const now = args.nowUnix ?? Math.floor(Date.now() / 1_000);
   const day = Math.max(0, Math.floor(now / 86_400));
   const week = Math.max(0, Math.floor((now + 259_200) / 604_800));
   const achievementFlags = player.achievementFlags.map((value) => BigInt(value.toString()));
   const metrics = achievementMetrics(player, campaign);
-  const achievements = catalog.achievements
-    .slice(0, Number(catalog.achievementCount))
-    .map((rule, index) => {
-      const threshold = BigInt(rule.threshold.toString());
-      const progress = metrics[Number(rule.metric)] ?? 0n;
-      const claimed = (achievementFlags[Math.floor(index / 64)] & (1n << BigInt(index % 64))) !== 0n;
+  const achievements = CANONICAL_ACHIEVEMENT_RULES.map((rule, index) => {
+      const progress = metrics[rule.metric] ?? 0n;
+      const claimed =
+        (achievementFlags[Math.floor(index / 64)] & (1n << BigInt(index % 64))) !== 0n;
       return {
         index,
-        metric: Number(rule.metric),
+        metric: rule.metric,
         progress,
-        threshold,
-        starReward: BigInt(rule.starReward.toString()),
-        xpReward: Number(rule.xpReward),
+        threshold: rule.threshold,
+        xpReward: rule.xpReward,
         claimed,
-        claimable: Boolean(rule.enabled) && !claimed && progress >= threshold,
+        claimable: !claimed && progress >= rule.threshold,
       };
     });
   const dailyClaims = claims && Number(claims.dailyCadenceId) === day
@@ -99,30 +106,32 @@ export async function fetchProgressView(args: {
   const weeklyClaims = claims && Number(claims.weeklyCadenceId) === week
     ? Number(claims.weeklyClaimed)
     : 0;
-  const quests = catalog.quests.slice(0, Number(catalog.questCount)).map((rule, index) => {
-    const cadence = Number(rule.cadence) === 0 ? "daily" as const : "weekly" as const;
+  const dailyCounterIsCurrent = Number(player.questCadenceDay) === day;
+  const weeklyCounterIsCurrent = Number(player.questCadenceWeek) === week;
+  const quests = CANONICAL_QUEST_RULES.map((rule, index) => {
+    const cadence = rule.cadence === 0 ? "daily" as const : "weekly" as const;
     const active = cadence === "weekly"
-      || day % Number(rule.rotationModulus) === Number(rule.rotationRemainder);
+      || day % rule.rotationModulus === rule.rotationRemainder;
     const claimedBitmap = cadence === "daily" ? dailyClaims : weeklyClaims;
     const claimed = (claimedBitmap & (1 << index)) !== 0;
-    const progress = Number(player.questCounters[Number(rule.metric)] ?? 0);
-    const threshold = Number(rule.threshold);
+    const counterIsCurrent = cadence === "daily" ? dailyCounterIsCurrent : weeklyCounterIsCurrent;
+    const progress = counterIsCurrent ? Number(player.questCounters[rule.metric] ?? 0) : 0;
     return {
       index,
-      metric: Number(rule.metric),
+      metric: rule.metric,
       cadence,
       progress,
-      threshold,
-      starReward: BigInt(rule.starReward.toString()),
+      threshold: rule.threshold,
+      rewardAmount: BigInt(rule.rewardUnits * (cadence === "daily" ? 100 : 1)),
+      rewardUnit: cadence === "daily" ? "XP" as const : "Stars" as const,
       active,
       claimed,
-      claimable: Boolean(rule.enabled) && active && !claimed && progress >= threshold,
+      claimable: active && !claimed && progress >= rule.threshold,
     };
   });
   const lifetimeValue = (key: string) =>
     BigInt(String((player as Record<string, unknown>)[key] ?? 0));
   return {
-    progressVersion,
     starsBalance: BigInt(player.starsBalance.toString()),
     achievementXp: BigInt(player.achievementXp.toString()),
     lifetime: {
@@ -136,23 +145,66 @@ export async function fetchProgressView(args: {
     },
     achievements,
     quests,
+    levelMilestones: milestones
+      ? {
+          claimed: Number(milestones.claimed),
+          totalStarsClaimed: BigInt(milestones.totalStarsClaimed.toString()),
+        }
+      : { claimed: 0, totalStarsClaimed: 0n },
+    weeklyStipend: weeklyStipend && Number(weeklyStipend.weekId) === week
+      ? {
+          weekId: Number(weeklyStipend.weekId),
+          recurringXp: Number(weeklyStipend.recurringXp),
+          starsAwarded: Boolean(weeklyStipend.starsAwarded),
+          lifetimeStarsAwarded: BigInt(weeklyStipend.lifetimeStarsAwarded.toString()),
+        }
+      : {
+          weekId: week,
+          recurringXp: 0,
+          starsAwarded: false,
+          lifetimeStarsAwarded: weeklyStipend
+            ? BigInt(weeklyStipend.lifetimeStarsAwarded.toString())
+            : 0n,
+        },
   };
+}
+
+export async function buildClaimLevelMilestonePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  milestoneIndex: number;
+  paymaster?: PublicKey;
+}): Promise<TransactionPlan> {
+  assertIndex(args.milestoneIndex, 10, "milestoneIndex");
+  const owner = args.wallet.publicKey;
+  const payer = args.paymaster ?? owner;
+  const instruction = await zkubeProgram(args.connection, args.wallet).methods
+    .claimLevelMilestone(args.milestoneIndex)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      economyConfig: deriveEconomyConfigPda(),
+      playerProfile: derivePlayerProfilePda(owner),
+      levelMilestones: deriveLevelMilestonesPda(owner),
+      payer,
+      owner,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return basePlan("Claim level milestone Stars", args.connection, payer, instruction);
 }
 
 export async function buildClaimAchievementPlan(args: {
   connection: Connection;
   wallet: WalletLike;
   achievementIndex: number;
-  progressVersion: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   assertIndex(args.achievementIndex, 24, "achievementIndex");
   const owner = args.wallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimAchievementV1(args.achievementIndex)
+    .claimAchievement(args.achievementIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      progressCatalog: deriveProgressCatalogPda(args.progressVersion),
       playerProfile: derivePlayerProfilePda(owner),
       campaignProgress: deriveCampaignProgressPda(owner),
       owner,
@@ -165,25 +217,29 @@ export async function buildClaimQuestPlan(args: {
   connection: Connection;
   wallet: WalletLike;
   questIndex: number;
-  progressVersion: number;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   assertIndex(args.questIndex, 12, "questIndex");
   const owner = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
   const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimQuestV1(args.questIndex)
+    .claimQuest(args.questIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      progressCatalog: deriveProgressCatalogPda(args.progressVersion),
       playerProfile: derivePlayerProfilePda(owner),
-      questClaims: deriveQuestClaimsPda(owner, args.progressVersion),
+      questClaims: deriveQuestClaimsPda(owner),
+      weeklyStipend: deriveWeeklyStipendPda(owner),
       payer,
       owner,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return basePlan("Claim quest Stars", args.connection, payer, instruction);
+  return basePlan(
+    args.questIndex < 10 ? "Claim Daily quest XP" : "Claim Weekly quest Stars",
+    args.connection,
+    payer,
+    instruction,
+  );
 }
 
 function achievementMetrics(player: Record<string, unknown>, campaign: Record<string, unknown>): bigint[] {

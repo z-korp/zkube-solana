@@ -3,7 +3,6 @@ import {
   Connection,
   Keypair,
   PublicKey,
-  SYSVAR_INSTRUCTIONS_PUBKEY,
   SystemProgram,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -24,11 +23,6 @@ import {
   MAGIC_ACTION_ESCROW_INDEX,
   deriveMagicActionEscrowPda,
 } from "../chain/magicAction.js";
-import {
-  deriveProtocolConfigPda,
-  deriveSponsorAllowancePda,
-  deriveTreasuryLedgerPda,
-} from "../chain/pdas.js";
 
 const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
@@ -40,23 +34,29 @@ export const PAYMASTER_MAX_TRANSACTION_BYTES = 1_232;
 export const PAYMASTER_SESSION_MAX_SECONDS = 7 * 24 * 60 * 60;
 
 export const SPONSORED_GAME_DISCRIMINATORS = {
-  abandonRunV1: [125, 40, 244, 230, 253, 139, 171, 92],
-  claimAchievementV1: [89, 171, 8, 91, 40, 109, 245, 208],
-  claimDailyPrizeV1: [176, 233, 126, 177, 41, 111, 81, 233],
-  claimQuestV1: [61, 90, 44, 10, 13, 189, 4, 3],
-  consumeSponsorshipV1: [59, 233, 232, 90, 10, 245, 139, 141],
-  closeSettledActiveRunV1: [15, 185, 11, 182, 7, 135, 180, 159],
-  consumeDailyReceiptV1: [167, 133, 90, 4, 83, 62, 112, 143],
-  consumeRunReceiptV1: [153, 5, 99, 189, 42, 139, 168, 22],
-  delegateActiveRunV1: [197, 109, 88, 188, 239, 118, 146, 107],
-  enterDailyPaidV1: [243, 167, 161, 133, 50, 97, 189, 39],
-  enterDailyWithStarsV1: [35, 6, 113, 106, 140, 138, 65, 187],
-  initializePlayerV1: [99, 199, 152, 251, 221, 241, 157, 188],
-  prepareCampaignRunV1: [119, 10, 2, 12, 124, 82, 222, 248],
-  purchaseMapWithUsdcV1: [4, 155, 216, 148, 66, 187, 242, 232],
-  refundDailyEntryV1: [116, 103, 39, 233, 230, 94, 180, 217],
-  rotateRunShellAuthorityV1: [223, 191, 8, 214, 182, 95, 10, 124],
-  unlockMapWithStarsV1: [217, 210, 254, 241, 119, 234, 184, 212],
+  abandonRun: [35, 86, 196, 223, 149, 225, 12, 24],
+  claimAchievement: [107, 181, 102, 247, 207, 212, 251, 24],
+  claimQuest: [38, 197, 33, 123, 0, 108, 206, 161],
+  claimLevelMilestone: [212, 186, 244, 141, 11, 8, 204, 154],
+  claimWeeklyCash: [60, 227, 120, 57, 125, 67, 55, 176],
+  claimWeeklyStars: [136, 218, 136, 233, 28, 37, 249, 118],
+  closeSettledActiveRun: [156, 85, 34, 175, 240, 226, 191, 171],
+  consumeDailyReceipt: [50, 99, 137, 88, 226, 117, 6, 58],
+  consumeRunReceipt: [219, 125, 28, 198, 150, 131, 196, 252],
+  delegateActiveRun: [219, 238, 221, 207, 119, 217, 2, 99],
+  enterDaily: [4, 177, 119, 10, 43, 9, 107, 53],
+  finalizeDailyChallenge: [213, 202, 238, 85, 233, 17, 152, 216],
+  finalizeWeeklyChallenge: [123, 8, 78, 174, 14, 229, 14, 58],
+  forfeitWeeklyCash: [157, 42, 209, 253, 222, 210, 175, 77],
+  initializePlayer: [79, 249, 88, 177, 220, 62, 56, 128],
+  prepareCampaignRun: [196, 98, 234, 167, 109, 145, 158, 94],
+  openDailyChallenge: [109, 163, 247, 10, 101, 164, 13, 157],
+  openWeeklyChallenge: [95, 148, 167, 122, 7, 205, 68, 192],
+  purchaseStars: [161, 75, 221, 133, 179, 252, 180, 141],
+  refundDailyStars: [40, 40, 190, 173, 41, 249, 98, 211],
+  rotateRunShellAuthority: [101, 234, 115, 157, 0, 246, 19, 255],
+  rollupDailyToWeekly: [129, 76, 32, 146, 86, 220, 255, 198],
+  unlockZone: [53, 23, 251, 131, 76, 21, 202, 35],
 } as const;
 
 interface SponsoredGamePolicy {
@@ -65,137 +65,41 @@ interface SponsoredGamePolicy {
 }
 
 const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
-  [
-    // Owner-signed abandon of a stuck non-terminal base run; the actor is
-    // the player signer and the bundled consume/close settle it for rent.
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.abandonRunV1),
-    {
-      ownerAccountIndex: 3,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.claimAchievementV1),
-    {
-      ownerAccountIndex: 4,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.claimDailyPrizeV1),
-    {
-      ownerAccountIndex: 7,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.claimQuestV1),
-    {
-      ownerAccountIndex: 5,
-      payerAccountIndex: 4,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1),
-    {
-      ownerAccountIndex: 3,
-      payerAccountIndex: 2,
-    },
-  ],
-  [
-    // The payer slot doubles as the rent recipient: cleanup returns every
-    // run rent to the protocol paymaster that fronted it at prepare.
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.closeSettledActiveRunV1),
-    {
-      ownerAccountIndex: 0,
-      payerAccountIndex: 2,
-    },
-  ],
-  [
-    // Base-layer settlement completion when the Magic Action stalled. The
-    // program needs no signer (owner is unchecked), but the sponsored-shape
-    // policy still pins the owner to a transaction signer — the bundled
-    // close instruction provides that signature.
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.consumeRunReceiptV1),
-    {
-      ownerAccountIndex: 5,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.consumeDailyReceiptV1),
-    {
-      ownerAccountIndex: 7,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.delegateActiveRunV1),
-    {
-      ownerAccountIndex: 1,
-      payerAccountIndex: 0,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.enterDailyPaidV1),
-    {
-      ownerAccountIndex: 12,
-      payerAccountIndex: 11,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.enterDailyWithStarsV1),
-    {
-      ownerAccountIndex: 8,
-      payerAccountIndex: 7,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.initializePlayerV1),
-    {
-      ownerAccountIndex: 3,
-      payerAccountIndex: 2,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.prepareCampaignRunV1),
-    {
-      ownerAccountIndex: 8,
-      payerAccountIndex: 7,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.purchaseMapWithUsdcV1),
-    {
-      ownerAccountIndex: 8,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.refundDailyEntryV1),
-    {
-      ownerAccountIndex: 7,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.rotateRunShellAuthorityV1),
-    {
-      ownerAccountIndex: 1,
-      payerAccountIndex: null,
-    },
-  ],
-  [
-    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS.unlockMapWithStarsV1),
-    {
-      ownerAccountIndex: 4,
-      payerAccountIndex: null,
-    },
-  ],
+  policy("abandonRun", 3, null),
+  policy("claimAchievement", 3, null),
+  policy("claimQuest", 5, 4),
+  policy("claimLevelMilestone", 5, 4),
+  policy("claimWeeklyCash", 8, 7),
+  policy("claimWeeklyStars", 4, null),
+  policy("closeSettledActiveRun", 0, 2),
+  policy("consumeDailyReceipt", 8, null),
+  policy("consumeRunReceipt", 5, null),
+  policy("delegateActiveRun", 1, 0),
+  policy("enterDaily", 10, 9),
+  policy("finalizeDailyChallenge", 2, null),
+  policy("finalizeWeeklyChallenge", 2, null),
+  policy("forfeitWeeklyCash", 6, null),
+  policy("initializePlayer", 3, 2),
+  policy("prepareCampaignRun", 8, 7),
+  policy("openDailyChallenge", 6, 5),
+  policy("openWeeklyChallenge", 9, 8),
+  policy("purchaseStars", 10, null),
+  policy("refundDailyStars", 3, null),
+  policy("rotateRunShellAuthority", 1, null),
+  policy("rollupDailyToWeekly", 8, 7),
+  policy("unlockZone", 5, null),
 ]);
-const CONSUME_SPONSORSHIP_KEY = discriminatorKey(
-  SPONSORED_GAME_DISCRIMINATORS.consumeSponsorshipV1,
-);
+
+function policy(
+  name: keyof typeof SPONSORED_GAME_DISCRIMINATORS,
+  ownerAccountIndex: number,
+  payerAccountIndex: number | null,
+): [string, SponsoredGamePolicy] {
+  return [
+    discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
+    { ownerAccountIndex, payerAccountIndex },
+  ];
+}
 
 export interface PaymasterResult {
   status: number;
@@ -302,8 +206,6 @@ export function validatePaymasterTransaction(
 
   const authorities = new Set<string>();
   let gameInstructionCount = 0;
-  let gamePayloadCount = 0;
-  let sponsorshipInstructionCount = 0;
   let sessionInstructionCount = 0;
   let escrowInstructionCount = 0;
   for (const instruction of message.compiledInstructions) {
@@ -315,16 +217,10 @@ export function validatePaymasterTransaction(
     if (program.equals(ZKUBE_PROGRAM_ID)) {
       gameInstructionCount += 1;
       // The largest sponsored envelope is abandon-first finalization:
-      // consumeSponsorshipV1 + abandonRunV1 + consumeRunReceiptV1 +
-      // closeSettledActiveRunV1.
-      if (gameInstructionCount > 4)
+      // abandonRun + consumeRunReceipt + closeSettledActiveRun.
+      if (gameInstructionCount > 3)
         return "too many zkube instructions in one sponsored transaction";
       const key = discriminatorKey(instruction.data);
-      if (key === CONSUME_SPONSORSHIP_KEY) sponsorshipInstructionCount += 1;
-      else gamePayloadCount += 1;
-      if (gamePayloadCount > 3) {
-        return "too many zkube payload instructions in one sponsored transaction";
-      }
       const policy = GAME_POLICIES.get(key);
       if (!policy) return "zkube instruction is not sponsored";
       const rejection = validateGameInstruction(
@@ -336,24 +232,6 @@ export function validatePaymasterTransaction(
         authorities,
       );
       if (rejection) return rejection;
-      if (key === CONSUME_SPONSORSHIP_KEY) {
-        const sponsorshipRejection = validateSponsorshipInstruction(
-          instruction.accountKeyIndexes,
-          keys,
-          paymaster,
-        );
-        if (sponsorshipRejection) return sponsorshipRejection;
-      }
-      if (
-        key ===
-          discriminatorKey(
-            SPONSORED_GAME_DISCRIMINATORS.purchaseMapWithUsdcV1,
-          ) &&
-        !keys[instruction.accountKeyIndexes[1]]?.equals(
-          deriveTreasuryLedgerPda(),
-        )
-      )
-        return "treasury ledger account is invalid";
       continue;
     }
     if (program.equals(SESSION_KEYS_PROGRAM_ID)) {
@@ -390,9 +268,7 @@ export function validatePaymasterTransaction(
   }
   if (authorities.size !== 1)
     return "transaction must sponsor exactly one player authority";
-  if (sponsorshipInstructionCount !== 1 || gamePayloadCount === 0) {
-    return "transaction must consume exactly one on-chain sponsorship allowance";
-  }
+  if (gameInstructionCount === 0) return "transaction must contain a zkube instruction";
   return null;
 }
 
@@ -560,26 +436,6 @@ function validateGameInstruction(
   ) {
     return "zkube rent payer must be the paymaster at the expected account position";
   }
-  return null;
-}
-
-function validateSponsorshipInstruction(
-  accountIndexes: readonly number[],
-  keys: PublicKey[],
-  paymaster: PublicKey,
-): string | null {
-  if (accountIndexes.length !== 6)
-    return "on-chain sponsorship account layout is invalid";
-  const owner = keys[accountIndexes[3]];
-  if (
-    !owner ||
-    !keys[accountIndexes[0]]?.equals(deriveProtocolConfigPda()) ||
-    !keys[accountIndexes[1]]?.equals(deriveSponsorAllowancePda(owner)) ||
-    !keys[accountIndexes[2]]?.equals(paymaster) ||
-    !keys[accountIndexes[4]]?.equals(SYSVAR_INSTRUCTIONS_PUBKEY) ||
-    !keys[accountIndexes[5]]?.equals(SystemProgram.programId)
-  )
-    return "on-chain sponsorship accounts are invalid";
   return null;
 }
 

@@ -91,8 +91,8 @@ describe("commit meta invariants", () => {
     const dailyKeys = daily.transaction.instructions[0].keys;
     expect(dailyKeys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(dailyKeys[1].isWritable).toBe(true);
-    expect(dailyKeys.slice(2, 9).every((key) => !key.isWritable)).toBe(true);
-    expect(dailyKeys[9].isWritable).toBe(true);
+    expect(dailyKeys.slice(2, 10).every((key) => !key.isWritable)).toBe(true);
+    expect(dailyKeys[10].isWritable).toBe(true);
   });
 
   it("parses and normalizes router delegation status", async () => {

@@ -9,14 +9,19 @@ use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
 use crate::game::{
-    calculate_level_stars, row_from_vrf, BlockWeights, Bonus, Constraint, ConstraintKind,
-    EndlessRules, Grid, LevelRules, MutatorRules, RunEngine, RunError, RunPhase,
+    calculate_level_stars, row_from_vrf, BlockWeights, Bonus, Constraint, ConstraintKind, Grid,
+    LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+};
+use crate::state::economy_v2::{
+    DailyScoringRule, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC, DAILY_SCORE_CLEAN,
+    DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES, DAILY_SCORE_SURVIVAL,
+    DAILY_SCORE_TOTAL_LINES,
 };
 use crate::state::v2::*;
 
 #[delegate]
 #[derive(Accounts)]
-pub struct DelegateActiveRunV1<'info> {
+pub struct DelegateActiveRun<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     pub owner: Signer<'info>,
@@ -32,7 +37,7 @@ pub struct DelegateActiveRunV1<'info> {
     pub pda: UncheckedAccount<'info>,
 }
 
-pub fn handler_delegate_active_run_v1(ctx: Context<DelegateActiveRunV1>) -> Result<()> {
+pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {
     let owner = ctx.accounts.owner.key();
     let run_id = ctx.accounts.run_shell.run_id;
     let expected = Pubkey::find_program_address(
@@ -97,7 +102,7 @@ pub fn handler_delegate_active_run_v1(ctx: Context<DelegateActiveRunV1>) -> Resu
 
 #[vrf]
 #[derive(Accounts, Session)]
-pub struct RequestRowVrfV1<'info> {
+pub struct RequestRowVrf<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
@@ -118,7 +123,7 @@ pub struct RequestRowVrfV1<'info> {
     pub delegation_record_active: UncheckedAccount<'info>,
 }
 
-impl<'info> RequestRowVrfV1<'info> {
+impl<'info> RequestRowVrf<'info> {
     pub(crate) fn invoke_vrf_request<'a>(
         &self,
         payer: &'a AccountInfo<'info>,
@@ -132,10 +137,7 @@ impl<'info> RequestRowVrfV1<'info> {
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_request_row_vrf_v1(
-    ctx: Context<RequestRowVrfV1>,
-    client_seed: [u8; 32],
-) -> Result<()> {
+pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
     use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
     use ephemeral_vrf_sdk::instructions::{
         create_request_high_priority_scoped_randomness_ix, RequestRandomnessParams,
@@ -182,7 +184,7 @@ pub fn handler_request_row_vrf_v1(
         payer: ctx.accounts.actor.key().to_bytes().into(),
         oracle_queue: ctx.accounts.oracle_queue.key().to_bytes().into(),
         callback_program_id: crate::ID.to_bytes().into(),
-        callback_discriminator: crate::instruction::FulfillRowVrfV1::DISCRIMINATOR.to_vec(),
+        callback_discriminator: crate::instruction::FulfillRowVrf::DISCRIMINATOR.to_vec(),
         caller_seed,
         accounts_metas: Some(vec![
             SerializableAccountMeta {
@@ -215,7 +217,7 @@ pub fn handler_request_row_vrf_v1(
 
 #[vrf_callback]
 #[derive(Accounts)]
-pub struct FulfillRowVrfV1<'info> {
+pub struct FulfillRowVrf<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Callback fee vault supplied by and charged through MagicBlock.
@@ -223,10 +225,7 @@ pub struct FulfillRowVrfV1<'info> {
     pub magic_fee_vault: UncheckedAccount<'info>,
 }
 
-pub fn handler_fulfill_row_vrf_v1(
-    ctx: Context<FulfillRowVrfV1>,
-    randomness: [u8; 32],
-) -> Result<()> {
+pub fn handler_fulfill_row_vrf(ctx: Context<FulfillRowVrf>, randomness: [u8; 32]) -> Result<()> {
     let active = &mut ctx.accounts.active_run;
     require!(
         vrf_fulfillment_lifecycle_is_allowed(active.lifecycle),
@@ -237,11 +236,16 @@ pub fn handler_fulfill_row_vrf_v1(
         ErrorCode::NoVrfRequestPending
     );
     let request_counter = active.pending_vrf_counter;
+    let row_weights = if active.mode == RunMode::Daily {
+        active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
+    } else {
+        active.rules.block_weights
+    };
     let row = row_from_vrf(
         randomness,
         request_counter,
         BlockWeights {
-            values: active.rules.block_weights,
+            values: row_weights,
         },
     )
     .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
@@ -267,7 +271,7 @@ pub fn handler_fulfill_row_vrf_v1(
 }
 
 #[derive(Accounts, Session)]
-pub struct PlayMoveV1<'info> {
+pub struct PlayMove<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Logical wallet authority, bound to the active run.
@@ -282,8 +286,8 @@ pub struct PlayMoveV1<'info> {
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_play_move_v1(
-    ctx: Context<PlayMoveV1>,
+pub fn handler_play_move(
+    ctx: Context<PlayMove>,
     expected_action: u32,
     expected_move: u16,
     row: u8,
@@ -302,19 +306,21 @@ pub fn handler_play_move_v1(
     );
     let level = level_rules(&active.rules)?;
     let mut mutator = mutator_rules(&active.rules);
+    let difficulty_at_action = active.current_difficulty;
     if active.mode == RunMode::Daily {
-        let endless = endless_rules(active);
-        active.current_difficulty = endless.difficulty_for_score(active.score);
-        mutator.score_multiplier_x100 = (u32::from(mutator.score_multiplier_x100).saturating_mul(
-            u32::from(endless.score_multiplier(active.current_difficulty)),
-        ) / 100)
-            .min(u32::from(u16::MAX)) as u16;
+        mutator.score_multiplier_x100 =
+            (u32::from(mutator.score_multiplier_x100).saturating_mul(u32::from(
+                active.daily_pressure.score_multipliers_x100
+                    [usize::from(difficulty_at_action.min(7))],
+            )) / 100)
+                .min(u32::from(u16::MAX)) as u16;
     }
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
-    let report = engine
+    let mut report = engine
         .play_move(expected_move, row, start, destination, level, mutator)
         .map_err(map_run_error)?;
+    report.difficulty_at_action = difficulty_at_action;
     write_engine(active, &engine);
     active.total_lines_cleared = active
         .total_lines_cleared
@@ -345,7 +351,18 @@ pub fn handler_play_move_v1(
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
     if active.mode == RunMode::Daily {
-        active.current_difficulty = endless_rules(active).difficulty_for_score(active.score);
+        active.pressure_score = active
+            .pressure_score
+            .checked_add(report.neutral_points_earned)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let featured = daily_featured_points(active.daily_scoring_rule, &report)?;
+        active.featured_score = active
+            .featured_score
+            .checked_add(featured)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        active.current_difficulty = active
+            .daily_pressure
+            .difficulty_for_score(active.pressure_score);
     }
     active.action_counter = active
         .action_counter
@@ -359,6 +376,8 @@ pub fn handler_play_move_v1(
         .chain_update(expected_move.to_le_bytes())
         .chain_update([row, start, destination])
         .chain_update(active.score.to_le_bytes())
+        .chain_update(active.featured_score.to_le_bytes())
+        .chain_update(active.pressure_score.to_le_bytes())
         .chain_update(active.moves.to_le_bytes())
         .chain_update([active.lifecycle as u8])
         .finalize()
@@ -367,7 +386,7 @@ pub fn handler_play_move_v1(
 }
 
 #[derive(Accounts, Session)]
-pub struct ApplyBonusV1<'info> {
+pub struct ApplyBonus<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Logical wallet authority, bound to the active run.
@@ -382,8 +401,8 @@ pub struct ApplyBonusV1<'info> {
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_apply_bonus_v1(
-    ctx: Context<ApplyBonusV1>,
+pub fn handler_apply_bonus(
+    ctx: Context<ApplyBonus>,
     expected_action: u32,
     row: u8,
     column: u8,
@@ -431,7 +450,7 @@ pub fn handler_apply_bonus_v1(
 }
 
 #[derive(Accounts, Session)]
-pub struct SealRunV1<'info> {
+pub struct SealRun<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Logical wallet authority, bound to the active run.
@@ -446,7 +465,7 @@ pub struct SealRunV1<'info> {
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_seal_run_v1(ctx: Context<SealRunV1>) -> Result<()> {
+pub fn handler_seal_run(ctx: Context<SealRun>) -> Result<()> {
     require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
     require!(
         matches!(
@@ -466,7 +485,7 @@ pub fn handler_seal_run_v1(ctx: Context<SealRunV1>) -> Result<()> {
 }
 
 #[derive(Accounts, Session)]
-pub struct AbandonRunV1<'info> {
+pub struct AbandonRun<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Logical wallet authority, bound to the active run.
@@ -486,7 +505,7 @@ pub struct AbandonRunV1<'info> {
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_abandon_run_v1(ctx: Context<AbandonRunV1>) -> Result<()> {
+pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
     require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
     let active = &mut ctx.accounts.active_run;
     require!(
@@ -514,7 +533,7 @@ fn abandon_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
 }
 
 #[derive(Accounts)]
-pub struct RotateActiveRunAuthorityV1<'info> {
+pub struct RotateActiveRunAuthority<'info> {
     #[account(
         mut,
         owner = crate::ID,
@@ -524,8 +543,8 @@ pub struct RotateActiveRunAuthorityV1<'info> {
     pub owner: Signer<'info>,
 }
 
-pub fn handler_rotate_active_run_authority_v1(
-    ctx: Context<RotateActiveRunAuthorityV1>,
+pub fn handler_rotate_active_run_authority(
+    ctx: Context<RotateActiveRunAuthority>,
     new_action_authority: Pubkey,
 ) -> Result<()> {
     require!(
@@ -576,7 +595,7 @@ fn run_has_terminal_projection(lifecycle: RunLifecycle, finished_at: i64) -> boo
 
 #[commit]
 #[derive(Accounts)]
-pub struct CommitRunV1<'info> {
+pub struct CommitRun<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(mut, owner = crate::ID)]
@@ -602,7 +621,7 @@ pub struct CommitRunV1<'info> {
     pub magic_program: Program<'info, ephemeral_rollups_sdk::anchor::MagicProgram>,
 }
 
-pub fn handler_commit_run_v1(ctx: Context<CommitRunV1>) -> Result<()> {
+pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     require!(
         ctx.accounts.active_run.mode == RunMode::Campaign,
         ErrorCode::InvalidState
@@ -619,7 +638,7 @@ pub fn handler_commit_run_v1(ctx: Context<CommitRunV1>) -> Result<()> {
         ErrorCode::VrfRequestPending
     );
 
-    let action_data = InstructionData::data(&crate::instruction::ConsumeRunReceiptV1 {});
+    let action_data = InstructionData::data(&crate::instruction::ConsumeRunReceipt {});
     let settlement_action = CallHandler {
         destination_program: crate::ID,
         accounts: vec![
@@ -649,7 +668,7 @@ pub fn handler_commit_run_v1(ctx: Context<CommitRunV1>) -> Result<()> {
 
 #[action]
 #[derive(Accounts)]
-pub struct ConsumeRunReceiptV1<'info> {
+pub struct ConsumeRunReceipt<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Box<Account<'info, ActiveRun>>,
     #[account(
@@ -684,7 +703,7 @@ pub struct ConsumeRunReceiptV1<'info> {
     pub owner: UncheckedAccount<'info>,
 }
 
-pub fn handler_consume_run_receipt_v1(ctx: Context<ConsumeRunReceiptV1>) -> Result<()> {
+pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()> {
     let active = &ctx.accounts.active_run;
     require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
     require_keys_eq!(
@@ -743,6 +762,8 @@ pub fn handler_consume_run_receipt_v1(ctx: Context<ConsumeRunReceiptV1>) -> Resu
         0
     };
     receipt.score = active.score;
+    receipt.featured_score = active.featured_score;
+    receipt.daily_scoring_rule = active.daily_scoring_rule;
     receipt.moves = active.moves;
     receipt.level_stars = stars;
     receipt.lines_cleared = active.total_lines_cleared;
@@ -812,7 +833,7 @@ pub fn handler_consume_run_receipt_v1(ctx: Context<ConsumeRunReceiptV1>) -> Resu
 
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
-pub struct CloseSettledActiveRunV1<'info> {
+pub struct CloseSettledActiveRun<'info> {
     /// The player still consents to cleanup: closing erases the on-chain
     /// receipt, so a third party must not be able to grief-close a run.
     pub owner: Signer<'info>,
@@ -820,7 +841,7 @@ pub struct CloseSettledActiveRunV1<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     /// CHECK: Rent destination pinned to the protocol paymaster — the
@@ -854,8 +875,8 @@ pub struct CloseSettledActiveRunV1<'info> {
     pub active_run: Box<Account<'info, ActiveRun>>,
 }
 
-pub fn handler_close_settled_active_run_v1(
-    ctx: Context<CloseSettledActiveRunV1>,
+pub fn handler_close_settled_active_run(
+    ctx: Context<CloseSettledActiveRun>,
     run_id: u64,
 ) -> Result<()> {
     let active = &ctx.accounts.active_run;
@@ -902,7 +923,7 @@ fn update_campaign_unlocks(
     if !completed || level != LEVELS_PER_MAP as u8 {
         return Ok(());
     }
-    let bit = 1u16 << (map_id - 1);
+    let bit = 1u32 << (map_id - 1);
     campaign.cleared_maps |= bit;
     if map_id == 1 {
         player.daily_eligible = true;
@@ -911,9 +932,6 @@ fn update_campaign_unlocks(
         .all(|candidate| campaign.best_stars(map_id, candidate).ok() == Some(3));
     if perfected {
         campaign.perfected_maps |= bit;
-        if map_id < MAX_MAPS as u8 {
-            campaign.unlock_map(map_id + 1, false)?;
-        }
     }
     Ok(())
 }
@@ -950,7 +968,7 @@ fn constraint(snapshot: ConstraintSnapshot) -> Result<Constraint> {
         0 => ConstraintKind::None,
         1 => ConstraintKind::ComboLines,
         2 => ConstraintKind::BreakBlocks,
-        3 => ConstraintKind::ComboStreak,
+        3 => ConstraintKind::ComboMeter,
         _ => return err!(ErrorCode::InvalidLevel),
     };
     Ok(Constraint {
@@ -981,12 +999,37 @@ fn mutator_rules(snapshot: &LevelRuleSnapshot) -> MutatorRules {
     }
 }
 
-fn endless_rules(active: &ActiveRun) -> EndlessRules {
-    EndlessRules {
-        thresholds: active.endless_thresholds,
-        score_multipliers_x100: active.endless_score_multipliers_x100,
-        ramp_multiplier_x100: active.endless_ramp_multiplier_x100,
-    }
+fn daily_featured_points(rule: DailyScoringRule, report: &MoveReport) -> Result<u32> {
+    rule.validate()?;
+    let lines = report.lines_cleared;
+    let points = match rule.kind {
+        DAILY_SCORE_CLASSIC => report.points_earned,
+        DAILY_SCORE_COMBO if lines >= rule.parameter => match lines {
+            2 => 1,
+            3 => 3,
+            4 => 6,
+            _ => 10,
+        },
+        DAILY_SCORE_COMBO => 0,
+        DAILY_SCORE_EXACT_LINES => u32::from(lines == rule.parameter),
+        DAILY_SCORE_TOTAL_LINES => u32::from(lines),
+        DAILY_SCORE_BLOCKS => u32::from(
+            report.blocks_destroyed_by_size[usize::from(rule.parameter.saturating_sub(1))],
+        ),
+        DAILY_SCORE_CLUTCH if report.height_before >= rule.parameter => match lines {
+            0 => 0,
+            1 => 1,
+            2 => 3,
+            3 => 6,
+            _ => 10,
+        },
+        DAILY_SCORE_CLUTCH => 0,
+        DAILY_SCORE_CLEAN if report.height_after <= rule.parameter => u32::from(lines),
+        DAILY_SCORE_CLEAN => 0,
+        DAILY_SCORE_SURVIVAL => 1 + u32::from(report.difficulty_at_action),
+        _ => return err!(ErrorCode::InvalidLevel),
+    };
+    Ok(points)
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
@@ -1020,7 +1063,8 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         level_lines_cleared: active.level_lines_cleared,
         bonus,
         bonus_charges: active.bonus_charges,
-        initial_rows_remaining: active.initial_rows_remaining,
+        perfect_trigger_available: active.perfect_trigger_available,
+        starting_height_target: active.starting_height_target,
     })
 }
 
@@ -1042,7 +1086,8 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
         Some(Bonus::Wave) => 3,
     };
     active.bonus_charges = engine.bonus_charges;
-    active.initial_rows_remaining = engine.initial_rows_remaining;
+    active.perfect_trigger_available = engine.perfect_trigger_available;
+    active.starting_height_target = engine.starting_height_target;
 }
 
 fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
@@ -1070,6 +1115,9 @@ fn map_run_error(error: RunError) -> anchor_lang::error::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::economy_v2::{
+        canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
+    };
 
     fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
         use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
@@ -1103,7 +1151,238 @@ mod tests {
     }
 
     #[test]
-    fn perfect_boss_clear_unlocks_the_next_map() {
+    fn daily_featured_rules_score_only_the_selected_action_metric() {
+        let report = MoveReport {
+            lines_cleared: 3,
+            points_earned: 42,
+            height_before: 7,
+            height_after: 2,
+            blocks_destroyed_by_size: [1, 2, 3, 4],
+            difficulty_at_action: 4,
+            ..MoveReport::default()
+        };
+        let rule = |kind, parameter| DailyScoringRule {
+            id: 1,
+            family: match kind {
+                DAILY_SCORE_CLASSIC => 0,
+                DAILY_SCORE_COMBO => 1,
+                DAILY_SCORE_EXACT_LINES | DAILY_SCORE_TOTAL_LINES => 2,
+                DAILY_SCORE_BLOCKS => 3,
+                DAILY_SCORE_CLUTCH => 4,
+                DAILY_SCORE_CLEAN => 5,
+                _ => 6,
+            },
+            kind,
+            parameter,
+        };
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_CLASSIC, 0), &report).unwrap(),
+            42
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_COMBO, 2), &report).unwrap(),
+            3
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_EXACT_LINES, 1), &report).unwrap(),
+            0
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_TOTAL_LINES, 0), &report).unwrap(),
+            3
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_BLOCKS, 2), &report).unwrap(),
+            2
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_CLUTCH, 7), &report).unwrap(),
+            6
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_CLEAN, 2), &report).unwrap(),
+            3
+        );
+        assert_eq!(
+            daily_featured_points(rule(DAILY_SCORE_SURVIVAL, 0), &report).unwrap(),
+            5
+        );
+    }
+
+    /// Offline balancing harness, deliberately excluded from the fast gate.
+    /// Run with:
+    /// `cargo test -p solana daily_catalog_simulation -- --ignored --nocapture`
+    #[test]
+    #[ignore = "offline Daily balance simulation"]
+    fn daily_catalog_simulation() {
+        let pressure = DailyPressureProfile::canonical();
+        println!(
+            "rule_id,family,kind,parameter,min_moves,mean_moves,max_moves,mean_featured,stuck"
+        );
+        for rule in canonical_daily_scoring_rules().into_iter().take(14) {
+            let attempts = (0..64)
+                .map(|seed| simulate_daily_attempt(rule, pressure, seed))
+                .collect::<Vec<_>>();
+            assert!(attempts
+                .iter()
+                .all(|attempt| attempt.moves <= DAILY_MAX_MOVES));
+            assert!(attempts.iter().any(|attempt| attempt.featured > 0));
+            let min_moves = attempts
+                .iter()
+                .map(|attempt| attempt.moves)
+                .min()
+                .unwrap_or(0);
+            let max_moves = attempts
+                .iter()
+                .map(|attempt| attempt.moves)
+                .max()
+                .unwrap_or(0);
+            let total_moves = attempts
+                .iter()
+                .map(|attempt| u64::from(attempt.moves))
+                .sum::<u64>();
+            let total_featured = attempts
+                .iter()
+                .map(|attempt| u64::from(attempt.featured))
+                .sum::<u64>();
+            let stuck = attempts.iter().filter(|attempt| attempt.stuck).count();
+            println!(
+                "{},{},{},{},{},{:.1},{},{:.1},{}",
+                rule.id,
+                rule.family,
+                rule.kind,
+                rule.parameter,
+                min_moves,
+                total_moves as f64 / attempts.len() as f64,
+                max_moves,
+                total_featured as f64 / attempts.len() as f64,
+                stuck,
+            );
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    struct SimulatedDailyAttempt {
+        moves: u16,
+        featured: u32,
+        stuck: bool,
+    }
+
+    struct SimulatedMoveCandidate {
+        engine: RunEngine,
+        report: MoveReport,
+        featured: u32,
+        quality: (u32, u32, u8, u8),
+    }
+
+    fn simulate_daily_attempt(
+        rule: DailyScoringRule,
+        pressure: DailyPressureProfile,
+        seed: u32,
+    ) -> SimulatedDailyAttempt {
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: pressure.max_moves,
+            primary: Constraint::default(),
+            secondary: Constraint::default(),
+        };
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            starting_height_target: pressure.starting_height,
+            ..RunEngine::default()
+        };
+        let mut row_counter = 0u32;
+        while engine.next_row.is_none() {
+            let row = simulated_vrf_row(seed, row_counter, pressure.block_weights[0]);
+            engine.provide_vrf_row(row).unwrap();
+            row_counter += 1;
+            assert!(
+                row_counter < 64,
+                "seed stack failed to reach its target height"
+            );
+        }
+
+        let mut featured = 0u32;
+        let mut pressure_score = 0u32;
+        let mut stuck = false;
+        while engine.phase == RunPhase::Playing && engine.moves < pressure.max_moves {
+            let tier = pressure.difficulty_for_score(pressure_score);
+            let mut best: Option<SimulatedMoveCandidate> = None;
+            for row in 0..10 {
+                for start in 0..8 {
+                    for destination in 0..8 {
+                        let mut candidate = engine;
+                        let mutator = MutatorRules {
+                            score_multiplier_x100: pressure.score_multipliers_x100
+                                [usize::from(tier)],
+                            ..MutatorRules::default()
+                        };
+                        let Ok(mut report) = candidate.play_move(
+                            engine.moves,
+                            row,
+                            start,
+                            destination,
+                            level,
+                            mutator,
+                        ) else {
+                            continue;
+                        };
+                        report.difficulty_at_action = tier;
+                        let featured_delta = daily_featured_points(rule, &report).unwrap();
+                        let quality = (
+                            featured_delta,
+                            report.neutral_points_earned,
+                            report.lines_cleared,
+                            u8::MAX - report.height_after,
+                        );
+                        if best.as_ref().is_none_or(|best| quality > best.quality) {
+                            best = Some(SimulatedMoveCandidate {
+                                engine: candidate,
+                                report,
+                                featured: featured_delta,
+                                quality,
+                            });
+                        }
+                    }
+                }
+            }
+            let Some(best) = best else {
+                stuck = true;
+                break;
+            };
+            engine = best.engine;
+            featured = featured.saturating_add(best.featured);
+            pressure_score = pressure_score.saturating_add(best.report.neutral_points_earned);
+            if engine.phase == RunPhase::AwaitingVrf {
+                let next_tier = pressure.difficulty_for_score(pressure_score);
+                let row = simulated_vrf_row(
+                    seed,
+                    row_counter,
+                    pressure.block_weights[usize::from(next_tier)],
+                );
+                engine.provide_vrf_row(row).unwrap();
+                row_counter += 1;
+            }
+        }
+        SimulatedDailyAttempt {
+            moves: engine.moves,
+            featured,
+            stuck,
+        }
+    }
+
+    fn simulated_vrf_row(seed: u32, counter: u32, weights: [u16; 5]) -> [u8; 8] {
+        let randomness: [u8; 32] = Sha256::new()
+            .chain_update(b"zkube-daily-simulation-v1")
+            .chain_update(seed.to_le_bytes())
+            .chain_update(counter.to_le_bytes())
+            .finalize()
+            .into();
+        row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
+    }
+
+    #[test]
+    fn perfect_boss_clear_records_perfection_without_unlocking_the_next_map() {
         let owner = Pubkey::new_unique();
         let mut campaign = CampaignProgress::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
@@ -1113,7 +1392,7 @@ mod tests {
         player.next_run_id = 2;
         update_campaign_unlocks(&mut campaign, &mut player, 1, 10, true).unwrap();
         assert!(player.daily_eligible);
-        assert!(campaign.is_map_unlocked(2));
+        assert!(!campaign.is_map_unlocked(2));
         assert_eq!(campaign.cleared_maps, 1);
         assert_eq!(campaign.perfected_maps, 1);
     }

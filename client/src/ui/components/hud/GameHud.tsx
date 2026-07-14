@@ -36,6 +36,9 @@ interface GameHudProps {
   activeMutatorId?: number;
   mode?: number;
   totalScore?: number;
+  engineScore?: number;
+  pressureScore?: number;
+  dailyRuleName?: string;
   currentDifficulty?: number;
   endlessThresholds?: readonly number[];
   endlessScoreMultipliersX100?: readonly number[];
@@ -84,7 +87,7 @@ const CONSTRAINT_ICON_MAP: Record<ConstraintType, string | null> = {
   [ConstraintType.BreakBlocks]: getCommonAssetPath(
     "constraints/constraint-break-blocks.png",
   ),
-  [ConstraintType.ComboStreak]: getCommonAssetPath(
+  [ConstraintType.ComboMeter]: getCommonAssetPath(
     "constraints/constraint-combo.png",
   ),
   [ConstraintType.None]: null,
@@ -120,8 +123,8 @@ const getValueBadge = (
       return `${value}+`;
     case ConstraintType.BreakBlocks:
       return `${value}`;
-    case ConstraintType.ComboStreak:
-      return `${value}x`;
+    case ConstraintType.ComboMeter:
+      return `${value}`;
     default:
       return undefined;
   }
@@ -150,6 +153,9 @@ const GameHud: React.FC<GameHudProps> = ({
   activeMutatorId = 0,
   mode = 0,
   totalScore = 0,
+  engineScore = 0,
+  pressureScore = 0,
+  dailyRuleName,
   currentDifficulty = 0,
   endlessThresholds = [],
   endlessScoreMultipliersX100 = [],
@@ -179,6 +185,8 @@ const GameHud: React.FC<GameHudProps> = ({
     useLerpNumber(levelScore, { duration: 300, integer: true }) ?? 0;
   const animatedTotalScore =
     useLerpNumber(totalScore, { duration: 300, integer: true }) ?? 0;
+  const animatedPressureScore =
+    useLerpNumber(pressureScore, { duration: 300, integer: true }) ?? 0;
 
   // Contract thresholds are moves-USED caps; convert to moves-REMAINING floors
   const maxMoves = gameLevel?.maxMoves ?? 0;
@@ -200,7 +208,7 @@ const GameHud: React.FC<GameHudProps> = ({
   );
   let scoreTierIndex = 0;
   for (let i = ENDLESS_TIERS.length - 1; i >= 0; i--) {
-    if (animatedTotalScore >= ENDLESS_TIERS[i].threshold) {
+    if (animatedPressureScore >= ENDLESS_TIERS[i].threshold) {
       scoreTierIndex = i;
       break;
     }
@@ -213,7 +221,7 @@ const GameHud: React.FC<GameHudProps> = ({
         0,
         Math.min(
           1,
-          (animatedTotalScore - currentTier.threshold) /
+          (animatedPressureScore - currentTier.threshold) /
             (nextTier.threshold - currentTier.threshold),
         ),
       )
@@ -237,32 +245,49 @@ const GameHud: React.FC<GameHudProps> = ({
     const result: ConstraintData[] = [];
     if (gameLevel) {
       if (gameLevel.constraintType !== ConstraintType.None) {
+        const isComboMeter =
+          gameLevel.constraintType === ConstraintType.ComboMeter;
         result.push({
           type: gameLevel.constraintType,
           value: gameLevel.constraintValue,
-          count: gameLevel.constraintCount,
-          progress: constraintProgress,
+          count: isComboMeter
+            ? gameLevel.constraintValue
+            : gameLevel.constraintCount,
+          progress: isComboMeter
+            ? Math.min(combo, gameLevel.constraintValue)
+            : constraintProgress,
         });
       }
       if (
         gameLevel.constraint2Type !== undefined &&
         gameLevel.constraint2Type !== ConstraintType.None
       ) {
+        const isComboMeter =
+          gameLevel.constraint2Type === ConstraintType.ComboMeter;
         result.push({
           type: gameLevel.constraint2Type,
           value: gameLevel.constraint2Value,
-          count: gameLevel.constraint2Count,
-          progress: constraint2Progress,
+          count: isComboMeter
+            ? gameLevel.constraint2Value
+            : gameLevel.constraint2Count,
+          progress: isComboMeter
+            ? Math.min(combo, gameLevel.constraint2Value)
+            : constraint2Progress,
         });
       }
     }
     return result;
-  }, [gameLevel, constraintProgress, constraint2Progress]);
+  }, [combo, gameLevel, constraintProgress, constraint2Progress]);
 
   // ─── Tooltip content for the guardian avatar ───
   const avatarTooltipContent = isEndless ? (
     <div className="flex flex-col gap-1.5 max-w-[200px]">
       <div className="font-sans text-xs font-bold">{guardian.name}</div>
+      {dailyRuleName && (
+        <div className="font-sans text-[11px] font-semibold text-cyan-300">
+          {dailyRuleName}
+        </div>
+      )}
       {activeMutatorId > 0 && (
         <div className="font-sans text-[10px] text-yellow-400/90">
           {mutator.icon} {mutator.name}: {mutator.description}
@@ -376,7 +401,7 @@ const GameHud: React.FC<GameHudProps> = ({
               </Tooltip>
             </TooltipProvider>
 
-            {/* Score bar — total score toward next tier */}
+            {/* Featured score is the leaderboard metric; pressure drives the tier bar. */}
             <div className="absolute" style={scorePos}>
               <div className="relative w-full h-full flex items-center">
                 <div className="w-full h-[clamp(8px,2.5vw,16px)] overflow-hidden rounded-full bg-black/50">
@@ -388,14 +413,17 @@ const GameHud: React.FC<GameHudProps> = ({
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   />
                 </div>
-                <span className="absolute inset-0 flex items-center justify-center font-sans text-[clamp(8px,2.2vw,14px)] font-bold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-white">
-                  {animatedTotalScore}
+                <span className="absolute inset-0 flex items-center justify-center font-sans text-[clamp(8px,2.2vw,14px)] font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-white">
+                  FEATURED {animatedTotalScore}
+                </span>
+                <span className="absolute left-0 right-0 top-[70%] text-center font-sans text-[clamp(6px,1.5vw,9px)] font-semibold tabular-nums text-slate-300">
+                  Engine {engineScore} · Pressure {animatedPressureScore}
                   {nextTier ? `/${nextTier.threshold}` : " MAX"}
                 </span>
               </div>
             </div>
 
-            {/* Combo streak */}
+            {/* Combo Meter */}
             <div
               className="absolute flex items-center justify-center"
               style={comboPos}
@@ -415,7 +443,7 @@ const GameHud: React.FC<GameHudProps> = ({
                 <span className="text-[clamp(10px,2.8vw,15px)] leading-none">
                   🔥
                 </span>
-                <span>{combo > 0 ? `${combo}x` : "–"}</span>
+                <span>{combo > 0 ? combo : "–"}</span>
               </motion.div>
             </div>
 
@@ -586,7 +614,7 @@ const GameHud: React.FC<GameHudProps> = ({
             </div>
           </div>
 
-          {/* Combo streak — fire badge */}
+          {/* Combo Meter — fire badge */}
           <div
             className="absolute flex items-center justify-center"
             style={comboPos}
@@ -606,7 +634,7 @@ const GameHud: React.FC<GameHudProps> = ({
               <span className="text-[clamp(10px,2.8vw,15px)] leading-none">
                 🔥
               </span>
-              <span>{combo > 0 ? `${combo}x` : "–"}</span>
+              <span>{combo > 0 ? combo : "–"}</span>
             </motion.div>
           </div>
 

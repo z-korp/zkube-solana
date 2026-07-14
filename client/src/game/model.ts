@@ -40,7 +40,9 @@ export class Game {
   }
 
   public get levelScore(): number {
-    return this.view.score;
+    return this.mode === 1
+      ? (this.view.featuredScore ?? this.view.score)
+      : this.view.score;
   }
 
   public get levelMoves(): number {
@@ -60,7 +62,21 @@ export class Game {
   }
 
   public get totalScore(): number {
+    return this.mode === 1
+      ? (this.view.featuredScore ?? this.view.score)
+      : this.view.score;
+  }
+
+  public get engineScore(): number {
     return this.view.score;
+  }
+
+  public get featuredScore(): number {
+    return this.view.featuredScore ?? this.view.score;
+  }
+
+  public get pressureScore(): number {
+    return this.view.pressureScore ?? this.view.score;
   }
 
   public get totalCubes(): number {
@@ -125,7 +141,7 @@ export class Game {
   }
 
   public get score(): number {
-    return this.view.score;
+    return this.totalScore;
   }
 
   public get moves(): number {

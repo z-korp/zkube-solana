@@ -1,121 +1,88 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::v2::*;
+use crate::state::*;
 
-const CANONICAL_ACHIEVEMENTS: [(u8, u64, u32); MAX_ACHIEVEMENTS] = [
-    (0, 20, 50),
-    (0, 100, 150),
-    (0, 400, 300),
-    (0, 1_000, 500),
-    (1, 200, 50),
-    (1, 1_000, 150),
-    (1, 4_000, 300),
-    (1, 10_000, 500),
-    (2, 3, 50),
-    (2, 4, 150),
-    (2, 5, 300),
-    (2, 6, 500),
-    (3, 1, 50),
-    (3, 5, 150),
-    (3, 15, 300),
-    (3, 50, 500),
-    (4, 1, 100),
-    (4, 3, 200),
-    (5, 30, 400),
-    (4, 10, 1_000),
-    (6, 1, 50),
-    (6, 7, 150),
-    (6, 30, 300),
-    (6, 100, 500),
+#[derive(Clone, Copy)]
+struct AchievementDefinition {
+    metric: u8,
+    threshold: u64,
+    xp: u32,
+}
+
+const ACHIEVEMENTS: [AchievementDefinition; MAX_ACHIEVEMENTS] = [
+    achievement(0, 20, 300),
+    achievement(0, 100, 900),
+    achievement(0, 400, 1_800),
+    achievement(0, 1_000, 3_000),
+    achievement(1, 200, 300),
+    achievement(1, 1_000, 900),
+    achievement(1, 4_000, 1_800),
+    achievement(1, 10_000, 3_000),
+    achievement(2, 3, 300),
+    achievement(2, 4, 900),
+    achievement(2, 5, 1_800),
+    achievement(2, 6, 3_000),
+    achievement(3, 1, 300),
+    achievement(3, 5, 900),
+    achievement(3, 15, 1_800),
+    achievement(3, 50, 3_000),
+    achievement(4, 1, 600),
+    achievement(4, 3, 1_200),
+    achievement(5, 30, 2_400),
+    achievement(4, 10, 6_000),
+    achievement(6, 1, 300),
+    achievement(6, 7, 900),
+    achievement(6, 30, 1_800),
+    achievement(6, 100, 3_000),
 ];
-const CANONICAL_QUEST_METRICS: [u8; MAX_QUESTS] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const CANONICAL_QUEST_THRESHOLDS: [u32; MAX_QUESTS] = [20, 3, 1, 2, 1, 1, 1, 2, 5, 3, 150, 3];
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct WriteProgressCatalogArgs {
-    pub progress_version: u32,
-    pub achievement_count: u8,
-    pub quest_count: u8,
-    pub achievements: [AchievementRule; MAX_ACHIEVEMENTS],
-    pub quests: [QuestRule; MAX_QUESTS],
-}
-
-#[derive(Accounts)]
-#[instruction(args: WriteProgressCatalogArgs)]
-pub struct WriteProgressCatalogV1<'info> {
-    #[account(
-        mut,
-        has_one = authority @ ErrorCode::Unauthorized,
-        constraint = protocol.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        init,
-        payer = authority,
-        space = 8 + ProgressCatalog::INIT_SPACE,
-        seeds = [PROGRESS_CATALOG_SEED, args.progress_version.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub progress_catalog: Box<Account<'info, ProgressCatalog>>,
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-pub fn handler_write_progress_catalog_v1(
-    ctx: Context<WriteProgressCatalogV1>,
-    args: WriteProgressCatalogArgs,
-) -> Result<()> {
-    require!(!ctx.accounts.protocol.paused, ErrorCode::ProtocolPaused);
-    validate_catalog(&args)?;
-    let initial_activation = catalog_activates_immediately(
-        ctx.accounts.protocol.progress_version,
-        args.progress_version,
-    )?;
-    ctx.accounts.progress_catalog.set_inner(ProgressCatalog {
-        version: ACCOUNT_VERSION_V1,
-        progress_version: args.progress_version,
-        achievement_count: args.achievement_count,
-        quest_count: args.quest_count,
-        achievements: args.achievements,
-        quests: args.quests,
-        bump: ctx.bumps.progress_catalog,
-    });
-    if initial_activation {
-        ctx.accounts.protocol.progress_version = args.progress_version;
+const fn achievement(metric: u8, threshold: u64, xp: u32) -> AchievementDefinition {
+    AchievementDefinition {
+        metric,
+        threshold,
+        xp,
     }
-    emit!(ProgressCatalogPublishedV1 {
-        progress_catalog: ctx.accounts.progress_catalog.key(),
-        progress_version: args.progress_version,
-        publisher: ctx.accounts.authority.key(),
-        activated: initial_activation,
-    });
-    Ok(())
 }
 
-#[event]
-pub struct ProgressCatalogPublishedV1 {
-    pub progress_catalog: Pubkey,
-    pub progress_version: u32,
-    pub publisher: Pubkey,
-    pub activated: bool,
+const QUEST_THRESHOLDS: [u32; MAX_QUESTS] = [20, 3, 1, 2, 1, 1, 1, 2, 5, 3, 150, 3];
+
+#[derive(Clone, Copy)]
+struct QuestDefinition {
+    metric: u8,
+    cadence: u8,
+    rotation_modulus: u8,
+    rotation_remainder: u8,
+    threshold: u32,
+    reward_units: u64,
+}
+
+fn quest_definition(index: usize) -> Result<QuestDefinition> {
+    require!(index < MAX_QUESTS, ErrorCode::InvalidProgressRule);
+    let (cadence, rotation_modulus, rotation_remainder, reward_units) = match index {
+        0..=8 => (0, 3, (index / DAILY_ACTIVE_QUESTS) as u8, 1),
+        DAILY_FINISHER_INDEX => (0, 1, 0, 2),
+        10..=11 => (1, 1, 0, 5),
+        _ => return err!(ErrorCode::InvalidProgressRule),
+    };
+    Ok(QuestDefinition {
+        metric: index as u8,
+        cadence,
+        rotation_modulus,
+        rotation_remainder,
+        threshold: QUEST_THRESHOLDS[index],
+        reward_units,
+    })
 }
 
 #[derive(Accounts)]
-pub struct ClaimAchievementV1<'info> {
+pub struct ClaimAchievement<'info> {
     #[account(
-        constraint = protocol.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused,
-        constraint = protocol.progress_version == progress_catalog.progress_version @ ErrorCode::ContentVersionMismatch
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [PROGRESS_CATALOG_SEED, protocol.progress_version.to_le_bytes().as_ref()],
-        bump = progress_catalog.bump,
-        constraint = progress_catalog.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion
-    )]
-    pub progress_catalog: Box<Account<'info, ProgressCatalog>>,
     #[account(
         mut,
         seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
@@ -132,55 +99,44 @@ pub struct ClaimAchievementV1<'info> {
     pub owner: Signer<'info>,
 }
 
-pub fn handler_claim_achievement_v1(
-    ctx: Context<ClaimAchievementV1>,
+pub fn handler_claim_achievement(
+    ctx: Context<ClaimAchievement>,
     achievement_index: u8,
 ) -> Result<()> {
     let index = usize::from(achievement_index);
-    require!(
-        index < usize::from(ctx.accounts.progress_catalog.achievement_count),
-        ErrorCode::InvalidProgressCatalog
-    );
-    let rule = ctx.accounts.progress_catalog.achievements[index];
-    require!(rule.enabled, ErrorCode::InvalidProgressCatalog);
+    let definition = *ACHIEVEMENTS
+        .get(index)
+        .ok_or(ErrorCode::InvalidProgressRule)?;
     let progress = ctx
         .accounts
         .player_profile
-        .achievement_metric(rule.metric, &ctx.accounts.campaign_progress)
-        .ok_or(ErrorCode::InvalidProgressCatalog)?;
-    let (star_reward, xp_reward) = claim_achievement_once(
+        .achievement_metric(definition.metric, &ctx.accounts.campaign_progress)
+        .ok_or(ErrorCode::InvalidProgressRule)?;
+    claim_achievement_once(
         &mut ctx.accounts.player_profile.achievement_flags,
         index,
         progress,
-        rule,
+        definition,
     )?;
     ctx.accounts
         .player_profile
-        .credit_achievement_rewards(star_reward, xp_reward)?;
-    emit!(AchievementClaimedV1 {
+        .credit_achievement_rewards(0, definition.xp)?;
+    emit!(AchievementClaimed {
         owner: ctx.accounts.owner.key(),
-        progress_version: ctx.accounts.protocol.progress_version,
         achievement_index,
-        star_reward,
-        xp_reward,
+        xp_reward: definition.xp,
     });
     Ok(())
 }
 
 #[derive(Accounts)]
-pub struct ClaimQuestV1<'info> {
+pub struct ClaimQuest<'info> {
     #[account(
-        constraint = protocol.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused,
-        constraint = protocol.progress_version == progress_catalog.progress_version @ ErrorCode::ContentVersionMismatch
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [PROGRESS_CATALOG_SEED, protocol.progress_version.to_le_bytes().as_ref()],
-        bump = progress_catalog.bump,
-        constraint = progress_catalog.version == ACCOUNT_VERSION_V1 @ ErrorCode::InvalidVersion
-    )]
-    pub progress_catalog: Box<Account<'info, ProgressCatalog>>,
     #[account(
         mut,
         seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
@@ -192,33 +148,36 @@ pub struct ClaimQuestV1<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + QuestClaims::INIT_SPACE,
-        seeds = [QUEST_CLAIMS_SEED, owner.key().as_ref(), protocol.progress_version.to_le_bytes().as_ref()],
+        seeds = [QUEST_CLAIMS_SEED, owner.key().as_ref()],
         bump
     )]
     pub quest_claims: Box<Account<'info, QuestClaims>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + WeeklyStipend::INIT_SPACE,
+        seeds = [WEEKLY_STIPEND_SEED, owner.key().as_ref()],
+        bump
+    )]
+    pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_claim_quest_v1(ctx: Context<ClaimQuestV1>, quest_index: u8) -> Result<()> {
+pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<()> {
     let index = usize::from(quest_index);
-    require!(
-        index < usize::from(ctx.accounts.progress_catalog.quest_count),
-        ErrorCode::InvalidProgressCatalog
-    );
-    let rule = ctx.accounts.progress_catalog.quests[index];
-    require!(rule.enabled, ErrorCode::InvalidProgressCatalog);
+    let definition = quest_definition(index)?;
     let now = Clock::get()?.unix_timestamp;
     let day = cadence_day(now);
     let week = cadence_week(now);
     ctx.accounts.player_profile.roll_quest_cadences(now);
+
     let claims = &mut ctx.accounts.quest_claims;
     if claims.version == 0 {
-        claims.version = ACCOUNT_VERSION_V1;
+        claims.version = ACCOUNT_VERSION;
         claims.owner = ctx.accounts.owner.key();
-        claims.progress_version = ctx.accounts.protocol.progress_version;
         claims.daily_cadence_id = day;
         claims.weekly_cadence_id = week;
         claims.daily_claimed = 0;
@@ -230,162 +189,99 @@ pub fn handler_claim_quest_v1(ctx: Context<ClaimQuestV1>, quest_index: u8) -> Re
             ctx.accounts.owner.key(),
             ErrorCode::Unauthorized
         );
-        require!(
-            claims.progress_version == ctx.accounts.protocol.progress_version,
-            ErrorCode::ContentVersionMismatch
-        );
         claims.roll(day, week);
     }
-    let claimed = if rule.cadence == 0 {
+
+    let claimed = if definition.cadence == 0 {
         &mut claims.daily_claimed
     } else {
         &mut claims.weekly_claimed
     };
-    let progress = ctx.accounts.player_profile.quest_counters[usize::from(rule.metric)];
-    let reward = claim_quest_once(claimed, index, day, progress, rule)?;
-    if rule.cadence == 0 && rule.metric != 9 {
+    let progress = ctx.accounts.player_profile.quest_counters[usize::from(definition.metric)];
+    claim_quest_once(claimed, index, day, progress, definition)?;
+
+    if definition.cadence == 0 && definition.metric != 9 {
         ctx.accounts.player_profile.quest_counters[9] = ctx.accounts.player_profile.quest_counters
             [9]
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
-    ctx.accounts.player_profile.credit_stars(reward)?;
-    emit!(QuestClaimedV1 {
-        owner: ctx.accounts.owner.key(),
-        progress_version: ctx.accounts.protocol.progress_version,
-        quest_index,
-        cadence_id: if rule.cadence == 0 { day } else { week },
-        star_reward: reward,
-    });
+
+    let owner = ctx.accounts.owner.key();
+    initialize_or_roll_stipend(
+        &mut ctx.accounts.weekly_stipend,
+        owner,
+        week,
+        ctx.bumps.weekly_stipend,
+    )?;
+    if definition.cadence == 0 {
+        let xp_reward = u32::try_from(
+            definition
+                .reward_units
+                .checked_mul(u64::from(QUEST_XP_PER_LEGACY_STAR))
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+        )
+        .map_err(|_| ErrorCode::ArithmeticOverflow)?;
+        ctx.accounts
+            .player_profile
+            .credit_achievement_rewards(0, xp_reward)?;
+        ctx.accounts
+            .weekly_stipend
+            .record_recurring_xp(week, xp_reward)?;
+        emit_stipend_if_awarded(
+            &mut ctx.accounts.weekly_stipend,
+            &mut ctx.accounts.player_profile,
+        )?;
+        emit!(DailyQuestXpClaimed {
+            owner,
+            quest_index,
+            cadence_id: day,
+            xp_reward,
+        });
+    } else {
+        ctx.accounts
+            .player_profile
+            .credit_stars(definition.reward_units)?;
+        emit!(WeeklyQuestStarsClaimed {
+            owner,
+            quest_index,
+            cadence_id: week,
+            stars: definition.reward_units,
+        });
+    }
     Ok(())
 }
 
-#[event]
-pub struct AchievementClaimedV1 {
-    pub owner: Pubkey,
-    pub progress_version: u32,
-    pub achievement_index: u8,
-    pub star_reward: u64,
-    pub xp_reward: u32,
-}
-
-#[event]
-pub struct QuestClaimedV1 {
-    pub owner: Pubkey,
-    pub progress_version: u32,
-    pub quest_index: u8,
-    pub cadence_id: u32,
-    pub star_reward: u64,
-}
-
-fn validate_catalog(args: &WriteProgressCatalogArgs) -> Result<()> {
-    require!(args.progress_version > 0, ErrorCode::InvalidProgressCatalog);
-    require!(
-        usize::from(args.achievement_count) <= MAX_ACHIEVEMENTS
-            && usize::from(args.quest_count) <= MAX_QUESTS,
-        ErrorCode::InvalidProgressCatalog
-    );
-    require!(
-        usize::from(args.achievement_count) == MAX_ACHIEVEMENTS,
-        ErrorCode::InvalidProgressCatalog
-    );
-    for rule in args
-        .achievements
-        .iter()
-        .take(usize::from(args.achievement_count))
-    {
+pub(crate) fn initialize_or_roll_stipend(
+    stipend: &mut WeeklyStipend,
+    owner: Pubkey,
+    week: u32,
+    bump: u8,
+) -> Result<()> {
+    if stipend.version == 0 {
+        *stipend = WeeklyStipend::initialize(owner, week, bump);
+    } else {
         require!(
-            rule.enabled
-                && rule.metric <= 7
-                && rule.threshold > 0
-                && rule.star_reward <= MAX_PROGRESS_REWARD
-                && rule.xp_reward <= MAX_ACHIEVEMENT_XP_REWARD
-                && (rule.star_reward > 0 || rule.xp_reward > 0),
-            ErrorCode::InvalidProgressCatalog
+            stipend.version == ECONOMY_ACCOUNT_VERSION,
+            ErrorCode::InvalidVersion
         );
+        require_keys_eq!(stipend.owner, owner, ErrorCode::Unauthorized);
+        stipend.roll(week);
     }
-    for (rule, (metric, threshold, xp_reward)) in
-        args.achievements.iter().zip(CANONICAL_ACHIEVEMENTS)
-    {
-        require!(
-            rule.metric == metric
-                && rule.threshold == threshold
-                && rule.star_reward == 0
-                && rule.xp_reward == xp_reward,
-            ErrorCode::InvalidProgressCatalog
-        );
-    }
-    for rule in args.quests.iter().take(usize::from(args.quest_count)) {
-        require!(
-            rule.enabled
-                && usize::from(rule.metric) < MAX_QUEST_COUNTERS
-                && rule.cadence <= 1
-                && rule.rotation_modulus > 0
-                && rule.rotation_remainder < rule.rotation_modulus
-                && (rule.cadence == 0
-                    || (rule.rotation_modulus == 1 && rule.rotation_remainder == 0))
-                && rule.threshold > 0
-                && (1..=MAX_PROGRESS_REWARD).contains(&rule.star_reward),
-            ErrorCode::InvalidProgressCatalog
-        );
-    }
-    validate_repeatable_quest_budget(args)?;
     Ok(())
 }
 
-fn catalog_activates_immediately(current_version: u32, published_version: u32) -> Result<bool> {
-    require!(
-        published_version > current_version && (current_version != 0 || published_version == 1),
-        ErrorCode::InvalidProgressCatalog
-    );
-    Ok(current_version == 0)
-}
-
-fn validate_repeatable_quest_budget(args: &WriteProgressCatalogArgs) -> Result<()> {
-    require!(
-        args.quest_count == ACTIVATION_QUEST_COUNT,
-        ErrorCode::InvalidProgressCatalog
-    );
-    for (index, rule) in args.quests.iter().enumerate() {
-        require!(
-            rule.metric == CANONICAL_QUEST_METRICS[index]
-                && rule.threshold == CANONICAL_QUEST_THRESHOLDS[index],
-            ErrorCode::InvalidProgressCatalog
-        );
-    }
-    for (index, rule) in args.quests.iter().take(DAILY_ROTATING_QUESTS).enumerate() {
-        require!(
-            rule.cadence == 0
-                && rule.metric != 9
-                && rule.rotation_modulus == 3
-                && usize::from(rule.rotation_remainder) == index / DAILY_ACTIVE_QUESTS
-                && rule.star_reward == 1,
-            ErrorCode::InvalidProgressCatalog
-        );
-    }
-    let finisher = args.quests[DAILY_FINISHER_INDEX];
-    require!(
-        finisher.cadence == 0
-            && finisher.metric == 9
-            && finisher.threshold == DAILY_ACTIVE_QUESTS as u32
-            && finisher.rotation_modulus == 1
-            && finisher.rotation_remainder == 0
-            && finisher.star_reward == 2,
-        ErrorCode::InvalidProgressCatalog
-    );
-    for rule in args
-        .quests
-        .iter()
-        .take(usize::from(ACTIVATION_QUEST_COUNT))
-        .skip(DAILY_FINISHER_INDEX + 1)
-    {
-        require!(
-            rule.cadence == 1
-                && rule.rotation_modulus == 1
-                && rule.rotation_remainder == 0
-                && rule.star_reward == 5,
-            ErrorCode::InvalidProgressCatalog
-        );
+pub(crate) fn emit_stipend_if_awarded(
+    stipend: &mut WeeklyStipend,
+    player: &mut PlayerProfile,
+) -> Result<()> {
+    if stipend.maybe_award(player)? {
+        emit!(WeeklyStipendAwarded {
+            owner: stipend.owner,
+            week_id: stipend.week_id,
+            recurring_xp: stipend.recurring_xp,
+            stars: WEEKLY_STIPEND_STARS,
+        });
     }
     Ok(())
 }
@@ -394,14 +290,14 @@ fn claim_achievement_once(
     flags: &mut [u64; 4],
     index: usize,
     progress: u64,
-    rule: AchievementRule,
-) -> Result<(u64, u32)> {
+    definition: AchievementDefinition,
+) -> Result<()> {
     let word = index / 64;
     let mask = 1u64 << (index % 64);
     require!(flags[word] & mask == 0, ErrorCode::RewardAlreadyClaimed);
-    require!(progress >= rule.threshold, ErrorCode::RewardNotEarned);
+    require!(progress >= definition.threshold, ErrorCode::RewardNotEarned);
     flags[word] |= mask;
-    Ok((rule.star_reward, rule.xp_reward))
+    Ok(())
 }
 
 fn claim_quest_once(
@@ -409,19 +305,51 @@ fn claim_quest_once(
     index: usize,
     day: u32,
     progress: u32,
-    rule: QuestRule,
-) -> Result<u64> {
-    if rule.cadence == 0 {
+    definition: QuestDefinition,
+) -> Result<()> {
+    if definition.cadence == 0 {
         require!(
-            day % u32::from(rule.rotation_modulus) == u32::from(rule.rotation_remainder),
+            day % u32::from(definition.rotation_modulus)
+                == u32::from(definition.rotation_remainder),
             ErrorCode::QuestNotActive
         );
     }
     let mask = 1u16 << index;
     require!(*claimed & mask == 0, ErrorCode::RewardAlreadyClaimed);
-    require!(progress >= rule.threshold, ErrorCode::RewardNotEarned);
+    require!(progress >= definition.threshold, ErrorCode::RewardNotEarned);
     *claimed |= mask;
-    Ok(rule.star_reward)
+    Ok(())
+}
+
+#[event]
+pub struct AchievementClaimed {
+    pub owner: Pubkey,
+    pub achievement_index: u8,
+    pub xp_reward: u32,
+}
+
+#[event]
+pub struct DailyQuestXpClaimed {
+    pub owner: Pubkey,
+    pub quest_index: u8,
+    pub cadence_id: u32,
+    pub xp_reward: u32,
+}
+
+#[event]
+pub struct WeeklyQuestStarsClaimed {
+    pub owner: Pubkey,
+    pub quest_index: u8,
+    pub cadence_id: u32,
+    pub stars: u64,
+}
+
+#[event]
+pub struct WeeklyStipendAwarded {
+    pub owner: Pubkey,
+    pub week_id: u32,
+    pub recurring_xp: u32,
+    pub stars: u64,
 }
 
 #[cfg(test)]
@@ -429,154 +357,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_rejects_canonical_reward_or_threshold_drift() {
-        let mut args = activation_catalog();
-        assert!(validate_catalog(&args).is_ok());
-        args.achievements[0].star_reward = 1;
-        assert!(validate_catalog(&args).is_err());
-        args.achievements[0].star_reward = 0;
-        args.achievements[0].xp_reward = 0;
-        assert!(validate_catalog(&args).is_err());
-        args.achievements[0].xp_reward = 50;
-        args.achievements[0].threshold = 21;
-        assert!(validate_catalog(&args).is_err());
-        args.achievements[0].threshold = 20;
-        args.quests[0].star_reward = 0;
-        assert!(validate_catalog(&args).is_err());
-        args.quests[0].star_reward = 1;
-        args.quests[0].star_reward = MAX_PROGRESS_REWARD + 1;
-        assert!(validate_catalog(&args).is_err());
-    }
-
-    #[test]
-    fn repeatable_catalog_is_exactly_five_stars_daily_and_ten_weekly() {
-        let mut args = activation_catalog();
-        assert!(validate_catalog(&args).is_ok());
-        for day in 0..3u32 {
-            let daily: u64 = args.quests[..=DAILY_FINISHER_INDEX]
-                .iter()
-                .filter(|rule| {
-                    day % u32::from(rule.rotation_modulus) == u32::from(rule.rotation_remainder)
-                })
-                .map(|rule| rule.star_reward)
-                .sum();
-            assert_eq!(daily, 5);
-        }
-        let weekly: u64 = args.quests[10..12]
-            .iter()
-            .map(|rule| rule.star_reward)
-            .sum();
-        assert_eq!(weekly, 10);
-        assert_eq!(5 * 7 + weekly, 45);
-
-        args.quests[0].star_reward = 2;
-        assert!(validate_catalog(&args).is_err());
-        args = activation_catalog();
-        args.quests[DAILY_FINISHER_INDEX].threshold = 2;
-        assert!(validate_catalog(&args).is_err());
-        args = activation_catalog();
-        args.quests[3].rotation_remainder = 0;
-        assert!(validate_catalog(&args).is_err());
-        args = activation_catalog();
-        args.quest_count = 11;
-        assert!(validate_catalog(&args).is_err());
-    }
-
-    #[test]
-    fn achievement_reward_is_earned_and_claimed_exactly_once() {
-        let rule = AchievementRule {
-            metric: 0,
-            enabled: true,
-            threshold: 20,
-            star_reward: 0,
-            xp_reward: 50,
-        };
-        let mut flags = [0; 4];
-        assert!(claim_achievement_once(&mut flags, 0, 19, rule).is_err());
+    fn canonical_achievements_total_40_200_xp() {
         assert_eq!(
-            claim_achievement_once(&mut flags, 0, 20, rule).unwrap(),
-            (0, 50)
+            ACHIEVEMENTS
+                .iter()
+                .map(|definition| u64::from(definition.xp))
+                .sum::<u64>(),
+            40_200
         );
-        assert!(claim_achievement_once(&mut flags, 0, 20, rule).is_err());
     }
 
     #[test]
-    fn rotating_quest_is_active_and_claimable_once_per_cadence() {
-        let rule = QuestRule {
-            metric: 0,
-            cadence: 0,
-            rotation_modulus: 3,
-            rotation_remainder: 1,
-            enabled: true,
-            threshold: 20,
-            star_reward: 1,
-        };
-        let mut claimed = 0;
-        assert!(claim_quest_once(&mut claimed, 2, 3, 20, rule).is_err());
-        assert!(claim_quest_once(&mut claimed, 2, 4, 19, rule).is_err());
-        assert_eq!(claim_quest_once(&mut claimed, 2, 4, 20, rule).unwrap(), 1);
-        assert!(claim_quest_once(&mut claimed, 2, 4, 20, rule).is_err());
-    }
-
-    #[test]
-    fn only_the_genesis_catalog_activates_without_governance() {
-        assert!(catalog_activates_immediately(0, 1).unwrap());
-        assert!(!catalog_activates_immediately(1, 2).unwrap());
-        assert!(catalog_activates_immediately(0, 2).is_err());
-        assert!(catalog_activates_immediately(2, 2).is_err());
-        assert!(catalog_activates_immediately(2, 1).is_err());
-    }
-
-    fn activation_catalog() -> WriteProgressCatalogArgs {
-        let mut args = WriteProgressCatalogArgs {
-            progress_version: 1,
-            achievement_count: MAX_ACHIEVEMENTS as u8,
-            quest_count: ACTIVATION_QUEST_COUNT,
-            achievements: [AchievementRule::default(); MAX_ACHIEVEMENTS],
-            quests: [QuestRule::default(); MAX_QUESTS],
-        };
-        for (index, (metric, threshold, xp_reward)) in
-            CANONICAL_ACHIEVEMENTS.into_iter().enumerate()
-        {
-            args.achievements[index] = AchievementRule {
-                metric,
-                enabled: true,
-                threshold,
-                star_reward: 0,
-                xp_reward,
-            };
+    fn canonical_quests_keep_daily_xp_and_weekly_stars() {
+        for index in 0..9 {
+            let quest = quest_definition(index).unwrap();
+            assert_eq!(quest.cadence, 0);
+            assert_eq!(quest.reward_units, 1);
         }
-        for (index, metric) in [0u8, 1, 2, 3, 4, 5, 6, 7, 8].into_iter().enumerate() {
-            args.quests[index] = QuestRule {
-                metric,
-                cadence: 0,
-                rotation_modulus: 3,
-                rotation_remainder: (index / DAILY_ACTIVE_QUESTS) as u8,
-                enabled: true,
-                threshold: CANONICAL_QUEST_THRESHOLDS[index],
-                star_reward: 1,
-            };
+        assert_eq!(quest_definition(9).unwrap().reward_units, 2);
+        for index in 10..12 {
+            let quest = quest_definition(index).unwrap();
+            assert_eq!(quest.cadence, 1);
+            assert_eq!(quest.reward_units, 5);
         }
-        args.quests[DAILY_FINISHER_INDEX] = QuestRule {
-            metric: 9,
-            cadence: 0,
-            rotation_modulus: 1,
-            rotation_remainder: 0,
-            enabled: true,
-            threshold: 3,
-            star_reward: 2,
-        };
-        for (index, metric) in [10u8, 11].into_iter().enumerate() {
-            args.quests[index + DAILY_FINISHER_INDEX + 1] = QuestRule {
-                metric,
-                cadence: 1,
-                rotation_modulus: 1,
-                rotation_remainder: 0,
-                enabled: true,
-                threshold: CANONICAL_QUEST_THRESHOLDS[index + DAILY_FINISHER_INDEX + 1],
-                star_reward: 5,
-            };
-        }
-        args
     }
 }
