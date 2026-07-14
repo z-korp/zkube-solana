@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
+use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, TransferChecked};
 use ephemeral_rollups_sdk::anchor::{action, commit};
 use ephemeral_rollups_sdk::ephem::{CallHandler, FoldableIntentBuilder, MagicIntentBundleBuilder};
 use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
@@ -624,6 +624,7 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
         finalized_at: 0,
         entry_stars: ctx.accounts.economy_config.daily_entry_stars,
         unique_players: 0,
+        closed_players: 0,
         weekly_eligible_players: 0,
         weekly_rollups: 0,
         attempts_started: 0,
@@ -1397,6 +1398,155 @@ pub fn handler_refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> 
 }
 
 #[derive(Accounts)]
+pub struct CloseDailyPlayer<'info> {
+    // No pause check: completed-account rent recovery must remain available.
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        mut,
+        seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
+        bump = daily_challenge.bump
+    )]
+    pub daily_challenge: Box<Account<'info, DailyChallenge>>,
+    #[account(
+        seeds = [WEEKLY_CHALLENGE_SEED, daily_challenge.week_id.to_le_bytes().as_ref()],
+        bump = weekly_challenge.bump,
+        constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState
+    )]
+    pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
+    /// CHECK: Identity pinned by DailyPlayer and its PDA seeds.
+    pub owner: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner.key().as_ref()],
+        bump = daily_player.bump,
+        constraint = daily_player.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId,
+        constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub daily_player: Box<Account<'info, DailyPlayer>>,
+    /// CHECK: Rent destination is pinned to the fee payer that created the account.
+    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> {
+    require!(
+        matches!(
+            ctx.accounts.weekly_challenge.status,
+            WeeklyStatus::Claimable | WeeklyStatus::Closed
+        ),
+        ErrorCode::InvalidState
+    );
+    require!(
+        daily_player_close_allowed(
+            ctx.accounts.daily_challenge.status,
+            ctx.accounts.daily_player.attempts,
+            ctx.accounts.daily_player.finalized_attempts,
+            ctx.accounts.daily_player.best_run_id,
+            ctx.accounts.daily_player.weekly_rolled_up,
+            ctx.accounts.daily_player.star_refunded,
+        ),
+        ErrorCode::InvalidState
+    );
+    ctx.accounts.daily_challenge.closed_players = ctx
+        .accounts
+        .daily_challenge
+        .closed_players
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    require!(
+        ctx.accounts.daily_challenge.closed_players <= ctx.accounts.daily_challenge.unique_players,
+        ErrorCode::AccountingInvariant
+    );
+    emit!(DailyPlayerClosed {
+        challenge: ctx.accounts.daily_challenge.key(),
+        owner: ctx.accounts.owner.key(),
+    });
+    Ok(())
+}
+
+fn daily_player_close_allowed(
+    status: DailyStatus,
+    attempts: u32,
+    finalized_attempts: u32,
+    best_run_id: u64,
+    weekly_rolled_up: bool,
+    star_refunded: bool,
+) -> bool {
+    if attempts != finalized_attempts {
+        return false;
+    }
+    match status {
+        DailyStatus::Claimable => best_run_id == 0 || weekly_rolled_up,
+        DailyStatus::Cancelled => star_refunded,
+        _ => false,
+    }
+}
+
+#[derive(Accounts)]
+pub struct CloseDailyChallenge<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [WEEKLY_CHALLENGE_SEED, daily_challenge.week_id.to_le_bytes().as_ref()],
+        bump = weekly_challenge.bump,
+        constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState
+    )]
+    pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
+    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
+    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
+        bump = daily_challenge.bump
+    )]
+    pub daily_challenge: Box<Account<'info, DailyChallenge>>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [DAILY_LEADERBOARD_SEED, daily_challenge.key().as_ref()],
+        bump = leaderboard.bump,
+        constraint = leaderboard.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
+    )]
+    pub leaderboard: Box<Account<'info, DailyLeaderboard>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Result<()> {
+    require!(
+        matches!(
+            ctx.accounts.daily_challenge.status,
+            DailyStatus::Claimable | DailyStatus::Cancelled
+        ) && matches!(
+            ctx.accounts.weekly_challenge.status,
+            WeeklyStatus::Claimable | WeeklyStatus::Closed
+        ),
+        ErrorCode::InvalidState
+    );
+    require!(
+        ctx.accounts.daily_challenge.closed_players == ctx.accounts.daily_challenge.unique_players,
+        ErrorCode::AccountingInvariant
+    );
+    emit!(DailyChallengeClosed {
+        challenge: ctx.accounts.daily_challenge.key(),
+        day_id: ctx.accounts.daily_challenge.day_id,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
 #[instruction(week_id: u32)]
 pub struct OpenWeeklyChallenge<'info> {
     #[account(
@@ -1508,6 +1658,7 @@ pub fn handler_open_weekly_challenge(
         cash_claimed: 0,
         cash_forfeited: 0,
         participants: 0,
+        closed_players: 0,
         cash_winner_count: 0,
         star_winner_count: 0,
         bump: ctx.bumps.weekly_challenge,
@@ -1997,6 +2148,194 @@ pub fn handler_forfeit_weekly_cash(ctx: Context<ForfeitWeeklyCash>) -> Result<()
     Ok(())
 }
 
+#[derive(Accounts)]
+pub struct CloseWeeklyPlayer<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        mut,
+        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        bump = weekly_challenge.bump
+    )]
+    pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
+    #[account(
+        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        bump = leaderboard.bump,
+        constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
+    )]
+    pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
+    /// CHECK: Identity pinned by WeeklyPlayer and its PDA seeds.
+    pub owner: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
+        bump = weekly_player.bump,
+        constraint = weekly_player.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId,
+        constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
+    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
+    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
+    let rank = ctx.accounts.leaderboard.rank_of(ctx.accounts.owner.key());
+    require!(
+        weekly_player_close_allowed(
+            ctx.accounts.weekly_challenge.status,
+            rank,
+            ctx.accounts.weekly_challenge.cash_winner_count,
+            ctx.accounts.weekly_challenge.star_winner_count,
+            ctx.accounts.weekly_player.cash_claimed,
+            ctx.accounts.weekly_player.stars_claimed,
+        ),
+        ErrorCode::InvalidState
+    );
+    ctx.accounts.weekly_challenge.closed_players = ctx
+        .accounts
+        .weekly_challenge
+        .closed_players
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    require!(
+        ctx.accounts.weekly_challenge.closed_players <= ctx.accounts.weekly_challenge.participants,
+        ErrorCode::AccountingInvariant
+    );
+    emit!(WeeklyPlayerClosed {
+        challenge: ctx.accounts.weekly_challenge.key(),
+        owner: ctx.accounts.owner.key(),
+    });
+    Ok(())
+}
+
+fn weekly_player_close_allowed(
+    status: WeeklyStatus,
+    rank: Option<usize>,
+    cash_winner_count: u8,
+    star_winner_count: u8,
+    cash_claimed: bool,
+    stars_claimed: bool,
+) -> bool {
+    if status == WeeklyStatus::Closed {
+        return true;
+    }
+    if status != WeeklyStatus::Claimable {
+        return false;
+    }
+    let cash_winner = rank.is_some_and(|rank| rank < usize::from(cash_winner_count));
+    let star_limit = usize::from(cash_winner_count) + usize::from(star_winner_count);
+    let star_winner = rank.is_some_and(|rank| rank < star_limit);
+    (!cash_winner || cash_claimed) && (!star_winner || stars_claimed)
+}
+
+#[derive(Accounts)]
+pub struct CloseWeeklyChallenge<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
+    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        bump = weekly_challenge.bump
+    )]
+    pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
+    #[account(
+        mut,
+        close = rent_recipient,
+        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        bump = leaderboard.bump,
+        constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
+    )]
+    pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
+    #[account(address = weekly_challenge.payment_mint)]
+    pub payment_mint: Box<Account<'info, Mint>>,
+    #[account(
+        mut,
+        address = weekly_challenge.payment_vault,
+        token::mint = payment_mint,
+        token::authority = weekly_challenge,
+    )]
+    pub payment_vault: Box<Account<'info, TokenAccount>>,
+    #[account(address = weekly_challenge.payment_token_program)]
+    pub token_program: Program<'info, Token>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Result<()> {
+    require!(
+        ctx.accounts.weekly_challenge.status == WeeklyStatus::Closed,
+        ErrorCode::InvalidState
+    );
+    require!(
+        ctx.accounts.weekly_challenge.closed_players == ctx.accounts.weekly_challenge.participants,
+        ErrorCode::AccountingInvariant
+    );
+    require!(
+        ctx.accounts.payment_vault.amount == 0,
+        ErrorCode::AccountingInvariant
+    );
+    validate_closed_weekly_dailies(
+        ctx.accounts.weekly_challenge.week_id,
+        ctx.remaining_accounts,
+    )?;
+
+    let week_id = ctx.accounts.weekly_challenge.week_id.to_le_bytes();
+    let bump = [ctx.accounts.weekly_challenge.bump];
+    let signer: &[&[u8]] = &[WEEKLY_CHALLENGE_SEED, &week_id, &bump];
+    token::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.key(),
+        CloseAccount {
+            account: ctx.accounts.payment_vault.to_account_info(),
+            destination: ctx.accounts.rent_recipient.to_account_info(),
+            authority: ctx.accounts.weekly_challenge.to_account_info(),
+        },
+        &[signer],
+    ))?;
+    emit!(WeeklyChallengeClosed {
+        challenge: ctx.accounts.weekly_challenge.key(),
+        week_id: ctx.accounts.weekly_challenge.week_id,
+    });
+    Ok(())
+}
+
+fn validate_closed_weekly_dailies(week_id: u32, daily_accounts: &[AccountInfo<'_>]) -> Result<()> {
+    require!(
+        daily_accounts.len() == WEEKLY_DAILY_RESULTS,
+        ErrorCode::InvalidState
+    );
+    let start_day = week_id
+        .checked_mul(7)
+        .and_then(|day| day.checked_sub(3))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    for (offset, account) in daily_accounts.iter().enumerate() {
+        let day_id = start_day
+            .checked_add(u32::try_from(offset).map_err(|_| ErrorCode::ArithmeticOverflow)?)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let (expected, _) = Pubkey::find_program_address(
+            &[DAILY_CHALLENGE_SEED, &day_id.to_le_bytes()],
+            &crate::ID,
+        );
+        require_keys_eq!(account.key(), expected, ErrorCode::InvalidRunId);
+        require!(account.data_is_empty(), ErrorCode::InvalidState);
+        require_keys_eq!(*account.owner, system_program::ID, ErrorCode::InvalidOwner);
+    }
+    Ok(())
+}
+
 fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
     require!(
         args.rules_version > 0
@@ -2180,6 +2519,18 @@ pub struct DailyFinalized {
 }
 
 #[event]
+pub struct DailyPlayerClosed {
+    pub challenge: Pubkey,
+    pub owner: Pubkey,
+}
+
+#[event]
+pub struct DailyChallengeClosed {
+    pub challenge: Pubkey,
+    pub day_id: u32,
+}
+
+#[event]
 pub struct WeeklyOpened {
     pub challenge: Pubkey,
     pub week_id: u32,
@@ -2227,6 +2578,18 @@ pub struct WeeklyCashForfeited {
     pub amount: u64,
 }
 
+#[event]
+pub struct WeeklyPlayerClosed {
+    pub challenge: Pubkey,
+    pub owner: Pubkey,
+}
+
+#[event]
+pub struct WeeklyChallengeClosed {
+    pub challenge: Pubkey,
+    pub week_id: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2268,5 +2631,117 @@ mod tests {
         assert!(daily_rollups_complete(&DailyStatus::Cancelled, 7, 0));
         assert!(!daily_rollups_complete(&DailyStatus::Cancelled, 7, 1));
         assert!(!daily_rollups_complete(&DailyStatus::Open, 0, 0));
+    }
+
+    #[test]
+    fn daily_cleanup_preserves_rollups_and_cancelled_refunds() {
+        assert!(daily_player_close_allowed(
+            DailyStatus::Claimable,
+            1,
+            1,
+            0,
+            false,
+            false
+        ));
+        assert!(!daily_player_close_allowed(
+            DailyStatus::Claimable,
+            1,
+            1,
+            7,
+            false,
+            false
+        ));
+        assert!(daily_player_close_allowed(
+            DailyStatus::Claimable,
+            1,
+            1,
+            7,
+            true,
+            false
+        ));
+        assert!(!daily_player_close_allowed(
+            DailyStatus::Cancelled,
+            1,
+            1,
+            7,
+            false,
+            false
+        ));
+        assert!(daily_player_close_allowed(
+            DailyStatus::Cancelled,
+            1,
+            1,
+            7,
+            false,
+            true
+        ));
+        assert!(!daily_player_close_allowed(
+            DailyStatus::Open,
+            1,
+            1,
+            0,
+            false,
+            true
+        ));
+        assert!(!daily_player_close_allowed(
+            DailyStatus::Claimable,
+            2,
+            1,
+            7,
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn weekly_cleanup_preserves_each_unclaimed_prize() {
+        assert!(!weekly_player_close_allowed(
+            WeeklyStatus::Open,
+            None,
+            3,
+            5,
+            true,
+            true,
+        ));
+        assert!(weekly_player_close_allowed(
+            WeeklyStatus::Claimable,
+            None,
+            3,
+            5,
+            false,
+            false,
+        ));
+        assert!(!weekly_player_close_allowed(
+            WeeklyStatus::Claimable,
+            Some(0),
+            3,
+            5,
+            false,
+            true,
+        ));
+        assert!(!weekly_player_close_allowed(
+            WeeklyStatus::Claimable,
+            Some(0),
+            3,
+            5,
+            true,
+            false,
+        ));
+        assert!(weekly_player_close_allowed(
+            WeeklyStatus::Claimable,
+            Some(0),
+            3,
+            5,
+            true,
+            true,
+        ));
+        assert!(weekly_player_close_allowed(
+            WeeklyStatus::Closed,
+            Some(0),
+            3,
+            5,
+            false,
+            false,
+        ));
     }
 }

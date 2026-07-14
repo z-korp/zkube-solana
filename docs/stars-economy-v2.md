@@ -188,10 +188,12 @@ the program-owned reward reserve remains pinned.
 The pricing operator can change only regular pack prices/enabled flags and the
 single sale schedule.
 
-The browser automatically attempts permissionless Daily/Weekly opens and
-finalizers, rolls Daily results, refunds cancelled entries, and returns expired
-Weekly cash. Operations still need a complete indexer/keeper because no browser
-is guaranteed to remain online.
+The five-minute server keeper is the primary cadence reconciler: it opens and
+finalizes Daily/Weekly challenges, rolls every eligible Daily result, returns
+expired Weekly cash, and reclaims completed account rent. The browser retains
+the same permissionless maintenance as a fallback. Owner-only Weekly claims
+and cancelled-Daily refunds are scanned across all outstanding records and
+signed silently by the embedded identity on the player's next visit.
 
 ## Fresh Devnet rollout
 

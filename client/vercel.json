@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
@@ -6,6 +7,9 @@
   "functions": {
     "api/paymaster.ts": {
       "maxDuration": 30
+    },
+    "api/keeper.ts": {
+      "maxDuration": 240
     }
   },
   "rewrites": [
@@ -20,6 +24,12 @@
           "value": "frame-ancestors 'self' http://localhost:3000 http://localhost:3001 https://*.vercel.app"
         }
       ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/keeper",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

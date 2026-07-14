@@ -17,6 +17,7 @@ import {
   buildRollupDailyPlan,
   currentWeeklyId,
   fetchPendingDailyRollupOwners,
+  fetchOwnerClaimableWeeklyIds,
   fetchWeeklyView,
   type WeeklyView,
 } from "./weeklyClient";
@@ -131,7 +132,7 @@ export function useWeeklyController() {
       }
       await daily.refresh();
       if (weekId > 0) {
-        let previous = await fetchWeeklyView({
+        const previous = await fetchWeeklyView({
           connection,
           wallet,
           weekId: weekId - 1,
@@ -203,51 +204,56 @@ export function useWeeklyController() {
             paymaster,
           });
           await connection.confirmTransaction(signature, "confirmed");
-          previous = await fetchWeeklyView({
-            connection,
-            wallet,
-            weekId: weekId - 1,
-          });
         }
-        if (previous?.status === "claimable" && previous.player) {
-          const rank = previous.leaderboard.findIndex((entry) =>
-            entry.player.equals(wallet.publicKey),
-          );
-          const cashWinner = rank >= 0 && rank < previous.cashWinnerCount;
-          const starWinner =
-            rank >= 0 &&
-            rank < previous.cashWinnerCount + previous.starWinnerCount;
-          const transactionPlans = [];
-          // Claims are deliberately separate. Stars settle first so a cash
-          // transfer failure can never strand the winner's participation budget.
-          if (starWinner && !previous.player.starsClaimed) {
-            transactionPlans.push(
-              await buildClaimWeeklyStarsPlan({
-                  connection,
-                  wallet,
-                  weekly: previous,
-                  paymaster: paymaster.pubkey,
-                }),
-            );
-          }
-          if (cashWinner && !previous.player.cashClaimed) {
-            transactionPlans.push(
-              await buildClaimWeeklyCashPlan({
-                connection,
-                wallet,
-                weekly: previous,
-                paymaster: paymaster.pubkey,
-              }),
-            );
-          }
-          for (const transactionPlan of transactionPlans) {
-            const signature = await submitSponsoredTransactionPlan({
-              transactionPlan,
+      }
+      const claimableWeekIds = await fetchOwnerClaimableWeeklyIds({
+        connection,
+        wallet,
+      });
+      for (const claimableWeekId of claimableWeekIds.slice(0, 4)) {
+        const claimable = await fetchWeeklyView({
+          connection,
+          wallet,
+          weekId: claimableWeekId,
+        });
+        if (claimable?.status !== "claimable" || !claimable.player) continue;
+        const rank = claimable.leaderboard.findIndex((entry) =>
+          entry.player.equals(wallet.publicKey),
+        );
+        const cashWinner = rank >= 0 && rank < claimable.cashWinnerCount;
+        const starWinner =
+          rank >= 0 && rank < claimable.cashWinnerCount + claimable.starWinnerCount;
+        const transactionPlans = [];
+        // Stars settle first so a cash transfer failure cannot strand the
+        // participation budget. Every still-claimable owner week is scanned,
+        // not only the immediately previous cadence.
+        if (starWinner && !claimable.player.starsClaimed) {
+          transactionPlans.push(
+            await buildClaimWeeklyStarsPlan({
+              connection,
               wallet,
-              paymaster,
-            });
-            await connection.confirmTransaction(signature, "confirmed");
-          }
+              weekly: claimable,
+              paymaster: paymaster.pubkey,
+            }),
+          );
+        }
+        if (cashWinner && !claimable.player.cashClaimed) {
+          transactionPlans.push(
+            await buildClaimWeeklyCashPlan({
+              connection,
+              wallet,
+              weekly: claimable,
+              paymaster: paymaster.pubkey,
+            }),
+          );
+        }
+        for (const transactionPlan of transactionPlans) {
+          const signature = await submitSponsoredTransactionPlan({
+            transactionPlan,
+            wallet,
+            paymaster,
+          });
+          await connection.confirmTransaction(signature, "confirmed");
         }
       }
       // A week reaches its 90-day claim deadline roughly fourteen cadence

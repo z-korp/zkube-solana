@@ -988,6 +988,250 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "closeDailyChallenge",
+      "discriminator": [
+        52,
+        152,
+        153,
+        153,
+        162,
+        13,
+        187,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyChallenge",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.week_id",
+                "account": "dailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "writable": true
+        },
+        {
+          "name": "dailyChallenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.day_id",
+                "account": "dailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "dailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeDailyPlayer",
+      "discriminator": [
+        242,
+        245,
+        165,
+        74,
+        209,
+        162,
+        36,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "dailyChallenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.day_id",
+                "account": "dailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyChallenge",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.week_id",
+                "account": "dailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "dailyPlayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "dailyChallenge"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "closeSettledActiveRun",
       "discriminator": [
         156,
@@ -1134,6 +1378,247 @@ export type Solana = {
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "closeWeeklyChallenge",
+      "discriminator": [
+        35,
+        240,
+        187,
+        33,
+        13,
+        224,
+        94,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "writable": true
+        },
+        {
+          "name": "weeklyChallenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge.week_id",
+                "account": "weeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "paymentMint"
+        },
+        {
+          "name": "paymentVault",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeWeeklyPlayer",
+      "discriminator": [
+        51,
+        43,
+        88,
+        88,
+        15,
+        27,
+        82,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyChallenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge.week_id",
+                "account": "weeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "weeklyPlayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weeklyChallenge"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "commitDailyRun",
@@ -3834,6 +4319,56 @@ export type Solana = {
       ]
     },
     {
+      "name": "resetLegacyDevnetState",
+      "discriminator": [
+        58,
+        229,
+        90,
+        143,
+        3,
+        202,
+        213,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "legacyProtocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rentRecipient",
+          "writable": true
+        },
+        {
+          "name": "legacyAuthority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "closeProtocol",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "rollupDailyToWeekly",
       "discriminator": [
         129,
@@ -4873,6 +5408,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "dailyChallengeClosed",
+      "discriminator": [
+        89,
+        123,
+        217,
+        83,
+        251,
+        72,
+        152,
+        168
+      ]
+    },
+    {
       "name": "dailyEntered",
       "discriminator": [
         168,
@@ -4909,6 +5457,19 @@ export type Solana = {
         32,
         132,
         253
+      ]
+    },
+    {
+      "name": "dailyPlayerClosed",
+      "discriminator": [
+        6,
+        161,
+        25,
+        240,
+        133,
+        170,
+        200,
+        91
       ]
     },
     {
@@ -5013,6 +5574,19 @@ export type Solana = {
         76,
         12,
         122
+      ]
+    },
+    {
+      "name": "legacyDevnetStateReset",
+      "discriminator": [
+        3,
+        41,
+        244,
+        227,
+        42,
+        188,
+        172,
+        65
       ]
     },
     {
@@ -5146,6 +5720,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "weeklyChallengeClosed",
+      "discriminator": [
+        191,
+        140,
+        107,
+        247,
+        95,
+        40,
+        23,
+        151
+      ]
+    },
+    {
       "name": "weeklyFinalized",
       "discriminator": [
         55,
@@ -5169,6 +5756,19 @@ export type Solana = {
         201,
         62,
         61
+      ]
+    },
+    {
+      "name": "weeklyPlayerClosed",
+      "discriminator": [
+        134,
+        88,
+        30,
+        43,
+        46,
+        109,
+        102,
+        5
       ]
     },
     {
@@ -6016,6 +6616,13 @@ export type Solana = {
             "type": "u32"
           },
           {
+            "name": "closedPlayers",
+            "docs": [
+              "Number of DailyPlayer records whose rent has returned to the paymaster."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "weeklyEligiblePlayers",
             "type": "u32"
           },
@@ -6034,6 +6641,22 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dailyChallengeClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "dayId",
+            "type": "u32"
           }
         ]
       }
@@ -6269,6 +6892,22 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dailyPlayerClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
           }
         ]
       }
@@ -6812,6 +7451,26 @@ export type Solana = {
           {
             "name": "contentVersion",
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "legacyDevnetStateReset",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "accountCount",
+            "type": "u16"
+          },
+          {
+            "name": "reclaimedLamports",
+            "type": "u64"
+          },
+          {
+            "name": "protocolClosed",
+            "type": "bool"
           }
         ]
       }
@@ -8000,6 +8659,13 @@ export type Solana = {
             "type": "u32"
           },
           {
+            "name": "closedPlayers",
+            "docs": [
+              "Number of WeeklyPlayer records whose rent has returned to the paymaster."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "cashWinnerCount",
             "type": "u8"
           },
@@ -8010,6 +8676,22 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "weeklyChallengeClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "weekId",
+            "type": "u32"
           }
         ]
       }
@@ -8181,6 +8863,22 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "weeklyPlayerClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
           }
         ]
       }

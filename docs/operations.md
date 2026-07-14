@@ -20,10 +20,9 @@ for the exact instructions, accounts, signers, cluster, and maximum spend.
 | Token program | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
 
 `STATUS.md` is authoritative for the live slot, deployed hash, allocation, and
-the difference between live Devnet and repository source. The current live
-binary uses the older account model. The lean Stars source is a breaking
-candidate and must never be described as deployed until byte verification is
-complete.
+bootstrap fingerprints. The lean Stars binary and fresh account generation are
+live on Devnet. A later local build is still only a candidate until its exact
+bytes are separately approved and verified after deployment.
 
 ## Target custody model
 
@@ -83,17 +82,34 @@ cd client
 NO_DNA=1 pnpm chain:devnet:bootstrap
 ```
 
-The target stages are:
+The stages are deliberately separate so every state-changing batch has its own
+simulation and approval fingerprint:
 
 1. custody: create/verify team, treasury, and reward token accounts and fund the
    SOL paymaster;
 2. protocol: initialize the lean `ProtocolConfig` with authority, pricing
    operator, paymaster, destinations, USDC identity, and content version;
-3. catalogs: initialize `EconomyConfig`/`StarSalesLedger`, publish Daily rules,
-   publish ten gameplay-only map catalogs, then activate the contiguous map
-   range. On a reset, publication and activation intentionally appear as two
-   dry-run fingerprints: rerun the catalogs preview after publication so the
-   compact activation batch can be simulated against accounts that now exist.
+3. economy: initialize `EconomyConfig` and `StarSalesLedger`;
+4. daily-rules: publish the immutable Daily scoring catalog;
+5. maps: publish the ten gameplay-only map catalogs;
+6. activation: activate the contiguous map range only after all map accounts
+   have been fetched and validated.
+
+Select one with `ZKUBE_BOOTSTRAP_STAGE=<stage>`. Never combine approvals across
+stages. The bootstrap is idempotent: an already complete stage verifies live
+state and produces no transaction.
+
+The one-time Devnet reset tool is separately dry-run-first:
+
+```bash
+cd client
+NO_DNA=1 pnpm chain:devnet:reset
+```
+
+It snapshots every candidate account and data hash, accepts at most sixteen
+program-owned accounts per batch, and is usable only while the exact legacy
+433-byte `ProtocolConfig` exists under the expected authority/paymaster. Closing
+that config disables the instruction permanently for the fresh generation.
 
 Repository source intentionally has no migration-delta or compatibility path.
 Existing Devnet accounts may be abandoned/reset, but an upgrade and each
@@ -131,17 +147,47 @@ the client/player signature, stateless allowlist validation, cluster check, and
 simulation. It rejects Compute Budget instructions and arbitrary system/token
 transfers.
 
+`api/keeper.ts` is the primary cadence reconciler. `vercel.json` invokes it
+every five minutes in production, caps the function at 240 seconds, and the
+keeper stops scheduling new writes after 210 seconds. Set these server-only
+values before enabling it:
+
+- `CRON_SECRET` — random value of at least 16 characters; Vercel supplies it as
+  `Authorization: Bearer ...` and the route compares it in constant time;
+- `KEEPER_SECRET_KEY` and `ZKUBE_KEEPER_PUBLIC_KEY` — a dedicated identity for
+  permissionless instructions, never the paymaster or governance key;
+- `KEEPER_MAX_WRITES=8` — bounded writes/pass, hard-capped at 16;
+- `MIN_PAYMASTER_LAMPORTS=1500000000` — readiness floor;
+- `KEEPER_ENABLED=true` — set last, only after the lean program/bootstrap is
+  live and all preceding identities match.
+
+Vercel cron delivery is best effort, can be duplicated, and is not retried on
+failure. The keeper therefore discovers work from current chain state on every
+pass; all writes use on-chain one-way transitions and counters. A later pass
+catches a missed invocation. A concurrent duplicate either shares the same
+transaction or loses an on-chain state race without duplicating rewards.
+`KEEPER_ENABLED` defaults to false, so deploying this source before the lean
+program rollout cannot mutate the older live account model.
+
+Normal operation needs no publication or operator transaction. The keeper
+opens the current Daily/Weekly, finalizes elapsed challenges, completes all
+Daily rollups, forfeits expired cash to the reward reserve, and reclaims rent.
+Weekly winner claims and cancelled-Daily refunds are owner-signed silently on
+the next client visit; their accounts remain intact until claim/refund or
+expiry. Publishing a new Daily rules catalog remains an explicitly approved
+content/governance action and is not part of routine cadence.
+
 ## Readiness and monitoring
 
-Run the signer-free probe with a meaningful paymaster threshold:
+Run the signer-free probe. The default low-balance floor is 1.5 SOL and can be
+overridden explicitly:
 
 ```bash
 cd client
 NO_DNA=1 pnpm chain:readiness -- \
   --rpc https://rpc.magicblock.app/devnet \
   --expected-genesis EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG \
-  --lookback-days 120 \
-  --min-paymaster-lamports <threshold>
+  --lookback-days 120
 ```
 
 The probe validates program identity, `ProtocolConfig`, `StarSalesLedger`, all
@@ -149,6 +195,52 @@ three token destinations, sale conservation, pause/pending-authority state,
 paymaster SOL, Daily PDA/leaderboard relationships, time windows,
 attempt/finalization counters, unique/eligible-player counters, and Weekly
 rollup completion.
+
+The report also projects reclaimable rent working capital for fresh cohorts of
+1, 10, 25, and 100 active players. The model retains seven Dailies, one active
+Weekly player set, thirteen Weekly aggregates/cash-winner sets, the observed
+fresh-player durable cost, and 20% contingency:
+
+| Fresh active players | Recommended minimum |
+| ---: | ---: |
+| 1 | 0.740649216 SOL |
+| 10 | 0.994285920 SOL |
+| 25 | 1.417013760 SOL |
+| 100 | 3.530652960 SOL |
+
+These are working-capital scenarios, not a promise of DAU or a permanent cost:
+eligible contest rent returns to the paymaster. The 1.5 SOL floor is the first
+operating target for the 25-player scenario; revisit it using measured account
+mix and claim latency.
+
+Generate an actual Devnet payer-cost sample without a signer:
+
+```bash
+cd client
+NO_DNA=1 pnpm chain:devnet:cost-report -- --limit 100
+```
+
+The JSON groups transactions by current-IDL operation and reports base fees,
+paymaster net delta, rent/escrow outflow, and rent refunds. Historical
+instructions that do not match the current IDL are deliberately labeled
+`magicblock_or_system`; do not invent a classification from account position.
+
+Runtime logs are newline JSON with `schemaVersion: 1`:
+
+- `run_metric`: one browser trace across Solana base, Router resolution,
+  resolved ER, VRF request/callback, commit/undelegate, Magic Action copyback,
+  and final base cleanup; includes durations, endpoints, and signatures;
+- `paymaster_request`: policy/simulation/submission outcome, sponsored
+  operation, units consumed, duration, and submitted signature;
+- `keeper_readiness`, `keeper_operation`, and `keeper_pass`: reserve status,
+  per-transition duration/signature, bounded writes, failures, and backlog.
+
+Filter a complete flow by browser `traceId`, then correlate browser and server
+events by transaction signature. Never put recovery material, signer bytes,
+raw transaction payloads, RPC credentials, or environment values in logs.
+Compare actual settlement cost with MagicBlock's current public-node pricing;
+their published model charges at session close/commit rather than for each ER
+move: <https://docs.magicblock.gg/pages/overview/additional-information/pricing>.
 
 Production monitoring should additionally index Weekly challenges and alert on:
 

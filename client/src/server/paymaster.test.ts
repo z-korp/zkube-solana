@@ -86,6 +86,7 @@ describe("paymaster policy", () => {
         keypair: Keypair.generate(),
         connection: {} as Connection,
         now: () => 1_000,
+        requestId: () => "request-1",
         telemetry,
       },
     );
@@ -94,7 +95,10 @@ describe("paymaster policy", () => {
       body: { error: "missing transaction" },
     });
     expect(telemetry).toHaveBeenCalledWith({
+      schemaVersion: 1,
       event: "paymaster_request",
+      traceId: "request-1",
+      layer: "solana-base",
       method: "POST",
       status: 400,
       outcome: "payload_missing",
@@ -428,6 +432,10 @@ describe("paymaster policy", () => {
     expect(result).toEqual({
       status: 200,
       body: { signature: "devnet-signature" },
+      telemetry: {
+        operation: "initializePlayer",
+        signature: "devnet-signature",
+      },
     });
     expect(simulateTransaction).toHaveBeenCalledOnce();
     expect(sendRawTransaction).toHaveBeenCalledOnce();

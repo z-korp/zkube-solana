@@ -982,6 +982,250 @@
       "args": []
     },
     {
+      "name": "close_daily_challenge",
+      "discriminator": [
+        52,
+        152,
+        153,
+        153,
+        162,
+        13,
+        187,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_challenge",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.week_id",
+                "account": "DailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
+          "name": "daily_challenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.day_id",
+                "account": "DailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_daily_player",
+      "discriminator": [
+        242,
+        245,
+        165,
+        74,
+        209,
+        162,
+        36,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_challenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.day_id",
+                "account": "DailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_challenge",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge.week_id",
+                "account": "DailyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "daily_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "daily_challenge"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "close_settled_active_run",
       "discriminator": [
         156,
@@ -1128,6 +1372,247 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "close_weekly_challenge",
+      "discriminator": [
+        35,
+        240,
+        187,
+        33,
+        13,
+        224,
+        94,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
+          "name": "weekly_challenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge.week_id",
+                "account": "WeeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payment_mint"
+        },
+        {
+          "name": "payment_vault",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_weekly_player",
+      "discriminator": [
+        51,
+        43,
+        88,
+        88,
+        15,
+        27,
+        82,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_challenge",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge.week_id",
+                "account": "WeeklyChallenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "leaderboard",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "weekly_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_challenge"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "commit_daily_run",
@@ -3828,6 +4313,56 @@
       ]
     },
     {
+      "name": "reset_legacy_devnet_state",
+      "discriminator": [
+        58,
+        229,
+        90,
+        143,
+        3,
+        202,
+        213,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "legacy_protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
+          "name": "legacy_authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "close_protocol",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "rollup_daily_to_weekly",
       "discriminator": [
         129,
@@ -4867,6 +5402,19 @@
       ]
     },
     {
+      "name": "DailyChallengeClosed",
+      "discriminator": [
+        89,
+        123,
+        217,
+        83,
+        251,
+        72,
+        152,
+        168
+      ]
+    },
+    {
       "name": "DailyEntered",
       "discriminator": [
         168,
@@ -4903,6 +5451,19 @@
         32,
         132,
         253
+      ]
+    },
+    {
+      "name": "DailyPlayerClosed",
+      "discriminator": [
+        6,
+        161,
+        25,
+        240,
+        133,
+        170,
+        200,
+        91
       ]
     },
     {
@@ -5007,6 +5568,19 @@
         76,
         12,
         122
+      ]
+    },
+    {
+      "name": "LegacyDevnetStateReset",
+      "discriminator": [
+        3,
+        41,
+        244,
+        227,
+        42,
+        188,
+        172,
+        65
       ]
     },
     {
@@ -5140,6 +5714,19 @@
       ]
     },
     {
+      "name": "WeeklyChallengeClosed",
+      "discriminator": [
+        191,
+        140,
+        107,
+        247,
+        95,
+        40,
+        23,
+        151
+      ]
+    },
+    {
       "name": "WeeklyFinalized",
       "discriminator": [
         55,
@@ -5163,6 +5750,19 @@
         201,
         62,
         61
+      ]
+    },
+    {
+      "name": "WeeklyPlayerClosed",
+      "discriminator": [
+        134,
+        88,
+        30,
+        43,
+        46,
+        109,
+        102,
+        5
       ]
     },
     {
@@ -6010,6 +6610,13 @@
             "type": "u32"
           },
           {
+            "name": "closed_players",
+            "docs": [
+              "Number of DailyPlayer records whose rent has returned to the paymaster."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "weekly_eligible_players",
             "type": "u32"
           },
@@ -6028,6 +6635,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DailyChallengeClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "day_id",
+            "type": "u32"
           }
         ]
       }
@@ -6263,6 +6886,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DailyPlayerClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
           }
         ]
       }
@@ -6806,6 +7445,26 @@
           {
             "name": "content_version",
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LegacyDevnetStateReset",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "account_count",
+            "type": "u16"
+          },
+          {
+            "name": "reclaimed_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_closed",
+            "type": "bool"
           }
         ]
       }
@@ -7994,6 +8653,13 @@
             "type": "u32"
           },
           {
+            "name": "closed_players",
+            "docs": [
+              "Number of WeeklyPlayer records whose rent has returned to the paymaster."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "cash_winner_count",
             "type": "u8"
           },
@@ -8004,6 +8670,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WeeklyChallengeClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "week_id",
+            "type": "u32"
           }
         ]
       }
@@ -8175,6 +8857,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WeeklyPlayerClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
           }
         ]
       }

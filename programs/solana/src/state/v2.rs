@@ -24,6 +24,8 @@ pub const MAX_QUESTS: usize = 12;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
 pub const DAILY_FINISHER_INDEX: usize = 9;
 pub const BLOCK_QUEST_COUNTERS: [usize; 4] = [7, 12, 13, 14];
+/// Separates fresh Stars-baseline run PDAs from abandoned pre-reset Devnet runs.
+pub const INITIAL_RUN_ID: u64 = 2u64 << 32;
 
 #[account]
 #[derive(InitSpace)]
@@ -81,7 +83,7 @@ impl PlayerProfile {
             stars_balance: 0,
             lifetime_stars_earned: 0,
             lifetime_stars_spent: 0,
-            next_run_id: 1,
+            next_run_id: INITIAL_RUN_ID,
             daily_eligible: false,
             achievement_flags: [0; 4],
             lifetime_xp: 0,

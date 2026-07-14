@@ -51,6 +51,7 @@ per-player projections are in [stars-economy-v2.md](stars-economy-v2.md).
 | MagicBlock ER | One delegated `ActiveRun`: grid, moves, bonuses, score/combo, VRF state, and commitment chains |
 | Browser | Decode/render state and orchestrate automatic transactions; never invent game or reward results |
 | Paymaster | Validate an allowlisted complete message off-chain, co-sign as fee payer, simulate, and submit |
+| Keeper | Reconcile permissionless cadence, rollups, expiry, and rent recovery on a bounded schedule |
 | Index/monitoring | Non-authoritative history, alerts, pagination, and analytics |
 
 The paymaster has no on-chain allowance PDA or quota state. Its server policy
@@ -87,6 +88,16 @@ policy, or yield adapter in the program. Changes use explicit instructions:
 pause/unpause, propose/accept authority, set pricing operator, and update the
 external team/treasury destinations while paused. Any external treasury investment or yield strategy
 is outside this program and cannot touch active reward liabilities.
+
+Completed contest accounts are explicitly recyclable. A Daily player record
+can close only after all attempts durably settle and its Weekly rollup (or its
+cancelled-entry refund), and the
+Daily challenge/leaderboard close only after every player record closes. A
+Weekly non-winner can close at finalization; a winner remains until every
+applicable Star/USDC claim is complete or the 90-day window closes. The Weekly
+vault and aggregate accounts close only after the vault is empty, all player
+records and all seven Daily aggregates are gone, and rent always returns to
+`ProtocolConfig.paymaster`.
 
 The active Campaign map count advances only one map at a time and only after
 that enabled catalog is published. This prevents holes in the client-visible
@@ -143,6 +154,23 @@ conservation equations.
 Quit marks a nonterminal run abandoned with zero rewards, then follows the same
 automatic commit, receipt, and cleanup path. Gameplay is not approval-gated in
 the shipped client.
+
+## Autonomous cadence and owner claims
+
+The source includes a Vercel cron route scheduled every five minutes. Each pass
+scans authoritative PDAs and reconciles missing current Daily/Weekly opens,
+due Daily finalizers, outstanding Daily-to-Weekly rollups, due Weekly
+finalizers, expired cash, and every eligible cleanup. It is bounded to eight
+writes and 210 seconds by default. Every transition is permissionless,
+state-checked, and idempotent, so the next pass catches missed delivery and
+duplicate delivery cannot double-award or double-close. Browser maintenance
+remains a fallback, not the cadence authority.
+
+Weekly cash/Star claims and cancelled-Daily refunds still require the embedded
+owner identity. The client scans all outstanding owner records and signs up to
+four silent claims/refunds on each visit; there is no claim button or operator
+step. Claim-bearing accounts remain open until that succeeds or the applicable
+claim window expires.
 
 ## Routing, decoding, and randomness invariants
 

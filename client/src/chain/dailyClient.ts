@@ -19,6 +19,7 @@ import {
   deriveProtocolConfigPda,
   deriveRunAddresses,
   deriveWeeklyStipendPda,
+  deriveWeeklyChallengePda,
 } from "./pdas";
 import { fetchEconomyRuntime } from "./economyClient";
 import {
@@ -142,6 +143,7 @@ export interface DailyView extends DailyGameRulesView {
   finalizedAt: number;
   starEntryCost: bigint;
   uniquePlayers: number;
+  closedPlayers: number;
   weeklyEligiblePlayers: number;
   weeklyRollups: number;
   attemptsStarted: bigint;
@@ -257,6 +259,7 @@ export async function fetchDailyView(args: {
     finalizedAt: Number(challenge.finalizedAt),
     starEntryCost: asBigInt(challenge.entryStars),
     uniquePlayers: Number(challenge.uniquePlayers),
+    closedPlayers: Number(challenge.closedPlayers),
     weeklyEligiblePlayers: Number(challenge.weeklyEligiblePlayers),
     weeklyRollups: Number(challenge.weeklyRollups),
     attemptsStarted: asBigInt(challenge.attemptsStarted),
@@ -429,6 +432,171 @@ export async function buildRefundDailyEntryPlan(args: {
     args.paymaster ?? owner,
     [instruction],
   );
+}
+
+export interface DailyPlayerRecord {
+  address: PublicKey;
+  owner: PublicKey;
+  attempts: number;
+  finalizedAttempts: number;
+  bestRunId: bigint;
+  weeklyRolledUp: boolean;
+  starRefunded: boolean;
+}
+
+export async function fetchDailyPlayerRecords(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  daily: DailyView;
+}): Promise<DailyPlayerRecord[]> {
+  const program = zkubeProgram(args.connection, args.wallet);
+  const matches = await program.account.dailyPlayer.all([
+    { memcmp: { offset: 9, bytes: args.daily.address.toBase58() } },
+  ]);
+  return matches
+    .map((match) => {
+      const player = match.account as unknown as {
+        version: number;
+        challenge: PublicKey;
+        player: PublicKey;
+        attempts: number;
+        finalizedAttempts: number;
+        bestRunId: { toString(): string };
+        weeklyRolledUp: boolean;
+        starRefunded: boolean;
+      };
+      const attempts = Number(player.attempts);
+      const finalizedAttempts = Number(player.finalizedAttempts);
+      if (
+        Number(player.version) !== 1 ||
+        !player.challenge.equals(args.daily.address) ||
+        !Number.isSafeInteger(attempts) ||
+        attempts < 0 ||
+        !Number.isSafeInteger(finalizedAttempts) ||
+        finalizedAttempts < 0 ||
+        finalizedAttempts > attempts ||
+        !match.publicKey.equals(deriveDailyPlayerPda(args.daily.address, player.player))
+      ) {
+        throw new Error("Daily cleanup player relationship is invalid");
+      }
+      return {
+        address: match.publicKey,
+        owner: player.player,
+        attempts,
+        finalizedAttempts,
+        bestRunId: asBigInt(player.bestRunId),
+        weeklyRolledUp: Boolean(player.weeklyRolledUp),
+        starRefunded: Boolean(player.starRefunded),
+      };
+    })
+    .sort((left, right) => left.owner.toBuffer().compare(right.owner.toBuffer()));
+}
+
+export async function fetchDailyChallengeIds(args: {
+  connection: Connection;
+  wallet: WalletLike;
+}): Promise<number[]> {
+  const program = zkubeProgram(args.connection, args.wallet);
+  const matches = await program.account.dailyChallenge.all();
+  return matches
+    .map((match) => {
+      const challenge = match.account as unknown as { version: number; dayId: number };
+      const dayId = Number(challenge.dayId);
+      if (
+        Number(challenge.version) !== 1 ||
+        !Number.isSafeInteger(dayId) ||
+        dayId < 0 ||
+        !match.publicKey.equals(deriveDailyChallengePda(dayId))
+      ) {
+        throw new Error("Daily challenge PDA relationship is invalid");
+      }
+      return dayId;
+    })
+    .sort((left, right) => left - right);
+}
+
+export async function fetchOwnerCancelledDailyIds(args: {
+  connection: Connection;
+  wallet: WalletLike;
+}): Promise<number[]> {
+  const program = zkubeProgram(args.connection, args.wallet);
+  const owner = args.wallet.publicKey;
+  const matches = await program.account.dailyPlayer.all([
+    { memcmp: { offset: 41, bytes: owner.toBase58() } },
+  ]);
+  const dayIds: number[] = [];
+  for (const match of matches) {
+    const player = match.account as unknown as {
+      version: number;
+      challenge: PublicKey;
+      player: PublicKey;
+      starRefunded: boolean;
+    };
+    if (
+      Number(player.version) !== 1 ||
+      !player.player.equals(owner) ||
+      !match.publicKey.equals(deriveDailyPlayerPda(player.challenge, owner))
+    ) {
+      throw new Error("Owner Daily refund scan returned an invalid player account");
+    }
+    if (player.starRefunded) continue;
+    const challenge = await program.account.dailyChallenge.fetchNullable(player.challenge);
+    if (!challenge || Number(challenge.version) !== 1) {
+      throw new Error("Owner Daily refund scan returned an invalid challenge account");
+    }
+    const dayId = Number(challenge.dayId);
+    if (
+      !Number.isSafeInteger(dayId) ||
+      dayId < 0 ||
+      !player.challenge.equals(deriveDailyChallengePda(dayId))
+    ) {
+      throw new Error("Owner Daily refund challenge PDA is invalid");
+    }
+    if (parseDailyStatus(challenge.status) === "cancelled") dayIds.push(dayId);
+  }
+  return dayIds.sort((left, right) => left - right);
+}
+
+export async function buildCloseDailyPlayerPlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  daily: DailyView;
+  owner: PublicKey;
+  paymaster: PublicKey;
+}): Promise<TransactionPlan> {
+  const instruction = await zkubeProgram(args.connection, args.wallet).methods
+    .closeDailyPlayer()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      dailyChallenge: args.daily.address,
+      weeklyChallenge: deriveWeeklyChallengePda(args.daily.weekId),
+      owner: args.owner,
+      dailyPlayer: deriveDailyPlayerPda(args.daily.address, args.owner),
+      rentRecipient: args.paymaster,
+      caller: args.wallet.publicKey,
+    })
+    .instruction();
+  return basePlan("Close settled Daily player record", args.connection, args.paymaster, [instruction]);
+}
+
+export async function buildCloseDailyChallengePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  daily: DailyView;
+  paymaster: PublicKey;
+}): Promise<TransactionPlan> {
+  const instruction = await zkubeProgram(args.connection, args.wallet).methods
+    .closeDailyChallenge()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      weeklyChallenge: deriveWeeklyChallengePda(args.daily.weekId),
+      rentRecipient: args.paymaster,
+      dailyChallenge: args.daily.address,
+      leaderboard: deriveDailyLeaderboardPda(args.daily.address),
+      caller: args.wallet.publicKey,
+    })
+    .instruction();
+  return basePlan("Close settled Daily challenge", args.connection, args.paymaster, [instruction]);
 }
 
 function basePlan(

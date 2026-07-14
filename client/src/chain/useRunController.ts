@@ -49,12 +49,23 @@ import {
 import { withTransientErRetry } from "./erRetry";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
 import { awaitAccountCondition } from "./awaitAccountCondition";
+import { createChainTraceId, emitChainMetric, type ChainMetricLayer } from "./telemetry";
 
-/** Visible perf/telemetry logger (console.log, not console.debug which the
- *  browser hides by default). DEV-only. Use to spot delays/bottlenecks while
- *  playing: level creation, per move, and settlement stage timings. */
-const plog = (label: string, data: Record<string, unknown>): void => {
-  if (import.meta.env.DEV) console.log(`[perf] ${label}`, data);
+const plog = (
+  traceId: string,
+  label: string,
+  layer: ChainMetricLayer,
+  data: Record<string, unknown>,
+): void => {
+  const phases = label.split(":");
+  emitChainMetric({
+    traceId,
+    operation: label,
+    layer,
+    phase: phases[phases.length - 1] ?? label,
+    ok: true,
+    ...data,
+  });
 };
 
 export type SettleStage =
@@ -169,6 +180,7 @@ export function useRunController() {
   // state source; watcher snapshots taken mid-action (awaitingVrf, stale
   // counters) must not clobber currentRun or reach the board.
   const actionInFlight = useRef(false);
+  const telemetryTrace = useRef(createChainTraceId());
   useEffect(() => {
     paymaster.current = null;
   }, [connection.rpcEndpoint]);
@@ -218,11 +230,16 @@ export function useRunController() {
 
   const launchCampaignRun = useCallback(
     async (mapId: number, level: number) => {
+      telemetryTrace.current = createChainTraceId();
+      const traceId = telemetryTrace.current;
       const launchStart = Date.now();
       let mark = launchStart;
-      const lap = (label: string) => {
+      const lap = (label: string, data: Record<string, unknown> = {}) => {
         const now = Date.now();
-        plog(`launch:${label}`, { ms: now - mark });
+        plog(traceId, `launch:${label}`, "solana-base", {
+          durationMs: now - mark,
+          ...data,
+        });
         mark = now;
       };
       const sponsor =
@@ -246,7 +263,7 @@ export function useRunController() {
         paymaster: sponsor,
         session,
       });
-      lap("prepare");
+      lap("prepare", { signature: prepareSignature });
       const delegate = await buildDelegateRunPlan({
         wallet,
         addresses: prepared.addresses,
@@ -259,20 +276,25 @@ export function useRunController() {
         paymaster: sponsor,
       });
       await connection.confirmTransaction(delegateSignature, "confirmed");
-      lap("delegate");
+      lap("delegate", { signature: delegateSignature });
       const erConnection = await resolveRunErConnection(
         prepared.addresses.activeRun,
       );
       lap("er-resolve");
+      plog(traceId, "launch:router-resolved", "router", {
+        endpointHost: new URL(erConnection.rpcEndpoint).host,
+        runId: prepared.runId.toString(),
+      });
       const activeRun = await hydrateRows({
         prepared,
         session,
         erConnection,
         ownerWallet: wallet,
+        traceId,
       });
       lap("vrf-hydrate");
-      plog("launch:total", {
-        ms: Date.now() - launchStart,
+      plog(traceId, "launch:total", "solana-base", {
+        durationMs: Date.now() - launchStart,
         mapId,
         level,
         reusedSession: Boolean(reusable),
@@ -308,9 +330,23 @@ export function useRunController() {
   const startDailyRun = useCallback(
     async (daily: DailyView) => {
       return withBusy(setState, async () => {
+        telemetryTrace.current = createChainTraceId();
+        const traceId = telemetryTrace.current;
+        const launchStart = Date.now();
+        let mark = launchStart;
+        const lap = (label: string, data: Record<string, unknown> = {}) => {
+          const now = Date.now();
+          plog(traceId, `launch:${label}`, "solana-base", {
+            durationMs: now - mark,
+            mode: "daily",
+            ...data,
+          });
+          mark = now;
+        };
         const sponsor =
           paymaster.current ?? (await fetchPaymasterClient(connection));
         paymaster.current = sponsor;
+        lap("paymaster");
         const reusable = loadReusableSession(publicKey);
         const session = reusable?.session ?? Keypair.generate();
         const prepared = await buildPrepareDailyRunPlan({
@@ -329,6 +365,7 @@ export function useRunController() {
           mode: "daily",
           dailyVersion: daily.economyVersion,
         });
+        lap("prepare", { signature: prepareSignature });
         const delegate = await buildDelegateRunPlan({
           wallet,
           addresses: prepared.addresses,
@@ -341,14 +378,29 @@ export function useRunController() {
           paymaster: sponsor,
         });
         await connection.confirmTransaction(delegateSignature, "confirmed");
+        lap("delegate", { signature: delegateSignature });
         const erConnection = await resolveRunErConnection(
           prepared.addresses.activeRun,
         );
+        lap("er-resolve");
+        plog(traceId, "launch:router-resolved", "router", {
+          endpointHost: new URL(erConnection.rpcEndpoint).host,
+          runId: prepared.runId.toString(),
+          mode: "daily",
+        });
         const activeRun = await hydrateRows({
           prepared,
           session,
           erConnection,
           ownerWallet: wallet,
+          traceId,
+        });
+        lap("vrf-hydrate");
+        plog(traceId, "launch:total", "solana-base", {
+          durationMs: Date.now() - launchStart,
+          mode: "daily",
+          dayId: daily.dayId,
+          reusedSession: Boolean(reusable),
         });
         currentRun.current = {
           phase: "delegated",
@@ -382,7 +434,7 @@ export function useRunController() {
           requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
           const moveStart = Date.now();
-          plog("move:start", {
+          plog(telemetryTrace.current, "move:start", "magicblock-er", {
             move: run.activeRun.moves,
             action: run.activeRun.actionCounter,
             row,
@@ -406,7 +458,11 @@ export function useRunController() {
             wallet: sessionWallet,
           });
           const submittedAt = Date.now();
-          plog("move:submit", { ms: submittedAt - moveStart });
+          plog(telemetryTrace.current, "move:submit", "magicblock-er", {
+            durationMs: submittedAt - moveStart,
+            signature,
+            endpointHost: new URL(run.connection.rpcEndpoint).host,
+          });
           const activeRun = await hydrateRows({
             prepared: {
               runId: run.marker.runId,
@@ -418,9 +474,10 @@ export function useRunController() {
             session: run.marker.session,
             erConnection: run.connection,
             ownerWallet: wallet!,
+            traceId: telemetryTrace.current,
           });
-          plog("move:total", {
-            ms: Date.now() - moveStart,
+          plog(telemetryTrace.current, "move:total", "magicblock-er", {
+            durationMs: Date.now() - moveStart,
             vrfHydrateMs: Date.now() - submittedAt,
             newMove: activeRun.moves,
             newScore: activeRun.score,
@@ -463,7 +520,7 @@ export function useRunController() {
         wallet,
         descriptor.addresses.runReceipt,
       );
-      plog("settle:finalize-start", {
+      plog(telemetryTrace.current, "settle:finalize-start", "solana-base", {
         runId: descriptor.runId.toString(),
         receiptConsumed: Boolean(receipt?.consumed),
         mode: descriptor.mode,
@@ -516,6 +573,7 @@ export function useRunController() {
           requireFreshRunSession(run);
           const sessionWallet = new SessionWallet(run.marker.session);
           setStage("sealing");
+          const sealStartedAt = Date.now();
           const seal = await buildSealRunPlan({
             owner: run.marker.owner,
             sessionWallet,
@@ -523,11 +581,16 @@ export function useRunController() {
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
           });
-          await submitWalletTransactionPlan({
+          const sealSignature = await submitWalletTransactionPlan({
             transactionPlan: seal,
             wallet: sessionWallet,
           });
+          plog(telemetryTrace.current, "settle:seal", "magicblock-er", {
+            durationMs: Date.now() - sealStartedAt,
+            signature: sealSignature,
+          });
           setStage("committing");
+          const commitStartedAt = Date.now();
           const commit =
             run.marker.mode === "daily"
               ? await buildCommitDailyRunPlan({
@@ -548,6 +611,15 @@ export function useRunController() {
             transactionPlan: commit,
             wallet,
           });
+          plog(
+            telemetryTrace.current,
+            "settle:commit-undelegate",
+            "magicblock-er",
+            {
+              durationMs: Date.now() - commitStartedAt,
+              signature,
+            },
+          );
           setStage("settling");
           // Wait for the commit-and-undelegate to copy back to Solana base.
           // Subscribe to the base ActiveRun account and re-check delegation on
@@ -569,15 +641,19 @@ export function useRunController() {
           } catch {
             timedOut = true;
           }
-          plog("settle:copyback", {
-            waitedMs: Date.now() - pollStart,
+          plog(telemetryTrace.current, "settle:copyback", "magic-action", {
+            durationMs: Date.now() - pollStart,
             timedOut,
+            signature,
           });
           const finalizeStart = Date.now();
-          await finalizeBaseSettlement(
+          const finalizeSignature = await finalizeBaseSettlement(
             settlementDescriptor(run.marker, run.activeRun.dailyChallenge),
           );
-          plog("settle:finalize-done", { ms: Date.now() - finalizeStart });
+          plog(telemetryTrace.current, "settle:finalize-done", "solana-base", {
+            durationMs: Date.now() - finalizeStart,
+            signature: finalizeSignature,
+          });
           let activeRun: ActiveRunView | null = null;
           if (next) {
             setStage("preparing");
@@ -1003,6 +1079,7 @@ async function hydrateRows(args: {
   session: Keypair;
   erConnection: import("@solana/web3.js").Connection;
   ownerWallet: WalletLike;
+  traceId: string;
 }): Promise<ActiveRunView> {
   const sessionWallet = new SessionWallet(args.session);
   for (let attempt = 0; attempt < 14; attempt += 1) {
@@ -1016,6 +1093,8 @@ async function hydrateRows(args: {
     if (active.lifecycle === "playing" || isTerminal(active.lifecycle))
       return active;
     if (active.pendingVrfCounter === 0) {
+      const requestStartedAt = Date.now();
+      let signature = "";
       await withTransientErRetry(async () => {
         const request = await buildRequestRowPlan({
           owner: args.ownerWallet.publicKey,
@@ -1024,17 +1103,29 @@ async function hydrateRows(args: {
           activeRun: args.prepared.addresses.activeRun,
           erConnection: args.erConnection,
         });
-        return submitWalletTransactionPlan({
+        signature = await submitWalletTransactionPlan({
           transactionPlan: request,
           wallet: sessionWallet,
         });
+        return signature;
+      });
+      plog(args.traceId, "vrf:request", "vrf", {
+        durationMs: Date.now() - requestStartedAt,
+        signature,
+        endpointHost: new URL(args.erConnection.rpcEndpoint).host,
+        requestSequence: attempt + 1,
       });
     }
+    const callbackStartedAt = Date.now();
     await waitForVrf(
       args.erConnection,
       sessionWallet,
       args.prepared.addresses.activeRun,
     );
+    plog(args.traceId, "vrf:callback", "vrf", {
+      durationMs: Date.now() - callbackStartedAt,
+      endpointHost: new URL(args.erConnection.rpcEndpoint).host,
+    });
   }
   throw new Error("VRF initialization exceeded the configured row budget");
 }
