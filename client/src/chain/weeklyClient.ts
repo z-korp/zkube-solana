@@ -3,8 +3,8 @@ import { SystemProgram, Transaction, type Connection, type PublicKey } from "@so
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   deriveAssociatedTokenAddress,
-} from "./campaignClient";
-import { fetchEconomyRuntime } from "./economyClient";
+} from "./campaignClient.js";
+import { fetchEconomyRuntime } from "./economyClient.js";
 import {
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
@@ -16,10 +16,10 @@ import {
   deriveWeeklyLeaderboardPda,
   deriveWeeklyPlayerPda,
   deriveWeeklyVaultPda,
-} from "./pdas";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
-import type { DailyView } from "./dailyClient";
+} from "./pdas.js";
+import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
+import type { WalletLike } from "./sessionWallet.js";
+import type { DailyView } from "./dailyClient.js";
 
 export type WeeklyStatus = "open" | "claimable" | "closed" | "unknown";
 

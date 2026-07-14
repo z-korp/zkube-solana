@@ -16,21 +16,21 @@ import {
   type Signer,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { IDL, type ZkubeProgram } from "./idl";
+import { IDL, type ZkubeProgram } from "./idl/index.js";
 import {
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
   SOLANA_ENDPOINT,
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
-} from "./constants";
+} from "./constants.js";
 import {
   buildTopUpMagicActionEscrowInstruction,
   deriveMagicActionEscrowPda,
-} from "./magicAction";
-import type { PaymasterClient } from "./paymasterClient";
-import { saveReusableSession, saveRunSession } from "./runSessionStore";
-import type { WalletLike } from "./sessionWallet";
+} from "./magicAction.js";
+import type { PaymasterClient } from "./paymasterClient.js";
+import { saveReusableSession, saveRunSession } from "./runSessionStore.js";
+import type { WalletLike } from "./sessionWallet.js";
 import {
   deriveCampaignProgressPda,
   deriveDailyLeaderboardPda,
@@ -41,18 +41,18 @@ import {
   deriveRunAddresses,
   deriveWeeklyStipendPda,
   type RunAddresses,
-} from "./pdas";
-import { getClosestValidator, waitForDelegation } from "./router";
+} from "./pdas.js";
+import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
   buildCreateSessionV2Instruction,
   deriveSessionTokenV2Pda,
-} from "./sessionV2";
+} from "./sessionV2.js";
 import {
   mapDailyPressureProfile,
   mapDailyScoringRule,
   type DailyPressureProfileView,
   type DailyScoringRuleView,
-} from "./dailyRules";
+} from "./dailyRules.js";
 
 export type RunLayer = "solana-base" | "magicblock-er";
 

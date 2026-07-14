@@ -1,8 +1,8 @@
 import { type Connection, type PublicKey } from "@solana/web3.js";
 
-import { deriveEconomyConfigPda, deriveProtocolConfigPda } from "./pdas";
-import { zkubeProgram } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
+import { deriveEconomyConfigPda, deriveProtocolConfigPda } from "./pdas.js";
+import { zkubeProgram } from "./runPlan.js";
+import type { WalletLike } from "./sessionWallet.js";
 
 export interface EconomyRuntime {
   address: PublicKey;

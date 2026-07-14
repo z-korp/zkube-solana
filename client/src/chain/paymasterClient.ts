@@ -8,10 +8,10 @@ import {
   PAYMASTER_ENDPOINT,
   SOLANA_EXPECTED_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
-} from "./constants";
-import { deriveProtocolConfigPda } from "./pdas";
-import { zkubeProgram } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
+} from "./constants.js";
+import { deriveProtocolConfigPda } from "./pdas.js";
+import { zkubeProgram } from "./runPlan.js";
+import type { WalletLike } from "./sessionWallet.js";
 
 export interface PaymasterClient {
   pubkey: PublicKey;

@@ -7,8 +7,8 @@ import {
   type Connection,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID } from "./constants";
-import { buildTopUpMagicActionEscrowInstruction } from "./magicAction";
+import { MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID } from "./constants.js";
+import { buildTopUpMagicActionEscrowInstruction } from "./magicAction.js";
 import {
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
@@ -20,8 +20,8 @@ import {
   deriveRunAddresses,
   deriveWeeklyStipendPda,
   deriveWeeklyChallengePda,
-} from "./pdas";
-import { fetchEconomyRuntime } from "./economyClient";
+} from "./pdas.js";
+import { fetchEconomyRuntime } from "./economyClient.js";
 import {
   mapLevelRuleSnapshot,
   zkubeProgram,
@@ -30,7 +30,7 @@ import {
   type PreparedRunPlan,
   type RawLevelRuleSnapshot,
   type TransactionPlan,
-} from "./runPlan";
+} from "./runPlan.js";
 import {
   mapDailyPressureProfile,
   mapDailyScoringRule,
@@ -38,12 +38,12 @@ import {
   type DailyScoringRuleView,
   type RawDailyPressureProfile,
   type RawDailyScoringRule,
-} from "./dailyRules";
+} from "./dailyRules.js";
 import {
   buildCreateSessionV2Instruction,
   deriveSessionTokenV2Pda,
-} from "./sessionV2";
-import type { WalletLike } from "./sessionWallet";
+} from "./sessionV2.js";
+import type { WalletLike } from "./sessionWallet.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
