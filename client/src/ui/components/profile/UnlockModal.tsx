@@ -1,9 +1,9 @@
-/* eslint-disable react-refresh/only-export-components */
 import { X } from "lucide-react";
 
 import type { ZoneProgressData } from "@/config/profileData";
 import type { ThemeColors } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
+import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
 
@@ -13,17 +13,9 @@ interface UnlockModalProps {
   onClose: () => void;
 }
 
-export function formatUsdcBaseUnits(value: bigint): string {
-  const whole = value / 1_000_000n;
-  const fraction = (value % 1_000_000n)
-    .toString()
-    .padStart(6, "0")
-    .replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
-}
-
 const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
   const campaign = useCampaign();
+  const openShop = useNavigationStore((state) => state.openShop);
   const starCost = zone.starCost ?? 0;
   const currentStars = Number(
     campaign.campaign?.starsBalance ?? BigInt(zone.currentStars ?? 0),
@@ -39,6 +31,11 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
     } catch {
       // The shared campaign controller exposes the actionable error below.
     }
+  };
+
+  const handleOpenShop = () => {
+    onClose();
+    openShop("home");
   };
 
   return (
@@ -133,46 +130,19 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
                   Unlock with Stars
                 </ArcadeButton>
               ) : (
-                <p className="font-sans text-sm font-semibold text-white/65">
-                  Earn Stars in Campaign and Weekly play, or buy a pack below.
-                </p>
+                <div>
+                  <p className="mb-3 font-sans text-sm font-semibold text-white/65">
+                    Earn Stars in Campaign and Weekly play, or visit the Shop.
+                  </p>
+                  <ArcadeButton onClick={handleOpenShop}>
+                    Open Star Shop
+                  </ArcadeButton>
+                </div>
               )}
             </div>
           </section>
 
         </div>
-
-        {campaign.campaign && (
-          <section className="mt-3 rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4">
-            <p className="font-sans text-xs font-bold uppercase tracking-[0.12em] text-white/70">
-              Star packs
-            </p>
-            <p className="mt-1 font-sans text-sm text-white/55">
-              Stars stay bound to this Vault and cannot be transferred or redeemed.
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-              {campaign.campaign.starPacks.map((pack, index) => (
-                <button
-                  key={pack.stars.toString()}
-                  type="button"
-                  disabled={!canSubmit}
-                  onClick={() => void campaign.buyStars(index)}
-                  className="rounded-xl border border-white/15 bg-black/20 px-2 py-3 text-center transition hover:bg-white/10 disabled:opacity-50"
-                >
-                  <span className="block font-display text-lg font-black text-yellow-300">
-                    {pack.stars.toString()}★
-                  </span>
-                  <span className="mt-1 block font-sans text-xs font-bold text-white/65">
-                    {pack.enabled
-                      ? `${formatUsdcBaseUnits(pack.price)} USDC`
-                      : "Unavailable"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
         {campaign.error && (
           <p className="mt-3 text-center font-sans text-sm text-red-300">
             {campaign.error}

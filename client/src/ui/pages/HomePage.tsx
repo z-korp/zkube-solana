@@ -130,6 +130,13 @@ const HomePage: React.FC = () => {
     setMusicPlaylist(["main", "level"]);
   }, [setMusicPlaylist]);
 
+  useEffect(() => {
+    if (runtime.phase === "checking" || runtime.phase === "ready") return;
+    console.warn("[zKube runtime]", runtime.phase, runtime.message, {
+      paymasterBalanceLamports: runtime.paymasterBalanceLamports,
+    });
+  }, [runtime.message, runtime.paymasterBalanceLamports, runtime.phase]);
+
   const activeStoryRun = useActiveStoryAttempt();
   const activeStoryAttemptId = activeStoryRun?.gameId ?? null;
   const zone = zones[activeZone] ?? zones[0];
@@ -241,15 +248,6 @@ const HomePage: React.FC = () => {
               Connected
             </span>
           </motion.div>
-
-          {runtime.phase !== "ready" && (
-            <motion.div
-              variants={itemVariants}
-              className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 text-center font-sans text-[11px] font-bold text-amber-200"
-            >
-              {runtime.message}
-            </motion.div>
-          )}
 
           <motion.div
             variants={itemVariants}

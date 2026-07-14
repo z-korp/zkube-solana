@@ -10,7 +10,6 @@ import {
 import { describe, expect, it } from "vitest";
 import { validatePaymasterTransaction } from "../server/paymaster";
 import {
-  buildPurchaseStarsPlan,
   buildUnlockMapWithStarsPlan,
   deriveAssociatedTokenAddress,
   hasMapFlag,
@@ -55,12 +54,6 @@ describe("campaign client", () => {
       economyVersion: 2,
       contentVersion: 1,
       starsBalance: 25n,
-      paymentMint: Keypair.generate().publicKey,
-      paymentTokenProgram: TOKEN_PROGRAM_ID,
-      teamDestination: Keypair.generate().publicKey,
-      rewardVault: Keypair.generate().publicKey,
-      treasuryDestination: Keypair.generate().publicKey,
-      starPacks: [],
       maps: [],
     };
     const stars = await buildUnlockMapWithStarsPlan({
@@ -79,7 +72,7 @@ describe("campaign client", () => {
     expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
   });
 
-  it("builds Star purchases and zone unlocks accepted by paymaster policy", async () => {
+  it("builds zone unlocks accepted by paymaster policy", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
     const wallet = new SessionWallet(owner);
@@ -88,31 +81,15 @@ describe("campaign client", () => {
       economyVersion: 2,
       contentVersion: 2,
       starsBalance: 25n,
-      paymentMint: Keypair.generate().publicKey,
-      paymentTokenProgram: TOKEN_PROGRAM_ID,
-      teamDestination: Keypair.generate().publicKey,
-      rewardVault: Keypair.generate().publicKey,
-      treasuryDestination: Keypair.generate().publicKey,
-      starPacks: [{ stars: 10n, price: 1_000_000n, enabled: true }],
       maps: [],
     };
-    const plans = await Promise.all([
-      buildPurchaseStarsPlan({
-        connection,
-        wallet,
-        campaign,
-        packIndex: 0,
-        paymaster: paymaster.publicKey,
-      }),
-      buildUnlockMapWithStarsPlan({
-        connection,
-        wallet,
-        contentVersion: campaign.contentVersion,
-        mapId: 2,
-        economyVersion: 2,
-        paymaster: paymaster.publicKey,
-      }),
-    ]);
+    const plans = [await buildUnlockMapWithStarsPlan({
+      connection,
+      wallet,
+      contentVersion: campaign.contentVersion,
+      mapId: 2,
+      paymaster: paymaster.publicKey,
+    })];
 
     for (const plan of plans) {
       const transaction = new VersionedTransaction(

@@ -1,8 +1,12 @@
 import type { CampaignMapView } from "@/chain/campaignClient";
+import { canonicalCampaignMap } from "@/chain/campaignCatalog";
+import { mapLevelRuleSnapshot } from "@/chain/runPlan";
 import type { PageId } from "@/stores/navigationStore";
 
-// A new identity has no CampaignProgress account until its first sponsored
-// Map 1 run. The fallback must remain playable so that first run can create it.
+const INITIAL_MAP_1 = canonicalCampaignMap(1, 1);
+
+// A new identity has no CampaignProgress account yet. Map 1 remains playable,
+// and its preview uses the same authored catalog that is published on-chain.
 export const UNINITIALIZED_MAP_1: CampaignMapView = {
   mapId: 1,
   themeId: 1,
@@ -13,7 +17,13 @@ export const UNINITIALIZED_MAP_1: CampaignMapView = {
   perfected: false,
   starCost: 0n,
   levelStars: Array.from({ length: 10 }, () => 0),
-  levels: [],
+  levels: INITIAL_MAP_1.levels.map((level, index) =>
+    mapLevelRuleSnapshot({
+      ...level,
+      ...INITIAL_MAP_1.mapRules,
+      bossId: index === 9 ? INITIAL_MAP_1.mapRules.bossId : 0,
+    }),
+  ),
 };
 
 export function unavailableMap(mapId: number): CampaignMapView {

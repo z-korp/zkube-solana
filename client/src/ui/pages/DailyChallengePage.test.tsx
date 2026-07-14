@@ -41,25 +41,12 @@ const fixtures = vi.hoisted(() => ({
   navigation: {
     goBack: vi.fn(),
     navigate: vi.fn(),
+    openShop: vi.fn(),
   },
-}));
-
-const campaignFixture = vi.hoisted(() => ({
-  buyStars: vi.fn(),
-  campaign: {
-    economyVersion: 2 as const,
-    starPacks: [{ stars: 10n, price: 1_000_000n, enabled: true }],
-  },
-  error: null as string | null,
-  unlocking: false,
 }));
 
 vi.mock("@/contexts/daily", () => ({
   useDaily: () => fixtures.controller,
-}));
-
-vi.mock("@/contexts/campaign", () => ({
-  useCampaign: () => campaignFixture,
 }));
 
 vi.mock("@/hooks/useAccount", () => ({
@@ -182,18 +169,16 @@ describe("DailyChallengePage", () => {
     expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
       "+50 XP first Tier 7 today",
     );
-    expect(screen.getByRole("button", { name: /Top up/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Visit Shop/ })).toBeEnabled();
   });
 
-  it("offers an on-page Star pack when the player cannot afford an entry", () => {
+  it("routes to the Shop when the player cannot afford an entry", () => {
     fixtures.controller.daily.playerStars = 1n;
     render(<DailyChallengePage />);
 
     expect(screen.getByRole("button", { name: "3 Stars" })).toBeDisabled();
     expect(screen.getByText(/Need 2 more Stars/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /10★/ })).toHaveTextContent(
-      "1 USDC",
-    );
-    expect(campaignFixture.buyStars).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Open Shop/ }));
+    expect(fixtures.navigation.openShop).toHaveBeenCalledWith("daily");
   });
 });

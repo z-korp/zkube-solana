@@ -1,4 +1,4 @@
-import { Home, Star, Trophy, Settings, User } from "lucide-react";
+import { Home, ShoppingBag, Star, Trophy, Settings, User } from "lucide-react";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
@@ -9,6 +9,7 @@ import { useProgress } from "@/contexts/progress";
 const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
+  const openShop = useNavigationStore((s) => s.openShop);
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const { progress } = useProgress();
@@ -28,7 +29,8 @@ const BottomNav = () => {
   }[] = [
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
-    { id: "ranks", icon: Trophy, label: "Leaderboard" },
+    { id: "ranks", icon: Trophy, label: "Ranks" },
+    { id: "shop", icon: ShoppingBag, label: "Shop" },
     { id: "profile", icon: User, label: "Profile" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
@@ -41,7 +43,9 @@ const BottomNav = () => {
         return (
           <button
             key={tab.id}
-            onClick={() => navigate(tab.id)}
+            onClick={() =>
+              tab.id === "shop" ? openShop(null) : navigate(tab.id)
+            }
             className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors"
             style={{
               color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)",

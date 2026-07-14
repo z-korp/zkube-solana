@@ -10,6 +10,9 @@ describe("navigation recovery intent", () => {
       isTransitioning: false,
       transitionDirection: null,
       recoveryRunId: null,
+      shopOrigin: null,
+      settingsFocus: null,
+      settingsReturnPage: null,
     });
   });
 
@@ -43,6 +46,39 @@ describe("navigation recovery intent", () => {
     expect(useNavigationStore.getState()).toMatchObject({
       currentPage: "map",
       recoveryRunId: null,
+    });
+  });
+
+  it("preserves Daily origin through Vault funding and returns through Shop", () => {
+    useNavigationStore.getState().openShop("daily");
+    expect(useNavigationStore.getState()).toMatchObject({
+      currentPage: "shop",
+      shopOrigin: "daily",
+    });
+    vi.advanceTimersByTime(300);
+
+    useNavigationStore.getState().openVaultSettings("shop");
+    expect(useNavigationStore.getState()).toMatchObject({
+      currentPage: "settings",
+      settingsFocus: "vault",
+      settingsReturnPage: "shop",
+      shopOrigin: "daily",
+    });
+    vi.advanceTimersByTime(300);
+
+    useNavigationStore.getState().goBack();
+    expect(useNavigationStore.getState()).toMatchObject({
+      currentPage: "shop",
+      settingsFocus: null,
+      settingsReturnPage: null,
+      shopOrigin: "daily",
+    });
+    vi.advanceTimersByTime(300);
+
+    useNavigationStore.getState().goBack();
+    expect(useNavigationStore.getState()).toMatchObject({
+      currentPage: "daily",
+      shopOrigin: null,
     });
   });
 });

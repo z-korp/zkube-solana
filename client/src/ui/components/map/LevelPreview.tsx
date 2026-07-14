@@ -178,14 +178,14 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
                 ? `Trial of ${guardian.name}`
                 : `Level ${node.contractLevel}`}
             </p>
-            <span
-              className={`font-sans text-base font-bold ${levelData ? (DIFFICULTY_STYLES[levelData.difficulty] ?? "text-white") : "text-white/50"}`}
-            >
-              {levelData
-                ? (DIFFICULTY_LABELS[levelData.difficulty] ??
-                  `Tier ${levelData.difficulty}`)
-                : "On-chain"}
-            </span>
+            {levelData && (
+              <span
+                className={`font-sans text-base font-bold ${DIFFICULTY_STYLES[levelData.difficulty] ?? "text-white"}`}
+              >
+                {DIFFICULTY_LABELS[levelData.difficulty] ??
+                  `Tier ${levelData.difficulty}`}
+              </span>
+            )}
           </div>
 
           {/* Guardian quote */}
@@ -215,70 +215,68 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
           )}
 
           {/* Stats */}
-          <div className="mt-3 space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
-                <p className="font-sans text-lg font-bold text-white">
-                  {levelData?.pointsRequired ?? "—"}
-                </p>
-                <p className="font-sans text-[10px] text-white/40">Target</p>
-              </div>
-              <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
-                <p className="font-sans text-lg font-bold text-white">
-                  {levelData?.maxMoves ?? "—"}
-                </p>
-                <p className="font-sans text-[10px] text-white/40">Moves</p>
-              </div>
-            </div>
-
-            {/* Star thresholds */}
-            {starRows.length > 0 ? (
-              <div className="flex gap-1.5">
-                {starRows.map(({ stars: rowStars, moves }) => (
-                  <div
-                    key={rowStars}
-                    className="flex-1 rounded-xl bg-white/[0.04] px-2 py-2 text-center"
-                  >
-                    <p className="text-sm">
-                      {Array.from({ length: 3 }).map((_, index) => (
-                        <span
-                          key={index}
-                          className={
-                            index < rowStars
-                              ? "text-yellow-300"
-                              : "text-white/15"
-                          }
-                        >
-                          ★
-                        </span>
-                      ))}
-                    </p>
-                    <p className="font-sans text-[11px] font-semibold text-white/50">
-                      ≤{moves} moves
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 font-sans text-[12px] text-white/55">
-                Rules will load from the campaign catalog when this run starts.
-              </p>
-            )}
-
-            {/* Constraints */}
-            {constraints.length > 0 && (
-              <div className="space-y-1">
-                {constraints.map((constraint) => (
-                  <p
-                    key={constraint}
-                    className="rounded-lg border border-amber-400/15 bg-amber-500/8 px-3 py-1.5 font-sans text-[12px] text-amber-200/70"
-                  >
-                    {constraint}
+          {levelData && (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
+                  <p className="font-sans text-lg font-bold text-white">
+                    {levelData.pointsRequired}
                   </p>
-                ))}
+                  <p className="font-sans text-[10px] text-white/40">Target</p>
+                </div>
+                <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
+                  <p className="font-sans text-lg font-bold text-white">
+                    {levelData.maxMoves}
+                  </p>
+                  <p className="font-sans text-[10px] text-white/40">Moves</p>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Star thresholds */}
+              {starRows.length > 0 && (
+                <div className="flex gap-1.5">
+                  {starRows.map(({ stars: rowStars, moves }) => (
+                    <div
+                      key={rowStars}
+                      className="flex-1 rounded-xl bg-white/[0.04] px-2 py-2 text-center"
+                    >
+                      <p className="text-sm">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <span
+                            key={index}
+                            className={
+                              index < rowStars
+                                ? "text-yellow-300"
+                                : "text-white/15"
+                            }
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </p>
+                      <p className="font-sans text-[11px] font-semibold text-white/50">
+                        ≤{moves} moves
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Constraints */}
+              {constraints.length > 0 && (
+                <div className="space-y-1">
+                  {constraints.map((constraint) => (
+                    <p
+                      key={constraint}
+                      className="rounded-lg border border-amber-400/15 bg-amber-500/8 px-3 py-1.5 font-sans text-[12px] text-amber-200/70"
+                    >
+                      {constraint}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Action */}
           {canPlay && (

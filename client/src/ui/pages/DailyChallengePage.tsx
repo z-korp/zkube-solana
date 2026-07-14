@@ -10,7 +10,6 @@ import {
 import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
-import { useCampaign } from "@/contexts/campaign";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
@@ -49,16 +48,14 @@ const DailyChallengePage: React.FC = () => {
   const { themeTemplate } = useTheme();
   const colors = getThemeColors(themeTemplate);
   const navigate = useNavigationStore((state) => state.navigate);
+  const openShop = useNavigationStore((state) => state.openShop);
   const goBack = useNavigationStore((state) => state.goBack);
   const daily = useDaily();
-  const campaign = useCampaign();
   const activeDailyRun = useActiveDailyAttempt();
 
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entries: leaderboard } = useDailyLeaderboard(challenge?.challenge_id);
   const [starting, setStarting] = useState(false);
-  const [buyingPack, setBuyingPack] = useState<number | null>(null);
-  const [showPacks, setShowPacks] = useState(false);
 
   const now = Math.floor(Date.now() / 1000);
   const hasActiveDailyRun = Boolean(activeDailyRun);
@@ -128,23 +125,6 @@ const DailyChallengePage: React.FC = () => {
   );
   const insufficientStars = Boolean(
     daily.daily && daily.daily.playerStars < daily.daily.starEntryCost,
-  );
-
-  const buyStars = useCallback(
-    async (packIndex: number) => {
-      if (buyingPack !== null) return;
-      setBuyingPack(packIndex);
-      try {
-        await campaign.buyStars(packIndex);
-        await daily.refresh();
-        setShowPacks(false);
-      } catch {
-        // The campaign controller exposes the USDC/payment failure.
-      } finally {
-        setBuyingPack(null);
-      }
-    },
-    [buyingPack, campaign, daily],
   );
 
   return (
@@ -408,60 +388,18 @@ const DailyChallengePage: React.FC = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setShowPacks((visible) => !visible)}
+                onClick={() => openShop("daily")}
                 className="text-center font-sans text-xs font-extrabold text-yellow-200"
               >
                 {insufficientStars
-                  ? `Need ${(daily.daily.starEntryCost - daily.daily.playerStars).toString()} more Stars · Buy a pack`
-                  : `${daily.daily.playerStars.toString()} Stars available · Top up`}
+                  ? `Need ${(daily.daily.starEntryCost - daily.daily.playerStars).toString()} more Stars · Open Shop`
+                  : `${daily.daily.playerStars.toString()} Stars available · Visit Shop`}
               </button>
-              {(showPacks || insufficientStars) && campaign.campaign && (
-                <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-                  {campaign.campaign.starPacks.map((pack, index) => (
-                    <button
-                      key={pack.stars.toString()}
-                      type="button"
-                      disabled={
-                        buyingPack !== null ||
-                        campaign.unlocking ||
-                        !pack.enabled
-                      }
-                      onClick={() => void buyStars(index)}
-                      className="min-w-[88px] flex-1 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-2 py-2 text-center disabled:opacity-50"
-                    >
-                      <span className="block font-display text-sm font-black text-yellow-200">
-                        {buyingPack === index
-                          ? "Buying..."
-                          : `${pack.stars.toString()}★`}
-                      </span>
-                      <span className="block font-sans text-[10px] font-bold text-white/55">
-                        {pack.enabled
-                          ? `${formatUsdc(pack.price)} USDC`
-                          : "Unavailable"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-            {campaign.error && (
-              <p className="col-span-full text-center font-sans text-[11px] text-red-200">
-                {campaign.error}
-              </p>
-            )}
           </div>
         )}
     </div>
   );
 };
-
-function formatUsdc(amount: bigint): string {
-  const whole = amount / 1_000_000n;
-  const fraction = (amount % 1_000_000n)
-    .toString()
-    .padStart(6, "0")
-    .replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
-}
 
 export default DailyChallengePage;
