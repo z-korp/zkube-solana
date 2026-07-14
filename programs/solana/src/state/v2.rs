@@ -23,6 +23,7 @@ pub const MAX_ACHIEVEMENTS: usize = 24;
 pub const MAX_QUESTS: usize = 12;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
 pub const DAILY_FINISHER_INDEX: usize = 9;
+pub const BLOCK_QUEST_COUNTERS: [usize; 4] = [7, 12, 13, 14];
 
 #[account]
 #[derive(InitSpace)]
@@ -55,7 +56,9 @@ pub struct PlayerProfile {
     pub next_run_id: u64,
     pub daily_eligible: bool,
     pub achievement_flags: [u64; 4],
-    pub achievement_xp: u64,
+    /// All progression XP, regardless of whether it came from achievements,
+    /// quests, Daily play, or finite Campaign rewards.
+    pub lifetime_xp: u64,
     pub quest_cadence_day: u32,
     pub quest_cadence_week: u32,
     pub quest_counters: [u32; MAX_QUEST_COUNTERS],
@@ -81,7 +84,7 @@ impl PlayerProfile {
             next_run_id: 1,
             daily_eligible: false,
             achievement_flags: [0; 4],
-            achievement_xp: 0,
+            lifetime_xp: 0,
             quest_cadence_day: 0,
             quest_cadence_week: 0,
             quest_counters: [0; MAX_QUEST_COUNTERS],
@@ -109,12 +112,12 @@ impl PlayerProfile {
         Ok(())
     }
 
-    pub fn credit_achievement_rewards(&mut self, stars: u64, xp: u32) -> Result<()> {
+    pub fn credit_progression_rewards(&mut self, stars: u64, xp: u32) -> Result<()> {
         if stars > 0 {
             self.credit_stars(stars)?;
         }
-        self.achievement_xp = self
-            .achievement_xp
+        self.lifetime_xp = self
+            .lifetime_xp
             .checked_add(u64::from(xp))
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
@@ -151,6 +154,7 @@ impl PlayerProfile {
         if self.quest_cadence_day != day {
             self.quest_cadence_day = day;
             self.quest_counters[..10].fill(0);
+            self.quest_counters[12..15].fill(0);
         }
         if self.quest_cadence_week != week {
             self.quest_cadence_week = week;
@@ -161,7 +165,6 @@ impl PlayerProfile {
     pub fn record_run_started(&mut self, now: i64) -> Result<()> {
         self.roll_quest_cadences(now);
         self.lifetime_runs_started = checked_add_u64(self.lifetime_runs_started, 1)?;
-        self.quest_counters[7] = checked_add_u32(self.quest_counters[7], 1)?;
         Ok(())
     }
 
@@ -197,11 +200,20 @@ impl PlayerProfile {
             checked_add_u32(self.quest_counters[6], u32::from(metrics.combo4_hits))?;
         self.quest_counters[8] =
             checked_add_u32(self.quest_counters[8], u32::from(metrics.combo2_hits))?;
+        for (counter, destroyed) in BLOCK_QUEST_COUNTERS
+            .into_iter()
+            .zip(metrics.blocks_destroyed_by_size)
+        {
+            self.quest_counters[counter] =
+                checked_add_u32(self.quest_counters[counter], u32::from(destroyed))?;
+        }
         self.quest_counters[10] =
             checked_add_u32(self.quest_counters[10], u32::from(metrics.lines_cleared))?;
-        if metrics.perfect_level {
-            self.lifetime_perfect_levels = checked_add_u64(self.lifetime_perfect_levels, 1)?;
+        if metrics.campaign_level_completed {
             self.quest_counters[5] = checked_add_u32(self.quest_counters[5], 1)?;
+        }
+        if metrics.new_perfect_level {
+            self.lifetime_perfect_levels = checked_add_u64(self.lifetime_perfect_levels, 1)?;
         }
         if metrics.boss_cleared {
             self.lifetime_bosses_cleared = checked_add_u64(self.lifetime_bosses_cleared, 1)?;
@@ -232,8 +244,10 @@ pub struct RunProgressMetrics {
     pub combo3_hits: u16,
     pub combo4_hits: u16,
     pub high_combo_hits: u16,
+    pub blocks_destroyed_by_size: [u16; 4],
     pub max_combo: u8,
-    pub perfect_level: bool,
+    pub campaign_level_completed: bool,
+    pub new_perfect_level: bool,
     pub boss_cleared: bool,
 }
 
@@ -448,7 +462,8 @@ pub struct ActiveRun {
     pub next_row: [u8; 8],
     pub has_next_row: bool,
     pub score: u32,
-    pub featured_score: u32,
+    /// Daily leaderboard score: engine score plus pressure-scaled challenge bonus.
+    pub daily_score: u32,
     pub pressure_score: u32,
     pub daily_scoring_rule: DailyScoringRule,
     pub daily_pressure: DailyPressureProfile,
@@ -465,6 +480,7 @@ pub struct ActiveRun {
     pub combo3_hits: u16,
     pub combo4_hits: u16,
     pub high_combo_hits: u16,
+    pub blocks_destroyed_by_size: [u16; 4],
     pub bonus_type: u8,
     pub bonus_charges: u8,
     /// Perfect-clear trigger may award at most once between player moves.
@@ -495,7 +511,9 @@ pub struct RunReceipt {
     pub map_id: u8,
     pub level: u8,
     pub score: u32,
-    pub featured_score: u32,
+    pub daily_score: u32,
+    pub pressure_score: u32,
+    pub final_pressure_tier: u8,
     pub daily_scoring_rule: DailyScoringRule,
     pub moves: u16,
     pub level_stars: u8,
@@ -505,6 +523,7 @@ pub struct RunReceipt {
     pub combo3_hits: u16,
     pub combo4_hits: u16,
     pub high_combo_hits: u16,
+    pub blocks_destroyed_by_size: [u16; 4],
     pub max_combo: u8,
     pub completed: bool,
     pub action_hash: [u8; 32],
@@ -731,15 +750,15 @@ mod tests {
     }
 
     #[test]
-    fn achievement_xp_is_non_spendable_and_does_not_inflate_stars() {
+    fn lifetime_xp_is_non_spendable_and_does_not_inflate_stars() {
         let mut player = PlayerProfile::initialize(Pubkey::new_unique(), 1);
-        player.credit_achievement_rewards(0, 50).unwrap();
-        assert_eq!(player.achievement_xp, 50);
+        player.credit_progression_rewards(0, 50).unwrap();
+        assert_eq!(player.lifetime_xp, 50);
         assert_eq!(player.stars_balance, 0);
         assert_eq!(player.lifetime_stars_earned, 0);
 
-        player.credit_achievement_rewards(2, 150).unwrap();
-        assert_eq!(player.achievement_xp, 200);
+        player.credit_progression_rewards(2, 150).unwrap();
+        assert_eq!(player.lifetime_xp, 200);
         assert_eq!(player.stars_balance, 2);
         assert_eq!(player.lifetime_stars_earned, 2);
     }
@@ -795,8 +814,10 @@ mod tests {
                     combo3_hits: 2,
                     combo4_hits: 1,
                     high_combo_hits: 1,
+                    blocks_destroyed_by_size: [6, 10, 8, 5],
                     max_combo: 10,
-                    perfect_level: true,
+                    campaign_level_completed: true,
+                    new_perfect_level: true,
                     boss_cleared: true,
                 },
                 day_one,
@@ -809,10 +830,19 @@ mod tests {
         assert_eq!(player.lifetime_perfect_levels, 1);
         assert_eq!(player.lifetime_bosses_cleared, 1);
         assert_eq!(player.quest_counters[0], 20);
+        assert_eq!(player.quest_counters[5], 1);
+        assert_eq!(player.quest_counters[7], 6);
+        assert_eq!(player.quest_counters[12], 10);
+        assert_eq!(player.quest_counters[13], 8);
+        assert_eq!(player.quest_counters[14], 5);
         assert_eq!(player.quest_counters[10], 20);
 
         player.roll_quest_cadences(day_one + 86_400);
         assert_eq!(player.quest_counters[0], 0);
+        assert_eq!(player.quest_counters[7], 0);
+        assert_eq!(player.quest_counters[12], 0);
+        assert_eq!(player.quest_counters[13], 0);
+        assert_eq!(player.quest_counters[14], 0);
         assert_eq!(player.quest_counters[10], 20);
     }
 

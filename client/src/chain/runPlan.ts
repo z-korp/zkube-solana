@@ -116,7 +116,7 @@ export interface ActiveRunView extends EndlessRulesView {
   rules: ActiveRunRulesView;
   lifecycle: string;
   score: number;
-  featuredScore: number;
+  dailyScore: number;
   pressureScore: number;
   dailyScoringRule: DailyScoringRuleView;
   dailyPressure: DailyPressureProfileView;
@@ -827,7 +827,7 @@ export function mapActiveRunAccount(
     rules: mapLevelRuleSnapshot(account.rules),
     lifecycle,
     score: Number(account.score),
-    featuredScore: Number(account.featuredScore),
+    dailyScore: Number(account.dailyScore),
     pressureScore: Number(account.pressureScore),
     dailyScoringRule: mapDailyScoringRule(account.dailyScoringRule),
     dailyPressure,

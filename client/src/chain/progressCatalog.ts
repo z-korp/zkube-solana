@@ -7,11 +7,33 @@ export interface AchievementPublicationRule {
 export interface QuestPublicationRule {
   metric: number;
   cadence: 0 | 1;
-  rotationModulus: 1 | 3;
-  rotationRemainder: 0 | 1 | 2;
+  questClass: "core" | "combo" | "activity" | "meta" | "weekly";
   enabled: true;
   threshold: number;
-  rewardUnits: number;
+  xpReward: number;
+  starReward: number;
+}
+
+const DAILY_QUEST_POOL_SIZE = 9;
+const DAILY_QUEST_SELECTION_SIZE = 3;
+const DAILY_QUEST_MIX_SEED = 0x9e3779b9;
+const BLOCK_QUEST_VARIANT_SEED = 0xb10c5eed;
+const BLOCK_QUEST_COUNTERS = [7, 12, 13, 14] as const;
+const BLOCK_QUEST_VARIANTS = [
+  [1, 6],
+  [2, 8],
+  [3, 6],
+  [4, 5],
+  [1, 8],
+  [2, 10],
+  [3, 8],
+  [4, 6],
+] as const;
+
+export interface BlockQuestVariant {
+  blockSize: 1 | 2 | 3 | 4;
+  target: number;
+  metric: number;
 }
 
 const achievement = (
@@ -25,77 +47,152 @@ const achievement = (
 });
 
 /** Exact Cairo order and thresholds with the approved six-times XP values. */
-export const CANONICAL_ACHIEVEMENT_RULES: readonly AchievementPublicationRule[] = [
-  achievement(0, 20, 300),
-  achievement(0, 100, 900),
-  achievement(0, 400, 1_800),
-  achievement(0, 1_000, 3_000),
-  achievement(1, 200, 300),
-  achievement(1, 1_000, 900),
-  achievement(1, 4_000, 1_800),
-  achievement(1, 10_000, 3_000),
-  achievement(2, 3, 300),
-  achievement(2, 4, 900),
-  achievement(2, 5, 1_800),
-  achievement(2, 6, 3_000),
-  achievement(3, 1, 300),
-  achievement(3, 5, 900),
-  achievement(3, 15, 1_800),
-  achievement(3, 50, 3_000),
-  achievement(4, 1, 600),
-  achievement(4, 3, 1_200),
-  achievement(5, 30, 2_400),
-  achievement(4, 10, 6_000),
-  achievement(6, 1, 300),
-  achievement(6, 7, 900),
-  achievement(6, 30, 1_800),
-  achievement(6, 100, 3_000),
-];
+export const CANONICAL_ACHIEVEMENT_RULES: readonly AchievementPublicationRule[] =
+  [
+    achievement(0, 20, 300),
+    achievement(0, 100, 900),
+    achievement(0, 400, 1_800),
+    achievement(0, 1_000, 3_000),
+    achievement(1, 200, 300),
+    achievement(1, 1_000, 900),
+    achievement(1, 4_000, 1_800),
+    achievement(1, 10_000, 3_000),
+    achievement(2, 3, 300),
+    achievement(2, 4, 900),
+    achievement(2, 5, 1_800),
+    achievement(2, 6, 3_000),
+    achievement(3, 1, 300),
+    achievement(3, 5, 900),
+    achievement(3, 15, 1_800),
+    achievement(3, 50, 3_000),
+    achievement(4, 1, 600),
+    achievement(4, 3, 1_200),
+    achievement(5, 30, 2_400),
+    achievement(4, 10, 6_000),
+    achievement(6, 1, 300),
+    achievement(6, 7, 900),
+    achievement(6, 30, 1_800),
+    achievement(6, 100, 3_000),
+  ];
 
 const quest = (
   metric: number,
   cadence: 0 | 1,
   threshold: number,
-  rewardUnits: number,
-  rotationModulus: 1 | 3,
-  rotationRemainder: 0 | 1 | 2,
+  xpReward: number,
+  starReward: number,
+  questClass: QuestPublicationRule["questClass"],
 ): QuestPublicationRule => ({
   metric,
   cadence,
-  rotationModulus,
-  rotationRemainder,
+  questClass,
   enabled: true,
   threshold,
-  rewardUnits,
+  xpReward,
+  starReward,
 });
 
 /**
- * Exact Cairo quest order: nine Daily quests rotate three-at-a-time over a
- * three-day cycle, followed by the Daily finisher and two Weekly quests.
+ * Nine Daily quests are deterministically mixed three-at-a-time, followed by
+ * the Daily finisher and two Weekly quests.
  */
 export const CANONICAL_QUEST_RULES: readonly QuestPublicationRule[] = [
-  quest(0, 0, 20, 1, 3, 0),
-  quest(1, 0, 3, 1, 3, 0),
-  quest(2, 0, 1, 1, 3, 0),
-  quest(3, 0, 2, 1, 3, 1),
-  quest(4, 0, 1, 1, 3, 1),
-  quest(5, 0, 1, 1, 3, 1),
-  quest(6, 0, 1, 1, 3, 2),
-  quest(7, 0, 2, 1, 3, 2),
-  quest(8, 0, 5, 1, 3, 2),
-  quest(9, 0, 3, 2, 1, 0),
-  quest(10, 1, 150, 5, 1, 0),
-  quest(11, 1, 3, 5, 1, 0),
+  quest(0, 0, 20, 100, 0, "core"),
+  quest(1, 0, 3, 100, 0, "core"),
+  quest(2, 0, 1, 100, 0, "combo"),
+  quest(3, 0, 2, 100, 0, "combo"),
+  quest(4, 0, 1, 100, 0, "activity"),
+  quest(5, 0, 2, 100, 0, "activity"),
+  quest(6, 0, 1, 100, 0, "combo"),
+  quest(7, 0, 10, 100, 0, "core"),
+  quest(8, 0, 5, 100, 0, "combo"),
+  quest(9, 0, 3, 200, 2, "meta"),
+  quest(10, 1, 150, 500, 5, "weekly"),
+  quest(11, 1, 3, 500, 5, "weekly"),
 ];
 
-export function questRewardsForDay(day: number): { dailyXp: number; weeklyStars: number } {
-  if (!Number.isSafeInteger(day) || day < 0) throw new Error("day must be a non-negative integer");
-  const dailyXp = CANONICAL_QUEST_RULES
-    .filter((rule) => rule.cadence === 0
-      && day % rule.rotationModulus === rule.rotationRemainder)
-    .reduce((sum, rule) => sum + rule.rewardUnits * 100, 0);
-  const weeklyStars = CANONICAL_QUEST_RULES
-    .filter((rule) => rule.cadence === 1)
-    .reduce((sum, rule) => sum + rule.rewardUnits, 0);
-  return { dailyXp, weeklyStars };
+function validateDay(day: number): void {
+  if (!Number.isSafeInteger(day) || day < 0 || day > 0xffff_ffff) {
+    throw new Error("day must be a u32");
+  }
+}
+
+function seededXorshift(seed: number): number {
+  let state = seed >>> 0;
+  if (state === 0) state = 0x6d2b79f5;
+  state ^= state << 13;
+  state ^= state >>> 17;
+  state ^= state << 5;
+  return state >>> 0;
+}
+
+export function blockQuestVariant(day: number): BlockQuestVariant {
+  validateDay(day);
+  const mixed = seededXorshift((day ^ BLOCK_QUEST_VARIANT_SEED) >>> 0);
+  const [blockSize, target] =
+    BLOCK_QUEST_VARIANTS[mixed % BLOCK_QUEST_VARIANTS.length]!;
+  return {
+    blockSize,
+    target,
+    metric: BLOCK_QUEST_COUNTERS[blockSize - 1],
+  };
+}
+
+export function questRuleForDay(
+  index: number,
+  day: number,
+): QuestPublicationRule {
+  const rule = CANONICAL_QUEST_RULES[index];
+  if (!rule) throw new Error("invalid quest index");
+  if (index !== 7) return rule;
+  const variant = blockQuestVariant(day);
+  return { ...rule, metric: variant.metric, threshold: variant.target };
+}
+
+export function dailyQuestIndices(day: number): readonly number[] {
+  validateDay(day);
+  // Mirror the program's compact u32 xorshift/Fisher-Yates schedule exactly.
+  const shuffled = Array.from(
+    { length: DAILY_QUEST_POOL_SIZE },
+    (_, index) => index,
+  );
+  let state = (day ^ DAILY_QUEST_MIX_SEED) >>> 0;
+  for (let upper = DAILY_QUEST_POOL_SIZE - 1; upper > 0; upper -= 1) {
+    state = seededXorshift(state);
+    const selectedIndex = state % (upper + 1);
+    [shuffled[upper], shuffled[selectedIndex]] = [
+      shuffled[selectedIndex] ?? 0,
+      shuffled[upper] ?? 0,
+    ];
+  }
+  const selected: number[] = [];
+  let comboCount = 0;
+  for (const index of shuffled) {
+    const isCombo = CANONICAL_QUEST_RULES[index]?.questClass === "combo";
+    if (isCombo && comboCount === 2) continue;
+    selected.push(index);
+    if (isCombo) comboCount += 1;
+    if (selected.length === DAILY_QUEST_SELECTION_SIZE) break;
+  }
+  return selected;
+}
+
+export function questRewardsForDay(day: number): {
+  dailyXp: number;
+  dailyStars: number;
+  weeklyXp: number;
+  weeklyStars: number;
+} {
+  const dailyRules = [...dailyQuestIndices(day), 9].map(
+    (index) => CANONICAL_QUEST_RULES[index],
+  );
+  const weeklyRules = CANONICAL_QUEST_RULES.filter(
+    (rule) => rule.cadence === 1,
+  );
+  return {
+    dailyXp: dailyRules.reduce((sum, rule) => sum + rule.xpReward, 0),
+    dailyStars: dailyRules.reduce((sum, rule) => sum + rule.starReward, 0),
+    weeklyXp: weeklyRules.reduce((sum, rule) => sum + rule.xpReward, 0),
+    weeklyStars: weeklyRules.reduce((sum, rule) => sum + rule.starReward, 0),
+  };
 }

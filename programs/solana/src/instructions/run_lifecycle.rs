@@ -15,7 +15,7 @@ use crate::game::{
 use crate::state::economy_v2::{
     DailyScoringRule, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC, DAILY_SCORE_CLEAN,
     DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES, DAILY_SCORE_SURVIVAL,
-    DAILY_SCORE_TOTAL_LINES,
+    PERFECT_MAP_STARS, PERFECT_MAP_XP,
 };
 use crate::state::v2::*;
 
@@ -307,13 +307,14 @@ pub fn handler_play_move(
     let level = level_rules(&active.rules)?;
     let mut mutator = mutator_rules(&active.rules);
     let difficulty_at_action = active.current_difficulty;
+    let mut pressure_multiplier_x100 = 100u16;
     if active.mode == RunMode::Daily {
-        mutator.score_multiplier_x100 =
-            (u32::from(mutator.score_multiplier_x100).saturating_mul(u32::from(
-                active.daily_pressure.score_multipliers_x100
-                    [usize::from(difficulty_at_action.min(7))],
-            )) / 100)
-                .min(u32::from(u16::MAX)) as u16;
+        pressure_multiplier_x100 =
+            active.daily_pressure.score_multipliers_x100[usize::from(difficulty_at_action.min(7))];
+        mutator.score_multiplier_x100 = (u32::from(mutator.score_multiplier_x100)
+            .saturating_mul(u32::from(pressure_multiplier_x100))
+            / 100)
+            .min(u32::from(u16::MAX)) as u16;
     }
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
@@ -326,6 +327,7 @@ pub fn handler_play_move(
         .total_lines_cleared
         .checked_add(u16::from(report.lines_cleared))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
+    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
     if report.lines_cleared >= 2 {
         active.combo2_hits = active
             .combo2_hits
@@ -351,14 +353,25 @@ pub fn handler_play_move(
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
     if active.mode == RunMode::Daily {
+        let (weighted_raw_bonus, awarded_bonus) =
+            daily_challenge_bonus(active.daily_scoring_rule, &report, pressure_multiplier_x100)?;
         active.pressure_score = active
             .pressure_score
-            .checked_add(report.neutral_points_earned)
+            .checked_add(
+                report
+                    .neutral_points_earned
+                    .checked_add(weighted_raw_bonus)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?,
+            )
             .ok_or(ErrorCode::ArithmeticOverflow)?;
-        let featured = daily_featured_points(active.daily_scoring_rule, &report)?;
-        active.featured_score = active
-            .featured_score
-            .checked_add(featured)
+        active.daily_score = active
+            .daily_score
+            .checked_add(
+                report
+                    .points_earned
+                    .checked_add(awarded_bonus)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?,
+            )
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         active.current_difficulty = active
             .daily_pressure
@@ -376,7 +389,7 @@ pub fn handler_play_move(
         .chain_update(expected_move.to_le_bytes())
         .chain_update([row, start, destination])
         .chain_update(active.score.to_le_bytes())
-        .chain_update(active.featured_score.to_le_bytes())
+        .chain_update(active.daily_score.to_le_bytes())
         .chain_update(active.pressure_score.to_le_bytes())
         .chain_update(active.moves.to_le_bytes())
         .chain_update([active.lifecycle as u8])
@@ -427,6 +440,7 @@ pub fn handler_apply_bonus(
         .total_lines_cleared
         .checked_add(u16::from(report.lines_cleared))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
+    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
     active.bonus_uses = active
         .bonus_uses
         .checked_add(1)
@@ -762,7 +776,9 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
         0
     };
     receipt.score = active.score;
-    receipt.featured_score = active.featured_score;
+    receipt.daily_score = active.daily_score;
+    receipt.pressure_score = active.pressure_score;
+    receipt.final_pressure_tier = active.current_difficulty;
     receipt.daily_scoring_rule = active.daily_scoring_rule;
     receipt.moves = active.moves;
     receipt.level_stars = stars;
@@ -772,6 +788,7 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     receipt.combo3_hits = active.combo3_hits;
     receipt.combo4_hits = active.combo4_hits;
     receipt.high_combo_hits = active.high_combo_hits;
+    receipt.blocks_destroyed_by_size = active.blocks_destroyed_by_size;
     receipt.max_combo = active.max_combo;
     receipt.completed = completed;
     receipt.action_hash = active.action_hash;
@@ -796,8 +813,10 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
             combo3_hits: receipt.combo3_hits,
             combo4_hits: receipt.combo4_hits,
             high_combo_hits: receipt.high_combo_hits,
+            blocks_destroyed_by_size: receipt.blocks_destroyed_by_size,
             max_combo: receipt.max_combo,
-            perfect_level: newly_perfect,
+            campaign_level_completed: completed,
+            new_perfect_level: newly_perfect,
             boss_cleared: completed && receipt.level == LEVELS_PER_MAP as u8,
         },
         receipt.consumed_at,
@@ -818,6 +837,11 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
             receipt.map_id,
             receipt.level,
             completed,
+        )?;
+        award_map_perfection(
+            &mut ctx.accounts.campaign_progress,
+            &mut ctx.accounts.player_profile,
+            receipt.map_id,
         )?;
     }
     ctx.accounts.campaign_progress.last_consumed_run_id = ctx
@@ -913,6 +937,16 @@ fn cleanup_is_allowed(
         && vrf_hash_matches
 }
 
+#[inline(never)]
+fn record_destroyed_blocks(active: &mut ActiveRun, destroyed: [u8; 4]) -> Result<()> {
+    for (total, amount) in active.blocks_destroyed_by_size.iter_mut().zip(destroyed) {
+        *total = total
+            .checked_add(u16::from(amount))
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    Ok(())
+}
+
 fn update_campaign_unlocks(
     campaign: &mut CampaignProgress,
     player: &mut PlayerProfile,
@@ -928,12 +962,42 @@ fn update_campaign_unlocks(
     if map_id == 1 {
         player.daily_eligible = true;
     }
+    Ok(())
+}
+
+fn award_map_perfection(
+    campaign: &mut CampaignProgress,
+    player: &mut PlayerProfile,
+    map_id: u8,
+) -> Result<bool> {
     let perfected = (1..=LEVELS_PER_MAP as u8)
         .all(|candidate| campaign.best_stars(map_id, candidate).ok() == Some(3));
-    if perfected {
-        campaign.perfected_maps |= bit;
+    if !perfected {
+        return Ok(false);
     }
-    Ok(())
+    let bit = 1u32
+        .checked_shl(u32::from(map_id.saturating_sub(1)))
+        .ok_or(ErrorCode::InvalidMap)?;
+    if campaign.perfected_maps & bit != 0 {
+        return Ok(false);
+    }
+    campaign.perfected_maps |= bit;
+    player.credit_progression_rewards(PERFECT_MAP_STARS, PERFECT_MAP_XP)?;
+    emit!(MapPerfected {
+        owner: player.owner,
+        map_id,
+        stars: PERFECT_MAP_STARS,
+        xp: PERFECT_MAP_XP,
+    });
+    Ok(true)
+}
+
+#[event]
+pub struct MapPerfected {
+    pub owner: Pubkey,
+    pub map_id: u8,
+    pub stars: u64,
+    pub xp: u32,
 }
 
 fn short_meta(pubkey: Pubkey, is_writable: bool) -> ShortAccountMeta {
@@ -999,37 +1063,44 @@ fn mutator_rules(snapshot: &LevelRuleSnapshot) -> MutatorRules {
     }
 }
 
-fn daily_featured_points(rule: DailyScoringRule, report: &MoveReport) -> Result<u32> {
+fn daily_challenge_bonus(
+    rule: DailyScoringRule,
+    report: &MoveReport,
+    pressure_multiplier_x100: u16,
+) -> Result<(u32, u32)> {
     rule.validate()?;
     let lines = report.lines_cleared;
-    let points = match rule.kind {
-        DAILY_SCORE_CLASSIC => report.points_earned,
-        DAILY_SCORE_COMBO if lines >= rule.parameter => match lines {
-            2 => 1,
-            3 => 3,
-            4 => 6,
-            _ => 10,
-        },
+    let raw_points = match rule.kind {
+        DAILY_SCORE_CLASSIC => 0,
+        DAILY_SCORE_COMBO if lines >= rule.parameter => report.neutral_points_earned,
         DAILY_SCORE_COMBO => 0,
-        DAILY_SCORE_EXACT_LINES => u32::from(lines == rule.parameter),
-        DAILY_SCORE_TOTAL_LINES => u32::from(lines),
+        DAILY_SCORE_EXACT_LINES if lines == rule.parameter => report.neutral_points_earned,
+        DAILY_SCORE_EXACT_LINES => 0,
         DAILY_SCORE_BLOCKS => u32::from(
             report.blocks_destroyed_by_size[usize::from(rule.parameter.saturating_sub(1))],
         ),
-        DAILY_SCORE_CLUTCH if report.height_before >= rule.parameter => match lines {
-            0 => 0,
-            1 => 1,
-            2 => 3,
-            3 => 6,
-            _ => 10,
-        },
+        DAILY_SCORE_CLUTCH if lines > 0 && report.height_before >= rule.parameter => {
+            report.neutral_points_earned
+        }
         DAILY_SCORE_CLUTCH => 0,
-        DAILY_SCORE_CLEAN if report.height_after <= rule.parameter => u32::from(lines),
+        DAILY_SCORE_CLEAN if lines > 0 && report.height_after <= rule.parameter => {
+            report.neutral_points_earned
+        }
         DAILY_SCORE_CLEAN => 0,
-        DAILY_SCORE_SURVIVAL => 1 + u32::from(report.difficulty_at_action),
+        DAILY_SCORE_SURVIVAL => 1,
         _ => return err!(ErrorCode::InvalidLevel),
     };
-    Ok(points)
+    let weighted_raw = scale_daily_points(raw_points, rule.bonus_multiplier_x100)?;
+    let awarded = scale_daily_points(weighted_raw, pressure_multiplier_x100)?;
+    Ok((weighted_raw, awarded))
+}
+
+fn scale_daily_points(points: u32, multiplier_x100: u16) -> Result<u32> {
+    let scaled = u64::from(points)
+        .checked_mul(u64::from(multiplier_x100))
+        .and_then(|value| value.checked_div(100))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    u32::try_from(scaled).map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
@@ -1151,22 +1222,23 @@ mod tests {
     }
 
     #[test]
-    fn daily_featured_rules_score_only_the_selected_action_metric() {
+    fn daily_challenge_bonus_uses_objective_weight_then_pressure() {
         let report = MoveReport {
             lines_cleared: 3,
             points_earned: 42,
+            neutral_points_earned: 6,
             height_before: 7,
             height_after: 2,
             blocks_destroyed_by_size: [1, 2, 3, 4],
             difficulty_at_action: 4,
             ..MoveReport::default()
         };
-        let rule = |kind, parameter| DailyScoringRule {
+        let rule = |kind, parameter, bonus_multiplier_x100| DailyScoringRule {
             id: 1,
             family: match kind {
                 DAILY_SCORE_CLASSIC => 0,
                 DAILY_SCORE_COMBO => 1,
-                DAILY_SCORE_EXACT_LINES | DAILY_SCORE_TOTAL_LINES => 2,
+                DAILY_SCORE_EXACT_LINES => 2,
                 DAILY_SCORE_BLOCKS => 3,
                 DAILY_SCORE_CLUTCH => 4,
                 DAILY_SCORE_CLEAN => 5,
@@ -1174,38 +1246,39 @@ mod tests {
             },
             kind,
             parameter,
+            bonus_multiplier_x100,
         };
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_CLASSIC, 0), &report).unwrap(),
-            42
+            daily_challenge_bonus(rule(DAILY_SCORE_CLASSIC, 0, 0), &report, 140).unwrap(),
+            (0, 0)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_COMBO, 2), &report).unwrap(),
-            3
+            daily_challenge_bonus(rule(DAILY_SCORE_COMBO, 2, 500), &report, 140).unwrap(),
+            (30, 42)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_EXACT_LINES, 1), &report).unwrap(),
-            0
+            daily_challenge_bonus(rule(DAILY_SCORE_EXACT_LINES, 1, 100), &report, 140).unwrap(),
+            (0, 0)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_TOTAL_LINES, 0), &report).unwrap(),
-            3
+            daily_challenge_bonus(rule(DAILY_SCORE_EXACT_LINES, 3, 100), &report, 140).unwrap(),
+            (6, 8)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_BLOCKS, 2), &report).unwrap(),
-            2
+            daily_challenge_bonus(rule(DAILY_SCORE_BLOCKS, 2, 100), &report, 140).unwrap(),
+            (2, 2)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_CLUTCH, 7), &report).unwrap(),
-            6
+            daily_challenge_bonus(rule(DAILY_SCORE_CLUTCH, 7, 100), &report, 140).unwrap(),
+            (6, 8)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_CLEAN, 2), &report).unwrap(),
-            3
+            daily_challenge_bonus(rule(DAILY_SCORE_CLEAN, 2, 100), &report, 140).unwrap(),
+            (6, 8)
         );
         assert_eq!(
-            daily_featured_points(rule(DAILY_SCORE_SURVIVAL, 0), &report).unwrap(),
-            5
+            daily_challenge_bonus(rule(DAILY_SCORE_SURVIVAL, 0, 100), &report, 140).unwrap(),
+            (1, 1)
         );
     }
 
@@ -1216,17 +1289,27 @@ mod tests {
     #[ignore = "offline Daily balance simulation"]
     fn daily_catalog_simulation() {
         let pressure = DailyPressureProfile::canonical();
+        let seed_count = std::env::var("DAILY_SIMULATION_SEEDS")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(64);
         println!(
-            "rule_id,family,kind,parameter,min_moves,mean_moves,max_moves,mean_featured,stuck"
+            "seeds={seed_count}\nrule_id,family,kind,parameter,weight,min_moves,mean_moves,max_moves,mean_engine,mean_bonus,bonus_share,mean_daily,tier7_by_50,stuck"
         );
-        for rule in canonical_daily_scoring_rules().into_iter().take(14) {
-            let attempts = (0..64)
+        for rule in canonical_daily_scoring_rules().into_iter().take(15) {
+            let attempts = (0..seed_count)
                 .map(|seed| simulate_daily_attempt(rule, pressure, seed))
                 .collect::<Vec<_>>();
             assert!(attempts
                 .iter()
                 .all(|attempt| attempt.moves <= DAILY_MAX_MOVES));
-            assert!(attempts.iter().any(|attempt| attempt.featured > 0));
+            assert!(attempts.iter().all(|attempt| {
+                attempt.daily_score == attempt.engine_score.saturating_add(attempt.challenge_bonus)
+            }));
+            if rule.kind != DAILY_SCORE_CLASSIC {
+                assert!(attempts.iter().any(|attempt| attempt.challenge_bonus > 0));
+            }
             let min_moves = attempts
                 .iter()
                 .map(|attempt| attempt.moves)
@@ -1241,21 +1324,46 @@ mod tests {
                 .iter()
                 .map(|attempt| u64::from(attempt.moves))
                 .sum::<u64>();
-            let total_featured = attempts
+            let total_engine = attempts
                 .iter()
-                .map(|attempt| u64::from(attempt.featured))
+                .map(|attempt| u64::from(attempt.engine_score))
                 .sum::<u64>();
+            let total_bonus = attempts
+                .iter()
+                .map(|attempt| u64::from(attempt.challenge_bonus))
+                .sum::<u64>();
+            let total_daily = attempts
+                .iter()
+                .map(|attempt| u64::from(attempt.daily_score))
+                .sum::<u64>();
+            let tier7_by_50 = attempts
+                .iter()
+                .filter(|attempt| {
+                    attempt
+                        .tier7_move
+                        .is_some_and(|move_number| move_number <= 50)
+                })
+                .count();
             let stuck = attempts.iter().filter(|attempt| attempt.stuck).count();
             println!(
-                "{},{},{},{},{},{:.1},{},{:.1},{}",
+                "{},{},{},{},{},{},{:.1},{},{:.1},{:.1},{:.1}%,{:.1},{:.1}%,{}",
                 rule.id,
                 rule.family,
                 rule.kind,
                 rule.parameter,
+                rule.bonus_multiplier_x100,
                 min_moves,
                 total_moves as f64 / attempts.len() as f64,
                 max_moves,
-                total_featured as f64 / attempts.len() as f64,
+                total_engine as f64 / attempts.len() as f64,
+                total_bonus as f64 / attempts.len() as f64,
+                if total_daily == 0 {
+                    0.0
+                } else {
+                    total_bonus as f64 * 100.0 / total_daily as f64
+                },
+                total_daily as f64 / attempts.len() as f64,
+                tier7_by_50 as f64 * 100.0 / attempts.len() as f64,
                 stuck,
             );
         }
@@ -1264,14 +1372,18 @@ mod tests {
     #[derive(Clone, Copy)]
     struct SimulatedDailyAttempt {
         moves: u16,
-        featured: u32,
+        engine_score: u32,
+        daily_score: u32,
+        challenge_bonus: u32,
+        tier7_move: Option<u16>,
         stuck: bool,
     }
 
     struct SimulatedMoveCandidate {
         engine: RunEngine,
         report: MoveReport,
-        featured: u32,
+        weighted_raw_bonus: u32,
+        awarded_bonus: u32,
         quality: (u32, u32, u8, u8),
     }
 
@@ -1302,8 +1414,10 @@ mod tests {
             );
         }
 
-        let mut featured = 0u32;
+        let mut daily_score = 0u32;
+        let mut challenge_bonus = 0u32;
         let mut pressure_score = 0u32;
+        let mut tier7_move = None;
         let mut stuck = false;
         while engine.phase == RunPhase::Playing && engine.moves < pressure.max_moves {
             let tier = pressure.difficulty_for_score(pressure_score);
@@ -1328,9 +1442,11 @@ mod tests {
                             continue;
                         };
                         report.difficulty_at_action = tier;
-                        let featured_delta = daily_featured_points(rule, &report).unwrap();
+                        let multiplier = pressure.score_multipliers_x100[usize::from(tier)];
+                        let (weighted_raw_bonus, awarded_bonus) =
+                            daily_challenge_bonus(rule, &report, multiplier).unwrap();
                         let quality = (
-                            featured_delta,
+                            awarded_bonus,
                             report.neutral_points_earned,
                             report.lines_cleared,
                             u8::MAX - report.height_after,
@@ -1339,7 +1455,8 @@ mod tests {
                             best = Some(SimulatedMoveCandidate {
                                 engine: candidate,
                                 report,
-                                featured: featured_delta,
+                                weighted_raw_bonus,
+                                awarded_bonus,
                                 quality,
                             });
                         }
@@ -1351,8 +1468,16 @@ mod tests {
                 break;
             };
             engine = best.engine;
-            featured = featured.saturating_add(best.featured);
-            pressure_score = pressure_score.saturating_add(best.report.neutral_points_earned);
+            daily_score = daily_score
+                .saturating_add(best.report.points_earned)
+                .saturating_add(best.awarded_bonus);
+            challenge_bonus = challenge_bonus.saturating_add(best.awarded_bonus);
+            pressure_score = pressure_score
+                .saturating_add(best.report.neutral_points_earned)
+                .saturating_add(best.weighted_raw_bonus);
+            if tier7_move.is_none() && pressure.difficulty_for_score(pressure_score) == 7 {
+                tier7_move = Some(engine.moves);
+            }
             if engine.phase == RunPhase::AwaitingVrf {
                 let next_tier = pressure.difficulty_for_score(pressure_score);
                 let row = simulated_vrf_row(
@@ -1366,7 +1491,10 @@ mod tests {
         }
         SimulatedDailyAttempt {
             moves: engine.moves,
-            featured,
+            engine_score: engine.score,
+            daily_score,
+            challenge_bonus,
+            tier7_move,
             stuck,
         }
     }
@@ -1382,19 +1510,29 @@ mod tests {
     }
 
     #[test]
-    fn perfect_boss_clear_records_perfection_without_unlocking_the_next_map() {
+    fn final_non_boss_rating_awards_map_perfection_once_without_unlocking_next_map() {
         let owner = Pubkey::new_unique();
         let mut campaign = CampaignProgress::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
-            campaign.record_level_stars(1, level, 3).unwrap();
+            campaign
+                .record_level_stars(1, level, if level == 4 { 2 } else { 3 })
+                .unwrap();
         }
         let mut player = PlayerProfile::initialize(owner, 1);
         player.next_run_id = 2;
         update_campaign_unlocks(&mut campaign, &mut player, 1, 10, true).unwrap();
+        assert!(!award_map_perfection(&mut campaign, &mut player, 1).unwrap());
+        campaign.record_level_stars(1, 4, 3).unwrap();
+        assert!(award_map_perfection(&mut campaign, &mut player, 1).unwrap());
         assert!(player.daily_eligible);
         assert!(!campaign.is_map_unlocked(2));
         assert_eq!(campaign.cleared_maps, 1);
         assert_eq!(campaign.perfected_maps, 1);
+        assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
+        assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
+        assert!(!award_map_perfection(&mut campaign, &mut player, 1).unwrap());
+        assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
+        assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
     }
 
     #[test]

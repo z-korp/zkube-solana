@@ -385,9 +385,11 @@ async function main(): Promise<void> {
         (sum, rule) => sum + rule.xpReward,
         0,
       ),
-      questRewardUnits: CANONICAL_QUEST_RULES.map((rule) => rule.rewardUnits),
+      questXpRewards: CANONICAL_QUEST_RULES.map((rule) => rule.xpReward),
+      questStarRewards: CANONICAL_QUEST_RULES.map((rule) => rule.starReward),
       questThresholds: CANONICAL_QUEST_RULES.map((rule) => rule.threshold),
-      dailyQuestRotation: "three of nine by UTC day modulo 3, plus finisher",
+      dailyQuestRotation:
+        "three deterministic distinct quests, max two combo, plus finisher",
       sessionSigner: runSession.publicKey.toBase58(),
       sessionValidUntil: flowConfig.sessionValidUntil,
       delegatedValidator: LOCAL_ER_VALIDATOR.toBase58(),

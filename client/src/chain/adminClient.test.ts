@@ -119,12 +119,17 @@ describe("authority publication client", () => {
     expect(accounts[2].pubkey.equals(authority.publicKey)).toBe(true);
   });
 
-  it("pins 40,200 achievement XP, Daily XP, and two 5-Star Weekly quests", () => {
+  it("pins achievement XP and the dual Daily and Weekly quest rewards", () => {
     expect(CANONICAL_QUEST_RULES).toHaveLength(12);
     expect(CANONICAL_ACHIEVEMENT_RULES.reduce((sum, rule) => sum + rule.xpReward, 0))
       .toBe(40_200);
     for (const day of [0, 1, 2, 10]) {
-      expect(questRewardsForDay(day)).toEqual({ dailyXp: 500, weeklyStars: 10 });
+      expect(questRewardsForDay(day)).toEqual({
+        dailyXp: 500,
+        dailyStars: 2,
+        weeklyXp: 1_000,
+        weeklyStars: 10,
+      });
     }
   });
 

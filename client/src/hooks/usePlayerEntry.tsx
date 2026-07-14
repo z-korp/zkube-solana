@@ -2,10 +2,10 @@ import { useDaily } from "@/contexts/daily";
 import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 
 export interface PlayerEntryView {
-  bestFeaturedScore: number;
+  bestDailyScore: number;
   bestEngineScore: number;
   bestMoves: number;
-  /** Featured score compatibility alias. */
+  /** Daily score compatibility alias. */
   bestScore: number;
   rank: number;
   finalizedAttempts: number;
@@ -29,10 +29,10 @@ export function usePlayerEntry(
     ) ?? -1;
   const entry: PlayerEntryView | null = player
     ? {
-        bestFeaturedScore: player.bestFeaturedScore ?? player.bestScore,
+        bestDailyScore: player.bestDailyScore ?? player.bestScore,
         bestEngineScore: player.bestEngineScore ?? player.bestScore,
         bestMoves: player.bestMoves ?? 0,
-        bestScore: player.bestFeaturedScore ?? player.bestScore,
+        bestScore: player.bestDailyScore ?? player.bestScore,
         rank: rank + 1,
         finalizedAttempts: player.finalizedAttempts,
         starRefunded: player.starRefunded,

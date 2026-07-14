@@ -37,7 +37,7 @@ export const usePlayerMeta = (overrideAddress?: string) => {
       bestLevel,
       totalRuns: bigintToSafeNumber(progress?.lifetime.runsStarted ?? 0n),
       dailyStars: bigintToSafeNumber(progress?.lifetime.dailyChallenges ?? 0n),
-      lifetimeXp: bigintToSafeNumber(progress?.achievementXp ?? 0n),
+      lifetimeXp: bigintToSafeNumber(progress?.lifetimeXp ?? 0n),
       lastActive: 0,
     };
   }, [address, campaign?.maps, isCurrentPlayer, progress]);

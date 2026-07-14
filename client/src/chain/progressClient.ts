@@ -1,4 +1,9 @@
-import { SystemProgram, Transaction, type Connection, type PublicKey } from "@solana/web3.js";
+import {
+  SystemProgram,
+  Transaction,
+  type Connection,
+  type PublicKey,
+} from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet";
 import {
   deriveCampaignProgressPda,
@@ -12,6 +17,9 @@ import {
 import {
   CANONICAL_ACHIEVEMENT_RULES,
   CANONICAL_QUEST_RULES,
+  blockQuestVariant,
+  dailyQuestIndices,
+  questRuleForDay,
 } from "./progressCatalog";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 
@@ -28,11 +36,12 @@ export interface AchievementProgressView {
 export interface QuestProgressView {
   index: number;
   metric: number;
+  blockSize: number | null;
   cadence: "daily" | "weekly";
   progress: number;
   threshold: number;
-  rewardAmount: bigint;
-  rewardUnit: "XP" | "Stars";
+  xpReward: number;
+  starReward: bigint;
   active: boolean;
   claimed: boolean;
   claimable: boolean;
@@ -50,7 +59,7 @@ export interface LifetimeStatsView {
 
 export interface ProgressView {
   starsBalance: bigint;
-  achievementXp: bigint;
+  lifetimeXp: bigint;
   lifetime: LifetimeStatsView;
   achievements: AchievementProgressView[];
   quests: QuestProgressView[];
@@ -70,60 +79,82 @@ export async function fetchProgressView(args: {
 }): Promise<ProgressView | null> {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
-  const protocol = await program.account.protocolConfig.fetchNullable(deriveProtocolConfigPda());
-  const player = await program.account.playerProfile.fetchNullable(derivePlayerProfilePda(owner));
+  const protocol = await program.account.protocolConfig.fetchNullable(
+    deriveProtocolConfigPda(),
+  );
+  const player = await program.account.playerProfile.fetchNullable(
+    derivePlayerProfilePda(owner),
+  );
   const campaign = await program.account.campaignProgress.fetchNullable(
     deriveCampaignProgressPda(owner),
   );
   if (!protocol || !player || !campaign) return null;
   const [claims, milestones, weeklyStipend] = await Promise.all([
     program.account.questClaims.fetchNullable(deriveQuestClaimsPda(owner)),
-    program.account.levelMilestones.fetchNullable(deriveLevelMilestonesPda(owner)),
+    program.account.levelMilestones.fetchNullable(
+      deriveLevelMilestonesPda(owner),
+    ),
     program.account.weeklyStipend.fetchNullable(deriveWeeklyStipendPda(owner)),
   ]);
   const now = args.nowUnix ?? Math.floor(Date.now() / 1_000);
   const day = Math.max(0, Math.floor(now / 86_400));
   const week = Math.max(0, Math.floor((now + 259_200) / 604_800));
-  const achievementFlags = player.achievementFlags.map((value) => BigInt(value.toString()));
+  const achievementFlags = player.achievementFlags.map((value) =>
+    BigInt(value.toString()),
+  );
   const metrics = achievementMetrics(player, campaign);
   const achievements = CANONICAL_ACHIEVEMENT_RULES.map((rule, index) => {
-      const progress = metrics[rule.metric] ?? 0n;
-      const claimed =
-        (achievementFlags[Math.floor(index / 64)] & (1n << BigInt(index % 64))) !== 0n;
-      return {
-        index,
-        metric: rule.metric,
-        progress,
-        threshold: rule.threshold,
-        xpReward: rule.xpReward,
-        claimed,
-        claimable: !claimed && progress >= rule.threshold,
-      };
-    });
-  const dailyClaims = claims && Number(claims.dailyCadenceId) === day
-    ? Number(claims.dailyClaimed)
-    : 0;
-  const weeklyClaims = claims && Number(claims.weeklyCadenceId) === week
-    ? Number(claims.weeklyClaimed)
-    : 0;
-  const dailyCounterIsCurrent = Number(player.questCadenceDay) === day;
-  const weeklyCounterIsCurrent = Number(player.questCadenceWeek) === week;
-  const quests = CANONICAL_QUEST_RULES.map((rule, index) => {
-    const cadence = rule.cadence === 0 ? "daily" as const : "weekly" as const;
-    const active = cadence === "weekly"
-      || day % rule.rotationModulus === rule.rotationRemainder;
-    const claimedBitmap = cadence === "daily" ? dailyClaims : weeklyClaims;
-    const claimed = (claimedBitmap & (1 << index)) !== 0;
-    const counterIsCurrent = cadence === "daily" ? dailyCounterIsCurrent : weeklyCounterIsCurrent;
-    const progress = counterIsCurrent ? Number(player.questCounters[rule.metric] ?? 0) : 0;
+    const progress = metrics[rule.metric] ?? 0n;
+    const claimed =
+      (achievementFlags[Math.floor(index / 64)] &
+        (1n << BigInt(index % 64))) !==
+      0n;
     return {
       index,
       metric: rule.metric,
+      progress,
+      threshold: rule.threshold,
+      xpReward: rule.xpReward,
+      claimed,
+      claimable: !claimed && progress >= rule.threshold,
+    };
+  });
+  const dailyClaims =
+    claims && Number(claims.dailyCadenceId) === day
+      ? Number(claims.dailyClaimed)
+      : 0;
+  const weeklyClaims =
+    claims && Number(claims.weeklyCadenceId) === week
+      ? Number(claims.weeklyClaimed)
+      : 0;
+  const dailyCounterIsCurrent = Number(player.questCadenceDay) === day;
+  const weeklyCounterIsCurrent = Number(player.questCadenceWeek) === week;
+  const selectedDailyQuests = dailyQuestIndices(day);
+  const quests = CANONICAL_QUEST_RULES.map((_canonicalRule, index) => {
+    const rule = questRuleForDay(index, day);
+    const blockSize = index === 7 ? blockQuestVariant(day).blockSize : null;
+    const cadence =
+      rule.cadence === 0 ? ("daily" as const) : ("weekly" as const);
+    const active =
+      cadence === "weekly" ||
+      index === 9 ||
+      selectedDailyQuests.includes(index);
+    const claimedBitmap = cadence === "daily" ? dailyClaims : weeklyClaims;
+    const claimed = (claimedBitmap & (1 << index)) !== 0;
+    const counterIsCurrent =
+      cadence === "daily" ? dailyCounterIsCurrent : weeklyCounterIsCurrent;
+    const progress = counterIsCurrent
+      ? Number(player.questCounters[rule.metric] ?? 0)
+      : 0;
+    return {
+      index,
+      metric: rule.metric,
+      blockSize,
       cadence,
       progress,
       threshold: rule.threshold,
-      rewardAmount: BigInt(rule.rewardUnits * (cadence === "daily" ? 100 : 1)),
-      rewardUnit: cadence === "daily" ? "XP" as const : "Stars" as const,
+      xpReward: rule.xpReward,
+      starReward: BigInt(rule.starReward),
       active,
       claimed,
       claimable: active && !claimed && progress >= rule.threshold,
@@ -133,7 +164,7 @@ export async function fetchProgressView(args: {
     BigInt(String((player as Record<string, unknown>)[key] ?? 0));
   return {
     starsBalance: BigInt(player.starsBalance.toString()),
-    achievementXp: BigInt(player.achievementXp.toString()),
+    lifetimeXp: BigInt(player.lifetimeXp.toString()),
     lifetime: {
       runsStarted: lifetimeValue("lifetimeRunsStarted"),
       linesCleared: lifetimeValue("lifetimeLinesCleared"),
@@ -151,21 +182,24 @@ export async function fetchProgressView(args: {
           totalStarsClaimed: BigInt(milestones.totalStarsClaimed.toString()),
         }
       : { claimed: 0, totalStarsClaimed: 0n },
-    weeklyStipend: weeklyStipend && Number(weeklyStipend.weekId) === week
-      ? {
-          weekId: Number(weeklyStipend.weekId),
-          recurringXp: Number(weeklyStipend.recurringXp),
-          starsAwarded: Boolean(weeklyStipend.starsAwarded),
-          lifetimeStarsAwarded: BigInt(weeklyStipend.lifetimeStarsAwarded.toString()),
-        }
-      : {
-          weekId: week,
-          recurringXp: 0,
-          starsAwarded: false,
-          lifetimeStarsAwarded: weeklyStipend
-            ? BigInt(weeklyStipend.lifetimeStarsAwarded.toString())
-            : 0n,
-        },
+    weeklyStipend:
+      weeklyStipend && Number(weeklyStipend.weekId) === week
+        ? {
+            weekId: Number(weeklyStipend.weekId),
+            recurringXp: Number(weeklyStipend.recurringXp),
+            starsAwarded: Boolean(weeklyStipend.starsAwarded),
+            lifetimeStarsAwarded: BigInt(
+              weeklyStipend.lifetimeStarsAwarded.toString(),
+            ),
+          }
+        : {
+            weekId: week,
+            recurringXp: 0,
+            starsAwarded: false,
+            lifetimeStarsAwarded: weeklyStipend
+              ? BigInt(weeklyStipend.lifetimeStarsAwarded.toString())
+              : 0n,
+          },
   };
 }
 
@@ -178,8 +212,8 @@ export async function buildClaimLevelMilestonePlan(args: {
   assertIndex(args.milestoneIndex, 10, "milestoneIndex");
   const owner = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimLevelMilestone(args.milestoneIndex)
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimLevelMilestone(args.milestoneIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
@@ -190,7 +224,12 @@ export async function buildClaimLevelMilestonePlan(args: {
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return basePlan("Claim level milestone Stars", args.connection, payer, instruction);
+  return basePlan(
+    "Claim level milestone Stars",
+    args.connection,
+    payer,
+    instruction,
+  );
 }
 
 export async function buildClaimAchievementPlan(args: {
@@ -201,8 +240,8 @@ export async function buildClaimAchievementPlan(args: {
 }): Promise<TransactionPlan> {
   assertIndex(args.achievementIndex, 24, "achievementIndex");
   const owner = args.wallet.publicKey;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimAchievement(args.achievementIndex)
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimAchievement(args.achievementIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerProfile: derivePlayerProfilePda(owner),
@@ -210,7 +249,12 @@ export async function buildClaimAchievementPlan(args: {
       owner,
     })
     .instruction();
-  return basePlan("Claim achievement reward", args.connection, args.paymaster ?? owner, instruction);
+  return basePlan(
+    "Claim achievement reward",
+    args.connection,
+    args.paymaster ?? owner,
+    instruction,
+  );
 }
 
 export async function buildClaimQuestPlan(args: {
@@ -222,8 +266,8 @@ export async function buildClaimQuestPlan(args: {
   assertIndex(args.questIndex, 12, "questIndex");
   const owner = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimQuest(args.questIndex)
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimQuest(args.questIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerProfile: derivePlayerProfilePda(owner),
@@ -242,7 +286,10 @@ export async function buildClaimQuestPlan(args: {
   );
 }
 
-function achievementMetrics(player: Record<string, unknown>, campaign: Record<string, unknown>): bigint[] {
+function achievementMetrics(
+  player: Record<string, unknown>,
+  campaign: Record<string, unknown>,
+): bigint[] {
   const value = (key: string) => BigInt(String(player[key] ?? 0));
   const clearedMaps = Number(campaign.clearedMaps ?? 0);
   return [

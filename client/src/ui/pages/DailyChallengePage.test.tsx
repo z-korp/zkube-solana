@@ -149,7 +149,7 @@ describe("DailyChallengePage", () => {
     expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/2 attempts/)).toBeInTheDocument();
     expect(screen.getByTestId("tier-context")).toHaveTextContent(
-      "#1 · 123 featured",
+      "#1 · 123 daily",
     );
     expect(fixtures.controller.enter).not.toHaveBeenCalled();
   });
@@ -177,7 +177,10 @@ describe("DailyChallengePage", () => {
     expect(screen.getByRole("button", { name: "3 Stars" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
-      "+100 XP once today",
+      "+100 XP first finish",
+    );
+    expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
+      "+50 XP first Tier 7 today",
     );
     expect(screen.getByRole("button", { name: /Top up/ })).toBeEnabled();
   });

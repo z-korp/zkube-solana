@@ -38,19 +38,20 @@ describe("progress projections", () => {
     const entry: QuestProgressView = {
       index: 0,
       metric: 1,
+      blockSize: null,
       cadence: "daily",
       progress: 6,
       threshold: 7,
-      rewardAmount: 200n,
-      rewardUnit: "XP",
+      xpReward: 200,
+      starReward: 2n,
       active: true,
       claimed: false,
       claimable: false,
     };
     expect(projectQuests([entry], 86_400)[0]).toMatchObject({
       target: 7,
-      reward: 200,
-      rewardUnit: "XP",
+      xpReward: 200,
+      starReward: 2,
       progress: 6,
       active: true,
     });
@@ -59,14 +60,29 @@ describe("progress projections", () => {
       ...entry,
       index: 10,
       cadence: "weekly" as const,
-      rewardAmount: 5n,
-      rewardUnit: "Stars" as const,
+      xpReward: 500,
+      starReward: 5n,
     };
     const entries = Array.from({ length: 11 }, (_, index) =>
       index === 10 ? weekly : { ...entry, index },
     );
-    expect(projectQuests(entries, 86_400)[10])
-      .toMatchObject({ reward: 5, rewardUnit: "Stars" });
+    expect(projectQuests(entries, 86_400)[10]).toMatchObject({
+      xpReward: 500,
+      starReward: 5,
+    });
+
+    const blockEntries = Array.from({ length: 8 }, (_, index) => ({
+      ...entry,
+      index,
+      metric: index === 7 ? 14 : entry.metric,
+      blockSize: index === 7 ? 4 : null,
+      threshold: index === 7 ? 6 : entry.threshold,
+    }));
+    expect(projectQuests(blockEntries, 2 * 86_400)[7]).toMatchObject({
+      blockSize: 4,
+      target: 6,
+      description: "Destroy 6 size-4 blocks",
+    });
   });
 
   it("derives the highest global campaign level from map and level", () => {

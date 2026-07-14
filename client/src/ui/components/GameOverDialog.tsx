@@ -101,7 +101,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
     if (isEndless) {
       const tweetMsg = `${endlessTier.emoji} Reached ${endlessTier.name} pressure in the @zkube_game Daily!
 
-${score.toLocaleString()} featured | ${game.engineScore.toLocaleString()} engine | ${combo}x best combo
+${score.toLocaleString()} daily | ${game.engineScore.toLocaleString()} engine | +${game.challengeBonus.toLocaleString()} challenge
 
 Can you beat my score?
 
@@ -140,6 +140,7 @@ app.zkube.xyz`;
     game.maxComboRun,
     game.zoneId,
     game.engineScore,
+    game.challengeBonus,
     isEndless,
     endlessTier,
   ]);
@@ -215,7 +216,7 @@ app.zkube.xyz`;
 
           {isEndless ? (
             <>
-              {/* Daily: featured leaderboard score as hero number. */}
+              {/* Daily leaderboard score as hero number. */}
               <motion.div variants={levelVariants} className="text-center py-2">
                 <div
                   className="text-6xl font-bold text-cyan-400 mb-1"
@@ -225,7 +226,7 @@ app.zkube.xyz`;
                 </div>
                 <div className="text-lg text-slate-400 flex items-center justify-center gap-2">
                   <Gem size={16} className="text-cyan-400" />
-                  <span>Featured Score</span>
+                  <span>Daily Score</span>
                 </div>
               </motion.div>
 
@@ -248,7 +249,14 @@ app.zkube.xyz`;
                   >
                     {endlessTier.name}
                   </div>
-                  <div className="text-xs text-slate-400">Pressure Tier</div>
+                  <div className="text-xs text-slate-400">
+                    Pressure Tier · {game.moves}/100 moves
+                  </div>
+                  {game.currentDifficulty === 7 && (
+                    <div className="text-[10px] font-bold text-amber-300">
+                      First Tier 7 today awards +50 XP
+                    </div>
+                  )}
                 </div>
 
                 {/* Multiplier */}
@@ -263,13 +271,13 @@ app.zkube.xyz`;
                   <div className="text-xs text-slate-400">Engine Score</div>
                 </div>
 
-                {/* Combo meter */}
+                {/* Challenge bonus */}
                 <div className="flex flex-col items-center gap-1 bg-slate-800/50 px-3 py-3 rounded-lg flex-1">
-                  <div className="text-2xl flex gap-1.5 items-center text-orange-500">
-                    {game.combo}x
-                    <Flame size={20} />
+                  <div className="text-2xl flex gap-1.5 items-center text-amber-300 font-bold">
+                    +{game.challengeBonus.toLocaleString()}
+                    <Gem size={20} />
                   </div>
-                  <div className="text-xs text-slate-400">Combo Meter</div>
+                  <div className="text-xs text-slate-400">Challenge Bonus</div>
                 </div>
               </motion.div>
             </>

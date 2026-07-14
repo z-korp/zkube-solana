@@ -170,6 +170,11 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
                 color={zone.perfectionClaimed ? "#ec4899" : colors.accent}
                 height={6}
               />
+              <p className="mt-1 font-sans text-[9px] font-semibold text-white/45">
+                {zone.perfectionClaimed
+                  ? "Perfect reward earned: +20★ + 1,000 XP"
+                  : "Perfect all 10 levels: +20★ + 1,000 XP"}
+              </p>
             </div>
           )}
         </motion.section>

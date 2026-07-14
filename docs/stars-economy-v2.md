@@ -10,8 +10,10 @@ an SPL token and cannot be transferred, withdrawn, redeemed, or traded.
 | Flow | Stars | Repeatability | Notes |
 | --- | ---: | --- | --- |
 | Campaign improvement | up to 3/level | finite | Only improvement over the prior best is credited; 100 levels cap issuance at 300 Stars/player. |
+| Perfect map | 20 | once/map | All ten levels must hold a three-Star best; the same atomic reward also credits 1,000 finite lifetime XP. |
 | Level milestone | 10 | levels 10, 20, …, 100 | Ten one-time claims; 100 Stars/player maximum. |
-| Weekly quests | 5 each | weekly | Two quests, 10 Stars total. |
+| Daily Finisher | 2 | daily | Requires claiming all three selected Daily quests; also awards 200 XP. |
+| Weekly quests | 5 each | weekly | Two quests, 10 Stars and 1,000 XP total. |
 | Level-100 Mastery | 30 | once/week | Requires level 100 and 2,500 qualifying XP during the current week; no backfill. |
 | Weekly cash rank | 30 | weekly, skill-based | Every cash winner receives 30 Stars in addition to USDC. |
 | Following Weekly band | 30/25/20/15/10 | weekly, skill-based | Applies after cash winners; begins at rank 1 when the cash pool is zero. |
@@ -19,10 +21,18 @@ an SPL token and cannot be transferred, withdrawn, redeemed, or traded.
 | Zone unlock | -20 | once/zone | Map 1 is free; any other active map can be bought in any order; clears/perfection never unlock maps free. |
 | Daily entry | -10 | every attempt | Unlimited while open; no free or direct-USDC entry; only the best finalized score ranks. |
 
-The three rotating Daily quests award 100 XP each and the Daily Finisher awards
-200 XP: at most 500 XP/day. The first finalized Daily attempt awards another
-100 XP once that day. The two Weekly quests award 5 Stars each. Achievement XP
-is excluded from the weekly Mastery counter.
+Three distinct Daily quests are deterministically mixed from a nine-quest pool
+each UTC day, with no more than two combo quests. They award 100 XP each; the
+Daily Finisher awards 200 XP plus 2 Stars. The first finalized Daily attempt
+awards another 100 XP once that day, and the first pressure-tier-7 finish adds
+50 XP. The two Weekly quests award 500 XP and 5 Stars each. Achievement and
+perfect-map XP are excluded from the weekly Mastery counter.
+
+The Block Breaker pool slot also varies deterministically by UTC day. It draws
+evenly from calibrated `(block size, target)` variants: size 1 at 6 or 8,
+size 2 at 8 or 10, size 3 at 6 or 8, and size 4 at 5 or 6. Authoritative run
+settlement accumulates all four size counters throughout the day, so the shown
+objective, claim check, and client progress always use the same daily variant.
 
 Achievements are XP-only and total exactly 40,200 XP. There is no compatibility
 delta path for older claims: Devnet may be reset and the source has one
@@ -32,8 +42,9 @@ canonical claim model.
 
 Mastery is earned, not a login grant. A player must have at least 160,000
 lifetime XP and then record 2,500 qualifying XP in the current Monday-anchored
-week. Qualifying XP is Daily-quest XP plus the first finalized Daily attempt's
-100 XP. The claim that crosses the threshold automatically credits 30 Stars.
+week. Qualifying XP is all Daily/Weekly quest XP plus the Daily first-finish
+and first-tier-7 XP. The claim that crosses the threshold automatically credits
+30 Stars.
 The stipend rolls by week, awards at most once, never backfills missed weeks,
 and has no separate manual faucet button.
 
@@ -59,29 +70,43 @@ per identity rather than across the whole player base.
 
 | Player story | Earn/spend sequence | End state | Product implication |
 | --- | --- | ---: | --- |
-| New, skilled, no purchase | Perfect Map 1 +30; buy any later map -20; one Daily -10 | 0 Stars + 100 XP | The first map funds one deliberate unlock and one Daily; the client must make that choice visible. |
+| New, skilled, no purchase | Perfect Map 1 +50; buy any later map -20; one Daily -10 | 20 Stars + 1,000 finite XP | Perfection funds one unlock, one Daily, and preserves two more entries. |
 | New, misses one Campaign Star | Earns 29; pays 20 for Map 2 | 9 Stars; Daily blocked | This is the sharpest conversion cliff; surface the choice before spending and monitor 0–9 balances. |
-| Pre-100, no placement | Both Weekly quests +10; one Daily -10 | net 0 | One repeatable entry is possible only if the player could already fund the three-Daily Explorer requirement. |
-| Level 100, no placement | Weekly quests +10; Mastery +30; four entries -40 | net 0 | Durable baseline is four entries/week, with carry-over choosing the days. |
-| Level 100, daily regular | Seven entries -70; Weekly quests +10; Mastery +30 | -30 gap | Daily regulars need carried finite Stars, placement, or a purchase. |
-| Level 100, following Star band | Quests +10; Mastery +30; placement +10–30 | 50–70 available | Placement funds five to seven entries. |
-| Level 100, cash winner | Quests +10; Mastery +30; cash-rank Stars +30 | 70 available plus USDC | Top players can fund one entry/day and still receive cash. |
+| Pre-100, full quest week | Finishers +14; Weeklies +10 | 24 Stars | Funds two entries and carries 4 Stars toward the next one. |
+| Level 100, no placement | Finishers +14; Weeklies +10; Mastery +30 | 54 Stars | Durable baseline funds five entries and carries 4 Stars. |
+| Level 100, daily regular | Seven entries -70 against +54 baseline | -16 gap | Daily regulars still need finite Stars, placement, or a purchase. |
+| Level 100, following Star band | Quest/Mastery +54; placement +10–30 | 64–84 available | Placement funds six to eight entries. |
+| Level 100, cash winner | Quest/Mastery +54; cash-rank Stars +30 | 84 available plus USDC | Top players fund seven entries plus one retry while receiving cash. |
 | Competitive retry player | Buys 100 Stars for initial 9 USDC; ten entries -100 | 0 | Revenue scales with retries while ranking remains best-score, not spend total. |
-| Progress-first player | Preserves finite 300 Campaign + 100 milestone Stars | up to 40 entries | Finite play grants meaningful participation without unbounded inflation. |
+| Progress-first player | Earns 300 level + 200 perfection + 100 milestone; spends 180 on nine unlocks | 420 net Stars | Finite mastery funds 42 Daily entries after unlocking every current map. |
 
 ### Weekly steady state
 
 | Player state | Quest Stars | Mastery | Placement | Repeatable total | Entries funded |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Pre-100, no placement | 0–10 | 0 | 0 | 0–10 | 0–1 |
-| Level 100, below 2,500 qualifying XP | 0–10 | 0 | 0 | 0–10 | 0–1 |
-| Level 100, Mastery, no placement | 0–10 | 30 | 0 | 30–40 | 3–4 |
-| Level 100, following band | 0–10 | 30 | 10–30 | 40–70 | 4–7 |
-| Level 100, cash rank | 0–10 | 30 | 30 | 60–70 | 6–7 plus USDC |
+| Pre-100, no placement | 0–24 | 0 | 0 | 0–24 | 0–2 |
+| Level 100, below 2,500 qualifying XP | 0–24 | 0 | 0 | 0–24 | 0–2 |
+| Level 100, Mastery, no placement | 0–24 | 30 | 0 | 30–54 | 3–5 |
+| Level 100, following band | 0–24 | 30 | 10–30 | 40–84 | 4–8 |
+| Level 100, cash rank | 0–24 | 30 | 30 | 60–84 | 6–8 plus USDC |
+
+The maximum qualifying recurring XP in a fully completed week is 5,550:
+
+| Source | Weekly XP |
+| --- | ---: |
+| Three Daily quests | 2,100 |
+| Daily Finisher | 1,400 |
+| First finalized Daily | 700 |
+| First tier-7 Daily | 350 |
+| Two Weekly quests | 1,000 |
+
+Tier-7 XP improves the routes to the 2,500-XP Mastery threshold but does not
+mint Stars directly. A player still has to reach level 100 before the weekly
+30-Star faucet can award.
 
 Weekly Explorer requires three Daily entries, so a zero-balance player cannot
 assume the full quest budget without carried/finite Stars or a purchase. Daily
-quests can progress through Campaign replays except Daily-specific objectives.
+quests can progress through Campaign replays except the Daily-entry objective.
 
 Primary tuning signals are Stars spent per active player-day, first-purchase
 conversion, attempts per entrant, map-purchase order, balances after zone
@@ -94,10 +119,12 @@ Daily opens permissionlessly at 00:00 UTC. Entries close at 23:00, runs at
 23:30, and finalization becomes unconditional after the settlement grace. A
 cancelled Daily refunds 10 Stars per entry exactly once.
 
-Daily is neutral endless play with one public season-selected featured scoring
-rule. Featured score ranks first; engine score, moves, and finish time break
-ties. The seven families, 14 variants, pressure tiers, and deterministic weekly
-rotation are specified in
+Daily is neutral 100-move endurance play with one public season-selected bonus
+rule. Every normal engine point counts; qualifying play adds a weighted,
+pressure-adjusted challenge bonus. Daily score ranks first, followed by
+challenge bonus, engine score, moves, and player public key. The seven
+families, 15 variants, pressure tiers, and deterministic weekly rotation are
+specified in
 [daily-challenge-design.md](daily-challenge-design.md).
 
 | Daily band | Points | Rank/percentile bound |

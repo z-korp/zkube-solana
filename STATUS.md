@@ -1,6 +1,6 @@
 # zKube Solana — status
 
-Updated: 2026-07-13 (Europe/Paris). Devnet is the rollout and acceptance
+Updated: 2026-07-14 (Europe/Paris). Devnet is the rollout and acceptance
 target. Mainnet remains a separate disabled gate.
 
 ## Live Devnet
@@ -65,20 +65,24 @@ post-deployment byte verification.
 
 The current source candidate is a breaking, lean Stars baseline described in
 `docs/stars-economy-v2.md`: non-transferable Star packs, 20-Star zones, 10-Star
-unlimited Daily entries, 40,200 achievement XP, Daily-quest XP, two 5-Star
-Weekly quests, level-100 weekly Mastery, cash-winner Stars, permissionless Daily
-and Weekly automation, best-five Weekly scoring, claims, and 90-day reserve
-return. Daily is now neutral endless play with a public-seed procedural season:
-seven scoring families, 14 variants, independent pressure tiers, featured-score
-ranking, and engine/moves/time tie-breaks. Star purchases split USDC atomically
-10% team, 10% rewards, and 80% plus dust treasury. There is no compatibility
-migration path; Devnet state may be reset. It is **not deployed or initialized**.
+unlimited Daily entries, 40,200 achievement XP, 20-Star/1,000-XP map perfection,
+a deterministic three-of-nine Daily quest mix with 2-Star Finishers, two
+500-XP/5-Star Weekly quests, a deterministic Block Breaker size/count variant,
+level-100 weekly Mastery, cash-winner Stars, permissionless Daily and Weekly
+automation, best-five Weekly scoring, claims, and 90-day reserve return. Daily
+is now neutral 100-move endurance play with a public-seed procedural season:
+seven scoring families, 15 weighted bonus variants, combined engine-plus-bonus
+Daily scoring, independent pressure tiers, no absolute-time tie-break, 100 XP
+for the first finish, and 50 XP for the first tier-7 finish that day. Star
+purchases split USDC atomically 10% team, 10% rewards, and 80% plus dust
+treasury. There is no compatibility migration path; Devnet state may be reset.
+It is **not deployed or initialized**.
 
-The validated local SBF is 1,583,736 bytes (SHA-256
-`623cbcb22da4d2141cb70af28a7b3a3e2c28d9c86cc8f4c3ed7988e9f0e451e2`),
-20,296 bytes below the live 1,604,032-byte ProgramData allocation. A separately
-approved upgrade, fresh three-destination bootstrap, and acceptance run are
-still required.
+The validated local SBF is 1,619,912 bytes (SHA-256
+`469595e5c96e203b5fd89eaf82a25010819e1f15a631a816ed473397d7522f28`),
+15,880 bytes above the live 1,604,032-byte ProgramData allocation. Shipping
+therefore requires a separately approved ProgramData extension or clean Devnet
+redeploy, followed by the fresh three-destination bootstrap and acceptance run.
 
 ## Bootstrap and client
 
@@ -116,11 +120,11 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 polling, with a slow poll only as a dropped-socket fallback.
 
 The previously deployed/client work is merged to `main`. The lean Stars source
-is a new local candidate. Program gates pass: 74 active Rust tests, formatting,
+is a new local candidate. Program gates pass: 78 active Rust tests, formatting,
 warnings-denied Clippy, optimized SBF/IDL generation, and diagnostic scan. One
-additional ignored 896-run Daily tuning harness found no stuck nonterminal
+additional ignored 3,840-run Daily tuning harness found no stuck nonterminal
 boards. The generated IDL contains 46 instructions and 19 account types. Client
-gate counts are 56 test files and 223 tests, with IDL parity, typecheck, lint,
+gate counts are 56 test files and 224 tests, with IDL parity, typecheck, lint,
 and production build all passing.
 
 The candidate Campaign is now fully authored rather than generated: ten active

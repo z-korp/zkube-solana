@@ -95,8 +95,8 @@ describe("LeaderboardPage", () => {
 
     expect(screen.getByText("abcd…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
-    expect(screen.getByText("900 featured")).toBeInTheDocument();
-    expect(screen.getByText("750 featured")).toBeInTheDocument();
+    expect(screen.getByText("900 daily")).toBeInTheDocument();
+    expect(screen.getByText("750 daily")).toBeInTheDocument();
     expect(screen.queryByText("Player")).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent(" XP");
     expect(container).not.toHaveTextContent("★");

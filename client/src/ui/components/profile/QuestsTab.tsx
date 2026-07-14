@@ -58,7 +58,7 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
       <QuestSection
         colors={colors}
         title="Daily Quests"
-        subtitle="Refreshes in a rotating cycle"
+        subtitle="Three new objectives every day"
         badge="Daily"
         badgeColor={colors.accent}
         quests={combinedDaily}
@@ -70,7 +70,7 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
       <QuestSection
         colors={colors}
         title="Weekly Quests"
-        subtitle="Long-run objectives with bigger rewards"
+        subtitle="Long-run objectives awarding XP and Stars"
         badge="Weekly"
         badgeColor="#B89BFF"
         quests={activeWeekly}
@@ -332,7 +332,12 @@ const QuestCard: React.FC<QuestCardProps> = ({
 };
 
 function questRewardLabel(quest: QuestStatus): string {
-  return quest.rewardUnit === "XP" ? `${quest.reward} XP` : `${quest.reward}★`;
+  return [
+    quest.xpReward > 0 ? `${quest.xpReward} XP` : null,
+    quest.starReward > 0 ? `${quest.starReward}★` : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
 }
 
 export default QuestsTab;

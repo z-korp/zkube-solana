@@ -29,7 +29,13 @@ describe("Daily client", () => {
   it("projects authoritative challenge scoring and pressure tuning", () => {
     const rules = decodedRulesFixture();
     const pressure = decodedPressureFixture();
-    const scoringRule = { id: 3, family: 1, kind: 1, parameter: 3 };
+    const scoringRule = {
+      id: 3,
+      family: 1,
+      kind: 1,
+      parameter: 3,
+      bonusMultiplierX100: 1_250,
+    };
 
     const view = mapDailyGameRulesSnapshot({ rules, pressure, scoringRule });
 
@@ -71,9 +77,15 @@ describe("Daily client", () => {
       rules: decodedRulesFixture(),
       lifecycle: { active: {} },
       score: 987_654,
-      featuredScore: 321,
+      dailyScore: 321,
       pressureScore: 144,
-      dailyScoringRule: { id: 14, family: 6, kind: 7, parameter: 0 },
+      dailyScoringRule: {
+        id: 14,
+        family: 6,
+        kind: 7,
+        parameter: 0,
+        bonusMultiplierX100: 250,
+      },
       dailyPressure: pressure,
       actionCounter: 42,
       moves: 18,
@@ -97,7 +109,7 @@ describe("Daily client", () => {
 
     expect(view.runId).toBe(9_007_199_254_740_993n);
     expect(view.rules.pointsRequired).toBe(12_345);
-    expect(view.featuredScore).toBe(321);
+    expect(view.dailyScore).toBe(321);
     expect(view.pressureScore).toBe(144);
     expect(view.dailyScoringRule.id).toBe(14);
     expect(view.endlessThresholds).toEqual(pressure.thresholds);
@@ -243,7 +255,13 @@ function dailyFixture(owner: PublicKey): DailyView {
       bonusThreshold: 0,
       startingCharges: 0,
     },
-    scoringRule: { id: 1, family: 0, kind: 0, parameter: 0 },
+    scoringRule: {
+      id: 1,
+      family: 0,
+      kind: 0,
+      parameter: 0,
+      bonusMultiplierX100: 0,
+    },
     pressure: decodedPressureFixture(),
     endlessThresholds: [15, 40, 80, 150, 280, 500, 900],
     endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
@@ -268,7 +286,7 @@ function dailyFixture(owner: PublicKey): DailyView {
         player: owner,
         receipt: Keypair.generate().publicKey,
         runId: 1n,
-        featuredScore: 100,
+        dailyScore: 100,
         engineScore: 90,
         moves: 18,
         score: 100,

@@ -505,7 +505,7 @@ pub fn handler_prepare_campaign_run(
     active.next_row = [0; 8];
     active.has_next_row = false;
     active.score = 0;
-    active.featured_score = 0;
+    active.daily_score = 0;
     active.pressure_score = 0;
     active.daily_scoring_rule = DailyScoringRule::default();
     active.daily_pressure = DailyPressureProfile::default();
@@ -522,6 +522,7 @@ pub fn handler_prepare_campaign_run(
     active.combo3_hits = 0;
     active.combo4_hits = 0;
     active.high_combo_hits = 0;
+    active.blocks_destroyed_by_size = [0; 4];
     active.bonus_type = rules.bonus_type;
     active.bonus_charges = rules.starting_charges;
     active.perfect_trigger_available = true;
@@ -548,7 +549,9 @@ pub fn handler_prepare_campaign_run(
     receipt.map_id = map_id;
     receipt.level = level;
     receipt.score = 0;
-    receipt.featured_score = 0;
+    receipt.daily_score = 0;
+    receipt.pressure_score = 0;
+    receipt.final_pressure_tier = 0;
     receipt.daily_scoring_rule = DailyScoringRule::default();
     receipt.moves = 0;
     receipt.level_stars = 0;
@@ -558,6 +561,7 @@ pub fn handler_prepare_campaign_run(
     receipt.combo3_hits = 0;
     receipt.combo4_hits = 0;
     receipt.high_combo_hits = 0;
+    receipt.blocks_destroyed_by_size = [0; 4];
     receipt.max_combo = 0;
     receipt.completed = false;
     receipt.action_hash = [0; 32];
