@@ -25,7 +25,7 @@ export function dailyToCurrentChallenge(
     settled: daily.status === "claimable" || daily.status === "closed",
     cancelled: daily.status === "cancelled",
     zone_id: daily.mapId,
-    total_attempts: daily.runsStarted,
+    total_attempts: daily.attemptsStarted,
     active_mutator_id: daily.rules.activeMutatorId,
     passive_mutator_id: daily.rules.passiveMutatorId,
   };

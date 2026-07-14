@@ -2,10 +2,10 @@
 
 This runbook is Devnet-only and does not authorize a transaction. Program
 deploy/upgrade, bootstrap stages, Daily publication, gameplay proofs,
-withdrawals, governance changes, and USDC movement require separate approval for
-the exact instructions, accounts, signers, cluster, and maximum spend.
+withdrawals, control changes, and every USDC movement require separate approval
+for the exact instructions, accounts, signers, cluster, and maximum spend.
 
-## Pinned Devnet identity
+## Pinned live Devnet identity
 
 | Item | Value |
 | --- | --- |
@@ -19,56 +19,51 @@ the exact instructions, accounts, signers, cluster, and maximum spend.
 | Canonical USDC | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
 | Token program | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` |
 
-The live binary is slot `475813201`, SBF SHA-256
-`89a24c891311ff384891929f6745c26b48f9f6f8a6da33595ad5ce2176e7254f`
-(approved fingerprint `20a84645e3f8d292`). It is 1,598,448 bytes within a
-1,604,032-byte allocation and adds the rent-economics cleanup close on top of
-`abandonRunV1` and the paymaster boundary hardening.
+`STATUS.md` is authoritative for the live slot, deployed hash, allocation, and
+the difference between live Devnet and repository source. The current live
+binary uses the older account model. The lean Stars source is a breaking
+candidate and must never be described as deployed until byte verification is
+complete.
 
-Repository source contains later hardening and must not be represented as the
-live binary. A local SBF is a new candidate. No source change, build, simulation,
-old fingerprint, or prior approval authorizes an upgrade.
+## Target custody model
 
-## Custody identities
+The fresh Stars baseline has exactly three canonical-USDC destinations:
 
-- team vault: `8nBxUByKv1PiC7GNzxZYkCBXeLJhg2rVqpobvQeLFivG`
-- paymaster reserve: `5HsAQ4ZZ3kExamfCiap6mT88DAmkVW8J7v7s5rBpga8Y`
-- treasury: `34gQiFnfFnfav5VmzFg15EqoEBtW2oi25wVNv36TsNAH`
-- reward reserve: `FpRj7daRRbcZmGLMHRHpP6qnXuGu8XKABuiNtuBs1oTV`
-- map-payment vault: `6x2Qmn4zkCkQa5ZvDhRpHMXPUnRrNoN5k8MdcJKbXgyD`
+- team destination: external token account, receives 10% of Star sales;
+- treasury destination: external token account, receives 80% plus dust;
+- reward reserve: program-controlled token account, receives 10% and funds
+  bounded Weekly contest vaults.
 
-All five are pairwise-distinct, 165-byte legacy SPL accounts for canonical
-Devnet USDC. Amounts are integer base units. Never reconcile custody from
-floating-point UI values.
+All are six-decimal legacy SPL Token accounts for the same mint, nonzero, and
+pairwise distinct. The paymaster holds SOL for fees and rent; it has no USDC
+vault or program allowance. There is no protocol payment vault, treasury
+ledger, yield policy, or program-owned treasury principal.
 
-## Evidence summary
+A Star purchase conserves every base unit:
 
-Proof JSON and signer material are operator-held ignored files; they are not
-shipped in a GitHub clone. The public evidence summary retained in this
-repository is the following set of hashes/fingerprints:
+```text
+gross = team + rewards + treasury
+team = floor(gross × 10%)
+rewards = floor(gross × 10%)
+treasury = gross - team - rewards
+```
 
-| Scope | Approved fingerprint | Sanitized proof SHA-256 |
-| --- | --- | --- |
-| Initial program deployment | `35b837ec99cde6bb` | `620b14cad362ebbf5fd0ad23075d2da3f673b11f19454e14a1e0a835688c7b3d` |
-| Current extend/upgrade | `55a4efd868180f9c` | `fadd75eeaea00adaab6495e91eac5ed99bcac481e671a9447464b5ffffa43ede` |
-| Custody bootstrap | `08063b99625c0a82` | `9c1d997f5b2802438db7427024b0589196bd5e7664af76cf98464e4807b6ce82` |
-| Protocol bootstrap | `1f6cd8031b2ec13a` | `6f406e909beb2dd826892aef2c7423ab692496ba72e2ac67473b022148957f41` |
-| Catalog bootstrap | `d3d34aa2e7528cad` | `52b1570ec370194522e906bd19b8f372c04f253c4620719c6911101b9ffc0c9d` |
-| Loader-rent audit | n/a | `f45f08a992fc50ffaba16c2fa826508589886c5714a25bf1de3f422703490a25` |
+Never reconcile custody using floating-point UI values. Read and validate token
+account owner, mint, token program, address, and raw amount.
 
-The initial loader's buffer funded permanent ProgramData rent; that is not a
-leaked upload buffer. Upgrade buffers are temporary and must drain/close to the
-spill account. Never close a live loader-v3 program to recover ProgramData rent:
-its program ID cannot be reused.
-
-## Dry-run and release gates
-
-Static validation:
+## Offline release gates
 
 ```bash
 NO_DNA=1 ./validate.sh program
-NO_DNA=1 ./validate.sh frontend
+cd client
+NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm exec tsc -b --pretty false
+NO_DNA=1 pnpm lint
+NO_DNA=1 pnpm exec vitest run
+NO_DNA=1 pnpm build
 ```
+
+These are evidence, not transaction authorization.
 
 Unsigned deployment/upgrade preview:
 
@@ -77,50 +72,68 @@ cd client
 NO_DNA=1 pnpm chain:devnet:deploy
 ```
 
-The planner defaults to `upgrade`, hashes `../target/deploy/solana.so`, binds
-RPC/genesis, operation, program, signer public identities and command plan, and
-sends nothing. Execution additionally requires an explicit send flag, the exact
-new approval fingerprint, sufficient funding, preflight, signature-verified
-simulation, and postcondition/byte checks.
+Execution still requires an explicit send flag, the exact new approval
+fingerprint, sufficient funding, preflight, signature-verified simulation, and
+post-deployment byte verification.
 
-Bootstrap preview is staged because later accounts depend on earlier ones:
+Bootstrap preview:
 
 ```bash
 cd client
 NO_DNA=1 pnpm chain:devnet:bootstrap
 ```
 
-Custody, protocol, and catalogs are already live. Re-running, publishing a new
-Daily, or changing governance is a new approval scope.
+The target stages are:
 
-## Web deployment (Vercel)
+1. custody: create/verify team, treasury, and reward token accounts and fund the
+   SOL paymaster;
+2. protocol: initialize the lean `ProtocolConfig` with authority, pricing
+   operator, paymaster, destinations, USDC identity, and content version;
+3. catalogs: initialize `EconomyConfig`/`StarSalesLedger`, publish Daily rules,
+   publish ten gameplay-only map catalogs, then activate the contiguous map
+   range. On a reset, publication and activation intentionally appear as two
+   dry-run fingerprints: rerun the catalogs preview after publication so the
+   compact activation batch can be simulated against accounts that now exist.
 
-The web client deploys to the Vercel project `zkube-solana` (team `z-labs`):
-root directory `client`, framework Vite, connected to `z-korp/zkube-solana` and
-auto-deploying on push to `main`. The build is plain `pnpm run build`
-(`client/vercel.json`); production is public, preview deployments are team-only
-via Deployment Protection. `api/paymaster.ts` is a Node serverless function
-(declared with `maxDuration: 30`); the SPA rewrite excludes `/api/` so the
-function is reachable, and the function's relative imports carry `.js`
-extensions for ESM runtime resolution (`"type": "module"`).
+Repository source intentionally has no migration-delta or compatibility path.
+Existing Devnet accounts may be abandoned/reset, but an upgrade and each
+bootstrap stage still need exact separate approval. Verify every account before
+proceeding to the next stage.
 
-Required Production env vars (never `VITE_`-prefix the secret):
+## Protocol controls
 
-- `PAYMASTER_SECRET_KEY` — the paymaster fee-payer keypair (64-int JSON array),
-  set only in Vercel's secret manager.
-- `PAYMASTER_GENESIS_HASH`, `SOLANA_DEVNET_RPC_URL`, `ZKUBE_PAYMASTER_PUBLIC_KEY`
-  — devnet pin plus a self-check that the secret matches the expected paymaster.
+- Pause/unpause is explicit and authority-signed.
+- Authority replacement is two-step: propose, then accept by the new authority.
+- Pricing operator replacement is authority-signed.
+- External team/treasury destinations can change only while paused; the reward
+  reserve remains pinned.
+- The pricing operator can update the five regular pack prices/enabled flags,
+  schedule one bounded sale window, or cancel it.
 
-The client hard-codes its devnet program/RPC config, so no `VITE_PUBLIC_*`
-program vars are needed — and a stale `VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID`
-must NOT be set, or it fails the IDL/program-address check at runtime.
+There is no generic proposal engine or timelock state. Operational process,
+multisig policy, and transaction review provide the human control boundary.
+Changing a control is always a new exact approval scope.
 
-`chain:manifest --require-approved` remains available as an optional operator
-provenance attestation; it is no longer a Vercel build gate.
+## Web deployment
+
+The client deploys to Vercel project `zkube-solana` (team `z-labs`), root
+`client`, framework Vite, connected to `z-korp/zkube-solana`. Production is
+public and preview deployments are team-only.
+
+`api/paymaster.ts` is the serverless relay. Required production secrets are:
+
+- `PAYMASTER_SECRET_KEY` — server-only fee-payer keypair;
+- `PAYMASTER_GENESIS_HASH` and `SOLANA_DEVNET_RPC_URL` — cluster pin;
+- `ZKUBE_PAYMASTER_PUBLIC_KEY` — secret/public identity self-check.
+
+Never expose the secret through a `VITE_` variable. The relay signs only after
+the client/player signature, stateless allowlist validation, cluster check, and
+simulation. It rejects Compute Budget instructions and arbitrary system/token
+transfers.
 
 ## Readiness and monitoring
 
-Run the signer-free probe with an environment-appropriate paymaster threshold:
+Run the signer-free probe with a meaningful paymaster threshold:
 
 ```bash
 cd client
@@ -128,70 +141,70 @@ NO_DNA=1 pnpm chain:readiness -- \
   --rpc https://rpc.magicblock.app/devnet \
   --expected-genesis EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG \
   --lookback-days 120 \
-  --min-paymaster-lamports <threshold> \
-  --claim-warning-hours 72
+  --min-paymaster-lamports <threshold>
 ```
 
-Schedule it and alert on nonzero exits. Required alerts cover paymaster balance
-and identity, policy/simulation/submission failures, protocol/yield pause and
-governance events, vault/liability divergence, refunds and claim deadlines,
-Router/ER availability, VRF timeouts, copyback latency, stale delegated runs,
-treasury/ledger divergence, and program hash/upgrade-authority changes.
+The probe validates program identity, `ProtocolConfig`, `StarSalesLedger`, all
+three token destinations, sale conservation, pause/pending-authority state,
+paymaster SOL, Daily PDA/leaderboard relationships, time windows,
+attempt/finalization counters, unique/eligible-player counters, and Weekly
+rollup completion.
 
-### 2026-07-12 paymaster incident
+Production monitoring should additionally index Weekly challenges and alert on:
 
-The fee payer fell to about 0.011 SOL and blocked new identities with a raw
-simulation error. It was refilled to about 1 SOL; a first run consumes roughly
-0.014 SOL. Keep the refill in the incident record, deploy threshold alerting,
-surface a friendly unavailable state, and verify the current relay hardening
-that rejects all Compute Budget instructions.
+- missing Daily/Weekly opens or finalizers after cadence deadlines;
+- unresolved runs after settlement grace;
+- Daily eligible results not rolled into Weekly;
+- reward-reserve/Weekly-vault mint, authority, and balance drift;
+- Star-sale split conservation or any share above 10% team/rewards;
+- claimable cash nearing 90-day expiry and unreturned expired funds;
+- more than one Mastery award per player/week;
+- cash winners missing their independent 30-Star claim;
+- players ending at 0–9 Stars and unusual Stars spent per active player-day;
+- Router/ER availability, VRF timeout, copyback latency, stale delegation;
+- program hash, ProgramData owner/allocation, and upgrade-authority changes.
 
-## Recovery and incidents
+Browser maintenance is only a fallback. A keeper/indexer must cover every
+cadence because no browser is guaranteed online.
 
-### Paymaster compromise or identity mismatch
+## Treasury and yield boundary
 
-Disable the relay endpoint immediately. Prepare and fund a replacement fee
-payer without exposing its key, then propose a timelocked
-`SetPaymasterPolicy` update with the replacement public key and bounded policy
-limits. After the proposal is authorized and executed, cut the endpoint over to
-the matching secret. Verify that the browser configuration, relay fee payer and
-`ProtocolConfig.paymaster` identity all agree before reopening sponsored
-writes. A replacement key has no on-chain sponsorship entitlement until that
-policy update completes.
+The program performs the sale split and then has no authority over the external
+team or treasury accounts. It does not calculate, recognize, or distribute
+yield. The reward reserve and active Weekly vaults are never treasury capital.
 
-### Legacy run cleanup
+Any future treasury strategy is a separate project and requires an explicit
+USDC transfer approval plus reviewed custody, valuation, liquidity, loss,
+withdrawal, and emergency controls. Report only realized USDC returned by the
+external strategy; never classify balance growth or reward liabilities as
+yield. Developer withdrawals from treasury are likewise separate approved USDC
+movements, not a program instruction hidden in gameplay.
 
-The old run for owner `BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6`
-is copied back but unconsumed. Only the browser holding that embedded identity
-can approve the `/?recover=1` envelope. Re-simulate and verify owner/PDA/mode/
-lifecycle before requesting approval; after confirmation verify receipt,
-progress, close state, and reclaimed rent. Preserve the account if any check
-fails.
+## Incidents
 
-### Program/accounting anomaly
+### Paymaster low balance or compromise
 
-Stop frontend writes and paymaster POST handling; preserve program hash, slots,
-signatures, raw account bytes and decoded ledgers; pause only with explicit
-authority; never reclassify or manually move liabilities; reproduce against the
-pinned binary; remediation/unpause requires review and timelock.
+Disable the relay on compromise. For low balance, pause new sponsored prepares
+and refill only under an exact approved transfer. A replacement paymaster needs
+an explicit protocol control transaction and matching server secret. Verify
+browser, relay fee payer, and `ProtocolConfig.paymaster` agree before reopening.
+
+### Program or accounting anomaly
+
+Stop frontend writes and paymaster POST handling. Preserve program hashes,
+slots, signatures, raw account bytes, decoded sales/challenge state, and token
+balances. Pause only with explicit authority. Do not move or reclassify funds.
 
 ### Delegation, VRF, or copyback stall
 
-Stop new runs if failures exceed threshold. Re-resolve Router status, verify
-delegation-record and ER owners, inspect session/VRF/action counters, retry only
-bounded propagation failures, and never consume or close without matching owner,
-run, discriminator, action hash and VRF hash.
+Stop new runs if failures exceed the threshold. Re-resolve Router status,
+validate delegation-record/base/ER owners, inspect session/VRF/action counters,
+and retry only bounded transient failures. Never consume or close without
+matching owner, run, discriminator, action hash, VRF hash, and durable receipt.
 
-### Daily interruption
+### Daily or Weekly interruption
 
-Pause/cancel through program instructions. Do not finalize before all on-time
-runs settle or the snapshotted grace cutoff passes. Refund paid principal and
-Stars and return sponsor funding through program transitions only. Unclaimed
-prizes remain liabilities for 90 days and then route only to reward reserve.
-
-### Yield incident
-
-The policy is disabled and there is no external adapter or executable exit CPI.
-If policy state changes unexpectedly, pause immediately, preserve market/
-receipt/ledger state, and do not deploy capital until adapter, valuation,
-liquidity, loss handling and emergency exit are independently reviewed.
+Do not finalize before the snapshotted cutoff and required rollups. Cancelled
+Daily entries refund Stars exactly once. Weekly cash remains in its contest
+vault until claimed or returned to the reward reserve after expiry. Treasury
+and team destinations are never refund or prize sources.

@@ -27,7 +27,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "Today the tides shift for all challengers equally. Ride them better than anyone.",
     zoneHint:
-      "A gentle start. Earn bonus tools through combos, scoring, and line clears. The perfect zone to learn.",
+      "A gentle start. Clear 3 or more lines in one move to earn a Wave charge.",
     encouragement: "The current is with you. Trust the flow.",
     trialIntro:
       "The ocean's final wave approaches. Show me you've learned its rhythm.",
@@ -48,7 +48,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The Nile tests all equally today. Precision will separate the worthy from the rest.",
     zoneHint:
-      "You start with a free row-clear power. Combos score 50% more, but the grid starts fuller.",
+      "Precision matters: clear exactly 2 lines in one move to earn a Hammer charge.",
     encouragement: "Patience and precision. The Nile rewards those who wait.",
     trialIntro: "The waters rise. Face the jaws of the Nile or be swept away.",
     respectLine: "The Nile parts for you. You have earned safe passage.",
@@ -68,7 +68,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The storm rages equally for all today. Strike harder than your rivals.",
     zoneHint:
-      "Combos hit 50% harder and clearing lines spawns extra rows. Aggressive play is rewarded.",
+      "Combos hit 50% harder. Clear 3 or more lines in one move to earn a Totem charge.",
     encouragement: "Strike hard. Strike fast. The frost does not wait.",
     trialIntro: "The blizzard howls. Face the storm or be buried beneath it.",
     respectLine: "The pack accepts your strength. Run with us through the ice.",
@@ -87,7 +87,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same puzzle for all minds today. Prove yours is the sharpest.",
     zoneHint:
-      "Precision-focused. Perfect clears are rewarded, but stars are harder to earn. Every move counts.",
+      "Perfect clears earn Hammer charges, including clears created by a bonus. Every move counts.",
     encouragement: "Think before you act. Every move is a theorem.",
     trialIntro: "Wisdom alone is not enough. Now prove you can act on it.",
     respectLine: "Knowledge and action, united. The owl sees your worth.",
@@ -106,7 +106,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The dragon's gaze falls on all challengers today. Outlast them all.",
     zoneHint:
-      "Extra lines flood the grid when you clear. Overwhelming, but powerful if you can keep control.",
+      "Sustained pressure pays: every 15 lines cleared by moves earns a Wave charge.",
     encouragement: "Flow like the river. It carves mountains given time.",
     trialIntro: "The dragon stirs. Withstand its breath or be consumed.",
     respectLine: "The dragon bows. Your endurance is worthy of the heavens.",
@@ -126,7 +126,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same mosaic for all eyes today. See the pattern faster than anyone.",
     zoneHint:
-      "Balanced challenge. Slightly better combos and extra lines, but tighter star goals.",
+      "Break blocks of all four sizes in one move to earn a Totem charge. Combos score 50% more.",
     encouragement:
       "Look deeper. The pattern reveals itself to the patient eye.",
     trialIntro:
@@ -148,7 +148,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same trick for all challengers today. Let's see who falls for it last.",
     zoneHint:
-      "Fast and tricky. Combos and line clears earn block-destroying powers quickly.",
+      "Fast and precise. Clear exactly 3 lines in one move to earn a Hammer charge.",
     encouragement: "Quick paws, quick mind. Don't overthink it.",
     trialIntro:
       "Nine tails, nine illusions. See through them all or be lost forever.",
@@ -169,7 +169,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The jungle offers its three gifts to all today. Use them wisely, others won't hesitate.",
     zoneHint:
-      "The most powerful zone. Start with 2 charges of every tool. Combos score 1.75x.",
+      "Start with 2 Wave charges. Perfect clears earn another, and combos score at double strength.",
     encouragement: "The ritual demands everything. Give it all.",
     trialIntro:
       "Three eyes open. Three powers converge. Survive the jaguar's gaze.",
@@ -189,7 +189,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same beat for all today. Match the rhythm longer than anyone else.",
     zoneHint:
-      "Combo-driven. Higher combos unlock stronger tools. Build chains to unleash devastation.",
+      "Combo-driven. Every 8 Combo Meter points earns a Totem charge, at most once per action.",
     encouragement: "Feel the pulse. Let it guide your strikes.",
     trialIntro:
       "The mamba strikes without warning. Match its speed or be consumed.",
@@ -210,7 +210,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "One path. One summit. All climbers face the same mountain today. Reach highest.",
     zoneHint:
-      "The ultimate test. 2x combo score and huge perfect clear bonuses, but only one tool and the hardest star goals.",
+      "The ultimate test. Clear exactly 4 lines for a Hammer; scoring and combos are strong, while Stars are only 5% tighter.",
     encouragement: "Less is more. One wing beat, one purpose.",
     trialIntro:
       "The summit awaits. With nothing but your will, prove you belong among the stars.",

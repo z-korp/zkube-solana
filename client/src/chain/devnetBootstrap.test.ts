@@ -55,27 +55,19 @@ function fixture(): PublicBootstrapPlan {
     identities: { funder: key, authority: key, paymaster: key },
     vaults: {
       team: key,
-      paymaster: key,
       treasury: key,
       reward: key,
-      payment: key,
     },
     pdas: {
       protocol: key,
-      treasuryLedger: key,
-      yieldPolicy: key,
-      progressCatalogV1: key,
+      economy: key,
+      starSalesLedger: key,
+      dailyRulesCatalog: key,
     },
     policy: {
       paymasterFundingLamports: 100_000_000,
-      paymasterCapBaseUnits: "100000000",
-      revenueRewardBps: 0,
-      sponsorshipDailyTxLimit: 20,
-      sponsorshipDailyPaidAttemptLimit: 3,
       contentVersion: 1,
-      progressVersion: 1,
-      governanceDelaySeconds: 3_600,
-      governanceExecutionWindowSeconds: 86_400,
+      dailyRulesVersion: 1,
     },
     batches: [
       {

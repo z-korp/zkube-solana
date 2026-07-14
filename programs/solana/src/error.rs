@@ -47,7 +47,7 @@ pub enum ErrorCode {
     #[msg("This Daily attempt has already been submitted")]
     AlreadySubmitted,
 
-    // ── Reboot v1 domain/accounting ──────────────────────────────────────────
+    // ── Domain and accounting ────────────────────────────────────────────────
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
     #[msg("Insufficient Stars")]
@@ -58,8 +58,6 @@ pub enum ErrorCode {
     InvalidLevel,
     #[msg("Invalid star rating")]
     InvalidStars,
-    #[msg("Prize and rake basis points must sum to 10,000")]
-    InvalidBasisPoints,
     #[msg("Protocol is paused")]
     ProtocolPaused,
     #[msg("Unsupported account version")]
@@ -90,24 +88,18 @@ pub enum ErrorCode {
     PrizeClaimWindowOpen,
     #[msg("The refund has already been claimed")]
     RefundAlreadyClaimed,
-    #[msg("The progress catalog is invalid")]
-    InvalidProgressCatalog,
+    #[msg("The progression rule is invalid")]
+    InvalidProgressRule,
     #[msg("This progress reward has already been claimed")]
     RewardAlreadyClaimed,
     #[msg("The progress requirement has not been met")]
     RewardNotEarned,
     #[msg("This quest is not active in the current cadence")]
     QuestNotActive,
-    #[msg("The on-chain sponsorship allowance is exhausted")]
-    SponsorshipLimitExceeded,
-    #[msg("The sponsored transaction payload is invalid")]
-    InvalidSponsoredTransaction,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
-    #[msg("The governance proposal is invalid")]
-    InvalidGovernanceProposal,
-    #[msg("The governance timelock has not elapsed")]
-    GovernanceTimelockActive,
-    #[msg("The governance proposal execution window has expired")]
-    GovernanceProposalExpired,
+    #[msg("The selected Star pack does not exist")]
+    InvalidPack,
+    #[msg("The Star pack price changed; refresh the quote")]
+    PriceChanged,
 }

@@ -283,7 +283,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
                     <Loader2 className="h-3 w-3 animate-spin" /> Claiming
                   </span>
                 ) : (
-                  `Claim +${quest.reward}★`
+                  `Claim +${questRewardLabel(quest)}`
                 )}
               </motion.button>
             ) : (
@@ -291,7 +291,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
                 className="font-sans text-[12px] font-extrabold"
                 style={{ color }}
               >
-                +{quest.reward}★
+                +{questRewardLabel(quest)}
               </span>
             )}
           </div>
@@ -330,5 +330,9 @@ const QuestCard: React.FC<QuestCardProps> = ({
     </div>
   );
 };
+
+function questRewardLabel(quest: QuestStatus): string {
+  return quest.rewardUnit === "XP" ? `${quest.reward} XP` : `${quest.reward}★`;
+}
 
 export default QuestsTab;

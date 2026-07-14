@@ -7,7 +7,7 @@ export function constraintDescription(rule: ActiveRunConstraintView): string {
   if (rule.kind === 2) {
     return `Break ${rule.requiredCount} blocks of size ${rule.value}`;
   }
-  if (rule.kind === 3) return `Reach a ${rule.value}× combo`;
+  if (rule.kind === 3) return `Reach ${rule.value} on the Combo Meter`;
   return "No constraint";
 }
 

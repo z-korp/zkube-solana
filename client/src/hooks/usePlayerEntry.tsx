@@ -2,14 +2,13 @@ import { useDaily } from "@/contexts/daily";
 import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
 
 export interface PlayerEntryView {
+  bestFeaturedScore: number;
+  bestEngineScore: number;
+  bestMoves: number;
+  /** Featured score compatibility alias. */
   bestScore: number;
   rank: number;
-  prizeAmount: bigint;
-  claimed: boolean;
-  freeAttemptUsed: boolean;
-  paidAttempts: number;
   finalizedAttempts: number;
-  refundedAmount: bigint;
   starRefunded: boolean;
 }
 
@@ -24,16 +23,18 @@ export function usePlayerEntry(
     daily?.dayId === challengeId &&
     (!playerAddress || playerAddress === publicKey.toBase58());
   const player = matches ? daily.player : null;
+  const rank =
+    daily?.leaderboard.findIndex((candidate) =>
+      candidate.player.equals(publicKey),
+    ) ?? -1;
   const entry: PlayerEntryView | null = player
     ? {
-        bestScore: player.bestScore,
-        rank: player.rank,
-        prizeAmount: player.prizeAmount,
-        claimed: player.claimed,
-        freeAttemptUsed: player.freeAttemptUsed,
-        paidAttempts: player.paidAttempts,
+        bestFeaturedScore: player.bestFeaturedScore ?? player.bestScore,
+        bestEngineScore: player.bestEngineScore ?? player.bestScore,
+        bestMoves: player.bestMoves ?? 0,
+        bestScore: player.bestFeaturedScore ?? player.bestScore,
+        rank: rank + 1,
         finalizedAttempts: player.finalizedAttempts,
-        refundedAmount: player.refundedAmount,
         starRefunded: player.starRefunded,
       }
     : null;

@@ -12,6 +12,7 @@ import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
 import { useEmbeddedIdentity } from "@/chain/embeddedIdentityContext";
+import { useProgress } from "@/contexts/progress";
 import AchievementsTab from "@/ui/components/profile/AchievementsTab";
 import OverviewTab from "@/ui/components/profile/OverviewTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
@@ -48,6 +49,7 @@ const ProfilePage: React.FC = () => {
   const { balance: starBalance } = useZStarBalance(address);
   const { zones, totalStars } = useZoneProgress(address, starBalance);
   const playerStats = usePlayerStats(address);
+  const progress = useProgress();
 
   const xp = playerMeta?.lifetimeXp ?? 0;
   const level = getLevelFromXp(xp);
@@ -56,6 +58,11 @@ const ProfilePage: React.FC = () => {
   const isMaxLevel = level >= LEVEL_THRESHOLDS.length;
   const title = getTitleForLevel(level);
   const nextTitle = getTitleForLevel(Math.min(level + 1, 100));
+  const nextMilestoneIndex = Array.from({ length: 10 }, (_, index) => index).find(
+    (index) =>
+      level >= (index + 1) * 10 &&
+      !((progress.progress?.levelMilestones?.claimed ?? 0) & (1 << index)),
+  );
 
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
 
@@ -153,6 +160,45 @@ const ProfilePage: React.FC = () => {
                   : `${Math.max(0, nextLevelXp - xp).toLocaleString()} XP to Level ${level + 1} · "${nextTitle}"`}
               </p>
             </div>
+            {progress.progress && nextMilestoneIndex !== undefined && (
+                <button
+                  type="button"
+                  disabled={progress.claiming !== null}
+                  onClick={() => void progress.claimLevelMilestone(nextMilestoneIndex)}
+                  className="mt-3 w-full rounded-xl border border-yellow-300/30 bg-yellow-300/10 px-3 py-2 font-sans text-sm font-extrabold text-yellow-200 disabled:opacity-50"
+                >
+                  {progress.claiming === `milestone:${nextMilestoneIndex}`
+                    ? "Claiming..."
+                    : `Claim Level ${(nextMilestoneIndex + 1) * 10} reward · +10 Stars`}
+                </button>
+              )}
+            {isMaxLevel && progress.progress?.weeklyStipend && (
+              <div className="mt-3 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-sans text-sm font-extrabold text-cyan-100">
+                      Weekly Mastery
+                    </p>
+                    <p className="font-sans text-[11px] font-semibold text-white/55">
+                      Earn 2,500 recurring XP for 30 Stars
+                    </p>
+                  </div>
+                  <span className="font-sans text-sm font-black text-cyan-200">
+                    {progress.progress.weeklyStipend.starsAwarded
+                      ? "Claimed"
+                      : `${Math.min(progress.progress.weeklyStipend.recurringXp, 2_500).toLocaleString()} / 2,500 XP`}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <ProgressBar
+                    value={progress.progress.weeklyStipend.recurringXp}
+                    max={2_500}
+                    color="#67e8f9"
+                    height={6}
+                  />
+                </div>
+              </div>
+            )}
           </motion.section>
 
           <motion.div

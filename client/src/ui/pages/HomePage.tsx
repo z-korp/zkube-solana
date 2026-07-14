@@ -422,7 +422,7 @@ const HomePage: React.FC = () => {
                         : !challenge
                           ? "Not published yet — check back soon!"
                           : hasPlayedDaily && dailyMyRank
-                            ? `#${dailyMyRank} · USDC prizes`
+                            ? `#${dailyMyRank} · Weekly points`
                             : `${challenge.total_attempts.toString()} attempt${challenge.total_attempts === 1n ? "" : "s"}`}
                     </p>
                   </div>

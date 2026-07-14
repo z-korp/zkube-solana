@@ -39,8 +39,20 @@ export default function SpectatorHud({
     run.rules.starThresholdModifier,
   );
   const constraints = [
-    { rule: run.rules.primary, progress: run.primaryProgress },
-    { rule: run.rules.secondary, progress: run.secondaryProgress },
+    {
+      rule: run.rules.primary,
+      progress:
+        run.rules.primary.kind === 3
+          ? Math.min(run.comboCounter, run.rules.primary.value)
+          : run.primaryProgress,
+    },
+    {
+      rule: run.rules.secondary,
+      progress:
+        run.rules.secondary.kind === 3
+          ? Math.min(run.comboCounter, run.rules.secondary.value)
+          : run.secondaryProgress,
+    },
   ].filter(({ rule }) => rule.kind !== 0);
 
   return (
@@ -101,7 +113,7 @@ export default function SpectatorHud({
           }`}
           style={rectToPercent(HUD_BAR.sockets.combo, HUD_BAR.viewBox)}
         >
-          <Flame className="h-3 w-3" /> ×{run.comboCounter}
+          <Flame className="h-3 w-3" /> {run.comboCounter}
         </motion.div>
 
         {constraints.map(({ rule, progress }, index) => (
@@ -134,7 +146,7 @@ function ConstraintBadge({
   progress: number;
   side: "left" | "right";
 }) {
-  const required = rule.kind === 3 ? 1 : rule.requiredCount;
+  const required = rule.kind === 3 ? rule.value : rule.requiredCount;
   const complete = progress >= required;
   return (
     <div

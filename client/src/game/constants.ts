@@ -1,5 +1,6 @@
-// Campaign shape of the deployed Solana program: 10 maps × 10 levels, the
-// 10th level of every map is the guardian trial.
+// Every Campaign map has 10 levels; the protocol activates a dynamic
+// contiguous map range (currently ten, with capacity for 32 maps).
+// The 10th level of every map is the guardian trial.
 export const DEFAULT_GRID_WIDTH = 8;
 export const DEFAULT_GRID_HEIGHT = 10;
 

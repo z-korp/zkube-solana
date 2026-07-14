@@ -89,6 +89,7 @@ export interface PublicRunSettlementDescriptor {
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge: PublicKey | null;
+  dailyVersion?: 1 | 2;
 }
 
 type BaseRunRecoveryView = Pick<
@@ -305,7 +306,7 @@ export function useRunController() {
   );
 
   const startDailyRun = useCallback(
-    async (daily: DailyView, payment: "stars" | "usdc") => {
+    async (daily: DailyView) => {
       return withBusy(setState, async () => {
         const sponsor =
           paymaster.current ?? (await fetchPaymasterClient(connection));
@@ -316,7 +317,6 @@ export function useRunController() {
           wallet,
           session,
           daily,
-          payment,
           connection,
           paymaster: sponsor.pubkey,
           sessionValidUntil: reusable?.validUntil,
@@ -327,6 +327,7 @@ export function useRunController() {
           paymaster: sponsor,
           session,
           mode: "daily",
+          dailyVersion: daily.economyVersion,
         });
         const delegate = await buildDelegateRunPlan({
           wallet,
@@ -475,6 +476,7 @@ export function useRunController() {
         addresses: descriptor.addresses,
         mode: descriptor.mode,
         dailyChallenge: descriptor.dailyChallenge,
+        dailyVersion: descriptor.dailyVersion ?? 1,
         receiptConsumed: Boolean(receipt?.consumed),
         connection,
         paymaster: sponsor.pubkey,
@@ -533,6 +535,7 @@ export function useRunController() {
                   payerWallet: wallet,
                   addresses: run.marker.addresses,
                   dailyChallenge: run.activeRun.dailyChallenge,
+                  economyVersion: run.marker.dailyVersion ?? 1,
                   erConnection: run.connection,
                 })
               : await buildCommitRunPlan({
@@ -735,7 +738,7 @@ export function useRunController() {
    * (session-signed) and then settles normally; a stuck non-terminal base
    * run abandons inside the single sponsored finalize envelope. Throws for
    * callers to fall back to the local `dismissRun` (e.g. against a deployed
-   * program that predates `abandonRunV1`).
+   * program that predates `abandonRun`).
    */
   const abandonRun = useCallback(async () => {
     const run = currentRun.current;
@@ -820,6 +823,7 @@ export function useRunController() {
           addresses: marker.addresses,
           mode: marker.mode,
           dailyChallenge: activeRun.dailyChallenge,
+          dailyVersion: marker.dailyVersion ?? 1,
           receiptConsumed: false,
           abandonFirst: true,
           connection,
@@ -1104,6 +1108,7 @@ function settlementDescriptor(
     addresses: marker.addresses,
     mode: marker.mode,
     dailyChallenge,
+    dailyVersion: marker.dailyVersion ?? 1,
   };
 }
 

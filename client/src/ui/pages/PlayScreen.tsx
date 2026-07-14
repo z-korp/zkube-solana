@@ -8,6 +8,7 @@ import {
 
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
+import { dailyScoringRuleName } from "@/chain/dailyRules";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
@@ -136,7 +137,7 @@ export default function PlayScreen() {
     // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed).
     // Stay on a "Forfeiting…" screen until the run has really settled
     // on-chain, then return home. Fall back to a local dismiss if the
-    // abandon cannot run (e.g. a deployed program that predates abandonRunV1).
+    // abandon cannot run (e.g. a deployed program that predates abandonRun).
     setQuitting(true);
     void (async () => {
       try {
@@ -159,7 +160,7 @@ export default function PlayScreen() {
     if (recoveryRunId === null || recoveringRun) return;
     if (
       !window.confirm(
-        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeSponsorshipV1, consumeRunReceiptV1 (if still unconsumed), and closeSettledActiveRunV1. The sponsorship allowance is updated, the paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.`,
+        `Sign one sponsored Devnet transaction for recovered run ${recoveryRunId} and Vault ${recoveryOwner}? It contains consumeRunReceipt (if still unconsumed) and closeSettledActiveRun. The paymaster pays the fee, the run's account rent (ActiveRun, RunShell, RunReceipt) returns to the protocol paymaster that fronted it, and there is no token-transfer instruction.`,
       )
     ) {
       return;
@@ -178,7 +179,11 @@ export default function PlayScreen() {
     return (
       <PlaySurface>
         <StatePanel title="Forfeiting run…">
-          <img src={images.loader} alt="" className="h-16 w-16 animate-bounce" />
+          <img
+            src={images.loader}
+            alt=""
+            className="h-16 w-16 animate-bounce"
+          />
           <p className="max-w-sm text-center text-xs text-white/65">
             {controller.settlingLabel} — finishing this run on-chain before
             leaving.
@@ -215,7 +220,7 @@ export default function PlayScreen() {
               {run.error ??
                 (attachedRun
                   ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
-                  : `Recovery verifies Vault ${recoveryOwner} and requests one sponsored signature for consumeSponsorshipV1, consumeRunReceiptV1, and closeSettledActiveRunV1.`)}
+                  : `Recovery verifies Vault ${recoveryOwner} and requests one sponsored signature for consumeRunReceipt and closeSettledActiveRun.`)}
             </p>
           )}
           {!resolving && (
@@ -401,7 +406,12 @@ export default function PlayScreen() {
         <GameOverDialog isOpen onClose={controller.closeOutcome} game={game} />
       )}
       {controller.outcome === "victory" && (
-        <VictoryDialog isOpen onClose={controller.closeOutcome} game={game} />
+        <VictoryDialog
+          isOpen
+          onClose={controller.closeOutcome}
+          game={game}
+          finalCampaignMapId={controller.finalCampaignMapId}
+        />
       )}
 
       <GameHud
@@ -417,6 +427,13 @@ export default function PlayScreen() {
         activeMutatorId={activeRun.rules.activeMutatorId}
         mode={game.mode}
         totalScore={game.totalScore}
+        engineScore={game.engineScore}
+        pressureScore={game.pressureScore}
+        dailyRuleName={
+          game.mode === 1
+            ? dailyScoringRuleName(activeRun.dailyScoringRule)
+            : undefined
+        }
         currentDifficulty={game.currentDifficulty}
         endlessThresholds={activeRun.endlessThresholds}
         endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}

@@ -3,6 +3,7 @@ import { useSolanaConnection } from "./connectionContext";
 import { fetchPaymasterClient } from "./paymasterClient";
 import {
   buildClaimAchievementPlan,
+  buildClaimLevelMilestonePlan,
   buildClaimQuestPlan,
   fetchProgressView,
   type ProgressView,
@@ -51,7 +52,6 @@ export function useProgressController() {
           connection,
           wallet,
           achievementIndex: index,
-          progressVersion: progress.progressVersion,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
@@ -82,7 +82,38 @@ export function useProgressController() {
           connection,
           wallet,
           questIndex: index,
-          progressVersion: progress.progressVersion,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        await refresh();
+        return signature;
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
+      } finally {
+        setClaiming(null);
+      }
+    },
+    [connection, progress, refresh, wallet],
+  );
+
+  const claimLevelMilestone = useCallback(
+    async (index: number) => {
+      if (!wallet || !progress) {
+        throw new Error("Level milestones are not active");
+      }
+      setClaiming(`milestone:${index}`);
+      try {
+        const paymaster = await fetchPaymasterClient(connection);
+        const transactionPlan = await buildClaimLevelMilestonePlan({
+          connection,
+          wallet,
+          milestoneIndex: index,
           paymaster: paymaster.pubkey,
         });
         const signature = await submitSponsoredTransactionPlan({
@@ -111,5 +142,6 @@ export function useProgressController() {
     refresh,
     claimAchievement,
     claimQuest,
+    claimLevelMilestone,
   };
 }

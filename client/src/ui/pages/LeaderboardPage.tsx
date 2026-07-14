@@ -58,7 +58,9 @@ const LeaderboardPage: React.FC = () => {
         id: `daily-${entry.rank}`,
         rank: entry.rank,
         name: truncatePublicKey(entry.player),
-        score: entry.score,
+        score: entry.featuredScore ?? entry.score,
+        engineScore: entry.engineScore ?? entry.score,
+        moves: entry.moves ?? 0,
         playerAddress: entry.player,
         runId: entry.runId,
         isYou: address === entry.player,
@@ -67,20 +69,22 @@ const LeaderboardPage: React.FC = () => {
   );
 
   const visiblePlayerRank = useMemo(() => {
-    const ranked = dailyEntries.find(
-      (entry) => entry.player === address,
-    );
+    const ranked = dailyEntries.find((entry) => entry.player === address);
     if (ranked) {
       return {
         rank: ranked.rank,
-        score: ranked.score,
+        score: ranked.featuredScore ?? ranked.score,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
-    if (playerEntry && playerEntry.rank > 0 && playerEntry.bestScore > 0) {
+    if (
+      playerEntry &&
+      playerEntry.rank > 0 &&
+      (playerEntry.bestFeaturedScore ?? playerEntry.bestScore) > 0
+    ) {
       return {
         rank: playerEntry.rank,
-        score: playerEntry.bestScore,
+        score: playerEntry.bestFeaturedScore ?? playerEntry.bestScore,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
@@ -229,8 +233,12 @@ const LeaderboardPage: React.FC = () => {
                       className="font-sans text-[16px] font-extrabold tracking-wide"
                       style={{ color: colors.text }}
                     >
-                      {entry.score.toLocaleString()} pts
+                      {entry.score.toLocaleString()} featured
                     </div>
+                    <span className="font-sans text-[10px] text-white/40">
+                      {entry.engineScore.toLocaleString()} engine ·{" "}
+                      {entry.moves} moves
+                    </span>
                     <Eye size={15} style={{ color: colors.textMuted }} />
                   </div>
                 </motion.div>

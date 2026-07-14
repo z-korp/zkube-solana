@@ -21,13 +21,11 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
-anchor-spl = { version = "=1.0.2", default-features = false, features = ["token", "token_2022"] }
+anchor-spl = { version = "=1.0.2", default-features = false, features = ["associated_token", "token", "token_2022"] }
 ephemeral-vrf-sdk = { version = "0.4.1", features = ["anchor"] }
 ephemeral-rollups-sdk = { version = "0.15.5", features = ["anchor"] }
-magicblock-magic-program-api = "0.10.1"
 session-keys = { version = "3.1.1", features = ["no-entrypoint"] }
 sha2 = "0.10"
-solana-instructions-sysvar = "3.0.1"
 
 [dev-dependencies]
 serde_json = "1"

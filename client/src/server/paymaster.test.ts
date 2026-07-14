@@ -25,10 +25,6 @@ import {
 } from "../chain/magicAction";
 import { buildCreateSessionV2Instruction } from "../chain/sessionV2";
 import {
-  buildConsumeSponsorshipInstruction,
-  withSponsorshipInstruction,
-} from "../chain/sponsorshipClient";
-import {
   SPONSORED_GAME_DISCRIMINATORS,
   PAYMASTER_SESSION_MAX_SECONDS,
   SOLANA_DEVNET_GENESIS_HASH,
@@ -160,7 +156,7 @@ describe("paymaster policy", () => {
             isWritable: false,
           },
         ],
-        data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayerV1),
+        data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
       }),
     );
     expect(
@@ -244,7 +240,7 @@ describe("paymaster policy", () => {
           keys: [
             { pubkey: owner.publicKey, isSigner: true, isWritable: false },
           ],
-          data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayerV1),
+          data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
         }),
       ],
     }).compileToV0Message();
@@ -384,7 +380,7 @@ describe("paymaster policy", () => {
         { pubkey: owner.publicKey, isSigner: true, isWritable: false },
       ],
       data: Buffer.from(
-        SPONSORED_GAME_DISCRIMINATORS.rotateRunShellAuthorityV1,
+        SPONSORED_GAME_DISCRIMINATORS.rotateRunShellAuthority,
       ),
     });
     const transaction = transactionWithMany(
@@ -404,46 +400,6 @@ describe("paymaster policy", () => {
     expect(
       validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
     ).toBeNull();
-  });
-
-  it("rejects an otherwise allowlisted payload without on-chain allowance consumption", () => {
-    const paymaster = Keypair.generate();
-    const owner = Keypair.generate();
-    const message = new TransactionMessage({
-      payerKey: paymaster.publicKey,
-      recentBlockhash: "11111111111111111111111111111111",
-      instructions: [initializePlayerInstruction(paymaster, owner)],
-    }).compileToV0Message();
-    const transaction = new VersionedTransaction(message);
-    transaction.sign([owner]);
-    expect(
-      validatePaymasterTransaction(transaction, paymaster.publicKey),
-    ).toContain("on-chain sponsorship allowance");
-  });
-
-  it("rejects a substituted on-chain sponsorship allowance account", () => {
-    const paymaster = Keypair.generate();
-    const owner = Keypair.generate();
-    const consume = buildConsumeSponsorshipInstruction({
-      owner: owner.publicKey,
-      paymaster: paymaster.publicKey,
-    });
-    consume.keys[1] = {
-      pubkey: Keypair.generate().publicKey,
-      isSigner: false,
-      isWritable: true,
-    };
-    const message = new TransactionMessage({
-      payerKey: paymaster.publicKey,
-      recentBlockhash: "11111111111111111111111111111111",
-      instructions: [consume, initializePlayerInstruction(paymaster, owner)],
-    }).compileToV0Message();
-    const transaction = new VersionedTransaction(message);
-    transaction.sign([owner]);
-
-    expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBe(
-      "on-chain sponsorship accounts are invalid",
-    );
   });
 
   it("verifies the cluster, adds only the paymaster signature, simulates, and submits", async () => {
@@ -517,11 +473,7 @@ function transactionWithMany(
   const message = new TransactionMessage({
     payerKey: paymaster,
     recentBlockhash: "11111111111111111111111111111111",
-    instructions: withSponsorshipInstruction({
-      owner: owner.publicKey,
-      paymaster,
-      instructions,
-    }),
+    instructions,
   }).compileToV0Message();
   const transaction = new VersionedTransaction(message);
   transaction.sign(signers);
@@ -549,6 +501,6 @@ function initializePlayerInstruction(
       { pubkey: owner.publicKey, isSigner: true, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayerV1),
+    data: Buffer.from(SPONSORED_GAME_DISCRIMINATORS.initializePlayer),
   });
 }

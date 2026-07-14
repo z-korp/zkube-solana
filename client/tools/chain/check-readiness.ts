@@ -12,7 +12,6 @@ interface Options {
   expectedGenesis: string | null;
   lookbackDays: number;
   minPaymasterLamports: bigint | null;
-  claimWarningSeconds: number;
 }
 
 async function main(): Promise<void> {
@@ -24,14 +23,12 @@ async function main(): Promise<void> {
       "  --expected-genesis <HASH|none>        Required for non-local RPCs",
       "  --lookback-days <1..366>              Daily account window (default: 120)",
       "  --min-paymaster-lamports <u64>        Optional low-SOL warning threshold",
-      "  --claim-warning-hours <0..2160>       Claim deadline warning (default: 72)",
       "",
       "Environment fallback:",
       "  ZKUBE_READ_RPC_URL",
       "  ZKUBE_EXPECTED_GENESIS_HASH",
       "  ZKUBE_LOOKBACK_DAYS",
       "  ZKUBE_MIN_PAYMASTER_LAMPORTS",
-      "  ZKUBE_CLAIM_WARNING_HOURS",
       "",
       "Read-only: no signer, simulation, or transaction path exists.",
       "",
@@ -47,14 +44,13 @@ async function main(): Promise<void> {
   const programInfo = await connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed");
   if (!programInfo?.executable) throw new Error("configured zKube program is missing or not executable");
   const treasury = await fetchTreasuryView(connection);
-  if (!treasury) throw new Error("zKube protocol, treasury ledger, or yield policy is not initialized");
+  if (!treasury) throw new Error("zKube protocol or Star sales ledger is not initialized");
   const readiness = evaluateTreasuryReadiness(treasury);
   const nowUnix = Math.floor(Date.now() / 1_000);
   const [paymasterLamports, daily] = await Promise.all([
     connection.getBalance(treasury.paymaster, "confirmed"),
     fetchDailyOperationalSnapshots({
       connection,
-      treasury,
       nowUnix,
       lookbackDays: options.lookbackDays,
     }),
@@ -68,7 +64,6 @@ async function main(): Promise<void> {
     daily,
     thresholds: {
       minPaymasterLamports: options.minPaymasterLamports,
-      claimWarningSeconds: options.claimWarningSeconds,
     },
   });
   const report = {
@@ -113,12 +108,6 @@ export function parseOptions(
     366,
     "--lookback-days",
   );
-  const claimWarningHours = boundedInteger(
-    option(argv, "--claim-warning-hours") ?? env.ZKUBE_CLAIM_WARNING_HOURS ?? "72",
-    0,
-    2_160,
-    "--claim-warning-hours",
-  );
   const rawMinimum = option(argv, "--min-paymaster-lamports")
     ?? env.ZKUBE_MIN_PAYMASTER_LAMPORTS;
   const minPaymasterLamports = rawMinimum === undefined
@@ -129,7 +118,6 @@ export function parseOptions(
     expectedGenesis,
     lookbackDays,
     minPaymasterLamports,
-    claimWarningSeconds: claimWarningHours * 3_600,
   };
 }
 

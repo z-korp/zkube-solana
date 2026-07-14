@@ -18,6 +18,7 @@ export interface QuestStatus extends QuestDef {
   claimed: boolean;
   claimable: boolean;
   active: boolean;
+  rewardUnit: "Stars" | "XP";
 }
 
 export function projectQuests(
@@ -30,7 +31,10 @@ export function projectQuests(
       ...definition,
       index,
       target: value?.threshold ?? definition.target,
-      reward: value ? bigintToSafeNumber(value.starReward) : definition.reward,
+      reward: value
+        ? bigintToSafeNumber(value.rewardAmount)
+        : definition.reward * (definition.type === "weekly" ? 1 : 100),
+      rewardUnit: value?.rewardUnit ?? (definition.type === "weekly" ? "Stars" : "XP"),
       intervalId: getQuestIntervalId(definition, now),
       progress: value?.progress ?? 0,
       completed: Boolean(value?.claimable || value?.claimed),
@@ -44,7 +48,11 @@ export function projectQuests(
 export const useQuests = () => {
   const controller = useProgress();
   const quests = useMemo<QuestStatus[]>(
-    () => projectQuests(controller.progress?.quests ?? null),
+    () =>
+      projectQuests(
+        controller.progress?.quests ?? null,
+        Math.floor(Date.now() / 1_000),
+      ),
     [controller.progress?.quests],
   );
   return {

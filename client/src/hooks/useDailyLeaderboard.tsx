@@ -11,6 +11,9 @@ export interface DailyLeaderboardEntry {
   receipt: string;
   runId: bigint;
   score: number;
+  featuredScore: number;
+  engineScore: number;
+  moves: number;
   submittedAt: number;
 }
 
@@ -26,6 +29,9 @@ export function projectDailyLeaderboard(
       receipt: entry.receipt.toBase58(),
       runId: entry.runId,
       score: entry.score,
+      featuredScore: entry.featuredScore ?? entry.score,
+      engineScore: entry.engineScore ?? entry.score,
+      moves: entry.moves ?? 0,
       submittedAt: entry.submittedAt,
     };
   });

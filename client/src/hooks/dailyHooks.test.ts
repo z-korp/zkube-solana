@@ -11,7 +11,9 @@ import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 const key = () => Keypair.generate().publicKey;
 const daily = (status: DailyStatus): DailyView => ({
   address: key(),
+  economyVersion: 2,
   dayId: 10,
+  weekId: 2,
   status,
   mapId: 4,
   opensAt: 100,
@@ -19,22 +21,12 @@ const daily = (status: DailyStatus): DailyView => ({
   runsCloseAt: 300,
   settlementGraceCloseAt: 400,
   finalizedAt: 0,
-  claimsCloseAt: 0,
-  entryPrice: 1_000_000n,
   starEntryCost: 1n,
-  payoutBps: [4_000, 2_000, 1_200, 800, 600, 400, 300, 300, 200, 200],
-  sponsorFunding: 0n,
-  prizeLiability: 0n,
-  settledPrizePool: 0n,
-  prizeForfeited: 0n,
-  totalPaidAttempts: 2n,
-  totalFreeAttempts: 1n,
-  runsStarted: 3n,
+  uniquePlayers: 2,
+  weeklyEligiblePlayers: 2,
+  weeklyRollups: 1,
+  attemptsStarted: 3n,
   runsFinalized: 1n,
-  paymentMint: key(),
-  paymentTokenProgram: key(),
-  paymentVault: key(),
-  rewardVault: key(),
   playerEligible: true,
   playerStars: 5n,
   nextRunId: 2n,
@@ -60,7 +52,7 @@ const daily = (status: DailyStatus): DailyView => ({
   endlessRampMultiplierX100: 200,
 });
 
-describe("daily compatibility projection", () => {
+describe("Daily projection", () => {
   it("rejects unknown decoded Daily status variants", () => {
     expect(parseDailyStatus({ open: {} })).toBe("open");
     expect(parseDailyStatus({ settled: {} })).toBe("unknown");

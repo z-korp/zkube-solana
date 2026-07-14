@@ -23,7 +23,8 @@ vi.mock("@/hooks/useQuests", () => ({
         name: "Line Sweeper",
         description: "Clear 20 lines",
         target: 20,
-        reward: 1,
+        reward: 100,
+        rewardUnit: "XP",
         type: "daily",
         icon: "📏",
         taskId: 2n,
@@ -59,7 +60,7 @@ describe("QuestsTab", () => {
   it("claims a live quest by its catalog index", () => {
     render(<QuestsTab colors={getThemeColors("theme-1")} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Claim +1★" }));
+    fireEvent.click(screen.getByRole("button", { name: "Claim +100 XP" }));
 
     expect(mocks.claimQuest).toHaveBeenCalledWith(3);
   });

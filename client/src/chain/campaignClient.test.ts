@@ -10,7 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { validatePaymasterTransaction } from "../server/paymaster";
 import {
-  buildPurchaseMapWithUsdcPlan,
+  buildPurchaseStarsPlan,
   buildUnlockMapWithStarsPlan,
   deriveAssociatedTokenAddress,
   hasMapFlag,
@@ -18,7 +18,6 @@ import {
   type CampaignView,
 } from "./campaignClient";
 import { SessionWallet } from "./sessionWallet";
-import { withSponsorshipInstruction } from "./sponsorshipClient";
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -29,7 +28,9 @@ describe("campaign client", () => {
     expect(hasMapFlag(0b10_0000_0001, 10)).toBe(true);
     expect(hasMapFlag(0b10_0000_0001, 2)).toBe(false);
     expect(hasMapFlag(0xffff, 0)).toBe(false);
-    expect(hasMapFlag(0xffff, 11)).toBe(false);
+    expect(hasMapFlag(0xffff, 11)).toBe(true);
+    expect(hasMapFlag(1n << 31n, 32)).toBe(true);
+    expect(hasMapFlag(0xffff, 33)).toBe(false);
 
     const packed = [3, 2, 1, 0, 3, 0, 1, 2, 3, 1]
       .reduce((value, stars, level) => value | (stars << (level * 2)), 0);
@@ -45,17 +46,21 @@ describe("campaign client", () => {
     expect(legacy.equals(token2022)).toBe(false);
   });
 
-  it("builds player-signed Stars and USDC unlocks accepted by paymaster policy", async () => {
+  it("builds a player-signed Star unlock accepted by paymaster policy", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
     const wallet = new SessionWallet(owner);
     const connection = new Connection("http://127.0.0.1:8899", "confirmed");
     const campaign: CampaignView = {
+      economyVersion: 2,
       contentVersion: 1,
       starsBalance: 25n,
       paymentMint: Keypair.generate().publicKey,
       paymentTokenProgram: TOKEN_PROGRAM_ID,
-      paymentVault: Keypair.generate().publicKey,
+      teamDestination: Keypair.generate().publicKey,
+      rewardVault: Keypair.generate().publicKey,
+      treasuryDestination: Keypair.generate().publicKey,
+      starPacks: [],
       maps: [],
     };
     const stars = await buildUnlockMapWithStarsPlan({
@@ -65,45 +70,60 @@ describe("campaign client", () => {
       mapId: 2,
       paymaster: paymaster.publicKey,
     });
-    const usdc = await buildPurchaseMapWithUsdcPlan({
-      connection,
-      wallet,
-      campaign,
-      mapId: 2,
-      paymaster: paymaster.publicKey,
-    });
+    const transaction = new VersionedTransaction(new TransactionMessage({
+      payerKey: paymaster.publicKey,
+      recentBlockhash: "11111111111111111111111111111111",
+      instructions: stars.transaction.instructions,
+    }).compileToV0Message());
+    transaction.sign([owner]);
+    expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
+  });
 
-    for (const plan of [stars, usdc]) {
-      const transaction = new VersionedTransaction(new TransactionMessage({
-        payerKey: paymaster.publicKey,
-        recentBlockhash: "11111111111111111111111111111111",
-        instructions: withSponsorshipInstruction({
-          owner: owner.publicKey,
-          paymaster: paymaster.publicKey,
+  it("builds Star purchases and zone unlocks accepted by paymaster policy", async () => {
+    const owner = Keypair.generate();
+    const paymaster = Keypair.generate();
+    const wallet = new SessionWallet(owner);
+    const connection = new Connection("http://127.0.0.1:8899", "confirmed");
+    const campaign: CampaignView = {
+      economyVersion: 2,
+      contentVersion: 2,
+      starsBalance: 25n,
+      paymentMint: Keypair.generate().publicKey,
+      paymentTokenProgram: TOKEN_PROGRAM_ID,
+      teamDestination: Keypair.generate().publicKey,
+      rewardVault: Keypair.generate().publicKey,
+      treasuryDestination: Keypair.generate().publicKey,
+      starPacks: [{ stars: 10n, price: 1_000_000n, enabled: true }],
+      maps: [],
+    };
+    const plans = await Promise.all([
+      buildPurchaseStarsPlan({
+        connection,
+        wallet,
+        campaign,
+        packIndex: 0,
+        paymaster: paymaster.publicKey,
+      }),
+      buildUnlockMapWithStarsPlan({
+        connection,
+        wallet,
+        contentVersion: campaign.contentVersion,
+        mapId: 2,
+        economyVersion: 2,
+        paymaster: paymaster.publicKey,
+      }),
+    ]);
+
+    for (const plan of plans) {
+      const transaction = new VersionedTransaction(
+        new TransactionMessage({
+          payerKey: paymaster.publicKey,
+          recentBlockhash: "11111111111111111111111111111111",
           instructions: plan.transaction.instructions,
-        }),
-      }).compileToV0Message());
+        }).compileToV0Message(),
+      );
       transaction.sign([owner]);
       expect(validatePaymasterTransaction(transaction, paymaster.publicKey)).toBeNull();
     }
-
-    usdc.transaction.instructions[0].keys[1] = {
-      pubkey: Keypair.generate().publicKey,
-      isSigner: false,
-      isWritable: true,
-    };
-    const substitutedLedger = new VersionedTransaction(new TransactionMessage({
-      payerKey: paymaster.publicKey,
-      recentBlockhash: "11111111111111111111111111111111",
-      instructions: withSponsorshipInstruction({
-        owner: owner.publicKey,
-        paymaster: paymaster.publicKey,
-        instructions: usdc.transaction.instructions,
-      }),
-    }).compileToV0Message());
-    substitutedLedger.sign([owner]);
-    expect(validatePaymasterTransaction(substitutedLedger, paymaster.publicKey)).toBe(
-      "treasury ledger account is invalid",
-    );
   });
 });

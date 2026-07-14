@@ -8,28 +8,36 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID } from "./constants";
-import { deriveAssociatedTokenAddress } from "./campaignClient";
 import { buildTopUpMagicActionEscrowInstruction } from "./magicAction";
 import {
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
   deriveDailyPlayerPda,
+  deriveDailyRulesCatalogPda,
+  deriveEconomyConfigPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveTreasuryLedgerPda,
+  deriveWeeklyStipendPda,
 } from "./pdas";
+import { fetchEconomyRuntime } from "./economyClient";
 import {
-  mapEndlessRulesSnapshot,
   mapLevelRuleSnapshot,
   zkubeProgram,
   type ActiveRunRulesView,
   type EndlessRulesView,
   type PreparedRunPlan,
-  type RawEndlessRulesSnapshot,
   type RawLevelRuleSnapshot,
   type TransactionPlan,
 } from "./runPlan";
+import {
+  mapDailyPressureProfile,
+  mapDailyScoringRule,
+  type DailyPressureProfileView,
+  type DailyScoringRuleView,
+  type RawDailyPressureProfile,
+  type RawDailyScoringRule,
+} from "./dailyRules";
 import {
   buildCreateSessionV2Instruction,
   deriveSessionTokenV2Pda,
@@ -40,25 +48,32 @@ export interface DailyLeaderboardView {
   player: PublicKey;
   receipt: PublicKey;
   runId: bigint;
+  featuredScore: number;
+  engineScore: number;
+  moves: number;
+  /** Featured score compatibility alias for existing rank components. */
   score: number;
   submittedAt: number;
 }
 
 export interface DailyPlayerView {
-  freeAttemptUsed: boolean;
-  paidAttempts: number;
+  attempts: number;
   finalizedAttempts: number;
   bestRunId: bigint;
+  bestFeaturedScore: number;
+  bestEngineScore: number;
+  bestMoves: number;
+  /** Featured score compatibility alias for existing rank components. */
   bestScore: number;
-  rank: number;
-  prizeAmount: bigint;
-  claimed: boolean;
-  refundedAmount: bigint;
   starRefunded: boolean;
+  dailyXpAwarded: boolean;
+  weeklyRolledUp: boolean;
 }
 
 export interface DailyGameRulesView extends EndlessRulesView {
   rules: ActiveRunRulesView;
+  scoringRule: DailyScoringRuleView;
+  pressure: DailyPressureProfileView;
 }
 
 export type DailyStatus =
@@ -91,22 +106,32 @@ export function parseDailyStatus(value: unknown): DailyStatus {
     : "unknown";
 }
 
-export interface RawDailyGameRulesSnapshot extends RawEndlessRulesSnapshot {
+export interface RawDailyGameRulesSnapshot {
   rules: RawLevelRuleSnapshot;
+  scoringRule: RawDailyScoringRule;
+  pressure: RawDailyPressureProfile;
 }
 
 export function mapDailyGameRulesSnapshot(
   challenge: RawDailyGameRulesSnapshot,
 ): DailyGameRulesView {
+  const pressure = mapDailyPressureProfile(challenge.pressure);
   return {
     rules: mapLevelRuleSnapshot(challenge.rules),
-    ...mapEndlessRulesSnapshot(challenge),
+    scoringRule: mapDailyScoringRule(challenge.scoringRule),
+    pressure,
+    endlessThresholds: pressure.thresholds,
+    endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
+    endlessRampMultiplierX100: 100,
   };
 }
 
 export interface DailyView extends DailyGameRulesView {
+  economyVersion: 2;
   address: PublicKey;
   dayId: number;
+  weekId: number;
+  seasonId: number;
   status: DailyStatus;
   mapId: number;
   opensAt: number;
@@ -114,22 +139,12 @@ export interface DailyView extends DailyGameRulesView {
   runsCloseAt: number;
   settlementGraceCloseAt: number;
   finalizedAt: number;
-  claimsCloseAt: number;
-  entryPrice: bigint;
   starEntryCost: bigint;
-  payoutBps: readonly number[];
-  sponsorFunding: bigint;
-  prizeLiability: bigint;
-  settledPrizePool: bigint;
-  prizeForfeited: bigint;
-  totalPaidAttempts: bigint;
-  totalFreeAttempts: bigint;
-  runsStarted: bigint;
+  uniquePlayers: number;
+  weeklyEligiblePlayers: number;
+  weeklyRollups: number;
+  attemptsStarted: bigint;
   runsFinalized: bigint;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
-  paymentVault: PublicKey;
-  rewardVault: PublicKey;
   playerEligible: boolean;
   playerStars: bigint;
   nextRunId: bigint;
@@ -143,6 +158,58 @@ export function currentDailyDayId(
   return Math.max(0, Math.floor(nowUnix / 86_400));
 }
 
+export async function buildOpenDailyChallengePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  dayId?: number;
+  paymaster: PublicKey;
+}): Promise<TransactionPlan> {
+  const dayId = args.dayId ?? currentDailyDayId();
+  const runtime = await fetchEconomyRuntime(args);
+  if (!runtime) throw new Error("Economy is not active");
+  const caller = args.wallet.publicKey;
+  const challenge = deriveDailyChallengePda(dayId);
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.openDailyChallenge(dayId)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      economyConfig: deriveEconomyConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(runtime.dailyRulesVersion),
+      dailyChallenge: challenge,
+      leaderboard: deriveDailyLeaderboardPda(challenge),
+      payer: args.paymaster,
+      caller,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return basePlan("Open Daily challenge", args.connection, args.paymaster, [
+    instruction,
+  ]);
+}
+
+export async function buildFinalizeDailyChallengePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  daily: DailyView;
+  paymaster?: PublicKey;
+}): Promise<TransactionPlan> {
+  const caller = args.wallet.publicKey;
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.finalizeDailyChallenge()
+    .accountsPartial({
+      dailyChallenge: args.daily.address,
+      leaderboard: deriveDailyLeaderboardPda(args.daily.address),
+      caller,
+    })
+    .instruction();
+  return basePlan(
+    "Finalize Daily challenge",
+    args.connection,
+    args.paymaster ?? caller,
+    [instruction],
+  );
+}
+
 export async function fetchDailyView(args: {
   connection: Connection;
   wallet: WalletLike;
@@ -151,13 +218,20 @@ export async function fetchDailyView(args: {
   const dayId = args.dayId ?? currentDailyDayId();
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
-  const address = deriveDailyChallengePda(dayId);
-  const [challenge, profile, protocol] = await Promise.all([
-    program.account.dailyChallenge.fetchNullable(address),
+  const [profile, protocol, economy] = await Promise.all([
     program.account.playerProfile.fetchNullable(derivePlayerProfilePda(owner)),
     program.account.protocolConfig.fetchNullable(deriveProtocolConfigPda()),
+    program.account.economyConfig.fetchNullable(deriveEconomyConfigPda()),
   ]);
-  if (!challenge || !protocol) return null;
+  if (
+    !protocol ||
+    !economy?.active ||
+    Number(economy.contentVersion) !== Number(protocol.contentVersion)
+  )
+    return null;
+  const address = deriveDailyChallengePda(dayId);
+  const challenge = await program.account.dailyChallenge.fetchNullable(address);
+  if (!challenge) return null;
   const [player, leaderboard] = await Promise.all([
     program.account.dailyPlayer.fetchNullable(
       deriveDailyPlayerPda(address, owner),
@@ -167,8 +241,11 @@ export async function fetchDailyView(args: {
     ),
   ]);
   return {
+    economyVersion: 2,
     address,
     dayId: Number(challenge.dayId),
+    weekId: Number(challenge.weekId),
+    seasonId: Number(challenge.seasonId),
     status: parseDailyStatus(challenge.status),
     mapId: Number(challenge.mapId),
     ...mapDailyGameRulesSnapshot(challenge),
@@ -177,44 +254,37 @@ export async function fetchDailyView(args: {
     runsCloseAt: Number(challenge.runsCloseAt),
     settlementGraceCloseAt: Number(challenge.settlementGraceCloseAt),
     finalizedAt: Number(challenge.finalizedAt),
-    claimsCloseAt: Number(challenge.claimsCloseAt),
-    entryPrice: asBigInt(challenge.entryPrice),
-    starEntryCost: asBigInt(challenge.starEntryCost),
-    payoutBps: challenge.payoutBps.map(Number),
-    sponsorFunding: asBigInt(challenge.sponsorFunding),
-    prizeLiability: asBigInt(challenge.prizeLiability),
-    settledPrizePool: asBigInt(challenge.settledPrizePool),
-    prizeForfeited: asBigInt(challenge.prizeForfeited),
-    totalPaidAttempts: asBigInt(challenge.totalPaidAttempts),
-    totalFreeAttempts: asBigInt(challenge.totalFreeAttempts),
-    runsStarted: asBigInt(challenge.runsStarted),
+    starEntryCost: asBigInt(challenge.entryStars),
+    uniquePlayers: Number(challenge.uniquePlayers),
+    weeklyEligiblePlayers: Number(challenge.weeklyEligiblePlayers),
+    weeklyRollups: Number(challenge.weeklyRollups),
+    attemptsStarted: asBigInt(challenge.attemptsStarted),
     runsFinalized: asBigInt(challenge.runsFinalized),
-    paymentMint: challenge.paymentMint,
-    paymentTokenProgram: challenge.paymentTokenProgram,
-    paymentVault: challenge.paymentVault,
-    rewardVault: protocol.rewardVault,
     playerEligible: Boolean(profile?.dailyEligible),
     playerStars: profile ? asBigInt(profile.starsBalance) : 0n,
     nextRunId: profile ? asBigInt(profile.nextRunId) : 0n,
     player: player
       ? {
-          freeAttemptUsed: Boolean(player.freeAttemptUsed),
-          paidAttempts: Number(player.paidAttempts),
+          attempts: Number(player.attempts),
           finalizedAttempts: Number(player.finalizedAttempts),
           bestRunId: asBigInt(player.bestRunId),
-          bestScore: Number(player.bestScore),
-          rank: Number(player.rank),
-          prizeAmount: asBigInt(player.prizeAmount),
-          claimed: Boolean(player.claimed),
-          refundedAmount: asBigInt(player.refundedAmount),
+          bestFeaturedScore: Number(player.bestFeaturedScore),
+          bestEngineScore: Number(player.bestEngineScore),
+          bestMoves: Number(player.bestMoves),
+          bestScore: Number(player.bestFeaturedScore),
           starRefunded: Boolean(player.starRefunded),
+          dailyXpAwarded: Boolean(player.dailyXpAwarded),
+          weeklyRolledUp: Boolean(player.weeklyRolledUp),
         }
       : null,
     leaderboard: (leaderboard?.entries ?? []).map((entry) => ({
       player: entry.player,
       receipt: entry.receipt,
       runId: asBigInt(entry.runId),
-      score: Number(entry.score),
+      featuredScore: Number(entry.featuredScore),
+      engineScore: Number(entry.engineScore),
+      moves: Number(entry.moves),
+      score: Number(entry.featuredScore),
       submittedAt: Number(entry.submittedAt),
     })),
   };
@@ -225,8 +295,6 @@ export async function buildPrepareDailyRunPlan(args: {
   wallet: WalletLike;
   session: Keypair;
   daily: DailyView;
-  payment: "stars" | "usdc";
-  playerPaymentAccount?: PublicKey;
   paymaster?: PublicKey;
   nowUnix?: number;
   /** Live expiry of a REUSED session token (marker correctness). */
@@ -278,43 +346,14 @@ export async function buildPrepareDailyRunPlan(args: {
     owner,
     systemProgram: SystemProgram.programId,
   };
-  const enter =
-    args.payment === "stars"
-      ? await program.methods
-          .enterDailyWithStarsV1(
-            new BN(args.daily.nextRunId.toString()),
-            args.session.publicKey,
-          )
-          .accountsPartial(common)
-          .instruction()
-      : await program.methods
-          .enterDailyPaidV1(
-            new BN(args.daily.nextRunId.toString()),
-            args.session.publicKey,
-          )
-          .accountsPartial({
-            protocol: common.protocol,
-            playerProfile: common.playerProfile,
-            dailyChallenge: common.dailyChallenge,
-            dailyPlayer: common.dailyPlayer,
-            paymentMint: args.daily.paymentMint,
-            playerPaymentAccount:
-              args.playerPaymentAccount ??
-              deriveAssociatedTokenAddress(
-                owner,
-                args.daily.paymentMint,
-                args.daily.paymentTokenProgram,
-              ),
-            paymentVault: args.daily.paymentVault,
-            paymentTokenProgram: args.daily.paymentTokenProgram,
-            runShell: common.runShell,
-            activeRun: common.activeRun,
-            runReceipt: common.runReceipt,
-            payer,
-            owner,
-            systemProgram: SystemProgram.programId,
-          })
-          .instruction();
+  const enter = await program.methods
+    .enterDaily(new BN(args.daily.nextRunId.toString()), args.session.publicKey)
+    .accountsPartial({
+      ...common,
+      economyConfig: deriveEconomyConfigPda(),
+      weeklyStipend: deriveWeeklyStipendPda(owner),
+    })
+    .instruction();
   instructions.push(enter);
   return {
     runId: args.daily.nextRunId,
@@ -322,9 +361,7 @@ export async function buildPrepareDailyRunPlan(args: {
     sessionToken,
     sessionValidUntil,
     transactionPlan: basePlan(
-      args.payment === "stars"
-        ? "Enter Daily with Stars"
-        : "Enter Daily with USDC",
+      `Enter Daily with ${args.daily.starEntryCost.toString()} Stars`,
       args.connection,
       payer,
       instructions,
@@ -338,23 +375,27 @@ export async function buildCommitDailyRunPlan(args: {
   payerWallet: WalletLike;
   addresses: ReturnType<typeof deriveRunAddresses>;
   dailyChallenge: PublicKey;
+  economyVersion?: 1 | 2;
   erConnection: Connection;
 }): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.erConnection, args.payerWallet)
-    .methods.commitDailyRunV1()
-    .accountsPartial({
-      payer: args.payerWallet.publicKey,
-      activeRun: args.addresses.activeRun,
-      runShell: args.addresses.runShell,
-      runReceipt: args.addresses.runReceipt,
-      playerProfile: derivePlayerProfilePda(args.owner),
-      dailyChallenge: args.dailyChallenge,
-      dailyPlayer: deriveDailyPlayerPda(args.dailyChallenge, args.owner),
-      leaderboard: deriveDailyLeaderboardPda(args.dailyChallenge),
-      owner: args.owner,
-      magicContext: MAGIC_CONTEXT_ID,
-      magicProgram: MAGIC_PROGRAM_ID,
-    })
+  const program = zkubeProgram(args.erConnection, args.payerWallet);
+  const common = {
+    payer: args.payerWallet.publicKey,
+    activeRun: args.addresses.activeRun,
+    runShell: args.addresses.runShell,
+    runReceipt: args.addresses.runReceipt,
+    playerProfile: derivePlayerProfilePda(args.owner),
+    dailyChallenge: args.dailyChallenge,
+    dailyPlayer: deriveDailyPlayerPda(args.dailyChallenge, args.owner),
+    leaderboard: deriveDailyLeaderboardPda(args.dailyChallenge),
+    weeklyStipend: deriveWeeklyStipendPda(args.owner),
+    owner: args.owner,
+    magicContext: MAGIC_CONTEXT_ID,
+    magicProgram: MAGIC_PROGRAM_ID,
+  };
+  const instruction = await program.methods
+    .commitDailyRun()
+    .accountsPartial(common)
     .instruction();
   return basePlan(
     "Commit Daily result",
@@ -364,91 +405,24 @@ export async function buildCommitDailyRunPlan(args: {
   );
 }
 
-export async function buildClaimDailyPrizePlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  daily: DailyView;
-  playerPaymentAccount?: PublicKey;
-  paymaster?: PublicKey;
-}): Promise<TransactionPlan> {
-  return buildDailyPayoutPlan("claimDailyPrizeV1", args);
-}
-
 export async function buildRefundDailyEntryPlan(args: {
   connection: Connection;
   wallet: WalletLike;
   daily: DailyView;
-  playerPaymentAccount?: PublicKey;
   paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
-  return buildDailyPayoutPlan("refundDailyEntryV1", args);
-}
-
-export async function buildForfeitUnclaimedDailyPrizesPlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  daily: DailyView;
-}): Promise<TransactionPlan> {
-  const caller = args.wallet.publicKey;
+  const owner = args.wallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.forfeitUnclaimedDailyPrizesV1()
+    .methods.refundDailyStars()
     .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      treasuryLedger: deriveTreasuryLedgerPda(),
       dailyChallenge: args.daily.address,
-      paymentMint: args.daily.paymentMint,
-      paymentVault: args.daily.paymentVault,
-      rewardVault: args.daily.rewardVault,
-      paymentTokenProgram: args.daily.paymentTokenProgram,
-      caller,
+      dailyPlayer: deriveDailyPlayerPda(args.daily.address, owner),
+      playerProfile: derivePlayerProfilePda(owner),
+      owner,
     })
     .instruction();
-  return basePlan("Forfeit expired Daily prizes", args.connection, caller, [
-    instruction,
-  ]);
-}
-
-async function buildDailyPayoutPlan(
-  kind: "claimDailyPrizeV1" | "refundDailyEntryV1",
-  args: {
-    connection: Connection;
-    wallet: WalletLike;
-    daily: DailyView;
-    playerPaymentAccount?: PublicKey;
-    paymaster?: PublicKey;
-  },
-): Promise<TransactionPlan> {
-  const owner = args.wallet.publicKey;
-  const accounts = {
-    dailyChallenge: args.daily.address,
-    leaderboard: deriveDailyLeaderboardPda(args.daily.address),
-    dailyPlayer: deriveDailyPlayerPda(args.daily.address, owner),
-    playerProfile: derivePlayerProfilePda(owner),
-    paymentMint: args.daily.paymentMint,
-    paymentVault: args.daily.paymentVault,
-    playerPaymentAccount:
-      args.playerPaymentAccount ??
-      deriveAssociatedTokenAddress(
-        owner,
-        args.daily.paymentMint,
-        args.daily.paymentTokenProgram,
-      ),
-    paymentTokenProgram: args.daily.paymentTokenProgram,
-    owner,
-  };
-  const methods = zkubeProgram(args.connection, args.wallet).methods;
-  const instruction =
-    kind === "claimDailyPrizeV1"
-      ? await methods
-          .claimDailyPrizeV1()
-          .accountsPartial(accounts)
-          .instruction()
-      : await methods
-          .refundDailyEntryV1()
-          .accountsPartial(accounts)
-          .instruction();
   return basePlan(
-    kind === "claimDailyPrizeV1" ? "Claim Daily prize" : "Refund Daily entry",
+    "Refund cancelled Daily Stars",
     args.connection,
     args.paymaster ?? owner,
     [instruction],

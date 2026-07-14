@@ -67,6 +67,14 @@ impl Grid {
             .unwrap_or(0) as u8
     }
 
+    pub fn occupied_height(&self) -> u8 {
+        if self.is_empty() {
+            0
+        } else {
+            self.highest_occupied_row().saturating_add(1)
+        }
+    }
+
     pub fn row(&self, row: usize) -> Option<&Row> {
         if row >= GRID_HEIGHT {
             return None;

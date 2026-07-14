@@ -11,7 +11,6 @@ const hooks = vi.hoisted(() => ({
   current: null as unknown,
   previous: null as unknown,
   identity: null as unknown,
-  claim: vi.fn<() => Promise<string>>(),
   refund: vi.fn<() => Promise<string>>(),
 }));
 
@@ -36,29 +35,25 @@ const RECEIPT = new PublicKey("ComputeBudget111111111111111111111111111111");
 
 describe("DailyTab", () => {
   beforeEach(() => {
-    hooks.claim.mockReset();
     hooks.refund.mockReset();
-    hooks.claim.mockResolvedValue("claim-signature");
     hooks.refund.mockResolvedValue("refund-signature");
     hooks.identity = { publicKey: PLAYER };
     hooks.previous = {
       daily: null,
       action: null,
       error: null,
-      claim: vi.fn(),
       refund: vi.fn(),
     };
   });
 
-  it("offers the program-backed USDC claim without manual settlement", () => {
+  it("projects finalized Daily results into Weekly rewards", () => {
     hooks.current = controller(dailyFixture("claimable"));
 
     render(<DailyTab colors={getThemeColors("theme-1")} />);
-    fireEvent.click(screen.getByRole("button", { name: "Claim USDC" }));
 
-    expect(hooks.claim).toHaveBeenCalledOnce();
-    expect(screen.queryByText(/settle/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/projected|\+\d+★/i)).not.toBeInTheDocument();
+    expect(screen.getByText("ROLLING UP")).toBeInTheDocument();
+    expect(screen.getByText(/cash and Star rewards settle from the Weekly/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Claim USDC/i })).toBeNull();
   });
 
   it("offers a cancellation refund for an unrefunded paid entry", () => {
@@ -77,7 +72,6 @@ function controller(daily: DailyView) {
     loading: false,
     action: null,
     error: null,
-    claim: hooks.claim,
     refund: hooks.refund,
   };
 }
@@ -88,21 +82,16 @@ function dailyFixture(status: DailyView["status"]): DailyView {
     mapId: 1,
     opensAt: 1_700_000_000,
     runsCloseAt: 1_700_003_600,
-    claimsCloseAt: 2_000_000_000,
-    runsStarted: 1n,
-    entryPrice: 1_000_000n,
+    attemptsStarted: 1n,
     rules: { activeMutatorId: 0, passiveMutatorId: 0 },
     player: {
-      freeAttemptUsed: false,
-      paidAttempts: 1,
+      attempts: 1,
       finalizedAttempts: 1,
       bestRunId: 1n,
       bestScore: 900,
-      rank: 0,
-      prizeAmount: 0n,
-      claimed: false,
-      refundedAmount: 0n,
       starRefunded: false,
+      dailyXpAwarded: true,
+      weeklyRolledUp: false,
     },
     leaderboard: [
       {

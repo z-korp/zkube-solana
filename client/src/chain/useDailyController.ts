@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRun } from "@/contexts/run";
 
 import { useSolanaConnection } from "./connectionContext";
 import {
-  buildClaimDailyPrizePlan,
+  buildFinalizeDailyChallengePlan,
+  buildOpenDailyChallengePlan,
   buildRefundDailyEntryPlan,
   fetchDailyView,
   type DailyView,
@@ -11,6 +12,7 @@ import {
 import { fetchPaymasterClient } from "./paymasterClient";
 import { submitSponsoredTransactionPlan } from "./runPlan";
 import { useEmbeddedIdentity } from "./embeddedIdentityContext";
+import { fetchEconomyRuntime } from "./economyClient";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();
@@ -20,6 +22,7 @@ export function useDailyController() {
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const maintaining = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!wallet) {
@@ -40,12 +43,85 @@ export function useDailyController() {
     }
   }, [connection, wallet]);
 
+  const maintain = useCallback(async () => {
+    if (!wallet || maintaining.current) return;
+    maintaining.current = true;
+    try {
+      let next = await refresh();
+      const runtime = await fetchEconomyRuntime({ connection, wallet });
+      if (!runtime) return;
+      const now = Math.floor(Date.now() / 1_000);
+      const paymaster = await fetchPaymasterClient(connection);
+      if (!next && now % 86_400 < 23 * 60 * 60) {
+        const transactionPlan = await buildOpenDailyChallengePlan({
+          connection,
+          wallet,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        next = await refresh();
+      }
+      if (
+        next?.status === "open" &&
+        now >= next.runsCloseAt &&
+        (next.attemptsStarted === next.runsFinalized ||
+          now >= next.settlementGraceCloseAt)
+      ) {
+        const transactionPlan = await buildFinalizeDailyChallengePlan({
+          connection,
+          wallet,
+          daily: next,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        next = await refresh();
+      }
+      if (
+        next?.status === "cancelled" &&
+        next.player &&
+        !next.player.starRefunded
+      ) {
+        const transactionPlan = await buildRefundDailyEntryPlan({
+          connection,
+          wallet,
+          daily: next,
+          paymaster: paymaster.pubkey,
+        });
+        const signature = await submitSponsoredTransactionPlan({
+          transactionPlan,
+          wallet,
+          paymaster,
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+        await refresh();
+      }
+    } catch (cause) {
+      // Keeper races are expected; a fresh read resolves already-created or
+      // already-finalized accounts without making gameplay approval-gated.
+      setError(message(cause));
+    } finally {
+      maintaining.current = false;
+    }
+  }, [connection, refresh, wallet]);
+
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void maintain();
+    const timer = window.setInterval(() => void maintain(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [maintain]);
 
   const enter = useCallback(
-    async (payment: "stars" | "usdc") => {
+    async () => {
       if (!daily) throw new Error("Today's Daily challenge is not available");
       if (!daily.playerEligible)
         throw new Error("Clear Campaign Map 1 to unlock Daily Arena");
@@ -62,15 +138,10 @@ export function useDailyController() {
       ) {
         throw new Error("Daily entries are closed");
       }
-      if (payment === "stars") {
-        if (daily.player?.freeAttemptUsed)
-          throw new Error("Today's Stars attempt is already used");
-        if (daily.playerStars < daily.starEntryCost)
-          throw new Error("Not enough Stars");
-      }
-      setAction(`enter:${payment}`);
+      if (daily.playerStars < daily.starEntryCost) throw new Error("Not enough Stars");
+      setAction("enter:stars");
       try {
-        const active = await run.startDailyRun(daily, payment);
+        const active = await run.startDailyRun(daily);
         await refresh();
         setError(null);
         return active;
@@ -84,26 +155,18 @@ export function useDailyController() {
     [daily, refresh, run],
   );
 
-  const payout = useCallback(
-    async (kind: "claim" | "refund") => {
+  const refund = useCallback(
+    async () => {
       if (!wallet || !daily) throw new Error("Daily state is not ready");
-      setAction(kind);
+      setAction("refund");
       try {
         const paymaster = await fetchPaymasterClient(connection);
-        const transactionPlan =
-          kind === "claim"
-            ? await buildClaimDailyPrizePlan({
-                connection,
-                wallet,
-                daily,
-                paymaster: paymaster.pubkey,
-              })
-            : await buildRefundDailyEntryPlan({
-                connection,
-                wallet,
-                daily,
-                paymaster: paymaster.pubkey,
-              });
+        const transactionPlan = await buildRefundDailyEntryPlan({
+          connection,
+          wallet,
+          daily,
+          paymaster: paymaster.pubkey,
+        });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
           wallet,
@@ -131,8 +194,7 @@ export function useDailyController() {
     run,
     refresh,
     enter,
-    claim: () => payout("claim"),
-    refund: () => payout("refund"),
+    refund,
   };
 }
 

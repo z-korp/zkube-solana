@@ -12,7 +12,6 @@ export const UNINITIALIZED_MAP_1: CampaignMapView = {
   cleared: false,
   perfected: false,
   starCost: 0n,
-  usdcCost: 0n,
   levelStars: Array.from({ length: 10 }, () => 0),
   levels: [],
 };

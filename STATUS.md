@@ -63,6 +63,23 @@ evidence of what is live. Shipping it requires a fresh dry-run, SBF hash, exact
 fingerprint, explicit approval, signature-verified simulation, and
 post-deployment byte verification.
 
+The current source candidate is a breaking, lean Stars baseline described in
+`docs/stars-economy-v2.md`: non-transferable Star packs, 20-Star zones, 10-Star
+unlimited Daily entries, 40,200 achievement XP, Daily-quest XP, two 5-Star
+Weekly quests, level-100 weekly Mastery, cash-winner Stars, permissionless Daily
+and Weekly automation, best-five Weekly scoring, claims, and 90-day reserve
+return. Daily is now neutral endless play with a public-seed procedural season:
+seven scoring families, 14 variants, independent pressure tiers, featured-score
+ranking, and engine/moves/time tie-breaks. Star purchases split USDC atomically
+10% team, 10% rewards, and 80% plus dust treasury. There is no compatibility
+migration path; Devnet state may be reset. It is **not deployed or initialized**.
+
+The validated local SBF is 1,583,736 bytes (SHA-256
+`623cbcb22da4d2141cb70af28a7b3a3e2c28d9c86cc8f4c3ed7988e9f0e451e2`),
+20,296 bytes below the live 1,604,032-byte ProgramData allocation. A separately
+approved upgrade, fresh three-destination bootstrap, and acceptance run are
+still required.
+
 ## Bootstrap and client
 
 Custody, protocol, and catalogs are live under approved fingerprints:
@@ -98,9 +115,22 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 `awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
 polling, with a slow poll only as a dropped-socket fallback.
 
-This work is merged to `main`. The client gate passes 214 tests across 54 files
-plus IDL, strict/chain typechecks, zero-warning lint, and the production build.
-The program gate passes 73 Rust tests plus formatting, Clippy, SBF, and IDL.
+The previously deployed/client work is merged to `main`. The lean Stars source
+is a new local candidate. Program gates pass: 74 active Rust tests, formatting,
+warnings-denied Clippy, optimized SBF/IDL generation, and diagnostic scan. One
+additional ignored 896-run Daily tuning harness found no stuck nonterminal
+boards. The generated IDL contains 46 instructions and 19 account types. Client
+gate counts are 56 test files and 223 tests, with IDL parity, typecheck, lint,
+and production build all passing.
+
+The candidate Campaign is now fully authored rather than generated: ten active
+maps use one fixed mutator/bonus identity across each map, compact per-level
+rows, exact approved difficulty tables, corrected theme IDs, and the revised
+perfect-clear/Combo Meter mechanics. Accounts reserve 32-map capacity and
+`ProtocolConfig.campaign_map_count` exposes a contiguous activated catalog
+range. Map 1 remains free; maps 2–32 use the global 20-Star price in any order,
+with no previous-boss or free-perfection unlock path. This schema intentionally
+requires the planned Devnet reset; it has not been deployed or bootstrapped.
 
 ### Web deployment (Vercel)
 
@@ -153,25 +183,23 @@ Spectating an already-cleaned run shows the "settled and archived" state.
 
 ## Open work
 
-1. **Legacy first-run cleanup.** Owner
-   `BQNuPSn2oHn9sU9rKA2hdZfDmiMpdwFYX9D9HqvFKTB6`, run 1, Map 1 Level 1 is
-   copied back and `levelComplete`, but its receipt is unconsumed. The explicit
-   `/?recover=1` flow builds `consumeSponsorshipV1` +
-   `consumeRunReceiptV1` + `closeSettledActiveRunV1`; it simulated at 48,993
-   CU. Signing still requires approval for that exact transaction.
-2. **Live acceptance.** Repeat multi-move campaign play through durable receipt
+1. **Live acceptance.** Repeat multi-move campaign play through durable receipt
    and cleanup from a fresh identity; complete the canonical-USDC Daily
    lifecycle; verify a Vault withdrawal and Recovery Code round-trip. Each
    signed scope is separately approved.
-3. **Operations.** Schedule `pnpm chain:readiness` with a meaningful paymaster
+2. **Operations.** Schedule `pnpm chain:readiness` with a meaningful paymaster
    threshold and deploy alert aggregation. (Web project root is now `client` on
    the live Vercel `zkube-solana` project.)
-4. **Security and launch debt.** Complete independent program/paymaster/
+3. **Security and launch debt.** Complete independent program/paymaster/
    treasury review, validator/RPC concurrency and failure-recovery evidence,
    production bundle splitting, jurisdiction/terms/age policy, operator and
    pilot-budget decisions.
-5. **Yield remains off.** No external adapter, valuation, withdrawal, or
-   executable emergency-exit CPI is implemented or authorized.
+4. **Yield remains external and off.** No adapter, valuation, withdrawal, or
+   executable strategy CPI is implemented or authorized. Reward liabilities
+   are never treasury capital.
+5. **Lean Stars rollout.** Complete review and instruction-level integration
+   tests, then separately approve the upgrade, fresh account bootstrap, and
+   Devnet acceptance. No lean economy account is currently live.
 
 ## Validation
 

@@ -1,7 +1,6 @@
 export interface AchievementPublicationRule {
   metric: number;
   threshold: bigint;
-  starReward: bigint;
   xpReward: number;
 }
 
@@ -12,7 +11,7 @@ export interface QuestPublicationRule {
   rotationRemainder: 0 | 1 | 2;
   enabled: true;
   threshold: number;
-  starReward: number;
+  rewardUnits: number;
 }
 
 const achievement = (
@@ -22,43 +21,42 @@ const achievement = (
 ): AchievementPublicationRule => ({
   metric,
   threshold: BigInt(threshold),
-  starReward: 0n,
   xpReward,
 });
 
-/** Exact order, thresholds, and XP values from zkube's Cairo achievement catalog. */
+/** Exact Cairo order and thresholds with the approved six-times XP values. */
 export const CANONICAL_ACHIEVEMENT_RULES: readonly AchievementPublicationRule[] = [
-  achievement(0, 20, 50),
-  achievement(0, 100, 150),
-  achievement(0, 400, 300),
-  achievement(0, 1_000, 500),
-  achievement(1, 200, 50),
-  achievement(1, 1_000, 150),
-  achievement(1, 4_000, 300),
-  achievement(1, 10_000, 500),
-  achievement(2, 3, 50),
-  achievement(2, 4, 150),
-  achievement(2, 5, 300),
-  achievement(2, 6, 500),
-  achievement(3, 1, 50),
-  achievement(3, 5, 150),
-  achievement(3, 15, 300),
-  achievement(3, 50, 500),
-  achievement(4, 1, 100),
-  achievement(4, 3, 200),
-  achievement(5, 30, 400),
-  achievement(4, 10, 1_000),
-  achievement(6, 1, 50),
-  achievement(6, 7, 150),
-  achievement(6, 30, 300),
-  achievement(6, 100, 500),
+  achievement(0, 20, 300),
+  achievement(0, 100, 900),
+  achievement(0, 400, 1_800),
+  achievement(0, 1_000, 3_000),
+  achievement(1, 200, 300),
+  achievement(1, 1_000, 900),
+  achievement(1, 4_000, 1_800),
+  achievement(1, 10_000, 3_000),
+  achievement(2, 3, 300),
+  achievement(2, 4, 900),
+  achievement(2, 5, 1_800),
+  achievement(2, 6, 3_000),
+  achievement(3, 1, 300),
+  achievement(3, 5, 900),
+  achievement(3, 15, 1_800),
+  achievement(3, 50, 3_000),
+  achievement(4, 1, 600),
+  achievement(4, 3, 1_200),
+  achievement(5, 30, 2_400),
+  achievement(4, 10, 6_000),
+  achievement(6, 1, 300),
+  achievement(6, 7, 900),
+  achievement(6, 30, 1_800),
+  achievement(6, 100, 3_000),
 ];
 
 const quest = (
   metric: number,
   cadence: 0 | 1,
   threshold: number,
-  starReward: number,
+  rewardUnits: number,
   rotationModulus: 1 | 3,
   rotationRemainder: 0 | 1 | 2,
 ): QuestPublicationRule => ({
@@ -68,7 +66,7 @@ const quest = (
   rotationRemainder,
   enabled: true,
   threshold,
-  starReward,
+  rewardUnits,
 });
 
 /**
@@ -90,14 +88,14 @@ export const CANONICAL_QUEST_RULES: readonly QuestPublicationRule[] = [
   quest(11, 1, 3, 5, 1, 0),
 ];
 
-export function questBudgetForDay(day: number): { daily: number; weekly: number } {
+export function questRewardsForDay(day: number): { dailyXp: number; weeklyStars: number } {
   if (!Number.isSafeInteger(day) || day < 0) throw new Error("day must be a non-negative integer");
-  const daily = CANONICAL_QUEST_RULES
+  const dailyXp = CANONICAL_QUEST_RULES
     .filter((rule) => rule.cadence === 0
       && day % rule.rotationModulus === rule.rotationRemainder)
-    .reduce((sum, rule) => sum + rule.starReward, 0);
-  const weekly = CANONICAL_QUEST_RULES
+    .reduce((sum, rule) => sum + rule.rewardUnits * 100, 0);
+  const weeklyStars = CANONICAL_QUEST_RULES
     .filter((rule) => rule.cadence === 1)
-    .reduce((sum, rule) => sum + rule.starReward, 0);
-  return { daily, weekly };
+    .reduce((sum, rule) => sum + rule.rewardUnits, 0);
+  return { dailyXp, weeklyStars };
 }

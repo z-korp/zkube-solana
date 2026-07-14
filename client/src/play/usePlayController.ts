@@ -184,6 +184,10 @@ export function usePlayController() {
   const selectedMap = campaign.campaign?.maps.find(
     (map) => map.mapId === mapId,
   );
+  const finalCampaignMapId = campaign.campaign?.maps.reduce(
+    (highest, map) => Math.max(highest, map.mapId),
+    0,
+  ) ?? 0;
   const mapPlayable = campaign.campaign
     ? selectedMap?.enabled === true && selectedMap.unlocked
     : mapId === 1;
@@ -348,7 +352,7 @@ export function usePlayController() {
     const boss = lifecycleRun.level === 10 || lifecycleRun.rules.bossId > 0;
     playSfx(
       boss
-        ? lifecycleRun.mapId === 10
+        ? lifecycleRun.mapId === finalCampaignMapId
           ? "victory"
           : "boss-defeat"
         : "levelup",
@@ -359,7 +363,7 @@ export function usePlayController() {
       window.clearTimeout(starTimer);
       window.clearTimeout(coinTimer);
     };
-  }, [lifecycleRun, playSfx]);
+  }, [finalCampaignMapId, lifecycleRun, playSfx]);
 
   useEffect(() => {
     const activeRun = run.activeRun;
@@ -627,6 +631,7 @@ export function usePlayController() {
     continueSettled,
     settledReceipt,
     settledCleanupStatus,
+    finalCampaignMapId,
     recoverBaseRun: recoverOrphanedBaseRun,
     settlingLabel: settleStageLabel(run.settleStage),
   };

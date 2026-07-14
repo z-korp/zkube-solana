@@ -9,12 +9,14 @@ interface VictoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
   game: Game;
+  finalCampaignMapId: number;
 }
 
 const VictoryDialog: React.FC<VictoryDialogProps> = ({
   isOpen,
   onClose,
   game,
+  finalCampaignMapId,
 }) => {
   const [animationPhase, setAnimationPhase] = useState(0);
 
@@ -39,7 +41,7 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
 
   // Generate tweet URL for victory
   const tweetUrl = useMemo(() => {
-    const campaignComplete = game.zoneId === 10;
+    const campaignComplete = game.zoneId === finalCampaignMapId;
     const tweetMsg = `🏆 ${campaignComplete ? "I completed the zKube campaign!" : `I defeated the Map ${game.zoneId} guardian in zKube!`}
 🧱 ${game.totalCubes} lines cleared
 💎 ${game.totalScore.toLocaleString()} total points
@@ -48,7 +50,9 @@ Can you clear the guardian trial? 😎
 Play now: app.zkube.xyz
 @zkorp_ @zkube_game`;
     return `https://x.com/intent/tweet?text=${encodeURIComponent(tweetMsg)}&url=app.zkube.xyz`;
-  }, [game.maxComboRun, game.totalCubes, game.totalScore, game.zoneId]);
+  }, [finalCampaignMapId, game.maxComboRun, game.totalCubes, game.totalScore, game.zoneId]);
+
+  const campaignComplete = game.zoneId === finalCampaignMapId;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -126,7 +130,7 @@ Play now: app.zkube.xyz
             VICTORY!
           </DialogTitle>
           <p className="text-center text-lg text-yellow-200/80 mb-4">
-            {game.zoneId === 10
+            {campaignComplete
               ? "You completed the campaign!"
               : `You defeated the Map ${game.zoneId} guardian!`}
           </p>
@@ -145,7 +149,7 @@ Play now: app.zkube.xyz
             </div>
             <div className="text-lg text-yellow-400 flex items-center justify-center gap-2">
               <Trophy size={16} className="text-yellow-400" />
-              {game.zoneId === 10 ? "Campaign Complete" : "Map Complete"}
+              {campaignComplete ? "Campaign Complete" : "Map Complete"}
             </div>
           </motion.div>
 

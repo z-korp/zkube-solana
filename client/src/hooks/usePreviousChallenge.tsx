@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useSolanaConnection } from "@/chain/connectionContext";
 import {
-  buildClaimDailyPrizePlan,
   buildRefundDailyEntryPlan,
   currentDailyDayId,
   fetchDailyView,
@@ -18,7 +17,7 @@ export function usePreviousChallenge() {
   const { wallet } = useEmbeddedIdentity();
   const [daily, setDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
-  const [action, setAction] = useState<"claim" | "refund" | null>(null);
+  const [action, setAction] = useState<"refund" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -44,26 +43,18 @@ export function usePreviousChallenge() {
     void refresh();
   }, [refresh]);
 
-  const payout = useCallback(
-    async (kind: "claim" | "refund") => {
+  const refund = useCallback(
+    async () => {
       if (!daily) throw new Error("Previous Daily state is not ready");
-      setAction(kind);
+      setAction("refund");
       try {
         const paymaster = await fetchPaymasterClient(connection);
-        const transactionPlan =
-          kind === "claim"
-            ? await buildClaimDailyPrizePlan({
-                connection,
-                wallet,
-                daily,
-                paymaster: paymaster.pubkey,
-              })
-            : await buildRefundDailyEntryPlan({
-                connection,
-                wallet,
-                daily,
-                paymaster: paymaster.pubkey,
-              });
+        const transactionPlan = await buildRefundDailyEntryPlan({
+          connection,
+          wallet,
+          daily,
+          paymaster: paymaster.pubkey,
+        });
         const signature = await submitSponsoredTransactionPlan({
           transactionPlan,
           wallet,
@@ -89,8 +80,7 @@ export function usePreviousChallenge() {
     action,
     error,
     refresh,
-    claim: () => payout("claim"),
-    refund: () => payout("refund"),
+    refund,
   };
 }
 

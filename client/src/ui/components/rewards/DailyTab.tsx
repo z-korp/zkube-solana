@@ -3,9 +3,8 @@ import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
-import { getMutatorDef } from "@/config/mutatorConfig";
+import { dailyScoringRuleName } from "@/chain/dailyRules";
 import { ZONE_NAMES } from "@/config/profileData";
-import { getDailyRewardTiers } from "@/config/rewardTiers";
 import {
   getThemeColors,
   getThemeImages,
@@ -118,7 +117,6 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
           position={previousPosition}
           label="Previous Daily"
           action={previous.action}
-          onClaim={() => void previous.claim().catch(() => undefined)}
           onRefund={() => void previous.refund().catch(() => undefined)}
         />
       )}
@@ -146,7 +144,6 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
             position={currentPosition}
             label="Today"
             action={current.action}
-            onClaim={() => void current.claim().catch(() => undefined)}
             onRefund={() => void current.refund().catch(() => undefined)}
           />
 
@@ -161,7 +158,7 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
                 myScore={currentPosition.score}
                 myName="You"
                 entries={currentEntries}
-                scoreLabel=" pts"
+                scoreLabel=" featured"
               />
             </motion.section>
           )}
@@ -174,8 +171,9 @@ const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
         className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-center"
       >
         <p className="font-sans text-[11px] font-semibold text-white/50">
-          The on-chain top 10 share the finalized USDC prize pool. Today&apos;s
-          rank weights: {formatPayoutSummary(current.daily?.payoutBps ?? [])}.
+          Daily rank awards 100/60/30/10/2 Weekly points. Only your best
+          finalized score counts; cash and Star rewards settle from the Weekly
+          leaderboard.
         </p>
       </motion.section>
 
@@ -193,14 +191,12 @@ function DailyCard({
   position,
   label,
   action,
-  onClaim,
   onRefund,
 }: {
   daily: DailyView;
   position: PlayerPosition | null;
   label: string;
   action: string | null;
-  onClaim: () => void;
   onRefund: () => void;
 }) {
   const zoneId = daily.mapId || 1;
@@ -209,23 +205,8 @@ function DailyCard({
   const zoneColors = getThemeColors(zoneThemeId);
   const zoneImages = getThemeImages(zoneThemeId);
   const guardian = getZoneGuardian(zoneId);
-  const activeMutator = daily.rules.activeMutatorId
-    ? getMutatorDef(daily.rules.activeMutatorId)
-    : null;
-  const passiveMutator = daily.rules.passiveMutatorId
-    ? getMutatorDef(daily.rules.passiveMutatorId)
-    : null;
-  const player = daily.player;
-  const canClaim =
-    daily.status === "claimable" &&
-    daily.claimsCloseAt > 0 &&
-    Math.floor(Date.now() / 1_000) <= daily.claimsCloseAt &&
-    Boolean(player) &&
-    !player?.claimed &&
-    position !== null &&
-    position.rank <= 10;
   const canRefund = daily.status === "cancelled" && hasPendingRefund(daily);
-  const isBusy = action === "claim" || action === "refund";
+  const isBusy = action === "refund";
 
   return (
     <motion.section
@@ -254,34 +235,34 @@ function DailyCard({
               {zoneName} · {guardian.name}
             </p>
             {position ? (
-              <p className="font-sans text-[11px] text-white/60">
-                #{position.rank} · {position.score.toLocaleString()} pts
-              </p>
+              <>
+                <p className="font-sans text-[11px] text-white/60">
+                  #{position.rank} · {position.score.toLocaleString()} featured
+                </p>
+                <p className="font-sans text-[10px] text-white/40">
+                  {position.engineScore.toLocaleString()} engine ·{" "}
+                  {position.moves} moves
+                </p>
+              </>
             ) : (
               <p className="font-sans text-[11px] text-white/60">
-                {daily.runsStarted.toString()} run
-                {daily.runsStarted === 1n ? "" : "s"} started
+                {daily.attemptsStarted.toString()} run
+                {daily.attemptsStarted === 1n ? "" : "s"} started
               </p>
             )}
           </div>
           <DailyAction
             daily={daily}
-            canClaim={canClaim}
             canRefund={canRefund}
             isBusy={isBusy}
             action={action}
-            onClaim={onClaim}
             onRefund={onRefund}
           />
         </div>
 
-        {(activeMutator || passiveMutator) && (
-          <p className="mt-2 font-sans text-[10px] text-white/45">
-            {[activeMutator?.name, passiveMutator?.name]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        )}
+        <p className="mt-2 font-sans text-[10px] font-semibold text-cyan-200/75">
+          {dailyScoringRuleName(daily.scoringRule)}
+        </p>
       </div>
     </motion.section>
   );
@@ -289,48 +270,17 @@ function DailyCard({
 
 function DailyAction({
   daily,
-  canClaim,
   canRefund,
   isBusy,
   action,
-  onClaim,
   onRefund,
 }: {
   daily: DailyView;
-  canClaim: boolean;
   canRefund: boolean;
   isBusy: boolean;
   action: string | null;
-  onClaim: () => void;
   onRefund: () => void;
 }) {
-  const player = daily.player;
-  if (player?.claimed) {
-    return (
-      <span className="shrink-0 rounded-full bg-green-500 px-3 py-1.5 font-sans text-xs font-bold text-white">
-        {formatUsdc(player.prizeAmount)} USDC claimed
-      </span>
-    );
-  }
-  if (canClaim) {
-    return (
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        type="button"
-        onClick={onClaim}
-        disabled={isBusy}
-        className="shrink-0 rounded-full bg-green-500 px-3 py-1.5 font-sans text-xs font-bold text-white disabled:opacity-50"
-      >
-        {action === "claim" ? (
-          <span className="flex items-center gap-1.5">
-            <Loader2 className="h-3 w-3 animate-spin" /> Claiming…
-          </span>
-        ) : (
-          "Claim USDC"
-        )}
-      </motion.button>
-    );
-  }
   if (canRefund) {
     return (
       <motion.button
@@ -368,12 +318,9 @@ function DailyAction({
     );
   }
   if (daily.status === "claimable") {
-    const claimWindowExpired =
-      daily.claimsCloseAt > 0 &&
-      Math.floor(Date.now() / 1_000) > daily.claimsCloseAt;
     return (
       <span className="shrink-0 rounded-full bg-white/60 px-3 py-1.5 font-sans text-xs font-bold text-black">
-        {claimWindowExpired ? "Claim window closed" : "No prize"}
+        {daily.player?.weeklyRolledUp ? "WEEKLY ✓" : "ROLLING UP"}
       </span>
     );
   }
@@ -394,6 +341,8 @@ function DailyAction({
 interface PlayerPosition {
   rank: number;
   score: number;
+  engineScore: number;
+  moves: number;
 }
 
 function getPlayerPosition(
@@ -404,14 +353,14 @@ function getPlayerPosition(
   const leaderboardIndex = daily.leaderboard.findIndex(
     (entry) => entry.player.toBase58() === address,
   );
-  const rank =
-    leaderboardIndex >= 0
-      ? leaderboardIndex + 1
-      : daily.player.rank > 0
-        ? daily.player.rank
-        : null;
+  const rank = leaderboardIndex >= 0 ? leaderboardIndex + 1 : null;
   if (rank === null) return null;
-  return { rank, score: daily.player.bestScore };
+  return {
+    rank,
+    score: daily.player.bestFeaturedScore ?? daily.player.bestScore,
+    engineScore: daily.player.bestEngineScore ?? daily.player.bestScore,
+    moves: daily.player.bestMoves ?? 0,
+  };
 }
 
 function toRankEntries(daily: DailyView | null): RankContextEntry[] {
@@ -419,7 +368,7 @@ function toRankEntries(daily: DailyView | null): RankContextEntry[] {
     const address = entry.player.toBase58();
     return {
       rank: index + 1,
-      score: entry.score,
+      score: entry.featuredScore ?? entry.score,
       name: truncatePublicKey(address),
     };
   });
@@ -428,28 +377,7 @@ function toRankEntries(daily: DailyView | null): RankContextEntry[] {
 function hasPendingRefund(daily: DailyView): boolean {
   const player = daily.player;
   if (!player) return false;
-  const paidTotal = BigInt(player.paidAttempts) * daily.entryPrice;
-  return (
-    paidTotal > player.refundedAmount ||
-    (player.freeAttemptUsed && !player.starRefunded)
-  );
-}
-
-function formatUsdc(value: bigint): string {
-  const whole = value / 1_000_000n;
-  const fraction = (value % 1_000_000n)
-    .toString()
-    .padStart(6, "0")
-    .replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
-}
-
-function formatPayoutSummary(payoutBps: readonly number[]): string {
-  const tiers = getDailyRewardTiers(payoutBps);
-  if (tiers.length === 0) return "not published";
-  return tiers
-    .map((tier) => `${tier.label} ${tier.payoutBps / 100}%`)
-    .join(" · ");
+  return player.attempts > 0 && !player.starRefunded;
 }
 
 function formatDailyDate(timestamp: number): string {

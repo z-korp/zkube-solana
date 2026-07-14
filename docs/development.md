@@ -6,10 +6,16 @@
 - Node `>=20.19`; CI uses Node `24.13.0` and pnpm `10.22.0`.
 - Anchor workspace files live at repository root.
 - Program source: `programs/solana/`.
+- Economy state/instructions: `programs/solana/src/state/economy_v2.rs` and
+  `programs/solana/src/instructions/economy_v2_instructions.rs`.
 - Generated SBF/IDL/types: `target/deploy/solana.so`, `target/idl/solana.json`,
   and `target/types/solana.ts`.
 - Client and chain tooling: `client/`; checked-in generated client ABI:
   `client/src/chain/idl/`.
+- Economy runtime/builders: `client/src/chain/economyClient.ts`,
+  `economyAdminClient.ts`, `weeklyClient.ts`, and their controllers.
+- Progress claims and Mastery projection: `client/src/chain/progressClient.ts`
+  and `programs/solana/src/instructions/progress_instructions.rs`.
 - Shared Rust/TypeScript golden fixtures: `fixtures/game-parity.json`.
 
 Build outputs, `.devnet/`, `artifacts/`, environment files, and signer material
@@ -99,7 +105,8 @@ source includes post-deployment hardening, so a local build must not overwrite
 that status value or be called deployed. Before any proposed upgrade:
 
 1. run the full program and frontend gates;
-2. hash `target/deploy/solana.so` and verify it fits the live allocation;
+2. hash `target/deploy/solana.so` and verify it fits the live allocation; if it
+   does not, stop and prepare a separately reviewed ProgramData extension plan;
 3. generate a new dry-run plan/fingerprint;
 4. inspect instructions, signers, accounts, fees and maximum spend;
 5. obtain explicit approval for that exact plan;
@@ -110,9 +117,12 @@ This repository cleanup authorizes none of those steps.
 
 ## Testing expectations
 
-The Rust suite covers deterministic gameplay, VRF mapping, progression,
-accounting, governance, sponsorship and lifecycle predicates; TypeScript tests
-cover builders, paymaster policy, routing/reconnect, recovery, monitoring and UI
-state. Add instruction-level integration coverage for account constraints and
-CPIs when changing security-sensitive program paths, and retain shared fixture
-parity between Rust and TypeScript.
+The Rust suite covers deterministic gameplay, VRF mapping, progression, exact
+10/10/80 sale accounting, explicit controls, and lifecycle predicates;
+TypeScript tests cover builders, paymaster policy, routing/reconnect, recovery,
+monitoring, and UI state. Economy changes must retain tests for per-player
+issuance, cadence rollover, one-award-only behavior, rounding conservation,
+exact Magic Action account ordering, and paymaster signer indices. Add
+instruction-level integration coverage for account constraints and CPIs when
+changing security-sensitive paths, and retain shared fixture parity between
+Rust and TypeScript.

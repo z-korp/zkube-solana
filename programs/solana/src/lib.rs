@@ -15,195 +15,195 @@ declare_id!("5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA");
 pub mod solana {
     use super::*;
 
-    pub fn initialize_protocol_v1(
-        ctx: Context<InitializeProtocolV1>,
+    pub fn initialize_protocol(
+        ctx: Context<InitializeProtocol>,
         args: InitializeProtocolArgs,
     ) -> Result<()> {
-        instructions::v2_instructions::handler_initialize_protocol_v1(ctx, args)
+        instructions::v2_instructions::handler_initialize_protocol(ctx, args)
     }
 
-    pub fn initialize_player_v1(ctx: Context<InitializePlayerV1>) -> Result<()> {
-        instructions::v2_instructions::handler_initialize_player_v1(ctx)
+    pub fn initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
+        instructions::v2_instructions::handler_initialize_player(ctx)
     }
 
-    pub fn propose_governance_v1(
-        ctx: Context<ProposeGovernanceV1>,
-        proposal_id: u64,
-        action: GovernanceAction,
+    pub fn initialize_economy(
+        ctx: Context<InitializeEconomy>,
+        args: InitializeEconomyArgs,
     ) -> Result<()> {
-        instructions::governance_instructions::handler_propose_governance_v1(
+        instructions::economy_v2_instructions::handler_initialize_economy(ctx, args)
+    }
+
+    pub fn update_regular_prices(
+        ctx: Context<ManageEconomyPricing>,
+        args: UpdateRegularPricesArgs,
+    ) -> Result<()> {
+        instructions::economy_v2_instructions::handler_update_regular_prices(ctx, args)
+    }
+
+    pub fn schedule_sale(ctx: Context<ManageEconomyPricing>, args: ScheduleSaleArgs) -> Result<()> {
+        instructions::economy_v2_instructions::handler_schedule_sale(ctx, args)
+    }
+
+    pub fn cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_cancel_sale(ctx)
+    }
+
+    pub fn publish_daily_rules(
+        ctx: Context<PublishDailyRules>,
+        args: PublishDailyRulesArgs,
+    ) -> Result<()> {
+        instructions::economy_v2_instructions::handler_publish_daily_rules(ctx, args)
+    }
+
+    pub fn purchase_stars<'info>(
+        ctx: Context<'info, PurchaseStars<'info>>,
+        pack_index: u8,
+        expected_stars: u64,
+        max_usdc_amount: u64,
+    ) -> Result<()> {
+        instructions::economy_v2_instructions::handler_purchase_stars(
             ctx,
-            proposal_id,
-            action,
+            pack_index,
+            expected_stars,
+            max_usdc_amount,
         )
     }
 
-    pub fn execute_governance_v1(ctx: Context<ExecuteGovernanceV1>) -> Result<()> {
-        instructions::governance_instructions::handler_execute_governance_v1(ctx)
+    pub fn unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_unlock_zone(ctx)
     }
 
-    pub fn cancel_governance_v1(ctx: Context<CancelGovernanceV1>) -> Result<()> {
-        instructions::governance_instructions::handler_cancel_governance_v1(ctx)
-    }
-
-    pub fn pause_protocol_v1(ctx: Context<PauseProtocolV1>) -> Result<()> {
-        instructions::governance_instructions::handler_pause_protocol_v1(ctx)
-    }
-
-    pub fn pause_yield_strategy_v1(ctx: Context<PauseYieldStrategyV1>) -> Result<()> {
-        instructions::governance_instructions::handler_pause_yield_strategy_v1(ctx)
-    }
-
-    pub fn accept_protocol_authority_v1(ctx: Context<AcceptProtocolAuthorityV1>) -> Result<()> {
-        instructions::governance_instructions::handler_accept_protocol_authority_v1(ctx)
-    }
-
-    pub fn consume_sponsorship_v1(ctx: Context<ConsumeSponsorshipV1>) -> Result<()> {
-        instructions::sponsorship_instructions::handler_consume_sponsorship_v1(ctx)
-    }
-
-    pub fn sweep_protocol_revenue_v1(ctx: Context<SweepProtocolRevenueV1>) -> Result<()> {
-        instructions::treasury_instructions::handler_sweep_protocol_revenue_v1(ctx)
-    }
-
-    pub fn allocate_realized_yield_v1(ctx: Context<AllocateRealizedYieldV1>) -> Result<()> {
-        instructions::treasury_instructions::handler_allocate_realized_yield_v1(ctx)
-    }
-
-    pub fn write_progress_catalog_v1(
-        ctx: Context<WriteProgressCatalogV1>,
-        args: WriteProgressCatalogArgs,
+    pub fn claim_level_milestone(
+        ctx: Context<ClaimLevelMilestone>,
+        milestone_index: u8,
     ) -> Result<()> {
-        instructions::progress_instructions::handler_write_progress_catalog_v1(ctx, args)
+        instructions::economy_v2_instructions::handler_claim_level_milestone(ctx, milestone_index)
     }
 
-    pub fn claim_achievement_v1(
-        ctx: Context<ClaimAchievementV1>,
-        achievement_index: u8,
+    pub fn open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u32) -> Result<()> {
+        instructions::economy_v2_instructions::handler_open_daily_challenge(ctx, day_id)
+    }
+
+    pub fn enter_daily(
+        ctx: Context<EnterDaily>,
+        run_id: u64,
+        action_authority: Pubkey,
     ) -> Result<()> {
-        instructions::progress_instructions::handler_claim_achievement_v1(ctx, achievement_index)
+        instructions::economy_v2_instructions::handler_enter_daily(ctx, run_id, action_authority)
     }
 
-    pub fn claim_quest_v1(ctx: Context<ClaimQuestV1>, quest_index: u8) -> Result<()> {
-        instructions::progress_instructions::handler_claim_quest_v1(ctx, quest_index)
+    pub fn commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_commit_daily_run(ctx)
     }
 
-    pub fn rotate_run_shell_authority_v1(
-        ctx: Context<RotateRunShellAuthorityV1>,
+    pub fn consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_consume_daily_receipt(ctx)
+    }
+
+    pub fn finalize_daily_challenge(ctx: Context<FinalizeDailyChallenge>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_finalize_daily_challenge(ctx)
+    }
+
+    pub fn cancel_daily_challenge(ctx: Context<CancelDailyChallenge>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_cancel_daily_challenge(ctx)
+    }
+
+    pub fn refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_refund_daily_stars(ctx)
+    }
+
+    pub fn open_weekly_challenge(ctx: Context<OpenWeeklyChallenge>, week_id: u32) -> Result<()> {
+        instructions::economy_v2_instructions::handler_open_weekly_challenge(ctx, week_id)
+    }
+
+    pub fn rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_rollup_daily_to_weekly(ctx)
+    }
+
+    pub fn finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_finalize_weekly_challenge(ctx)
+    }
+
+    pub fn claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_claim_weekly_stars(ctx)
+    }
+
+    pub fn claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_claim_weekly_cash(ctx)
+    }
+
+    pub fn forfeit_weekly_cash(ctx: Context<ForfeitWeeklyCash>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_forfeit_weekly_cash(ctx)
+    }
+
+    pub fn set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) -> Result<()> {
+        instructions::governance_instructions::handler_set_protocol_pause(ctx, paused)
+    }
+
+    pub fn propose_protocol_authority(
+        ctx: Context<ProposeProtocolAuthority>,
+        pending_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::governance_instructions::handler_propose_protocol_authority(
+            ctx,
+            pending_authority,
+        )
+    }
+
+    pub fn accept_protocol_authority(ctx: Context<AcceptProtocolAuthority>) -> Result<()> {
+        instructions::governance_instructions::handler_accept_protocol_authority(ctx)
+    }
+
+    pub fn set_pricing_operator(
+        ctx: Context<SetPricingOperator>,
+        pricing_operator: Pubkey,
+    ) -> Result<()> {
+        instructions::governance_instructions::handler_set_pricing_operator(ctx, pricing_operator)
+    }
+
+    pub fn update_revenue_destinations(ctx: Context<UpdateRevenueDestinations>) -> Result<()> {
+        instructions::governance_instructions::handler_update_revenue_destinations(ctx)
+    }
+
+    pub fn claim_achievement(ctx: Context<ClaimAchievement>, achievement_index: u8) -> Result<()> {
+        instructions::progress_instructions::handler_claim_achievement(ctx, achievement_index)
+    }
+
+    pub fn claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<()> {
+        instructions::progress_instructions::handler_claim_quest(ctx, quest_index)
+    }
+
+    pub fn rotate_run_shell_authority(
+        ctx: Context<RotateRunShellAuthority>,
         run_id: u64,
         new_action_authority: Pubkey,
     ) -> Result<()> {
-        instructions::v2_instructions::handler_rotate_run_shell_authority_v1(
+        instructions::v2_instructions::handler_rotate_run_shell_authority(
             ctx,
             run_id,
             new_action_authority,
         )
     }
 
-    pub fn unlock_map_with_stars_v1(ctx: Context<UnlockMapWithStarsV1>) -> Result<()> {
-        instructions::campaign_instructions::handler_unlock_map_with_stars_v1(ctx)
-    }
-
-    pub fn purchase_map_with_usdc_v1(ctx: Context<PurchaseMapWithUsdcV1>) -> Result<()> {
-        instructions::campaign_instructions::handler_purchase_map_with_usdc_v1(ctx)
-    }
-
-    pub fn create_daily_challenge_v1(
-        ctx: Context<CreateDailyChallengeV1>,
-        args: CreateDailyChallengeArgs,
-    ) -> Result<()> {
-        instructions::daily_instructions::handler_create_daily_challenge_v1(ctx, args)
-    }
-
-    pub fn fund_daily_challenge_v1(ctx: Context<FundDailyChallengeV1>, amount: u64) -> Result<()> {
-        instructions::daily_instructions::handler_fund_daily_challenge_v1(ctx, amount)
-    }
-
-    pub fn enter_daily_with_stars_v1(
-        ctx: Context<EnterDailyWithStarsV1>,
-        run_id: u64,
-        action_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::daily_instructions::handler_enter_daily_with_stars_v1(
-            ctx,
-            run_id,
-            action_authority,
-        )
-    }
-
-    pub fn enter_daily_paid_v1(
-        ctx: Context<EnterDailyPaidV1>,
-        run_id: u64,
-        action_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::daily_instructions::handler_enter_daily_paid_v1(ctx, run_id, action_authority)
-    }
-
-    pub fn write_map_catalog_v1(
-        ctx: Context<WriteMapCatalogV1>,
+    pub fn write_map_catalog(
+        ctx: Context<WriteMapCatalog>,
         args: WriteMapCatalogArgs,
     ) -> Result<()> {
-        instructions::v2_instructions::handler_write_map_catalog_v1(ctx, args)
+        instructions::v2_instructions::handler_write_map_catalog(ctx, args)
     }
 
-    pub fn write_canonical_map_catalog_v1(
-        ctx: Context<WriteCanonicalMapCatalogV1>,
-        content_version: u32,
-        map_id: u8,
-    ) -> Result<()> {
-        instructions::v2_instructions::handler_write_canonical_map_catalog_v1(
-            ctx,
-            content_version,
-            map_id,
-        )
+    pub fn activate_campaign_map(ctx: Context<ActivateCampaignMap>) -> Result<()> {
+        instructions::v2_instructions::handler_activate_campaign_map(ctx)
     }
 
-    pub fn commit_daily_run_v1(ctx: Context<CommitDailyRunV1>) -> Result<()> {
-        instructions::daily_instructions::handler_commit_daily_run_v1(ctx)
-    }
-
-    pub fn consume_daily_receipt_v1(ctx: Context<ConsumeDailyReceiptV1>) -> Result<()> {
-        instructions::daily_instructions::handler_consume_daily_receipt_v1(ctx)
-    }
-
-    pub fn finalize_daily_challenge_v1(ctx: Context<FinalizeDailyChallengeV1>) -> Result<()> {
-        instructions::daily_instructions::handler_finalize_daily_challenge_v1(ctx)
-    }
-
-    pub fn claim_daily_prize_v1(ctx: Context<ClaimDailyPrizeV1>) -> Result<()> {
-        instructions::daily_instructions::handler_claim_daily_prize_v1(ctx)
-    }
-
-    pub fn forfeit_unclaimed_daily_prizes_v1(
-        ctx: Context<ForfeitUnclaimedDailyPrizesV1>,
-    ) -> Result<()> {
-        instructions::daily_instructions::handler_forfeit_unclaimed_daily_prizes_v1(ctx)
-    }
-
-    pub fn cancel_daily_challenge_v1(ctx: Context<CancelDailyChallengeV1>) -> Result<()> {
-        instructions::daily_instructions::handler_cancel_daily_challenge_v1(ctx)
-    }
-
-    pub fn refund_daily_entry_v1(ctx: Context<RefundDailyEntryV1>) -> Result<()> {
-        instructions::daily_instructions::handler_refund_daily_entry_v1(ctx)
-    }
-
-    pub fn reclaim_cancelled_sponsor_v1(ctx: Context<ReclaimCancelledSponsorV1>) -> Result<()> {
-        instructions::daily_instructions::handler_reclaim_cancelled_sponsor_v1(ctx)
-    }
-
-    pub fn distribute_daily_rake_v1(ctx: Context<DistributeDailyRakeV1>) -> Result<()> {
-        instructions::daily_instructions::handler_distribute_daily_rake_v1(ctx)
-    }
-
-    pub fn prepare_campaign_run_v1(
-        ctx: Context<PrepareCampaignRunV1>,
+    pub fn prepare_campaign_run(
+        ctx: Context<PrepareCampaignRun>,
         run_id: u64,
         map_id: u8,
         level: u8,
         action_authority: Pubkey,
     ) -> Result<()> {
-        instructions::v2_instructions::handler_prepare_campaign_run_v1(
+        instructions::v2_instructions::handler_prepare_campaign_run(
             ctx,
             run_id,
             map_id,
@@ -212,27 +212,27 @@ pub mod solana {
         )
     }
 
-    pub fn delegate_active_run_v1(ctx: Context<DelegateActiveRunV1>) -> Result<()> {
-        instructions::run_lifecycle::handler_delegate_active_run_v1(ctx)
+    pub fn delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {
+        instructions::run_lifecycle::handler_delegate_active_run(ctx)
     }
 
-    pub fn request_row_vrf_v1(ctx: Context<RequestRowVrfV1>, client_seed: [u8; 32]) -> Result<()> {
-        instructions::run_lifecycle::handler_request_row_vrf_v1(ctx, client_seed)
+    pub fn request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
+        instructions::run_lifecycle::handler_request_row_vrf(ctx, client_seed)
     }
 
-    pub fn fulfill_row_vrf_v1(ctx: Context<FulfillRowVrfV1>, randomness: [u8; 32]) -> Result<()> {
-        instructions::run_lifecycle::handler_fulfill_row_vrf_v1(ctx, randomness)
+    pub fn fulfill_row_vrf(ctx: Context<FulfillRowVrf>, randomness: [u8; 32]) -> Result<()> {
+        instructions::run_lifecycle::handler_fulfill_row_vrf(ctx, randomness)
     }
 
-    pub fn play_move_v1(
-        ctx: Context<PlayMoveV1>,
+    pub fn play_move(
+        ctx: Context<PlayMove>,
         expected_action: u32,
         expected_move: u16,
         row: u8,
         start: u8,
         destination: u8,
     ) -> Result<()> {
-        instructions::run_lifecycle::handler_play_move_v1(
+        instructions::run_lifecycle::handler_play_move(
             ctx,
             expected_action,
             expected_move,
@@ -242,45 +242,42 @@ pub mod solana {
         )
     }
 
-    pub fn apply_bonus_v1(
-        ctx: Context<ApplyBonusV1>,
+    pub fn apply_bonus(
+        ctx: Context<ApplyBonus>,
         expected_action: u32,
         row: u8,
         column: u8,
     ) -> Result<()> {
-        instructions::run_lifecycle::handler_apply_bonus_v1(ctx, expected_action, row, column)
+        instructions::run_lifecycle::handler_apply_bonus(ctx, expected_action, row, column)
     }
 
-    pub fn seal_run_v1(ctx: Context<SealRunV1>) -> Result<()> {
-        instructions::run_lifecycle::handler_seal_run_v1(ctx)
+    pub fn seal_run(ctx: Context<SealRun>) -> Result<()> {
+        instructions::run_lifecycle::handler_seal_run(ctx)
     }
 
-    pub fn abandon_run_v1(ctx: Context<AbandonRunV1>) -> Result<()> {
-        instructions::run_lifecycle::handler_abandon_run_v1(ctx)
+    pub fn abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
+        instructions::run_lifecycle::handler_abandon_run(ctx)
     }
 
-    pub fn rotate_active_run_authority_v1(
-        ctx: Context<RotateActiveRunAuthorityV1>,
+    pub fn rotate_active_run_authority(
+        ctx: Context<RotateActiveRunAuthority>,
         new_action_authority: Pubkey,
     ) -> Result<()> {
-        instructions::run_lifecycle::handler_rotate_active_run_authority_v1(
-            ctx,
-            new_action_authority,
-        )
+        instructions::run_lifecycle::handler_rotate_active_run_authority(ctx, new_action_authority)
     }
 
-    pub fn commit_run_v1(ctx: Context<CommitRunV1>) -> Result<()> {
-        instructions::run_lifecycle::handler_commit_run_v1(ctx)
+    pub fn commit_run(ctx: Context<CommitRun>) -> Result<()> {
+        instructions::run_lifecycle::handler_commit_run(ctx)
     }
 
-    pub fn consume_run_receipt_v1(ctx: Context<ConsumeRunReceiptV1>) -> Result<()> {
-        instructions::run_lifecycle::handler_consume_run_receipt_v1(ctx)
+    pub fn consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()> {
+        instructions::run_lifecycle::handler_consume_run_receipt(ctx)
     }
 
-    pub fn close_settled_active_run_v1(
-        ctx: Context<CloseSettledActiveRunV1>,
+    pub fn close_settled_active_run(
+        ctx: Context<CloseSettledActiveRun>,
         run_id: u64,
     ) -> Result<()> {
-        instructions::run_lifecycle::handler_close_settled_active_run_v1(ctx, run_id)
+        instructions::run_lifecycle::handler_close_settled_active_run(ctx, run_id)
     }
 }

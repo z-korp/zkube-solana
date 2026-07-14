@@ -15,7 +15,7 @@ export type ManifestCheckStatus = "pass" | "fail";
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 1;
+  schemaVersion: 2;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -47,26 +47,22 @@ export interface ZkubeDeploymentManifest {
     tokenProgram: string;
     decimals: 6;
   };
-  vaults: {
+  destinations: {
     team: string;
-    paymaster: string;
     treasury: string;
     reward: string;
-    payment: string;
   };
   paymaster: {
     publicKey: string;
     endpoint: string;
   };
-  governance: {
+  protocol: {
     authority: string;
-    delaySeconds: number;
-    executionWindowSeconds: number;
+    pricingOperator: string;
   };
   versions: {
     content: number;
-    progress: number;
-    strategy: number;
+    dailyRules: number;
   };
 }
 
@@ -92,8 +88,6 @@ export interface DeploymentBindingValidation {
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{16}$/;
-const MIN_GOVERNANCE_SECONDS = 3_600;
-const MAX_GOVERNANCE_SECONDS = 30 * 86_400;
 const SECRET_KEY_PATTERN = /(secret|private|seed|mnemonic|keypair)/i;
 
 export function deploymentManifestFromEnv(
@@ -110,7 +104,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 1,
+    schemaVersion: 2,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -142,29 +136,22 @@ export function deploymentManifestFromEnv(
       tokenProgram: required(env, "ZKUBE_PAYMENT_TOKEN_PROGRAM"),
       decimals: 6,
     },
-    vaults: {
-      team: required(env, "ZKUBE_TEAM_VAULT"),
-      paymaster: required(env, "ZKUBE_PAYMASTER_VAULT"),
-      treasury: required(env, "ZKUBE_TREASURY_VAULT"),
+    destinations: {
+      team: required(env, "ZKUBE_TEAM_DESTINATION"),
+      treasury: required(env, "ZKUBE_TREASURY_DESTINATION"),
       reward: required(env, "ZKUBE_REWARD_VAULT"),
-      payment: required(env, "ZKUBE_PAYMENT_VAULT"),
     },
     paymaster: {
       publicKey: required(env, "ZKUBE_PAYMASTER_PUBLIC_KEY"),
       endpoint: required(env, "VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT"),
     },
-    governance: {
-      authority: required(env, "ZKUBE_GOVERNANCE_AUTHORITY"),
-      delaySeconds: requiredInteger(env, "ZKUBE_GOVERNANCE_DELAY_SECONDS"),
-      executionWindowSeconds: requiredInteger(
-        env,
-        "ZKUBE_GOVERNANCE_EXECUTION_WINDOW_SECONDS",
-      ),
+    protocol: {
+      authority: required(env, "ZKUBE_PROTOCOL_AUTHORITY"),
+      pricingOperator: required(env, "ZKUBE_PRICING_OPERATOR"),
     },
     versions: {
       content: requiredInteger(env, "ZKUBE_CONTENT_VERSION"),
-      progress: requiredInteger(env, "ZKUBE_PROGRESS_VERSION"),
-      strategy: requiredInteger(env, "ZKUBE_STRATEGY_VERSION"),
+      dailyRules: requiredInteger(env, "ZKUBE_DAILY_RULES_VERSION"),
     },
   };
   const validation = validateDeploymentManifest(manifest);
@@ -190,28 +177,28 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
   const rpc = record(manifest.rpc);
   const magic = record(manifest.magic);
   const payment = record(manifest.payment);
-  const vaults = record(manifest.vaults);
+  const destinations = record(manifest.destinations);
   const paymaster = record(manifest.paymaster);
-  const governance = record(manifest.governance);
+  const protocol = record(manifest.protocol);
   const versions = record(manifest.versions);
   const cluster = string(manifest.cluster);
   const approvalStatus = string(approval?.status);
   const approved = approvalStatus === "approved";
-  const vaultValues = vaults
-    ? [vaults.team, vaults.paymaster, vaults.treasury, vaults.reward, vaults.payment]
+  const destinationValues = destinations
+    ? [destinations.team, destinations.treasury, destinations.reward]
     : [];
   const checks: DeploymentManifestCheck[] = [
     check(
       "schema",
       "Schema",
-      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 1,
-      "Expected zkube-solana-deployment@1",
+      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 2,
+      "Expected zkube-solana-deployment@2",
     ),
     check(
       "cluster",
       "Cluster",
       cluster === "localnet" || cluster === "devnet",
-      "Only localnet and devnet are allowed by schema v1",
+      "Only localnet and devnet are allowed by schema v2",
     ),
     check(
       "created-at",
@@ -269,15 +256,15 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
       validPublicKey(payment?.mint)
         && payment?.tokenProgram === TOKEN_PROGRAM_ID.toBase58()
         && payment?.decimals === 6,
-      "Protocol v1 requires a six-decimal canonical SPL Token payment mint",
+      "Protocol requires a six-decimal canonical SPL Token payment mint",
     ),
     check(
-      "vaults",
-      "Segregated custody",
-      vaultValues.length === 5
-        && vaultValues.every(validPublicKey)
-        && new Set(vaultValues).size === 5,
-      "All five vaults must be valid and pairwise distinct",
+      "destinations",
+      "Segregated revenue destinations",
+      destinationValues.length === 3
+        && destinationValues.every(validPublicKey)
+        && new Set(destinationValues).size === 3,
+      "Team, treasury, and reward destinations must be valid and pairwise distinct",
     ),
     check(
       "paymaster",
@@ -287,24 +274,18 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
       "Paymaster public key or endpoint is invalid",
     ),
     check(
-      "governance",
-      "Governance",
-      validPublicKey(governance?.authority)
-        && boundedInteger(governance?.delaySeconds, MIN_GOVERNANCE_SECONDS, MAX_GOVERNANCE_SECONDS)
-        && boundedInteger(
-          governance?.executionWindowSeconds,
-          MIN_GOVERNANCE_SECONDS,
-          MAX_GOVERNANCE_SECONDS,
-        ),
-      "Governance authority/timing is missing or outside on-chain bounds",
+      "protocol",
+      "Protocol controls",
+      validPublicKey(protocol?.authority)
+        && validPublicKey(protocol?.pricingOperator),
+      "Protocol authority or pricing operator is invalid",
     ),
     check(
       "versions",
       "Versions",
       positiveInteger(versions?.content)
-        && positiveInteger(versions?.progress)
-        && nonNegativeInteger(versions?.strategy),
-      "Content/progress versions must be positive and strategy version non-negative",
+        && positiveInteger(versions?.dailyRules),
+      "Content and Daily-rules versions must be positive",
     ),
     check(
       "sanitized",
@@ -338,18 +319,14 @@ export function deploymentManifestMismatches(
     ["ZKUBE_PROGRAM_ARTIFACT_SHA256", manifest.program.artifactSha256],
     ["ZKUBE_PAYMENT_MINT", manifest.payment.mint],
     ["ZKUBE_PAYMENT_TOKEN_PROGRAM", manifest.payment.tokenProgram],
-    ["ZKUBE_TEAM_VAULT", manifest.vaults.team],
-    ["ZKUBE_PAYMASTER_VAULT", manifest.vaults.paymaster],
-    ["ZKUBE_TREASURY_VAULT", manifest.vaults.treasury],
-    ["ZKUBE_REWARD_VAULT", manifest.vaults.reward],
-    ["ZKUBE_PAYMENT_VAULT", manifest.vaults.payment],
+    ["ZKUBE_TEAM_DESTINATION", manifest.destinations.team],
+    ["ZKUBE_TREASURY_DESTINATION", manifest.destinations.treasury],
+    ["ZKUBE_REWARD_VAULT", manifest.destinations.reward],
     ["ZKUBE_PAYMASTER_PUBLIC_KEY", manifest.paymaster.publicKey],
-    ["ZKUBE_GOVERNANCE_AUTHORITY", manifest.governance.authority],
-    ["ZKUBE_GOVERNANCE_DELAY_SECONDS", String(manifest.governance.delaySeconds)],
-    ["ZKUBE_GOVERNANCE_EXECUTION_WINDOW_SECONDS", String(manifest.governance.executionWindowSeconds)],
+    ["ZKUBE_PROTOCOL_AUTHORITY", manifest.protocol.authority],
+    ["ZKUBE_PRICING_OPERATOR", manifest.protocol.pricingOperator],
     ["ZKUBE_CONTENT_VERSION", String(manifest.versions.content)],
-    ["ZKUBE_PROGRESS_VERSION", String(manifest.versions.progress)],
-    ["ZKUBE_STRATEGY_VERSION", String(manifest.versions.strategy)],
+    ["ZKUBE_DAILY_RULES_VERSION", String(manifest.versions.dailyRules)],
   ];
   return pairs.flatMap(([key, expected]) => {
     const actual = env[key];
@@ -489,16 +466,8 @@ function optionalString(value: unknown): boolean {
   return value === undefined || nonEmptyString(value);
 }
 
-function boundedInteger(value: unknown, minimum: number, maximum: number): boolean {
-  return Number.isSafeInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
-}
-
 function positiveInteger(value: unknown): boolean {
   return Number.isSafeInteger(value) && Number(value) > 0;
-}
-
-function nonNegativeInteger(value: unknown): boolean {
-  return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
 function containsSecretField(value: unknown): boolean {

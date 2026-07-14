@@ -28,14 +28,13 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
   const currentStars = Number(
     campaign.campaign?.starsBalance ?? BigInt(zone.currentStars ?? 0),
   );
-  const price = zone.price ?? 0n;
   const canUnlockWithStars = currentStars >= starCost;
   const canSubmit = campaign.campaign !== null && !campaign.unlocking;
   const starsRemaining = Math.max(starCost - currentStars, 0);
 
-  const handleUnlock = async (payment: "stars" | "usdc") => {
+  const handleUnlock = async () => {
     try {
-      await campaign.unlock(zone.zoneId, payment);
+      await campaign.unlock(zone.zoneId);
       onClose();
     } catch {
       // The shared campaign controller exposes the actionable error below.
@@ -85,7 +84,9 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr] md:gap-4">
+        <div
+          className="grid grid-cols-1 gap-3 md:gap-4"
+        >
           <section
             className="flex flex-col rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4 backdrop-blur-xl"
             style={{ boxShadow: `inset 0 0 12px ${colors.accent2}1F` }}
@@ -127,55 +128,50 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ colors, zone, onClose }) => {
               {canUnlockWithStars ? (
                 <ArcadeButton
                   disabled={!canSubmit}
-                  onClick={() => void handleUnlock("stars")}
+                  onClick={() => void handleUnlock()}
                 >
                   Unlock with Stars
                 </ArcadeButton>
               ) : (
                 <p className="font-sans text-sm font-semibold text-white/65">
-                  Keep playing story levels to collect stars.
+                  Earn Stars in Campaign and Weekly play, or buy a pack below.
                 </p>
               )}
             </div>
           </section>
 
-          <div className="hidden items-center justify-center md:flex">
-            <span className="font-sans text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-              OR
-            </span>
-          </div>
+        </div>
 
-          <section
-            className="flex flex-col rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4 backdrop-blur-xl"
-            style={{ boxShadow: `inset 0 0 12px ${colors.accent}1F` }}
-          >
-            <p
-              className="mb-2 font-sans text-xs font-bold uppercase tracking-[0.12em]"
-              style={{ color: colors.accent }}
-            >
-              Buy with USDC
+        {campaign.campaign && (
+          <section className="mt-3 rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4">
+            <p className="font-sans text-xs font-bold uppercase tracking-[0.12em] text-white/70">
+              Star packs
             </p>
-
-            <p
-              className="font-sans text-3xl font-black leading-none"
-              style={{ color: colors.accent }}
-            >
-              {formatUsdcBaseUnits(price)} USDC
+            <p className="mt-1 font-sans text-sm text-white/55">
+              Stars stay bound to this Vault and cannot be transferred or redeemed.
             </p>
-            <p className="mt-1 font-sans text-sm text-white/70">
-              Pay the full on-chain map price.
-            </p>
-
-            <div className="mt-auto pt-3">
-              <ArcadeButton
-                disabled={!canSubmit}
-                onClick={() => void handleUnlock("usdc")}
-              >
-                Buy Now
-              </ArcadeButton>
+            <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+              {campaign.campaign.starPacks.map((pack, index) => (
+                <button
+                  key={pack.stars.toString()}
+                  type="button"
+                  disabled={!canSubmit}
+                  onClick={() => void campaign.buyStars(index)}
+                  className="rounded-xl border border-white/15 bg-black/20 px-2 py-3 text-center transition hover:bg-white/10 disabled:opacity-50"
+                >
+                  <span className="block font-display text-lg font-black text-yellow-300">
+                    {pack.stars.toString()}★
+                  </span>
+                  <span className="mt-1 block font-sans text-xs font-bold text-white/65">
+                    {pack.enabled
+                      ? `${formatUsdcBaseUnits(pack.price)} USDC`
+                      : "Unavailable"}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
-        </div>
+        )}
 
         {campaign.error && (
           <p className="mt-3 text-center font-sans text-sm text-red-300">

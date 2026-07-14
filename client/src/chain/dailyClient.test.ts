@@ -11,8 +11,6 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { validatePaymasterTransaction } from "../server/paymaster";
 import {
-  buildClaimDailyPrizePlan,
-  buildForfeitUnclaimedDailyPrizesPlan,
   buildPrepareDailyRunPlan,
   buildRefundDailyEntryPlan,
   currentDailyDayId,
@@ -23,22 +21,17 @@ import {
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
   deriveDailyPlayerPda,
-  deriveDailyVaultPda,
 } from "./pdas";
 import { mapActiveRunAccount } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
-import { withSponsorshipInstruction } from "./sponsorshipClient";
-
-const TOKEN_PROGRAM_ID = new PublicKey(
-  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-);
 
 describe("Daily client", () => {
-  it("projects authoritative challenge rules and endless tuning", () => {
+  it("projects authoritative challenge scoring and pressure tuning", () => {
     const rules = decodedRulesFixture();
-    const endless = decodedEndlessFixture();
+    const pressure = decodedPressureFixture();
+    const scoringRule = { id: 3, family: 1, kind: 1, parameter: 3 };
 
-    const view = mapDailyGameRulesSnapshot({ rules, ...endless });
+    const view = mapDailyGameRulesSnapshot({ rules, pressure, scoringRule });
 
     expect(view).toEqual({
       rules: {
@@ -56,16 +49,18 @@ describe("Daily client", () => {
         bonusThreshold: 456,
         startingCharges: 13,
       },
+      scoringRule,
+      pressure,
       endlessThresholds: [17, 41, 83, 151, 281, 503, 907],
       endlessScoreMultipliersX100: [101, 149, 211, 307, 401, 601, 809, 1_009],
-      endlessRampMultiplierX100: 137,
+      endlessRampMultiplierX100: 100,
     });
   });
 
-  it("projects the decoded active-run endless tuning without client defaults", () => {
+  it("projects the decoded active-run Daily scores and pressure without client defaults", () => {
     const owner = Keypair.generate().publicKey;
     const dailyChallenge = Keypair.generate().publicKey;
-    const endless = decodedEndlessFixture();
+    const pressure = decodedPressureFixture();
     const account = {
       owner,
       runId: new BN("9007199254740993"),
@@ -76,6 +71,10 @@ describe("Daily client", () => {
       rules: decodedRulesFixture(),
       lifecycle: { active: {} },
       score: 987_654,
+      featuredScore: 321,
+      pressureScore: 144,
+      dailyScoringRule: { id: 14, family: 6, kind: 7, parameter: 0 },
+      dailyPressure: pressure,
       actionCounter: 42,
       moves: 18,
       comboCounter: 3,
@@ -92,18 +91,20 @@ describe("Daily client", () => {
       nextRow: [1, 2, 3, 4, 5, 0, 1, 2],
       hasNextRow: true,
       pendingVrfCounter: 43,
-      ...endless,
     } as unknown as Parameters<typeof mapActiveRunAccount>[0];
 
     const view = mapActiveRunAccount(account);
 
     expect(view.runId).toBe(9_007_199_254_740_993n);
     expect(view.rules.pointsRequired).toBe(12_345);
-    expect(view.endlessThresholds).toEqual(endless.endlessThresholds);
+    expect(view.featuredScore).toBe(321);
+    expect(view.pressureScore).toBe(144);
+    expect(view.dailyScoringRule.id).toBe(14);
+    expect(view.endlessThresholds).toEqual(pressure.thresholds);
     expect(view.endlessScoreMultipliersX100).toEqual(
-      endless.endlessScoreMultipliersX100,
+      pressure.scoreMultipliersX100,
     );
-    expect(view.endlessRampMultiplierX100).toBe(137);
+    expect(view.endlessRampMultiplierX100).toBe(100);
   });
 
   it("uses UTC cadence IDs and domains every Daily PDA", () => {
@@ -114,7 +115,6 @@ describe("Daily client", () => {
     const first = deriveDailyChallengePda(1);
     const second = deriveDailyChallengePda(2);
     expect(first.equals(second)).toBe(false);
-    expect(deriveDailyVaultPda(1).equals(first)).toBe(false);
     expect(
       deriveDailyLeaderboardPda(first).equals(
         deriveDailyLeaderboardPda(second),
@@ -127,7 +127,7 @@ describe("Daily client", () => {
     ).toBe(false);
   });
 
-  it("builds both entry paths with bounded sessions accepted by paymaster policy", async () => {
+  it("builds the Star entry path with a bounded session accepted by paymaster policy", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
     const wallet = new SessionWallet(owner);
@@ -137,95 +137,84 @@ describe("Daily client", () => {
     } as unknown as Connection;
     const daily = dailyFixture(owner.publicKey);
 
-    for (const payment of ["stars", "usdc"] as const) {
-      const session = Keypair.generate();
-      const prepared = await buildPrepareDailyRunPlan({
-        connection,
-        wallet,
-        session,
-        daily,
-        payment,
-        paymaster: paymaster.publicKey,
-        nowUnix,
-      });
-      const transaction = new VersionedTransaction(
-        new TransactionMessage({
-          payerKey: paymaster.publicKey,
-          recentBlockhash: "11111111111111111111111111111111",
-          instructions: withSponsorshipInstruction({
-            owner: owner.publicKey,
-            paymaster: paymaster.publicKey,
-            instructions: prepared.transactionPlan.transaction.instructions,
-          }),
-        }).compileToV0Message(),
-      );
-      transaction.sign([owner, session]);
-      expect(
-        validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
-      ).toBeNull();
-    }
+    const session = Keypair.generate();
+    const prepared = await buildPrepareDailyRunPlan({
+      connection,
+      wallet,
+      session,
+      daily,
+      paymaster: paymaster.publicKey,
+      nowUnix,
+    });
+    const transaction = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: paymaster.publicKey,
+        recentBlockhash: "11111111111111111111111111111111",
+        instructions: prepared.transactionPlan.transaction.instructions,
+      }).compileToV0Message(),
+    );
+    transaction.sign([owner, session]);
+    expect(
+      validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
+    ).toBeNull();
   });
 
-  it("builds claim and cancellation refund plans accepted by paymaster policy", async () => {
+  it("uses the canonical 10-Star Daily entry", async () => {
+    const owner = Keypair.generate();
+    const paymaster = Keypair.generate();
+    const wallet = new SessionWallet(owner);
+    const nowUnix = Math.floor(Date.now() / 1_000);
+    const connection = {
+      getAccountInfo: vi.fn().mockResolvedValue(null),
+    } as unknown as Connection;
+    const daily = dailyFixture(owner.publicKey);
+    const session = Keypair.generate();
+    const prepared = await buildPrepareDailyRunPlan({
+      connection,
+      wallet,
+      session,
+      daily,
+      paymaster: paymaster.publicKey,
+      nowUnix,
+    });
+    const transaction = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: paymaster.publicKey,
+        recentBlockhash: "11111111111111111111111111111111",
+        instructions: prepared.transactionPlan.transaction.instructions,
+      }).compileToV0Message(),
+    );
+    transaction.sign([owner, session]);
+    expect(
+      validatePaymasterTransaction(transaction, paymaster.publicKey, nowUnix),
+    ).toBeNull();
+
+    expect(prepared.transactionPlan.label).toBe("Enter Daily with 10 Stars");
+  });
+
+  it("refunds cancelled entries in Stars", async () => {
     const owner = Keypair.generate();
     const paymaster = Keypair.generate();
     const wallet = new SessionWallet(owner);
     const connection = {} as Connection;
     const daily = dailyFixture(owner.publicKey);
-    const plans = await Promise.all([
-      buildClaimDailyPrizePlan({
-        connection,
-        wallet,
-        daily,
-        paymaster: paymaster.publicKey,
-      }),
-      buildRefundDailyEntryPlan({
-        connection,
-        wallet,
-        daily,
-        paymaster: paymaster.publicKey,
-      }),
-    ]);
-    for (const plan of plans) {
-      const transaction = new VersionedTransaction(
-        new TransactionMessage({
-          payerKey: paymaster.publicKey,
-          recentBlockhash: "11111111111111111111111111111111",
-          instructions: withSponsorshipInstruction({
-            owner: owner.publicKey,
-            paymaster: paymaster.publicKey,
-            instructions: plan.transaction.instructions,
-          }),
-        }).compileToV0Message(),
-      );
-      transaction.sign([owner]);
-      expect(
-        validatePaymasterTransaction(transaction, paymaster.publicKey),
-      ).toBeNull();
-    }
-  });
-
-  it("builds permissionless expiry forfeiture into the configured reward reserve", async () => {
-    const caller = Keypair.generate();
-    const wallet = new SessionWallet(caller);
-    const connection = {} as Connection;
-    const daily = dailyFixture(caller.publicKey);
-    const plan = await buildForfeitUnclaimedDailyPrizesPlan({
+    const plan = await buildRefundDailyEntryPlan({
       connection,
       wallet,
       daily,
+      paymaster: paymaster.publicKey,
     });
-
-    expect(plan.label).toBe("Forfeit expired Daily prizes");
-    expect(plan.layer).toBe("solana-base");
-    expect(plan.feePayer.equals(caller.publicKey)).toBe(true);
-    expect(plan.transaction.instructions).toHaveLength(1);
+    const transaction = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: paymaster.publicKey,
+        recentBlockhash: "11111111111111111111111111111111",
+        instructions: plan.transaction.instructions,
+      }).compileToV0Message(),
+    );
+    transaction.sign([owner]);
     expect(
-      plan.transaction.instructions[0].keys[5].pubkey.equals(daily.rewardVault),
-    ).toBe(true);
-    expect(
-      plan.transaction.instructions[0].keys[7].pubkey.equals(caller.publicKey),
-    ).toBe(true);
+      validatePaymasterTransaction(transaction, paymaster.publicKey),
+    ).toBeNull();
   });
 });
 
@@ -234,6 +223,9 @@ function dailyFixture(owner: PublicKey): DailyView {
   return {
     address: deriveDailyChallengePda(dayId),
     dayId,
+    weekId: Math.max(0, Math.floor((dayId * 86_400 + 259_200) / 604_800)),
+    seasonId: 1,
+    economyVersion: 2,
     status: "open",
     mapId: 1,
     rules: {
@@ -251,6 +243,8 @@ function dailyFixture(owner: PublicKey): DailyView {
       bonusThreshold: 0,
       startingCharges: 0,
     },
+    scoringRule: { id: 1, family: 0, kind: 0, parameter: 0 },
+    pressure: decodedPressureFixture(),
     endlessThresholds: [15, 40, 80, 150, 280, 500, 900],
     endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
     endlessRampMultiplierX100: 100,
@@ -259,22 +253,12 @@ function dailyFixture(owner: PublicKey): DailyView {
     runsCloseAt: 2_000_000_100,
     settlementGraceCloseAt: 2_000_000_200,
     finalizedAt: 0,
-    claimsCloseAt: 2_000_000_300,
-    entryPrice: 1_000_000n,
     starEntryCost: 10n,
-    payoutBps: [4_000, 2_000, 1_200, 800, 600, 400, 300, 300, 200, 200],
-    sponsorFunding: 0n,
-    prizeLiability: 0n,
-    settledPrizePool: 0n,
-    prizeForfeited: 0n,
-    totalPaidAttempts: 0n,
-    totalFreeAttempts: 0n,
-    runsStarted: 0n,
+    uniquePlayers: 1,
+    weeklyEligiblePlayers: 1,
+    weeklyRollups: 0,
+    attemptsStarted: 0n,
     runsFinalized: 0n,
-    paymentMint: Keypair.generate().publicKey,
-    paymentTokenProgram: TOKEN_PROGRAM_ID,
-    paymentVault: Keypair.generate().publicKey,
-    rewardVault: Keypair.generate().publicKey,
     playerEligible: true,
     playerStars: 20n,
     nextRunId: 1n,
@@ -284,6 +268,9 @@ function dailyFixture(owner: PublicKey): DailyView {
         player: owner,
         receipt: Keypair.generate().publicKey,
         runId: 1n,
+        featuredScore: 100,
+        engineScore: 90,
+        moves: 18,
         score: 100,
         submittedAt: 1,
       },
@@ -309,10 +296,38 @@ function decodedRulesFixture() {
   };
 }
 
-function decodedEndlessFixture() {
+function decodedPressureFixture() {
   return {
-    endlessThresholds: [17, 41, 83, 151, 281, 503, 907],
-    endlessScoreMultipliersX100: [101, 149, 211, 307, 401, 601, 809, 1_009],
-    endlessRampMultiplierX100: 137,
+    thresholds: [17, 41, 83, 151, 281, 503, 907] as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ],
+    scoreMultipliersX100: [101, 149, 211, 307, 401, 601, 809, 1_009] as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ],
+    blockWeights: Array.from({ length: 8 }, () => [20, 20, 20, 20, 20]) as [
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+      [number, number, number, number, number],
+    ],
+    startingHeight: 4,
+    maxMoves: 180,
   };
 }

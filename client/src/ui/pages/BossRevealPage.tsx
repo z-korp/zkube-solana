@@ -39,11 +39,11 @@ function toConstraintDisplay(
         title: `Break ${count} size-${value} blocks`,
         description: "Target exact block sizes under intense board pressure",
       };
-    case ConstraintType.ComboStreak:
+    case ConstraintType.ComboMeter:
       return {
         icon: "/assets/common/constraints/constraint-combo.png",
-        title: `Reach ${value}x combo streak`,
-        description: "Maintain momentum with precise consecutive clears",
+        title: `Reach ${value} on the Combo Meter`,
+        description: "Multi-line clears add their cleared-line count to the meter",
       };
     default:
       return {
