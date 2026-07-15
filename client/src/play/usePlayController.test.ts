@@ -94,13 +94,13 @@ describe("play controller projections", () => {
 });
 
 describe("describeRunStartError", () => {
-  it("maps a dry-sponsor prepare simulation to service copy with raw detail", async () => {
+  it("maps a dry player-funding simulation to renewal guidance", async () => {
     const { describeRunStartError } = await import("./usePlayController");
     const raw =
       'Simulation failed for Prepare campaign run: {"InstructionError":[4,{"Custom":1}]}';
     const described = describeRunStartError(raw);
     expect(described.headline).toBe(
-      "Sponsored play is temporarily unavailable — please try again soon.",
+      "Your zKube play balance is low — renew the device session to refill it.",
     );
     expect(described.detail).toBe(raw);
   });

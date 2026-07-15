@@ -38,12 +38,8 @@ vi.mock("@/chain/connectedPlayerContext", () => ({
   }),
 }));
 
-vi.mock("@/chain/paymasterClient", () => ({
-  fetchPaymasterClient: vi.fn(),
-}));
-
 vi.mock("@/chain/runPlan", () => ({
-  submitSponsoredTransactionPlan: vi.fn(),
+  submitVersionedTransactionPlan: vi.fn(),
 }));
 
 vi.mock("@/chain/useRunController", () => ({

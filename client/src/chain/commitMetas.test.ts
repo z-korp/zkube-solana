@@ -61,7 +61,7 @@ describe("commit meta invariants", () => {
     ]);
   });
 
-  it("keeps base-only Magic Action targets read-only on the ER", async () => {
+  it("keeps canonical base-settlement targets read-only on the ER", async () => {
     const owner = Keypair.generate();
     const wallet = new SessionWallet(owner);
     const connection = new Connection(

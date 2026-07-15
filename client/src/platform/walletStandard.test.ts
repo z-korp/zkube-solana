@@ -11,12 +11,12 @@ import { describe, expect, it } from "vitest";
 
 import { verifyWalletSignedOutput } from "./walletStandard";
 
-describe("Wallet Standard sponsored signing boundary", () => {
+describe("Wallet Standard signing boundary", () => {
   it("preserves a deterministic v0 message and a real device partial signature", () => {
-    const paymaster = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 1));
+    const feePayer = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 1));
     const owner = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 33));
     const device = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 65));
-    const original = sponsoredTransaction(paymaster, owner, device);
+    const original = signedTransaction(feePayer, owner, device);
     original.sign([device]);
     const deviceSignature = Uint8Array.from(original.signatures[2]!);
 
@@ -47,15 +47,15 @@ describe("Wallet Standard sponsored signing boundary", () => {
   });
 
   it("rejects message expansion and discarded partial signatures", () => {
-    const paymaster = Keypair.generate();
+    const feePayer = Keypair.generate();
     const owner = Keypair.generate();
     const device = Keypair.generate();
-    const original = sponsoredTransaction(paymaster, owner, device);
+    const original = signedTransaction(feePayer, owner, device);
     original.sign([device]);
 
     const expanded = new VersionedTransaction(
       new TransactionMessage({
-        payerKey: paymaster.publicKey,
+        payerKey: feePayer.publicKey,
         recentBlockhash: "11111111111111111111111111111111",
         instructions: [
           SystemProgram.transfer({
@@ -69,7 +69,7 @@ describe("Wallet Standard sponsored signing boundary", () => {
     expanded.sign([owner]);
     expect(() =>
       verifyWalletSignedOutput(original, expanded.serialize(), owner.publicKey),
-    ).toThrow("changed the sponsored transaction message");
+    ).toThrow("changed the transaction message");
 
     const discarded = VersionedTransaction.deserialize(original.serialize());
     discarded.signatures[2] = new Uint8Array(64);
@@ -80,14 +80,14 @@ describe("Wallet Standard sponsored signing boundary", () => {
   });
 });
 
-function sponsoredTransaction(
-  paymaster: Keypair,
+function signedTransaction(
+  feePayer: Keypair,
   owner: Keypair,
   device: Keypair,
 ): VersionedTransaction {
   return new VersionedTransaction(
     new TransactionMessage({
-      payerKey: paymaster.publicKey,
+      payerKey: feePayer.publicKey,
       recentBlockhash: "11111111111111111111111111111111",
       instructions: [
         {

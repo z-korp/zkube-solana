@@ -21,7 +21,6 @@ import type {
 
 export interface EconomyInitialization {
   dailyRulesVersion: number;
-  paymentMint: PublicKey;
 }
 
 export interface DailyRulesCatalogPublication {
@@ -51,7 +50,6 @@ export async function buildInitializeEconomyPlan(args: {
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
       starSalesLedger: deriveStarSalesLedgerPda(),
-      paymentMint: args.config.paymentMint,
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })

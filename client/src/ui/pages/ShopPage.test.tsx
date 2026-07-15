@@ -17,7 +17,7 @@ import ShopPage from "./ShopPage";
 const fixtures = vi.hoisted(() => ({
   identity: {
     publicKey: null as PublicKey | null,
-    usdcBaseUnits: 20_000_000n as bigint | null,
+    balanceLamports: 2_000_000_000 as number | null,
     refreshBalance: vi.fn(),
   },
   campaignRefresh: vi.fn(),
@@ -80,7 +80,7 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fixtures.identity.usdcBaseUnits = 20_000_000n;
+  fixtures.identity.balanceLamports = 2_000_000_000;
   fixtures.identity.publicKey = PublicKey.default;
   fixtures.identity.refreshBalance.mockResolvedValue(0);
   fixtures.campaignRefresh.mockResolvedValue(null);
@@ -104,24 +104,24 @@ describe("ShopPage", () => {
     expect(screen.getByText("Best value")).toBeInTheDocument();
     expect(screen.getByText(/1 Daily entry · 10\/40 toward a zone/)).toBeInTheDocument();
     expect(screen.getByText(/10 Daily entries · 2 zone unlocks/)).toBeInTheDocument();
-    expect(screen.getByText(/Devnet · Test USDC/)).toBeInTheDocument();
+    expect(screen.getByText(/Devnet · Test SOL/)).toBeInTheDocument();
   });
 
   it("shows the exact confirmation and refreshes all balances after purchase", async () => {
     render(<ShopPage />);
     fireEvent.click(
-      screen.getByRole("button", { name: "100 Stars for 5 USDC" }),
+      screen.getByRole("button", { name: "100 Stars for 0.09 SOL" }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Atomic payment split")).toBeInTheDocument();
-    expect(screen.getAllByText("0.5 USDC")).toHaveLength(2);
-    expect(screen.getByText("4 USDC")).toBeInTheDocument();
+    expect(screen.getAllByText("0.009 SOL")).toHaveLength(2);
+    expect(screen.getByText("0.072 SOL")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve 5 USDC in wallet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve 0.09 SOL in wallet" }));
     await waitFor(() =>
       expect(fixtures.controller.purchase).toHaveBeenCalledWith(
-        expect.objectContaining({ index: 1, stars: 100n }),
+        expect.objectContaining({ index: 2, stars: 100n }),
       ),
     );
     await waitFor(() => {
@@ -134,11 +134,11 @@ describe("ShopPage", () => {
   });
 
   it("routes an underfunded pack directly to wallet settings", () => {
-    fixtures.identity.usdcBaseUnits = 0n;
+    fixtures.identity.balanceLamports = 0;
     render(<ShopPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "10 Stars for 1 USDC" }),
+      screen.getByRole("button", { name: "10 Stars for 0.01 SOL" }),
     );
     expect(fixtures.navigation.openWalletSettings).toHaveBeenCalledWith("shop");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -152,24 +152,24 @@ describe("ShopPage", () => {
     sale.saleEndsAt = BigInt(Math.floor(Date.now() / 1_000) + 3_600);
     sale.packs[0] = {
       ...sale.packs[0],
-      currentPrice: 900_000n,
-      salePrice: 900_000n,
+      currentPrice: 9_000_000n,
+      salePrice: 9_000_000n,
       onSale: true,
     };
     fixtures.controller.shop = sale;
     render(<ShopPage />);
 
     expect(screen.getByText("Star sale live")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "10 Stars for 0.9 USDC" })).toHaveTextContent(
-      "1",
+    expect(screen.getByRole("button", { name: "10 Stars for 0.009 SOL" })).toHaveTextContent(
+      "0.01",
     );
     expect(screen.getByText("Save 10%")).toBeInTheDocument();
   });
 });
 
 function shopView(): StarShopView {
-  const prices = [1_000_000n, 5_000_000n, 10_000_000n, 40_000_000n, 80_000_000n];
-  const stars = [10n, 100n, 250n, 500n, 1_000n];
+  const prices = [10_000_000n, 47_500_000n, 90_000_000n, 425_000_000n, 800_000_000n];
+  const stars = [10n, 50n, 100n, 500n, 1_000n];
   const packs = stars.map((value, index): StarPackQuote => ({
     index,
     stars: value,
@@ -187,8 +187,6 @@ function shopView(): StarShopView {
     dailyEntryStars: 10n,
     zoneUnlockStars: 40n,
     protocolPaused: false,
-    paymentMint: PublicKey.default,
-    paymentTokenProgram: PublicKey.default,
     teamDestination: PublicKey.default,
     rewardVault: PublicKey.default,
     treasuryDestination: PublicKey.default,

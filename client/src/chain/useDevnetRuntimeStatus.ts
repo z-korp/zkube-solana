@@ -8,24 +8,15 @@ import {
   deriveProtocolConfigPda,
   deriveStarSalesLedgerPda,
 } from "./pdas";
-import { fetchPaymasterClient } from "./paymasterClient";
-
-/** Reclaimable-working-capital floor for the modeled 25-player fresh cohort. */
-export const PAYMASTER_MIN_LAMPORTS = Number(
-  import.meta.env.VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS ?? 1_500_000_000,
-);
-
 export type DevnetRuntimePhase =
   | "checking"
   | "bootstrap-pending"
-  | "paymaster-unavailable"
   | "ready"
   | "error";
 
 export interface DevnetRuntimeStatus {
   phase: DevnetRuntimePhase;
   message: string;
-  paymasterBalanceLamports?: number;
 }
 
 export function useDevnetRuntimeStatus(): DevnetRuntimeStatus {
@@ -101,34 +92,7 @@ export async function probeDevnetRuntime(
         message: "A Devnet catalog has an invalid owner.",
       };
     }
-    try {
-      const paymaster = await fetchPaymasterClient(connection);
-      const paymasterBalanceLamports = await connection.getBalance(
-        paymaster.pubkey,
-        "confirmed",
-      );
-      if (paymasterBalanceLamports < PAYMASTER_MIN_LAMPORTS) {
-        return {
-          phase: "paymaster-unavailable",
-          message:
-            "Sponsored play reserve is low — new runs may fail until it is refilled",
-          paymasterBalanceLamports,
-        };
-      }
-      return {
-        phase: "ready",
-        message: "MagicBlock Devnet ready",
-        paymasterBalanceLamports,
-      };
-    } catch (error) {
-      return {
-        phase: "paymaster-unavailable",
-        message:
-          error instanceof Error
-            ? `Protocol live · ${error.message}`
-            : "Protocol live · paymaster unavailable",
-      };
-    }
+    return { phase: "ready", message: "MagicBlock Devnet ready" };
   } catch (error) {
     return {
       phase: "error",

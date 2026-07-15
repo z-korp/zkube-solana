@@ -31,7 +31,6 @@
     "src/vite-env.d.ts",
     "src/main.tsx",
     "src/App.tsx",
-    "src/server/**/*.ts",
     "api/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]

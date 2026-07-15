@@ -4,18 +4,14 @@ import { useRun } from "@/contexts/run";
 
 import { useSolanaConnection } from "./connectionContext";
 import {
-  buildFinalizeDailyChallengePlan,
-  buildOpenDailyChallengePlan,
   buildRefundDailyEntryPlan,
   fetchOwnerCancelledDailyIds,
   fetchDailyView,
   type DailyView,
 } from "./dailyClient";
-import { fetchPaymasterClient } from "./paymasterClient";
-import { submitSponsoredTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "./runPlan";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { SessionWallet } from "./sessionWallet";
-import { fetchEconomyRuntime } from "./economyClient";
 import { deriveDailyLeaderboardPda } from "./pdas";
 
 export function useDailyController() {
@@ -50,45 +46,7 @@ export function useDailyController() {
     try {
       const session = player.requireSession();
       const sessionWallet = new SessionWallet(session.signer);
-      let next = await refresh();
-      const runtime = await fetchEconomyRuntime({ connection, wallet });
-      if (!runtime) return;
-      const now = Math.floor(Date.now() / 1_000);
-      const paymaster = await fetchPaymasterClient(connection);
-      if (!next && now % 86_400 < 23 * 60 * 60) {
-        const transactionPlan = await buildOpenDailyChallengePlan({
-          connection,
-          wallet: sessionWallet,
-          paymaster: paymaster.pubkey,
-        });
-        const signature = await submitSponsoredTransactionPlan({
-          transactionPlan,
-          wallet: sessionWallet,
-          paymaster,
-        });
-        await connection.confirmTransaction(signature, "confirmed");
-        next = await refresh();
-      }
-      if (
-        next?.status === "open" &&
-        now >= next.runsCloseAt &&
-        (next.attemptsStarted === next.runsFinalized ||
-          now >= next.settlementGraceCloseAt)
-      ) {
-        const transactionPlan = await buildFinalizeDailyChallengePlan({
-          connection,
-          wallet: sessionWallet,
-          daily: next,
-          paymaster: paymaster.pubkey,
-        });
-        const signature = await submitSponsoredTransactionPlan({
-          transactionPlan,
-          wallet: sessionWallet,
-          paymaster,
-        });
-        await connection.confirmTransaction(signature, "confirmed");
-        next = await refresh();
-      }
+      const next = await refresh();
       if (
         next?.status === "cancelled" &&
         next.player &&
@@ -100,12 +58,10 @@ export function useDailyController() {
           ownerAuthority: session.owner,
           sessionToken: session.sessionToken,
           daily: next,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();
@@ -120,12 +76,10 @@ export function useDailyController() {
           ownerAuthority: session.owner,
           sessionToken: session.sessionToken,
           daily: cancelled,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
       }
@@ -203,19 +157,16 @@ export function useDailyController() {
     const sessionWallet = new SessionWallet(session.signer);
     setAction("refund");
     try {
-      const paymaster = await fetchPaymasterClient(connection);
       const transactionPlan = await buildRefundDailyEntryPlan({
         connection,
         wallet: sessionWallet,
         ownerAuthority: owner,
         sessionToken: session.sessionToken,
         daily,
-        paymaster: paymaster.pubkey,
       });
-      const signature = await submitSponsoredTransactionPlan({
+      const signature = await submitVersionedTransactionPlan({
         transactionPlan,
         wallet: sessionWallet,
-        paymaster,
       });
       await connection.confirmTransaction(signature, "confirmed");
       await refresh();

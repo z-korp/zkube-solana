@@ -3,7 +3,7 @@
 !.env.example
 .vercel
 dist
-dist-server
+dist-services
 node_modules
 coverage
 api

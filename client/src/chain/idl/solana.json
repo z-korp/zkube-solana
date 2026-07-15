@@ -642,16 +642,16 @@
       ]
     },
     {
-      "name": "claim_weekly_cash",
+      "name": "claim_weekly_sol",
       "discriminator": [
-        60,
-        227,
-        120,
-        57,
-        125,
-        67,
-        55,
-        176
+        43,
+        239,
+        13,
+        245,
+        237,
+        17,
+        228,
+        239
       ],
       "accounts": [
         {
@@ -741,113 +741,8 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
-          "name": "payment_vault",
+          "name": "owner_authority",
           "writable": true
-        },
-        {
-          "name": "player_payment_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "payment_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "owner_authority"
         },
         {
           "name": "session_token",
@@ -856,14 +751,6 @@
         {
           "name": "actor",
           "signer": true
-        },
-        {
-          "name": "associated_token_program",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -1060,10 +947,6 @@
           }
         },
         {
-          "name": "rent_recipient",
-          "writable": true
-        },
-        {
           "name": "daily_challenge",
           "writable": true,
           "pda": {
@@ -1115,7 +998,12 @@
           }
         },
         {
+          "name": "rent_recipient",
+          "writable": true
+        },
+        {
           "name": "caller",
+          "writable": true,
           "signer": true
         }
       ],
@@ -1238,7 +1126,34 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
         },
         {
           "name": "caller",
@@ -1293,10 +1208,34 @@
         },
         {
           "name": "rent_recipient",
-          "docs": [
-            "identity that fronted every run rent at prepare gets it back."
-          ],
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
         },
         {
           "name": "run_shell",
@@ -1427,10 +1366,6 @@
           }
         },
         {
-          "name": "rent_recipient",
-          "writable": true
-        },
-        {
           "name": "weekly_challenge",
           "writable": true,
           "pda": {
@@ -1484,18 +1419,12 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
-          "name": "payment_vault",
+          "name": "rent_recipient",
           "writable": true
         },
         {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
           "name": "caller",
+          "writable": true,
           "signer": true
         }
       ],
@@ -1625,7 +1554,34 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
         },
         {
           "name": "caller",
@@ -2153,12 +2109,6 @@
             "run_receipt",
             "player_profile"
           ]
-        },
-        {
-          "name": "escrow_auth"
-        },
-        {
-          "name": "escrow"
         }
       ],
       "args": []
@@ -2290,12 +2240,6 @@
             "player_profile",
             "campaign_progress"
           ]
-        },
-        {
-          "name": "escrow_auth"
-        },
-        {
-          "name": "escrow"
         }
       ],
       "args": []
@@ -2924,16 +2868,16 @@
       "args": []
     },
     {
-      "name": "forfeit_weekly_cash",
+      "name": "forfeit_weekly_sol",
       "discriminator": [
-        157,
-        42,
-        209,
-        253,
-        222,
-        210,
-        175,
-        77
+        237,
+        205,
+        12,
+        188,
+        187,
+        252,
+        69,
+        12
       ],
       "accounts": [
         {
@@ -2981,19 +2925,29 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
-          "name": "payment_vault",
-          "writable": true
-        },
-        {
           "name": "reward_vault",
-          "writable": true
-        },
-        {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "caller",
@@ -3043,6 +2997,447 @@
           }
         }
       ]
+    },
+    {
+      "name": "funded_claim_level_milestone",
+      "discriminator": [
+        149,
+        210,
+        165,
+        234,
+        111,
+        234,
+        172,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "economy_config"
+        },
+        {
+          "name": "player_profile",
+          "writable": true
+        },
+        {
+          "name": "level_milestones",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "milestone_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "funded_claim_quest",
+      "discriminator": [
+        221,
+        128,
+        217,
+        239,
+        145,
+        65,
+        3,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "player_profile",
+          "writable": true
+        },
+        {
+          "name": "quest_claims",
+          "writable": true
+        },
+        {
+          "name": "weekly_stipend",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quest_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "funded_enter_daily",
+      "discriminator": [
+        181,
+        221,
+        29,
+        229,
+        214,
+        196,
+        168,
+        71
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "economy_config"
+        },
+        {
+          "name": "player_profile",
+          "writable": true
+        },
+        {
+          "name": "daily_challenge",
+          "writable": true
+        },
+        {
+          "name": "daily_player",
+          "writable": true
+        },
+        {
+          "name": "weekly_stipend",
+          "writable": true
+        },
+        {
+          "name": "run_shell",
+          "writable": true
+        },
+        {
+          "name": "active_run",
+          "writable": true
+        },
+        {
+          "name": "run_receipt",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "funded_prepare_campaign_run",
+      "discriminator": [
+        100,
+        111,
+        127,
+        144,
+        180,
+        127,
+        15,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "player_profile",
+          "writable": true
+        },
+        {
+          "name": "campaign_progress"
+        },
+        {
+          "name": "map_catalog"
+        },
+        {
+          "name": "run_shell",
+          "writable": true
+        },
+        {
+          "name": "active_run",
+          "writable": true
+        },
+        {
+          "name": "run_receipt",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
+          "type": "u64"
+        },
+        {
+          "name": "map_id",
+          "type": "u8"
+        },
+        {
+          "name": "level",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "funded_rollup_daily_to_weekly",
+      "discriminator": [
+        135,
+        199,
+        202,
+        182,
+        238,
+        199,
+        152,
+        148
+      ],
+      "accounts": [
+        {
+          "name": "daily_challenge",
+          "writable": true
+        },
+        {
+          "name": "daily_leaderboard"
+        },
+        {
+          "name": "daily_player",
+          "writable": true
+        },
+        {
+          "name": "weekly_challenge",
+          "writable": true
+        },
+        {
+          "name": "weekly_player",
+          "writable": true
+        },
+        {
+          "name": "weekly_leaderboard",
+          "writable": true
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "initialize_economy",
@@ -3102,9 +3497,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "payment_mint"
         },
         {
           "name": "authority",
@@ -3192,6 +3584,37 @@
           }
         },
         {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -3249,20 +3672,35 @@
           }
         },
         {
-          "name": "payment_mint"
+          "name": "reward_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "team_destination"
         },
         {
           "name": "treasury_destination"
-        },
-        {
-          "name": "reward_vault"
-        },
-        {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
           "name": "authority",
@@ -3541,26 +3979,19 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
           "name": "reward_vault",
-          "writable": true
-        },
-        {
-          "name": "payment_vault",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
+                  114,
+                  101,
                   119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
+                  97,
+                  114,
+                  100,
                   95,
                   118,
                   97,
@@ -3568,17 +3999,9 @@
                   108,
                   116
                 ]
-              },
-              {
-                "kind": "arg",
-                "path": "week_id"
               }
             ]
           }
-        },
-        {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
           "name": "payer",
@@ -4114,34 +4537,49 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
-          "name": "player_payment_account",
-          "writable": true
-        },
-        {
           "name": "team_destination",
           "writable": true
         },
         {
           "name": "reward_vault",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "treasury_destination",
           "writable": true
         },
         {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
           "name": "owner",
+          "writable": true,
           "signer": true,
           "relations": [
             "player_profile"
           ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -4154,7 +4592,7 @@
           "type": "u64"
         },
         {
-          "name": "max_usdc_amount",
+          "name": "max_lamports",
           "type": "u64"
         }
       ]
@@ -4343,56 +4781,6 @@
               32
             ]
           }
-        }
-      ]
-    },
-    {
-      "name": "reset_legacy_devnet_state",
-      "discriminator": [
-        58,
-        229,
-        90,
-        143,
-        3,
-        202,
-        213,
-        119
-      ],
-      "accounts": [
-        {
-          "name": "legacy_protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "rent_recipient",
-          "writable": true
-        },
-        {
-          "name": "legacy_authority",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "close_protocol",
-          "type": "bool"
         }
       ]
     },
@@ -5017,20 +5405,34 @@
           }
         },
         {
-          "name": "payment_mint"
-        },
-        {
           "name": "team_destination"
         },
         {
           "name": "treasury_destination"
         },
         {
-          "name": "reward_vault"
-        },
-        {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          "name": "reward_vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "authority",
@@ -5041,6 +5443,63 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "withdraw_player_funding",
+      "discriminator": [
+        186,
+        115,
+        58,
+        115,
+        207,
+        128,
+        127,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "write_map_catalog",
@@ -5206,6 +5665,19 @@
       ]
     },
     {
+      "name": "PlayerFundingVault",
+      "discriminator": [
+        61,
+        237,
+        220,
+        223,
+        77,
+        198,
+        8,
+        22
+      ]
+    },
+    {
       "name": "PlayerProfile",
       "discriminator": [
         82,
@@ -5242,6 +5714,19 @@
         117,
         4,
         212
+      ]
+    },
+    {
+      "name": "RewardVault",
+      "discriminator": [
+        201,
+        22,
+        221,
+        167,
+        208,
+        16,
+        210,
+        33
       ]
     },
     {
@@ -5520,19 +6005,6 @@
       ]
     },
     {
-      "name": "LegacyDevnetStateReset",
-      "discriminator": [
-        3,
-        41,
-        244,
-        227,
-        42,
-        188,
-        172,
-        65
-      ]
-    },
-    {
       "name": "LevelMilestoneClaimed",
       "discriminator": [
         238,
@@ -5637,32 +6109,6 @@
       ]
     },
     {
-      "name": "WeeklyCashClaimed",
-      "discriminator": [
-        181,
-        23,
-        18,
-        165,
-        171,
-        25,
-        184,
-        37
-      ]
-    },
-    {
-      "name": "WeeklyCashForfeited",
-      "discriminator": [
-        178,
-        222,
-        80,
-        211,
-        139,
-        213,
-        28,
-        239
-      ]
-    },
-    {
       "name": "WeeklyChallengeClosed",
       "discriminator": [
         191,
@@ -5725,6 +6171,32 @@
         202,
         237,
         58
+      ]
+    },
+    {
+      "name": "WeeklySolClaimed",
+      "discriminator": [
+        180,
+        112,
+        49,
+        50,
+        65,
+        180,
+        59,
+        129
+      ]
+    },
+    {
+      "name": "WeeklySolForfeited",
+      "discriminator": [
+        179,
+        3,
+        222,
+        54,
+        129,
+        1,
+        240,
+        215
       ]
     },
     {
@@ -5885,106 +6357,111 @@
     },
     {
       "code": 6023,
+      "name": "ActiveRunExists",
+      "msg": "Finish or abandon the active run before starting another"
+    },
+    {
+      "code": 6024,
       "name": "MapLocked",
       "msg": "Map is locked"
     },
     {
-      "code": 6024,
+      "code": 6025,
       "name": "MapDisabled",
       "msg": "Map is disabled"
     },
     {
-      "code": 6025,
+      "code": 6026,
       "name": "MapAlreadyUnlocked",
       "msg": "Map is already unlocked"
     },
     {
-      "code": 6026,
+      "code": 6027,
       "name": "ContentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6027,
+      "code": 6028,
       "name": "InvalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6028,
+      "code": 6029,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6029,
+      "code": 6030,
       "name": "NoVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6030,
+      "code": 6031,
       "name": "ReceiptMismatch",
       "msg": "The run receipt does not match the committed run"
     },
     {
-      "code": 6031,
+      "code": 6032,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6032,
+      "code": 6033,
       "name": "PrizeAlreadyClaimed",
       "msg": "The Daily prize has already been claimed"
     },
     {
-      "code": 6033,
+      "code": 6034,
       "name": "PrizeClaimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6034,
+      "code": 6035,
       "name": "RefundAlreadyClaimed",
       "msg": "The refund has already been claimed"
     },
     {
-      "code": 6035,
+      "code": 6036,
       "name": "InvalidProgressRule",
       "msg": "The progression rule is invalid"
     },
     {
-      "code": 6036,
+      "code": 6037,
       "name": "RewardAlreadyClaimed",
       "msg": "This progress reward has already been claimed"
     },
     {
-      "code": 6037,
+      "code": 6038,
       "name": "RewardNotEarned",
       "msg": "The progress requirement has not been met"
     },
     {
-      "code": 6038,
+      "code": 6039,
       "name": "QuestNotActive",
       "msg": "This quest is not active in the current cadence"
     },
     {
-      "code": 6039,
+      "code": 6040,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6040,
+      "code": 6041,
       "name": "InvalidPack",
       "msg": "The selected Star pack does not exist"
     },
     {
-      "code": 6041,
+      "code": 6042,
       "name": "PriceChanged",
       "msg": "The Star pack price changed; refresh the quote"
     },
     {
-      "code": 6042,
+      "code": 6043,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6043,
+      "code": 6044,
       "name": "SessionExpired",
       "msg": "The scoped player session has expired"
     }
@@ -6471,6 +6948,13 @@
             "type": "pubkey"
           },
           {
+            "name": "rent_recipient",
+            "docs": [
+              "Receives the challenge and leaderboard rent when cleanup completes."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "rules_version",
             "type": "u32"
           },
@@ -6567,7 +7051,7 @@
           {
             "name": "closed_players",
             "docs": [
-              "Number of DailyPlayer records whose rent has returned to the paymaster."
+              "Number of DailyPlayer records whose rent has returned to their owner vault."
             ],
             "type": "u32"
           },
@@ -7167,14 +7651,6 @@
             "type": "pubkey"
           },
           {
-            "name": "payment_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_token_program",
-            "type": "pubkey"
-          },
-          {
             "name": "content_version",
             "type": "u32"
           },
@@ -7243,11 +7719,11 @@
             }
           },
           {
-            "name": "weekly_min_cash_pool",
+            "name": "weekly_min_sol_pool",
             "type": "u64"
           },
           {
-            "name": "weekly_max_cash_pool",
+            "name": "weekly_max_sol_pool",
             "type": "u64"
           },
           {
@@ -7370,10 +7846,6 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "paymaster",
-            "type": "pubkey"
-          },
-          {
             "name": "pricing_operator",
             "type": "pubkey"
           },
@@ -7386,40 +7858,8 @@
             "type": "pubkey"
           },
           {
-            "name": "reward_vault",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_token_program",
-            "type": "pubkey"
-          },
-          {
             "name": "content_version",
             "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "LegacyDevnetStateReset",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "account_count",
-            "type": "u16"
-          },
-          {
-            "name": "reclaimed_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "protocol_closed",
-            "type": "bool"
           }
         ]
       }
@@ -7657,6 +8097,30 @@
       }
     },
     {
+      "name": "PlayerFundingVault",
+      "docs": [
+        "Owner-scoped reusable rent float. Device sessions may spend it only through",
+        "zKube's canonical account-creation paths; only the owner may withdraw it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "PlayerProfile",
       "type": {
         "kind": "struct",
@@ -7683,6 +8147,15 @@
           },
           {
             "name": "next_run_id",
+            "type": "u64"
+          },
+          {
+            "name": "active_run_id",
+            "docs": [
+              "Zero when idle; otherwise the only run that may exist for this owner.",
+              "This durable pointer makes resume deterministic across devices and",
+              "prevents two valid device sessions from opening concurrent runs."
+            ],
             "type": "u64"
           },
           {
@@ -7832,10 +8305,6 @@
             "type": "pubkey"
           },
           {
-            "name": "paymaster",
-            "type": "pubkey"
-          },
-          {
             "name": "team_destination",
             "type": "pubkey"
           },
@@ -7845,14 +8314,6 @@
           },
           {
             "name": "reward_vault",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_token_program",
             "type": "pubkey"
           },
           {
@@ -8003,6 +8464,29 @@
           {
             "name": "treasury_destination",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardVault",
+      "docs": [
+        "Program-owned native-SOL reserve used only for bounded Weekly prizes."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "protocol",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -8390,10 +8874,6 @@
             "type": "pubkey"
           },
           {
-            "name": "payment_mint",
-            "type": "pubkey"
-          },
-          {
             "name": "lifetime_gross_sales",
             "type": "u64"
           },
@@ -8491,46 +8971,6 @@
       }
     },
     {
-      "name": "WeeklyCashClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "week_id",
-            "type": "u32"
-          },
-          {
-            "name": "rank",
-            "type": "u8"
-          },
-          {
-            "name": "amount",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyCashForfeited",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "week_id",
-            "type": "u32"
-          },
-          {
-            "name": "amount",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
       "name": "WeeklyChallenge",
       "type": {
         "kind": "struct",
@@ -8548,15 +8988,10 @@
             "type": "pubkey"
           },
           {
-            "name": "payment_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_token_program",
-            "type": "pubkey"
-          },
-          {
-            "name": "payment_vault",
+            "name": "rent_recipient",
+            "docs": [
+              "Receives the challenge and leaderboard rent when cleanup completes."
+            ],
             "type": "pubkey"
           },
           {
@@ -8588,15 +9023,15 @@
             "type": "i64"
           },
           {
-            "name": "committed_cash_pool",
+            "name": "committed_sol_pool",
             "type": "u64"
           },
           {
-            "name": "cash_claimed",
+            "name": "sol_claimed",
             "type": "u64"
           },
           {
-            "name": "cash_forfeited",
+            "name": "sol_forfeited",
             "type": "u64"
           },
           {
@@ -8606,12 +9041,12 @@
           {
             "name": "closed_players",
             "docs": [
-              "Number of WeeklyPlayer records whose rent has returned to the paymaster."
+              "Number of WeeklyPlayer records whose rent has returned to their owner vault."
             ],
             "type": "u32"
           },
           {
-            "name": "cash_winner_count",
+            "name": "sol_winner_count",
             "type": "u8"
           },
           {
@@ -8675,7 +9110,7 @@
             "type": "u32"
           },
           {
-            "name": "cash_winner_count",
+            "name": "sol_winner_count",
             "type": "u8"
           },
           {
@@ -8683,7 +9118,7 @@
             "type": "u8"
           },
           {
-            "name": "cash_pool",
+            "name": "sol_pool",
             "type": "u64"
           }
         ]
@@ -8753,7 +9188,7 @@
             "type": "u32"
           },
           {
-            "name": "cash_pool",
+            "name": "sol_pool",
             "type": "u64"
           }
         ]
@@ -8798,7 +9233,7 @@
             "type": "u16"
           },
           {
-            "name": "cash_claimed",
+            "name": "sol_claimed",
             "type": "bool"
           },
           {
@@ -8851,6 +9286,46 @@
           },
           {
             "name": "stars",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WeeklySolClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "week_id",
+            "type": "u32"
+          },
+          {
+            "name": "rank",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WeeklySolForfeited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "week_id",
+            "type": "u32"
+          },
+          {
+            "name": "amount",
             "type": "u64"
           }
         ]

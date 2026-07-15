@@ -1,8 +1,15 @@
-use anchor_lang::{prelude::*, Discriminator, InstructionData};
-use ephemeral_rollups_sdk::anchor::{action, commit, delegate};
+//! MagicBlock run delegation, VRF, play, copyback, and durable cleanup.
+//!
+//! `ActiveRun` is authoritative on the Router-resolved ER only while delegated.
+//! Terminal state is sealed, committed, and copied back before a Solana-base
+//! receipt consumer may update durable progression. Closing transient accounts
+//! is a separate owner/session-authorized step whose rent returns to the
+//! owner's shared funding vault.
+
+use anchor_lang::{prelude::*, Discriminator};
+use ephemeral_rollups_sdk::anchor::{commit, delegate};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
-use ephemeral_rollups_sdk::ephem::{CallHandler, FoldableIntentBuilder, MagicIntentBundleBuilder};
-use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
+use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 use ephemeral_vrf_sdk::anchor::{vrf, vrf_callback};
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 use sha2::{Digest, Sha256};
@@ -603,13 +610,13 @@ pub struct CommitRun<'info> {
     /// CHECK: Base-layer shell; address is pinned by active_run.
     #[account(address = active_run.run_shell @ ErrorCode::InvalidRunId)]
     pub run_shell: UncheckedAccount<'info>,
-    /// CHECK: Reserved receipt PDA; its contents are validated by the action.
+    /// CHECK: Reserved receipt PDA; validated by canonical base settlement.
     #[account(seeds = [RUN_RECEIPT_SEED, active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump)]
     pub run_receipt: UncheckedAccount<'info>,
-    /// CHECK: Durable profile PDA, written only by the post-commit action.
+    /// CHECK: Durable profile PDA, written only by canonical base settlement.
     #[account(seeds = [PLAYER_PROFILE_SEED, active_run.owner.as_ref()], bump)]
     pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Durable campaign PDA, written only by the post-commit action.
+    /// CHECK: Durable campaign PDA, written only by canonical base settlement.
     #[account(seeds = [CAMPAIGN_PROGRESS_SEED, active_run.owner.as_ref()], bump)]
     pub campaign_progress: UncheckedAccount<'info>,
     /// CHECK: Player wallet whose address is pinned by active_run.
@@ -638,22 +645,6 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
         ErrorCode::VrfRequestPending
     );
 
-    let action_data = InstructionData::data(&crate::instruction::ConsumeRunReceipt {});
-    let settlement_action = CallHandler {
-        destination_program: crate::ID,
-        accounts: vec![
-            short_meta(ctx.accounts.active_run.key(), true),
-            short_meta(ctx.accounts.run_shell.key(), true),
-            short_meta(ctx.accounts.run_receipt.key(), true),
-            short_meta(ctx.accounts.player_profile.key(), true),
-            short_meta(ctx.accounts.campaign_progress.key(), true),
-            short_meta(ctx.accounts.owner.key(), false),
-        ],
-        args: ActionArgs::new(action_data),
-        escrow_authority: ctx.accounts.payer.to_account_info(),
-        compute_units: 250_000,
-    };
-
     ctx.accounts.active_run.exit(&crate::ID)?;
     MagicIntentBundleBuilder::new(
         ctx.accounts.payer.to_account_info(),
@@ -661,12 +652,10 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
         ctx.accounts.magic_program.to_account_info(),
     )
     .commit_and_undelegate(&[ctx.accounts.active_run.to_account_info()])
-    .add_post_commit_actions([settlement_action])
     .build_and_invoke()?;
     Ok(())
 }
 
-#[action]
 #[derive(Accounts)]
 pub struct ConsumeRunReceipt<'info> {
     #[account(mut, owner = crate::ID)]
@@ -705,6 +694,7 @@ pub struct ConsumeRunReceipt<'info> {
 
 pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()> {
     let active = &ctx.accounts.active_run;
+    let active_run_id = active.run_id;
     require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
     require_keys_eq!(
         active.owner,
@@ -718,6 +708,10 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     );
     require!(
         active.run_id == ctx.accounts.run_shell.run_id,
+        ErrorCode::InvalidRunId
+    );
+    require!(
+        ctx.accounts.player_profile.active_run_id == active.run_id,
         ErrorCode::InvalidRunId
     );
     let receipt = &mut ctx.accounts.run_receipt;
@@ -740,6 +734,7 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
             receipt.action_hash == active.action_hash && receipt.vrf_hash == active.vrf_hash,
             ErrorCode::ReceiptMismatch
         );
+        ctx.accounts.player_profile.release_run(active.run_id)?;
         return Ok(());
     }
     require!(
@@ -838,6 +833,7 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     ctx.accounts.run_shell.lifecycle = RunLifecycle::Settled;
     ctx.accounts.run_shell.settled_at = receipt.consumed_at;
     ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
+    ctx.accounts.player_profile.release_run(active_run_id)?;
     Ok(())
 }
 
@@ -855,10 +851,13 @@ pub struct CloseSettledActiveRun<'info> {
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    /// CHECK: Rent destination pinned to the protocol paymaster — the
-    /// identity that fronted every run rent at prepare gets it back.
-    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
-    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
+        bump = rent_recipient.bump,
+        constraint = rent_recipient.owner == owner_authority.key() @ ErrorCode::Unauthorized
+    )]
+    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
     #[account(
         mut,
         close = rent_recipient,
@@ -990,13 +989,6 @@ pub struct MapPerfected {
     pub map_id: u8,
     pub stars: u64,
     pub xp: u32,
-}
-
-fn short_meta(pubkey: Pubkey, is_writable: bool) -> ShortAccountMeta {
-    ShortAccountMeta {
-        pubkey: pubkey.to_bytes().into(),
-        is_writable,
-    }
 }
 
 fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
@@ -1169,6 +1161,7 @@ mod tests {
     use crate::state::economy_v2::{
         canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
     };
+    use anchor_lang::ToAccountMetas;
 
     fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
         use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
@@ -1189,6 +1182,24 @@ mod tests {
         wrong_discriminator[..8].copy_from_slice(&101u64.to_le_bytes());
         assert!(delegation_record_validator(&wrong_discriminator).is_err());
         assert!(delegation_record_validator(&valid[..39]).is_err());
+    }
+
+    #[test]
+    fn campaign_receipt_consumer_is_permissionless_and_has_no_action_escrow() {
+        let owner = Pubkey::new_unique();
+        let metas = crate::accounts::ConsumeRunReceipt {
+            active_run: Pubkey::new_unique(),
+            run_shell: Pubkey::new_unique(),
+            run_receipt: Pubkey::new_unique(),
+            player_profile: Pubkey::new_unique(),
+            campaign_progress: Pubkey::new_unique(),
+            owner,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 6);
+        assert_eq!(metas[5].pubkey, owner);
+        assert!(metas.iter().all(|meta| !meta.is_signer));
     }
 
     #[test]

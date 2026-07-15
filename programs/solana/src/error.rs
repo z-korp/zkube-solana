@@ -64,6 +64,8 @@ pub enum ErrorCode {
     InvalidVersion,
     #[msg("Invalid run id")]
     InvalidRunId,
+    #[msg("Finish or abandon the active run before starting another")]
+    ActiveRunExists,
     #[msg("Map is locked")]
     MapLocked,
     #[msg("Map is disabled")]

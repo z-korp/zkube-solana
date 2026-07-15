@@ -87,8 +87,6 @@ describe("UnlockModal", () => {
       />,
     );
 
-    expect(screen.queryByText("2.5 USDC")).not.toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: /unlock for 40★/i }));
     await waitFor(() =>
       expect(campaign.unlock).toHaveBeenCalledWith(2),

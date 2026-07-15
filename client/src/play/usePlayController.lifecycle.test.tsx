@@ -199,7 +199,7 @@ describe("usePlayController automatic settled cleanup", () => {
   });
 
   it("does not auto-retry a failed cleanup until Retry settlement", async () => {
-    const cleanup = vi.fn().mockRejectedValue(new Error("paymaster failed"));
+    const cleanup = vi.fn().mockRejectedValue(new Error("device fee balance low"));
     fixtures.run = settledRun(cleanup);
 
     const { result, rerender } = renderHook(() => usePlayController(), {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSolanaConnection } from "./connectionContext";
 import { Keypair, type PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants";
-import { fetchPaymasterClient, type PaymasterClient } from "./paymasterClient";
 import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
 import { SessionWallet } from "./sessionWallet";
 import type { WalletLike } from "./sessionWallet";
@@ -19,7 +18,7 @@ import {
   fetchActiveRun,
   resolveRunErConnection,
   submitPreparedRunPlan,
-  submitSponsoredTransactionPlan,
+  submitVersionedTransactionPlan,
   submitWalletTransactionPlan,
   type ActiveRunView,
   type PreparedRunPlan,
@@ -62,6 +61,26 @@ const plog = (
     layer,
     phase: phases[phases.length - 1] ?? label,
     ok: true,
+    ...data,
+  });
+};
+
+const plogFailure = (
+  traceId: string,
+  label: string,
+  layer: ChainMetricLayer,
+  error: unknown,
+  data: Record<string, unknown> = {},
+): void => {
+  const phases = label.split(":");
+  emitChainMetric({
+    traceId,
+    operation: label,
+    layer,
+    phase: phases[phases.length - 1] ?? label,
+    ok: false,
+    error:
+      (error instanceof Error ? error.message : String(error)).slice(0, 200),
     ...data,
   });
 };
@@ -174,16 +193,11 @@ export function useRunController() {
     ResumedRun,
     { phase: "settleable" }
   > | null>(null);
-  const paymaster = useRef<PaymasterClient | null>(null);
   // While a move/bonus is in flight the action itself is the authoritative
   // state source; watcher snapshots taken mid-action (awaitingVrf, stale
   // counters) must not clobber currentRun or reach the board.
   const actionInFlight = useRef(false);
   const telemetryTrace = useRef(createChainTraceId());
-  useEffect(() => {
-    paymaster.current = null;
-  }, [connection.rpcEndpoint]);
-
   useEffect(() => {
     if (!publicKey || !wallet) {
       currentRun.current = null;
@@ -203,6 +217,7 @@ export function useRunController() {
           owner: publicKey,
           wallet: readOnlyWallet,
           baseConnection: connection,
+          deviceSession: player.session,
         }),
       onState: (run) => {
         if (actionInFlight.current) return;
@@ -237,7 +252,7 @@ export function useRunController() {
     });
     watcher.start();
     return () => void watcher.stop();
-  }, [connection, epoch, publicKey, readOnlyWallet, wallet]);
+  }, [connection, epoch, player.session, publicKey, readOnlyWallet, wallet]);
 
   useEffect(() => {
     if (!publicKey || player.sessionStatus !== "ready") return;
@@ -275,18 +290,18 @@ export function useRunController() {
       const traceId = telemetryTrace.current;
       const launchStart = Date.now();
       let mark = launchStart;
-      const lap = (label: string, data: Record<string, unknown> = {}) => {
+      const lap = (
+        label: string,
+        layer: ChainMetricLayer = "solana-base",
+        data: Record<string, unknown> = {},
+      ) => {
         const now = Date.now();
-        plog(traceId, `launch:${label}`, "solana-base", {
+        plog(traceId, `launch:${label}`, layer, {
           durationMs: now - mark,
           ...data,
         });
         mark = now;
       };
-      const sponsor =
-        paymaster.current ?? (await fetchPaymasterClient(connection));
-      paymaster.current = sponsor;
-      lap("paymaster");
       const prepared = await buildPrepareCampaignRunPlan({
         wallet: sessionWallet,
         ownerAuthority: publicKey,
@@ -294,36 +309,32 @@ export function useRunController() {
         mapId,
         level,
         connection,
-        paymaster: sponsor.pubkey,
         sessionValidUntil: device.validUntil,
       });
       const prepareSignature = await submitPreparedRunPlan({
         preparedRun: prepared,
         owner: publicKey,
         wallet: sessionWallet,
-        paymaster: sponsor,
         sessionSigner: session,
       });
-      lap("prepare", { signature: prepareSignature });
+      lap("prepare", "solana-base", { signature: prepareSignature });
       const delegate = await buildDelegateRunPlan({
         wallet: sessionWallet,
         ownerAuthority: publicKey,
         sessionToken: device.sessionToken,
         addresses: prepared.addresses,
         connection,
-        paymaster: sponsor.pubkey,
       });
-      const delegateSignature = await submitSponsoredTransactionPlan({
+      const delegateSignature = await submitVersionedTransactionPlan({
         transactionPlan: delegate,
         wallet: sessionWallet,
-        paymaster: sponsor,
       });
       await connection.confirmTransaction(delegateSignature, "confirmed");
-      lap("delegate", { signature: delegateSignature });
+      lap("delegate", "solana-base", { signature: delegateSignature });
       const erConnection = await resolveRunErConnection(
         prepared.addresses.activeRun,
       );
-      lap("er-resolve");
+      lap("er-resolve", "router");
       plog(traceId, "launch:router-resolved", "router", {
         endpointHost: new URL(erConnection.rpcEndpoint).host,
         runId: prepared.runId.toString(),
@@ -335,8 +346,8 @@ export function useRunController() {
         owner: publicKey,
         traceId,
       });
-      lap("vrf-hydrate");
-      plog(traceId, "launch:total", "solana-base", {
+      lap("vrf-hydrate", "orchestration");
+      plog(traceId, "launch:total", "orchestration", {
         durationMs: Date.now() - launchStart,
         mapId,
         level,
@@ -365,7 +376,16 @@ export function useRunController() {
 
   const startCampaignRun = useCallback(
     async (mapId: number, level: number) => {
-      return withBusy(setState, () => launchCampaignRun(mapId, level));
+      try {
+        return await withBusy(setState, () => launchCampaignRun(mapId, level));
+      } catch (error) {
+        plogFailure(telemetryTrace.current, "launch:error", "orchestration", error, {
+          mode: "campaign",
+          mapId,
+          level,
+        });
+        throw error;
+      }
     },
     [launchCampaignRun],
   );
@@ -383,57 +403,53 @@ export function useRunController() {
         const traceId = telemetryTrace.current;
         const launchStart = Date.now();
         let mark = launchStart;
-        const lap = (label: string, data: Record<string, unknown> = {}) => {
+        const lap = (
+          label: string,
+          layer: ChainMetricLayer = "solana-base",
+          data: Record<string, unknown> = {},
+        ) => {
           const now = Date.now();
-          plog(traceId, `launch:${label}`, "solana-base", {
+          plog(traceId, `launch:${label}`, layer, {
             durationMs: now - mark,
             mode: "daily",
             ...data,
           });
           mark = now;
         };
-        const sponsor =
-          paymaster.current ?? (await fetchPaymasterClient(connection));
-        paymaster.current = sponsor;
-        lap("paymaster");
         const prepared = await buildPrepareDailyRunPlan({
           wallet: sessionWallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
           daily,
           connection,
-          paymaster: sponsor.pubkey,
           sessionValidUntil: device.validUntil,
         });
         const prepareSignature = await submitPreparedRunPlan({
           preparedRun: prepared,
           owner: publicKey,
           wallet: sessionWallet,
-          paymaster: sponsor,
           sessionSigner: session,
           mode: "daily",
           dailyVersion: daily.economyVersion,
         });
-        lap("prepare", { signature: prepareSignature });
+        lap("prepare", "solana-base", { signature: prepareSignature });
         const delegate = await buildDelegateRunPlan({
           wallet: sessionWallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
           addresses: prepared.addresses,
           connection,
-          paymaster: sponsor.pubkey,
         });
-        const delegateSignature = await submitSponsoredTransactionPlan({
+        const delegateSignature = await submitVersionedTransactionPlan({
           transactionPlan: delegate,
           wallet: sessionWallet,
-          paymaster: sponsor,
         });
         await connection.confirmTransaction(delegateSignature, "confirmed");
-        lap("delegate", { signature: delegateSignature });
+        lap("delegate", "solana-base", { signature: delegateSignature });
         const erConnection = await resolveRunErConnection(
           prepared.addresses.activeRun,
         );
-        lap("er-resolve");
+        lap("er-resolve", "router");
         plog(traceId, "launch:router-resolved", "router", {
           endpointHost: new URL(erConnection.rpcEndpoint).host,
           runId: prepared.runId.toString(),
@@ -446,8 +462,8 @@ export function useRunController() {
           owner: publicKey,
           traceId,
         });
-        lap("vrf-hydrate");
-        plog(traceId, "launch:total", "solana-base", {
+        lap("vrf-hydrate", "orchestration");
+        plog(traceId, "launch:total", "orchestration", {
           durationMs: Date.now() - launchStart,
           mode: "daily",
           dayId: daily.dayId,
@@ -470,6 +486,12 @@ export function useRunController() {
           sessionAuthorized: true,
         }));
         return activeRun;
+      }).catch((error: unknown) => {
+        plogFailure(telemetryTrace.current, "launch:error", "orchestration", error, {
+          mode: "daily",
+          dayId: daily.dayId,
+        });
+        throw error;
       });
     },
     [connection, player, publicKey, wallet],
@@ -542,6 +564,14 @@ export function useRunController() {
           }));
           return activeRun;
         });
+      } catch (error) {
+        plogFailure(
+          telemetryTrace.current,
+          "move:error",
+          "magicblock-er",
+          error,
+        );
+        throw error;
       } finally {
         actionInFlight.current = false;
       }
@@ -556,9 +586,8 @@ export function useRunController() {
   );
 
   /**
-   * Base-layer settlement tail: consume the receipt (signerless, sponsored
-   * fee only) if the Magic Action didn't, then close the ActiveRun with the
-   * current device session
+   * Canonical base-layer settlement tail: consume the receipt and close the
+   * ActiveRun atomically with the current device session
    * and clear the local marker. Shared by the normal pipeline and the
    * stuck-run recovery.
    */
@@ -567,14 +596,16 @@ export function useRunController() {
       if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
       const device = player.requireSession();
       const sessionWallet = new SessionWallet(device.signer);
-      const sponsor =
-        paymaster.current ?? (await fetchPaymasterClient(connection));
-      paymaster.current = sponsor;
+      const receiptReadStartedAt = Date.now();
       const receipt = await fetchReceipt(
         connection,
         readOnlyWallet,
         descriptor.addresses.runReceipt,
       );
+      plog(telemetryTrace.current, "settle:receipt-read", "solana-base", {
+        durationMs: Date.now() - receiptReadStartedAt,
+        receiptConsumed: Boolean(receipt?.consumed),
+      });
       plog(telemetryTrace.current, "settle:finalize-start", "solana-base", {
         runId: descriptor.runId.toString(),
         receiptConsumed: Boolean(receipt?.consumed),
@@ -592,14 +623,38 @@ export function useRunController() {
         dailyVersion: descriptor.dailyVersion ?? 1,
         receiptConsumed: Boolean(receipt?.consumed),
         connection,
-        paymaster: sponsor.pubkey,
       });
-      const signature = await submitSponsoredTransactionPlan({
+      const submitStartedAt = Date.now();
+      const signature = await submitVersionedTransactionPlan({
         transactionPlan: finalizePlan,
         wallet: sessionWallet,
-        paymaster: sponsor,
       });
+      plog(telemetryTrace.current, "settle:consume-close-submit", "solana-base", {
+        durationMs: Date.now() - submitStartedAt,
+        signature,
+        consumedInTransaction: !receipt?.consumed,
+      });
+      const confirmationStartedAt = Date.now();
       await connection.confirmTransaction(signature, "confirmed");
+      plog(telemetryTrace.current, "settle:consume-close-confirm", "solana-base", {
+        durationMs: Date.now() - confirmationStartedAt,
+        signature,
+      });
+      const remaining = await connection.getMultipleAccountsInfo(
+        [
+          descriptor.addresses.runShell,
+          descriptor.addresses.activeRun,
+          descriptor.addresses.runReceipt,
+        ],
+        "confirmed",
+      );
+      if (remaining.some((account) => account !== null)) {
+        throw new Error("Canonical settlement confirmed without closing every run account");
+      }
+      plog(telemetryTrace.current, "settle:postcondition", "solana-base", {
+        runAccountsClosed: true,
+        signature,
+      });
       const marker = loadRunSession(publicKey);
       if (marker?.runId === descriptor.runId) clearRunSession(publicKey);
       if (currentRun.current?.marker.runId === descriptor.runId) {
@@ -616,7 +671,7 @@ export function useRunController() {
   /**
    * Full auto-settle pipeline for the attached delegated run:
    * seal (session) → commit-and-undelegate (session) → wait for the base
-   * copyback → consume receipt if the Magic Action stalled → close for rent
+   * copyback → consume receipt + close for rent
    * → optionally launch the next campaign level. No manual settle button.
    */
   const settleAndAdvance = useCallback(
@@ -697,7 +752,7 @@ export function useRunController() {
           } catch {
             timedOut = true;
           }
-          plog(telemetryTrace.current, "settle:copyback", "magic-action", {
+          plog(telemetryTrace.current, "settle:copyback", "orchestration", {
             durationMs: Date.now() - pollStart,
             timedOut,
             signature,
@@ -728,6 +783,14 @@ export function useRunController() {
           setState((value) => ({ ...value, lastSignature: signature }));
           return activeRun;
         });
+      } catch (error) {
+        plogFailure(
+          telemetryTrace.current,
+          "settle:error",
+          "orchestration",
+          error,
+        );
+        throw error;
       } finally {
         setStage(null);
         actionInFlight.current = false;
@@ -738,7 +801,7 @@ export function useRunController() {
 
   /**
    * Explicit recovery for an undelegated terminal run whose receipt was not
-   * consumed by its Magic Action. Keeping this controller-driven prevents a
+   * consumed on base. Keeping this controller-driven prevents a
    * background watcher from erasing the result before the UI can snapshot it,
    * refresh progress, and route to the correct campaign/Daily destination.
    */
@@ -876,7 +939,7 @@ export function useRunController() {
    * terminal with zero stars, settle through the unchanged pipeline, and
    * reclaim the ActiveRun rent. A delegated run abandons on the ER
    * (session-signed) and then settles normally; a stuck non-terminal base
-   * run abandons inside the single sponsored finalize envelope. Throws for
+   * run abandons inside one session-signed finalize envelope. Throws for
    * callers to fall back to the local `dismissRun` (e.g. against a deployed
    * program that predates `abandonRun`).
    */
@@ -954,9 +1017,6 @@ export function useRunController() {
           );
         }
         setStage("abandoning");
-        const sponsor =
-          paymaster.current ?? (await fetchPaymasterClient(connection));
-        paymaster.current = sponsor;
         const finalizePlan = await buildFinalizeRunPlan({
           wallet: sessionWallet,
           owner: marker.owner,
@@ -969,12 +1029,10 @@ export function useRunController() {
           receiptConsumed: false,
           abandonFirst: true,
           connection,
-          paymaster: sponsor.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan: finalizePlan,
           wallet: sessionWallet,
-          paymaster: sponsor,
         });
         await connection.confirmTransaction(signature, "confirmed");
         clearRunSession(publicKey);
@@ -1189,7 +1247,8 @@ async function hydrateRows(args: {
         durationMs: Date.now() - requestStartedAt,
         signature,
         endpointHost: new URL(args.erConnection.rpcEndpoint).host,
-        requestSequence: attempt + 1,
+        hydrateAttempt: attempt + 1,
+        vrfRequestCounter: active.vrfRequestCounter,
       });
     }
     const callbackStartedAt = Date.now();

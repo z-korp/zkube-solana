@@ -1,12 +1,12 @@
-export const USDC_BASE_UNITS = 1_000_000n;
+export const LAMPORTS_PER_SOL_BASE_UNITS = 1_000_000_000n;
 
-export function formatUsdcBaseUnits(value: bigint): string {
+export function formatSolLamports(value: bigint): string {
   const sign = value < 0n ? "-" : "";
   const absolute = value < 0n ? -value : value;
-  const whole = absolute / USDC_BASE_UNITS;
-  const fraction = (absolute % USDC_BASE_UNITS)
+  const whole = absolute / LAMPORTS_PER_SOL_BASE_UNITS;
+  const fraction = (absolute % LAMPORTS_PER_SOL_BASE_UNITS)
     .toString()
-    .padStart(6, "0")
+    .padStart(9, "0")
     .replace(/0+$/, "");
   return `${sign}${fraction ? `${whole}.${fraction}` : whole.toString()}`;
 }

@@ -22,7 +22,6 @@ async function main(): Promise<void> {
         "",
         "Optional:",
         "  ZKUBE_BASE_RPC=https://rpc.magicblock.app/devnet",
-        "  ZKUBE_PAYMASTER_FUNDING_LAMPORTS=100000000",
         "  ZKUBE_BOOTSTRAP_CANDIDATE_OUT=../artifacts/devnet-bootstrap.<stage>.candidate.json",
         "  ZKUBE_BOOTSTRAP_PROOF_OUT=../artifacts/devnet-bootstrap.<stage>.proof.json",
         "",

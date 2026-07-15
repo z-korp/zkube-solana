@@ -46,13 +46,10 @@ describe("treasury readiness", () => {
 function fixture(): TreasuryView {
   const address = () => Keypair.generate().publicKey;
   return {
-    paymentMint: address(),
-    paymentTokenProgram: address(),
     paused: false,
     authority: address(),
     pendingAuthority: PublicKey.default,
     pricingOperator: address(),
-    paymaster: address(),
     destinations: {
       team: { address: address(), balance: 0n },
       treasury: { address: address(), balance: 1_000_000n },

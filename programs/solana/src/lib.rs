@@ -1,3 +1,13 @@
+//! zKube's durable Solana authority and settlement program.
+//!
+//! The connected wallet address is the immutable player identity. Safe player
+//! instructions accept either that owner signer or a scoped, unexpired
+//! SessionTokenV2 actor targeting this program; native-SOL purchases remain
+//! owner-only. Active gameplay is delegated to MagicBlock, but progression,
+//! receipts, contests, custody, and final settlement remain authoritative on
+//! Solana base. Permissionless keeper instructions are valid only when their
+//! account relationships and one-way lifecycle predicates are satisfied.
+
 pub mod error;
 pub mod game;
 pub mod instructions;
@@ -22,18 +32,48 @@ pub mod solana {
         instructions::v2_instructions::handler_initialize_protocol(ctx, args)
     }
 
-    pub fn reset_legacy_devnet_state(
-        ctx: Context<ResetLegacyDevnetState>,
-        close_protocol: bool,
+    pub fn initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
+        instructions::v2_instructions::handler_initialize_player(ctx)
+    }
+
+    pub fn withdraw_player_funding(
+        ctx: Context<WithdrawPlayerFunding>,
+        lamports: u64,
     ) -> Result<()> {
-        instructions::devnet_reset_instructions::handler_reset_legacy_devnet_state(
-            ctx,
-            close_protocol,
+        instructions::v2_instructions::handler_withdraw_player_funding(ctx, lamports)
+    }
+
+    pub fn funded_prepare_campaign_run(
+        ctx: Context<FundedPrepareCampaignRun>,
+        run_id: u64,
+        map_id: u8,
+        level: u8,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_prepare_campaign_run(
+            ctx, run_id, map_id, level,
         )
     }
 
-    pub fn initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
-        instructions::v2_instructions::handler_initialize_player(ctx)
+    pub fn funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_enter_daily(ctx, run_id)
+    }
+
+    pub fn funded_claim_quest(ctx: Context<FundedClaimQuest>, quest_index: u8) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_claim_quest(ctx, quest_index)
+    }
+
+    pub fn funded_claim_level_milestone(
+        ctx: Context<FundedClaimLevelMilestone>,
+        milestone_index: u8,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_claim_level_milestone(
+            ctx,
+            milestone_index,
+        )
+    }
+
+    pub fn funded_rollup_daily_to_weekly(ctx: Context<FundedRollupDailyToWeekly>) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_rollup_daily_to_weekly(ctx)
     }
 
     pub fn initialize_economy(
@@ -69,13 +109,13 @@ pub mod solana {
         ctx: Context<'info, PurchaseStars<'info>>,
         pack_index: u8,
         expected_stars: u64,
-        max_usdc_amount: u64,
+        max_lamports: u64,
     ) -> Result<()> {
         instructions::economy_v2_instructions::handler_purchase_stars(
             ctx,
             pack_index,
             expected_stars,
-            max_usdc_amount,
+            max_lamports,
         )
     }
 
@@ -142,12 +182,12 @@ pub mod solana {
         instructions::economy_v2_instructions::handler_claim_weekly_stars(ctx)
     }
 
-    pub fn claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
-        instructions::economy_v2_instructions::handler_claim_weekly_cash(ctx)
+    pub fn claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_claim_weekly_sol(ctx)
     }
 
-    pub fn forfeit_weekly_cash(ctx: Context<ForfeitWeeklyCash>) -> Result<()> {
-        instructions::economy_v2_instructions::handler_forfeit_weekly_cash(ctx)
+    pub fn forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_forfeit_weekly_sol(ctx)
     }
 
     pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {

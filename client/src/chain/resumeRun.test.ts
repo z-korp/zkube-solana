@@ -4,7 +4,7 @@ import { Connection, Keypair } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveRunAddresses } from "./pdas";
 import { resolvePersistedRun } from "./resumeRun";
-import { saveRunSession } from "./runSessionStore";
+import { loadRunSession, saveRunSession } from "./runSessionStore";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 import { SessionWallet } from "./sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
@@ -15,6 +15,65 @@ describe("persisted run resolution", () => {
       configurable: true,
       value: { localStorage: new MemoryStorage() },
     });
+  });
+
+  it("discovers the durable active run on a different device", async () => {
+    const owner = Keypair.generate();
+    const deviceSigner = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: deviceSigner.publicKey,
+    }).sessionToken;
+    const deviceSession = {
+      owner: owner.publicKey,
+      signer: deviceSigner,
+      sessionToken,
+      validUntil: Math.floor(Date.now() / 1_000) + 3_600,
+      createdAt: Math.floor(Date.now() / 1_000),
+    };
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
+    } as unknown as Connection;
+    const erConnection = {
+      getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
+    } as unknown as Connection;
+    const getStatus = vi.fn().mockResolvedValue({
+      isDelegated: true,
+      fqdn: "https://er.example/",
+      delegationRecord: { owner: ZKUBE_PROGRAM_ID.toBase58() },
+    });
+    const fetchRun = vi.fn().mockResolvedValue({
+      owner: owner.publicKey,
+      runId: 12n,
+      mode: "daily",
+      lifecycle: "playing",
+      score: 4,
+      actionCounter: 2,
+      moves: 2,
+      grid: new Array(80).fill(0),
+      nextRow: new Array(8).fill(0),
+      pendingVrfCounter: 0,
+    });
+
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      deviceSession,
+      dependencies: {
+        fetchActiveRunId: vi.fn().mockResolvedValue(12n),
+        getStatus,
+        makeErConnection: () => erConnection,
+        fetchRun,
+      },
+    });
+
+    expect(result.phase).toBe("delegated");
+    expect(result.phase === "delegated" && result.marker.runId).toBe(12n);
+    expect(result.phase === "delegated" && result.marker.mode).toBe("daily");
+    expect(result.phase === "delegated" && result.sessionAuthorized).toBe(true);
+    expect(loadRunSession(owner.publicKey)?.session.publicKey.equals(deviceSigner.publicKey))
+      .toBe(true);
   });
 
   it("re-resolves the ER and verifies the active run identity", async () => {

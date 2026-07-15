@@ -1,4 +1,3 @@
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import {
   DELEGATION_PROGRAM_ID,
@@ -15,7 +14,7 @@ export type ManifestCheckStatus = "pass" | "fail";
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 2;
+  schemaVersion: 3;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -42,19 +41,11 @@ export interface ZkubeDeploymentManifest {
     delegationProgram: string;
     vrfQueue: string;
   };
-  payment: {
-    mint: string;
-    tokenProgram: string;
-    decimals: 6;
-  };
+  payment: { asset: "native-sol"; decimals: 9 };
   destinations: {
     team: string;
     treasury: string;
     reward: string;
-  };
-  paymaster: {
-    publicKey: string;
-    endpoint: string;
   };
   protocol: {
     authority: string;
@@ -104,7 +95,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 2,
+    schemaVersion: 3,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -132,18 +123,13 @@ export function deploymentManifestFromEnv(
       vrfQueue: required(env, "VITE_PUBLIC_SOLANA_VRF_QUEUE"),
     },
     payment: {
-      mint: required(env, "ZKUBE_PAYMENT_MINT"),
-      tokenProgram: required(env, "ZKUBE_PAYMENT_TOKEN_PROGRAM"),
-      decimals: 6,
+      asset: "native-sol",
+      decimals: 9,
     },
     destinations: {
       team: required(env, "ZKUBE_TEAM_DESTINATION"),
       treasury: required(env, "ZKUBE_TREASURY_DESTINATION"),
       reward: required(env, "ZKUBE_REWARD_VAULT"),
-    },
-    paymaster: {
-      publicKey: required(env, "ZKUBE_PAYMASTER_PUBLIC_KEY"),
-      endpoint: required(env, "VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT"),
     },
     protocol: {
       authority: required(env, "ZKUBE_PROTOCOL_AUTHORITY"),
@@ -178,7 +164,6 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
   const magic = record(manifest.magic);
   const payment = record(manifest.payment);
   const destinations = record(manifest.destinations);
-  const paymaster = record(manifest.paymaster);
   const protocol = record(manifest.protocol);
   const versions = record(manifest.versions);
   const cluster = string(manifest.cluster);
@@ -191,14 +176,14 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
     check(
       "schema",
       "Schema",
-      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 2,
-      "Expected zkube-solana-deployment@2",
+      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 3,
+      "Expected zkube-solana-deployment@3",
     ),
     check(
       "cluster",
       "Cluster",
       cluster === "localnet" || cluster === "devnet",
-      "Only localnet and devnet are allowed by schema v2",
+      "Only localnet and devnet are allowed by schema v3",
     ),
     check(
       "created-at",
@@ -253,10 +238,8 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
     check(
       "payment",
       "Payment domain",
-      validPublicKey(payment?.mint)
-        && payment?.tokenProgram === TOKEN_PROGRAM_ID.toBase58()
-        && payment?.decimals === 6,
-      "Protocol requires a six-decimal canonical SPL Token payment mint",
+      payment?.asset === "native-sol" && payment?.decimals === 9,
+      "Protocol requires nine-decimal native SOL payments",
     ),
     check(
       "destinations",
@@ -265,13 +248,6 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
         && destinationValues.every(validPublicKey)
         && new Set(destinationValues).size === 3,
       "Team, treasury, and reward destinations must be valid and pairwise distinct",
-    ),
-    check(
-      "paymaster",
-      "Paymaster",
-      validPublicKey(paymaster?.publicKey)
-        && validPaymasterEndpoint(paymaster?.endpoint, cluster === "localnet"),
-      "Paymaster public key or endpoint is invalid",
     ),
     check(
       "protocol",
@@ -307,7 +283,7 @@ export function deploymentManifestMismatches(
     ["SOLANA_DEVNET_RPC_URL", manifest.rpc.base],
     ["ZKUBE_READ_RPC_URL", manifest.rpc.base],
     ["VITE_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH", manifest.rpc.expectedGenesisHash],
-    ["PAYMASTER_GENESIS_HASH", manifest.rpc.expectedGenesisHash],
+    ["SOLANA_EXPECTED_GENESIS_HASH", manifest.rpc.expectedGenesisHash],
     ["ZKUBE_EXPECTED_GENESIS_HASH", manifest.rpc.expectedGenesisHash],
     ["VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID", manifest.program.id],
     ["VITE_PUBLIC_SOLANA_DELEGATION_PROGRAM_ID", manifest.magic.delegationProgram],
@@ -315,14 +291,10 @@ export function deploymentManifestMismatches(
     ["VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID", manifest.magic.context],
     ["VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC", manifest.rpc.magicRouter],
     ["VITE_PUBLIC_SOLANA_VRF_QUEUE", manifest.magic.vrfQueue],
-    ["VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT", manifest.paymaster.endpoint],
     ["ZKUBE_PROGRAM_ARTIFACT_SHA256", manifest.program.artifactSha256],
-    ["ZKUBE_PAYMENT_MINT", manifest.payment.mint],
-    ["ZKUBE_PAYMENT_TOKEN_PROGRAM", manifest.payment.tokenProgram],
     ["ZKUBE_TEAM_DESTINATION", manifest.destinations.team],
     ["ZKUBE_TREASURY_DESTINATION", manifest.destinations.treasury],
     ["ZKUBE_REWARD_VAULT", manifest.destinations.reward],
-    ["ZKUBE_PAYMASTER_PUBLIC_KEY", manifest.paymaster.publicKey],
     ["ZKUBE_PROTOCOL_AUTHORITY", manifest.protocol.authority],
     ["ZKUBE_PRICING_OPERATOR", manifest.protocol.pricingOperator],
     ["ZKUBE_CONTENT_VERSION", String(manifest.versions.content)],
@@ -447,11 +419,6 @@ function validEndpoint(value: unknown, localAllowed: boolean): boolean {
   } catch {
     return false;
   }
-}
-
-function validPaymasterEndpoint(value: unknown, localAllowed: boolean): boolean {
-  return nonEmptyString(value)
-    && (value.startsWith("/") && !value.startsWith("//") || validEndpoint(value, localAllowed));
 }
 
 function validIsoDate(value: unknown): value is string {

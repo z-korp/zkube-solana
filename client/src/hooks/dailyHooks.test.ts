@@ -30,6 +30,7 @@ const daily = (status: DailyStatus): DailyView => ({
   playerEligible: true,
   playerStars: 5n,
   nextRunId: 2n,
+  activeRunId: 0n,
   player: null,
   leaderboard: [],
   rules: {

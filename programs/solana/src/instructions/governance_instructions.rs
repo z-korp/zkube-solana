@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::error::ErrorCode;
-use crate::state::v2::{ProtocolConfig, PROTOCOL_CONFIG_SEED};
+use crate::state::v2::{ProtocolConfig, RewardVault, PROTOCOL_CONFIG_SEED, REWARD_VAULT_SEED};
 
 #[derive(Accounts)]
 pub struct SetProtocolPause<'info> {
@@ -123,26 +122,17 @@ pub struct UpdateRevenueDestinations<'info> {
         constraint = protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(address = protocol.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
-    #[account(
-        token::mint = payment_mint,
-        constraint = team_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub team_destination: Box<Account<'info, TokenAccount>>,
-    #[account(
-        token::mint = payment_mint,
-        constraint = treasury_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub treasury_destination: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Native-SOL destination; address is written into protocol state.
+    pub team_destination: UncheckedAccount<'info>,
+    /// CHECK: Native-SOL destination; address is written into protocol state.
+    pub treasury_destination: UncheckedAccount<'info>,
     #[account(
         address = protocol.reward_vault,
-        token::mint = payment_mint,
-        token::authority = protocol,
+        seeds = [REWARD_VAULT_SEED],
+        bump = reward_vault.bump,
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-    #[account(address = protocol.payment_token_program)]
-    pub token_program: Program<'info, Token>,
+    pub reward_vault: Box<Account<'info, RewardVault>>,
     pub authority: Signer<'info>,
 }
 

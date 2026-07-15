@@ -1,3 +1,11 @@
+/**
+ * Transaction orchestration boundary.
+ *
+ * Solana base plans use the device session signer for transaction fees while
+ * narrow on-chain wrappers use the owner's shared funding PDA for account
+ * rent. Router-selected ER plans use that same device signer. Durable run
+ * markers are saved only after base confirmation.
+ */
 import {
   AnchorProvider,
   Program as AnchorProgram,
@@ -25,11 +33,6 @@ import {
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
 } from "./constants.js";
-import {
-  buildTopUpMagicActionEscrowInstruction,
-  deriveMagicActionEscrowPda,
-} from "./magicAction.js";
-import type { PaymasterClient } from "./paymasterClient.js";
 import { saveRunSession } from "./runSessionStore.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
@@ -37,6 +40,7 @@ import {
   deriveDailyLeaderboardPda,
   deriveDailyPlayerPda,
   deriveMapCatalogPda,
+  derivePlayerFundingPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
@@ -126,6 +130,7 @@ export interface ActiveRunView extends EndlessRulesView {
   grid: number[];
   nextRow: number[] | null;
   pendingVrfCounter: number;
+  vrfRequestCounter: number;
 }
 
 export interface ActiveRunConstraintView {
@@ -222,7 +227,6 @@ export async function buildPrepareCampaignRunPlan(args: {
   mapId: number;
   level: number;
   connection?: Connection;
-  paymaster?: PublicKey;
   sessionValidUntil: number;
 }): Promise<PreparedRunPlan> {
   const connection =
@@ -230,7 +234,6 @@ export async function buildPrepareCampaignRunPlan(args: {
   const program = zkubeProgram(connection, args.wallet);
   const owner = args.ownerAuthority;
   const actor = args.wallet.publicKey;
-  const payer = args.paymaster ?? owner;
   const profileAddress = derivePlayerProfilePda(owner);
   const campaignAddress = deriveCampaignProgressPda(owner);
   const profile =
@@ -248,30 +251,12 @@ export async function buildPrepareCampaignRunPlan(args: {
     Number(protocol.contentVersion),
     args.mapId,
   );
-  const instructions: TransactionInstruction[] = [];
-
   if (!profile) {
-    instructions.push(
-      await program.methods
-        .initializePlayer()
-        .accountsPartial({
-          playerProfile: profileAddress,
-          campaignProgress: campaignAddress,
-          payer,
-          ownerAuthority: owner,
-          sessionToken: args.sessionToken,
-          actor,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction(),
-    );
+    throw new Error("Enable zKube before starting a Campaign run");
   }
-  instructions.push(
-    buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),
-  );
-  instructions.push(
+  const instructions = [
     await program.methods
-      .prepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
+      .fundedPrepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
       .accountsPartial({
         protocol: protocolAddress,
         playerProfile: profileAddress,
@@ -280,14 +265,14 @@ export async function buildPrepareCampaignRunPlan(args: {
         runShell: addresses.runShell,
         activeRun: addresses.activeRun,
         runReceipt: addresses.runReceipt,
-        payer,
+        playerFunding: derivePlayerFundingPda(owner),
         ownerAuthority: owner,
         sessionToken: args.sessionToken,
         actor,
         systemProgram: SystemProgram.programId,
       })
       .instruction(),
-  );
+  ];
 
   return {
     runId,
@@ -298,7 +283,7 @@ export async function buildPrepareCampaignRunPlan(args: {
       "solana-base",
       "Prepare campaign run",
       connection,
-      payer,
+      actor,
       instructions,
       [],
     ),
@@ -307,8 +292,19 @@ export async function buildPrepareCampaignRunPlan(args: {
 
 export function resolvePreparedRunAddresses(
   owner: PublicKey,
-  profile: { nextRunId: { toString(): string } } | null,
+  profile: {
+    nextRunId: { toString(): string };
+    activeRunId?: { toString(): string };
+  } | null,
 ): { runId: bigint; addresses: RunAddresses } {
+  const activeRunId = profile?.activeRunId
+    ? BigInt(profile.activeRunId.toString())
+    : 0n;
+  if (activeRunId > 0n) {
+    throw new Error(
+      `Run ${activeRunId.toString()} is already active. Resume or abandon it before starting another.`,
+    );
+  }
   const runId = profile ? BigInt(profile.nextRunId.toString()) : INITIAL_RUN_ID;
   return { runId, addresses: deriveRunAddresses(owner, runId) };
 }
@@ -343,13 +339,12 @@ export async function buildDelegateRunPlan(args: {
   sessionToken: PublicKey | null;
   addresses: RunAddresses;
   connection?: Connection;
-  paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const program = zkubeProgram(connection, args.wallet);
   const validator = await getClosestValidator();
-  const payer = args.paymaster ?? args.wallet.publicKey;
+  const payer = args.wallet.publicKey;
   const instruction = await program.methods
     .delegateActiveRun()
     .accountsPartial({
@@ -566,7 +561,7 @@ export async function buildCommitRunPlan(args: {
     .instruction();
   return plan(
     "magicblock-er",
-    "Commit run and settle receipt",
+    "Commit and undelegate run",
     args.erConnection,
     args.payerWallet.publicKey,
     [instruction],
@@ -580,9 +575,6 @@ export async function buildCloseSettledRunPlan(args: {
   runId: bigint;
   addresses: RunAddresses;
   connection?: Connection;
-  /** Fee payer AND rent recipient: cleanup returns every run rent to the
-   *  protocol paymaster that fronted it at prepare. */
-  paymaster: PublicKey;
 }): Promise<TransactionPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
@@ -594,7 +586,7 @@ export async function buildCloseSettledRunPlan(args: {
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
       protocol: deriveProtocolConfigPda(),
-      rentRecipient: args.paymaster,
+      rentRecipient: derivePlayerFundingPda(args.owner),
       runShell: args.addresses.runShell,
       runReceipt: args.addresses.runReceipt,
       activeRun: args.addresses.activeRun,
@@ -604,17 +596,17 @@ export async function buildCloseSettledRunPlan(args: {
     "solana-base",
     "Close settled active run",
     connection,
-    args.paymaster,
+    args.wallet.publicKey,
     [instruction],
   );
 }
 
 /**
- * Base-layer settlement completion in ONE atomic transaction: consume the
- * receipt (when the Magic Action stalled) and close the ActiveRun for rent.
+ * Canonical base-layer settlement in ONE atomic transaction: consume the
+ * durable receipt and close the ActiveRun for rent.
  * Receipt consumption needs no program-level signer (`owner` is unchecked;
  * every account is a validated PDA); the bundled close carries the owner
- * signature the sponsored-shape policy requires. This is both the tail of
+ * session signature. This is both the tail of
  * the normal settle pipeline and the recovery path for wedged runs.
  */
 export async function buildFinalizeRunPlan(args: {
@@ -630,8 +622,6 @@ export async function buildFinalizeRunPlan(args: {
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
   connection?: Connection;
-  /** Fee payer AND rent recipient for the bundled close (protocol paymaster). */
-  paymaster: PublicKey;
 }): Promise<TransactionPlan> {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
@@ -651,63 +641,7 @@ export async function buildFinalizeRunPlan(args: {
     );
   }
   if (!args.receiptConsumed) {
-    const escrowMetas = {
-      // #[action]-injected metas: the Magic Action escrow of the run owner.
-      escrowAuth: args.owner,
-      escrow: deriveMagicActionEscrowPda(args.owner),
-    };
-    if (args.mode === "daily") {
-      if (!args.dailyChallenge) {
-        throw new Error("Daily settlement requires the challenge address");
-      }
-      const dailyVersion = args.dailyVersion ?? 1;
-      const accounts = {
-        activeRun: args.addresses.activeRun,
-        runShell: args.addresses.runShell,
-        runReceipt: args.addresses.runReceipt,
-        playerProfile: derivePlayerProfilePda(args.owner),
-        dailyChallenge: args.dailyChallenge,
-        dailyPlayer:
-          dailyVersion === 2
-            ? deriveDailyPlayerPda(args.dailyChallenge, args.owner)
-            : deriveDailyPlayerPda(args.dailyChallenge, args.owner),
-        leaderboard:
-          dailyVersion === 2
-            ? deriveDailyLeaderboardPda(args.dailyChallenge)
-            : deriveDailyLeaderboardPda(args.dailyChallenge),
-        ...(dailyVersion === 2
-          ? { weeklyStipend: deriveWeeklyStipendPda(args.owner) }
-          : {}),
-        owner: args.owner,
-        ...escrowMetas,
-      };
-      instructions.push(
-        dailyVersion === 2
-          ? await program.methods
-              .consumeDailyReceipt()
-              .accountsPartial(accounts)
-              .instruction()
-          : await program.methods
-              .consumeDailyReceipt()
-              .accountsPartial(accounts)
-              .instruction(),
-      );
-    } else {
-      instructions.push(
-        await program.methods
-          .consumeRunReceipt()
-          .accountsPartial({
-            activeRun: args.addresses.activeRun,
-            runShell: args.addresses.runShell,
-            runReceipt: args.addresses.runReceipt,
-            playerProfile: derivePlayerProfilePda(args.owner),
-            campaignProgress: deriveCampaignProgressPda(args.owner),
-            owner: args.owner,
-            ...escrowMetas,
-          })
-          .instruction(),
-      );
-    }
+    instructions.push(await buildConsumeReceiptInstruction(program, args));
   }
   instructions.push(
     await program.methods
@@ -717,7 +651,7 @@ export async function buildFinalizeRunPlan(args: {
         sessionToken: args.sessionToken,
         actor: args.wallet.publicKey,
         protocol: deriveProtocolConfigPda(),
-        rentRecipient: args.paymaster,
+        rentRecipient: derivePlayerFundingPda(args.owner),
         runShell: args.addresses.runShell,
         runReceipt: args.addresses.runReceipt,
         activeRun: args.addresses.activeRun,
@@ -728,9 +662,71 @@ export async function buildFinalizeRunPlan(args: {
     "solana-base",
     "Finalize run settlement",
     connection,
-    args.paymaster,
+    args.wallet.publicKey,
     instructions,
   );
+}
+
+export async function buildConsumeReceiptRecoveryPlan(args: {
+  wallet: WalletLike;
+  owner: PublicKey;
+  runId: bigint;
+  addresses: RunAddresses;
+  mode: "campaign" | "daily";
+  dailyChallenge?: PublicKey | null;
+  connection: Connection;
+}): Promise<TransactionPlan> {
+  const program = zkubeProgram(args.connection, args.wallet);
+  const instruction = await buildConsumeReceiptInstruction(program, args);
+  return plan(
+    "solana-base",
+    `Consume orphaned ${args.mode} receipt`,
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
+}
+
+async function buildConsumeReceiptInstruction(
+  program: Program<ZkubeProgram>,
+  args: {
+    owner: PublicKey;
+    addresses: RunAddresses;
+    mode: "campaign" | "daily";
+    dailyChallenge?: PublicKey | null;
+  },
+): Promise<TransactionInstruction> {
+  if (args.mode === "daily") {
+    const dailyChallenge = args.dailyChallenge;
+    if (!dailyChallenge) {
+      throw new Error("Daily settlement requires the challenge address");
+    }
+    return program.methods
+      .consumeDailyReceipt()
+      .accountsPartial({
+        activeRun: args.addresses.activeRun,
+        runShell: args.addresses.runShell,
+        runReceipt: args.addresses.runReceipt,
+        playerProfile: derivePlayerProfilePda(args.owner),
+        dailyChallenge,
+        dailyPlayer: deriveDailyPlayerPda(dailyChallenge, args.owner),
+        leaderboard: deriveDailyLeaderboardPda(dailyChallenge),
+        weeklyStipend: deriveWeeklyStipendPda(args.owner),
+        owner: args.owner,
+      })
+      .instruction();
+  }
+  return program.methods
+    .consumeRunReceipt()
+    .accountsPartial({
+      activeRun: args.addresses.activeRun,
+      runShell: args.addresses.runShell,
+      runReceipt: args.addresses.runReceipt,
+      playerProfile: derivePlayerProfilePda(args.owner),
+      campaignProgress: deriveCampaignProgressPda(args.owner),
+      owner: args.owner,
+    })
+    .instruction();
 }
 
 export async function fetchActiveRun(
@@ -789,6 +785,7 @@ export function mapActiveRunAccount(
     grid: [...account.grid].map(Number),
     nextRow: account.hasNextRow ? [...account.nextRow].map(Number) : null,
     pendingVrfCounter: Number(account.pendingVrfCounter),
+    vrfRequestCounter: Number(account.vrfRequestCounter),
   };
 }
 
@@ -848,22 +845,18 @@ export async function submitWalletTransactionPlan(args: {
   return signature;
 }
 
-export async function compileSponsoredTransactionPlan(args: {
+export async function compileWalletTransactionPlan(args: {
   transactionPlan: TransactionPlan;
   wallet: WalletLike;
-  paymaster: PublicKey;
 }): Promise<VersionedTransaction> {
   const { transactionPlan } = args;
-  if (transactionPlan.layer !== "solana-base") {
-    throw new Error("Only Solana base-layer plans can use the paymaster");
-  }
-  if (!transactionPlan.feePayer.equals(args.paymaster)) {
-    throw new Error("Plan was not built with the selected paymaster");
+  if (!transactionPlan.feePayer.equals(args.wallet.publicKey)) {
+    throw new Error("The transaction fee payer must be the signing wallet");
   }
   const { blockhash } =
     await transactionPlan.connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
-    payerKey: args.paymaster,
+    payerKey: transactionPlan.feePayer,
     recentBlockhash: blockhash,
     instructions: transactionPlan.transaction.instructions,
   }).compileToV0Message();
@@ -886,32 +879,33 @@ export async function compileSponsoredTransactionPlan(args: {
   return transaction;
 }
 
-export async function submitSponsoredTransactionPlan(args: {
+export async function submitVersionedTransactionPlan(args: {
   transactionPlan: TransactionPlan;
   wallet: WalletLike;
-  paymaster: PaymasterClient;
 }): Promise<string> {
-  const transaction = await compileSponsoredTransactionPlan({
+  const transaction = await compileWalletTransactionPlan({
     transactionPlan: args.transactionPlan,
     wallet: args.wallet,
-    paymaster: args.paymaster.pubkey,
   });
-  return args.paymaster.submit(transaction.serialize());
+  const signature = await args.transactionPlan.connection.sendRawTransaction(
+    transaction.serialize(),
+    { maxRetries: 5, skipPreflight: false },
+  );
+  await args.transactionPlan.connection.confirmTransaction(signature, "confirmed");
+  return signature;
 }
 
 export async function submitPreparedRunPlan(args: {
   preparedRun: PreparedRunPlan;
   owner: PublicKey;
   wallet: WalletLike;
-  paymaster: PaymasterClient;
   sessionSigner: Keypair;
   mode?: "campaign" | "daily";
   dailyVersion?: 1 | 2;
 }): Promise<string> {
-  const signature = await submitSponsoredTransactionPlan({
+  const signature = await submitVersionedTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,
     wallet: args.wallet,
-    paymaster: args.paymaster,
   });
   await args.preparedRun.transactionPlan.connection.confirmTransaction(
     signature,

@@ -18,6 +18,8 @@ import SettingsPage from "@/ui/pages/SettingsPage";
 import ShopPage from "@/ui/pages/ShopPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import ConnectScreen from "@/ui/screens/ConnectScreen";
 
 const params = new URLSearchParams(window.location.search);
 const spectatePlayer = params.get("player");
@@ -59,6 +61,7 @@ const pageComponents: Record<PageId, ReactNode> = {
 };
 
 export default function App() {
+  const player = useConnectedPlayer();
   const currentPage = useNavigationStore((state) => state.currentPage);
   const { campaign, error, loaded } = useCampaign();
   // Hold first paint behind the themed Loading screen until the initial
@@ -70,6 +73,13 @@ export default function App() {
     const timer = setTimeout(() => setTimedOut(true), 5000);
     return () => clearTimeout(timer);
   }, []);
+  if (
+    player.connectionStatus !== "connected" ||
+    !player.publicKey ||
+    player.sessionStatus !== "ready"
+  ) {
+    return <ConnectScreen />;
+  }
   const gated = currentPage !== "spectate" && currentPage !== "play";
   const ready = campaign !== null || error !== null || loaded || timedOut;
   if (gated && !ready) return <Loading />;

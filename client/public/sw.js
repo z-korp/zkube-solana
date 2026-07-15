@@ -22,8 +22,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
 
-  // Chain, Router, ER, RPC and the Fly relay are cross-origin. Any local
-  // development API response also remains network-only.
+  // Chain, Router, ER, RPC and Fly service responses are cross-origin. Any
+  // local development API response also remains network-only.
   if (
     url.origin !== self.location.origin ||
     url.pathname.startsWith("/api/") ||

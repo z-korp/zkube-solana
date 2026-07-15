@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -71,14 +70,14 @@ describe("zKube deployment manifest", () => {
     expect(validation.valid).toBe(true);
   });
 
-  it("rejects mainnet, substituted infrastructure, Token-2022, and aliased custody", () => {
+  it("rejects mainnet, substituted infrastructure, non-SOL payment, and aliased custody", () => {
     const base = candidate();
     const cases: unknown[] = [
       { ...base, cluster: "mainnet-beta" },
       { ...base, magic: { ...base.magic, program: Keypair.generate().publicKey.toBase58() } },
       {
         ...base,
-        payment: { ...base.payment, tokenProgram: TOKEN_2022_PROGRAM_ID.toBase58() },
+        payment: { asset: "other", decimals: 6 },
       },
       {
         ...base,
@@ -86,10 +85,6 @@ describe("zKube deployment manifest", () => {
           ...base.destinations,
           reward: base.destinations.treasury,
         },
-      },
-      {
-        ...base,
-        paymaster: { ...base.paymaster, secretKey: Array(64).fill(1) },
       },
     ];
     for (const invalid of cases) expect(validateDeploymentManifest(invalid).valid).toBe(false);
@@ -144,7 +139,7 @@ function candidate(): ZkubeDeploymentManifest {
   );
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 2,
+    schemaVersion: 3,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -164,19 +159,11 @@ function candidate(): ZkubeDeploymentManifest {
       delegationProgram: DELEGATION_PROGRAM_ID.toBase58(),
       vrfQueue: VRF_QUEUE.toBase58(),
     },
-    payment: {
-      mint: Keypair.generate().publicKey.toBase58(),
-      tokenProgram: TOKEN_PROGRAM_ID.toBase58(),
-      decimals: 6,
-    },
+    payment: { asset: "native-sol", decimals: 9 },
     destinations: {
       team: destinations[0]!,
       treasury: destinations[1]!,
       reward: destinations[2]!,
-    },
-    paymaster: {
-      publicKey: Keypair.generate().publicKey.toBase58(),
-      endpoint: "/api/paymaster",
     },
     protocol: {
       authority: Keypair.generate().publicKey.toBase58(),
@@ -198,14 +185,10 @@ function environment(manifest: ZkubeDeploymentManifest): Record<string, string> 
     VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID: manifest.magic.context,
     VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC: manifest.rpc.magicRouter,
     VITE_PUBLIC_SOLANA_VRF_QUEUE: manifest.magic.vrfQueue,
-    VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT: manifest.paymaster.endpoint,
     ZKUBE_PROGRAM_ARTIFACT_SHA256: manifest.program.artifactSha256,
-    ZKUBE_PAYMENT_MINT: manifest.payment.mint,
-    ZKUBE_PAYMENT_TOKEN_PROGRAM: manifest.payment.tokenProgram,
     ZKUBE_TEAM_DESTINATION: manifest.destinations.team,
     ZKUBE_TREASURY_DESTINATION: manifest.destinations.treasury,
     ZKUBE_REWARD_VAULT: manifest.destinations.reward,
-    ZKUBE_PAYMASTER_PUBLIC_KEY: manifest.paymaster.publicKey,
     ZKUBE_PROTOCOL_AUTHORITY: manifest.protocol.authority,
     ZKUBE_PRICING_OPERATOR: manifest.protocol.pricingOperator,
     ZKUBE_CONTENT_VERSION: String(manifest.versions.content),

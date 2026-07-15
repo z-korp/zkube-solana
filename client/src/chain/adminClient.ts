@@ -1,4 +1,3 @@
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
   PublicKey,
   SystemProgram,
@@ -9,8 +8,10 @@ import {
 import {
   deriveCampaignProgressPda,
   deriveMapCatalogPda,
+  derivePlayerFundingPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
+  deriveRewardVaultPda,
 } from "./pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
@@ -21,13 +22,9 @@ import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 
 export interface ProtocolInitialization {
-  paymaster: PublicKey;
   pricingOperator: PublicKey;
   teamDestination: PublicKey;
   treasuryDestination: PublicKey;
-  rewardVault: PublicKey;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
   contentVersion: number;
 }
 
@@ -37,40 +34,30 @@ export async function buildInitializeProtocolPlan(args: {
   config: ProtocolInitialization;
 }): Promise<TransactionPlan> {
   assertPositiveInteger(args.config.contentVersion, "contentVersion");
-  if (!args.config.paymentTokenProgram.equals(TOKEN_PROGRAM_ID)) {
-    throw new Error("protocol accepts only the canonical SPL Token program");
-  }
   const destinations = [
     args.config.teamDestination,
     args.config.treasuryDestination,
-    args.config.rewardVault,
+    deriveRewardVaultPda(),
   ];
   if (
     destinations.some((destination) => destination.equals(PublicKey.default))
     || new Set(destinations.map((destination) => destination.toBase58())).size !== destinations.length
   ) throw new Error("protocol destinations must be nonzero and pairwise distinct");
-  if (args.config.paymaster.equals(PublicKey.default)) throw new Error("paymaster cannot be zero");
   if (args.config.pricingOperator.equals(PublicKey.default)) {
     throw new Error("pricingOperator cannot be zero");
   }
   const instruction = await zkubeProgram(args.connection, args.authority).methods
     .initializeProtocol({
-      paymaster: args.config.paymaster,
       pricingOperator: args.config.pricingOperator,
       teamDestination: args.config.teamDestination,
       treasuryDestination: args.config.treasuryDestination,
-      rewardVault: args.config.rewardVault,
-      paymentMint: args.config.paymentMint,
-      paymentTokenProgram: args.config.paymentTokenProgram,
       contentVersion: args.config.contentVersion,
     })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      paymentMint: args.config.paymentMint,
       teamDestination: args.config.teamDestination,
       treasuryDestination: args.config.treasuryDestination,
-      rewardVault: args.config.rewardVault,
-      tokenProgram: args.config.paymentTokenProgram,
+      rewardVault: deriveRewardVaultPda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })
@@ -172,6 +159,7 @@ export async function buildInitializePlayerPlan(args: {
     .accountsPartial({
       playerProfile: derivePlayerProfilePda(args.owner.publicKey),
       campaignProgress: deriveCampaignProgressPda(args.owner.publicKey),
+      playerFunding: derivePlayerFundingPda(args.owner.publicKey),
       payer,
       ownerAuthority: args.owner.publicKey,
       sessionToken: null,

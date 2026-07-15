@@ -4,6 +4,29 @@ set -euo pipefail
 scope="${1:-all}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+validate_documentation_layout() {
+  cd "$root"
+  local path
+  local -a markdown=()
+  while IFS= read -r path; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      markdown+=("$path")
+    fi
+  done < <(git ls-files --cached --others --exclude-standard '*.md' | sort)
+  local actual
+  actual="$(printf '%s\n' "${markdown[@]}")"
+  local expected=$'AGENTS.md\nCLAUDE.md\nREADME.md'
+  if [[ "$actual" != "$expected" ]]; then
+    echo "only README.md, AGENTS.md, and CLAUDE.md may exist as Markdown" >&2
+    printf 'found:\n%s\n' "$actual" >&2
+    return 1
+  fi
+  if [[ ! -L CLAUDE.md || "$(readlink CLAUDE.md)" != "AGENTS.md" ]]; then
+    echo "CLAUDE.md must be a relative symlink to AGENTS.md" >&2
+    return 1
+  fi
+}
+
 validate_sbf() {
   cd "$root"
   # Program identity is tracked separately from the generated local keypair;
@@ -39,6 +62,9 @@ validate_program() {
 }
 
 validate_frontend() {
+  cd "$root/services"
+  NO_DNA=1 pnpm install --frozen-lockfile
+  NO_DNA=1 pnpm run build
   cd "$root/client"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check
@@ -47,6 +73,8 @@ validate_frontend() {
   NO_DNA=1 pnpm exec vitest run
   NO_DNA=1 pnpm run lint
 }
+
+validate_documentation_layout
 
 case "$scope" in
   program)

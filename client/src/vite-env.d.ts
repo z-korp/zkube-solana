@@ -9,9 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_SOLANA_MAGIC_CONTEXT_ID?: string;
   readonly VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC?: string;
   readonly VITE_PUBLIC_SOLANA_VRF_QUEUE?: string;
-  readonly VITE_PUBLIC_ZKUBE_PAYMASTER_ENDPOINT?: string;
   readonly VITE_PUBLIC_ZKUBE_TELEMETRY?: string;
-  readonly VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS?: string;
 }
 
 interface ImportMeta {

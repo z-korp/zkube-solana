@@ -1,4 +1,9 @@
-export type ChainMetricLayer = "solana-base" | "router" | "magicblock-er" | "vrf" | "magic-action";
+export type ChainMetricLayer =
+  | "solana-base"
+  | "router"
+  | "magicblock-er"
+  | "vrf"
+  | "orchestration";
 
 export interface ChainMetric {
   schemaVersion: 1;
@@ -15,7 +20,6 @@ export interface ChainMetric {
   runId?: string;
   unitsConsumed?: number;
   feeLamports?: number;
-  paymasterDeltaLamports?: number;
   rentCreatedLamports?: number;
   rentRefundedLamports?: number;
   balanceAfterLamports?: number;

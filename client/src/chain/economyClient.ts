@@ -11,8 +11,6 @@ export interface EconomyRuntime {
   dailyRulesVersion: number;
   dailyEntryStars: bigint;
   zoneUnlockStars: bigint;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
   rewardVault: PublicKey;
 }
 
@@ -39,8 +37,6 @@ export async function fetchEconomyRuntime(args: {
     dailyRulesVersion: Number(economy.dailyRulesVersion),
     dailyEntryStars: BigInt(economy.dailyEntryStars.toString()),
     zoneUnlockStars: BigInt(economy.zoneUnlockStars.toString()),
-    paymentMint: protocol.paymentMint,
-    paymentTokenProgram: protocol.paymentTokenProgram,
     rewardVault: protocol.rewardVault,
   };
 }

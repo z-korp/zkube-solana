@@ -3,16 +3,15 @@
 import { type Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-import type { DailyPlayerRecord, DailyView } from "../chain/dailyClient";
-import type { PaymasterClient } from "../chain/paymasterClient";
-import type { WeeklyPlayerRecord, WeeklyView } from "../chain/weeklyClient";
+import type { DailyPlayerRecord, DailyView } from "../../client/src/chain/dailyClient";
+import type { WeeklyPlayerRecord, WeeklyView } from "../../client/src/chain/weeklyClient";
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
   keeperKeypairFromEnv,
   runKeeperPass,
   weeklyPlayerCanClose,
-} from "./keeper";
+} from "../src/keeper";
 
 describe("autonomous challenge keeper", () => {
   it("pins the keeper secret to its public identity", () => {
@@ -32,11 +31,8 @@ describe("autonomous challenge keeper", () => {
     ).toThrow("does not match ZKUBE_KEEPER_PUBLIC_KEY");
   });
 
-  it("blocks every write when the paymaster is below its reserve floor", async () => {
+  it("blocks every write when the keeper is below its reserve floor", async () => {
     const log = vi.fn();
-    const paymaster = {
-      pubkey: Keypair.generate().publicKey,
-    } as PaymasterClient;
     const connection = {
       getBalance: vi.fn().mockResolvedValue(1_499_999_999),
     } as unknown as Connection;
@@ -45,11 +41,10 @@ describe("autonomous challenge keeper", () => {
       runKeeperPass({
         connection,
         keeper: Keypair.generate(),
-        paymaster,
         minimumBalanceLamports: 1_500_000_000,
         log,
       }),
-    ).rejects.toThrow("below keeper floor");
+    ).rejects.toThrow("below floor");
     expect(log).toHaveBeenCalledOnce();
     expect(log).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -117,21 +112,21 @@ describe("autonomous challenge keeper", () => {
     const record = {
       address: PublicKey.default,
       owner,
-      cashClaimed: false,
+      solClaimed: false,
       starsClaimed: false,
     } satisfies WeeklyPlayerRecord;
     const weekly = {
       status: "claimable",
-      cashWinnerCount: 1,
+      solWinnerCount: 1,
       starWinnerCount: 1,
       leaderboard: [{ player: owner, score: 100 }],
     } as WeeklyView;
     expect(weeklyPlayerCanClose(weekly, record)).toBe(false);
-    expect(weeklyPlayerCanClose(weekly, { ...record, cashClaimed: true })).toBe(false);
+    expect(weeklyPlayerCanClose(weekly, { ...record, solClaimed: true })).toBe(false);
     expect(
       weeklyPlayerCanClose(weekly, {
         ...record,
-        cashClaimed: true,
+        solClaimed: true,
         starsClaimed: true,
       }),
     ).toBe(true);

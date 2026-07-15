@@ -24,7 +24,7 @@ import { useProgress } from "@/contexts/progress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { formatUsdcBaseUnits, splitStarPurchase } from "@/utils/currency";
+import { formatSolLamports, splitStarPurchase } from "@/utils/currency";
 
 const ShopPage: React.FC = () => {
   const { themeTemplate } = useTheme();
@@ -89,8 +89,8 @@ const ShopPage: React.FC = () => {
     setStatus(null);
     if (
       !player.publicKey ||
-      (player.usdcBaseUnits !== null &&
-        player.usdcBaseUnits < pack.currentPrice)
+      (player.balanceLamports !== null &&
+        BigInt(player.balanceLamports) < pack.currentPrice)
     ) {
       openWallet();
       return;
@@ -169,13 +169,13 @@ const ShopPage: React.FC = () => {
               </div>
               <div className="text-right">
                 <span className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2.5 py-1 font-sans text-[10px] font-extrabold uppercase tracking-wide text-cyan-100">
-                  Devnet · Test USDC
+                  Devnet · Test SOL
                 </span>
                 <p className="mt-3 font-sans text-lg font-black text-white">
-                  {player.usdcBaseUnits === null
+                  {player.balanceLamports === null
                     ? "—"
-                    : formatUsdcBaseUnits(player.usdcBaseUnits)}{" "}
-                  <span className="text-xs text-white/50">USDC</span>
+                    : formatSolLamports(BigInt(player.balanceLamports))}{" "}
+                  <span className="text-xs text-white/50">SOL</span>
                 </p>
                 <button
                   type="button"
@@ -224,7 +224,7 @@ const ShopPage: React.FC = () => {
                     Choose a pack
                   </h2>
                   <p className="font-sans text-xs text-white/50">
-                    One sponsored transaction. No SOL fee.
+                    One wallet-approved SOL transaction.
                   </p>
                 </div>
                 <button
@@ -243,7 +243,7 @@ const ShopPage: React.FC = () => {
                     key={pack.index}
                     pack={pack}
                     shop={controller.shop!}
-                    usdcBalance={player.usdcBaseUnits}
+                    solBalance={player.balanceLamports === null ? null : BigInt(player.balanceLamports)}
                     connected={Boolean(player.publicKey)}
                     busy={controller.purchasingPack !== null}
                     paused={controller.shop!.protocolPaused}
@@ -275,7 +275,7 @@ const ShopPage: React.FC = () => {
                 <p className="font-bold text-white/80">Know what you buy</p>
                 <p>
                   Stars are bound to this connected Solana address. They cannot be transferred,
-                  withdrawn, or redeemed for cash. Purchases use Devnet test USDC.
+                  withdrawn, or redeemed for fiat. Purchases use Devnet test SOL.
                 </p>
                 <p className="mt-1">
                   Each payment settles atomically: 10% team, 10% rewards reserve,
@@ -291,7 +291,7 @@ const ShopPage: React.FC = () => {
         <PurchaseConfirmation
           pack={selectedPack}
           shop={controller.shop}
-          usdcBalance={player.usdcBaseUnits}
+          solBalance={player.balanceLamports === null ? null : BigInt(player.balanceLamports)}
           busy={controller.purchasingPack === selectedPack.index}
           onClose={() => setSelectedIndex(null)}
           onFund={openWallet}
@@ -305,7 +305,7 @@ const ShopPage: React.FC = () => {
 function PackCard({
   pack,
   shop,
-  usdcBalance,
+  solBalance,
   connected,
   busy,
   paused,
@@ -314,14 +314,14 @@ function PackCard({
 }: {
   pack: StarPackQuote;
   shop: StarShopView;
-  usdcBalance: bigint | null;
+  solBalance: bigint | null;
   connected: boolean;
   busy: boolean;
   paused: boolean;
   accent: string;
   onSelect: () => void;
 }) {
-  const insufficient = usdcBalance !== null && usdcBalance < pack.currentPrice;
+  const insufficient = solBalance !== null && solBalance < pack.currentPrice;
   const badge = pack.stars === 100n
     ? "Popular"
     : pack.stars === 1_000n
@@ -346,7 +346,7 @@ function PackCard({
       onClick={onSelect}
       disabled={!pack.enabled || busy || paused}
       className="relative min-h-[188px] overflow-hidden rounded-2xl border border-white/[0.13] bg-white/[0.07] p-3 text-left shadow-lg shadow-black/20 backdrop-blur-xl transition hover:bg-white/[0.11] disabled:opacity-45"
-      aria-label={`${pack.stars.toString()} Stars for ${formatUsdcBaseUnits(pack.currentPrice)} USDC`}
+      aria-label={`${pack.stars.toString()} Stars for ${formatSolLamports(pack.currentPrice)} SOL`}
     >
       {badge && (
         <span
@@ -362,11 +362,11 @@ function PackCard({
       </p>
       <div className="mt-1 flex items-baseline gap-2">
         <p className="font-sans text-base font-black text-white">
-          {formatUsdcBaseUnits(pack.currentPrice)} USDC
+          {formatSolLamports(pack.currentPrice)} SOL
         </p>
         {pack.onSale && (
           <p className="font-sans text-xs font-bold text-white/35 line-through">
-            {formatUsdcBaseUnits(pack.regularPrice)}
+            {formatSolLamports(pack.regularPrice)}
           </p>
         )}
       </div>
@@ -386,7 +386,7 @@ function PackCard({
             ? "Shop paused"
             : !connected
               ? "Connect wallet"
-              : usdcBalance === null
+              : solBalance === null
                 ? "Checking wallet…"
               : insufficient
                 ? "Funding guidance"
@@ -417,7 +417,7 @@ function SaleBanner({ shop }: { shop: StarShopView }) {
 function PurchaseConfirmation({
   pack,
   shop,
-  usdcBalance,
+  solBalance,
   busy,
   onClose,
   onFund,
@@ -425,17 +425,17 @@ function PurchaseConfirmation({
 }: {
   pack: StarPackQuote;
   shop: StarShopView;
-  usdcBalance: bigint | null;
+  solBalance: bigint | null;
   busy: boolean;
   onClose: () => void;
   onFund: () => void;
   onConfirm: () => void;
 }) {
   const split = splitStarPurchase(pack.currentPrice);
-  const insufficient = usdcBalance !== null && usdcBalance < pack.currentPrice;
-  const resultingUsdc = usdcBalance === null
+  const insufficient = solBalance !== null && solBalance < pack.currentPrice;
+  const resultingSol = solBalance === null
     ? null
-    : usdcBalance - pack.currentPrice;
+    : solBalance - pack.currentPrice;
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center p-3 sm:items-center">
       <button
@@ -479,19 +479,19 @@ function PurchaseConfirmation({
           />
           <ConfirmMetric
             label="Maximum charge"
-            value={`${formatUsdcBaseUnits(pack.currentPrice)} USDC`}
+            value={`${formatSolLamports(pack.currentPrice)} SOL`}
           />
           <ConfirmMetric
-            label="Wallet USDC"
+            label="Wallet SOL"
             value={
-              usdcBalance === null
+              solBalance === null
                 ? "—"
-                : `${formatUsdcBaseUnits(usdcBalance)} → ${formatUsdcBaseUnits(resultingUsdc!)}`
+                : `${formatSolLamports(solBalance)} → ${formatSolLamports(resultingSol!)}`
             }
           />
           <ConfirmMetric
             label="Network fee"
-            value="Sponsored · 0 SOL"
+            value="Paid by wallet · usually <0.00001 SOL"
           />
         </div>
 
@@ -505,7 +505,7 @@ function PurchaseConfirmation({
         <p className="mt-3 font-sans text-[11px] leading-4 text-white/45">
           The Shop re-checks the on-chain quote before submission. If a sale or
           pack changes, you will be asked to review the new price. Your wallet
-          must approve this exact USDC purchase; a zKube session cannot spend USDC.
+          must approve this exact SOL purchase; a zKube session cannot spend SOL.
         </p>
 
         {insufficient ? (
@@ -520,13 +520,13 @@ function PurchaseConfirmation({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={busy || usdcBalance === null}
+            disabled={busy || solBalance === null}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-300 py-3 font-sans text-sm font-black text-yellow-950 disabled:opacity-45"
           >
             {busy && <Loader2 size={16} className="animate-spin" />}
             {busy
               ? "Purchasing…"
-              : `Approve ${formatUsdcBaseUnits(pack.currentPrice)} USDC in wallet`}
+              : `Approve ${formatSolLamports(pack.currentPrice)} SOL in wallet`}
           </button>
         )}
       </section>
@@ -550,7 +550,7 @@ function SplitRow({ label, value }: { label: string; value: bigint }) {
     <div className="flex items-center justify-between py-0.5">
       <span>{label}</span>
       <span className="font-bold text-white/80">
-        {formatUsdcBaseUnits(value)} USDC
+        {formatSolLamports(value)} SOL
       </span>
     </div>
   );

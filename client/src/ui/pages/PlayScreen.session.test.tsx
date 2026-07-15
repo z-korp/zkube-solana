@@ -233,7 +233,7 @@ describe("PlayScreen settled summary", () => {
   });
 
   it("shows Retry settlement and blocks Continue after cleanup failure", () => {
-    fixtures.error = "paymaster failed";
+    fixtures.error = "device fee balance low";
     fixtures.settledCleanupStatus = "failed";
 
     render(<PlayScreen />);

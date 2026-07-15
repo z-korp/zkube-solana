@@ -74,20 +74,20 @@ export function pendingCompletionFromRun(
 
 /**
  * Translate low-level run-start failures into player-honest copy. A prepare
- * simulation failing with the System program's `Custom:1` means the sponsor
- * could not fund the envelope (insufficient paymaster lamports) — a service
- * condition, not something the player can fix.
+ * simulation failing with the System program's `Custom:1` means the device fee
+ * allowance or shared player funding vault is too low. The next Enable/renew
+ * approval replenishes both balances.
  */
 export function describeRunStartError(message: string): {
   headline: string;
   detail: string | null;
 } {
-  const sponsorshipDry =
+  const fundingDry =
     message.includes("Simulation failed for") && message.includes('"Custom":1}');
-  if (sponsorshipDry) {
+  if (fundingDry) {
     return {
       headline:
-        "Sponsored play is temporarily unavailable — please try again soon.",
+        "Your zKube play balance is low — renew the device session to refill it.",
       detail: message,
     };
   }
@@ -385,7 +385,7 @@ export function usePlayController() {
     // Session rotation is infrastructure, not a player decision. Attempt it
     // silently once for each authorization lapse; a failure keeps this latch
     // set until the explicit retry affordance resets it, protecting the
-    // paymaster from watcher-driven resubmission loops.
+    // device fee allowance from watcher-driven resubmission loops.
     renewingSessionRunRef.current = activeRun.runId;
     setSessionRenewalStatus("renewing");
     void recoverSession().catch(() => setSessionRenewalStatus("failed"));
@@ -443,7 +443,7 @@ export function usePlayController() {
       .catch(() => {
         // The run hook exposes the failure. Keep the per-run guard set until
         // the user explicitly retries so watcher refreshes cannot hammer the
-        // settlement pipeline with repeated sponsored transactions.
+        // settlement pipeline with repeated session-signed transactions.
       });
   }, [
     campaign.campaign?.maps,
@@ -479,9 +479,9 @@ export function usePlayController() {
     }
 
     // A consumed receipt still leaves transient ActiveRun rent to reclaim.
-    // Fire that sponsored cleanup once on attachment; only an explicit retry
+    // Fire that session-signed cleanup once on attachment; only an explicit retry
     // clears this per-run latch after failure, so watcher refreshes cannot
-    // hammer the paymaster.
+    // drain the device fee allowance.
     settlingRunRef.current = chainSettledReceipt.runId;
     setSettledCleanupStatus("running");
     void cleanup()

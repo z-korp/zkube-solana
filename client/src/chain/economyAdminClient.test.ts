@@ -28,7 +28,6 @@ describe("economy authority builders", () => {
       authority,
       config: {
         dailyRulesVersion: 1,
-        paymentMint: Keypair.generate().publicKey,
       },
     });
     const keys = plan.transaction.instructions[0].keys;

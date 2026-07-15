@@ -1,3 +1,12 @@
+/**
+ * Bounded permissionless reconciliation worker.
+ *
+ * The keeper owns only its own signer. It derives current work from validated
+ * chain state, submits at most the configured number of one-way transitions,
+ * never overlaps passes, and stops before planning writes when the keeper's
+ * own fee balance is below its reserve floor. Orphan recovery may consume an exact
+ * terminal receipt but cannot close player run accounts.
+ */
 import { randomUUID } from "node:crypto";
 import { Connection, Keypair } from "@solana/web3.js";
 
@@ -12,17 +21,21 @@ import {
   fetchDailyView,
   type DailyPlayerRecord,
   type DailyView,
-} from "../chain/dailyClient.js";
-import { fetchEconomyRuntime } from "../chain/economyClient.js";
-import { deriveDailyChallengePda } from "../chain/pdas.js";
-import type { PaymasterClient } from "../chain/paymasterClient.js";
-import { submitSponsoredTransactionPlan, type TransactionPlan } from "../chain/runPlan.js";
-import { SessionWallet, type WalletLike } from "../chain/sessionWallet.js";
+} from "../../client/src/chain/dailyClient.js";
+import { fetchEconomyRuntime } from "../../client/src/chain/economyClient.js";
+import { deriveDailyChallengePda } from "../../client/src/chain/pdas.js";
+import {
+  buildConsumeReceiptRecoveryPlan,
+  submitVersionedTransactionPlan,
+  type TransactionPlan,
+} from "../../client/src/chain/runPlan.js";
+import { fetchOrphanedReceiptCandidates } from "../../client/src/chain/settlementRecovery.js";
+import { SessionWallet, type WalletLike } from "../../client/src/chain/sessionWallet.js";
 import {
   buildCloseWeeklyChallengePlan,
   buildCloseWeeklyPlayerPlan,
   buildFinalizeWeeklyPlan,
-  buildForfeitWeeklyCashPlan,
+  buildForfeitWeeklySolPlan,
   buildOpenWeeklyPlan,
   buildRollupDailyPlan,
   currentWeeklyId,
@@ -32,10 +45,10 @@ import {
   fetchWeeklyView,
   type WeeklyPlayerRecord,
   type WeeklyView,
-} from "../chain/weeklyClient.js";
+} from "../../client/src/chain/weeklyClient.js";
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
-const DEFAULT_MIN_PAYMASTER_LAMPORTS = 1_500_000_000;
+const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
 const MAX_PASS_DURATION_MS = 210_000;
 
 export interface KeeperLogEvent {
@@ -69,7 +82,6 @@ export interface KeeperPassResult {
 export interface KeeperDependencies {
   connection: Connection;
   keeper: Keypair;
-  paymaster: PaymasterClient;
   now?: () => number;
   maxWrites?: number;
   minimumBalanceLamports?: number;
@@ -107,12 +119,12 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     Math.max(1, dependencies.maxWrites ?? DEFAULT_MAX_WRITES),
   );
   const minimumBalanceLamports =
-    dependencies.minimumBalanceLamports ?? DEFAULT_MIN_PAYMASTER_LAMPORTS;
+    dependencies.minimumBalanceLamports ?? DEFAULT_MIN_KEEPER_LAMPORTS;
   const traceId = randomUUID();
   const log = dependencies.log ?? (() => undefined);
   const wallet = new SessionWallet(dependencies.keeper);
   const balanceLamports = await dependencies.connection.getBalance(
-    dependencies.paymaster.pubkey,
+    dependencies.keeper.publicKey,
     "confirmed",
   );
   log({
@@ -125,7 +137,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   });
   if (balanceLamports < minimumBalanceLamports) {
     throw new Error(
-      `paymaster reserve ${balanceLamports} is below keeper floor ${minimumBalanceLamports}`,
+      `keeper fee reserve ${balanceLamports} is below floor ${minimumBalanceLamports}`,
     );
   }
   const runtime = await fetchEconomyRuntime({ connection: dependencies.connection, wallet });
@@ -134,7 +146,10 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   let writes = 0;
   let backlog = 0;
   let operationFailures = 0;
-  const execute = async (operation: string, plan: TransactionPlan): Promise<boolean> => {
+  const execute = async (
+    operation: string,
+    plan: TransactionPlan,
+  ): Promise<boolean> => {
     if (
       writes >= maxWrites ||
       Date.now() - startedAt >= MAX_PASS_DURATION_MS
@@ -144,10 +159,9 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     }
     const operationStartedAt = Date.now();
     try {
-      const signature = await submitSponsoredTransactionPlan({
+      const signature = await submitVersionedTransactionPlan({
         transactionPlan: plan,
         wallet,
-        paymaster: dependencies.paymaster,
       });
       await dependencies.connection.confirmTransaction(signature, "confirmed");
       writes += 1;
@@ -176,6 +190,25 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     }
   };
 
+  const orphanedReceipts = await fetchOrphanedReceiptCandidates(
+    dependencies.connection,
+    maxWrites,
+  );
+  for (const candidate of orphanedReceipts) {
+    await execute(
+      `consume_orphaned_${candidate.mode}_receipt`,
+      await buildConsumeReceiptRecoveryPlan({
+        connection: dependencies.connection,
+        wallet,
+        owner: candidate.owner,
+        runId: candidate.runId,
+        addresses: candidate.addresses,
+        mode: candidate.mode,
+        dailyChallenge: candidate.dailyChallenge,
+      }),
+    );
+  }
+
   const dayId = currentDailyDayId(now);
   const weekId = currentWeeklyId(now);
   let currentWeekly = await fetchWeeklyView({
@@ -190,7 +223,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         connection: dependencies.connection,
         wallet,
         weekId,
-        paymaster: dependencies.paymaster.pubkey,
+        payer: dependencies.keeper.publicKey,
       }),
     );
     currentWeekly = await fetchWeeklyView({
@@ -211,7 +244,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         connection: dependencies.connection,
         wallet,
         dayId,
-        paymaster: dependencies.paymaster.pubkey,
+        payer: dependencies.keeper.publicKey,
       }),
     );
     currentDaily = await fetchDailyView({
@@ -240,7 +273,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           daily,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -277,7 +309,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
             wallet,
             daily,
             weekly,
-            paymaster: dependencies.paymaster.pubkey,
             playerOwner: owner,
           }),
         )) &&
@@ -313,7 +344,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
             connection: dependencies.connection,
             wallet,
             weekly,
-            paymaster: dependencies.paymaster.pubkey,
           }),
         );
         weekly = await fetchWeeklyView({
@@ -326,12 +356,11 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     }
     if (weekly.status === "claimable" && now > weekly.claimsCloseAt) {
       await execute(
-        "forfeit_weekly_cash",
-        await buildForfeitWeeklyCashPlan({
+        "forfeit_weekly_sol",
+        await buildForfeitWeeklySolPlan({
           connection: dependencies.connection,
           wallet,
           weekly,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -367,7 +396,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           wallet,
           daily,
           owner: player.owner,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
       if (writes >= maxWrites) break;
@@ -384,7 +412,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           daily,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -414,7 +441,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           wallet,
           weekly,
           owner: player.owner,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
       if (writes >= maxWrites) break;
@@ -435,7 +461,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           connection: dependencies.connection,
           wallet,
           weekly,
-          paymaster: dependencies.paymaster.pubkey,
         }),
       );
     }
@@ -484,10 +509,10 @@ export function weeklyPlayerCanClose(weekly: WeeklyView, player: WeeklyPlayerRec
   if (weekly.status === "closed") return true;
   if (weekly.status !== "claimable") return false;
   const rank = weekly.leaderboard.findIndex((entry) => entry.player.equals(player.owner));
-  const cashWinner = rank >= 0 && rank < weekly.cashWinnerCount;
+  const solWinner = rank >= 0 && rank < weekly.solWinnerCount;
   const starWinner =
-    rank >= 0 && rank < weekly.cashWinnerCount + weekly.starWinnerCount;
-  return (!cashWinner || player.cashClaimed) && (!starWinner || player.starsClaimed);
+    rank >= 0 && rank < weekly.solWinnerCount + weekly.starWinnerCount;
+  return (!solWinner || player.solClaimed) && (!starWinner || player.starsClaimed);
 }
 
 async function weeklyDailiesComplete(args: {

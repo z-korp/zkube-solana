@@ -6,8 +6,7 @@ import {
   type CampaignView,
 } from "./campaignClient";
 import { fetchEconomyRuntime, type EconomyRuntime } from "./economyClient";
-import { fetchPaymasterClient } from "./paymasterClient";
-import { submitSponsoredTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "./runPlan";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { SessionWallet } from "./sessionWallet";
 
@@ -59,7 +58,6 @@ export function useCampaignController() {
       const sessionWallet = new SessionWallet(session.signer);
       setUnlocking(true);
       try {
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildUnlockMapWithStarsPlan({
           connection,
           wallet: sessionWallet,
@@ -67,12 +65,10 @@ export function useCampaignController() {
           sessionToken: session.sessionToken,
           contentVersion: campaign.contentVersion,
           mapId,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();
