@@ -9,17 +9,24 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 import { ZKUBE_PROGRAM_ID } from "./constants";
+import { getClosestValidator } from "./router";
 import {
   SPONSORED_GAME_DISCRIMINATORS,
   validatePaymasterTransaction,
 } from "../server/paymaster";
 import {
+  buildDelegateRunPlan,
   buildFinalizeRunPlan,
   compileSponsoredTransactionPlan,
   type TransactionPlan,
 } from "./runPlan";
 import { deriveProtocolConfigPda, deriveRunAddresses } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
+
+vi.mock("./router", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./router")>();
+  return { ...original, getClosestValidator: vi.fn() };
+});
 
 describe("sponsored transaction plans", () => {
   it("compiles, player-signs, simulates, and passes the server policy", async () => {
@@ -73,6 +80,59 @@ describe("sponsored transaction plans", () => {
         paymaster: paymaster.publicKey,
       }),
     ).rejects.toThrow("selected paymaster");
+  });
+
+  it("accepts the exact router-selected 13-account delegation layout", async () => {
+    const paymaster = Keypair.generate();
+    const owner = Keypair.generate();
+    const validator = Keypair.generate().publicKey;
+    const connection = sponsoredConnection();
+    vi.mocked(getClosestValidator).mockResolvedValueOnce({ identity: validator });
+
+    const transactionPlan = await buildDelegateRunPlan({
+      wallet: new SessionWallet(owner),
+      ownerAuthority: owner.publicKey,
+      sessionToken: null,
+      addresses: deriveRunAddresses(owner.publicKey, 7n),
+      connection,
+      paymaster: paymaster.publicKey,
+    });
+    const instruction = transactionPlan.transaction.instructions[0];
+    expect(instruction?.keys).toHaveLength(13);
+    expect(instruction?.keys[12]).toEqual({
+      pubkey: validator,
+      isSigner: false,
+      isWritable: false,
+    });
+
+    const transaction = await compileSponsoredTransactionPlan({
+      transactionPlan,
+      wallet: new SessionWallet(owner),
+      paymaster: paymaster.publicKey,
+    });
+
+    expect(compiledDiscriminators(transaction)).toEqual([
+      SPONSORED_GAME_DISCRIMINATORS.delegateActiveRun,
+    ]);
+    expect(
+      validatePaymasterTransaction(transaction, paymaster.publicKey),
+    ).toBeNull();
+
+    instruction!.keys[12] = {
+      ...instruction!.keys[12]!,
+      isWritable: true,
+    };
+    const writableValidatorTransaction = await compileSponsoredTransactionPlan({
+      transactionPlan,
+      wallet: new SessionWallet(owner),
+      paymaster: paymaster.publicKey,
+    });
+    expect(
+      validatePaymasterTransaction(
+        writableValidatorTransaction,
+        paymaster.publicKey,
+      ),
+    ).toContain("validator must be a read-only non-signer");
   });
 
   it("compiles the exact unconsumed campaign recovery envelope accepted by the paymaster", async () => {
