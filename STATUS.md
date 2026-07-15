@@ -101,8 +101,10 @@ adds a bounded five-minute Fly worker, silent all-history owner claims/refunds,
 structured base/Router/ER/VRF/Magic-Action/paymaster logs, and a signer-free
 Devnet cost report. The worker never loads the paymaster signer: it submits its
 keeper-signed v0 messages to the separate paymaster HTTPS app.
-`KEEPER_ENABLED=false` remains the final gate until the breaking program is live
-and autonomous writes receive separate approval.
+`KEEPER_ENABLED=true` is live after separate autonomous-write approval. Its
+first pass opened the current Daily and finalized the stale prior Daily with
+two writes, zero failures, and zero backlog. The next scheduled pass was
+idempotent: zero writes, zero failures, and zero backlog.
 
 The one-time reset closed 141 incompatible program-owned accounts and returned
 316,993,200 lamports to the paymaster. The reset entrypoint is permanently
@@ -180,9 +182,9 @@ polling, with a slow poll only as a dropped-socket fallback.
 
 The external-wallet PWA source is on `main`; Vercel production deployment
 `dpl_27bwofsKVtcmf3ndRJSFMkV4n9QN` is ready on the canonical alias. The app and
-manifest return 200. The breaking program and Fly relay are live, but the
-disabled keeper and uncompleted real-wallet smoke keep this maintenance
-interval open. Visible client errors are not acceptance evidence. The release's
+manifest return 200. The breaking program, Fly relay, and bounded keeper are
+live, but the uncompleted real-wallet smoke keeps this maintenance interval
+open. Visible client errors are not acceptance evidence. The release's
 offline gates pass:
 84 active Rust tests (one offline Daily tuning harness ignored), formatting,
 warnings-denied Clippy, optimized SBF/IDL generation, and diagnostics; the
@@ -218,13 +220,15 @@ the configured paymaster public key/endpoint. Both app names are provisioned in
 the `jcn-data` organization. Paymaster Machine `683996ec255508` is started with
 one passing readiness check; `/healthz`, `/readyz`, and `/api/paymaster` all
 return the expected healthy identity. Keeper Machine `e825d16a4d1538` is
-started from the same image and logs `outcome:"disabled"` because
-`KEEPER_ENABLED=false`. The relay has only `PAYMASTER_SECRET_KEY`; the worker
-has only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service secrets
-is complete; the static Vercel project now has no environment variables. No
-signer bytes are stored in the repository. Deployment payer and
-upgrade-authority signers remain local to the operator and must never be
-installed on either Fly app.
+started as version 3 with `KEEPER_ENABLED=true`. Its first pass reported healthy
+reserve, two successful allowlisted operations, zero failures, and zero
+backlog; the next scheduled pass completed with zero writes, zero failures,
+and zero backlog. The relay has only `PAYMASTER_SECRET_KEY`; the worker has
+only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service secrets is
+complete; the static Vercel project now has no environment variables. No
+signer bytes are stored in the repository. Deployment payer and upgrade-
+authority signers remain local to the operator and must never be installed on
+either Fly app.
 
 `/.well-known/assetlinks.json` cannot be finalized until the external Android
 release keystore supplies its SHA-256 certificate fingerprint. The template and
@@ -246,8 +250,9 @@ follow-up landed on 2026-07-12: dry-sponsor prepare failures render honest
 diagnostic line), the Home banner warns below a configurable reserve
 (`VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS`, candidate default 1.5 SOL), and the quit
 dialog describes on-chain abandon. Deploying the new readiness/keeper source
-is complete; the keeper remains disabled until the reserve is refilled and
-activation is separately approved.
+and separately approved activation are complete. The hard reserve breaker
+stops a pass before any transaction planning or submission when the paymaster
+is below 1.5 SOL.
 
 ### Rent economics — live, measured
 
@@ -274,7 +279,7 @@ A separately approved System Program transfer added exactly 0.2 SOL to the
 paymaster at slot `476435790`, with a 5,000-lamport fee and no other
 instruction. Signature:
 `4s1sBDh8DimPpMTj7fhUAToGxEH6eJqbMqr5gMXwpwNGgh4Z48G9kq9YXTFWdszF5VmGHfHRyXZrFbc7DtYazpdn`.
-The verified balance is now **1.644797 SOL**. The keeper now treats its reserve
+The post-refill balance was **1.644797 SOL**. The keeper now treats its reserve
 threshold as a hard no-write circuit breaker rather than telemetry only. The
 reclaimable-working-capital model
 recommends 0.740649216,
@@ -282,9 +287,15 @@ recommends 0.740649216,
 and 100 active players respectively (seven Daily generations, thirteen claim
 weeks, winner retention, observed fresh-player durable cost, and 20%
 contingency). The initial source default is therefore a **1.5 SOL warning
-floor** for the 25-player scenario. The current balance is 0.144797 SOL above
-the floor. The same probe found Daily `20648` still open after entry close, with zero
-outstanding runs, rollups, or cleanup.
+floor** for the 25-player scenario. After the first active keeper pass, the
+balance is **1.6086894 SOL**, 0.1086894 SOL above the floor. Daily `20648` is
+claimable and Daily `20649` is open, with zero outstanding runs, rollups, or
+cleanup and no readiness alerts. First-pass signatures:
+`Y7j758piCJCeRkY6WiPQ2uCfpySDiWp4jJPjaXLcq5tVdF5iQMces2kPcSNr7zrbYDYMznWG1qYKm5wwYrrTkGF`
+and
+`2wLRDnZx9FtjbwaUY6EKBfc9uFWRUuGMomM8q3AZJjS8qz4vq6kf5ibQu4PGqNiGbiFLQ7VKjKcVKziSKGgrP9ZB`.
+The next scheduled pass at 12:40 UTC was idempotent: readiness remained true
+and it produced zero writes, zero failures, and zero backlog.
 
 The post-reset read-only report sampled the latest 100 paymaster signatures:
 84 successful and 16 failed historical attempts. Successful transactions used
@@ -303,13 +314,13 @@ conservatively labelled `magicblock_or_system`.
    Do not produce the signed TWA APK or final Asset Links file before this
    evidence and the external signing-certificate fingerprint exist.
 2. **Operations rollout.** The isolated Fly runtime secrets are staged. Program
-   extension/upgrade and relay/disabled-keeper deployment and verification are
-   complete. The coherent release is pushed, Vercel production is verified, and
-   legacy Vercel service variables are removed. The paymaster refill and hard
-   reserve circuit breaker are complete.
-   Separately approve `KEEPER_ENABLED=true` only after the breaking program is
-   live; verify five-minute `keeper_*`, `paymaster_request`, and `run_metric`
-   logs. Autonomous writes remain disabled.
+   extension/upgrade and relay/keeper deployment and verification are complete.
+   The coherent release is pushed, Vercel production is verified, and legacy
+   Vercel service variables are removed. The paymaster refill and hard reserve
+   circuit breaker are complete. The bounded keeper is separately approved and
+   active; its first write pass, relay submissions, and idempotent next pass are
+   verified. Continue verifying five-minute `keeper_*`, `paymaster_request`,
+   and `run_metric` logs during acceptance.
 3. **Security and launch debt.** Complete independent program/paymaster/
    treasury review, validator/RPC concurrency and failure-recovery evidence,
    production bundle splitting, jurisdiction/terms/age policy, operator and

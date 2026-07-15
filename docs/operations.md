@@ -204,21 +204,23 @@ SOL reserve floor are pinned in `fly.keeper.toml`. `PAYMASTER_SECRET_KEY` must
 not exist in the keeper app. The worker verifies the RPC genesis/program and
 the relay's advertised public identity before each pass. It discovers work
 from current chain state, uses on-chain one-way transitions and counters, and
-awaits each pass before scheduling another. A restart or later pass safely
-catches interrupted work.
+awaits each pass before scheduling another. It aborts before building or
+submitting any write when the paymaster is below the reserve floor. A restart
+or later pass safely catches interrupted work.
 
-`KEEPER_ENABLED=false` is committed in the Fly config. Deploy and observe the
-disabled worker first. Changing it to true is a separate autonomous-write
-approval and must happen only after the breaking program/IDL is live. Keep
-exactly one worker Machine; do not scale it horizontally as an availability
-substitute for restart recovery.
+`KEEPER_ENABLED=true` is the separately approved current Devnet state. For a
+fresh rollout or incident recovery, deploy and observe the worker disabled
+first; changing it to true always needs a distinct autonomous-write approval
+and a live compatible program/IDL. Keep exactly one worker Machine; do not
+scale it horizontally as an availability substitute for restart recovery.
 
-After a human transfers the two existing runtime signer secrets without
-exposing them and the breaking program is live, deploy the paymaster first,
-verify `/healthz`, `/readyz`, and GET `/api/paymaster`, then deploy the disabled
-keeper. The static client is already public for the maintenance interval. Only
-after Fly acceptance should the legacy paymaster/keeper secrets and cron
-configuration be removed from the Vercel project.
+For a fresh rollout, after a human transfers the two runtime signer secrets
+without exposing them and the compatible program is live, deploy the paymaster
+first, verify `/healthz`, `/readyz`, and GET `/api/paymaster`, then deploy the
+disabled keeper. Only after Fly acceptance should legacy paymaster/keeper
+secrets and cron configuration be removed from the static hosting project. The
+current Devnet rollout completed this sequence and Vercel now has no service
+secrets or cron configuration.
 
 Use `fly deploy --ha=false` for each initial deployment and verify one Machine
 per app afterward. The paymaster drains HTTP for up to 30 seconds on SIGTERM;
