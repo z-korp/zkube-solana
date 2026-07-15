@@ -180,18 +180,28 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 `awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
 polling, with a slow poll only as a dropped-socket fallback.
 
-The external-wallet PWA source is on `main`; Vercel production deployment
-`dpl_27bwofsKVtcmf3ndRJSFMkV4n9QN` is ready on the canonical alias. The app and
-manifest return 200. The breaking program, Fly relay, and bounded keeper are
-live, but the uncompleted real-wallet smoke keeps this maintenance interval
-open. Visible client errors are not acceptance evidence. The release's
-offline gates pass:
+The external-wallet PWA source is on `main`; the latest Vercel production
+deployment is ready on the canonical alias. The app and manifest return 200.
+The breaking program, Fly relay, and bounded keeper are live, but the
+uncompleted real-wallet smoke keeps this maintenance interval open. Visible
+client errors are not acceptance evidence. The release's offline gates pass:
 84 active Rust tests (one offline Daily tuning harness ignored), formatting,
 warnings-denied Clippy, optimized SBF/IDL generation, and diagnostics; the
 generated IDL has 49 instructions and 19 account types. Client IDL parity,
 project and chain-only typechecking, strict lint, production build, and 71
-Vitest files / 291 tests pass. These static results are not a deployment or a
+Vitest files / 292 tests pass. These static results are not a deployment or a
 substitute for the real-wallet acceptance listed below.
+
+The first real external-wallet Campaign launch confirmed connect, immediate
+session enablement, player initialization, sponsored preparation, and
+session-signed cleanup. It also exposed a stale relay-only account count:
+`delegateActiveRun` has twelve generated IDL accounts plus the required
+router-selected validator remaining account, while the relay still expected
+twelve total. Commit `b9b8eab` accepts the exact 13-account layout and requires
+the validator slot to remain a read-only non-signer. Paymaster Machine version
+2 is healthy with this fix. The program and client instruction were already
+correct, so no program upgrade was required; delegated play remains pending a
+fresh real-wallet retry.
 
 The Campaign is fully authored rather than generated: ten active
 maps use one fixed mutator/bonus identity across each map, compact per-level
@@ -217,16 +227,16 @@ concurrency limits; `zkube-solana-devnet-keeper` is a non-public,
 restart-always worker with one non-overlapping pass every five minutes. The
 keeper owns only identity `6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg` and
 the configured paymaster public key/endpoint. Both app names are provisioned in
-the `jcn-data` organization. Paymaster Machine `683996ec255508` is started with
-one passing readiness check; `/healthz`, `/readyz`, and `/api/paymaster` all
-return the expected healthy identity. Keeper Machine `e825d16a4d1538` is
-started as version 3 with `KEEPER_ENABLED=true`. Its first pass reported healthy
-reserve, two successful allowlisted operations, zero failures, and zero
-backlog; the next scheduled pass completed with zero writes, zero failures,
-and zero backlog. The relay has only `PAYMASTER_SECRET_KEY`; the worker has
-only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service secrets is
-complete; the static Vercel project now has no environment variables. No
-signer bytes are stored in the repository. Deployment payer and upgrade-
+the `jcn-data` organization. Paymaster Machine `683996ec255508` is started as
+version 2 with one passing readiness check; `/healthz`, `/readyz`, and
+`/api/paymaster` all return the expected healthy identity. Keeper Machine
+`e825d16a4d1538` is started as version 3 with `KEEPER_ENABLED=true`. Its first
+pass reported healthy reserve, two successful allowlisted operations, zero
+failures, and zero backlog; the next scheduled pass completed with zero writes,
+zero failures, and zero backlog. The relay has only `PAYMASTER_SECRET_KEY`;
+the worker has only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service
+secrets is complete; the static Vercel project now has no environment
+variables. No signer bytes are stored in the repository. Deployment payer and upgrade-
 authority signers remain local to the operator and must never be installed on
 either Fly app.
 
