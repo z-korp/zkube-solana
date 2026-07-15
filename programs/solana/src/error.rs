@@ -80,6 +80,8 @@ pub enum ErrorCode {
     VrfRequestPending,
     #[msg("No VRF request is pending")]
     NoVrfRequestPending,
+    #[msg("The VRF callback does not match the pending request")]
+    VrfRequestMismatch,
     #[msg("The run receipt does not match the committed run")]
     ReceiptMismatch,
     #[msg("The player has no Daily prize")]

@@ -263,8 +263,16 @@ pub mod solana {
         instructions::run_lifecycle::handler_request_row_vrf(ctx, client_seed)
     }
 
-    pub fn fulfill_row_vrf(ctx: Context<FulfillRowVrf>, randomness: [u8; 32]) -> Result<()> {
-        instructions::run_lifecycle::handler_fulfill_row_vrf(ctx, randomness)
+    pub fn fulfill_row_vrf(
+        ctx: Context<FulfillRowVrf>,
+        randomness: [u8; 32],
+        expected_request_counter: u32,
+    ) -> Result<()> {
+        instructions::run_lifecycle::handler_fulfill_row_vrf(
+            ctx,
+            randomness,
+            expected_request_counter,
+        )
     }
 
     pub fn play_move(
@@ -274,6 +282,7 @@ pub mod solana {
         row: u8,
         start: u8,
         destination: u8,
+        client_seed: [u8; 32],
     ) -> Result<()> {
         instructions::run_lifecycle::handler_play_move(
             ctx,
@@ -282,6 +291,7 @@ pub mod solana {
             row,
             start,
             destination,
+            client_seed,
         )
     }
 
@@ -290,8 +300,15 @@ pub mod solana {
         expected_action: u32,
         row: u8,
         column: u8,
+        client_seed: [u8; 32],
     ) -> Result<()> {
-        instructions::run_lifecycle::handler_apply_bonus(ctx, expected_action, row, column)
+        instructions::run_lifecycle::handler_apply_bonus(
+            ctx,
+            expected_action,
+            row,
+            column,
+            client_seed,
+        )
     }
 
     pub fn seal_run(ctx: Context<SealRun>) -> Result<()> {

@@ -8,10 +8,12 @@
  */
 import {
   AnchorProvider,
+  BorshAccountsCoder,
   Program as AnchorProgram,
   type Program,
 } from "@anchor-lang/core";
 import BN from "bn.js";
+import { Buffer } from "buffer";
 import {
   Connection,
   Keypair,
@@ -256,7 +258,11 @@ export async function buildPrepareCampaignRunPlan(args: {
   }
   const instructions = [
     await program.methods
-      .fundedPrepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
+      .fundedPrepareCampaignRun(
+        new BN(runId.toString()),
+        args.mapId,
+        args.level,
+      )
       .accountsPartial({
         protocol: protocolAddress,
         playerProfile: profileAddress,
@@ -425,8 +431,13 @@ export async function buildPlayMovePlan(args: {
   row: number;
   start: number;
   destination: number;
+  clientSeed?: Uint8Array;
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.sessionWallet);
+  const clientSeed =
+    args.clientSeed ?? crypto.getRandomValues(new Uint8Array(32));
+  if (clientSeed.length !== 32)
+    throw new Error("clientSeed must contain 32 bytes");
   const instruction = await program.methods
     .playMove(
       args.expectedAction,
@@ -434,12 +445,15 @@ export async function buildPlayMovePlan(args: {
       args.row,
       args.start,
       args.destination,
+      [...clientSeed],
     )
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
       sessionToken: args.sessionToken,
       actor: args.sessionWallet.publicKey,
+      oracleQueue: VRF_QUEUE,
+      delegationRecordActive: getDelegationRecord(args.activeRun),
     })
     .instruction();
   return plan(
@@ -460,15 +474,22 @@ export async function buildApplyBonusPlan(args: {
   expectedAction: number;
   row: number;
   column: number;
+  clientSeed?: Uint8Array;
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.sessionWallet);
+  const clientSeed =
+    args.clientSeed ?? crypto.getRandomValues(new Uint8Array(32));
+  if (clientSeed.length !== 32)
+    throw new Error("clientSeed must contain 32 bytes");
   const instruction = await program.methods
-    .applyBonus(args.expectedAction, args.row, args.column)
+    .applyBonus(args.expectedAction, args.row, args.column, [...clientSeed])
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
       sessionToken: args.sessionToken,
       actor: args.sessionWallet.publicKey,
+      oracleQueue: VRF_QUEUE,
+      delegationRecordActive: getDelegationRecord(args.activeRun),
     })
     .instruction();
   return plan(
@@ -731,20 +752,40 @@ async function buildConsumeReceiptInstruction(
 
 export async function fetchActiveRun(
   connection: Connection,
-  wallet: WalletLike,
+  _wallet: WalletLike,
   activeRun: PublicKey,
 ): Promise<ActiveRunView | null> {
-  const account = await zkubeProgram(
-    connection,
-    wallet,
-  ).account.activeRun.fetchNullable(activeRun);
-  if (!account) return null;
-  return mapActiveRunAccount(account);
+  const info = await connection.getAccountInfo(activeRun, "confirmed");
+  if (!info) return null;
+  return decodeActiveRunAccount(info.data, info.owner);
 }
 
 type DecodedActiveRunAccount = Awaited<
   ReturnType<ReturnType<typeof zkubeProgram>["account"]["activeRun"]["fetch"]>
 >;
+
+const activeRunCoder = new BorshAccountsCoder(IDL);
+const activeRunAccountSize = activeRunCoder.size("ActiveRun");
+
+/** Validate owner, exact fixed size, and discriminator before ER/base decode. */
+export function decodeActiveRunAccount(
+  data: Uint8Array,
+  owner: PublicKey,
+): ActiveRunView {
+  if (!owner.equals(ZKUBE_PROGRAM_ID)) {
+    throw new Error("ActiveRun account is not owned by the zKube program");
+  }
+  if (data.length !== activeRunAccountSize) {
+    throw new Error(
+      `ActiveRun account length is invalid: expected ${activeRunAccountSize}, received ${data.length}`,
+    );
+  }
+  const decoded = activeRunCoder.decode<DecodedActiveRunAccount>(
+    "ActiveRun",
+    Buffer.from(data),
+  );
+  return mapActiveRunAccount(decoded);
+}
 
 export function mapActiveRunAccount(
   account: DecodedActiveRunAccount,
@@ -891,7 +932,10 @@ export async function submitVersionedTransactionPlan(args: {
     transaction.serialize(),
     { maxRetries: 5, skipPreflight: false },
   );
-  await args.transactionPlan.connection.confirmTransaction(signature, "confirmed");
+  await args.transactionPlan.connection.confirmTransaction(
+    signature,
+    "confirmed",
+  );
   return signature;
 }
 

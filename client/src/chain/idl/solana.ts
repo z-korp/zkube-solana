@@ -141,7 +141,48 @@ export type Solana = {
         },
         {
           "name": "actor",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "oracleQueue",
+          "writable": true,
+          "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+        },
+        {
+          "name": "delegationRecordActive"
+        },
+        {
+          "name": "programIdentity",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrfProgram",
+          "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
+        },
+        {
+          "name": "slotHashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -156,6 +197,15 @@ export type Solana = {
         {
           "name": "column",
           "type": "u8"
+        },
+        {
+          "name": "clientSeed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -3001,6 +3051,10 @@ export type Solana = {
               32
             ]
           }
+        },
+        {
+          "name": "expectedRequestCounter",
+          "type": "u32"
         }
       ]
     },
@@ -4056,7 +4110,48 @@ export type Solana = {
         },
         {
           "name": "actor",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "oracleQueue",
+          "writable": true,
+          "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+        },
+        {
+          "name": "delegationRecordActive"
+        },
+        {
+          "name": "programIdentity",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrfProgram",
+          "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
+        },
+        {
+          "name": "slotHashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -4079,6 +4174,15 @@ export type Solana = {
         {
           "name": "destination",
           "type": "u8"
+        },
+        {
+          "name": "clientSeed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -6416,71 +6520,76 @@ export type Solana = {
     },
     {
       "code": 6031,
+      "name": "vrfRequestMismatch",
+      "msg": "The VRF callback does not match the pending request"
+    },
+    {
+      "code": 6032,
       "name": "receiptMismatch",
       "msg": "The run receipt does not match the committed run"
     },
     {
-      "code": 6032,
+      "code": 6033,
       "name": "noPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6033,
+      "code": 6034,
       "name": "prizeAlreadyClaimed",
       "msg": "The Daily prize has already been claimed"
     },
     {
-      "code": 6034,
+      "code": 6035,
       "name": "prizeClaimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6035,
+      "code": 6036,
       "name": "refundAlreadyClaimed",
       "msg": "The refund has already been claimed"
     },
     {
-      "code": 6036,
+      "code": 6037,
       "name": "invalidProgressRule",
       "msg": "The progression rule is invalid"
     },
     {
-      "code": 6037,
+      "code": 6038,
       "name": "rewardAlreadyClaimed",
       "msg": "This progress reward has already been claimed"
     },
     {
-      "code": 6038,
+      "code": 6039,
       "name": "rewardNotEarned",
       "msg": "The progress requirement has not been met"
     },
     {
-      "code": 6039,
+      "code": 6040,
       "name": "questNotActive",
       "msg": "This quest is not active in the current cadence"
     },
     {
-      "code": 6040,
+      "code": 6041,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6041,
+      "code": 6042,
       "name": "invalidPack",
       "msg": "The selected Star pack does not exist"
     },
     {
-      "code": 6042,
+      "code": 6043,
       "name": "priceChanged",
       "msg": "The Star pack price changed; refresh the quote"
     },
     {
-      "code": 6043,
+      "code": 6044,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6044,
+      "code": 6045,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
     }

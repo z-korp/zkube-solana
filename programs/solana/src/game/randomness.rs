@@ -46,6 +46,19 @@ pub fn row_from_vrf(
     request_counter: u32,
     weights: BlockWeights,
 ) -> Result<Row, RandomnessError> {
+    row_from_vrf_with_draw_budget(randomness, request_counter, weights, 128).map(|(row, _)| row)
+}
+
+/// Map verified randomness into one playable row while sharing a bounded draw
+/// budget with callers that expand a single VRF result into a compound opening
+/// layout. Returning the number of draws lets the callback cap total hashing,
+/// rather than multiplying the old per-row worst case by the opening height.
+pub fn row_from_vrf_with_draw_budget(
+    randomness: [u8; 32],
+    request_counter: u32,
+    weights: BlockWeights,
+    draw_budget: u16,
+) -> Result<(Row, u16), RandomnessError> {
     weights.validate()?;
     let total = weights
         .values
@@ -60,7 +73,7 @@ pub fn row_from_vrf(
 
     while column < GRID_WIDTH {
         attempts = attempts.saturating_add(1);
-        if attempts > 128 {
+        if attempts > draw_budget {
             // Bounded compute fallback for pathological admin-configured
             // weights. Empty cells are always coherent and playable.
             row[column..].fill(0);
@@ -90,7 +103,7 @@ pub fn row_from_vrf(
         row[GRID_WIDTH - 1] = 0;
     }
     Grid::validate_row(&row).map_err(RandomnessError::InvalidGeneratedRow)?;
-    Ok(row)
+    Ok((row, attempts.min(draw_budget)))
 }
 
 fn random_u32(randomness: [u8; 32], request_counter: u32, draw: u32) -> u32 {
@@ -136,6 +149,15 @@ mod tests {
         );
         assert!(first.contains(&0));
         Grid::validate_row(&first).unwrap();
+    }
+
+    #[test]
+    fn shared_draw_budget_bounds_row_expansion() {
+        let (row, draws) =
+            row_from_vrf_with_draw_budget([5u8; 32], 7, BlockWeights::default(), 3).unwrap();
+        assert!(draws <= 3);
+        assert!(row.contains(&0));
+        Grid::validate_row(&row).unwrap();
     }
 
     #[test]
