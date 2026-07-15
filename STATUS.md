@@ -20,25 +20,23 @@ target. Mainnet remains a separate disabled gate.
 
 The external-wallet source candidate is 1,717,880 bytes with SHA-256
 `110a68ae2488dee560af10e33508cefeb2a9648d5b6c710164d18d2293aa3641`.
-Read-only inspection confirms the live ProgramData capacity is 1,716,784
+Pre-extension read-only inspection confirmed the ProgramData capacity was 1,716,784
 bytes. An initial approved 1,096-byte legacy `ExtendProgram` attempt reached a
 signature-verified simulation but failed there with `InvalidArgument`; it was
 not submitted and changed no chain state. Devnet enforces SIMD-0431's
-10,240-byte minimum allocation increment. The corrected planner targets
-1,727,024 bytes, adding 10,240 bytes with 71,270,400 lamports of rent and a
-76,270,400-lamport total payer-spend ceiling including its fee ceiling. A
-signer-free simulation of those corrected instruction bytes succeeds. The
-replacement executable dry-run pins local operator payer
-`7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA` under approval fingerprint
-`9dbe3a88da4ee2b7`; the upgrade authority is preserved and is not an extension
-signer. The corrected transaction has not been signed or submitted. The
-provisional unsigned upgrade preview is `21495a282ff985a5`, but it must be
-regenerated and separately approved only after extension verification.
-The operator payer currently has 11,833,442,841 lamports, while the deployment
-guard requires 12,007,648,880 lamports before creating the upgrade buffer; its
-current shortfall is 174,206,039 lamports before extension fees. A separately
-approved 1-SOL Devnet faucet request provides bounded headroom. No transaction
-was signed or sent.
+10,240-byte minimum allocation increment. The corrected, separately approved
+extension added 10,240 bytes and 71,270,400 lamports of rent under fingerprint
+`9dbe3a88da4ee2b7`. Devnet confirmation and an independent postcondition read
+show 1,727,024 bytes of capacity with the upgrade authority unchanged.
+Extension signature:
+`3e6RXzCF7UUEwtDJS4szrH8K1WivZzjmgGbQmwWYRVxKTk9GHjQh2n7WUcjDSvAcQeNBTPPBZdcgq9YrUE5ZTg6L`.
+
+The post-extension executable upgrade preview is `21495a282ff985a5`. The
+operator payer now has 11,762,167,441 lamports, while the deployment guard
+requires 12,007,648,880 lamports before creating the upgrade buffer; its
+current shortfall is 245,481,439 lamports. A separately approved 1-SOL Devnet
+faucet request provides bounded headroom. The upgrade has not been signed or
+sent.
 
 This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
 blocks**. `Grid::swipe` used to reject moving any but the first block of a
