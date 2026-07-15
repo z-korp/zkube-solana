@@ -76,6 +76,7 @@ interface SponsoredGamePolicy {
   sessionAccountIndex?: number;
   actorAccountIndex?: number;
   payerAccountIndex: number | null;
+  validatorAccountIndex?: number;
 }
 
 const GAME_ACCOUNT_COUNTS: Record<
@@ -95,7 +96,9 @@ const GAME_ACCOUNT_COUNTS: Record<
   closeWeeklyPlayer: 7,
   consumeDailyReceipt: 11,
   consumeRunReceipt: 8,
-  delegateActiveRun: 12,
+  // Twelve generated IDL accounts plus the router-selected validator passed
+  // as the instruction's required remaining account.
+  delegateActiveRun: 13,
   enterDaily: 14,
   finalizeDailyChallenge: 3,
   finalizeWeeklyChallenge: 10,
@@ -124,7 +127,7 @@ const GAME_POLICIES = new Map<string, SponsoredGamePolicy>([
   policy("closeWeeklyPlayer", 6, 5),
   linkedPolicy("consumeDailyReceipt", 8, null),
   linkedPolicy("consumeRunReceipt", 5, null),
-  sessionPolicy("delegateActiveRun", 1, 2, 3, 0),
+  sessionPolicy("delegateActiveRun", 1, 2, 3, 0, 12),
   sessionPolicy("enterDaily", 10, 11, 12, 9),
   policy("finalizeDailyChallenge", 2, null),
   policy("finalizeWeeklyChallenge", 2, null),
@@ -161,6 +164,7 @@ function sessionPolicy(
   sessionAccountIndex: number,
   actorAccountIndex: number,
   payerAccountIndex: number | null,
+  validatorAccountIndex?: number,
 ): [string, SponsoredGamePolicy] {
   return [
     discriminatorKey(SPONSORED_GAME_DISCRIMINATORS[name]),
@@ -171,6 +175,9 @@ function sessionPolicy(
       sessionAccountIndex,
       actorAccountIndex,
       payerAccountIndex,
+      ...(validatorAccountIndex === undefined
+        ? {}
+        : { validatorAccountIndex }),
     },
   ];
 }
@@ -383,6 +390,7 @@ export function validatePaymasterTransaction(
         instruction.accountKeyIndexes,
         keys,
         message.header.numRequiredSignatures,
+        (index) => message.isAccountWritable(index),
         paymaster,
         policy,
         authorities,
@@ -640,6 +648,7 @@ function validateGameInstruction(
   accountIndexes: readonly number[],
   keys: PublicKey[],
   requiredSignatures: number,
+  isAccountWritable: (index: number) => boolean,
   paymaster: PublicKey,
   policy: SponsoredGamePolicy,
   authorities: Set<string>,
@@ -698,6 +707,22 @@ function validateGameInstruction(
     !keys[accountIndexes[policy.payerAccountIndex]]?.equals(paymaster)
   ) {
     return "zkube rent payer must be the paymaster at the expected account position";
+  }
+  if (policy.validatorAccountIndex !== undefined) {
+    const validatorKeyIndex = accountIndexes[policy.validatorAccountIndex];
+    const validator = keys[validatorKeyIndex];
+    if (
+      !validator ||
+      validatorKeyIndex < requiredSignatures ||
+      isAccountWritable(validatorKeyIndex) ||
+      validator.equals(PublicKey.default) ||
+      validator.equals(paymaster) ||
+      validator.equals(ZKUBE_PROGRAM_ID) ||
+      validator.equals(DELEGATION_PROGRAM_ID) ||
+      validator.equals(SystemProgram.programId)
+    ) {
+      return "zkube delegation validator must be a read-only non-signer at the expected account position";
+    }
   }
   return null;
 }
