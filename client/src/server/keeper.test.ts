@@ -1,14 +1,16 @@
 // @vitest-environment node
 
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { describe, expect, it } from "vitest";
+import { type Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { describe, expect, it, vi } from "vitest";
 
 import type { DailyPlayerRecord, DailyView } from "../chain/dailyClient";
+import type { PaymasterClient } from "../chain/paymasterClient";
 import type { WeeklyPlayerRecord, WeeklyView } from "../chain/weeklyClient";
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
   keeperKeypairFromEnv,
+  runKeeperPass,
   weeklyPlayerCanClose,
 } from "./keeper";
 
@@ -28,6 +30,34 @@ describe("autonomous challenge keeper", () => {
         ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
       }),
     ).toThrow("does not match ZKUBE_KEEPER_PUBLIC_KEY");
+  });
+
+  it("blocks every write when the paymaster is below its reserve floor", async () => {
+    const log = vi.fn();
+    const paymaster = {
+      pubkey: Keypair.generate().publicKey,
+    } as PaymasterClient;
+    const connection = {
+      getBalance: vi.fn().mockResolvedValue(1_499_999_999),
+    } as unknown as Connection;
+
+    await expect(
+      runKeeperPass({
+        connection,
+        keeper: Keypair.generate(),
+        paymaster,
+        minimumBalanceLamports: 1_500_000_000,
+        log,
+      }),
+    ).rejects.toThrow("below keeper floor");
+    expect(log).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "keeper_readiness",
+        ok: false,
+        balanceLamports: 1_499_999_999,
+      }),
+    );
   });
 
   it("finalizes only after run close and either settlement or grace", () => {

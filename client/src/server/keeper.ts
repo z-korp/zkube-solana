@@ -123,6 +123,11 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     balanceLamports,
     minimumBalanceLamports,
   });
+  if (balanceLamports < minimumBalanceLamports) {
+    throw new Error(
+      `paymaster reserve ${balanceLamports} is below keeper floor ${minimumBalanceLamports}`,
+    );
+  }
   const runtime = await fetchEconomyRuntime({ connection: dependencies.connection, wallet });
   if (!runtime) throw new Error("lean economy accounts are not active on this deployment");
 
