@@ -10,18 +10,19 @@ target. Mainnet remains a separate disabled gate.
 - Program: `5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`
 - ProgramData: `ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB`
 - Upgrade authority: `2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`
-- Current deployed slot: `476217217`
+- Current deployed slot: `476434232`
 - Current deployed SBF SHA-256:
-  `dd187f69f8c0c3cfb3fcdb9366c5af88a948a27e41ac26e6db3a1d4fc6268be5`
-- Deployed code is 1,716,784 bytes. The post-upgrade ProgramData dump matched
-  the approved artifact byte-for-byte with no trailing payload, and the upgrade
-  authority was preserved. Upgrade signature:
-  `2RPsjCL8Pb7XvzKks4gMtTB2EHmGonM1Q1Gjvb7mD8yjdcvV7eecDwW7YKJQRSZsph1sWWbZf12Hfi4FZHgGSZdh`.
+  `110a68ae2488dee560af10e33508cefeb2a9648d5b6c710164d18d2293aa3641`
+- Deployed code is 1,717,880 bytes in a 1,727,024-byte ProgramData allocation.
+  The post-upgrade dump's active bytes match the approved artifact
+  byte-for-byte and all 9,144 capacity bytes are zero. The upgrade authority
+  was preserved. Upgrade signature:
+  `5dcRe5H2ZP8b5xawpfrVzJkgK2TYnsUTDrPGfmKCwxs57KtjRxLTd3i3NDfPPG7BGo3VxeeYgMtac7CLtaBgEcap`.
 
-The external-wallet source candidate is 1,717,880 bytes with SHA-256
+The external-wallet release is 1,717,880 bytes with SHA-256
 `110a68ae2488dee560af10e33508cefeb2a9648d5b6c710164d18d2293aa3641`.
-Pre-extension read-only inspection confirmed the ProgramData capacity was 1,716,784
-bytes. An initial approved 1,096-byte legacy `ExtendProgram` attempt reached a
+Pre-extension read-only inspection confirmed the ProgramData capacity was
+1,716,784 bytes. An initial approved 1,096-byte legacy `ExtendProgram` attempt reached a
 signature-verified simulation but failed there with `InvalidArgument`; it was
 not submitted and changed no chain state. Devnet enforces SIMD-0431's
 10,240-byte minimum allocation increment. The corrected, separately approved
@@ -31,13 +32,13 @@ show 1,727,024 bytes of capacity with the upgrade authority unchanged.
 Extension signature:
 `3e6RXzCF7UUEwtDJS4szrH8K1WivZzjmgGbQmwWYRVxKTk9GHjQh2n7WUcjDSvAcQeNBTPPBZdcgq9YrUE5ZTg6L`.
 
-The post-extension executable upgrade preview is `21495a282ff985a5`. The
+The post-extension upgrade was separately approved as `21495a282ff985a5`. The
 operator payer was 245,481,439 lamports below the 12,007,648,880-lamport
 deployment floor, so a separately approved Devnet faucet request added exactly
 1 SOL. Its verified balance is now 12,762,167,441 lamports. Faucet signature:
 `22E2Bm2TTD7ymhSNWdhMNhXCn6xc5kL47GD44DYgbRym6of1rKGXZSdG1PswRZHAFcw3iwe9JKrAqMQkPUMFLYGf`.
-The regenerated upgrade fingerprint is unchanged; the upgrade has not been
-signed or sent.
+The regenerated fingerprint remained unchanged through execution and all
+post-deployment checks passed.
 
 This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
 blocks**. `Grid::swipe` used to reject moving any but the first block of a
@@ -177,11 +178,11 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 `awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
 polling, with a slow poll only as a dropped-socket fallback.
 
-The external-wallet PWA is already the public Vercel build from `main`.
-Gameplay is intentionally unavailable during this maintenance interval because
-the live program still has the old ABI and the Fly relay has no Machine yet;
-the visible errors are not acceptance evidence. The source candidate's offline
-gates pass:
+The external-wallet PWA source is on `main`; the corresponding Vercel
+deployment still needs a post-push production check. The breaking program and
+Fly relay are live, but the disabled keeper and uncompleted real-wallet smoke
+keep this maintenance interval open. Visible client errors are not acceptance
+evidence. The release's offline gates pass:
 84 active Rust tests (one offline Daily tuning harness ignored), formatting,
 warnings-denied Clippy, optimized SBF/IDL generation, and diagnostics; the
 generated IDL has 49 instructions and 19 account types. Client IDL parity,
@@ -213,12 +214,15 @@ concurrency limits; `zkube-solana-devnet-keeper` is a non-public,
 restart-always worker with one non-overlapping pass every five minutes. The
 keeper owns only identity `6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg` and
 the configured paymaster public key/endpoint. Both app names are provisioned in
-the `jcn-data` organization. Neither app currently has a Machine or image. The
-relay has only its staged `PAYMASTER_SECRET_KEY`; the worker has only its staged
-`KEEPER_SECRET_KEY`. Machine deployment, live health evidence, and deletion of
-the legacy Vercel service secrets remain rollout work. No signer bytes are
-stored in the repository. Deployment payer and upgrade-authority signers remain
-local to the operator and must never be installed on either Fly app.
+the `jcn-data` organization. Paymaster Machine `683996ec255508` is started with
+one passing readiness check; `/healthz`, `/readyz`, and `/api/paymaster` all
+return the expected healthy identity. Keeper Machine `e825d16a4d1538` is
+started from the same image and logs `outcome:"disabled"` because
+`KEEPER_ENABLED=false`. The relay has only `PAYMASTER_SECRET_KEY`; the worker
+has only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service secrets
+remains rollout work. No signer bytes are stored in the repository. Deployment
+payer and upgrade-authority signers remain local to the operator and must never
+be installed on either Fly app.
 
 ## Paymaster reserve incident
 
@@ -235,7 +239,8 @@ follow-up landed on 2026-07-12: dry-sponsor prepare failures render honest
 diagnostic line), the Home banner warns below a configurable reserve
 (`VITE_PUBLIC_PAYMASTER_MIN_LAMPORTS`, candidate default 1.5 SOL), and the quit
 dialog describes on-chain abandon. Deploying the new readiness/keeper source
-and verifying its production logs remain rollout tasks.
+is complete; the keeper remains disabled until the reserve is refilled and
+activation is separately approved.
 
 ### Rent economics — live, measured
 
@@ -285,11 +290,11 @@ conservatively labelled `magicblock_or_system`.
    Phantom plus one other Wallet Standard wallet. Verify a separately approved
    owner-signed Star purchase and its exact 10/10/80 split. Do not produce the
    signed TWA APK before this evidence exists.
-2. **Operations rollout.** The isolated Fly runtime secrets are staged. Extend
-   and upgrade the program under separate exact approvals, then deploy and
-   verify the relay and disabled keeper. The static
-   client is already public; remove legacy Vercel service secrets after Fly is
-   healthy.
+2. **Operations rollout.** The isolated Fly runtime secrets are staged. Program
+   extension/upgrade and relay/disabled-keeper deployment and verification are
+   complete. Push the coherent release, verify the Vercel production
+   deployment, refill the paymaster above its 1.5-SOL keeper floor under an
+   exact transfer approval, and remove legacy Vercel service secrets.
    Separately approve `KEEPER_ENABLED=true` only after the breaking program is
    live; verify five-minute `keeper_*`, `paymaster_request`, and `run_metric`
    logs. Autonomous writes remain disabled.
