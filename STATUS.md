@@ -32,11 +32,12 @@ Extension signature:
 `3e6RXzCF7UUEwtDJS4szrH8K1WivZzjmgGbQmwWYRVxKTk9GHjQh2n7WUcjDSvAcQeNBTPPBZdcgq9YrUE5ZTg6L`.
 
 The post-extension executable upgrade preview is `21495a282ff985a5`. The
-operator payer now has 11,762,167,441 lamports, while the deployment guard
-requires 12,007,648,880 lamports before creating the upgrade buffer; its
-current shortfall is 245,481,439 lamports. A separately approved 1-SOL Devnet
-faucet request provides bounded headroom. The upgrade has not been signed or
-sent.
+operator payer was 245,481,439 lamports below the 12,007,648,880-lamport
+deployment floor, so a separately approved Devnet faucet request added exactly
+1 SOL. Its verified balance is now 12,762,167,441 lamports. Faucet signature:
+`22E2Bm2TTD7ymhSNWdhMNhXCn6xc5kL47GD44DYgbRym6of1rKGXZSdG1PswRZHAFcw3iwe9JKrAqMQkPUMFLYGf`.
+The regenerated upgrade fingerprint is unchanged; the upgrade has not been
+signed or sent.
 
 This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
 blocks**. `Grid::swipe` used to reject moving any but the first block of a
