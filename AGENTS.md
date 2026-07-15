@@ -2,11 +2,13 @@
 
 Scope: these rules govern **AI coding agents and operators running agents in
 this repository**. Nothing in this file describes product behavior. The shipped
-client needs no approvals and no manual steps: it silently creates an embedded
-identity that signs programmatically, the paymaster sponsors all base fees and
-rent, gameplay is session-key signed on the ephemeral rollup, and settlement
-runs automatically. If a document makes gameplay sound approval-gated, the
-document is wrong — fix the document.
+client needs no operator approvals and no manual settlement steps: the
+connected Solana address is the player identity, the wallet approves one
+sponsored device session about every seven days, the paymaster sponsors base
+fees and rent, gameplay is session-key signed on the ephemeral rollup, and
+settlement runs automatically. Every Star purchase separately asks the wallet
+to approve its exact USDC movement. If a document makes ordinary gameplay
+wallet-approval-gated after enablement, the document is wrong — fix it.
 
 ## Transaction policy
 
@@ -18,9 +20,9 @@ document is wrong — fix the document.
   read-only RPC probes. Live signed flows (settling a run, withdrawing,
   deploying, bootstrapping) are user-approved, one exact scope at a time.
 - Prefix every Solana/Anchor/pnpm chain command with `NO_DNA=1`.
-- Never print, copy, expose, or commit signer bytes, recovery codes, seeds,
-  or `.env` contents. The embedded browser identity's recovery material must
-  never leave the browser.
+- Never print, copy, expose, or commit signer bytes, wallet recovery material,
+  seeds, or `.env` contents. External-wallet secrets never enter zKube; the
+  scoped device-session secret must remain in browser storage.
 
 ## Worktree rules
 

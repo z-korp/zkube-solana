@@ -12,6 +12,7 @@ use crate::game::{
     calculate_level_stars, row_from_vrf, BlockWeights, Bonus, Constraint, ConstraintKind, Grid,
     LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
 };
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::economy_v2::{
     DailyScoringRule, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC, DAILY_SCORE_CLEAN,
     DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES, DAILY_SCORE_SURVIVAL,
@@ -24,12 +25,15 @@ use crate::state::v2::*;
 pub struct DelegateActiveRun<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained by the run shell.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     #[account(
         mut,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_shell.run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_shell.run_id.to_le_bytes().as_ref()],
         bump = run_shell.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = run_shell.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub run_shell: Account<'info, RunShell>,
     /// CHECK: Deserialized and matched to the owner, shell, run id, and PDA in the handler.
@@ -38,7 +42,12 @@ pub struct DelegateActiveRun<'info> {
 }
 
 pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {
-    let owner = ctx.accounts.owner.key();
+    let owner = ctx.accounts.owner_authority.key();
+    require_player_authorization(
+        owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let run_id = ctx.accounts.run_shell.run_id;
     let expected = Pubkey::find_program_address(
         &[
@@ -144,7 +153,11 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
     };
     use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 
-    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let active = &mut ctx.accounts.active_run;
     require!(
         vrf_request_lifecycle_is_allowed(active.lifecycle),
@@ -294,7 +307,11 @@ pub fn handler_play_move(
     start: u8,
     destination: u8,
 ) -> Result<()> {
-    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         ctx.accounts.active_run.lifecycle == RunLifecycle::Playing,
         ErrorCode::InvalidState
@@ -420,7 +437,11 @@ pub fn handler_apply_bonus(
     row: u8,
     column: u8,
 ) -> Result<()> {
-    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         ctx.accounts.active_run.lifecycle == RunLifecycle::Playing,
         ErrorCode::InvalidState
@@ -480,7 +501,11 @@ pub struct SealRun<'info> {
     SessionError::InvalidToken
 )]
 pub fn handler_seal_run(ctx: Context<SealRun>) -> Result<()> {
-    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         matches!(
             ctx.accounts.active_run.lifecycle,
@@ -520,7 +545,11 @@ pub struct AbandonRun<'info> {
     SessionError::InvalidToken
 )]
 pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
-    require_run_actor(&ctx.accounts.active_run, ctx.accounts.actor.key())?;
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let active = &mut ctx.accounts.active_run;
     require!(
         abandon_lifecycle_is_allowed(active.lifecycle),
@@ -544,49 +573,6 @@ fn abandon_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
             | RunLifecycle::AwaitingVrf
             | RunLifecycle::Playing
     )
-}
-
-#[derive(Accounts)]
-pub struct RotateActiveRunAuthority<'info> {
-    #[account(
-        mut,
-        owner = crate::ID,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-    pub owner: Signer<'info>,
-}
-
-pub fn handler_rotate_active_run_authority(
-    ctx: Context<RotateActiveRunAuthority>,
-    new_action_authority: Pubkey,
-) -> Result<()> {
-    require!(
-        active_session_rotation_is_allowed(
-            ctx.accounts.active_run.lifecycle,
-            ctx.accounts.active_run.pending_vrf_counter,
-            new_action_authority,
-        ),
-        ErrorCode::InvalidState
-    );
-    ctx.accounts.active_run.action_authority = new_action_authority;
-    Ok(())
-}
-
-fn active_session_rotation_is_allowed(
-    lifecycle: RunLifecycle,
-    pending_vrf_counter: u32,
-    new_authority: Pubkey,
-) -> bool {
-    new_authority != Pubkey::default()
-        && pending_vrf_counter == 0
-        && matches!(
-            lifecycle,
-            RunLifecycle::Delegated
-                | RunLifecycle::Playing
-                | RunLifecycle::LevelComplete
-                | RunLifecycle::Finished
-        )
 }
 
 fn vrf_request_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
@@ -858,9 +844,10 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
 pub struct CloseSettledActiveRun<'info> {
-    /// The player still consents to cleanup: closing erases the on-chain
-    /// receipt, so a third party must not be able to grief-close a run.
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained by every run PDA.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     // No pause check on purpose: rent recovery must never be blockable.
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -875,25 +862,25 @@ pub struct CloseSettledActiveRun<'info> {
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = run_shell.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = run_shell.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub run_shell: Box<Account<'info, RunShell>>,
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = run_receipt.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = run_receipt.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [RUN_SHELL_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump = active_run.bump,
-        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = active_run.owner == owner_authority.key() @ ErrorCode::Unauthorized,
         constraint = active_run.run_shell == run_shell.key() @ ErrorCode::ReceiptMismatch
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -903,6 +890,11 @@ pub fn handler_close_settled_active_run(
     ctx: Context<CloseSettledActiveRun>,
     run_id: u64,
 ) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let active = &ctx.accounts.active_run;
     let shell = &ctx.accounts.run_shell;
     let receipt = &ctx.accounts.run_receipt;
@@ -1005,18 +997,6 @@ fn short_meta(pubkey: Pubkey, is_writable: bool) -> ShortAccountMeta {
         pubkey: pubkey.to_bytes().into(),
         is_writable,
     }
-}
-
-fn require_run_actor(active: &ActiveRun, actor: Pubkey) -> Result<()> {
-    require!(
-        run_actor_is_allowed(active.owner, active.action_authority, actor),
-        ErrorCode::Unauthorized
-    );
-    Ok(())
-}
-
-fn run_actor_is_allowed(owner: Pubkey, action_authority: Pubkey, actor: Pubkey) -> bool {
-    actor == owner || actor == action_authority
 }
 
 fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
@@ -1600,45 +1580,6 @@ mod tests {
         assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Committing));
         assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Settled));
         assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Cancelled));
-    }
-
-    #[test]
-    fn active_session_rotation_requires_a_stable_nonterminal_run() {
-        let authority = Pubkey::new_unique();
-        assert!(active_session_rotation_is_allowed(
-            RunLifecycle::Playing,
-            0,
-            authority,
-        ));
-        assert!(!active_session_rotation_is_allowed(
-            RunLifecycle::AwaitingVrf,
-            1,
-            authority,
-        ));
-        assert!(!active_session_rotation_is_allowed(
-            RunLifecycle::Settled,
-            0,
-            authority,
-        ));
-        assert!(!active_session_rotation_is_allowed(
-            RunLifecycle::Playing,
-            0,
-            Pubkey::default(),
-        ));
-    }
-
-    #[test]
-    fn actor_boundary_accepts_only_the_owner_or_bound_session_authority() {
-        let owner = Pubkey::new_unique();
-        let action_authority = Pubkey::new_unique();
-        let attacker = Pubkey::new_unique();
-        assert!(run_actor_is_allowed(owner, action_authority, owner));
-        assert!(run_actor_is_allowed(
-            owner,
-            action_authority,
-            action_authority,
-        ));
-        assert!(!run_actor_is_allowed(owner, action_authority, attacker));
     }
 
     #[test]

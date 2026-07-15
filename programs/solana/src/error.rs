@@ -102,4 +102,8 @@ pub enum ErrorCode {
     InvalidPack,
     #[msg("The Star pack price changed; refresh the quote")]
     PriceChanged,
+    #[msg("The scoped player session is invalid")]
+    InvalidSession,
+    #[msg("The scoped player session has expired")]
+    SessionExpired,
 }

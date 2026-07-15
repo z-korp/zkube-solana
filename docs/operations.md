@@ -2,7 +2,7 @@
 
 This runbook is Devnet-only and does not authorize a transaction. Program
 deploy/upgrade, bootstrap stages, Daily publication, gameplay proofs,
-withdrawals, control changes, and every USDC movement require separate approval
+control changes, and every USDC movement require separate approval
 for the exact instructions, accounts, signers, cluster, and maximum spend.
 
 ## Pinned live Devnet identity
@@ -75,6 +75,25 @@ Execution still requires an explicit send flag, the exact new approval
 fingerprint, sufficient funding, preflight, signature-verified simulation, and
 post-deployment byte verification.
 
+The deployment payer and upgrade-authority keypair stay in the local operator
+environment. Fly receives only the runtime paymaster signer in the relay app
+and the runtime keeper signer in the keeper app; neither Fly app may contain a
+deployer, program-buffer, protocol-authority, or upgrade-authority secret.
+
+If the candidate is larger than the live ProgramData capacity, preview the
+allocation change separately:
+
+```bash
+cd client
+NO_DNA=1 pnpm chain:devnet:extend
+```
+
+The extension has its own payer, authority, byte delta, rent, and approval
+fingerprint. The upgrade command always includes `--no-auto-extend` and refuses
+to run while allocation is undersized, so an upgrade approval can never hide a
+ProgramData extension. Execute and verify an approved extension first, then
+generate a fresh, separately approved upgrade fingerprint.
+
 Bootstrap preview:
 
 ```bash
@@ -130,49 +149,86 @@ There is no generic proposal engine or timelock state. Operational process,
 multisig policy, and transaction review provide the human control boundary.
 Changing a control is always a new exact approval scope.
 
-## Web deployment
+## Web and Fly service deployment
 
-The client deploys to Vercel project `zkube-solana` (team `z-labs`), root
-`client`, framework Vite, connected to `z-korp/zkube-solana`. Production is
-public and preview deployments are team-only.
+Vercel project `zkube-solana` (team `z-labs`, root `client`) serves only the
+static Vite/PWA build. `vercel.json` has no functions or cron. The production
+browser calls
+`https://zkube-solana-devnet-paymaster.fly.dev/api/paymaster` directly; its
+service worker never caches relay or chain responses.
 
-`api/paymaster.ts` is the serverless relay. Required production secrets are:
+The services are isolated in two CDG apps:
 
-- `PAYMASTER_SECRET_KEY` — server-only fee-payer keypair;
-- `PAYMASTER_GENESIS_HASH` and `SOLANA_DEVNET_RPC_URL` — cluster pin;
-- `ZKUBE_PAYMASTER_PUBLIC_KEY` — secret/public identity self-check.
+- `zkube-solana-devnet-paymaster` — one always-warm HTTP Machine, with
+  `/healthz`, chain-aware `/readyz`, a strict browser-origin allowlist, a 4 KiB
+  raw-body ceiling, eight concurrent submissions, and no volume;
+- `zkube-solana-devnet-keeper` — one non-public restart-always worker, no
+  volume, no HTTP service, and one non-overlapping pass every five minutes.
 
-Never expose the secret through a `VITE_` variable. The relay signs only after
-the client/player signature, stateless allowlist validation, cluster check, and
-simulation. It rejects Compute Budget instructions and arbitrary system/token
-transfers.
+Both build from `client/Dockerfile.fly`, using `fly.paymaster.toml` and
+`fly.keeper.toml`. Validate and build before deployment:
 
-`api/keeper.ts` is the primary cadence reconciler. `vercel.json` invokes it
-every five minutes in production, caps the function at 240 seconds, and the
-keeper stops scheduling new writes after 210 seconds. Set these server-only
-values before enabling it:
+```bash
+cd client
+NO_DNA=1 pnpm run server:build
+docker build -f Dockerfile.fly -t zkube-fly-services:local .
+fly config validate --strict -c fly.paymaster.toml
+fly config validate --strict -c fly.keeper.toml
+```
 
-- `CRON_SECRET` — random value of at least 16 characters; Vercel supplies it as
-  `Authorization: Bearer ...` and the route compares it in constant time;
-- `KEEPER_SECRET_KEY` and `ZKUBE_KEEPER_PUBLIC_KEY` — a dedicated identity for
-  permissionless instructions, never the paymaster or governance key;
-- `KEEPER_MAX_WRITES=8` — bounded writes/pass, hard-capped at 16;
-- `MIN_PAYMASTER_LAMPORTS=1500000000` — readiness floor;
-- `KEEPER_ENABLED=true` — set last, only after the lean program/bootstrap is
-  live and all preceding identities match.
+Required paymaster secret:
 
-Vercel cron delivery is best effort, can be duplicated, and is not retried on
-failure. The keeper therefore discovers work from current chain state on every
-pass; all writes use on-chain one-way transitions and counters. A later pass
-catches a missed invocation. A concurrent duplicate either shares the same
-transaction or loses an on-chain state race without duplicating rewards.
-`KEEPER_ENABLED` defaults to false, so deploying this source before the lean
-program rollout cannot mutate the older live account model.
+- `PAYMASTER_SECRET_KEY` — the existing fee-payer keypair, installed only
+  through Fly's secret manager.
+
+The public key, RPC, genesis, origins, and concurrency cap are non-secret
+values pinned in `fly.paymaster.toml`; startup refuses a secret/public mismatch.
+Never expose the secret through a `VITE_` variable or place it in a file,
+command transcript, image layer, keeper app, or repository. The relay signs
+only after the required owner or scoped-session signature, stateless allowlist
+validation, live SessionTokenV2 owner/actor/target/expiry validation, cluster
+check, and simulation. It rejects Compute Budget instructions, arbitrary
+system/token transfers, substituted payers, cross-owner sessions, and
+session-signed Star purchases.
+
+The Seeker release wraps the production PWA in a Trusted Web Activity with
+application ID `com.zkorp.zkube`. Seed Vault Wallet is the required Mobile
+Wallet Adapter 2.0 acceptance wallet. Generate `/.well-known/assetlinks.json`
+from the reviewed release certificate with `pnpm twa:configure-links`; keep the
+keystore and store credentials external. Complete real-device and desktop
+acceptance before producing the signed APK.
+
+The keeper requires only `KEEPER_SECRET_KEY`; its public identity, paymaster
+public identity/HTTPS endpoint, cluster, interval, eight-write bound, and 1.5
+SOL reserve floor are pinned in `fly.keeper.toml`. `PAYMASTER_SECRET_KEY` must
+not exist in the keeper app. The worker verifies the RPC genesis/program and
+the relay's advertised public identity before each pass. It discovers work
+from current chain state, uses on-chain one-way transitions and counters, and
+awaits each pass before scheduling another. A restart or later pass safely
+catches interrupted work.
+
+`KEEPER_ENABLED=false` is committed in the Fly config. Deploy and observe the
+disabled worker first. Changing it to true is a separate autonomous-write
+approval and must happen only after the breaking program/IDL is live. Keep
+exactly one worker Machine; do not scale it horizontally as an availability
+substitute for restart recovery.
+
+After a human transfers the two existing runtime signer secrets without
+exposing them and the breaking program is live, deploy the paymaster first,
+verify `/healthz`, `/readyz`, and GET `/api/paymaster`, then deploy the disabled
+keeper. The static client is already public for the maintenance interval. Only
+after Fly acceptance should the legacy paymaster/keeper secrets and cron
+configuration be removed from the Vercel project.
+
+Use `fly deploy --ha=false` for each initial deployment and verify one Machine
+per app afterward. The paymaster drains HTTP for up to 30 seconds on SIGTERM;
+the keeper receives a 240-second shutdown window so an in-flight bounded pass
+can finish without starting another.
 
 Normal operation needs no publication or operator transaction. The keeper
 opens the current Daily/Weekly, finalizes elapsed challenges, completes all
 Daily rollups, forfeits expired cash to the reward reserve, and reclaims rent.
-Weekly winner claims and cancelled-Daily refunds are owner-signed silently on
+Weekly winner claims and cancelled-Daily refunds are session-signed silently on
 the next client visit; their accounts remain intact until claim/refund or
 expiry. Publishing a new Daily rules catalog remains an explicitly approved
 content/governance action and is not part of routine cadence.

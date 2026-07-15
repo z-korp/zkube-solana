@@ -17,7 +17,7 @@ an SPL token and cannot be transferred, withdrawn, redeemed, or traded.
 | Level-100 Mastery | 30 | once/week | Requires level 100 and 2,500 qualifying XP during the current week; no backfill. |
 | Weekly cash rank | 30 | weekly, skill-based | Every cash winner receives 30 Stars in addition to USDC. |
 | Following Weekly band | 30/25/20/15/10 | weekly, skill-based | Applies after cash winners; begins at rank 1 when the cash pool is zero. |
-| Star pack | 10/50/100/500/1,000 | purchased | Bound to the purchasing embedded identity; no daily purchase cap. |
+| Star pack | 10/50/100/500/1,000 | purchased | Bound to the exact connected owner address; every USDC purchase is owner-approved; no daily purchase cap. |
 | Zone unlock | -20 | once/zone | Map 1 is free; any other active map can be bought in any order; clears/perfection never unlock maps free. |
 | Daily entry | -10 | every attempt | Unlimited while open; no free or direct-USDC entry; only the best finalized score ranks. |
 
@@ -193,7 +193,7 @@ finalizes Daily/Weekly challenges, rolls every eligible Daily result, returns
 expired Weekly cash, and reclaims completed account rent. The browser retains
 the same permissionless maintenance as a fallback. Owner-only Weekly claims
 and cancelled-Daily refunds are scanned across all outstanding records and
-signed silently by the embedded identity on the player's next visit.
+signed silently by the valid scoped device session on the player's next visit.
 
 ## Fresh Devnet rollout
 

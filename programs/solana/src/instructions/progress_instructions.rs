@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
+use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::*;
 
 #[derive(Clone, Copy)]
@@ -149,24 +151,32 @@ pub struct ClaimAchievement<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
     #[account(
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner.key().as_ref()],
+        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
         bump = campaign_progress.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
 }
 
 pub fn handler_claim_achievement(
     ctx: Context<ClaimAchievement>,
     achievement_index: u8,
 ) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let index = usize::from(achievement_index);
     let definition = *ACHIEVEMENTS
         .get(index)
@@ -186,7 +196,7 @@ pub fn handler_claim_achievement(
         .player_profile
         .credit_progression_rewards(0, definition.xp)?;
     emit!(AchievementClaimed {
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         achievement_index,
         xp_reward: definition.xp,
     });
@@ -203,16 +213,16 @@ pub struct ClaimQuest<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
     #[account(
         init_if_needed,
         payer = payer,
         space = 8 + QuestClaims::INIT_SPACE,
-        seeds = [QUEST_CLAIMS_SEED, owner.key().as_ref()],
+        seeds = [QUEST_CLAIMS_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub quest_claims: Box<Account<'info, QuestClaims>>,
@@ -220,17 +230,25 @@ pub struct ClaimQuest<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + WeeklyStipend::INIT_SPACE,
-        seeds = [WEEKLY_STIPEND_SEED, owner.key().as_ref()],
+        seeds = [WEEKLY_STIPEND_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let index = usize::from(quest_index);
     let now = Clock::get()?.unix_timestamp;
     let day = cadence_day(now);
@@ -241,7 +259,7 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     let claims = &mut ctx.accounts.quest_claims;
     if claims.version == 0 {
         claims.version = ACCOUNT_VERSION;
-        claims.owner = ctx.accounts.owner.key();
+        claims.owner = ctx.accounts.owner_authority.key();
         claims.daily_cadence_id = day;
         claims.weekly_cadence_id = week;
         claims.daily_claimed = 0;
@@ -250,7 +268,7 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     } else {
         require_keys_eq!(
             claims.owner,
-            ctx.accounts.owner.key(),
+            ctx.accounts.owner_authority.key(),
             ErrorCode::Unauthorized
         );
         claims.roll(day, week);
@@ -271,7 +289,7 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
 
-    let owner = ctx.accounts.owner.key();
+    let owner = ctx.accounts.owner_authority.key();
     initialize_or_roll_stipend(
         &mut ctx.accounts.weekly_stipend,
         owner,

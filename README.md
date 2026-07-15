@@ -5,10 +5,17 @@ Arena. Durable identity, progression, contests, USDC accounting, receipts, and
 governance live on Solana; latency-sensitive active runs execute on a
 MagicBlock Ephemeral Rollup (ER) and settle back to the base layer.
 
-The shipped client silently creates an embedded identity, signs
-programmatically, uses a stateless paymaster for base fees and rent, uses a
-scoped session key for ER gameplay, and settles automatically. Player-facing
-gameplay is not an operator-approved or manual transaction workflow.
+The client uses the connected Solana address as the durable player identity.
+Wallet Standard supports desktop wallets, Mobile Wallet Adapter 2.0 supports
+Seeker, and one sponsored “Enable zKube” approval creates a scoped device
+session for about seven days of silent gameplay and settlement. Star purchases
+remain owner-approved because they move USDC. Player-facing gameplay is not an
+operator-approved or manual settlement workflow.
+
+The app is connection-gated: visitors remain on wallet onboarding until both
+the external wallet connection and the scoped device session are ready. The
+connect action prompts “Enable zKube” immediately when no reusable session is
+available; disconnected browsing is not supported.
 
 ## Read first
 
@@ -29,7 +36,7 @@ gameplay is not an operator-approved or manual transaction workflow.
 Anchor.toml, Cargo.toml       Anchor workspace at repository root
 programs/solana/              zKube Anchor program
 target/deploy/solana.so       local SBF build output (ignored)
-client/                       Vite app, chain clients, tools, paymaster API
+client/                       Vite app, chain clients, tools, Fly services
 fixtures/                     shared Rust/TypeScript gameplay fixtures
 docs/                         active architecture, operations, development docs
 ```
@@ -37,6 +44,10 @@ docs/                         active architecture, operations, development docs
 `client/` is the web deployment root. The former archived client and temporary
 port plan have been removed after explicit sign-off; no runtime or validation
 path depends on them.
+
+The same Vite client is packaged for Seeker as a PWA/Trusted Web Activity.
+TWA metadata and the release-certificate Digital Asset Links template live in
+`client/twa/`; Android signing keys remain outside the repository.
 
 ## System boundaries
 
@@ -47,8 +58,12 @@ path depends on them.
   fresh per-row VRF while a run is active.
 - The browser renders decoded authoritative state and orchestrates
   transactions; it does not compute rows, scores, rewards, or ranks.
+- External wallets sign only session enablement and Star purchases. Scoped
+  device sessions sign safe player actions and never authorize USDC spending.
 - The paymaster is a stateless, shape-limited fee payer. Sponsorship entitlement
   and cadence quotas are program-owned.
+- Vercel serves only the static PWA. Separate Fly apps isolate the always-warm
+  paymaster HTTP signer from the non-public Daily/Weekly keeper worker.
 - Protocol v1 accepts six-decimal canonical SPL Token USDC and rejects
   Token-2022 payment assets. External yield deployment remains disabled.
 

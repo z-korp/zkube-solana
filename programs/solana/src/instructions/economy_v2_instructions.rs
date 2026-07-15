@@ -4,9 +4,11 @@ use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, TransferC
 use ephemeral_rollups_sdk::anchor::{action, commit};
 use ephemeral_rollups_sdk::ephem::{CallHandler, FoldableIntentBuilder, MagicIntentBundleBuilder};
 use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
+use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -407,16 +409,16 @@ pub struct UnlockZone<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
     #[account(
         mut,
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner.key().as_ref()],
+        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
         bump = campaign_progress.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
     #[account(
@@ -426,10 +428,18 @@ pub struct UnlockZone<'info> {
         constraint = map_catalog.content_version == economy_config.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub map_catalog: Box<Account<'info, MapCatalog>>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
 }
 
 pub fn handler_unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let map_id = ctx.accounts.map_catalog.map_id;
     require!(
         (2..=ctx.accounts.protocol.campaign_map_count).contains(&map_id),
@@ -444,7 +454,7 @@ pub fn handler_unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
         .spend_stars(ctx.accounts.economy_config.zone_unlock_stars)?;
     ctx.accounts.campaign_progress.unlock_map(map_id, true)?;
     emit!(ZoneUnlocked {
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         map_id,
         stars_spent: ctx.accounts.economy_config.zone_unlock_stars,
     });
@@ -469,22 +479,25 @@ pub struct ClaimLevelMilestone<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
     #[account(
         init_if_needed,
         payer = payer,
         space = 8 + LevelMilestones::INIT_SPACE,
-        seeds = [LEVEL_MILESTONES_SEED, owner.key().as_ref()],
+        seeds = [LEVEL_MILESTONES_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub level_milestones: Box<Account<'info, LevelMilestones>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -492,19 +505,24 @@ pub fn handler_claim_level_milestone(
     ctx: Context<ClaimLevelMilestone>,
     milestone_index: u8,
 ) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let index = usize::from(milestone_index);
     require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
     let milestones = &mut ctx.accounts.level_milestones;
     if milestones.version == 0 {
         milestones.version = ECONOMY_ACCOUNT_VERSION;
-        milestones.owner = ctx.accounts.owner.key();
+        milestones.owner = ctx.accounts.owner_authority.key();
         milestones.claimed = 0;
         milestones.total_stars_claimed = 0;
         milestones.bump = ctx.bumps.level_milestones;
     } else {
         require_keys_eq!(
             milestones.owner,
-            ctx.accounts.owner.key(),
+            ctx.accounts.owner_authority.key(),
             ErrorCode::Unauthorized
         );
         require!(
@@ -527,7 +545,7 @@ pub fn handler_claim_level_milestone(
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     ctx.accounts.player_profile.credit_stars(10)?;
     emit!(LevelMilestoneClaimed {
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         level: required_level,
         stars: 10,
     });
@@ -668,9 +686,9 @@ pub struct EnterDaily<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized,
         constraint = player_profile.daily_eligible @ ErrorCode::MapLocked
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
@@ -685,7 +703,7 @@ pub struct EnterDaily<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + DailyPlayer::INIT_SPACE,
-        seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
@@ -693,7 +711,7 @@ pub struct EnterDaily<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + WeeklyStipend::INIT_SPACE,
-        seeds = [WEEKLY_STIPEND_SEED, owner.key().as_ref()],
+        seeds = [WEEKLY_STIPEND_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
@@ -701,7 +719,7 @@ pub struct EnterDaily<'info> {
         init,
         payer = payer,
         space = 8 + RunShell::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub run_shell: Box<Account<'info, RunShell>>,
@@ -709,7 +727,7 @@ pub struct EnterDaily<'info> {
         init,
         payer = payer,
         space = 8 + ActiveRun::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -717,21 +735,25 @@ pub struct EnterDaily<'info> {
         init,
         payer = payer,
         space = 8 + RunReceipt::INIT_SPACE,
-        seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_enter_daily(
-    ctx: Context<EnterDaily>,
-    run_id: u64,
-    action_authority: Pubkey,
-) -> Result<()> {
+pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let now = Clock::get()?.unix_timestamp;
     require!(
         ctx.accounts.daily_challenge.status == DailyStatus::Open,
@@ -750,16 +772,12 @@ pub fn handler_enter_daily(
         ErrorCode::InvalidRunId
     );
     require!(
-        action_authority != Pubkey::default(),
-        ErrorCode::Unauthorized
-    );
-    require!(
         ctx.accounts.daily_challenge.entry_stars == ctx.accounts.economy_config.daily_entry_stars,
         ErrorCode::AccountingInvariant
     );
     crate::instructions::progress_instructions::initialize_or_roll_stipend(
         &mut ctx.accounts.weekly_stipend,
-        ctx.accounts.owner.key(),
+        ctx.accounts.owner_authority.key(),
         cadence_week(now),
         ctx.bumps.weekly_stipend,
     )?;
@@ -768,7 +786,7 @@ pub fn handler_enter_daily(
     if daily_player.version == 0 {
         daily_player.version = ECONOMY_ACCOUNT_VERSION;
         daily_player.challenge = ctx.accounts.daily_challenge.key();
-        daily_player.player = ctx.accounts.owner.key();
+        daily_player.player = ctx.accounts.owner_authority.key();
         daily_player.attempts = 0;
         daily_player.finalized_attempts = 0;
         daily_player.best_run_id = 0;
@@ -800,7 +818,7 @@ pub fn handler_enter_daily(
         );
         require_keys_eq!(
             daily_player.player,
-            ctx.accounts.owner.key(),
+            ctx.accounts.owner_authority.key(),
             ErrorCode::Unauthorized
         );
     }
@@ -831,14 +849,13 @@ pub fn handler_enter_daily(
             active: ctx.bumps.active_run,
             receipt: ctx.bumps.run_receipt,
         },
-        ctx.accounts.owner.key(),
+        ctx.accounts.owner_authority.key(),
         run_id,
-        action_authority,
         now,
     )?;
     emit!(DailyEntered {
         challenge: challenge_key,
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         run_id,
         attempt: daily_player.attempts,
         stars_spent: ctx.accounts.daily_challenge.entry_stars,
@@ -863,7 +880,6 @@ fn initialize_daily_run(
     bumps: DailyRunBumps,
     owner: Pubkey,
     run_id: u64,
-    action_authority: Pubkey,
     now: i64,
 ) -> Result<()> {
     let shell_key = Pubkey::find_program_address(
@@ -880,7 +896,6 @@ fn initialize_daily_run(
     shell.rules_hash = challenge.rules_hash;
     shell.map_catalog = Pubkey::default();
     shell.daily_challenge = challenge_key;
-    shell.action_authority = action_authority;
     shell.delegated_validator = Pubkey::default();
     shell.lifecycle = RunLifecycle::Prepared;
     shell.created_at = now;
@@ -894,7 +909,6 @@ fn initialize_daily_run(
     active.run_id = run_id;
     active.mode = RunMode::Daily;
     active.lifecycle = RunLifecycle::Prepared;
-    active.action_authority = action_authority;
     active.content_version = challenge.content_version;
     active.rules_hash = challenge.rules_hash;
     active.map_id = challenge.map_id;
@@ -1367,23 +1381,31 @@ pub struct RefundDailyStars<'info> {
     pub daily_challenge: Box<Account<'info, DailyChallenge>>,
     #[account(
         mut,
-        seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump = daily_player.bump,
-        constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized,
+        constraint = daily_player.player == owner_authority.key() @ ErrorCode::Unauthorized,
         constraint = daily_player.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
 }
 
 pub fn handler_refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         !ctx.accounts.daily_player.star_refunded,
         ErrorCode::RefundAlreadyClaimed
@@ -1922,22 +1944,30 @@ pub struct ClaimWeeklyStars<'info> {
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
     #[account(
         mut,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump = weekly_player.bump,
-        constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
+        constraint = weekly_player.player == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
 }
 
 pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         Clock::get()?.unix_timestamp <= ctx.accounts.weekly_challenge.claims_close_at,
         ErrorCode::ChallengeEnded
@@ -1949,7 +1979,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
     let rank = ctx
         .accounts
         .leaderboard
-        .rank_of(ctx.accounts.owner.key())
+        .rank_of(ctx.accounts.owner_authority.key())
         .ok_or(ErrorCode::NoPrize)?;
     let stars = weekly_star_reward_for_rank(
         rank,
@@ -1959,7 +1989,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
     ctx.accounts.player_profile.credit_stars(stars)?;
     ctx.accounts.weekly_player.stars_claimed = true;
     emit!(WeeklyStarsClaimed {
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         week_id: ctx.accounts.weekly_challenge.week_id,
         rank: (rank + 1) as u8,
         stars,
@@ -1984,9 +2014,9 @@ pub struct ClaimWeeklyCash<'info> {
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
     #[account(
         mut,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump = weekly_player.bump,
-        constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
+        constraint = weekly_player.player == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
     #[account(address = weekly_challenge.payment_mint)]
@@ -2002,19 +2032,27 @@ pub struct ClaimWeeklyCash<'info> {
         init_if_needed,
         payer = payer,
         associated_token::mint = payment_mint,
-        associated_token::authority = owner,
+        associated_token::authority = owner_authority,
     )]
     pub player_payment_account: Box<Account<'info, TokenAccount>>,
     #[account(address = weekly_challenge.payment_token_program)]
     pub token_program: Program<'info, Token>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained above.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         Clock::get()?.unix_timestamp <= ctx.accounts.weekly_challenge.claims_close_at,
         ErrorCode::ChallengeEnded
@@ -2026,7 +2064,7 @@ pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
     let rank = ctx
         .accounts
         .leaderboard
-        .rank_of(ctx.accounts.owner.key())
+        .rank_of(ctx.accounts.owner_authority.key())
         .ok_or(ErrorCode::NoPrize)?;
     let amount = weekly_cash_amount(
         ctx.accounts.weekly_challenge.committed_cash_pool,
@@ -2063,7 +2101,7 @@ pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
     );
     ctx.accounts.weekly_player.cash_claimed = true;
     emit!(WeeklyCashClaimed {
-        owner: ctx.accounts.owner.key(),
+        owner: ctx.accounts.owner_authority.key(),
         week_id: ctx.accounts.weekly_challenge.week_id,
         rank: (rank + 1) as u8,
         amount,

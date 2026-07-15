@@ -24,8 +24,8 @@ pub const MAX_QUESTS: usize = 12;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
 pub const DAILY_FINISHER_INDEX: usize = 9;
 pub const BLOCK_QUEST_COUNTERS: [usize; 4] = [7, 12, 13, 14];
-/// Separates fresh Stars-baseline run PDAs from abandoned pre-reset Devnet runs.
-pub const INITIAL_RUN_ID: u64 = 2u64 << 32;
+/// Run identifiers are per-player and begin at one on every fresh deployment.
+pub const INITIAL_RUN_ID: u64 = 1;
 
 #[account]
 #[derive(InitSpace)]
@@ -436,7 +436,6 @@ pub struct RunShell {
     pub rules_hash: [u8; 32],
     pub map_catalog: Pubkey,
     pub daily_challenge: Pubkey,
-    pub action_authority: Pubkey,
     pub delegated_validator: Pubkey,
     pub lifecycle: RunLifecycle,
     pub created_at: i64,
@@ -454,7 +453,6 @@ pub struct ActiveRun {
     pub run_id: u64,
     pub mode: RunMode,
     pub lifecycle: RunLifecycle,
-    pub action_authority: Pubkey,
     pub content_version: u32,
     pub rules_hash: [u8; 32],
     pub map_id: u8,
@@ -657,6 +655,18 @@ fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fresh_profile_run_id_matches_the_shared_protocol_invariant() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../fixtures/protocol-invariants.json"
+        ))
+        .unwrap();
+        let expected = fixture["initialRunId"].as_u64().unwrap();
+        let player = PlayerProfile::initialize(Pubkey::new_unique(), 1);
+        assert_eq!(INITIAL_RUN_ID, expected);
+        assert_eq!(player.next_run_id, expected);
+    }
 
     #[test]
     fn target_accounts_fit_normal_solana_account_limits() {

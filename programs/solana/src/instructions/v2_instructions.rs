@@ -1,8 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::economy_v2::{DailyPressureProfile, DailyScoringRule};
 use crate::state::v2::*;
 
@@ -123,7 +125,7 @@ pub struct InitializePlayer<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + PlayerProfile::INIT_SPACE,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
@@ -131,18 +133,26 @@ pub struct InitializePlayer<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + CampaignProgress::INIT_SPACE,
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner.key().as_ref()],
+        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
         bump
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity used for the player PDAs.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
-    let owner = ctx.accounts.owner.key();
+    let owner = ctx.accounts.owner_authority.key();
+    require_player_authorization(
+        owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     let player = &mut ctx.accounts.player_profile;
     if player.version == 0 {
         player.set_inner(PlayerProfile::initialize(owner, ctx.bumps.player_profile));
@@ -165,44 +175,6 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         );
     }
     Ok(())
-}
-
-#[derive(Accounts)]
-#[instruction(run_id: u64)]
-pub struct RotateRunShellAuthority<'info> {
-    #[account(
-        mut,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump = run_shell.bump,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    pub owner: Signer<'info>,
-}
-
-pub fn handler_rotate_run_shell_authority(
-    ctx: Context<RotateRunShellAuthority>,
-    run_id: u64,
-    new_action_authority: Pubkey,
-) -> Result<()> {
-    require!(
-        session_rotation_is_allowed(ctx.accounts.run_shell.lifecycle, new_action_authority),
-        ErrorCode::InvalidState
-    );
-    require!(
-        ctx.accounts.run_shell.run_id == run_id,
-        ErrorCode::InvalidRunId
-    );
-    ctx.accounts.run_shell.action_authority = new_action_authority;
-    Ok(())
-}
-
-fn session_rotation_is_allowed(lifecycle: RunLifecycle, new_authority: Pubkey) -> bool {
-    new_authority != Pubkey::default()
-        && !matches!(
-            lifecycle,
-            RunLifecycle::Committing | RunLifecycle::Settled | RunLifecycle::Cancelled
-        )
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -384,15 +356,15 @@ pub struct PrepareCampaignRun<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
+        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
         bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
     #[account(
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner.key().as_ref()],
+        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
         bump = campaign_progress.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
     #[account(
@@ -410,7 +382,7 @@ pub struct PrepareCampaignRun<'info> {
         init,
         payer = payer,
         space = 8 + RunShell::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub run_shell: Box<Account<'info, RunShell>>,
@@ -418,7 +390,7 @@ pub struct PrepareCampaignRun<'info> {
         init,
         payer = payer,
         space = 8 + ActiveRun::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -426,13 +398,16 @@ pub struct PrepareCampaignRun<'info> {
         init,
         payer = payer,
         space = 8 + RunReceipt::INIT_SPACE,
-        seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable durable player identity, constrained by all player PDAs.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -441,8 +416,12 @@ pub fn handler_prepare_campaign_run(
     run_id: u64,
     map_id: u8,
     level: u8,
-    action_authority: Pubkey,
 ) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
     require!(
         ctx.accounts.player_profile.next_run_id == run_id,
         ErrorCode::InvalidRunId
@@ -460,15 +439,11 @@ pub fn handler_prepare_campaign_run(
         (1..=LEVELS_PER_MAP as u8).contains(&level),
         ErrorCode::InvalidLevel
     );
-    require!(
-        action_authority != Pubkey::default(),
-        ErrorCode::Unauthorized
-    );
 
     let rules = ctx.accounts.map_catalog.expanded_level(level)?;
     let rules_hash = hash_rules(ctx.accounts.protocol.content_version, map_id, &rules)?;
     let now = Clock::get()?.unix_timestamp;
-    let owner = ctx.accounts.owner.key();
+    let owner = ctx.accounts.owner_authority.key();
 
     let shell = &mut ctx.accounts.run_shell;
     shell.version = ACCOUNT_VERSION;
@@ -480,7 +455,6 @@ pub fn handler_prepare_campaign_run(
     shell.rules_hash = rules_hash;
     shell.map_catalog = ctx.accounts.map_catalog.key();
     shell.daily_challenge = Pubkey::default();
-    shell.action_authority = action_authority;
     shell.delegated_validator = Pubkey::default();
     shell.lifecycle = RunLifecycle::Prepared;
     shell.created_at = now;
@@ -495,7 +469,6 @@ pub fn handler_prepare_campaign_run(
     active.run_id = run_id;
     active.mode = RunMode::Campaign;
     active.lifecycle = RunLifecycle::Prepared;
-    active.action_authority = action_authority;
     active.content_version = shell.content_version;
     active.rules_hash = rules_hash;
     active.map_id = map_id;
@@ -610,27 +583,6 @@ mod tests {
         assert_eq!(first, hash_rules(1, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(2, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(1, 2, &rules).unwrap());
-    }
-
-    #[test]
-    fn session_rotation_stops_at_terminal_settlement_states() {
-        let authority = Pubkey::new_unique();
-        assert!(session_rotation_is_allowed(
-            RunLifecycle::Prepared,
-            authority
-        ));
-        assert!(session_rotation_is_allowed(
-            RunLifecycle::Playing,
-            authority
-        ));
-        assert!(!session_rotation_is_allowed(
-            RunLifecycle::Settled,
-            authority
-        ));
-        assert!(!session_rotation_is_allowed(
-            RunLifecycle::Playing,
-            Pubkey::default()
-        ));
     }
 
     #[test]
