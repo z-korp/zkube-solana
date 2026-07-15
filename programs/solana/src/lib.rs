@@ -94,12 +94,8 @@ pub mod solana {
         instructions::economy_v2_instructions::handler_open_daily_challenge(ctx, day_id)
     }
 
-    pub fn enter_daily(
-        ctx: Context<EnterDaily>,
-        run_id: u64,
-        action_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::economy_v2_instructions::handler_enter_daily(ctx, run_id, action_authority)
+    pub fn enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> {
+        instructions::economy_v2_instructions::handler_enter_daily(ctx, run_id)
     }
 
     pub fn commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
@@ -199,18 +195,6 @@ pub mod solana {
         instructions::progress_instructions::handler_claim_quest(ctx, quest_index)
     }
 
-    pub fn rotate_run_shell_authority(
-        ctx: Context<RotateRunShellAuthority>,
-        run_id: u64,
-        new_action_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::v2_instructions::handler_rotate_run_shell_authority(
-            ctx,
-            run_id,
-            new_action_authority,
-        )
-    }
-
     pub fn write_map_catalog(
         ctx: Context<WriteMapCatalog>,
         args: WriteMapCatalogArgs,
@@ -227,15 +211,8 @@ pub mod solana {
         run_id: u64,
         map_id: u8,
         level: u8,
-        action_authority: Pubkey,
     ) -> Result<()> {
-        instructions::v2_instructions::handler_prepare_campaign_run(
-            ctx,
-            run_id,
-            map_id,
-            level,
-            action_authority,
-        )
+        instructions::v2_instructions::handler_prepare_campaign_run(ctx, run_id, map_id, level)
     }
 
     pub fn delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {
@@ -283,13 +260,6 @@ pub mod solana {
 
     pub fn abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
         instructions::run_lifecycle::handler_abandon_run(ctx)
-    }
-
-    pub fn rotate_active_run_authority(
-        ctx: Context<RotateActiveRunAuthority>,
-        new_action_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::run_lifecycle::handler_rotate_active_run_authority(ctx, new_action_authority)
     }
 
     pub fn commit_run(ctx: Context<CommitRun>) -> Result<()> {

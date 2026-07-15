@@ -1,11 +1,26 @@
 // @vitest-environment node
 
-import { Keypair } from "@solana/web3.js";
-import { describe, expect, it } from "vitest";
+import { Keypair, type AccountInfo, type Connection } from "@solana/web3.js";
+import { describe, expect, it, vi } from "vitest";
 import invariants from "../../../fixtures/protocol-invariants.json";
 import { INITIAL_RUN_ID } from "./constants";
 import { deriveRunAddresses } from "./pdas";
-import { resolvePreparedRunAddresses } from "./runPlan";
+import {
+  assertPreparedRunAddressesAvailable,
+  resolvePreparedRunAddresses,
+} from "./runPlan";
+
+function collisionConnection(
+  occupiedIndexes: number[],
+): Pick<Connection, "getMultipleAccountsInfo"> {
+  return {
+    getMultipleAccountsInfo: vi.fn(async () =>
+      [0, 1, 2].map((index) =>
+        occupiedIndexes.includes(index) ? ({} as AccountInfo<Buffer>) : null,
+      ),
+    ) as Connection["getMultipleAccountsInfo"],
+  };
+}
 
 describe("run identity invariants", () => {
   it("starts a fresh profile at the shared run ID and derives every PDA from it", () => {
@@ -35,4 +50,52 @@ describe("run identity invariants", () => {
       ),
     ).toBe(true);
   });
+
+  it("keeps identical run IDs isolated by owner", () => {
+    const firstOwner = Keypair.generate().publicKey;
+    const secondOwner = Keypair.generate().publicKey;
+    const first = deriveRunAddresses(firstOwner, 1n);
+    const second = deriveRunAddresses(secondOwner, 1n);
+
+    expect(first.runShell.equals(second.runShell)).toBe(false);
+    expect(first.activeRun.equals(second.activeRun)).toBe(false);
+    expect(first.runReceipt.equals(second.runReceipt)).toBe(false);
+  });
+
+  it("accepts an owner-scoped run ID only when all candidate accounts are free", async () => {
+    const owner = Keypair.generate().publicKey;
+    const addresses = deriveRunAddresses(owner, 1n);
+
+    await expect(
+      assertPreparedRunAddressesAvailable(
+        collisionConnection([]),
+        owner,
+        1n,
+        addresses,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [0, "run shell"],
+    [1, "active run"],
+    [2, "run receipt"],
+  ])(
+    "rejects an occupied candidate account at index %i (%s)",
+    async (index, label) => {
+      const owner = Keypair.generate().publicKey;
+      const addresses = deriveRunAddresses(owner, 1n);
+
+      await expect(
+        assertPreparedRunAddressesAvailable(
+          collisionConnection([index]),
+          owner,
+          1n,
+          addresses,
+        ),
+      ).rejects.toThrow(
+        `Run ID 1 is already occupied for ${owner.toBase58()} (${label})`,
+      );
+    },
+  );
 });

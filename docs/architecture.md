@@ -49,15 +49,23 @@ per-player projections are in [stars-economy-v2.md](stars-economy-v2.md).
 | --- | --- |
 | Solana base | Identity, progression, Stars, content, Daily/Weekly accounting, USDC custody, receipts, leaderboards, and claims |
 | MagicBlock ER | One delegated `ActiveRun`: grid, moves, bonuses, score/combo, VRF state, and commitment chains |
-| Browser | Decode/render state and orchestrate automatic transactions; never invent game or reward results |
-| Paymaster | Validate an allowlisted complete message off-chain, co-sign as fee payer, simulate, and submit |
+| External wallet | Durable owner identity; approves session enablement and every USDC Star purchase |
+| Browser | Decode/render state, hold the scoped device session, and orchestrate automatic transactions; never invent game or reward results |
+| Paymaster | Validate the complete allowlisted message and owner/session signatures, simulate, then co-sign as fee payer and submit |
 | Keeper | Reconcile permissionless cadence, rollups, expiry, and rent recovery on a bounded schedule |
 | Index/monitoring | Non-authoritative history, alerts, pagination, and analytics |
 
 The paymaster has no on-chain allowance PDA or quota state. Its server policy
 pins every sponsored instruction discriminator, account position, signer,
-program, session lifetime, and Magic Action top-up bound. The embedded player
-identity still signs player-authorized instructions.
+program, session lifetime, and Magic Action top-up bound. It distinguishes
+owner-approved enablement and purchases from session-signed safe actions.
+
+Safe player instructions share one breaking authorization shape:
+`owner_authority + session_token? + actor`. The immutable owner may act
+directly without a token, or a device actor may act with the exact
+SessionTokenV2 PDA for that owner, actor, and zKube target while it remains
+unexpired. Star purchases intentionally retain an owner `Signer` and never
+accept a session.
 
 ## Durable accounts
 
@@ -81,6 +89,14 @@ The lean base-layer state is:
   Weekly USDC vault.
 - `RunShell`, `ActiveRun`, and `RunReceipt` for each in-flight or durably
   settled run.
+
+`PlayerProfile.next_run_id` is the only authoritative counter. A new owner
+starts at `1`, while every run PDA is derived from both that owner address and
+the `u64` run ID. Two wallets may therefore use the same numeric ID without
+sharing state. Before Campaign preparation or Daily entry, the client probes
+the selected owner's three candidate PDAs and stops with a recovery/cleanup
+error if any already exists; the program's PDA and next-ID constraints remain
+the security boundary.
 
 There is no generic governance proposal engine, timelock account, sponsorship
 allowance, progress catalog, treasury ledger, protocol payment vault, yield
@@ -133,8 +149,8 @@ conservation equations.
 
 1. On base, validate protocol/content/player/mode prerequisites and create the
    `RunShell`, `ActiveRun`, and `RunReceipt`. Daily entry burns 10 Stars first.
-2. The off-chain paymaster validates and sponsors the exact setup message. The
-   owner grants a scoped, expiring session authority for the run.
+2. The off-chain paymaster validates and sponsors the exact setup message. A
+   previously owner-approved device session signs the safe prepare action.
 3. Ask the MagicBlock Router for the closest validator and delegate
    `ActiveRun` on base.
 4. Resolve `getDelegationStatus` and use its returned `fqdn`; never hardcode a
@@ -155,28 +171,31 @@ Quit marks a nonterminal run abandoned with zero rewards, then follows the same
 automatic commit, receipt, and cleanup path. Gameplay is not approval-gated in
 the shipped client.
 
-## Autonomous cadence and owner claims
+## Autonomous cadence and player claims
 
-The source includes a Vercel cron route scheduled every five minutes. Each pass
-scans authoritative PDAs and reconciles missing current Daily/Weekly opens,
+The source includes a continuously running Fly worker with a non-overlapping
+five-minute cadence. Each pass scans authoritative PDAs and reconciles missing
+current Daily/Weekly opens,
 due Daily finalizers, outstanding Daily-to-Weekly rollups, due Weekly
 finalizers, expired cash, and every eligible cleanup. It is bounded to eight
 writes and 210 seconds by default. Every transition is permissionless,
-state-checked, and idempotent, so the next pass catches missed delivery and
-duplicate delivery cannot double-award or double-close. Browser maintenance
-remains a fallback, not the cadence authority.
+state-checked, and idempotent, so the next pass catches an interruption and a
+restarted worker cannot double-award or double-close. The worker has only its
+dedicated keeper signer; it sends serialized, keeper-signed transactions to the
+isolated paymaster HTTPS service and never receives the paymaster secret.
+Browser maintenance remains a fallback, not the cadence authority.
 
-Weekly cash/Star claims and cancelled-Daily refunds still require the embedded
-owner identity. The client scans all outstanding owner records and signs up to
-four silent claims/refunds on each visit; there is no claim button or operator
-step. Claim-bearing accounts remain open until that succeeds or the applicable
-claim window expires.
+Weekly cash/Star claims and cancelled-Daily refunds are safe session-authorized
+actions. The client scans outstanding records and may sign up to four silently
+on each visit; there is no external-wallet prompt or operator step.
+Claim-bearing accounts remain open until that succeeds or the applicable claim
+window expires.
 
 ## Routing, decoding, and randomness invariants
 
 - Keep base, Router, and resolved-ER connections separate.
 - Treat RPC data as untrusted: validate cluster genesis, address/PDA, owner,
-  length, discriminator, embedded relationships, and version before decoding.
+  length, discriminator, account relationships, and version before decoding.
 - Derive delegation identities through the pinned MagicBlock SDK.
 - Retry only bounded transient propagation, cloner, and blockhash failures.
 - Accept VRF callbacks only for the expected queue, run, rules, and request
@@ -185,10 +204,24 @@ claim window expires.
 
 ## Identity and custody
 
-The client silently creates a device-local embedded Solana identity. Recovery
-Code export/restore is the cross-device recovery path; recovery material never
-leaves the browser through logs, analytics, proofs, or server requests.
-External wallets may fund the displayed Vault address without connecting.
+The exact connected Solana address is the durable owner. Progress follows that
+address across devices; unrelated addresses are never linked. Desktop uses
+Wallet Standard and Seeker uses Mobile Wallet Adapter 2.0, with Seed Vault
+Wallet required for release acceptance. zKube never requests or stores wallet
+seed or recovery material.
+
+Connection and enablement form one onboarding flow. The wallet connects, a
+device session key is generated, the sponsored SessionTokenV2 creation is
+simulated, and the wallet approves the exact v0 transaction without submitting
+it. No campaign, contest, shop, profile, gameplay, recovery, or spectator UI is
+mounted until both the connection and device session are ready. A reusable
+valid session skips the second approval; rejection, expiry, disconnect, and
+account change return the client to onboarding. The signed transaction returns
+to the paymaster. The local key is stored
+under the owner address for at most seven days and remains usable only while
+that same address is connected. Disconnect or account change deletes the prior
+address's local session and run marker. Funds stay in the external wallet;
+deposit, withdrawal, Vault, and recovery-code APIs do not exist.
 
 The payment asset is six-decimal canonical Devnet USDC using the legacy SPL
 Token program. Team and treasury destinations are external token accounts. The

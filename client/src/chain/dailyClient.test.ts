@@ -148,6 +148,7 @@ describe("Daily client", () => {
     const nowUnix = Math.floor(Date.now() / 1_000);
     const connection = {
       getAccountInfo: vi.fn().mockResolvedValue(null),
+      getMultipleAccountsInfo: vi.fn().mockResolvedValue([null, null, null]),
     } as unknown as Connection;
     const daily = dailyFixture(owner.publicKey);
 
@@ -184,6 +185,7 @@ describe("Daily client", () => {
     const nowUnix = Math.floor(Date.now() / 1_000);
     const connection = {
       getAccountInfo: vi.fn().mockResolvedValue(null),
+      getMultipleAccountsInfo: vi.fn().mockResolvedValue([null, null, null]),
     } as unknown as Connection;
     const daily = dailyFixture(owner.publicKey);
     const session = Keypair.generate();

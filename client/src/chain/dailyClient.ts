@@ -24,6 +24,7 @@ import {
 import { fetchEconomyRuntime } from "./economyClient.js";
 import {
   mapLevelRuleSnapshot,
+  assertPreparedRunAddressesAvailable,
   zkubeProgram,
   type ActiveRunRulesView,
   type EndlessRulesView,
@@ -306,6 +307,12 @@ export async function buildPrepareDailyRunPlan(args: {
   const actor = args.wallet.publicKey;
   const payer = args.paymaster ?? owner;
   const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
+  await assertPreparedRunAddressesAvailable(
+    args.connection,
+    owner,
+    args.daily.nextRunId,
+    addresses,
+  );
   const instructions: TransactionInstruction[] = [];
   instructions.push(
     buildTopUpMagicActionEscrowInstruction({ authority: owner, payer }),

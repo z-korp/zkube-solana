@@ -238,6 +238,12 @@ export async function buildPrepareCampaignRunPlan(args: {
   const protocolAddress = deriveProtocolConfigPda();
   const protocol = await program.account.protocolConfig.fetch(protocolAddress);
   const { runId, addresses } = resolvePreparedRunAddresses(owner, profile);
+  await assertPreparedRunAddressesAvailable(
+    connection,
+    owner,
+    runId,
+    addresses,
+  );
   const mapCatalog = deriveMapCatalogPda(
     Number(protocol.contentVersion),
     args.mapId,
@@ -305,6 +311,30 @@ export function resolvePreparedRunAddresses(
 ): { runId: bigint; addresses: RunAddresses } {
   const runId = profile ? BigInt(profile.nextRunId.toString()) : INITIAL_RUN_ID;
   return { runId, addresses: deriveRunAddresses(owner, runId) };
+}
+
+export async function assertPreparedRunAddressesAvailable(
+  connection: Pick<Connection, "getMultipleAccountsInfo">,
+  owner: PublicKey,
+  runId: bigint,
+  addresses: RunAddresses,
+): Promise<void> {
+  const labels = ["run shell", "active run", "run receipt"] as const;
+  const infos = await connection.getMultipleAccountsInfo(
+    [addresses.runShell, addresses.activeRun, addresses.runReceipt],
+    "confirmed",
+  );
+  const occupied = infos.flatMap((info, index) =>
+    info ? [labels[index]] : [],
+  );
+
+  if (occupied.length > 0) {
+    throw new Error(
+      `Run ID ${runId.toString()} is already occupied for ${owner.toBase58()} (${occupied.join(
+        ", ",
+      )}). Recover or clean up that owner-scoped run before starting another.`,
+    );
+  }
 }
 
 export async function buildDelegateRunPlan(args: {
