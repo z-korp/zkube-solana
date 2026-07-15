@@ -69,6 +69,12 @@ the canonical reward vault and every configured destination; integer lamport
 accounting preserves the exact split. The keeper cannot purchase Stars or move
 player funding.
 
+Daily entry burns 10 Stars per attempt; it does not directly transfer SOL or
+open the owner wallet. Campaign clears award 10 XP for each improvement to a
+level's lifetime best rating: 1/2/3 stars are worth 10/20/30 XP total for that
+map-level, and equal or worse replays award nothing. The separate one-time
+perfect-map reward remains 20 Stars and 1,000 XP.
+
 ## Repository map
 
 | Path | Contents |

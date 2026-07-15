@@ -69,6 +69,7 @@ export interface RunReceiptView {
   finalPressureTier: number;
   moves: number;
   levelStars: number;
+  campaignXpAwarded: number;
   completed: boolean;
   consumed: boolean;
 }
@@ -354,6 +355,7 @@ export async function fetchReceipt(
     finalPressureTier: Number(receipt.finalPressureTier),
     moves: Number(receipt.moves),
     levelStars: Number(receipt.levelStars),
+    campaignXpAwarded: Number(receipt.campaignXpAwarded),
     completed: Boolean(receipt.completed),
     consumed: Boolean(receipt.consumed),
   };

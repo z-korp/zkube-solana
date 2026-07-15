@@ -59,6 +59,7 @@ const receipt = {
   score: 10,
   moves: 6,
   levelStars: 3,
+  campaignXpAwarded: 20,
   completed: true,
   consumed: true,
 };
@@ -196,6 +197,9 @@ describe("usePlayController automatic settled cleanup", () => {
     expect(cleanup).toHaveBeenCalledOnce();
     expect(fixtures.navigate).toHaveBeenCalledOnce();
     expect(fixtures.navigate).toHaveBeenCalledWith("map");
+    expect(fixtures.setPendingLevelCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ xpAwarded: 20 }),
+    );
   });
 
   it("does not auto-retry a failed cleanup until Retry settlement", async () => {
@@ -282,6 +286,58 @@ describe("usePlayController silent session renewal", () => {
     fixtures.run.busy = false;
     rerender();
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
+  });
+
+  it("does not queue a completion reward when settlement fails", async () => {
+    const recoverSession = vi.fn().mockResolvedValue({});
+    const settleAndAdvance = vi
+      .fn()
+      .mockRejectedValue(new Error("settlement failed"));
+    fixtures.run = delegatedRun(recoverSession, {
+      settleAndAdvance,
+      sessionAuthorized: true,
+      activeRun: {
+        ...(delegatedRun(recoverSession).activeRun as Record<string, unknown>),
+        lifecycle: "levelComplete",
+      },
+    });
+
+    renderHook(() => usePlayController(), { wrapper: strictWrapper });
+
+    await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
+    await act(async () => Promise.resolve());
+    expect(fixtures.setPendingLevelCompletion).not.toHaveBeenCalled();
+    expect(fixtures.navigate).not.toHaveBeenCalled();
+  });
+
+  it("uses refreshed lifetime stars for the confirmed XP delta", async () => {
+    const recoverSession = vi.fn().mockResolvedValue({});
+    const settleAndAdvance = vi.fn().mockResolvedValue(null);
+    fixtures.campaignRefresh.mockResolvedValue({
+      maps: [
+        {
+          mapId: 1,
+          levelStars: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        },
+      ],
+    });
+    fixtures.run = delegatedRun(recoverSession, {
+      settleAndAdvance,
+      sessionAuthorized: true,
+      activeRun: {
+        ...(delegatedRun(recoverSession).activeRun as Record<string, unknown>),
+        lifecycle: "levelComplete",
+      },
+    });
+
+    renderHook(() => usePlayController(), { wrapper: strictWrapper });
+
+    await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(fixtures.setPendingLevelCompletion).toHaveBeenCalledWith(
+        expect.objectContaining({ xpAwarded: 20 }),
+      ),
+    );
   });
 
   it("allows a later authorization lapse to renew once again", async () => {

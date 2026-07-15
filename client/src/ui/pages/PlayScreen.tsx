@@ -274,6 +274,11 @@ export default function PlayScreen() {
               </p>
             </div>
           )}
+          {!isDailyReceipt && receipt.completed && (
+            <p className="text-center text-sm font-bold text-cyan-300">
+              +{receipt.campaignXpAwarded} XP
+            </p>
+          )}
           {controller.settledCleanupStatus === "running" && (
             <p className="text-center text-xs text-cyan-200">
               Recovering ActiveRun rent…
@@ -431,6 +436,7 @@ export default function PlayScreen() {
           onClose={controller.closeOutcome}
           game={game}
           finalCampaignMapId={controller.finalCampaignMapId}
+          xpAwarded={controller.terminalSnapshot?.xpAwarded ?? 0}
         />
       )}
 

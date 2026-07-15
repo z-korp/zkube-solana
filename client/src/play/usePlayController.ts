@@ -6,6 +6,10 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { useProgress } from "@/contexts/progress";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
+import {
+  calculateCampaignXpAwarded,
+  calculateLevelStars,
+} from "@/game/level";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/chain/runPlan";
 import type { RunReceiptView } from "@/chain/resumeRun";
@@ -24,6 +28,7 @@ export interface TerminalRunSnapshot {
   isBoss: boolean;
   isDaily: boolean;
   completed: boolean;
+  xpAwarded: number;
 }
 
 export type PlayOutcome = "victory" | "daily" | null;
@@ -57,18 +62,31 @@ export function projectRunReceipt(activeRun: ActiveRunView): ReceiptProjection {
 
 export function pendingCompletionFromRun(
   activeRun: ActiveRunView,
+  previousBestStars = 0,
 ): PendingLevelCompletion {
+  const gameLevel = rulesToGameLevelData(
+    activeRun.rules,
+    activeRun.level,
+    activeRun.runId,
+  );
+  const isIncomplete = activeRun.lifecycle === "finished";
+  const achievedStars = calculateLevelStars({
+    movesUsed: activeRun.moves,
+    star3UsedCap: gameLevel.star3Threshold,
+    star2UsedCap: gameLevel.star2Threshold,
+    isIncomplete,
+  });
   return {
     level: activeRun.level,
     levelMoves: activeRun.moves,
     prevTotalScore: 0,
     totalScore: activeRun.score,
-    gameLevel: rulesToGameLevelData(
-      activeRun.rules,
-      activeRun.level,
-      activeRun.runId,
-    ),
-    isIncomplete: activeRun.lifecycle === "finished",
+    gameLevel,
+    xpAwarded:
+      activeRun.mode === "daily"
+        ? 0
+        : calculateCampaignXpAwarded(previousBestStars, achievedStars),
+    isIncomplete,
   };
 }
 
@@ -119,6 +137,8 @@ function snapshotRun(
   activeRun: ActiveRunView,
   levelStars: readonly number[],
 ): TerminalRunSnapshot {
+  const previousBestStars = levelStars[activeRun.level - 1] ?? 0;
+  const pending = pendingCompletionFromRun(activeRun, previousBestStars);
   return {
     activeRun,
     game: new Game(activeRun, levelStars),
@@ -130,6 +150,7 @@ function snapshotRun(
     isBoss: activeRun.level === 10 || activeRun.rules.bossId > 0,
     isDaily: activeRun.mode === "daily",
     completed: activeRun.lifecycle === "levelComplete",
+    xpAwarded: pending.xpAwarded,
   };
 }
 
@@ -409,44 +430,52 @@ export function usePlayController() {
     if (terminalAwaitingCascadeRef.current === terminalRun.runId) return;
     if (settlingRunRef.current === terminalRun.runId) return;
 
-    const levelStars =
-      terminalRun.mode === "daily"
-        ? []
-        : (campaign.campaign?.maps.find(
-            (map) => map.mapId === terminalRun.mapId,
-          )?.levelStars ?? []);
-    const snapshot = snapshotRun(terminalRun, levelStars);
-    setTerminalSnapshot(snapshot);
     settlingRunRef.current = terminalRun.runId;
-
-    if (!snapshot.isDaily && !(snapshot.isBoss && snapshot.completed)) {
-      setPendingLevelCompletion(pendingCompletionFromRun(terminalRun));
-    }
 
     const settle =
       run.phase === "settleable" ? recoverSettlement : settleAndAdvance;
-    void settle()
-      .then(async () => {
-        await Promise.all([
-          campaignRefresh(),
-          progressRefresh(),
-          dailyRefresh(),
-        ]);
-        if (snapshot.isDaily) {
-          setOutcome("daily");
-        } else if (snapshot.isBoss && snapshot.completed) {
-          setOutcome("victory");
-        } else {
-          navigate("map");
-        }
-      })
-      .catch(() => {
-        // The run hook exposes the failure. Keep the per-run guard set until
-        // the user explicitly retries so watcher refreshes cannot hammer the
-        // settlement pipeline with repeated session-signed transactions.
-      });
+    void (async () => {
+      // Refresh before consumption so the displayed delta is based on the
+      // same lifetime best that the program will read, including after a
+      // cross-device resume. A failed read falls back to the last validated
+      // campaign snapshot and never blocks the settlement itself.
+      const refreshedCampaign =
+        terminalRun.mode === "daily" ? null : await campaignRefresh();
+      const levelStars =
+        terminalRun.mode === "daily"
+          ? []
+          : ((refreshedCampaign ?? campaign.campaign)?.maps.find(
+              (map) => map.mapId === terminalRun.mapId,
+            )?.levelStars ?? []);
+      const snapshot = snapshotRun(terminalRun, levelStars);
+      const previousBestStars = levelStars[terminalRun.level - 1] ?? 0;
+      const pendingCompletion = pendingCompletionFromRun(
+        terminalRun,
+        previousBestStars,
+      );
+      setTerminalSnapshot(snapshot);
+
+      await settle();
+      await Promise.all([
+        campaignRefresh(),
+        progressRefresh(),
+        dailyRefresh(),
+      ]);
+      if (snapshot.isDaily) {
+        setOutcome("daily");
+      } else if (snapshot.isBoss && snapshot.completed) {
+        setOutcome("victory");
+      } else {
+        setPendingLevelCompletion(pendingCompletion);
+        navigate("map");
+      }
+    })().catch(() => {
+      // The run hook exposes the failure. Keep the per-run guard set until
+      // the user explicitly retries so watcher refreshes cannot hammer the
+      // settlement pipeline with repeated session-signed transactions.
+    });
   }, [
-    campaign.campaign?.maps,
+    campaign.campaign,
     campaignRefresh,
     cascadeVersion,
     dailyRefresh,
@@ -548,6 +577,7 @@ export function usePlayController() {
               settledReceipt.runId,
             )
           : null,
+        xpAwarded: settledReceipt.campaignXpAwarded,
         isIncomplete: !settledReceipt.completed,
       });
     }

@@ -571,6 +571,7 @@ pub fn handler_prepare_campaign_run(
     receipt.daily_scoring_rule = DailyScoringRule::default();
     receipt.moves = 0;
     receipt.level_stars = 0;
+    receipt.campaign_xp_awarded = 0;
     receipt.lines_cleared = 0;
     receipt.bonus_uses = 0;
     receipt.combo2_hits = 0;

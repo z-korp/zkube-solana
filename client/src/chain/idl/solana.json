@@ -5836,6 +5836,19 @@
       ]
     },
     {
+      "name": "CampaignLevelRewarded",
+      "discriminator": [
+        5,
+        6,
+        248,
+        45,
+        123,
+        108,
+        217,
+        107
+      ]
+    },
+    {
       "name": "DailyChallengeClosed",
       "discriminator": [
         89,
@@ -6735,6 +6748,42 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CampaignLevelRewarded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "run_id",
+            "type": "u64"
+          },
+          {
+            "name": "map_id",
+            "type": "u8"
+          },
+          {
+            "name": "level",
+            "type": "u8"
+          },
+          {
+            "name": "achieved_stars",
+            "type": "u8"
+          },
+          {
+            "name": "newly_earned_stars",
+            "type": "u8"
+          },
+          {
+            "name": "xp",
+            "type": "u32"
           }
         ]
       }
@@ -8629,6 +8678,14 @@
           {
             "name": "level_stars",
             "type": "u8"
+          },
+          {
+            "name": "campaign_xp_awarded",
+            "docs": [
+              "Improvement-only campaign XP credited while consuming this receipt.",
+              "Daily receipts and equal-or-worse campaign replays keep this at zero."
+            ],
+            "type": "u32"
           },
           {
             "name": "lines_cleared",

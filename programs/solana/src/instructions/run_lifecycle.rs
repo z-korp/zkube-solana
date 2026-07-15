@@ -21,9 +21,9 @@ use crate::game::{
 };
 use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::economy_v2::{
-    DailyScoringRule, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC, DAILY_SCORE_CLEAN,
-    DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES, DAILY_SCORE_SURVIVAL,
-    PERFECT_MAP_STARS, PERFECT_MAP_XP,
+    DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
+    DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
+    DAILY_SCORE_SURVIVAL, PERFECT_MAP_STARS, PERFECT_MAP_XP,
 };
 use crate::state::v2::*;
 
@@ -763,6 +763,7 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     receipt.daily_scoring_rule = active.daily_scoring_rule;
     receipt.moves = active.moves;
     receipt.level_stars = stars;
+    receipt.campaign_xp_awarded = 0;
     receipt.lines_cleared = active.total_lines_cleared;
     receipt.bonus_uses = active.bonus_uses;
     receipt.combo2_hits = active.combo2_hits;
@@ -804,14 +805,23 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     )?;
 
     if receipt.settlement_target == SettlementTarget::CampaignProgress {
-        let newly_earned = ctx.accounts.campaign_progress.record_level_stars(
+        let reward = award_campaign_level_progression(
+            &mut ctx.accounts.campaign_progress,
+            &mut ctx.accounts.player_profile,
             receipt.map_id,
             receipt.level,
             stars,
         )?;
-        ctx.accounts
-            .player_profile
-            .credit_stars(u64::from(newly_earned))?;
+        receipt.campaign_xp_awarded = reward.xp;
+        emit!(CampaignLevelRewarded {
+            owner: receipt.owner,
+            run_id: receipt.run_id,
+            map_id: receipt.map_id,
+            level: receipt.level,
+            achieved_stars: stars,
+            newly_earned_stars: reward.stars,
+            xp: reward.xp,
+        });
         update_campaign_unlocks(
             &mut ctx.accounts.campaign_progress,
             &mut ctx.accounts.player_profile,
@@ -835,6 +845,30 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
     ctx.accounts.player_profile.release_run(active_run_id)?;
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CampaignLevelReward {
+    stars: u8,
+    xp: u32,
+}
+
+/// Applies the lifetime-best reward delta for one campaign map-level. Keeping
+/// the progress mutation and both credits behind one helper makes replay
+/// idempotence explicit: equal or worse results return a zero reward.
+fn award_campaign_level_progression(
+    campaign: &mut CampaignProgress,
+    player: &mut PlayerProfile,
+    map_id: u8,
+    level: u8,
+    achieved_stars: u8,
+) -> Result<CampaignLevelReward> {
+    let stars = campaign.record_level_stars(map_id, level, achieved_stars)?;
+    let xp = u32::from(stars)
+        .checked_mul(CAMPAIGN_LEVEL_XP_PER_STAR)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    player.credit_progression_rewards(u64::from(stars), xp)?;
+    Ok(CampaignLevelReward { stars, xp })
 }
 
 #[derive(Accounts)]
@@ -981,6 +1015,17 @@ fn award_map_perfection(
         xp: PERFECT_MAP_XP,
     });
     Ok(true)
+}
+
+#[event]
+pub struct CampaignLevelRewarded {
+    pub owner: Pubkey,
+    pub run_id: u64,
+    pub map_id: u8,
+    pub level: u8,
+    pub achieved_stars: u8,
+    pub newly_earned_stars: u8,
+    pub xp: u32,
 }
 
 #[event]
@@ -1524,6 +1569,39 @@ mod tests {
         assert!(!award_map_perfection(&mut campaign, &mut player, 1).unwrap());
         assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
         assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
+    }
+
+    #[test]
+    fn campaign_level_xp_tracks_only_lifetime_star_improvements() {
+        let owner = Pubkey::new_unique();
+        let mut campaign = CampaignProgress::initialize(owner, 1);
+        let mut player = PlayerProfile::initialize(owner, 1);
+
+        let one_star =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 1).unwrap();
+        assert_eq!(one_star, CampaignLevelReward { stars: 1, xp: 10 });
+
+        let equal_replay =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 1).unwrap();
+        let worse_replay =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 0).unwrap();
+        assert_eq!(equal_replay, CampaignLevelReward { stars: 0, xp: 0 });
+        assert_eq!(worse_replay, CampaignLevelReward { stars: 0, xp: 0 });
+
+        let improved_to_three =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 3).unwrap();
+        assert_eq!(improved_to_three, CampaignLevelReward { stars: 2, xp: 20 });
+
+        let fresh_two_star =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 2, 2).unwrap();
+        let fresh_three_star =
+            award_campaign_level_progression(&mut campaign, &mut player, 1, 3, 3).unwrap();
+        assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 20 });
+        assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 30 });
+        assert_eq!(campaign.best_stars(1, 1).unwrap(), 3);
+        assert_eq!(player.stars_balance, 8);
+        assert_eq!(player.lifetime_stars_earned, 8);
+        assert_eq!(player.lifetime_xp, 80);
     }
 
     #[test]
