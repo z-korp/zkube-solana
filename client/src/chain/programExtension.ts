@@ -18,6 +18,11 @@ import {
 
 const PROGRAM_DATA_HEADER_BYTES = 45;
 const EXTENSION_FEE_HEADROOM_LAMPORTS = 5_000_000;
+// SIMD-0431 rejects smaller increments on the current Devnet runtime. Asking
+// for the loader minimum is safe on older runtimes and leaves modest headroom
+// for the next program build.
+export const MINIMUM_EXTEND_PROGRAM_BYTES = 10_240;
+const MAX_PROGRAM_DATA_BYTES = 10 * 1024 * 1024;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
@@ -36,6 +41,7 @@ export interface ProgramExtensionInput {
   artifactSha256: string;
   artifactBytes: number;
   currentCapacityBytes: number;
+  targetCapacityBytes: number;
   additionalBytes: number;
   additionalRentLamports: number;
   maximumFeeLamports: number;
@@ -89,12 +95,13 @@ export async function programExtensionInputFromEnv(
     );
   }
   const artifactBytes = readFileSync(deployment.artifactPath).byteLength;
-  const additionalBytes = Math.max(
-    0,
-    artifactBytes - state.programCapacityBytes,
+  const additionalBytes = plannedProgramExtensionBytes(
+    state.programCapacityBytes,
+    artifactBytes,
   );
+  const targetCapacityBytes = state.programCapacityBytes + additionalBytes;
   const requiredRent = await connection.getMinimumBalanceForRentExemption(
-    artifactBytes + PROGRAM_DATA_HEADER_BYTES,
+    targetCapacityBytes + PROGRAM_DATA_HEADER_BYTES,
     "confirmed",
   );
   const additionalRentLamports = Math.max(
@@ -119,6 +126,7 @@ export async function programExtensionInputFromEnv(
     artifactSha256: deployment.artifactSha256,
     artifactBytes,
     currentCapacityBytes: state.programCapacityBytes,
+    targetCapacityBytes,
     additionalBytes,
     additionalRentLamports,
     maximumFeeLamports: EXTENSION_FEE_HEADROOM_LAMPORTS,
@@ -170,6 +178,7 @@ export async function programExtensionInputFromEnv(
     artifactSha256: deployment.artifactSha256,
     artifactBytes,
     currentCapacityBytes: state.programCapacityBytes,
+    targetCapacityBytes,
     additionalBytes,
     additionalRentLamports,
     maximumFeeLamports: EXTENSION_FEE_HEADROOM_LAMPORTS,
@@ -242,7 +251,7 @@ export async function runProgramExtension(
     throw new Error("approved program artifact changed");
   }
   const requiredRent = await connection.getMinimumBalanceForRentExemption(
-    input.artifactBytes + PROGRAM_DATA_HEADER_BYTES,
+    input.targetCapacityBytes + PROGRAM_DATA_HEADER_BYTES,
     "confirmed",
   );
   const additionalRent = Math.max(0, requiredRent - state.programDataLamports);
@@ -324,7 +333,7 @@ export async function runProgramExtension(
   );
   if (
     verified.programDataAddress.toBase58() !== input.programDataAddress ||
-    verified.programCapacityBytes !== input.artifactBytes ||
+    verified.programCapacityBytes !== input.targetCapacityBytes ||
     verified.upgradeAuthority !== input.upgradeAuthorityPublicKey
   ) {
     throw new Error("ProgramData extension postcondition verification failed");
@@ -354,6 +363,29 @@ export function legacyExtendProgramInstruction(input: {
   });
 }
 
+export function plannedProgramExtensionBytes(
+  currentCapacityBytes: number,
+  artifactBytes: number,
+): number {
+  if (
+    !Number.isSafeInteger(currentCapacityBytes) ||
+    !Number.isSafeInteger(artifactBytes) ||
+    currentCapacityBytes < 0 ||
+    artifactBytes < 0 ||
+    currentCapacityBytes > MAX_PROGRAM_DATA_BYTES ||
+    artifactBytes > MAX_PROGRAM_DATA_BYTES
+  ) {
+    throw new Error("ProgramData capacity must fit the loader's 10 MiB limit");
+  }
+  const required = Math.max(0, artifactBytes - currentCapacityBytes);
+  if (required === 0) return 0;
+  const additionalBytes = Math.max(required, MINIMUM_EXTEND_PROGRAM_BYTES);
+  if (currentCapacityBytes + additionalBytes > MAX_PROGRAM_DATA_BYTES) {
+    throw new Error("ProgramData extension exceeds the loader's 10 MiB limit");
+  }
+  return additionalBytes;
+}
+
 export function legacyExtendProgramData(additionalBytes: number): Buffer {
   if (
     !Number.isSafeInteger(additionalBytes) ||
@@ -380,6 +412,7 @@ export function formatProgramExtension(result: ProgramExtensionResult): string {
     `SBF SHA-256: ${input.artifactSha256}`,
     `Current capacity: ${input.currentCapacityBytes} bytes`,
     `Target artifact: ${input.artifactBytes} bytes`,
+    `Target capacity: ${input.targetCapacityBytes} bytes`,
     `Additional allocation: ${input.additionalBytes} bytes`,
     `Additional rent: ${input.additionalRentLamports} lamports`,
     `Maximum transaction fee: ${input.maximumFeeLamports} lamports`,
