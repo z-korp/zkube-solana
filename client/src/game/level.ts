@@ -21,3 +21,31 @@ export function applyStarThresholdModifier(modifier: number): {
 
   return { star3Pct, star2Pct };
 }
+
+export const CAMPAIGN_LEVEL_XP_PER_STAR = 10;
+
+export function calculateLevelStars(args: {
+  movesUsed: number;
+  star3UsedCap: number;
+  star2UsedCap: number;
+  isIncomplete: boolean;
+}): number {
+  if (args.isIncomplete) return 0;
+  if (args.movesUsed <= args.star3UsedCap) return 3;
+  if (args.movesUsed <= args.star2UsedCap) return 2;
+  return 1;
+}
+
+/**
+ * Mirror the program's improvement-only campaign reward for display. The
+ * result is shown only after settlement succeeds; the program remains the
+ * authoritative source of the credited XP.
+ */
+export function calculateCampaignXpAwarded(
+  previousBestStars: number,
+  achievedStars: number,
+): number {
+  const previous = Math.max(0, Math.min(3, Math.trunc(previousBestStars)));
+  const achieved = Math.max(0, Math.min(3, Math.trunc(achievedStars)));
+  return Math.max(0, achieved - previous) * CAMPAIGN_LEVEL_XP_PER_STAR;
+}

@@ -1,5 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 
 import {
@@ -9,6 +8,7 @@ import {
 } from "@/config/bossCharacters";
 import type { ThemeColors } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
+import { calculateLevelStars } from "@/game/level";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
@@ -24,18 +24,7 @@ interface LevelCompleteDialogProps {
   colors?: ThemeColors;
   isIncomplete?: boolean;
   draftWillOpen?: boolean;
-}
-
-export function calculateLevelStars(args: {
-  movesUsed: number;
-  star3UsedCap: number;
-  star2UsedCap: number;
-  isIncomplete: boolean;
-}): number {
-  if (args.isIncomplete) return 0;
-  if (args.movesUsed <= args.star3UsedCap) return 3;
-  if (args.movesUsed <= args.star2UsedCap) return 2;
-  return 1;
+  xpAwarded: number;
 }
 
 const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
@@ -50,6 +39,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   colors,
   isIncomplete = false,
   draftWillOpen = false,
+  xpAwarded,
 }) => {
   const [animationPhase, setAnimationPhase] = useState(0);
   const { playSfx } = useMusicPlayer();
@@ -234,7 +224,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                   })}
                 </div>
 
-                {/* Score + moves */}
+                {/* Score + moves + confirmed progression reward */}
                 <motion.div
                   className="flex gap-2"
                   initial={{ opacity: 0 }}
@@ -254,6 +244,14 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                       {levelMoves}/{maxMoves}
                     </p>
                     <p className="font-sans text-[9px] text-white/40">Moves</p>
+                  </div>
+                  <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
+                    <p className="font-sans text-sm font-bold text-cyan-300">
+                      +{xpAwarded} XP
+                    </p>
+                    <p className="font-sans text-[9px] text-white/40">
+                      Progress
+                    </p>
                   </div>
                 </motion.div>
               </motion.div>

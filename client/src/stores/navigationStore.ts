@@ -33,6 +33,7 @@ export interface PendingLevelCompletion {
   prevTotalScore: number;
   totalScore: number;
   gameLevel: GameLevelData | null;
+  xpAwarded: number;
   isIncomplete?: boolean;
 }
 

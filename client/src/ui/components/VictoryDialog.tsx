@@ -1,6 +1,6 @@
 import { Game } from "@/game/model";
 import { Dialog, DialogContent, DialogTitle } from "../elements/dialog";
-import { useMemo, useEffect, useState } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Flame, Gem, Star, Trophy } from "lucide-react";
 import CubeIcon from "@/ui/components/CubeIcon";
@@ -10,6 +10,7 @@ interface VictoryDialogProps {
   onClose: () => void;
   game: Game;
   finalCampaignMapId: number;
+  xpAwarded: number;
 }
 
 const VictoryDialog: React.FC<VictoryDialogProps> = ({
@@ -17,6 +18,7 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   onClose,
   game,
   finalCampaignMapId,
+  xpAwarded,
 }) => {
   const [animationPhase, setAnimationPhase] = useState(0);
 
@@ -185,6 +187,20 @@ Play now: app.zkube.xyz
                 <Flame size={16} />
               </div>
               <div className="text-xs text-orange-400/80">Best Combo</div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="rounded-lg border border-cyan-400/30 bg-cyan-900/25 px-4 py-3 text-center"
+            initial={{ opacity: 0, y: 10 }}
+            animate={animationPhase >= 2 ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
+            <div className="text-2xl font-bold text-cyan-300">
+              +{xpAwarded} XP
+            </div>
+            <div className="text-xs text-cyan-100/65">
+              Campaign level progress
             </div>
           </motion.div>
 

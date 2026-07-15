@@ -560,6 +560,9 @@ pub struct RunReceipt {
     pub daily_scoring_rule: DailyScoringRule,
     pub moves: u16,
     pub level_stars: u8,
+    /// Improvement-only campaign XP credited while consuming this receipt.
+    /// Daily receipts and equal-or-worse campaign replays keep this at zero.
+    pub campaign_xp_awarded: u32,
     pub lines_cleared: u16,
     pub bonus_uses: u16,
     pub combo2_hits: u16,

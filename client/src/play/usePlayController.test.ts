@@ -67,6 +67,7 @@ describe("play controller projections", () => {
       levelMoves: 8,
       totalScore: 110,
       isIncomplete: false,
+      xpAwarded: 30,
       gameLevel: {
         gameId: 5n,
         pointsRequired: 100,
@@ -74,6 +75,21 @@ describe("play controller projections", () => {
         star2Threshold: 15,
       },
     });
+  });
+
+  it("shows only the lifetime star improvement after settlement", () => {
+    expect(pendingCompletionFromRun(activeRun(), 1).xpAwarded).toBe(20);
+    expect(pendingCompletionFromRun(activeRun(), 3).xpAwarded).toBe(0);
+    expect(
+      pendingCompletionFromRun(
+        { ...activeRun(), lifecycle: "finished" },
+        0,
+      ).xpAwarded,
+    ).toBe(0);
+    expect(
+      pendingCompletionFromRun({ ...activeRun(), mode: "daily" }, 0)
+        .xpAwarded,
+    ).toBe(0);
   });
 
   it("exposes each auto-settlement stage", () => {

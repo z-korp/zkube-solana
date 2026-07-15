@@ -984,6 +984,7 @@ fn initialize_daily_run(
     receipt.daily_scoring_rule = challenge.scoring_rule;
     receipt.moves = 0;
     receipt.level_stars = 0;
+    receipt.campaign_xp_awarded = 0;
     receipt.lines_cleared = 0;
     receipt.bonus_uses = 0;
     receipt.combo2_hits = 0;
@@ -1183,6 +1184,7 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     receipt.daily_scoring_rule = active.daily_scoring_rule;
     receipt.moves = active.moves;
     receipt.level_stars = 0;
+    receipt.campaign_xp_awarded = 0;
     receipt.lines_cleared = active.total_lines_cleared;
     receipt.bonus_uses = active.bonus_uses;
     receipt.combo2_hits = active.combo2_hits;

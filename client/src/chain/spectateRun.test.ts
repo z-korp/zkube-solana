@@ -58,6 +58,7 @@ describe("spectated run resolution", () => {
       score: 88,
       moves: 9,
       levelStars: 3,
+      campaignXpAwarded: 30,
       completed: true,
       consumed: true,
     };

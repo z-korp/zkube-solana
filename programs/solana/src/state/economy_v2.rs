@@ -40,6 +40,10 @@ pub const DAILY_PRESSURE_MASTERY_XP: u32 = 50;
 pub const LEVEL_100_XP: u64 = 160_000;
 pub const WEEKLY_STIPEND_XP: u32 = 2_500;
 pub const WEEKLY_STIPEND_STARS: u64 = 30;
+/// Campaign XP follows the lifetime best rating for one map-level. Each newly
+/// earned star is worth ten XP, so a level can mint at most thirty XP across
+/// all of its clears, independent of the one-time perfect-map reward.
+pub const CAMPAIGN_LEVEL_XP_PER_STAR: u32 = 10;
 pub const PERFECT_MAP_STARS: u64 = 20;
 pub const PERFECT_MAP_XP: u32 = 1_000;
 pub const SOL_WINNER_STARS: u64 = 30;

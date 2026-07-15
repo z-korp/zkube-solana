@@ -228,6 +228,7 @@ describe("persisted run resolution", () => {
           score: 100,
           moves: 5,
           levelStars: 3,
+          campaignXpAwarded: 30,
           completed: true,
           consumed: true,
         }),

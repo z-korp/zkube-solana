@@ -5842,6 +5842,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "campaignLevelRewarded",
+      "discriminator": [
+        5,
+        6,
+        248,
+        45,
+        123,
+        108,
+        217,
+        107
+      ]
+    },
+    {
       "name": "dailyChallengeClosed",
       "discriminator": [
         89,
@@ -6741,6 +6754,42 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "campaignLevelRewarded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "runId",
+            "type": "u64"
+          },
+          {
+            "name": "mapId",
+            "type": "u8"
+          },
+          {
+            "name": "level",
+            "type": "u8"
+          },
+          {
+            "name": "achievedStars",
+            "type": "u8"
+          },
+          {
+            "name": "newlyEarnedStars",
+            "type": "u8"
+          },
+          {
+            "name": "xp",
+            "type": "u32"
           }
         ]
       }
@@ -8635,6 +8684,14 @@ export type Solana = {
           {
             "name": "levelStars",
             "type": "u8"
+          },
+          {
+            "name": "campaignXpAwarded",
+            "docs": [
+              "Improvement-only campaign XP credited while consuming this receipt.",
+              "Daily receipts and equal-or-worse campaign replays keep this at zero."
+            ],
+            "type": "u32"
           },
           {
             "name": "linesCleared",
