@@ -46,6 +46,14 @@ Solana, delegated through the MagicBlock Router, played on the resolved ER, then
 sealed, committed, copied back, consumed, and cleaned automatically. Base,
 Router, and ER connections are always separate.
 
+The opening board uses one verified VRF callback and expands that unpredictable
+result with domain-separated hashes into only the rows visible at launch. Each
+move that exposes a future hidden row atomically requests a fresh VRF value in
+the same ER transaction, so client timing cannot select the next row. The
+client prewarms an endpoint-scoped ER blockhash, skips ER preflight, and keeps a
+single ActiveRun account subscription alive; notification data is validated and
+decoded directly, with short polling used only while recovering a missed write.
+
 `PlayerProfile.active_run_id` enforces one open run per owner. It prevents two
 enabled devices from launching overlapping runs and lets a fresh device
 reconstruct the exact run PDA from chain state. Browser storage is only a cache;

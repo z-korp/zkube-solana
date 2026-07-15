@@ -16,8 +16,8 @@ use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
 use crate::game::{
-    calculate_level_stars, row_from_vrf, BlockWeights, Bonus, Constraint, ConstraintKind, Grid,
-    LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+    calculate_level_stars, row_from_vrf_with_draw_budget, BlockWeights, Bonus, Constraint,
+    ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
 };
 use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::economy_v2::{
@@ -26,6 +26,9 @@ use crate::state::economy_v2::{
     DAILY_SCORE_SURVIVAL, PERFECT_MAP_STARS, PERFECT_MAP_XP,
 };
 use crate::state::v2::*;
+
+const MAX_OPENING_ROWS_PER_CALLBACK: u8 = 32;
+const MAX_OPENING_DRAWS_PER_CALLBACK: u16 = 256;
 
 #[delegate]
 #[derive(Accounts)]
@@ -149,23 +152,20 @@ impl<'info> RequestRowVrf<'info> {
     }
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
-pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
+fn prepare_row_vrf_request(
+    active: &mut ActiveRun,
+    active_key: Pubkey,
+    actor: Pubkey,
+    oracle_queue: Pubkey,
+    validator: Pubkey,
+    client_seed: [u8; 32],
+) -> Result<ephemeral_vrf_sdk::compat::Instruction> {
     use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
     use ephemeral_vrf_sdk::instructions::{
         create_request_high_priority_scoped_randomness_ix, RequestRandomnessParams,
     };
     use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 
-    require_player_authorization(
-        ctx.accounts.active_run.owner,
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
-    let active = &mut ctx.accounts.active_run;
     require!(
         vrf_request_lifecycle_is_allowed(active.lifecycle),
         ErrorCode::InvalidState
@@ -184,15 +184,12 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
     active.vrf_requested_at = Clock::get()?.unix_timestamp;
     active.lifecycle = RunLifecycle::AwaitingVrf;
 
-    let validator =
-        delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
     let (magic_fee_vault, _) = Pubkey::find_program_address(
         &[b"magic-fee-vault", validator.as_ref()],
         &Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()),
     );
-    let active_key = active.key();
     let caller_seed: [u8; 32] = Sha256::new()
-        .chain_update(b"zkube-row-vrf-v1")
+        .chain_update(b"zkube-row-vrf-v2")
         .chain_update(client_seed)
         .chain_update(active.run_id.to_le_bytes())
         .chain_update(request_counter.to_le_bytes())
@@ -200,36 +197,64 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
         .finalize()
         .into();
 
-    let ix = create_request_high_priority_scoped_randomness_ix(RequestRandomnessParams {
-        payer: ctx.accounts.actor.key().to_bytes().into(),
-        oracle_queue: ctx.accounts.oracle_queue.key().to_bytes().into(),
-        callback_program_id: crate::ID.to_bytes().into(),
-        callback_discriminator: crate::instruction::FulfillRowVrf::DISCRIMINATOR.to_vec(),
-        caller_seed,
-        accounts_metas: Some(vec![
-            SerializableAccountMeta {
-                pubkey: active_key.to_bytes().into(),
-                is_signer: false,
-                is_writable: true,
-            },
-            SerializableAccountMeta {
-                pubkey: magic_fee_vault.to_bytes().into(),
-                is_signer: false,
-                is_writable: true,
-            },
-            SerializableAccountMeta {
-                pubkey: MAGIC_PROGRAM_ID,
-                is_signer: false,
-                is_writable: false,
-            },
-            SerializableAccountMeta {
-                pubkey: MAGIC_CONTEXT_ID,
-                is_signer: false,
-                is_writable: true,
-            },
-        ]),
-        ..Default::default()
-    });
+    Ok(create_request_high_priority_scoped_randomness_ix(
+        RequestRandomnessParams {
+            payer: actor.to_bytes().into(),
+            oracle_queue: oracle_queue.to_bytes().into(),
+            callback_program_id: crate::ID.to_bytes().into(),
+            callback_discriminator: crate::instruction::FulfillRowVrf::DISCRIMINATOR.to_vec(),
+            caller_seed,
+            accounts_metas: Some(vec![
+                SerializableAccountMeta {
+                    pubkey: active_key.to_bytes().into(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                SerializableAccountMeta {
+                    pubkey: magic_fee_vault.to_bytes().into(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                SerializableAccountMeta {
+                    pubkey: MAGIC_PROGRAM_ID,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: MAGIC_CONTEXT_ID,
+                    is_signer: false,
+                    is_writable: true,
+                },
+            ]),
+            // Bind the asynchronous callback to the exact pending request. A
+            // delayed result from an older request must never fulfill a newer
+            // row transition on the same ActiveRun.
+            callback_args: Some(request_counter.to_le_bytes().to_vec()),
+        },
+    ))
+}
+
+#[session_auth_or(
+    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
+    SessionError::InvalidToken
+)]
+pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
+    let validator =
+        delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
+    let active_key = ctx.accounts.active_run.key();
+    let ix = prepare_row_vrf_request(
+        &mut ctx.accounts.active_run,
+        active_key,
+        ctx.accounts.actor.key(),
+        ctx.accounts.oracle_queue.key(),
+        validator,
+        client_seed,
+    )?;
     ctx.accounts
         .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
     Ok(())
@@ -245,42 +270,43 @@ pub struct FulfillRowVrf<'info> {
     pub magic_fee_vault: UncheckedAccount<'info>,
 }
 
-pub fn handler_fulfill_row_vrf(ctx: Context<FulfillRowVrf>, randomness: [u8; 32]) -> Result<()> {
+pub fn handler_fulfill_row_vrf(
+    ctx: Context<FulfillRowVrf>,
+    randomness: [u8; 32],
+    expected_request_counter: u32,
+) -> Result<()> {
     let active = &mut ctx.accounts.active_run;
     require!(
         vrf_fulfillment_lifecycle_is_allowed(active.lifecycle),
         ErrorCode::InvalidState
     );
-    require!(
-        active.pending_vrf_counter > 0,
-        ErrorCode::NoVrfRequestPending
-    );
     let request_counter = active.pending_vrf_counter;
+    require_matching_vrf_callback(request_counter, expected_request_counter)?;
     let row_weights = if active.mode == RunMode::Daily {
         active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
     } else {
         active.rules.block_weights
     };
-    let row = row_from_vrf(
+    let mut engine = engine_from_active(active)?;
+    engine.phase = RunPhase::AwaitingVrf;
+    let opening = active.started_at == 0;
+    let (rows_derived, batch_hash) = provide_verified_vrf_rows(
+        &mut engine,
         randomness,
         request_counter,
         BlockWeights {
             values: row_weights,
         },
-    )
-    .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-
-    let mut engine = engine_from_active(active)?;
-    engine.phase = RunPhase::AwaitingVrf;
-    engine.provide_vrf_row(row).map_err(map_run_error)?;
+        opening,
+    )?;
     write_engine(active, &engine);
     active.pending_vrf_counter = 0;
     active.vrf_hash = Sha256::new()
-        .chain_update(b"zkube-vrf-chain-v1")
+        .chain_update(b"zkube-vrf-chain-v2")
         .chain_update(active.vrf_hash)
         .chain_update(request_counter.to_le_bytes())
-        .chain_update(randomness)
-        .chain_update(row)
+        .chain_update([rows_derived])
+        .chain_update(batch_hash)
         .finalize()
         .into();
     if active.started_at == 0 && engine.phase == RunPhase::Playing {
@@ -290,16 +316,88 @@ pub fn handler_fulfill_row_vrf(ctx: Context<FulfillRowVrf>, randomness: [u8; 32]
     Ok(())
 }
 
+fn provide_verified_vrf_rows(
+    engine: &mut RunEngine,
+    randomness: [u8; 32],
+    request_counter: u32,
+    weights: BlockWeights,
+    opening: bool,
+) -> Result<(u8, [u8; 32])> {
+    let mut rows_derived = 0u8;
+    let mut draws_remaining = MAX_OPENING_DRAWS_PER_CALLBACK;
+    let max_rows = if opening {
+        MAX_OPENING_ROWS_PER_CALLBACK
+    } else {
+        1
+    };
+    let mut batch_hasher = Sha256::new()
+        .chain_update(b"zkube-vrf-batch-v1")
+        .chain_update(randomness)
+        .chain_update(request_counter.to_le_bytes())
+        .chain_update([u8::from(opening)]);
+
+    while rows_derived < max_rows && draws_remaining > 0 {
+        let row_randomness = if opening {
+            Sha256::new()
+                .chain_update(b"zkube-opening-row-v1")
+                .chain_update(randomness)
+                .chain_update(request_counter.to_le_bytes())
+                .chain_update([rows_derived])
+                .finalize()
+                .into()
+        } else {
+            randomness
+        };
+        let (row, draws_used) = row_from_vrf_with_draw_budget(
+            row_randomness,
+            request_counter,
+            weights,
+            draws_remaining,
+        )
+        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
+        engine.provide_vrf_row(row).map_err(map_run_error)?;
+        batch_hasher.update(row);
+        rows_derived = rows_derived.saturating_add(1);
+        draws_remaining = draws_remaining.saturating_sub(draws_used);
+        if engine.phase != RunPhase::AwaitingVrf || !opening {
+            break;
+        }
+    }
+
+    Ok((rows_derived, batch_hasher.finalize().into()))
+}
+
+#[vrf]
 #[derive(Accounts, Session)]
 pub struct PlayMove<'info> {
     #[account(mut, owner = crate::ID)]
-    pub active_run: Account<'info, ActiveRun>,
+    pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
     pub owner_authority: UncheckedAccount<'info>,
     #[session(signer = actor, authority = owner_authority.key())]
     pub session_token: Option<Account<'info, SessionTokenV2>>,
+    #[account(mut)]
     pub actor: Signer<'info>,
+    /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
+    #[account(mut, address = ephemeral_vrf_sdk::consts::DEFAULT_EPHEMERAL_QUEUE)]
+    pub oracle_queue: UncheckedAccount<'info>,
+    /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
+    #[account(
+        address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
+        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidMagicProgram
+    )]
+    pub delegation_record_active: UncheckedAccount<'info>,
+}
+
+impl<'info> PlayMove<'info> {
+    fn invoke_vrf_request<'a>(
+        &self,
+        payer: &'a AccountInfo<'info>,
+        ix: &ephemeral_vrf_sdk::compat::Instruction,
+    ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
+        self.invoke_signed_vrf(payer, ix)
+    }
 }
 
 #[session_auth_or(
@@ -313,6 +411,7 @@ pub fn handler_play_move(
     row: u8,
     start: u8,
     destination: u8,
+    client_seed: [u8; 32],
 ) -> Result<()> {
     require_player_authorization(
         ctx.accounts.active_run.owner,
@@ -419,19 +518,55 @@ pub fn handler_play_move(
         .chain_update([active.lifecycle as u8])
         .finalize()
         .into();
+    if action_needs_row_vrf(active.lifecycle) {
+        let validator =
+            delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
+        let active_key = active.key();
+        let ix = prepare_row_vrf_request(
+            active,
+            active_key,
+            ctx.accounts.actor.key(),
+            ctx.accounts.oracle_queue.key(),
+            validator,
+            client_seed,
+        )?;
+        ctx.accounts
+            .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+    }
     Ok(())
 }
 
+#[vrf]
 #[derive(Accounts, Session)]
 pub struct ApplyBonus<'info> {
     #[account(mut, owner = crate::ID)]
-    pub active_run: Account<'info, ActiveRun>,
+    pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
     pub owner_authority: UncheckedAccount<'info>,
     #[session(signer = actor, authority = owner_authority.key())]
     pub session_token: Option<Account<'info, SessionTokenV2>>,
+    #[account(mut)]
     pub actor: Signer<'info>,
+    /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
+    #[account(mut, address = ephemeral_vrf_sdk::consts::DEFAULT_EPHEMERAL_QUEUE)]
+    pub oracle_queue: UncheckedAccount<'info>,
+    /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
+    #[account(
+        address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
+        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidMagicProgram
+    )]
+    pub delegation_record_active: UncheckedAccount<'info>,
+}
+
+impl<'info> ApplyBonus<'info> {
+    fn invoke_vrf_request<'a>(
+        &self,
+        payer: &'a AccountInfo<'info>,
+        ix: &ephemeral_vrf_sdk::compat::Instruction,
+    ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
+        self.invoke_signed_vrf(payer, ix)
+    }
 }
 
 #[session_auth_or(
@@ -443,6 +578,7 @@ pub fn handler_apply_bonus(
     expected_action: u32,
     row: u8,
     column: u8,
+    client_seed: [u8; 32],
 ) -> Result<()> {
     require_player_authorization(
         ctx.accounts.active_run.owner,
@@ -488,6 +624,21 @@ pub fn handler_apply_bonus(
         .chain_update([active.lifecycle as u8])
         .finalize()
         .into();
+    if action_needs_row_vrf(active.lifecycle) {
+        let validator =
+            delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
+        let active_key = active.key();
+        let ix = prepare_row_vrf_request(
+            active,
+            active_key,
+            ctx.accounts.actor.key(),
+            ctx.accounts.oracle_queue.key(),
+            validator,
+            client_seed,
+        )?;
+        ctx.accounts
+            .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+    }
     Ok(())
 }
 
@@ -590,6 +741,16 @@ fn vrf_request_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
 }
 
 fn vrf_fulfillment_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
+    lifecycle == RunLifecycle::AwaitingVrf
+}
+
+fn require_matching_vrf_callback(pending: u32, expected: u32) -> Result<()> {
+    require!(pending > 0, ErrorCode::NoVrfRequestPending);
+    require!(pending == expected, ErrorCode::VrfRequestMismatch);
+    Ok(())
+}
+
+fn action_needs_row_vrf(lifecycle: RunLifecycle) -> bool {
     lifecycle == RunLifecycle::AwaitingVrf
 }
 
@@ -1206,7 +1367,7 @@ mod tests {
     use crate::state::economy_v2::{
         canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
     };
-    use anchor_lang::ToAccountMetas;
+    use anchor_lang::{InstructionData, ToAccountMetas};
 
     fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
         use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
@@ -1245,6 +1406,61 @@ mod tests {
         assert_eq!(metas.len(), 6);
         assert_eq!(metas[5].pubkey, owner);
         assert!(metas.iter().all(|meta| !meta.is_signer));
+    }
+
+    #[test]
+    fn action_accounts_keep_the_scoped_vrf_boundary_in_exact_positions() {
+        let active_run = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let session_token = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
+        let oracle_queue = Pubkey::new_unique();
+        let delegation_record = Pubkey::new_unique();
+        let program_identity = Pubkey::new_unique();
+        let vrf_program = Pubkey::new_unique();
+        let slot_hashes = Pubkey::new_unique();
+        let system_program = Pubkey::new_unique();
+        let metas = crate::accounts::PlayMove {
+            active_run,
+            owner_authority: owner,
+            session_token: Some(session_token),
+            actor,
+            oracle_queue,
+            delegation_record_active: delegation_record,
+            program_identity,
+            vrf_program,
+            slot_hashes,
+            system_program,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 10);
+        assert_eq!(metas[0].pubkey, active_run);
+        assert_eq!(metas[3].pubkey, actor);
+        assert!(metas[3].is_signer && metas[3].is_writable);
+        assert_eq!(metas[4].pubkey, oracle_queue);
+        assert_eq!(metas[5].pubkey, delegation_record);
+    }
+
+    #[test]
+    fn callback_abi_carries_and_validates_the_exact_request_counter() {
+        let data = crate::instruction::FulfillRowVrf {
+            randomness: [9; 32],
+            expected_request_counter: 42,
+        }
+        .data();
+        assert_eq!(&data[data.len() - 4..], &42u32.to_le_bytes());
+        assert!(require_matching_vrf_callback(42, 42).is_ok());
+        assert!(require_matching_vrf_callback(0, 0).is_err());
+        assert!(require_matching_vrf_callback(41, 42).is_err());
+    }
+
+    #[test]
+    fn only_actions_that_consumed_the_preview_enqueue_randomness() {
+        assert!(action_needs_row_vrf(RunLifecycle::AwaitingVrf));
+        assert!(!action_needs_row_vrf(RunLifecycle::Playing));
+        assert!(!action_needs_row_vrf(RunLifecycle::LevelComplete));
+        assert!(!action_needs_row_vrf(RunLifecycle::Finished));
     }
 
     #[test]
@@ -1316,6 +1532,95 @@ mod tests {
             daily_challenge_bonus(rule(DAILY_SCORE_SURVIVAL, 0, 100), &report, 140).unwrap(),
             (1, 1)
         );
+    }
+
+    #[test]
+    fn one_verified_result_builds_the_visible_opening_layout() {
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            starting_height_target: 5,
+            ..RunEngine::default()
+        };
+        let (rows, hash) =
+            provide_verified_vrf_rows(&mut engine, [17u8; 32], 1, BlockWeights::default(), true)
+                .unwrap();
+
+        assert!(rows > 1);
+        assert!(rows <= MAX_OPENING_ROWS_PER_CALLBACK);
+        assert_eq!(engine.phase, RunPhase::Playing);
+        assert!(engine.grid.occupied_height() >= 5);
+        assert!(engine.next_row.is_some());
+        assert_ne!(hash, [0; 32]);
+    }
+
+    #[test]
+    fn opening_expansion_is_reproducible_and_domain_separated() {
+        let opening = || RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            starting_height_target: 4,
+            ..RunEngine::default()
+        };
+        let mut first = opening();
+        let mut replay = opening();
+        let mut different = opening();
+        let first_result =
+            provide_verified_vrf_rows(&mut first, [29u8; 32], 4, BlockWeights::default(), true)
+                .unwrap();
+        let replay_result =
+            provide_verified_vrf_rows(&mut replay, [29u8; 32], 4, BlockWeights::default(), true)
+                .unwrap();
+        let different_result =
+            provide_verified_vrf_rows(&mut different, [30u8; 32], 4, BlockWeights::default(), true)
+                .unwrap();
+
+        assert_eq!(first, replay);
+        assert_eq!(first_result, replay_result);
+        assert_ne!(first_result.1, different_result.1);
+        assert_ne!(first.grid, different.grid);
+    }
+
+    #[test]
+    fn one_callback_reaches_the_maximum_canonical_opening_height() {
+        for seed in 0..=u8::MAX {
+            let mut engine = RunEngine {
+                phase: RunPhase::AwaitingVrf,
+                starting_height_target: 9,
+                ..RunEngine::default()
+            };
+            let (rows, _) = provide_verified_vrf_rows(
+                &mut engine,
+                [seed; 32],
+                1,
+                BlockWeights::default(),
+                true,
+            )
+            .unwrap();
+
+            assert_eq!(engine.phase, RunPhase::Playing, "seed {seed}");
+            assert!(rows <= MAX_OPENING_ROWS_PER_CALLBACK);
+            assert!(engine.next_row.is_some());
+        }
+    }
+
+    #[test]
+    fn ordinary_callback_consumes_exactly_one_fresh_row() {
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            grid: Grid::try_from_cells({
+                let mut cells = [0; 80];
+                cells[0] = 1;
+                cells
+            })
+            .unwrap(),
+            ..RunEngine::default()
+        };
+        let (rows, _) =
+            provide_verified_vrf_rows(&mut engine, [41u8; 32], 9, BlockWeights::default(), false)
+                .unwrap();
+
+        assert_eq!(rows, 1);
+        assert_eq!(engine.phase, RunPhase::Playing);
+        assert!(engine.next_row.is_some());
     }
 
     /// Offline balancing harness, deliberately excluded from the fast gate.
@@ -1542,7 +1847,7 @@ mod tests {
             .chain_update(counter.to_le_bytes())
             .finalize()
             .into();
-        row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
+        crate::game::row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
     }
 
     #[test]
