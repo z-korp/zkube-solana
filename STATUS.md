@@ -178,16 +178,17 @@ driven by **websocket account subscriptions** (`onAccountChange` via
 `awaitAccountCondition`, reusing the `PersistedRunWatcher` pattern) instead of
 polling, with a slow poll only as a dropped-socket fallback.
 
-The external-wallet PWA source is on `main`; the corresponding Vercel
-deployment still needs a post-push production check. The breaking program and
-Fly relay are live, but the disabled keeper and uncompleted real-wallet smoke
-keep this maintenance interval open. Visible client errors are not acceptance
-evidence. The release's offline gates pass:
+The external-wallet PWA source is on `main`; Vercel production deployment
+`dpl_27bwofsKVtcmf3ndRJSFMkV4n9QN` is ready on the canonical alias. The app and
+manifest return 200. The breaking program and Fly relay are live, but the
+disabled keeper and uncompleted real-wallet smoke keep this maintenance
+interval open. Visible client errors are not acceptance evidence. The release's
+offline gates pass:
 84 active Rust tests (one offline Daily tuning harness ignored), formatting,
 warnings-denied Clippy, optimized SBF/IDL generation, and diagnostics; the
 generated IDL has 49 instructions and 19 account types. Client IDL parity,
 project and chain-only typechecking, strict lint, production build, and 71
-Vitest files / 290 tests pass. These static results are not a deployment or a
+Vitest files / 291 tests pass. These static results are not a deployment or a
 substitute for the real-wallet acceptance listed below.
 
 The Campaign is fully authored rather than generated: ten active
@@ -220,9 +221,15 @@ return the expected healthy identity. Keeper Machine `e825d16a4d1538` is
 started from the same image and logs `outcome:"disabled"` because
 `KEEPER_ENABLED=false`. The relay has only `PAYMASTER_SECRET_KEY`; the worker
 has only `KEEPER_SECRET_KEY`. Deletion of the legacy Vercel service secrets
-remains rollout work. No signer bytes are stored in the repository. Deployment
-payer and upgrade-authority signers remain local to the operator and must never
-be installed on either Fly app.
+is complete; the static Vercel project now has no environment variables. No
+signer bytes are stored in the repository. Deployment payer and
+upgrade-authority signers remain local to the operator and must never be
+installed on either Fly app.
+
+`/.well-known/assetlinks.json` cannot be finalized until the external Android
+release keystore supplies its SHA-256 certificate fingerprint. The template and
+TWA metadata are present, and the signed APK intentionally remains after real
+Seeker acceptance; browser/PWA Devnet acceptance does not depend on this file.
 
 ## Paymaster reserve incident
 
@@ -263,16 +270,21 @@ on a fresh identity
 Board entry ~3–5.4 s, quit→abandon-settled 4.4–12.3 s, all unregressed.
 Spectating an already-cleaned run shows the "settled and archived" state.
 
-A signer-free confirmed probe on 2026-07-15 found **1.444797 SOL** in the
-paymaster. The reclaimable-working-capital model
+A separately approved System Program transfer added exactly 0.2 SOL to the
+paymaster at slot `476435790`, with a 5,000-lamport fee and no other
+instruction. Signature:
+`4s1sBDh8DimPpMTj7fhUAToGxEH6eJqbMqr5gMXwpwNGgh4Z48G9kq9YXTFWdszF5VmGHfHRyXZrFbc7DtYazpdn`.
+The verified balance is now **1.644797 SOL**. The keeper now treats its reserve
+threshold as a hard no-write circuit breaker rather than telemetry only. The
+reclaimable-working-capital model
 recommends 0.740649216,
 0.994285920, 1.417013760, and 3.530652960 SOL for fresh cohorts of 1, 10, 25,
 and 100 active players respectively (seven Daily generations, thirteen claim
 weeks, winner retention, observed fresh-player durable cost, and 20%
 contingency). The initial source default is therefore a **1.5 SOL warning
-floor** for the 25-player scenario. The current balance is 0.055203 SOL below
-that warning floor. The same probe found Daily `20648` still open after entry
-close, with zero outstanding runs, rollups, or cleanup.
+floor** for the 25-player scenario. The current balance is 0.144797 SOL above
+the floor. The same probe found Daily `20648` still open after entry close, with zero
+outstanding runs, rollups, or cleanup.
 
 The post-reset read-only report sampled the latest 100 paymaster signatures:
 84 successful and 16 failed historical attempts. Successful transactions used
@@ -283,18 +295,18 @@ conservatively labelled `magicblock_or_system`.
 
 ## Open work
 
-1. **External-wallet acceptance.** Upgrade the breaking Devnet ABI and relay in
-   one separately approved maintenance window, then run Campaign, Daily,
-   resume, settlement, silent claims, rejection, account switch, expiry, and
-   renewal on a real Seeker with Seed Vault Wallet. Repeat on desktop with real
-   Phantom plus one other Wallet Standard wallet. Verify a separately approved
-   owner-signed Star purchase and its exact 10/10/80 split. Do not produce the
-   signed TWA APK before this evidence exists.
+1. **External-wallet acceptance.** With the breaking Devnet ABI and relay live,
+   run Campaign, Daily, resume, settlement, silent claims, rejection, account
+   switch, expiry, and renewal on a real Seeker with Seed Vault Wallet. Repeat
+   on desktop with real Phantom plus one other Wallet Standard wallet. Verify a
+   separately approved owner-signed Star purchase and its exact 10/10/80 split.
+   Do not produce the signed TWA APK or final Asset Links file before this
+   evidence and the external signing-certificate fingerprint exist.
 2. **Operations rollout.** The isolated Fly runtime secrets are staged. Program
    extension/upgrade and relay/disabled-keeper deployment and verification are
-   complete. Push the coherent release, verify the Vercel production
-   deployment, refill the paymaster above its 1.5-SOL keeper floor under an
-   exact transfer approval, and remove legacy Vercel service secrets.
+   complete. The coherent release is pushed, Vercel production is verified, and
+   legacy Vercel service variables are removed. The paymaster refill and hard
+   reserve circuit breaker are complete.
    Separately approve `KEEPER_ENABLED=true` only after the breaking program is
    live; verify five-minute `keeper_*`, `paymaster_request`, and `run_metric`
    logs. Autonomous writes remain disabled.
