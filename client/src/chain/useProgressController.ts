@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSolanaConnection } from "./connectionContext";
-import { fetchPaymasterClient } from "./paymasterClient";
 import {
   buildClaimAchievementPlan,
   buildClaimLevelMilestonePlan,
@@ -8,7 +7,7 @@ import {
   fetchProgressView,
   type ProgressView,
 } from "./progressClient";
-import { submitSponsoredTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "./runPlan";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { SessionWallet } from "./sessionWallet";
 
@@ -49,19 +48,16 @@ export function useProgressController() {
       const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`achievement:${index}`);
       try {
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimAchievementPlan({
           connection,
           wallet: sessionWallet,
           ownerAuthority: owner,
           sessionToken: session.sessionToken,
           achievementIndex: index,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();
@@ -85,19 +81,16 @@ export function useProgressController() {
       const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`quest:${index}`);
       try {
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimQuestPlan({
           connection,
           wallet: sessionWallet,
           ownerAuthority: owner,
           sessionToken: session.sessionToken,
           questIndex: index,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();
@@ -123,19 +116,16 @@ export function useProgressController() {
       const sessionWallet = new SessionWallet(session.signer);
       setClaiming(`milestone:${index}`);
       try {
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildClaimLevelMilestonePlan({
           connection,
           wallet: sessionWallet,
           ownerAuthority: owner,
           sessionToken: session.sessionToken,
           milestoneIndex: index,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();

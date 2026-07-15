@@ -6,13 +6,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
-  unpackAccount,
-} from "@solana/spl-token";
+
 import {
   Keypair,
+  SystemProgram,
   TransactionMessage,
   VersionedTransaction,
   type PublicKey,
@@ -26,7 +23,7 @@ import {
   walletRegistry,
   type WalletConnector,
 } from "@/platform/walletStandard";
-import { CANONICAL_DEVNET_USDC_MINT, ZKUBE_PROGRAM_ID } from "./constants";
+import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
   assertDeviceSessionStorageAvailable,
   clearDeviceSession,
@@ -47,7 +44,6 @@ import {
   type PlayerSessionStatus,
 } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
-import { fetchPaymasterClient } from "./paymasterClient";
 import { clearRunSession } from "./runSessionStore";
 import {
   buildCreateSessionV2Instruction,
@@ -56,9 +52,17 @@ import {
 } from "./sessionV2";
 import type { WalletLike } from "./sessionWallet";
 import { createReadOnlyWallet } from "./readOnlyWallet";
+import {
+  deriveCampaignProgressPda,
+  derivePlayerFundingPda,
+  derivePlayerProfilePda,
+} from "./pdas";
+import { zkubeProgram } from "./runPlan";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
+const DEVICE_FEE_ALLOWANCE_LAMPORTS = 1_000_000;
+const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
 
 interface ConnectedWalletState {
   connector: WalletConnector;
@@ -68,6 +72,13 @@ interface ConnectedWalletState {
 
 type SessionRefreshResult = "ready" | "missing" | "expired" | "unavailable";
 
+/**
+ * Owns the atomic external-wallet lifecycle: connect the exact address, reuse
+ * only its matching live SessionTokenV2, or immediately request one owner-paid
+ * Enable zKube approval. Account changes clear the previous address's local
+ * session/run markers; wallet and session secret material never leaves their
+ * respective connector/browser-storage boundary.
+ */
 export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   const { connection } = useSolanaConnection();
   const [connectors, setConnectors] = useState(discoverWalletConnectors);
@@ -79,7 +90,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   const [sessionStatus, setSessionStatus] =
     useState<PlayerSessionStatus>("missing");
   const [balanceLamports, setBalanceLamports] = useState<number | null>(null);
-  const [usdcBaseUnits, setUsdcBaseUnits] = useState<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const connectedRef = useRef<ConnectedWalletState | null>(null);
@@ -137,7 +147,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setSessionStatus("missing");
       setBalanceLamports(null);
-      setUsdcBaseUnits(null);
       setError(reason);
     },
     [clearOwnerState],
@@ -169,34 +178,14 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     const owner = connectedRef.current?.publicKey;
     if (!owner) {
       setBalanceLamports(null);
-      setUsdcBaseUnits(null);
       return;
     }
     setBalanceLoading(true);
     try {
-      const ata = getAssociatedTokenAddressSync(
-        CANONICAL_DEVNET_USDC_MINT,
-        owner,
-        false,
-        TOKEN_PROGRAM_ID,
-      );
-      const [lamports, tokenInfo] = await Promise.all([
-        connection.getBalance(owner, "confirmed"),
-        connection.getAccountInfo(ata, "confirmed"),
-      ]);
-      const token = tokenInfo ? unpackAccount(ata, tokenInfo, TOKEN_PROGRAM_ID) : null;
-      if (
-        token &&
-        (!token.owner.equals(owner) ||
-          !token.mint.equals(CANONICAL_DEVNET_USDC_MINT))
-      ) {
-        throw new Error("Connected wallet USDC account identity is invalid");
-      }
+      const lamports = await connection.getBalance(owner, "confirmed");
       setBalanceLamports(lamports);
-      setUsdcBaseUnits(token?.amount ?? 0n);
     } catch (cause) {
       setBalanceLamports(null);
-      setUsdcBaseUnits(null);
       setError(errorMessage(cause));
     } finally {
       setBalanceLoading(false);
@@ -236,14 +225,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         ) {
           throw new Error("Stored device session does not match the connected wallet");
         }
-        let paymaster: Awaited<ReturnType<typeof fetchPaymasterClient>> | null = null;
-        try {
-          paymaster = await fetchPaymasterClient(connection);
-        } catch (cause) {
-          setError(`Paymaster unavailable; the local session was retained. ${errorMessage(cause)}`);
-        }
-        if (paymaster && !token.feePayer.equals(paymaster.pubkey)) {
-          throw new Error("Stored device session belongs to a different paymaster");
+        if (!token.feePayer.equals(owner)) {
+          throw new Error("Stored device session was created by a different owner payer");
         }
         const now = Math.floor(Date.now() / 1_000);
         const result =
@@ -354,7 +337,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     const current = connectedRef.current;
     if (!current) throw new Error("Connect a Solana wallet before enabling zKube");
     assertDeviceSessionStorageAvailable();
-    const paymaster = await fetchPaymasterClient(connection);
     const signer = Keypair.generate();
     const now = Math.floor(Date.now() / 1_000);
     const validUntil = now + SESSION_LIFETIME_SECONDS;
@@ -364,20 +346,99 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     });
     const { blockhash, lastValidBlockHeight } =
       await connection.getLatestBlockhash("confirmed");
+    const program = zkubeProgram(connection, current.wallet);
+    const playerProfile = derivePlayerProfilePda(current.publicKey);
+    const playerFunding = derivePlayerFundingPda(current.publicKey);
+    const [profileInfo, fundingInfo, fundingRent] = await Promise.all([
+      connection.getAccountInfo(playerProfile, "confirmed"),
+      connection.getAccountInfo(playerFunding, "confirmed"),
+      connection.getMinimumBalanceForRentExemption(
+        program.account.playerFundingVault.size,
+        "confirmed",
+      ),
+    ]);
+    if (profileInfo) {
+      if (
+        !profileInfo.owner.equals(ZKUBE_PROGRAM_ID) ||
+        profileInfo.executable ||
+        profileInfo.data.length !== program.account.playerProfile.size
+      ) {
+        throw new Error("PlayerProfile has an invalid owner or account layout");
+      }
+      const profile = await program.account.playerProfile.fetch(playerProfile);
+      if (!profile.owner.equals(current.publicKey)) {
+        throw new Error("PlayerProfile belongs to a different wallet");
+      }
+    }
+    if (fundingInfo) {
+      if (
+        !fundingInfo.owner.equals(ZKUBE_PROGRAM_ID) ||
+        fundingInfo.executable ||
+        fundingInfo.data.length !== program.account.playerFundingVault.size
+      ) {
+        throw new Error("Player funding vault has an invalid owner or account layout");
+      }
+      const funding = await program.account.playerFundingVault.fetch(playerFunding);
+      if (!funding.owner.equals(current.publicKey)) {
+        throw new Error("Player funding vault belongs to a different wallet");
+      }
+    }
+    if (Boolean(profileInfo) !== Boolean(fundingInfo)) {
+      throw new Error(
+        "Devnet player initialization is incomplete; the program release must be reset.",
+      );
+    }
+    const spendableFunding = Math.max(
+      0,
+      (fundingInfo?.lamports ?? 0) - fundingRent,
+    );
+    const fundingTopUp = Math.max(
+      0,
+      PLAYER_FUNDING_TARGET_LAMPORTS - spendableFunding,
+    );
+    const instructions = [];
+    if (!profileInfo) {
+      instructions.push(
+        await program.methods
+          .initializePlayer()
+          .accountsPartial({
+            playerProfile,
+            campaignProgress: deriveCampaignProgressPda(current.publicKey),
+            playerFunding,
+            payer: current.publicKey,
+            ownerAuthority: current.publicKey,
+            sessionToken: null,
+            actor: current.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .instruction(),
+      );
+    }
+    if (fundingTopUp > 0) {
+      instructions.push(
+        SystemProgram.transfer({
+          fromPubkey: current.publicKey,
+          toPubkey: playerFunding,
+          lamports: fundingTopUp,
+        }),
+      );
+    }
+    instructions.push(
+      buildCreateSessionV2Instruction({
+        authority: current.publicKey,
+        sessionSigner: signer.publicKey,
+        feePayer: current.publicKey,
+        targetProgram: ZKUBE_PROGRAM_ID,
+        topUp: true,
+        validUntil,
+        lamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
+      }),
+    );
     const transaction = new VersionedTransaction(
       new TransactionMessage({
-        payerKey: paymaster.pubkey,
+        payerKey: current.publicKey,
         recentBlockhash: blockhash,
-        instructions: [
-          buildCreateSessionV2Instruction({
-            authority: current.publicKey,
-            sessionSigner: signer.publicKey,
-            feePayer: paymaster.pubkey,
-            targetProgram: ZKUBE_PROGRAM_ID,
-            topUp: false,
-            validUntil,
-          }),
-        ],
+        instructions,
       }).compileToV0Message(),
     );
     transaction.sign([signer]);
@@ -399,7 +460,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     ) {
       throw new Error("The wallet account changed before zKube was enabled");
     }
-    const signature = await paymaster.submit(signed.serialize());
+    const signature = await connection.sendRawTransaction(signed.serialize(), {
+      maxRetries: 5,
+      skipPreflight: false,
+    });
     const confirmation = await connection.confirmTransaction(
       { signature, blockhash, lastValidBlockHeight },
       "confirmed",
@@ -482,7 +546,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       session,
       sessionStatus,
       balanceLamports,
-      usdcBaseUnits,
       balanceLoading,
       error,
       connectAndEnable,
@@ -507,7 +570,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       requireSession,
       session,
       sessionStatus,
-      usdcBaseUnits,
     ],
   );
 

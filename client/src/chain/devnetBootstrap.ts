@@ -2,13 +2,6 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
-  ACCOUNT_SIZE,
-  TOKEN_PROGRAM_ID,
-  createInitializeAccount3Instruction,
-  getAccount,
-  getMint,
-} from "@solana/spl-token";
-import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
@@ -35,15 +28,12 @@ import {
   deriveEconomyConfigPda,
   deriveMapCatalogPda,
   deriveProtocolConfigPda,
+  deriveRewardVaultPda,
   deriveStarSalesLedgerPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 import { zkubeProgram } from "./runPlan";
-import {
-  CANONICAL_DEVNET_USDC_MINT,
-  SOLANA_DEVNET_GENESIS_HASH,
-  ZKUBE_PROGRAM_ID,
-} from "./constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 import {
   CANONICAL_DAILY_PRESSURE,
   CANONICAL_DAILY_SCORING_RULES,
@@ -51,9 +41,7 @@ import {
   DAILY_SCORING_RULE_COUNT,
 } from "./dailyRules";
 
-export const DEVNET_USDC_MINT = CANONICAL_DEVNET_USDC_MINT;
 export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
-export const DEFAULT_PAYMASTER_FUNDING_LAMPORTS = 100_000_000;
 export const DEPLOYED_ZKUBE_SBF_SHA256 =
   "dd187f69f8c0c3cfb3fcdb9366c5af88a948a27e41ac26e6db3a1d4fc6268be5";
 
@@ -65,12 +53,11 @@ export type DevnetBootstrapStage =
   | "maps"
   | "activation";
 
-type VaultName = "team" | "treasury" | "reward";
+type VaultName = "team" | "treasury";
 
 interface BootstrapIdentities {
   funder: Keypair;
   authority: Keypair;
-  paymaster: Keypair;
   vaults: Record<VaultName, Keypair>;
 }
 
@@ -78,12 +65,9 @@ interface ProtocolConfigView {
   version: number;
   authority: PublicKey;
   pricingOperator: PublicKey;
-  paymaster: PublicKey;
   teamDestination: PublicKey;
   treasuryDestination: PublicKey;
   rewardVault: PublicKey;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
   contentVersion: number;
   campaignMapCount: number;
 }
@@ -129,11 +113,9 @@ export interface PublicBootstrapPlan {
     upgradeAuthority: string | null;
     sbfSha256: string;
   };
-  payment: { mint: string; tokenProgram: string; decimals: 6 };
   identities: {
     funder: string;
     authority: string;
-    paymaster: string;
   };
   vaults: Record<VaultName, string>;
   pdas: {
@@ -143,7 +125,6 @@ export interface PublicBootstrapPlan {
     dailyRulesCatalog: string;
   };
   policy: {
-    paymasterFundingLamports: number;
     contentVersion: number;
     dailyRulesVersion: number;
   };
@@ -155,7 +136,6 @@ export interface DevnetBootstrapInput {
   connection: Connection;
   rpc: string;
   identities: BootstrapIdentities;
-  paymasterFundingLamports: number;
   sendEnabled: boolean;
   suppliedApproval?: string;
   proofOut?: string;
@@ -191,7 +171,6 @@ const POLICY = {
 const VAULT_PATHS: Record<VaultName, string> = {
   team: "../.devnet/zkube-team-vault.json",
   treasury: "../.devnet/zkube-treasury-vault.json",
-  reward: "../.devnet/zkube-reward-vault.json",
 };
 
 function canonicalDailyRulesPublication() {
@@ -212,11 +191,6 @@ export function devnetBootstrapInputFromEnv(
 ): DevnetBootstrapInput {
   const stage = bootstrapStage(env.ZKUBE_BOOTSTRAP_STAGE);
   const rpc = devnetRpc(env.ZKUBE_BASE_RPC ?? DEFAULT_BOOTSTRAP_RPC);
-  const paymasterFundingLamports = positiveSafeInteger(
-    env.ZKUBE_PAYMASTER_FUNDING_LAMPORTS ??
-      String(DEFAULT_PAYMASTER_FUNDING_LAMPORTS),
-    "ZKUBE_PAYMASTER_FUNDING_LAMPORTS",
-  );
   const vaults = Object.fromEntries(
     Object.entries(VAULT_PATHS).map(([name, defaultPath]) => [
       name,
@@ -250,16 +224,8 @@ export function devnetBootstrapInputFromEnv(
         ),
         "protocol authority",
       ),
-      paymaster: loadKeypair(
-        resolve(
-          cwd,
-          env.ZKUBE_PAYMASTER_KEYPAIR ?? "../.devnet/zkube-paymaster.json",
-        ),
-        "paymaster",
-      ),
       vaults,
     },
-    paymasterFundingLamports,
     sendEnabled: env.ZKUBE_BOOTSTRAP_SEND === "1",
     suppliedApproval: env.ZKUBE_BOOTSTRAP_APPROVAL?.trim() || undefined,
     proofOut: env.ZKUBE_BOOTSTRAP_PROOF_OUT?.trim() || undefined,
@@ -321,10 +287,8 @@ export function formatDevnetBootstrap(result: DevnetBootstrapPreview): string {
     `Stage: ${plan.stage}`,
     `RPC: ${plan.rpc}`,
     `Program: ${plan.program}`,
-    `Canonical USDC: ${plan.payment.mint} (${plan.payment.decimals} decimals)`,
     `Funder: ${plan.identities.funder}`,
     `Governance authority: ${plan.identities.authority}`,
-    `Paymaster: ${plan.identities.paymaster}`,
     `Approval fingerprint: ${result.fingerprint}`,
     ...result.batches.map((batch, index) => {
       const simulation = result.simulations[index];
@@ -354,19 +318,15 @@ export function formatDevnetBootstrap(result: DevnetBootstrapPreview): string {
 async function verifyDevnetIdentity(
   input: DevnetBootstrapInput,
 ): Promise<LiveProgramDeployment> {
-  const [genesis, programInfo, mint] = await Promise.all([
+  const [genesis, programInfo] = await Promise.all([
     input.connection.getGenesisHash(),
     input.connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed"),
-    getMint(input.connection, DEVNET_USDC_MINT, "confirmed", TOKEN_PROGRAM_ID),
   ]);
   if (genesis !== SOLANA_DEVNET_GENESIS_HASH) {
     throw new Error(`Devnet genesis mismatch: received ${genesis}`);
   }
   if (!programInfo?.executable) {
     throw new Error("deployed zKube program is missing or not executable");
-  }
-  if (mint.decimals !== 6) {
-    throw new Error("canonical Devnet USDC mint must use six decimals");
   }
   if (programInfo.data.length < 36 || programInfo.data.readUInt32LE(0) !== 2) {
     throw new Error("zKube is not an upgradeable-loader Program account");
@@ -425,85 +385,15 @@ async function buildStageBatches(
 async function buildCustodyBatches(
   input: DevnetBootstrapInput,
 ): Promise<BootstrapBatch[]> {
-  const { funder, authority, paymaster, vaults } = input.identities;
-  const protocol = deriveProtocolConfigPda();
-  const vaultOwners: Record<VaultName, PublicKey> = {
-    team: authority.publicKey,
-    treasury: authority.publicKey,
-    reward: protocol,
-  };
-  const rent = await input.connection.getMinimumBalanceForRentExemption(
-    ACCOUNT_SIZE,
-    "confirmed",
-  );
-  const batches: BootstrapBatch[] = [];
-  for (const name of Object.keys(vaults) as VaultName[]) {
-    const keypair = vaults[name];
-    const existing = await input.connection.getAccountInfo(
-      keypair.publicKey,
-      "confirmed",
-    );
-    if (existing) {
-      await verifyVault(input.connection, keypair.publicKey, vaultOwners[name]);
-      continue;
-    }
-    const transaction = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: funder.publicKey,
-        newAccountPubkey: keypair.publicKey,
-        lamports: rent,
-        space: ACCOUNT_SIZE,
-        programId: TOKEN_PROGRAM_ID,
-      }),
-      createInitializeAccount3Instruction(
-        keypair.publicKey,
-        DEVNET_USDC_MINT,
-        vaultOwners[name],
-        TOKEN_PROGRAM_ID,
-      ),
-    );
-    transaction.feePayer = funder.publicKey;
-    batches.push({
-      id: `create-${name}-vault`,
-      label: `Create segregated ${name} USDC vault`,
-      transaction,
-      signers: [funder, keypair],
-      fundingLamports: rent,
-      creates: [keypair.publicKey.toBase58()],
-    });
-  }
-  const paymasterBalance = await input.connection.getBalance(
-    paymaster.publicKey,
-    "confirmed",
-  );
-  const topUp = Math.max(0, input.paymasterFundingLamports - paymasterBalance);
-  if (topUp > 0) {
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: funder.publicKey,
-        toPubkey: paymaster.publicKey,
-        lamports: topUp,
-      }),
-    );
-    transaction.feePayer = funder.publicKey;
-    batches.push({
-      id: "fund-paymaster",
-      label: "Fund the capped stateless Devnet paymaster",
-      transaction,
-      signers: [funder],
-      fundingLamports: topUp,
-      creates: [],
-    });
-  }
-  await assertFunderHeadroom(input, batches);
-  return batches;
+  await verifyAllVaults(input);
+  return [];
 }
 
 async function buildProtocolBatches(
   input: DevnetBootstrapInput,
 ): Promise<BootstrapBatch[]> {
   await verifyAllVaults(input);
-  const { funder, authority, paymaster, vaults } = input.identities;
+  const { funder, authority, vaults } = input.identities;
   const program = zkubeProgram(input.connection, new SessionWallet(authority));
   const protocol = await program.account.protocolConfig.fetchNullable(
     deriveProtocolConfigPda(),
@@ -520,13 +410,9 @@ async function buildProtocolBatches(
     connection: input.connection,
     authority: new SessionWallet(authority),
     config: {
-      paymaster: paymaster.publicKey,
       pricingOperator: authority.publicKey,
       teamDestination: vaults.team.publicKey,
       treasuryDestination: vaults.treasury.publicKey,
-      rewardVault: vaults.reward.publicKey,
-      paymentMint: DEVNET_USDC_MINT,
-      paymentTokenProgram: TOKEN_PROGRAM_ID,
       contentVersion: POLICY.contentVersion,
     },
   });
@@ -604,7 +490,6 @@ async function buildEconomyBatches(
     authority: wallet,
     config: {
       dailyRulesVersion: POLICY.dailyRulesVersion,
-      paymentMint: DEVNET_USDC_MINT,
     },
   });
   const batch = fundedAuthorityBatch({
@@ -777,32 +662,13 @@ function fundedAuthorityBatch(args: {
 }
 
 async function verifyAllVaults(input: DevnetBootstrapInput): Promise<void> {
-  const { authority, vaults } = input.identities;
-  const protocol = deriveProtocolConfigPda();
-  await Promise.all([
-    verifyVault(input.connection, vaults.team.publicKey, authority.publicKey),
-    verifyVault(
-      input.connection,
-      vaults.treasury.publicKey,
-      authority.publicKey,
-    ),
-    verifyVault(input.connection, vaults.reward.publicKey, protocol),
-  ]);
-}
-
-async function verifyVault(
-  connection: Connection,
-  address: PublicKey,
-  owner: PublicKey,
-): Promise<void> {
-  const account = await getAccount(
-    connection,
-    address,
-    "confirmed",
-    TOKEN_PROGRAM_ID,
-  );
-  if (!account.mint.equals(DEVNET_USDC_MINT) || !account.owner.equals(owner)) {
-    throw new Error(`vault ${address.toBase58()} has the wrong mint or owner`);
+  const { vaults } = input.identities;
+  const addresses = [vaults.team.publicKey, vaults.treasury.publicKey];
+  if (
+    addresses.some((address) => address.equals(PublicKey.default)) ||
+    addresses[0]?.equals(addresses[1]!)
+  ) {
+    throw new Error("native SOL destinations must be nonzero and distinct");
   }
 }
 
@@ -810,12 +676,11 @@ function verifyProtocolConfig(
   protocol: ProtocolConfigView,
   input: DevnetBootstrapInput,
 ): void {
-  const { authority, paymaster, vaults } = input.identities;
+  const { authority, vaults } = input.identities;
   const checks: Array<[boolean, string]> = [
     [Number(protocol.version) === 1, "version"],
     [protocol.authority.equals(authority.publicKey), "authority"],
     [protocol.pricingOperator.equals(authority.publicKey), "pricing operator"],
-    [protocol.paymaster.equals(paymaster.publicKey), "paymaster"],
     [
       protocol.teamDestination.equals(vaults.team.publicKey),
       "team destination",
@@ -824,9 +689,7 @@ function verifyProtocolConfig(
       protocol.treasuryDestination.equals(vaults.treasury.publicKey),
       "treasury destination",
     ],
-    [protocol.rewardVault.equals(vaults.reward.publicKey), "reward vault"],
-    [protocol.paymentMint.equals(DEVNET_USDC_MINT), "payment mint"],
-    [protocol.paymentTokenProgram.equals(TOKEN_PROGRAM_ID), "token program"],
+    [protocol.rewardVault.equals(deriveRewardVaultPda()), "reward vault"],
     [
       Number(protocol.contentVersion) === POLICY.contentVersion,
       "content version",
@@ -860,16 +723,13 @@ async function verifyEconomyFoundation(
   const validEconomy =
     Number(economy.version) === 1 &&
     economy.protocol.equals(deriveProtocolConfigPda()) &&
-    economy.paymentMint.equals(DEVNET_USDC_MINT) &&
-    economy.paymentTokenProgram.equals(TOKEN_PROGRAM_ID) &&
     Number(economy.contentVersion) === POLICY.contentVersion &&
     Number(economy.dailyRulesVersion) === POLICY.dailyRulesVersion &&
     BigInt(economy.revision.toString()) >= 1n &&
     economy.active;
   const validSales =
     Number(sales.version) === 1 &&
-    sales.economyConfig.equals(deriveEconomyConfigPda()) &&
-    sales.paymentMint.equals(DEVNET_USDC_MINT);
+    sales.economyConfig.equals(deriveEconomyConfigPda());
   if (!validEconomy || !validSales) {
     throw new Error("existing Stars economy foundation mismatch");
   }
@@ -933,7 +793,7 @@ function publicPlan(
   batches: BootstrapBatch[],
   deployment: LiveProgramDeployment,
 ): PublicBootstrapPlan {
-  const { funder, authority, paymaster, vaults } = input.identities;
+  const { funder, authority, vaults } = input.identities;
   return {
     schema: "zkube-devnet-bootstrap-plan",
     schemaVersion: 1,
@@ -943,15 +803,9 @@ function publicPlan(
     genesisHash: SOLANA_DEVNET_GENESIS_HASH,
     program: ZKUBE_PROGRAM_ID.toBase58(),
     deployment,
-    payment: {
-      mint: DEVNET_USDC_MINT.toBase58(),
-      tokenProgram: TOKEN_PROGRAM_ID.toBase58(),
-      decimals: 6,
-    },
     identities: {
       funder: funder.publicKey.toBase58(),
       authority: authority.publicKey.toBase58(),
-      paymaster: paymaster.publicKey.toBase58(),
     },
     vaults: Object.fromEntries(
       (Object.keys(vaults) as VaultName[]).map((name) => [
@@ -968,7 +822,6 @@ function publicPlan(
       ).toBase58(),
     },
     policy: {
-      paymasterFundingLamports: input.paymasterFundingLamports,
       contentVersion: POLICY.contentVersion,
       dailyRulesVersion: POLICY.dailyRulesVersion,
     },
@@ -1084,13 +937,6 @@ async function verifyStagePostconditions(
 ): Promise<void> {
   if (input.stage === "custody") {
     await verifyAllVaults(input);
-    const paymasterBalance = await input.connection.getBalance(
-      input.identities.paymaster.publicKey,
-      "confirmed",
-    );
-    if (paymasterBalance < input.paymasterFundingLamports) {
-      throw new Error("paymaster funding postcondition failed");
-    }
     return;
   }
   const program = zkubeProgram(
@@ -1212,12 +1058,4 @@ function devnetRpc(value: string): string {
     throw new Error("Devnet bootstrap cannot target mainnet or testnet");
   }
   return url.toString().replace(/\/$/, "");
-}
-
-function positiveSafeInteger(value: string, label: string): number {
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${label} must be a positive safe integer`);
-  }
-  return parsed;
 }

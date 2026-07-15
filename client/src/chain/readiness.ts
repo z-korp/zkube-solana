@@ -37,7 +37,7 @@ export function evaluateTreasuryReadiness(treasury: TreasuryView): TreasuryReadi
     alerts.push(alert("warning", "AUTHORITY_TRANSFER_PENDING", "A protocol authority transfer is pending"));
   }
   if (treasury.destinations.reward.balance === 0n) {
-    alerts.push(alert("warning", "REWARD_RESERVE_EMPTY", "Weekly USDC rewards are currently unfunded"));
+    alerts.push(alert("warning", "REWARD_RESERVE_EMPTY", "Weekly SOL rewards are currently unfunded"));
   }
   if (treasury.sales.lifetimeGrossSales > 0n) {
     const teamBps = basisPoints(treasury.sales.lifetimeTeamShare, treasury.sales.lifetimeGrossSales);

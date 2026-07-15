@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
 use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
@@ -10,13 +9,9 @@ use crate::state::v2::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeProtocolArgs {
-    pub paymaster: Pubkey,
     pub pricing_operator: Pubkey,
     pub team_destination: Pubkey,
     pub treasury_destination: Pubkey,
-    pub reward_vault: Pubkey,
-    pub payment_mint: Pubkey,
-    pub payment_token_program: Pubkey,
     pub content_version: u32,
 }
 
@@ -31,31 +26,20 @@ pub struct InitializeProtocol<'info> {
         bump
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(address = args.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
     #[account(
-        address = args.team_destination,
-        token::mint = payment_mint,
-        constraint = team_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
+        init,
+        payer = authority,
+        space = 8 + RewardVault::INIT_SPACE,
+        seeds = [REWARD_VAULT_SEED],
+        bump
     )]
-    pub team_destination: Box<Account<'info, TokenAccount>>,
-    #[account(
-        address = args.treasury_destination,
-        token::mint = payment_mint,
-        constraint = treasury_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub treasury_destination: Box<Account<'info, TokenAccount>>,
-    #[account(
-        address = args.reward_vault,
-        token::mint = payment_mint,
-        token::authority = protocol,
-    )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-    #[account(
-        address = args.payment_token_program,
-        constraint = args.payment_token_program == anchor_spl::token::ID @ ErrorCode::InvalidOwner
-    )]
-    pub token_program: Program<'info, Token>,
+    pub reward_vault: Box<Account<'info, RewardVault>>,
+    /// CHECK: Immutable native-SOL revenue recipient validated against args.
+    #[account(address = args.team_destination)]
+    pub team_destination: UncheckedAccount<'info>,
+    /// CHECK: Immutable native-SOL revenue recipient validated against args.
+    #[account(address = args.treasury_destination)]
+    pub treasury_destination: UncheckedAccount<'info>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -65,16 +49,11 @@ pub fn handler_initialize_protocol(
     ctx: Context<InitializeProtocol>,
     args: InitializeProtocolArgs,
 ) -> Result<()> {
-    validate_payment_asset(
-        ctx.accounts.token_program.key(),
-        ctx.accounts.payment_mint.decimals,
-    )?;
     validate_vault_segregation([
         args.team_destination,
         args.treasury_destination,
-        args.reward_vault,
+        ctx.accounts.reward_vault.key(),
     ])?;
-    require_keys_neq!(args.paymaster, Pubkey::default(), ErrorCode::InvalidOwner);
     require_keys_neq!(
         args.pricing_operator,
         Pubkey::default(),
@@ -85,26 +64,18 @@ pub fn handler_initialize_protocol(
     protocol.authority = ctx.accounts.authority.key();
     protocol.pending_authority = Pubkey::default();
     protocol.pricing_operator = args.pricing_operator;
-    protocol.paymaster = args.paymaster;
     protocol.team_destination = args.team_destination;
     protocol.treasury_destination = args.treasury_destination;
-    protocol.reward_vault = args.reward_vault;
-    protocol.payment_mint = args.payment_mint;
-    protocol.payment_token_program = args.payment_token_program;
+    protocol.reward_vault = ctx.accounts.reward_vault.key();
     protocol.content_version = args.content_version;
     protocol.campaign_map_count = 0;
     protocol.paused = false;
     protocol.bump = ctx.bumps.protocol;
-    Ok(())
-}
-
-fn validate_payment_asset(token_program: Pubkey, decimals: u8) -> Result<()> {
-    require_keys_eq!(
-        token_program,
-        anchor_spl::token::ID,
-        ErrorCode::InvalidOwner
-    );
-    require!(decimals == 6, ErrorCode::InvalidState);
+    ctx.accounts.reward_vault.set_inner(RewardVault {
+        version: ACCOUNT_VERSION,
+        protocol: protocol.key(),
+        bump: ctx.bumps.reward_vault,
+    });
     Ok(())
 }
 
@@ -137,6 +108,14 @@ pub struct InitializePlayer<'info> {
         bump
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + PlayerFundingVault::INIT_SPACE,
+        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
+        bump
+    )]
+    pub player_funding: Box<Account<'info, PlayerFundingVault>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity used for the player PDAs.
@@ -174,6 +153,66 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
             ErrorCode::InvalidVersion
         );
     }
+    let funding = &mut ctx.accounts.player_funding;
+    if funding.version == 0 {
+        funding.set_inner(PlayerFundingVault {
+            version: ACCOUNT_VERSION,
+            owner,
+            bump: ctx.bumps.player_funding,
+        });
+    } else {
+        require_keys_eq!(funding.owner, owner, ErrorCode::Unauthorized);
+        require!(
+            funding.version == ACCOUNT_VERSION,
+            ErrorCode::InvalidVersion
+        );
+    }
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct WithdrawPlayerFunding<'info> {
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
+        bump = player_funding.bump,
+        constraint = player_funding.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = player_funding.owner == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub player_funding: Box<Account<'info, PlayerFundingVault>>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
+}
+
+pub fn handler_withdraw_player_funding(
+    ctx: Context<WithdrawPlayerFunding>,
+    lamports: u64,
+) -> Result<()> {
+    require!(lamports > 0, ErrorCode::InsufficientFunds);
+    let funding_info = ctx.accounts.player_funding.to_account_info();
+    let reserve = Rent::get()?.minimum_balance(funding_info.data_len());
+    let spendable = funding_info
+        .lamports()
+        .checked_sub(reserve)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    require!(spendable >= lamports, ErrorCode::InsufficientFunds);
+    let funding_after = funding_info
+        .lamports()
+        .checked_sub(lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let owner_after = ctx
+        .accounts
+        .owner
+        .to_account_info()
+        .lamports()
+        .checked_add(lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    **funding_info.try_borrow_mut_lamports()? = funding_after;
+    **ctx
+        .accounts
+        .owner
+        .to_account_info()
+        .try_borrow_mut_lamports()? = owner_after;
     Ok(())
 }
 
@@ -427,6 +466,10 @@ pub fn handler_prepare_campaign_run(
         ErrorCode::InvalidRunId
     );
     require!(
+        ctx.accounts.player_profile.active_run_id == 0,
+        ErrorCode::ActiveRunExists
+    );
+    require!(
         ctx.accounts.campaign_progress.is_map_unlocked(map_id),
         ErrorCode::MapLocked
     );
@@ -546,12 +589,7 @@ pub fn handler_prepare_campaign_run(
     receipt.bump = ctx.bumps.run_receipt;
 
     ctx.accounts.player_profile.record_run_started(now)?;
-    ctx.accounts.player_profile.next_run_id = ctx
-        .accounts
-        .player_profile
-        .next_run_id
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.player_profile.reserve_run(run_id)?;
     Ok(())
 }
 
@@ -583,13 +621,6 @@ mod tests {
         assert_eq!(first, hash_rules(1, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(2, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(1, 2, &rules).unwrap());
-    }
-
-    #[test]
-    fn payment_asset_rejects_token_2022_extensions_and_non_usdc_precision() {
-        assert!(validate_payment_asset(anchor_spl::token::ID, 6).is_ok());
-        assert!(validate_payment_asset(Pubkey::new_unique(), 6).is_err());
-        assert!(validate_payment_asset(anchor_spl::token::ID, 9).is_err());
     }
 
     #[test]

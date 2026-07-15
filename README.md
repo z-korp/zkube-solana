@@ -1,96 +1,152 @@
-# zKube Solana + MagicBlock
+# zKube on Solana
 
-zKube is a fully on-chain puzzle game with a ten-map campaign and a Daily
-Arena. Durable identity, progression, contests, USDC accounting, receipts, and
-governance live on Solana; latency-sensitive active runs execute on a
-MagicBlock Ephemeral Rollup (ER) and settle back to the base layer.
+zKube is a connection-gated Solana game. The connected Solana address is the
+player identity; there are no embedded wallets, recovery codes, deposits, or
+zKube-held user funds. The web client is a Vite PWA intended for desktop Wallet
+Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 
-The client uses the connected Solana address as the durable player identity.
-Wallet Standard supports desktop wallets, Mobile Wallet Adapter 2.0 supports
-Seeker, and one sponsored “Enable zKube” approval creates a scoped device
-session for about seven days of silent gameplay and settlement. Star purchases
-remain owner-approved because they move USDC. Player-facing gameplay is not an
-operator-approved or manual settlement workflow.
+## Runtime architecture
 
-The app is connection-gated: visitors remain on wallet onboarding until both
-the external wallet connection and the scoped device session are ready. The
-connect action prompts “Enable zKube” immediately when no reusable session is
-available; disconnected browsing is not supported.
-
-## Read first
-
-- [STATUS.md](STATUS.md) — live Devnet identity, current evidence, incidents,
-  and remaining work.
-- [Architecture](docs/architecture.md) — product rules, authority boundaries,
-  accounts, Router/ER/VRF flow, and settlement invariants.
-- [Operations](docs/operations.md) — deployment identity, approval gates,
-  custody, monitoring, evidence hashes, and incident response.
-- [Development](docs/development.md) — repository layout, toolchain, local
-  workflow, validation, IDL, and release previews.
-- [AGENTS.md](AGENTS.md) — mandatory rules for agents and operators; it does
-  not describe product behavior.
-
-## Repository layout
+| Boundary | Responsibility | Who pays / signs |
+| --- | --- | --- |
+| External wallet | Durable player owner, first enable, renewals, Star purchases | Owner signs and pays |
+| Device session | Seven-day scoped signer stored only in that browser | Receives a 0.001 SOL fee allowance from the owner |
+| Player funding PDA | Shared 0.025 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can spend it |
+| Solana program | Identity, Campaign/Daily/Weekly state, Stars, native-SOL accounting, receipts | Device session for safe play; owner for SOL purchases |
+| MagicBlock ER | Delegated active gameplay and VRF | Gasless gameplay; Router selects the validator |
+| Fly keeper | Daily/Weekly cadence, permissionless settlement recovery, cleanup | Its own SOL-funded keypair |
+| Static PWA/TWA | UI, wallet discovery, session storage, transaction assembly | No server signer and no paymaster |
 
 ```text
-Anchor.toml, Cargo.toml       Anchor workspace at repository root
-programs/solana/              zKube Anchor program
-target/deploy/solana.so       local SBF build output (ignored)
-client/                       Vite app, chain clients, tools, Fly services
-fixtures/                     shared Rust/TypeScript gameplay fixtures
-docs/                         active architecture, operations, development docs
+wallet ── Connect & Enable (one owner approval) ──> 7-day device session
+   │                                                   │
+   ├── exact SOL approval ──> Star purchase             ├── silent base actions
+   └── funds 0.025 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
+
+Solana base <── delegate / copy back ──> Router-selected MagicBlock ER
+     ▲
+     └── Fly keeper: Daily + Weekly cadence and permissionless cleanup
 ```
 
-`client/` is the web deployment root. The former archived client and temporary
-port plan have been removed after explicit sign-off; no runtime or validation
-path depends on them.
+There is deliberately no Kora or custom paymaster. The user's owner-funded PDA
+is not a generic wallet: its signer seeds are exposed only inside narrow
+self-CPI instructions for known zKube account-creation paths. A session cannot
+transfer arbitrary SOL and can never authorize a Star purchase.
 
-The same Vite client is packaged for Seeker as a PWA/Trusted Web Activity.
-TWA metadata and the release-certificate Digital Asset Links template live in
-`client/twa/`; Android signing keys remain outside the repository.
+## Connection and run lifecycle
 
-## System boundaries
+The app renders only the connection screen until both wallet connection and
+session enablement are ready. Selecting a wallet immediately continues into a
+single versioned `Enable zKube` transaction. That transaction initializes a new
+player when necessary, replenishes the shared funding float, creates the scoped
+session token, and gives the device signer its bounded fee allowance.
 
-- Solana base owns identity, progression, Stars, catalogs, Daily contests,
-  canonical-USDC custody, receipts, claims, governance, sponsorship allowances,
-  and treasury accounting.
-- MagicBlock owns only delegated `ActiveRun` state, authoritative moves, and
-  fresh per-row VRF while a run is active.
-- The browser renders decoded authoritative state and orchestrates
-  transactions; it does not compute rows, scores, rewards, or ranks.
-- External wallets sign only session enablement and Star purchases. Scoped
-  device sessions sign safe player actions and never authorize USDC spending.
-- The paymaster is a stateless, shape-limited fee payer. Sponsorship entitlement
-  and cadence quotas are program-owned.
-- Vercel serves only the static PWA. Separate Fly apps isolate the always-warm
-  paymaster HTTP signer from the non-public Daily/Weekly keeper worker.
-- Protocol v1 accepts six-decimal canonical SPL Token USDC and rejects
-  Token-2022 payment assets. External yield deployment remains disabled.
+Normal Campaign and Daily play is silent after enablement. A run is prepared on
+Solana, delegated through the MagicBlock Router, played on the resolved ER, then
+sealed, committed, copied back, consumed, and cleaned automatically. Base,
+Router, and ER connections are always separate.
 
-## Validation
+`PlayerProfile.active_run_id` enforces one open run per owner. It prevents two
+enabled devices from launching overlapping runs and lets a fresh device
+reconstruct the exact run PDA from chain state. Browser storage is only a cache;
+the durable pointer is cleared only after the receipt is consumed on Solana.
 
-Run the complete offline/static gates from the repository root:
+## Native-SOL economy
+
+Star purchases are owner-signed native-SOL transfers. The UI shows the exact
+price and 10% team / 10% reward / 80% treasury split before opening the wallet.
+
+| Stars | Price |
+| ---: | ---: |
+| 10 | 0.01 SOL |
+| 50 | 0.0475 SOL |
+| 100 | 0.09 SOL |
+| 500 | 0.425 SOL |
+| 1,000 | 0.8 SOL |
+
+Weekly native-SOL reward pools are bounded from 0.1 to 1 SOL. Program PDAs pin
+the canonical reward vault and every configured destination; integer lamport
+accounting preserves the exact split. The keeper cannot purchase Stars or move
+player funding.
+
+## Repository map
+
+| Path | Contents |
+| --- | --- |
+| `programs/solana` | Anchor program, authorization, native economy, funding wrappers, run lifecycle |
+| `client/src/chain` | Wallet/session adapters, transaction plans, Router/ER resolution, domain clients |
+| `client/src/platform` | Wallet Standard, MWA registration, browser storage boundaries |
+| `client/src/ui` | Existing React UI plus the connection gate |
+| `client/public` | PWA manifest, service worker, icons, Digital Asset Links |
+| `client/twa` | Trusted Web Activity packaging metadata |
+| `services` | Fly keeper only; no player transaction service |
+
+The public service worker caches only immutable application assets. RPC,
+Router, ER, keeper, and chain-account responses are never cached.
+
+## Local development and validation
+
+Requirements: Rust/Anchor toolchain, Node 20.19+, and pnpm. Never place wallet,
+deployer, keeper, or Android signing secrets in the repository.
+
+```bash
+NO_DNA=1 anchor build
+
+cd client
+NO_DNA=1 pnpm install
+NO_DNA=1 pnpm dev
+```
+
+The complete offline gate is:
 
 ```bash
 NO_DNA=1 ./validate.sh program
-NO_DNA=1 ./validate.sh frontend
-```
-
-Or run the client directly:
-
-```bash
 cd client
-NO_DNA=1 pnpm install --frozen-lockfile
-NO_DNA=1 pnpm dev --host 127.0.0.1
+NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm exec tsc -b --pretty false
+NO_DNA=1 pnpm lint
+NO_DNA=1 pnpm exec vitest run
+NO_DNA=1 pnpm build
 ```
 
-All Solana, Anchor, and pnpm chain commands must use `NO_DNA=1`. Validation and
-dry-run previews are not authorization to sign or send a transaction.
+No mock wallet is an acceptance substitute. Desktop acceptance uses Phantom
+and another Wallet Standard wallet. Seeker acceptance uses Seed Vault Wallet
+and covers connect/enable, Campaign, Daily, refresh/resume, settlement/cleanup,
+claims, exact owner-approved purchase, rejection, account switching, expiry,
+and renewal.
 
-## Deployment status
+## Devnet release status and sequence
 
-MagicBlock Devnet is the rollout and acceptance target; mainnet is rejected by
-the current tooling. The live program is
-`5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA`. See [STATUS.md](STATUS.md) for
-the exact deployed slot/hash and the important distinction between the live
-binary and newer source hardening.
+The source tree contains a breaking program ABI and native-SOL configuration.
+It is **not compatible with the previously deployed Devnet program** until the
+new SBF, bootstrap state, keeper, and client are released together. Existing
+embedded-wallet-era Devnet progress is intentionally not migrated.
+
+Going live requires these separately approved operations, in order:
+
+1. Freeze writes and archive the current read-only deployment evidence.
+2. Build and verify the exact SBF/IDL artifact from the release commit.
+3. Separately approve and deploy/upgrade the Devnet program.
+4. Separately approve each bootstrap stage for protocol, native-SOL economy,
+   maps, achievements, quests, and governance configuration.
+5. Fund the Fly keeper with SOL, install its secret outside the repository,
+   deploy `services/fly.keeper.toml`, and verify a read-only pass before writes.
+6. Publish the matching static PWA, then complete desktop and real Seeker
+   acceptance against that exact program artifact.
+7. Produce the signed TWA APK only after browser acceptance passes.
+
+Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
+Daily publication needs its own exact operator approval. Mainnet is disabled.
+
+## Security invariants
+
+- Never request, export, log, or persist external-wallet secrets.
+- Validate account owner, discriminator, data length, PDA relationship, and
+  cluster genesis before decoding untrusted RPC data.
+- A session token must match owner, actor, target program, fee payer, and expiry.
+- Star purchases require the owner signer and exact quoted lamports.
+- Preserve unsettled run accounts until durable receipt evidence exists.
+- Resolve ER endpoints through `getDelegationStatus`; never hardcode a region.
+- Keep Android signing keys, deploy authorities, and keeper secrets outside git.
+
+Agent and operator rules live in `AGENTS.md`; `CLAUDE.md` is a symlink to it.

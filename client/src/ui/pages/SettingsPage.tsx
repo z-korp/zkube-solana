@@ -24,7 +24,6 @@ import ConnectCta from "@/ui/components/shared/ConnectCta";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
-import { formatUsdcBaseUnits } from "@/utils/currency";
 
 const toPercent = (value: number): number => Math.round(value * 100);
 
@@ -192,10 +191,9 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <WalletMetric label="Network" value="Devnet" />
                   <WalletMetric label="SOL" value={player.balanceLamports === null ? "—" : (player.balanceLamports / LAMPORTS_PER_SOL).toFixed(4)} />
-                  <WalletMetric label="Canonical USDC" value={player.usdcBaseUnits === null ? "—" : formatUsdcBaseUnits(player.usdcBaseUnits)} />
                   <WalletMetric label="Session" value={sessionLabel(player.sessionStatus, player.session?.validUntil)} />
                 </div>
 

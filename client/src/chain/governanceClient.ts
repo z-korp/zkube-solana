@@ -1,4 +1,3 @@
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey, Transaction, type Connection } from "@solana/web3.js";
 
 import { deriveProtocolConfigPda } from "./pdas";
@@ -79,7 +78,6 @@ export async function buildSetPricingOperatorPlan(args: {
 export async function buildUpdateRevenueDestinationsPlan(args: {
   connection: Connection;
   authority: WalletLike;
-  paymentMint: PublicKey;
   teamDestination: PublicKey;
   treasuryDestination: PublicKey;
   rewardVault: PublicKey;
@@ -88,11 +86,9 @@ export async function buildUpdateRevenueDestinationsPlan(args: {
     .updateRevenueDestinations()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      paymentMint: args.paymentMint,
       teamDestination: args.teamDestination,
       treasuryDestination: args.treasuryDestination,
       rewardVault: args.rewardVault,
-      tokenProgram: TOKEN_PROGRAM_ID,
       authority: args.authority.publicKey,
     })
     .instruction();

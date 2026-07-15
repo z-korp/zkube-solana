@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,8 +11,10 @@ import {
 import {
   deriveCampaignProgressPda,
   deriveMapCatalogPda,
+  derivePlayerFundingPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
+  deriveRewardVaultPda,
 } from "./pdas";
 import {
   CANONICAL_ACHIEVEMENT_RULES,
@@ -23,51 +24,26 @@ import {
 import { SessionWallet } from "./sessionWallet";
 
 describe("authority publication client", () => {
-  it("initializes the lean protocol with segregated USDC destinations", async () => {
+  it("initializes the lean protocol with segregated native SOL destinations", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const keys = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
     const plan = await buildInitializeProtocolPlan({
       connection: {} as Connection,
       authority,
       config: {
-        paymaster: keys[0],
         pricingOperator: keys[1],
         teamDestination: keys[2],
         treasuryDestination: keys[3],
-        rewardVault: keys[4],
-        paymentMint: keys[5],
-        paymentTokenProgram: TOKEN_PROGRAM_ID,
         contentVersion: 1,
       },
     });
     const accounts = plan.transaction.instructions[0].keys;
 
     expect(accounts[0].pubkey.equals(deriveProtocolConfigPda())).toBe(true);
-    expect(accounts[1].pubkey.equals(keys[5])).toBe(true);
+    expect(accounts[1].pubkey.equals(deriveRewardVaultPda())).toBe(true);
     expect(accounts[2].pubkey.equals(keys[2])).toBe(true);
     expect(accounts[3].pubkey.equals(keys[3])).toBe(true);
-    expect(accounts[4].pubkey.equals(keys[4])).toBe(true);
-    expect(accounts[5].pubkey.equals(TOKEN_PROGRAM_ID)).toBe(true);
-    expect(accounts[6].pubkey.equals(authority.publicKey)).toBe(true);
-  });
-
-  it("rejects Token-2022 payment mints before the on-chain extension guard", async () => {
-    const authority = new SessionWallet(Keypair.generate());
-    const keys = Array.from({ length: 7 }, () => Keypair.generate().publicKey);
-    await expect(buildInitializeProtocolPlan({
-      connection: {} as Connection,
-      authority,
-      config: {
-        paymaster: keys[0],
-        pricingOperator: keys[1],
-        teamDestination: keys[2],
-        treasuryDestination: keys[3],
-        rewardVault: keys[4],
-        paymentMint: keys[5],
-        paymentTokenProgram: TOKEN_2022_PROGRAM_ID,
-        contentVersion: 1,
-      },
-    })).rejects.toThrow("canonical SPL Token program");
+    expect(accounts[4].pubkey.equals(authority.publicKey)).toBe(true);
   });
 
   it("rejects aliased custody vaults before protocol initialization", async () => {
@@ -78,13 +54,9 @@ describe("authority publication client", () => {
       connection: {} as Connection,
       authority,
       config: {
-        paymaster: keys[0],
         pricingOperator: keys[1],
         teamDestination: duplicate,
         treasuryDestination: duplicate,
-        rewardVault: keys[2],
-        paymentMint: keys[3],
-        paymentTokenProgram: TOKEN_PROGRAM_ID,
         contentVersion: 1,
       },
     })).rejects.toThrow("pairwise distinct");
@@ -145,6 +117,7 @@ describe("authority publication client", () => {
 
     expect(keys[0].pubkey.equals(derivePlayerProfilePda(owner.publicKey))).toBe(true);
     expect(keys[1].pubkey.equals(deriveCampaignProgressPda(owner.publicKey))).toBe(true);
+    expect(keys[2].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(true);
     expect(plan.feePayer.equals(payer)).toBe(true);
   });
 });

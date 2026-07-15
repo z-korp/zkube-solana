@@ -217,7 +217,7 @@ export default function PlayScreen() {
               {run.error ??
                 (attachedRun
                   ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
-                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for sponsored receipt consumption and cleanup.`)}
+                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for receipt consumption and cleanup.`)}
             </p>
           )}
           {!resolving && (

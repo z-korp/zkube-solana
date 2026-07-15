@@ -1,3 +1,7 @@
+/**
+ * MagicBlock Router boundary. The Router is queried for delegation state and
+ * the actual ER FQDN; callers must not substitute a hard-coded regional ER.
+ */
 import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { Connection, PublicKey, type Commitment } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants.js";

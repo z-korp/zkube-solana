@@ -1,9 +1,9 @@
-import { PublicKey, type Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 import {
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
-} from "../chain/constants.js";
+} from "../../client/src/chain/constants.js";
 
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
@@ -17,7 +17,20 @@ export interface ChainReadinessResult {
 export function expectedGenesisHashFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string {
-  return env.PAYMASTER_GENESIS_HASH ?? SOLANA_DEVNET_GENESIS_HASH;
+  return env.SOLANA_EXPECTED_GENESIS_HASH ?? SOLANA_DEVNET_GENESIS_HASH;
+}
+
+/** Creates the keeper's base-layer connection; Router and ER RPCs stay separate. */
+export function createDevnetConnection(
+  env: Record<string, string | undefined> = process.env,
+): Connection {
+  const endpoint = env.SOLANA_DEVNET_RPC_URL ?? "https://rpc.magicblock.app/devnet";
+  const parsed = new URL(endpoint);
+  const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {
+    throw new Error("Solana RPC must use HTTPS, except for localhost");
+  }
+  return new Connection(endpoint, "confirmed");
 }
 
 export async function checkChainReadiness(args: {

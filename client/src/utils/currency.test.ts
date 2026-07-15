@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatUsdcBaseUnits, splitStarPurchase } from "./currency";
+import { formatSolLamports, splitStarPurchase } from "./currency";
 
 describe("currency helpers", () => {
-  it("formats six-decimal USDC without floating point", () => {
-    expect(formatUsdcBaseUnits(2_500_000n)).toBe("2.5");
-    expect(formatUsdcBaseUnits(1_000_001n)).toBe("1.000001");
-    expect(formatUsdcBaseUnits(-250_000n)).toBe("-0.25");
+  it("formats nine-decimal SOL without floating point", () => {
+    expect(formatSolLamports(2_500_000_000n)).toBe("2.5");
+    expect(formatSolLamports(1_000_000_001n)).toBe("1.000000001");
+    expect(formatSolLamports(-250_000_000n)).toBe("-0.25");
   });
 
   it("conserves the 10/10/80 split and assigns dust to treasury", () => {

@@ -45,6 +45,17 @@ export function derivePlayerProfilePda(owner: PublicKey, programId = ZKUBE_PROGR
   return derive([Buffer.from("player"), owner.toBuffer()], programId);
 }
 
+export function derivePlayerFundingPda(
+  owner: PublicKey,
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive([Buffer.from("player_funding"), owner.toBuffer()], programId);
+}
+
+export function deriveRewardVaultPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
+  return derive([Buffer.from("reward_vault")], programId);
+}
+
 export function deriveCampaignProgressPda(owner: PublicKey, programId = ZKUBE_PROGRAM_ID): PublicKey {
   return derive([Buffer.from("campaign"), owner.toBuffer()], programId);
 }

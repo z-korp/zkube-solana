@@ -189,24 +189,22 @@ mod tests {
     }
 
     #[test]
-    fn generated_purchase_metas_keep_usdc_spending_owner_signed() {
+    fn generated_purchase_metas_keep_sol_spending_owner_signed() {
         let owner = Pubkey::new_unique();
         let purchase = crate::accounts::PurchaseStars {
             protocol: Pubkey::new_unique(),
             economy_config: Pubkey::new_unique(),
             star_sales_ledger: Pubkey::new_unique(),
             player_profile: Pubkey::new_unique(),
-            payment_mint: Pubkey::new_unique(),
-            player_payment_account: Pubkey::new_unique(),
             team_destination: Pubkey::new_unique(),
             reward_vault: Pubkey::new_unique(),
             treasury_destination: Pubkey::new_unique(),
-            token_program: anchor_spl::token::ID,
             owner,
+            system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(purchase.len(), 11);
-        assert_eq!(purchase[10].pubkey, owner);
-        assert!(purchase[10].is_signer);
+        assert_eq!(purchase.len(), 9);
+        assert_eq!(purchase[7].pubkey, owner);
+        assert!(purchase[7].is_signer);
     }
 }

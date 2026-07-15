@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { runKeeperWorker } from "./keeperWorker";
+import { runKeeperWorker } from "../src/keeperWorker";
 
 describe("keeper worker scheduling", () => {
   it("stays inert while disabled without loading either signer", async () => {

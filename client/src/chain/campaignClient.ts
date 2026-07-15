@@ -1,10 +1,5 @@
 import type BN from "bn.js";
-import {
-  PublicKey,
-  Transaction,
-  type AccountInfo,
-  type Connection,
-} from "@solana/web3.js";
+import { PublicKey, Transaction, type AccountInfo, type Connection } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
   deriveCampaignProgressPda,
@@ -21,10 +16,6 @@ import {
   type TransactionPlan,
 } from "./runPlan.js";
 import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog.js";
-
-export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
-  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-);
 
 export interface CampaignMapView {
   mapId: number;
@@ -124,8 +115,6 @@ export async function fetchCampaignView(args: {
     || campaign.levelStars.length !== MAX_CAMPAIGN_MAPS
     || Number(economy.version) !== 1
     || !economy.protocol.equals(protocolAddress)
-    || !economy.paymentMint.equals(protocol.paymentMint)
-    || !economy.paymentTokenProgram.equals(protocol.paymentTokenProgram)
     || !economy.active
   ) {
     return null;
@@ -236,7 +225,6 @@ export async function buildUnlockMapWithStarsPlan(args: {
   sessionToken: PublicKey | null;
   contentVersion: number;
   mapId: number;
-  paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   const owner = args.ownerAuthority;
   const program = zkubeProgram(args.connection, args.wallet);
@@ -262,18 +250,7 @@ export async function buildUnlockMapWithStarsPlan(args: {
       actor: accounts.actor,
     })
     .instruction();
-  return plan("Unlock map with Stars", args.connection, args.paymaster ?? owner, instruction);
-}
-
-export function deriveAssociatedTokenAddress(
-  owner: PublicKey,
-  mint: PublicKey,
-  tokenProgram: PublicKey,
-): PublicKey {
-  return PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), tokenProgram.toBuffer(), mint.toBuffer()],
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-  )[0];
+  return plan("Unlock map with Stars", args.connection, args.wallet.publicKey, instruction);
 }
 
 function plan(

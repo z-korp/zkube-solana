@@ -1,50 +1,61 @@
 # Agent working rules — zkube-solana
 
-Scope: these rules govern **AI coding agents and operators running agents in
-this repository**. Nothing in this file describes product behavior. The shipped
-client needs no operator approvals and no manual settlement steps: the
-connected Solana address is the player identity, the wallet approves one
-sponsored device session about every seven days, the paymaster sponsors base
-fees and rent, gameplay is session-key signed on the ephemeral rollup, and
-settlement runs automatically. Every Star purchase separately asks the wallet
-to approve its exact USDC movement. If a document makes ordinary gameplay
-wallet-approval-gated after enablement, the document is wrong — fix it.
+Scope: these rules govern coding agents and operators in this repository. They
+do not add approval prompts to the shipped product.
+
+## Product truth
+
+- The app is connection-gated. Wallet selection immediately continues to a
+  single owner-approved `Enable zKube` flow.
+- The connected Solana address is the player identity. There are no embedded
+  wallets, recovery codes, deposits, or recovery material.
+- The owner funds a shared 0.025 SOL player funding PDA and a 0.001 SOL device
+  fee allowance. There is no Kora or custom paymaster.
+- A scoped device session authorizes safe play for about seven days; ER gameplay
+  is gasless. Star purchases always require a separate exact native-SOL owner
+  approval and preserve the 10/10/80 split.
+- One durable `active_run_id` per player prevents overlapping runs and enables
+  cross-device discovery. Settlement and cleanup are automatic.
+- Fly runs only the independently funded Daily/Weekly keeper. The web client is
+  static PWA/TWA code and contains no server signer.
+
+If code or comments contradict these rules, fix them with the implementation.
+Architecture and operations documentation belongs in code comments and
+`README.md`; do not add new Markdown documents.
 
 ## Transaction policy
 
-- Never sign or send a transaction without explicit user approval for the
-  exact scope (instructions, accounts, signers, spend). Approval for one
-  operation never carries over to another; a successful simulation is
-  evidence, not authorization.
-- Automated verification is offline: typecheck, lint, vitest, build, and
-  read-only RPC probes. Live signed flows (settling a run, withdrawing,
-  deploying, bootstrapping) are user-approved, one exact scope at a time.
-- Prefix every Solana/Anchor/pnpm chain command with `NO_DNA=1`.
-- Never print, copy, expose, or commit signer bytes, wallet recovery material,
-  seeds, or `.env` contents. External-wallet secrets never enter zKube; the
-  scoped device-session secret must remain in browser storage.
+- Never sign or send a transaction without explicit user approval for that
+  exact operation, instructions, accounts, signers, and spend. One approval
+  never carries to another operation; simulation is evidence, not authority.
+- Automated verification is offline: format, typecheck, lint, tests, builds,
+  and read-only RPC probes.
+- Program deploy/upgrade, bootstrap stages, keeper write enablement, moving SOL,
+  publishing a Daily challenge, governance changes, and anything on mainnet
+  always require a separate explicit approval. Mainnet is currently rejected.
+- Prefix every Solana, Anchor, or pnpm chain command with `NO_DNA=1`.
+- Never print, copy, expose, or commit signer bytes, seeds, recovery material,
+  `.env` contents, keeper secrets, or Android signing credentials.
 
 ## Worktree rules
 
-- Never use `git reset --hard`, `git checkout --`, or blanket cleanup; the
-  worktree may carry another agent's in-flight work.
-- `/home/djizus/zkube` (original Starknet client) and `/home/djizus/cycling-sim`
-  (MagicBlock reference implementation) are read-only external references.
+- Preserve unrelated and in-flight changes. Never use `git reset --hard`,
+  `git checkout --`, blanket cleanup, or destructive file restoration.
+- Use `apply_patch` for edits and `rg`/`rg --files` for discovery.
+- `/home/djizus/zkube` and `/home/djizus/cycling-sim` are read-only references.
 
 ## Chain-data discipline
 
-- Treat all RPC data as untrusted: check account owner, data length,
-  discriminator, PDA relationship, and cluster genesis before decoding.
-- Keep base-layer, Router, and ER connections separate. Resolve the ER through
-  `getDelegationStatus`; never hardcode a regional endpoint.
-- Preserve unsettled run accounts until durable receipt evidence exists; never
-  close accounts merely because an ER transaction returned success.
-
-## Actions that always need a separate explicit approval
-
-Program deploy/upgrade, bootstrap stages, yield adapter work, moving USDC,
-publishing a Daily challenge, governance changes, and anything touching
-mainnet (currently rejected by tooling).
+- Treat RPC data as untrusted: verify cluster genesis, account owner, exact or
+  bounded data length, discriminator, PDA seeds, and account relationships.
+- Keep Solana base, MagicBlock Router, and resolved ER connections separate.
+  Resolve the ER via `getDelegationStatus`; never hardcode a regional endpoint.
+- The player funding PDA may sign only narrow self-CPI wrappers. Never add a
+  generic PDA transfer or arbitrary-instruction forwarding path.
+- Require owner signatures for every Star purchase. A session must never
+  authorize native-SOL spending outside the fixed safe-action boundary.
+- Preserve run accounts until the durable base receipt is consumed. Clear
+  `active_run_id` only in that atomic consumption path, before cleanup.
 
 ## Validation gates
 
@@ -58,11 +69,7 @@ NO_DNA=1 pnpm exec vitest run
 NO_DNA=1 pnpm build
 ```
 
-## Reading order
-
-1. `STATUS.md` — current deployed state and open items.
-2. `docs/architecture.md` — product, account, Router/ER/VRF, and settlement rules.
-3. `docs/operations.md` — deployment identity, custody invariants, and incidents.
-4. `docs/development.md` — repository layout and offline validation workflow.
-5. `/home/djizus/cycling-sim/docs/magicblock-focg.md` and
-   `devnet-deploy-runbook.md` — upstream MagicBlock reference patterns.
+Start with `README.md`, then inspect the code at the boundary being changed:
+`state`/`instructions` for on-chain invariants, `client/src/chain` for client
+transactions, `client/src/platform` for wallet/browser adapters, and `services`
+for the keeper. Do not infer deployed state from source; verify it read-only.

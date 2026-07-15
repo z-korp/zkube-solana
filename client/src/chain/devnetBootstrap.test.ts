@@ -51,12 +51,10 @@ function fixture(): PublicBootstrapPlan {
       upgradeAuthority: key,
       sbfSha256: "11".repeat(32),
     },
-    payment: { mint: key, tokenProgram: key, decimals: 6 },
-    identities: { funder: key, authority: key, paymaster: key },
+    identities: { funder: key, authority: key },
     vaults: {
       team: key,
       treasury: key,
-      reward: key,
     },
     pdas: {
       protocol: key,
@@ -65,7 +63,6 @@ function fixture(): PublicBootstrapPlan {
       dailyRulesCatalog: key,
     },
     policy: {
-      paymasterFundingLamports: 100_000_000,
       contentVersion: 1,
       dailyRulesVersion: 1,
     },

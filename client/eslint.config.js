@@ -14,8 +14,15 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "dist-server/**",
+      "dist-services/**",
       "coverage/**",
       "src/chain/idl/solana.ts",
+      "client/dist/**",
+      "client/dist-server/**",
+      "client/dist-services/**",
+      "client/coverage/**",
+      "client/src/chain/idl/solana.ts",
+      "dist-services/**",
     ],
   },
   {

@@ -42,9 +42,9 @@ pub const WEEKLY_STIPEND_XP: u32 = 2_500;
 pub const WEEKLY_STIPEND_STARS: u64 = 30;
 pub const PERFECT_MAP_STARS: u64 = 20;
 pub const PERFECT_MAP_XP: u32 = 1_000;
-pub const CASH_WINNER_STARS: u64 = 30;
-pub const WEEKLY_MIN_CASH_POOL: u64 = 10_000_000;
-pub const WEEKLY_MAX_CASH_POOL: u64 = 100_000_000;
+pub const SOL_WINNER_STARS: u64 = 30;
+pub const WEEKLY_MIN_SOL_POOL: u64 = 100_000_000;
+pub const WEEKLY_MAX_SOL_POOL: u64 = 1_000_000_000;
 pub const WEEKLY_CLAIM_WINDOW_SECONDS: i64 = 90 * 86_400;
 pub const WEEKLY_FINALIZE_DELAY_SECONDS: i64 = 6 * 60 * 60;
 pub const DAILY_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60;
@@ -54,11 +54,11 @@ pub const SECONDS_PER_WEEK: i64 = 604_800;
 
 pub const STAR_PACK_STARS: [u64; STAR_PACK_COUNT] = [10, 50, 100, 500, 1_000];
 pub const STAR_PACK_PRICES: [u64; STAR_PACK_COUNT] =
-    [1_000_000, 4_750_000, 9_000_000, 42_500_000, 80_000_000];
+    [10_000_000, 47_500_000, 90_000_000, 425_000_000, 800_000_000];
 pub const TEAM_SALE_BPS: u16 = 1_000;
 pub const REWARD_SALE_BPS: u16 = 1_000;
 pub const TREASURY_SALE_BPS: u16 = 8_000;
-pub const WEEKLY_CASH_WEIGHTS: [u16; 3] = [55, 30, 15];
+pub const WEEKLY_SOL_WEIGHTS: [u16; 3] = [55, 30, 15];
 pub const WEEKLY_STAR_REWARDS: [u64; 5] = [30, 25, 20, 15, 10];
 
 pub const DAILY_FAMILY_CLASSIC: u8 = 0;
@@ -82,8 +82,6 @@ pub const DAILY_SCORE_SURVIVAL: u8 = 7;
 pub struct EconomyConfig {
     pub version: u8,
     pub protocol: Pubkey,
-    pub payment_mint: Pubkey,
-    pub payment_token_program: Pubkey,
     pub content_version: u32,
     pub daily_rules_version: u32,
     pub revision: u64,
@@ -96,8 +94,8 @@ pub struct EconomyConfig {
     pub sale_starts_at: i64,
     pub sale_ends_at: i64,
     pub sale_prices: [u64; STAR_PACK_COUNT],
-    pub weekly_min_cash_pool: u64,
-    pub weekly_max_cash_pool: u64,
+    pub weekly_min_sol_pool: u64,
+    pub weekly_max_sol_pool: u64,
     pub active: bool,
     pub bump: u8,
 }
@@ -105,8 +103,6 @@ pub struct EconomyConfig {
 impl EconomyConfig {
     pub fn canonical(
         protocol: Pubkey,
-        payment_mint: Pubkey,
-        payment_token_program: Pubkey,
         content_version: u32,
         daily_rules_version: u32,
         bump: u8,
@@ -114,8 +110,6 @@ impl EconomyConfig {
         Self {
             version: ECONOMY_ACCOUNT_VERSION,
             protocol,
-            payment_mint,
-            payment_token_program,
             content_version,
             daily_rules_version,
             revision: 1,
@@ -128,8 +122,8 @@ impl EconomyConfig {
             sale_starts_at: 0,
             sale_ends_at: 0,
             sale_prices: [0; STAR_PACK_COUNT],
-            weekly_min_cash_pool: WEEKLY_MIN_CASH_POOL,
-            weekly_max_cash_pool: WEEKLY_MAX_CASH_POOL,
+            weekly_min_sol_pool: WEEKLY_MIN_SOL_POOL,
+            weekly_max_sol_pool: WEEKLY_MAX_SOL_POOL,
             active: true,
             bump,
         }
@@ -156,7 +150,7 @@ impl EconomyConfig {
             ErrorCode::InvalidPack
         );
         require!(
-            self.weekly_min_cash_pool <= self.weekly_max_cash_pool,
+            self.weekly_min_sol_pool <= self.weekly_max_sol_pool,
             ErrorCode::InvalidState
         );
         if self.sale_enabled {
@@ -215,7 +209,6 @@ impl EconomyConfig {
 pub struct StarSalesLedger {
     pub version: u8,
     pub economy_config: Pubkey,
-    pub payment_mint: Pubkey,
     pub lifetime_gross_sales: u64,
     pub lifetime_team_share: u64,
     pub lifetime_reward_share: u64,
@@ -663,6 +656,8 @@ pub struct DailyChallenge {
     pub day_id: u32,
     pub week_id: u32,
     pub economy_config: Pubkey,
+    /// Receives the challenge and leaderboard rent when cleanup completes.
+    pub rent_recipient: Pubkey,
     pub rules_version: u32,
     pub status: DailyStatus,
     pub content_version: u32,
@@ -680,7 +675,7 @@ pub struct DailyChallenge {
     pub finalized_at: i64,
     pub entry_stars: u64,
     pub unique_players: u32,
-    /// Number of DailyPlayer records whose rent has returned to the paymaster.
+    /// Number of DailyPlayer records whose rent has returned to their owner vault.
     pub closed_players: u32,
     pub weekly_eligible_players: u32,
     pub weekly_rollups: u32,
@@ -770,22 +765,21 @@ pub struct WeeklyChallenge {
     pub version: u8,
     pub week_id: u32,
     pub economy_config: Pubkey,
-    pub payment_mint: Pubkey,
-    pub payment_token_program: Pubkey,
-    pub payment_vault: Pubkey,
+    /// Receives the challenge and leaderboard rent when cleanup completes.
+    pub rent_recipient: Pubkey,
     pub status: WeeklyStatus,
     pub opens_at: i64,
     pub closes_at: i64,
     pub finalizes_at: i64,
     pub finalized_at: i64,
     pub claims_close_at: i64,
-    pub committed_cash_pool: u64,
-    pub cash_claimed: u64,
-    pub cash_forfeited: u64,
+    pub committed_sol_pool: u64,
+    pub sol_claimed: u64,
+    pub sol_forfeited: u64,
     pub participants: u32,
-    /// Number of WeeklyPlayer records whose rent has returned to the paymaster.
+    /// Number of WeeklyPlayer records whose rent has returned to their owner vault.
     pub closed_players: u32,
-    pub cash_winner_count: u8,
+    pub sol_winner_count: u8,
     pub star_winner_count: u8,
     pub bump: u8,
 }
@@ -807,7 +801,7 @@ pub struct WeeklyPlayer {
     pub results: [WeeklyDailyResult; WEEKLY_DAILY_RESULTS],
     pub result_count: u8,
     pub score: u16,
-    pub cash_claimed: bool,
+    pub sol_claimed: bool,
     pub stars_claimed: bool,
     pub bump: u8,
 }
@@ -926,24 +920,24 @@ pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
     }
 }
 
-pub fn weekly_winner_counts(participants: u32, has_cash_pool: bool) -> (u8, u8) {
+pub fn weekly_winner_counts(participants: u32, has_sol_pool: bool) -> (u8, u8) {
     if participants == 0 {
         return (0, 0);
     }
     let five_percent = participants.div_ceil(20);
-    let cash = if has_cash_pool {
+    let sol = if has_sol_pool {
         five_percent.min(3) as u8
     } else {
         0
     };
     let stars = five_percent.min(20) as u8;
-    (cash, stars)
+    (sol, stars)
 }
 
-pub fn weekly_cash_amount(pool: u64, rank: usize, winner_count: u8) -> Result<u64> {
+pub fn weekly_sol_amount(pool: u64, rank: usize, winner_count: u8) -> Result<u64> {
     require!(winner_count > 0 && winner_count <= 3, ErrorCode::NoPrize);
     require!(rank < usize::from(winner_count), ErrorCode::NoPrize);
-    let active = &WEEKLY_CASH_WEIGHTS[..usize::from(winner_count)];
+    let active = &WEEKLY_SOL_WEIGHTS[..usize::from(winner_count)];
     let denominator = active.iter().try_fold(0u64, |sum, weight| {
         sum.checked_add(u64::from(*weight))
             .ok_or(ErrorCode::ArithmeticOverflow)
@@ -981,14 +975,14 @@ pub fn weekly_star_amount(relative_rank: usize, star_winner_count: u8) -> Result
 
 pub fn weekly_star_reward_for_rank(
     rank: usize,
-    cash_winner_count: u8,
+    sol_winner_count: u8,
     star_winner_count: u8,
 ) -> Result<u64> {
-    let cash_count = usize::from(cash_winner_count);
-    if rank < cash_count {
-        return Ok(CASH_WINNER_STARS);
+    let sol_count = usize::from(sol_winner_count);
+    if rank < sol_count {
+        return Ok(SOL_WINNER_STARS);
     }
-    weekly_star_amount(rank - cash_count, star_winner_count)
+    weekly_star_amount(rank - sol_count, star_winner_count)
 }
 
 fn compare_daily_entries(
@@ -1059,14 +1053,7 @@ mod tests {
 
     #[test]
     fn canonical_sale_split_is_ten_ten_eighty_and_conserves_dust() {
-        let config = EconomyConfig::canonical(
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-            anchor_spl::token::ID,
-            2,
-            1,
-            1,
-        );
+        let config = EconomyConfig::canonical(Pubkey::new_unique(), 2, 1, 1);
         assert_eq!(
             config.split_sale(1_000_000).unwrap(),
             (100_000, 100_000, 800_000)
@@ -1100,23 +1087,16 @@ mod tests {
 
     #[test]
     fn sale_quotes_switch_only_inside_the_half_open_window() {
-        let mut config = EconomyConfig::canonical(
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-            anchor_spl::token::ID,
-            2,
-            1,
-            1,
-        );
+        let mut config = EconomyConfig::canonical(Pubkey::new_unique(), 2, 1, 1);
         config.sale_enabled = true;
         config.sale_starts_at = 100;
         config.sale_ends_at = 200;
-        config.sale_prices = [900_000, 4_000_000, 8_000_000, 40_000_000, 75_000_000];
+        config.sale_prices = [9_000_000, 40_000_000, 80_000_000, 400_000_000, 750_000_000];
 
-        assert_eq!(config.quote(0, 99).unwrap(), (10, 1_000_000));
-        assert_eq!(config.quote(0, 100).unwrap(), (10, 900_000));
-        assert_eq!(config.quote(0, 199).unwrap(), (10, 900_000));
-        assert_eq!(config.quote(0, 200).unwrap(), (10, 1_000_000));
+        assert_eq!(config.quote(0, 99).unwrap(), (10, 10_000_000));
+        assert_eq!(config.quote(0, 100).unwrap(), (10, 9_000_000));
+        assert_eq!(config.quote(0, 199).unwrap(), (10, 9_000_000));
+        assert_eq!(config.quote(0, 200).unwrap(), (10, 10_000_000));
 
         config.star_pack_enabled[0] = false;
         assert!(config.quote(0, 150).is_err());
@@ -1230,7 +1210,7 @@ mod tests {
             results: [WeeklyDailyResult::default(); WEEKLY_DAILY_RESULTS],
             result_count: 0,
             score: 0,
-            cash_claimed: false,
+            sol_claimed: false,
             stars_claimed: false,
             bump: 1,
         };
@@ -1247,9 +1227,9 @@ mod tests {
         assert_eq!(weekly_winner_counts(21, true), (2, 2));
         assert_eq!(weekly_winner_counts(1_000, true), (3, 20));
         assert_eq!(weekly_winner_counts(1_000, false), (0, 20));
-        assert_eq!(weekly_cash_amount(100, 0, 1).unwrap(), 100);
-        assert_eq!(weekly_cash_amount(85, 0, 2).unwrap(), 55);
-        assert_eq!(weekly_cash_amount(85, 1, 2).unwrap(), 30);
+        assert_eq!(weekly_sol_amount(100, 0, 1).unwrap(), 100);
+        assert_eq!(weekly_sol_amount(85, 0, 2).unwrap(), 55);
+        assert_eq!(weekly_sol_amount(85, 1, 2).unwrap(), 30);
         assert_eq!(weekly_star_amount(0, 20).unwrap(), 30);
         assert_eq!(weekly_star_amount(4, 20).unwrap(), 25);
         assert_eq!(weekly_star_amount(19, 20).unwrap(), 10);
@@ -1311,7 +1291,7 @@ mod tests {
     }
 
     #[test]
-    fn cash_winners_also_receive_the_full_star_award() {
+    fn sol_winners_also_receive_the_full_star_award() {
         assert_eq!(weekly_star_reward_for_rank(0, 3, 20).unwrap(), 30);
         assert_eq!(weekly_star_reward_for_rank(2, 3, 20).unwrap(), 30);
         assert_eq!(weekly_star_reward_for_rank(3, 3, 20).unwrap(), 30);

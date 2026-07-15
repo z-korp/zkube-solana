@@ -135,7 +135,6 @@ describe("DailyChallengePage", () => {
     expect(
       screen.getByRole("button", { name: "Enter Daily · 3★" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/2 attempts/)).toBeInTheDocument();
     expect(screen.getByTestId("tier-context")).toHaveTextContent(
       "#1 · 123 daily",
@@ -168,7 +167,6 @@ describe("DailyChallengePage", () => {
     expect(
       screen.getByRole("button", { name: "Enter Daily · 3★" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "2.5 USDC" })).toBeNull();
     expect(screen.getByText(/Unlimited retries/)).toHaveTextContent(
       "+100 XP first finish",
     );

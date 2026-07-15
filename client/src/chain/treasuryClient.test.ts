@@ -7,7 +7,7 @@ import {
 } from "./treasuryClient";
 
 describe("Star sale accounting", () => {
-  it("conserves every USDC base unit across the 10/10/80 destinations", () => {
+  it("conserves every lamport across the 10/10/80 destinations", () => {
     const accounting: StarSalesAccounting = {
       lifetimeGrossSales: 1_000_001n,
       lifetimeTeamShare: 100_000n,
@@ -23,7 +23,7 @@ describe("Star sale accounting", () => {
         ...accounting,
         lifetimeTreasuryShare: 800_000n,
       }),
-    ).toThrow("does not conserve USDC base units");
+    ).toThrow("does not conserve lamports");
   });
 
   it("rejects Stars sold without a recorded purchase", () => {

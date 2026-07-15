@@ -57,9 +57,8 @@ describe("DailyTab", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /How it works/i }));
     expect(
-      screen.getByText(/Cash and Star rewards settle from the Weekly/i),
+      screen.getByText(/SOL and Star rewards settle from the Weekly/i),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Claim USDC/i })).toBeNull();
   });
 
   it("offers a cancellation refund for an unrefunded paid entry", () => {

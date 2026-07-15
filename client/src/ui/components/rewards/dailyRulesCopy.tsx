@@ -32,7 +32,7 @@ export function DailyScoringRules({
         <InfoRow label="First Tier 7 today" value="+50 XP" />
       </div>
       <p>
-        Daily rank awards 100/60/30/10/2 Weekly points. Cash and Star rewards
+        Daily rank awards 100/60/30/10/2 Weekly points. SOL and Star rewards
         settle from the Weekly leaderboard at the end of the week.
       </p>
     </>

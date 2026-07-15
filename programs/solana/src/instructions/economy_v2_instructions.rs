@@ -1,9 +1,14 @@
+//! Star sales, Campaign unlocks, Daily/Weekly contests, and reward settlement.
+//!
+//! Stars are non-transferable counters. A Star purchase is always owner-signed
+//! and transfers native SOL atomically before crediting Stars: 10% team, 10%
+//! reward reserve, and every remaining lamport to
+//! treasury. Session authorization never reaches this custody boundary.
+
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, TransferChecked};
-use ephemeral_rollups_sdk::anchor::{action, commit};
-use ephemeral_rollups_sdk::ephem::{CallHandler, FoldableIntentBuilder, MagicIntentBundleBuilder};
-use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
+use anchor_lang::system_program::{self, Transfer};
+use ephemeral_rollups_sdk::anchor::commit;
+use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
@@ -42,8 +47,6 @@ pub struct InitializeEconomy<'info> {
         bump
     )]
     pub star_sales_ledger: Box<Account<'info, StarSalesLedger>>,
-    #[account(address = protocol.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -54,14 +57,8 @@ pub fn handler_initialize_economy(
     args: InitializeEconomyArgs,
 ) -> Result<()> {
     require!(args.daily_rules_version > 0, ErrorCode::InvalidState);
-    require!(
-        ctx.accounts.payment_mint.decimals == 6,
-        ErrorCode::InvalidState
-    );
     let config = EconomyConfig::canonical(
         ctx.accounts.protocol.key(),
-        ctx.accounts.protocol.payment_mint,
-        ctx.accounts.protocol.payment_token_program,
         ctx.accounts.protocol.content_version,
         args.daily_rules_version,
         ctx.bumps.economy_config,
@@ -71,7 +68,6 @@ pub fn handler_initialize_economy(
     ctx.accounts.star_sales_ledger.set_inner(StarSalesLedger {
         version: ECONOMY_ACCOUNT_VERSION,
         economy_config: ctx.accounts.economy_config.key(),
-        payment_mint: ctx.accounts.protocol.payment_mint,
         lifetime_gross_sales: 0,
         lifetime_team_share: 0,
         lifetime_reward_share: 0,
@@ -300,52 +296,37 @@ pub struct PurchaseStars<'info> {
         has_one = owner @ ErrorCode::Unauthorized
     )]
     pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(address = protocol.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
-    #[account(
-        mut,
-        token::mint = payment_mint,
-        token::authority = owner,
-    )]
-    pub player_payment_account: Box<Account<'info, TokenAccount>>,
-    #[account(
-        mut,
-        address = protocol.team_destination,
-        token::mint = payment_mint,
-        constraint = team_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub team_destination: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Native-SOL destination pinned by protocol state.
+    #[account(mut, address = protocol.team_destination)]
+    pub team_destination: UncheckedAccount<'info>,
     #[account(
         mut,
         address = protocol.reward_vault,
-        token::mint = payment_mint,
-        token::authority = protocol,
+        seeds = [REWARD_VAULT_SEED],
+        bump = reward_vault.bump,
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-    #[account(
-        mut,
-        address = protocol.treasury_destination,
-        token::mint = payment_mint,
-        constraint = treasury_destination.owner != protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub treasury_destination: Box<Account<'info, TokenAccount>>,
-    #[account(address = protocol.payment_token_program)]
-    pub token_program: Program<'info, Token>,
+    pub reward_vault: Box<Account<'info, RewardVault>>,
+    /// CHECK: Native-SOL destination pinned by protocol state.
+    #[account(mut, address = protocol.treasury_destination)]
+    pub treasury_destination: UncheckedAccount<'info>,
+    #[account(mut)]
     pub owner: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler_purchase_stars<'info>(
     ctx: Context<'info, PurchaseStars<'info>>,
     pack_index: u8,
     expected_stars: u64,
-    max_usdc_amount: u64,
+    max_lamports: u64,
 ) -> Result<()> {
     let (stars, gross) = ctx
         .accounts
         .economy_config
         .quote(pack_index, Clock::get()?.unix_timestamp)?;
     require!(stars == expected_stars, ErrorCode::InvalidPack);
-    require!(gross <= max_usdc_amount, ErrorCode::PriceChanged);
+    require!(gross <= max_lamports, ErrorCode::PriceChanged);
     let (team, reward, treasury) = ctx.accounts.economy_config.split_sale(gross)?;
     transfer_from_player(&ctx, ctx.accounts.team_destination.to_account_info(), team)?;
     transfer_from_player(&ctx, ctx.accounts.reward_vault.to_account_info(), reward)?;
@@ -376,19 +357,50 @@ fn transfer_from_player<'info>(
     destination: AccountInfo<'info>,
     amount: u64,
 ) -> Result<()> {
-    token::transfer_checked(
+    system_program::transfer(
         CpiContext::new(
-            ctx.accounts.token_program.key(),
-            TransferChecked {
-                from: ctx.accounts.player_payment_account.to_account_info(),
-                mint: ctx.accounts.payment_mint.to_account_info(),
+            ctx.accounts.system_program.key(),
+            Transfer {
+                from: ctx.accounts.owner.to_account_info(),
                 to: destination,
-                authority: ctx.accounts.owner.to_account_info(),
             },
         ),
         amount,
-        ctx.accounts.payment_mint.decimals,
     )
+}
+
+fn spendable_lamports(account: &AccountInfo<'_>) -> Result<u64> {
+    let reserve = Rent::get()?.minimum_balance(account.data_len());
+    account
+        .lamports()
+        .checked_sub(reserve)
+        .ok_or(ErrorCode::AccountingInvariant.into())
+}
+
+/// Moves native SOL between program-owned accounts while preserving the
+/// source account's rent-exempt reserve. This is the custody boundary used by
+/// the reward reserve and each Weekly challenge pool.
+fn move_program_lamports(
+    source: &AccountInfo<'_>,
+    destination: &AccountInfo<'_>,
+    amount: u64,
+) -> Result<()> {
+    require_keys_eq!(*source.owner, crate::ID, ErrorCode::InvalidOwner);
+    require!(
+        spendable_lamports(source)? >= amount,
+        ErrorCode::InsufficientFunds
+    );
+    let source_after = source
+        .lamports()
+        .checked_sub(amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let destination_after = destination
+        .lamports()
+        .checked_add(amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    **source.try_borrow_mut_lamports()? = source_after;
+    **destination.try_borrow_mut_lamports()? = destination_after;
+    Ok(())
 }
 
 #[derive(Accounts)]
@@ -625,6 +637,7 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
         day_id,
         week_id: weekly_id_for_day(day_id),
         economy_config: ctx.accounts.economy_config.key(),
+        rent_recipient: ctx.accounts.payer.key(),
         rules_version: catalog.rules_version,
         status: DailyStatus::Open,
         content_version: catalog.content_version,
@@ -770,6 +783,10 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
     require!(
         ctx.accounts.player_profile.next_run_id == run_id,
         ErrorCode::InvalidRunId
+    );
+    require!(
+        ctx.accounts.player_profile.active_run_id == 0,
+        ErrorCode::ActiveRunExists
     );
     require!(
         ctx.accounts.daily_challenge.entry_stars == ctx.accounts.economy_config.daily_entry_stars,
@@ -986,10 +1003,7 @@ fn initialize_daily_run(
 
     player.record_run_started(now)?;
     player.record_daily_join(challenge.day_id, now)?;
-    player.next_run_id = player
-        .next_run_id
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    player.reserve_run(run_id)?;
     Ok(())
 }
 
@@ -1007,22 +1021,22 @@ pub struct CommitDailyRun<'info> {
     /// CHECK: Base-layer shell pinned by active_run.
     #[account(address = active_run.run_shell @ ErrorCode::InvalidRunId)]
     pub run_shell: UncheckedAccount<'info>,
-    /// CHECK: Reserved receipt PDA validated by the action.
+    /// CHECK: Reserved receipt PDA validated by canonical base settlement.
     #[account(seeds = [RUN_RECEIPT_SEED, active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump)]
     pub run_receipt: UncheckedAccount<'info>,
-    /// CHECK: Durable player profile written only by the post-commit action.
+    /// CHECK: Durable player profile written only by canonical base settlement.
     #[account(seeds = [PLAYER_PROFILE_SEED, active_run.owner.as_ref()], bump)]
     pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Daily challenge pinned by active_run and validated by the action.
+    /// CHECK: Daily challenge pinned by active_run and canonical base settlement.
     #[account(address = active_run.daily_challenge @ ErrorCode::InvalidRunId)]
     pub daily_challenge: UncheckedAccount<'info>,
-    /// CHECK: Daily player PDA written only by the base-layer action.
+    /// CHECK: Daily player PDA written only by canonical base settlement.
     #[account(seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), active_run.owner.as_ref()], bump)]
     pub daily_player: UncheckedAccount<'info>,
-    /// CHECK: Leaderboard PDA written only by the base-layer action.
+    /// CHECK: Leaderboard PDA written only by canonical base settlement.
     #[account(seeds = [DAILY_LEADERBOARD_SEED, daily_challenge.key().as_ref()], bump)]
     pub leaderboard: UncheckedAccount<'info>,
-    /// CHECK: Weekly stipend PDA written only by the base-layer action.
+    /// CHECK: Weekly stipend PDA written only by canonical base settlement.
     #[account(seeds = [WEEKLY_STIPEND_SEED, active_run.owner.as_ref()], bump)]
     pub weekly_stipend: UncheckedAccount<'info>,
     /// CHECK: Player wallet pinned by active_run.
@@ -1047,25 +1061,6 @@ pub fn handler_commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
         ctx.accounts.active_run.pending_vrf_counter == 0,
         ErrorCode::VrfRequestPending
     );
-    let action_data =
-        anchor_lang::InstructionData::data(&crate::instruction::ConsumeDailyReceipt {});
-    let settlement_action = CallHandler {
-        destination_program: crate::ID,
-        accounts: vec![
-            short_meta(ctx.accounts.active_run.key(), true),
-            short_meta(ctx.accounts.run_shell.key(), true),
-            short_meta(ctx.accounts.run_receipt.key(), true),
-            short_meta(ctx.accounts.player_profile.key(), true),
-            short_meta(ctx.accounts.daily_challenge.key(), true),
-            short_meta(ctx.accounts.daily_player.key(), true),
-            short_meta(ctx.accounts.leaderboard.key(), true),
-            short_meta(ctx.accounts.weekly_stipend.key(), true),
-            short_meta(ctx.accounts.owner.key(), false),
-        ],
-        args: ActionArgs::new(action_data),
-        escrow_authority: ctx.accounts.payer.to_account_info(),
-        compute_units: 250_000,
-    };
     ctx.accounts.active_run.exit(&crate::ID)?;
     MagicIntentBundleBuilder::new(
         ctx.accounts.payer.to_account_info(),
@@ -1073,12 +1068,10 @@ pub fn handler_commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
         ctx.accounts.magic_program.to_account_info(),
     )
     .commit_and_undelegate(&[ctx.accounts.active_run.to_account_info()])
-    .add_post_commit_actions([settlement_action])
     .build_and_invoke()?;
     Ok(())
 }
 
-#[action]
 #[derive(Accounts)]
 pub struct ConsumeDailyReceipt<'info> {
     #[account(mut, owner = crate::ID)]
@@ -1140,6 +1133,7 @@ pub struct ConsumeDailyReceipt<'info> {
 
 pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Result<()> {
     let active = &ctx.accounts.active_run;
+    let active_run_id = active.run_id;
     require_keys_eq!(
         active.owner,
         ctx.accounts.owner.key(),
@@ -1153,6 +1147,10 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     require_keys_eq!(
         active.daily_challenge,
         ctx.accounts.daily_challenge.key(),
+        ErrorCode::InvalidRunId
+    );
+    require!(
+        ctx.accounts.player_profile.active_run_id == active.run_id,
         ErrorCode::InvalidRunId
     );
     let receipt = &mut ctx.accounts.run_receipt;
@@ -1170,6 +1168,7 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
             receipt.action_hash == active.action_hash && receipt.vrf_hash == active.vrf_hash,
             ErrorCode::ReceiptMismatch
         );
+        ctx.accounts.player_profile.release_run(active.run_id)?;
         return Ok(());
     }
     require!(
@@ -1290,6 +1289,7 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     ctx.accounts.run_shell.lifecycle = RunLifecycle::Settled;
     ctx.accounts.run_shell.settled_at = receipt.consumed_at;
     ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
+    ctx.accounts.player_profile.release_run(active_run_id)?;
     Ok(())
 }
 
@@ -1451,9 +1451,13 @@ pub struct CloseDailyPlayer<'info> {
         constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
-    /// CHECK: Rent destination is pinned to the fee payer that created the account.
-    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
-    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
+        bump = rent_recipient.bump,
+        constraint = rent_recipient.owner == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
     pub caller: Signer<'info>,
 }
 
@@ -1525,9 +1529,6 @@ pub struct CloseDailyChallenge<'info> {
         constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
-    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
-    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
-    pub rent_recipient: UncheckedAccount<'info>,
     #[account(
         mut,
         close = rent_recipient,
@@ -1543,6 +1544,10 @@ pub struct CloseDailyChallenge<'info> {
         constraint = leaderboard.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, DailyLeaderboard>>,
+    /// CHECK: Pinned when the challenge was opened.
+    #[account(mut, address = daily_challenge.rent_recipient @ ErrorCode::InvalidOwner)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(mut)]
     pub caller: Signer<'info>,
 }
 
@@ -1601,26 +1606,14 @@ pub struct OpenWeeklyChallenge<'info> {
         bump
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
-    #[account(address = protocol.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
     #[account(
         mut,
         address = protocol.reward_vault,
-        token::mint = payment_mint,
-        token::authority = protocol,
+        seeds = [REWARD_VAULT_SEED],
+        bump = reward_vault.bump,
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-    #[account(
-        init,
-        payer = payer,
-        seeds = [WEEKLY_VAULT_SEED, week_id.to_le_bytes().as_ref()],
-        bump,
-        token::mint = payment_mint,
-        token::authority = weekly_challenge,
-    )]
-    pub payment_vault: Box<Account<'info, TokenAccount>>,
-    #[account(address = protocol.payment_token_program)]
-    pub token_program: Program<'info, Token>,
+    pub reward_vault: Box<Account<'info, RewardVault>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub caller: Signer<'info>,
@@ -1638,28 +1631,17 @@ pub fn handler_open_weekly_challenge(
         now >= opens_at && now < closes_at,
         ErrorCode::ChallengeEnded
     );
-    let available = ctx.accounts.reward_vault.amount;
-    let pool = if available < ctx.accounts.economy_config.weekly_min_cash_pool {
+    let available = spendable_lamports(&ctx.accounts.reward_vault.to_account_info())?;
+    let pool = if available < ctx.accounts.economy_config.weekly_min_sol_pool {
         0
     } else {
-        available.min(ctx.accounts.economy_config.weekly_max_cash_pool)
+        available.min(ctx.accounts.economy_config.weekly_max_sol_pool)
     };
     if pool > 0 {
-        let bump = [ctx.accounts.protocol.bump];
-        let signer: &[&[u8]] = &[PROTOCOL_CONFIG_SEED, &bump];
-        token::transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: ctx.accounts.reward_vault.to_account_info(),
-                    mint: ctx.accounts.payment_mint.to_account_info(),
-                    to: ctx.accounts.payment_vault.to_account_info(),
-                    authority: ctx.accounts.protocol.to_account_info(),
-                },
-                &[signer],
-            ),
+        move_program_lamports(
+            &ctx.accounts.reward_vault.to_account_info(),
+            &ctx.accounts.weekly_challenge.to_account_info(),
             pool,
-            ctx.accounts.payment_mint.decimals,
         )?;
     }
     let challenge_key = ctx.accounts.weekly_challenge.key();
@@ -1667,21 +1649,19 @@ pub fn handler_open_weekly_challenge(
         version: ECONOMY_ACCOUNT_VERSION,
         week_id,
         economy_config: ctx.accounts.economy_config.key(),
-        payment_mint: ctx.accounts.payment_mint.key(),
-        payment_token_program: ctx.accounts.token_program.key(),
-        payment_vault: ctx.accounts.payment_vault.key(),
+        rent_recipient: ctx.accounts.payer.key(),
         status: WeeklyStatus::Open,
         opens_at,
         closes_at,
         finalizes_at,
         finalized_at: 0,
         claims_close_at: 0,
-        committed_cash_pool: pool,
-        cash_claimed: 0,
-        cash_forfeited: 0,
+        committed_sol_pool: pool,
+        sol_claimed: 0,
+        sol_forfeited: 0,
         participants: 0,
         closed_players: 0,
-        cash_winner_count: 0,
+        sol_winner_count: 0,
         star_winner_count: 0,
         bump: ctx.bumps.weekly_challenge,
     });
@@ -1694,7 +1674,7 @@ pub fn handler_open_weekly_challenge(
     emit!(WeeklyOpened {
         challenge: challenge_key,
         week_id,
-        cash_pool: pool,
+        sol_pool: pool,
     });
     Ok(())
 }
@@ -1774,7 +1754,7 @@ pub fn handler_rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Resu
         weekly_player.results = [WeeklyDailyResult::default(); WEEKLY_DAILY_RESULTS];
         weekly_player.result_count = 0;
         weekly_player.score = 0;
-        weekly_player.cash_claimed = false;
+        weekly_player.sol_claimed = false;
         weekly_player.stars_claimed = false;
         weekly_player.bump = ctx.bumps.weekly_player;
         ctx.accounts.weekly_challenge.participants = ctx
@@ -1863,9 +1843,9 @@ pub fn handler_finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) 
         ErrorCode::InvalidState
     );
     require!(now >= challenge.finalizes_at, ErrorCode::ChallengeNotEnded);
-    let (cash_winner_count, star_winner_count) =
-        weekly_winner_counts(challenge.participants, challenge.committed_cash_pool > 0);
-    challenge.cash_winner_count = cash_winner_count;
+    let (sol_winner_count, star_winner_count) =
+        weekly_winner_counts(challenge.participants, challenge.committed_sol_pool > 0);
+    challenge.sol_winner_count = sol_winner_count;
     challenge.star_winner_count = star_winner_count;
     challenge.finalized_at = now;
     challenge.claims_close_at = now
@@ -1876,9 +1856,9 @@ pub fn handler_finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) 
         challenge: challenge.key(),
         week_id: challenge.week_id,
         participants: challenge.participants,
-        cash_winner_count,
+        sol_winner_count,
         star_winner_count,
-        cash_pool: challenge.committed_cash_pool,
+        sol_pool: challenge.committed_sol_pool,
     });
     Ok(())
 }
@@ -1983,7 +1963,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
         .ok_or(ErrorCode::NoPrize)?;
     let stars = weekly_star_reward_for_rank(
         rank,
-        ctx.accounts.weekly_challenge.cash_winner_count,
+        ctx.accounts.weekly_challenge.sol_winner_count,
         ctx.accounts.weekly_challenge.star_winner_count,
     )?;
     ctx.accounts.player_profile.credit_stars(stars)?;
@@ -1998,7 +1978,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
 }
 
 #[derive(Accounts)]
-pub struct ClaimWeeklyCash<'info> {
+pub struct ClaimWeeklySol<'info> {
     #[account(
         mut,
         seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
@@ -2019,35 +1999,14 @@ pub struct ClaimWeeklyCash<'info> {
         constraint = weekly_player.player == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
-    #[account(address = weekly_challenge.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
-    #[account(
-        mut,
-        address = weekly_challenge.payment_vault,
-        token::mint = payment_mint,
-        token::authority = weekly_challenge,
-    )]
-    pub payment_vault: Box<Account<'info, TokenAccount>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        associated_token::mint = payment_mint,
-        associated_token::authority = owner_authority,
-    )]
-    pub player_payment_account: Box<Account<'info, TokenAccount>>,
-    #[account(address = weekly_challenge.payment_token_program)]
-    pub token_program: Program<'info, Token>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
+    #[account(mut)]
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
 }
 
-pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
+pub fn handler_claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
@@ -2058,7 +2017,7 @@ pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
         ErrorCode::ChallengeEnded
     );
     require!(
-        !ctx.accounts.weekly_player.cash_claimed,
+        !ctx.accounts.weekly_player.sol_claimed,
         ErrorCode::PrizeAlreadyClaimed
     );
     let rank = ctx
@@ -2066,41 +2025,29 @@ pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
         .leaderboard
         .rank_of(ctx.accounts.owner_authority.key())
         .ok_or(ErrorCode::NoPrize)?;
-    let amount = weekly_cash_amount(
-        ctx.accounts.weekly_challenge.committed_cash_pool,
+    let amount = weekly_sol_amount(
+        ctx.accounts.weekly_challenge.committed_sol_pool,
         rank,
-        ctx.accounts.weekly_challenge.cash_winner_count,
+        ctx.accounts.weekly_challenge.sol_winner_count,
     )?;
-    let week_id = ctx.accounts.weekly_challenge.week_id.to_le_bytes();
-    let bump = [ctx.accounts.weekly_challenge.bump];
-    let signer: &[&[u8]] = &[WEEKLY_CHALLENGE_SEED, &week_id, &bump];
-    token::transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.key(),
-            TransferChecked {
-                from: ctx.accounts.payment_vault.to_account_info(),
-                mint: ctx.accounts.payment_mint.to_account_info(),
-                to: ctx.accounts.player_payment_account.to_account_info(),
-                authority: ctx.accounts.weekly_challenge.to_account_info(),
-            },
-            &[signer],
-        ),
+    move_program_lamports(
+        &ctx.accounts.weekly_challenge.to_account_info(),
+        &ctx.accounts.owner_authority.to_account_info(),
         amount,
-        ctx.accounts.payment_mint.decimals,
     )?;
-    ctx.accounts.weekly_challenge.cash_claimed = ctx
+    ctx.accounts.weekly_challenge.sol_claimed = ctx
         .accounts
         .weekly_challenge
-        .cash_claimed
+        .sol_claimed
         .checked_add(amount)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     require!(
-        ctx.accounts.weekly_challenge.cash_claimed
-            <= ctx.accounts.weekly_challenge.committed_cash_pool,
+        ctx.accounts.weekly_challenge.sol_claimed
+            <= ctx.accounts.weekly_challenge.committed_sol_pool,
         ErrorCode::AccountingInvariant
     );
-    ctx.accounts.weekly_player.cash_claimed = true;
-    emit!(WeeklyCashClaimed {
+    ctx.accounts.weekly_player.sol_claimed = true;
+    emit!(WeeklySolClaimed {
         owner: ctx.accounts.owner_authority.key(),
         week_id: ctx.accounts.weekly_challenge.week_id,
         rank: (rank + 1) as u8,
@@ -2110,7 +2057,7 @@ pub fn handler_claim_weekly_cash(ctx: Context<ClaimWeeklyCash>) -> Result<()> {
 }
 
 #[derive(Accounts)]
-pub struct ForfeitWeeklyCash<'info> {
+pub struct ForfeitWeeklySol<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump
@@ -2123,63 +2070,41 @@ pub struct ForfeitWeeklyCash<'info> {
         constraint = weekly_challenge.status == WeeklyStatus::Claimable @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
-    #[account(address = weekly_challenge.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
-    #[account(
-        mut,
-        address = weekly_challenge.payment_vault,
-        token::mint = payment_mint,
-        token::authority = weekly_challenge,
-    )]
-    pub payment_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         address = protocol.reward_vault,
-        token::mint = payment_mint,
-        token::authority = protocol,
+        seeds = [REWARD_VAULT_SEED],
+        bump = reward_vault.bump,
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-    #[account(address = weekly_challenge.payment_token_program)]
-    pub token_program: Program<'info, Token>,
+    pub reward_vault: Box<Account<'info, RewardVault>>,
     pub caller: Signer<'info>,
 }
 
-pub fn handler_forfeit_weekly_cash(ctx: Context<ForfeitWeeklyCash>) -> Result<()> {
+pub fn handler_forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> {
     require!(
         Clock::get()?.unix_timestamp > ctx.accounts.weekly_challenge.claims_close_at,
         ErrorCode::PrizeClaimWindowOpen
     );
-    let amount = ctx.accounts.payment_vault.amount;
+    let amount = spendable_lamports(&ctx.accounts.weekly_challenge.to_account_info())?;
     if amount > 0 {
-        let week_id = ctx.accounts.weekly_challenge.week_id.to_le_bytes();
-        let bump = [ctx.accounts.weekly_challenge.bump];
-        let signer: &[&[u8]] = &[WEEKLY_CHALLENGE_SEED, &week_id, &bump];
-        token::transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: ctx.accounts.payment_vault.to_account_info(),
-                    mint: ctx.accounts.payment_mint.to_account_info(),
-                    to: ctx.accounts.reward_vault.to_account_info(),
-                    authority: ctx.accounts.weekly_challenge.to_account_info(),
-                },
-                &[signer],
-            ),
+        move_program_lamports(
+            &ctx.accounts.weekly_challenge.to_account_info(),
+            &ctx.accounts.reward_vault.to_account_info(),
             amount,
-            ctx.accounts.payment_mint.decimals,
         )?;
     }
-    ctx.accounts.weekly_challenge.cash_forfeited = amount;
+    ctx.accounts.weekly_challenge.sol_forfeited = amount;
     require!(
         ctx.accounts
             .weekly_challenge
-            .cash_claimed
+            .sol_claimed
             .checked_add(amount)
-            == Some(ctx.accounts.weekly_challenge.committed_cash_pool),
+            == Some(ctx.accounts.weekly_challenge.committed_sol_pool),
         ErrorCode::AccountingInvariant
     );
     ctx.accounts.weekly_challenge.status = WeeklyStatus::Closed;
-    emit!(WeeklyCashForfeited {
+    emit!(WeeklySolForfeited {
         week_id: ctx.accounts.weekly_challenge.week_id,
         amount,
     });
@@ -2217,9 +2142,13 @@ pub struct CloseWeeklyPlayer<'info> {
         constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
-    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
-    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
-    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
+        bump = rent_recipient.bump,
+        constraint = rent_recipient.owner == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
     pub caller: Signer<'info>,
 }
 
@@ -2229,9 +2158,9 @@ pub fn handler_close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()
         weekly_player_close_allowed(
             ctx.accounts.weekly_challenge.status,
             rank,
-            ctx.accounts.weekly_challenge.cash_winner_count,
+            ctx.accounts.weekly_challenge.sol_winner_count,
             ctx.accounts.weekly_challenge.star_winner_count,
-            ctx.accounts.weekly_player.cash_claimed,
+            ctx.accounts.weekly_player.sol_claimed,
             ctx.accounts.weekly_player.stars_claimed,
         ),
         ErrorCode::InvalidState
@@ -2256,9 +2185,9 @@ pub fn handler_close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()
 fn weekly_player_close_allowed(
     status: WeeklyStatus,
     rank: Option<usize>,
-    cash_winner_count: u8,
+    sol_winner_count: u8,
     star_winner_count: u8,
-    cash_claimed: bool,
+    sol_claimed: bool,
     stars_claimed: bool,
 ) -> bool {
     if status == WeeklyStatus::Closed {
@@ -2267,10 +2196,10 @@ fn weekly_player_close_allowed(
     if status != WeeklyStatus::Claimable {
         return false;
     }
-    let cash_winner = rank.is_some_and(|rank| rank < usize::from(cash_winner_count));
-    let star_limit = usize::from(cash_winner_count) + usize::from(star_winner_count);
+    let sol_winner = rank.is_some_and(|rank| rank < usize::from(sol_winner_count));
+    let star_limit = usize::from(sol_winner_count) + usize::from(star_winner_count);
     let star_winner = rank.is_some_and(|rank| rank < star_limit);
-    (!cash_winner || cash_claimed) && (!star_winner || stars_claimed)
+    (!sol_winner || sol_claimed) && (!star_winner || stars_claimed)
 }
 
 #[derive(Accounts)]
@@ -2281,9 +2210,6 @@ pub struct CloseWeeklyChallenge<'info> {
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    /// CHECK: Rent destination is pinned to ProtocolConfig.paymaster.
-    #[account(mut, address = protocol.paymaster @ ErrorCode::Unauthorized)]
-    pub rent_recipient: UncheckedAccount<'info>,
     #[account(
         mut,
         close = rent_recipient,
@@ -2299,17 +2225,10 @@ pub struct CloseWeeklyChallenge<'info> {
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
-    #[account(address = weekly_challenge.payment_mint)]
-    pub payment_mint: Box<Account<'info, Mint>>,
-    #[account(
-        mut,
-        address = weekly_challenge.payment_vault,
-        token::mint = payment_mint,
-        token::authority = weekly_challenge,
-    )]
-    pub payment_vault: Box<Account<'info, TokenAccount>>,
-    #[account(address = weekly_challenge.payment_token_program)]
-    pub token_program: Program<'info, Token>,
+    /// CHECK: Pinned when the challenge was opened.
+    #[account(mut, address = weekly_challenge.rent_recipient @ ErrorCode::InvalidOwner)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    #[account(mut)]
     pub caller: Signer<'info>,
 }
 
@@ -2323,7 +2242,7 @@ pub fn handler_close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Res
         ErrorCode::AccountingInvariant
     );
     require!(
-        ctx.accounts.payment_vault.amount == 0,
+        spendable_lamports(&ctx.accounts.weekly_challenge.to_account_info())? == 0,
         ErrorCode::AccountingInvariant
     );
     validate_closed_weekly_dailies(
@@ -2331,18 +2250,6 @@ pub fn handler_close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Res
         ctx.remaining_accounts,
     )?;
 
-    let week_id = ctx.accounts.weekly_challenge.week_id.to_le_bytes();
-    let bump = [ctx.accounts.weekly_challenge.bump];
-    let signer: &[&[u8]] = &[WEEKLY_CHALLENGE_SEED, &week_id, &bump];
-    token::close_account(CpiContext::new_with_signer(
-        ctx.accounts.token_program.key(),
-        CloseAccount {
-            account: ctx.accounts.payment_vault.to_account_info(),
-            destination: ctx.accounts.rent_recipient.to_account_info(),
-            authority: ctx.accounts.weekly_challenge.to_account_info(),
-        },
-        &[signer],
-    ))?;
     emit!(WeeklyChallengeClosed {
         challenge: ctx.accounts.weekly_challenge.key(),
         week_id: ctx.accounts.weekly_challenge.week_id,
@@ -2451,13 +2358,6 @@ fn hash_daily_challenge(
         .chain_update(rule)
         .finalize()
         .into())
-}
-
-fn short_meta(pubkey: Pubkey, is_writable: bool) -> ShortAccountMeta {
-    ShortAccountMeta {
-        pubkey: pubkey.to_bytes().into(),
-        is_writable,
-    }
 }
 
 #[event]
@@ -2572,7 +2472,7 @@ pub struct DailyChallengeClosed {
 pub struct WeeklyOpened {
     pub challenge: Pubkey,
     pub week_id: u32,
-    pub cash_pool: u64,
+    pub sol_pool: u64,
 }
 
 #[event]
@@ -2589,9 +2489,9 @@ pub struct WeeklyFinalized {
     pub challenge: Pubkey,
     pub week_id: u32,
     pub participants: u32,
-    pub cash_winner_count: u8,
+    pub sol_winner_count: u8,
     pub star_winner_count: u8,
-    pub cash_pool: u64,
+    pub sol_pool: u64,
 }
 
 #[event]
@@ -2603,7 +2503,7 @@ pub struct WeeklyStarsClaimed {
 }
 
 #[event]
-pub struct WeeklyCashClaimed {
+pub struct WeeklySolClaimed {
     pub owner: Pubkey,
     pub week_id: u32,
     pub rank: u8,
@@ -2611,7 +2511,7 @@ pub struct WeeklyCashClaimed {
 }
 
 #[event]
-pub struct WeeklyCashForfeited {
+pub struct WeeklySolForfeited {
     pub week_id: u32,
     pub amount: u64,
 }
@@ -2631,6 +2531,28 @@ pub struct WeeklyChallengeClosed {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_lang::ToAccountMetas;
+
+    #[test]
+    fn daily_receipt_consumer_is_permissionless_and_has_no_action_escrow() {
+        let owner = Pubkey::new_unique();
+        let metas = crate::accounts::ConsumeDailyReceipt {
+            active_run: Pubkey::new_unique(),
+            run_shell: Pubkey::new_unique(),
+            run_receipt: Pubkey::new_unique(),
+            player_profile: Pubkey::new_unique(),
+            daily_challenge: Pubkey::new_unique(),
+            daily_player: Pubkey::new_unique(),
+            leaderboard: Pubkey::new_unique(),
+            weekly_stipend: Pubkey::new_unique(),
+            owner,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 9);
+        assert_eq!(metas[8].pubkey, owner);
+        assert!(metas.iter().all(|meta| !meta.is_signer));
+    }
 
     fn daily_player() -> DailyPlayer {
         DailyPlayer {

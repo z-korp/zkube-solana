@@ -2,18 +2,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createDevnetPaymasterConnection } from "./paymaster.js";
+import { createDevnetConnection } from "./serviceReadiness.js";
 import {
   boundedKeeperInteger,
   keeperKeypairFromEnv,
   runKeeperPass,
   type KeeperLogEvent,
 } from "./keeper.js";
-import {
-  createRemotePaymasterClient,
-  paymasterEndpointFromEnv,
-  paymasterPublicKeyFromEnv,
-} from "./remotePaymaster.js";
 import {
   checkChainReadiness,
   expectedGenesisHashFromEnv,
@@ -22,7 +17,7 @@ import {
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
-const DEFAULT_MIN_PAYMASTER_LAMPORTS = 1_500_000_000;
+const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
 
 export interface KeeperWorkerEvent {
   schemaVersion: 1;
@@ -102,30 +97,24 @@ async function runConfiguredKeeperPass(
   env: Record<string, string | undefined>,
   log: (event: KeeperWorkerEvent | KeeperLogEvent) => void,
 ): Promise<void> {
-  const connection = createDevnetPaymasterConnection(env);
+  const connection = createDevnetConnection(env);
   const readiness = await checkChainReadiness({
     connection,
     expectedGenesisHash: expectedGenesisHashFromEnv(env),
   });
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
-  const paymaster = createRemotePaymasterClient({
-    endpoint: paymasterEndpointFromEnv(env),
-    expectedPublicKey: paymasterPublicKeyFromEnv(env),
-  });
-  await paymaster.probe();
   await runKeeperPass({
     connection,
     keeper: keeperKeypairFromEnv(env),
-    paymaster,
     maxWrites: boundedKeeperInteger(
       env.KEEPER_MAX_WRITES,
       DEFAULT_MAX_WRITES,
       MAX_MAX_WRITES,
     ),
     minimumBalanceLamports: boundedKeeperInteger(
-      env.MIN_PAYMASTER_LAMPORTS,
-      DEFAULT_MIN_PAYMASTER_LAMPORTS,
+      env.MIN_KEEPER_LAMPORTS,
+      DEFAULT_MIN_KEEPER_LAMPORTS,
       Number.MAX_SAFE_INTEGER,
     ),
     log,

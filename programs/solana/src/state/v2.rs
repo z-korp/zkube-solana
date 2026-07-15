@@ -14,6 +14,8 @@ pub const MAP_CATALOG_SEED: &[u8] = b"map";
 pub const RUN_SHELL_SEED: &[u8] = b"run";
 pub const RUN_RECEIPT_SEED: &[u8] = b"receipt";
 pub const QUEST_CLAIMS_SEED: &[u8] = b"quest_claims";
+pub const PLAYER_FUNDING_SEED: &[u8] = b"player_funding";
+pub const REWARD_VAULT_SEED: &[u8] = b"reward_vault";
 
 pub const ACCOUNT_VERSION: u8 = 1;
 pub const MAX_MAPS: usize = 32;
@@ -34,16 +36,32 @@ pub struct ProtocolConfig {
     pub authority: Pubkey,
     pub pending_authority: Pubkey,
     pub pricing_operator: Pubkey,
-    pub paymaster: Pubkey,
     pub team_destination: Pubkey,
     pub treasury_destination: Pubkey,
     pub reward_vault: Pubkey,
-    pub payment_mint: Pubkey,
-    pub payment_token_program: Pubkey,
     pub content_version: u32,
     /// Number of contiguous, authority-activated Campaign maps.
     pub campaign_map_count: u8,
     pub paused: bool,
+    pub bump: u8,
+}
+
+/// Program-owned native-SOL reserve used only for bounded Weekly prizes.
+#[account]
+#[derive(InitSpace)]
+pub struct RewardVault {
+    pub version: u8,
+    pub protocol: Pubkey,
+    pub bump: u8,
+}
+
+/// Owner-scoped reusable rent float. Device sessions may spend it only through
+/// zKube's canonical account-creation paths; only the owner may withdraw it.
+#[account]
+#[derive(InitSpace)]
+pub struct PlayerFundingVault {
+    pub version: u8,
+    pub owner: Pubkey,
     pub bump: u8,
 }
 
@@ -56,6 +74,10 @@ pub struct PlayerProfile {
     pub lifetime_stars_earned: u64,
     pub lifetime_stars_spent: u64,
     pub next_run_id: u64,
+    /// Zero when idle; otherwise the only run that may exist for this owner.
+    /// This durable pointer makes resume deterministic across devices and
+    /// prevents two valid device sessions from opening concurrent runs.
+    pub active_run_id: u64,
     pub daily_eligible: bool,
     pub achievement_flags: [u64; 4],
     /// All progression XP, regardless of whether it came from achievements,
@@ -84,6 +106,7 @@ impl PlayerProfile {
             lifetime_stars_earned: 0,
             lifetime_stars_spent: 0,
             next_run_id: INITIAL_RUN_ID,
+            active_run_id: 0,
             daily_eligible: false,
             achievement_flags: [0; 4],
             lifetime_xp: 0,
@@ -100,6 +123,26 @@ impl PlayerProfile {
             last_daily_challenge_day: u32::MAX,
             bump,
         }
+    }
+
+    /// Atomically reserves the next monotonic run id for this owner.
+    pub fn reserve_run(&mut self, run_id: u64) -> Result<()> {
+        require!(self.next_run_id == run_id, ErrorCode::InvalidRunId);
+        require!(self.active_run_id == 0, ErrorCode::ActiveRunExists);
+        self.next_run_id = self
+            .next_run_id
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        self.active_run_id = run_id;
+        Ok(())
+    }
+
+    /// Releases only the exact run pinned in the profile after its receipt is
+    /// durably consumed on the base layer.
+    pub fn release_run(&mut self, run_id: u64) -> Result<()> {
+        require!(self.active_run_id == run_id, ErrorCode::InvalidRunId);
+        self.active_run_id = 0;
+        Ok(())
     }
 
     pub fn credit_stars(&mut self, amount: u64) -> Result<()> {
@@ -666,6 +709,19 @@ mod tests {
         let player = PlayerProfile::initialize(Pubkey::new_unique(), 1);
         assert_eq!(INITIAL_RUN_ID, expected);
         assert_eq!(player.next_run_id, expected);
+        assert_eq!(player.active_run_id, 0);
+    }
+
+    #[test]
+    fn one_owner_cannot_reserve_overlapping_runs() {
+        let mut player = PlayerProfile::initialize(Pubkey::new_unique(), 1);
+        player.reserve_run(INITIAL_RUN_ID).unwrap();
+        assert_eq!(player.active_run_id, INITIAL_RUN_ID);
+        assert_eq!(player.next_run_id, INITIAL_RUN_ID + 1);
+        assert!(player.reserve_run(INITIAL_RUN_ID + 1).is_err());
+        assert!(player.release_run(INITIAL_RUN_ID + 1).is_err());
+        player.release_run(INITIAL_RUN_ID).unwrap();
+        player.reserve_run(INITIAL_RUN_ID + 1).unwrap();
     }
 
     #[test]

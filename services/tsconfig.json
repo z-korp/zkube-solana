@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "@anchor-lang/core": ["node_modules/@anchor-lang/core"],
+      "@magicblock-labs/*": ["node_modules/@magicblock-labs/*"],
+      "@solana/web3.js": ["node_modules/@solana/web3.js"],
+      "bn.js": ["node_modules/bn.js"]
+    },
+    "types": ["node"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true
+  },
+  "include": ["src/keeperWorker.ts"],
+  "exclude": ["src/**/*.test.ts", "node_modules", "dist"]
+}

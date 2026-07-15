@@ -5,7 +5,6 @@ import react from "@vitejs/plugin-react";
 import topLevelAwait from "vite-plugin-top-level-await";
 import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
-import { paymasterDevPlugin } from "./src/server/paymasterVitePlugin";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -14,7 +13,6 @@ export default defineConfig({
     tailwindcss(),
     wasm(),
     topLevelAwait(),
-    paymasterDevPlugin(),
     // Note: mkcert (local HTTPS) retiré — Vercel gère HTTPS automatiquement
     nodePolyfills({ include: ["buffer", "process", "stream", "util"] }),
   ],

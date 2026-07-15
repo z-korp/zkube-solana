@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
-import { fetchPaymasterClient } from "./paymasterClient";
-import { submitSponsoredTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "./runPlan";
 import {
   buildStarPurchasePlan,
   fetchStarShopView,
@@ -66,18 +65,15 @@ export function useShopController() {
         if (hasStarPackQuoteChanged(quotedPack, freshPack)) {
           throw new StarShopQuoteChangedError();
         }
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildStarPurchasePlan({
           connection,
           wallet,
           shop: fresh,
           packIndex: quotedPack.index,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         setError(null);

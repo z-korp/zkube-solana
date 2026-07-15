@@ -1,4 +1,3 @@
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
 import {
   PublicKey,
@@ -10,11 +9,10 @@ import {
 } from "@solana/web3.js";
 
 import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog";
-import { deriveAssociatedTokenAddress } from "./campaignClient";
-import { CANONICAL_DEVNET_USDC_MINT } from "./constants";
 import {
   deriveCampaignProgressPda,
   deriveEconomyConfigPda,
+  derivePlayerFundingPda,
   derivePlayerProfilePda,
   deriveProtocolConfigPda,
   deriveStarSalesLedgerPda,
@@ -42,8 +40,6 @@ export interface StarShopView {
   dailyEntryStars: bigint;
   zoneUnlockStars: bigint;
   protocolPaused: boolean;
-  paymentMint: PublicKey;
-  paymentTokenProgram: PublicKey;
   teamDestination: PublicKey;
   rewardVault: PublicKey;
   treasuryDestination: PublicKey;
@@ -110,20 +106,11 @@ export async function fetchStarShopView(args: {
     Number(protocol.version) !== 1 ||
     Number(economy.version) !== 1 ||
     !economy.protocol.equals(protocolAddress) ||
-    !economy.paymentMint.equals(protocol.paymentMint) ||
-    !economy.paymentTokenProgram.equals(protocol.paymentTokenProgram) ||
     Number(economy.contentVersion) !== Number(protocol.contentVersion) ||
     !economy.active
   ) {
     return null;
   }
-  if (
-    !protocol.paymentMint.equals(CANONICAL_DEVNET_USDC_MINT) ||
-    !protocol.paymentTokenProgram.equals(TOKEN_PROGRAM_ID)
-  ) {
-    throw new Error("Shop payment configuration is not canonical Devnet USDC");
-  }
-
   const playerInitialized = Boolean(playerInfo && campaignInfo);
   if (Boolean(playerInfo) !== Boolean(campaignInfo)) {
     throw new Error("Player state is incomplete");
@@ -210,8 +197,6 @@ export async function fetchStarShopView(args: {
     dailyEntryStars: BigInt(economy.dailyEntryStars.toString()),
     zoneUnlockStars: BigInt(economy.zoneUnlockStars.toString()),
     protocolPaused: Boolean(protocol.paused),
-    paymentMint: protocol.paymentMint,
-    paymentTokenProgram: protocol.paymentTokenProgram,
     teamDestination: protocol.teamDestination,
     rewardVault: protocol.rewardVault,
     treasuryDestination: protocol.treasuryDestination,
@@ -241,8 +226,6 @@ export async function buildStarPurchasePlan(args: {
   wallet: WalletLike;
   shop: StarShopView;
   packIndex: number;
-  playerPaymentAccount?: PublicKey;
-  paymaster?: PublicKey;
 }): Promise<TransactionPlan> {
   if (
     !Number.isInteger(args.packIndex) ||
@@ -256,7 +239,6 @@ export async function buildStarPurchasePlan(args: {
   if (!pack.enabled) throw new Error("Star pack is disabled");
 
   const owner = args.wallet.publicKey;
-  const feePayer = args.paymaster ?? owner;
   const program = zkubeProgram(args.connection, args.wallet);
   const instructions: TransactionInstruction[] = [];
   if (!args.shop.playerInitialized) {
@@ -266,7 +248,8 @@ export async function buildStarPurchasePlan(args: {
         .accountsPartial({
           playerProfile: derivePlayerProfilePda(owner),
           campaignProgress: deriveCampaignProgressPda(owner),
-          payer: feePayer,
+          playerFunding: derivePlayerFundingPda(owner),
+          payer: owner,
           ownerAuthority: owner,
           sessionToken: null,
           actor: owner,
@@ -287,19 +270,11 @@ export async function buildStarPurchasePlan(args: {
         economyConfig: deriveEconomyConfigPda(),
         starSalesLedger: deriveStarSalesLedgerPda(),
         playerProfile: derivePlayerProfilePda(owner),
-        paymentMint: args.shop.paymentMint,
-        playerPaymentAccount:
-          args.playerPaymentAccount ??
-          deriveAssociatedTokenAddress(
-            owner,
-            args.shop.paymentMint,
-            args.shop.paymentTokenProgram,
-          ),
         teamDestination: args.shop.teamDestination,
         rewardVault: args.shop.rewardVault,
         treasuryDestination: args.shop.treasuryDestination,
-        tokenProgram: args.shop.paymentTokenProgram,
         owner,
+        systemProgram: SystemProgram.programId,
       })
       .instruction(),
   );
@@ -310,7 +285,7 @@ export async function buildStarPurchasePlan(args: {
       : "Initialize player and purchase Stars",
     connection: args.connection,
     transaction: new Transaction().add(...instructions),
-    feePayer,
+    feePayer: owner,
     signers: [],
   };
 }

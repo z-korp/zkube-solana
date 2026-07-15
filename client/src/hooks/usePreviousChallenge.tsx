@@ -9,8 +9,7 @@ import {
 } from "@/chain/dailyClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { SessionWallet } from "@/chain/sessionWallet";
-import { fetchPaymasterClient } from "@/chain/paymasterClient";
-import { submitSponsoredTransactionPlan } from "@/chain/runPlan";
+import { submitVersionedTransactionPlan } from "@/chain/runPlan";
 import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 
 export function usePreviousChallenge() {
@@ -53,19 +52,16 @@ export function usePreviousChallenge() {
       const sessionWallet = new SessionWallet(session.signer);
       setAction("refund");
       try {
-        const paymaster = await fetchPaymasterClient(connection);
         const transactionPlan = await buildRefundDailyEntryPlan({
           connection,
           wallet: sessionWallet,
           ownerAuthority: player.publicKey,
           sessionToken: session.sessionToken,
           daily,
-          paymaster: paymaster.pubkey,
         });
-        const signature = await submitSponsoredTransactionPlan({
+        const signature = await submitVersionedTransactionPlan({
           transactionPlan,
           wallet: sessionWallet,
-          paymaster,
         });
         await connection.confirmTransaction(signature, "confirmed");
         await refresh();

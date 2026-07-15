@@ -10,6 +10,7 @@ import InfoSheet, { InfoRow } from "@/ui/components/shared/InfoSheet";
 import StatTile from "@/ui/components/shared/StatTile";
 import { formatDurationCoarse } from "@/utils/time";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { formatSolLamports } from "@/utils/currency";
 
 export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
   const controller = useWeekly();
@@ -34,14 +35,14 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
   const rank = owner
     ? weekly.leaderboard.findIndex((entry) => entry.player.equals(owner))
     : -1;
-  const isCashWinner = rank >= 0 && rank < weekly.cashWinnerCount;
+  const isSolWinner = rank >= 0 && rank < weekly.solWinnerCount;
   const isStarWinner =
     rank >= 0 &&
-    rank < weekly.cashWinnerCount + weekly.starWinnerCount;
-  const canClaimCash =
+    rank < weekly.solWinnerCount + weekly.starWinnerCount;
+  const canClaimSol =
     weekly.status === "claimable" &&
-    isCashWinner &&
-    !weekly.player?.cashClaimed;
+    isSolWinner &&
+    !weekly.player?.solClaimed;
   const canClaimStars =
     weekly.status === "claimable" &&
     isStarWinner &&
@@ -60,7 +61,7 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
       ? `Claims close in ${formatDurationCoarse(weekly.claimsCloseAt - nowUnix)}`
       : "Finished";
   const hasCommittedPool =
-    weekly.cashWinnerCount > 0 && weekly.committedCashPool > 0n;
+    weekly.solWinnerCount > 0 && weekly.committedSolPool > 0n;
 
   return (
     <div className="mx-auto flex max-w-[640px] flex-col gap-3">
@@ -89,16 +90,16 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
           />
           <StatTile
             size="sm"
-            label="Cash pool"
-            value={formatUsdc(weekly.committedCashPool)}
+            label="SOL pool"
+            value={`${formatSolLamports(weekly.committedSolPool)} SOL`}
             className="border-transparent bg-black/20"
           />
         </div>
         <div className="mt-3 flex items-center justify-between gap-3">
           <p className="text-xs leading-relaxed text-white/55">
             {hasCommittedPool
-              ? `Top ${weekly.cashWinnerCount} share the cash pool · next ${weekly.starWinnerCount} win Stars.`
-              : "The cash pool builds from Star purchases during the week."}
+              ? `Top ${weekly.solWinnerCount} share the SOL pool · next ${weekly.starWinnerCount} win Stars.`
+              : "The SOL pool builds from Star purchases during the week."}
           </p>
           <InfoSheet title="How Weekly payouts work">
             <p>
@@ -107,14 +108,14 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
             </p>
             <div>
               <InfoRow
-                label="Cash winners"
-                value={`Top ${weekly.cashWinnerCount} · 55/30/15 split, renormalized`}
+                label="SOL winners"
+                value={`Top ${weekly.solWinnerCount} · 55/30/15 split, renormalized`}
               />
               <InfoRow
                 label="Star winners"
                 value={`Next ${weekly.starWinnerCount} · 30/25/20/15/10 Stars by rank quantile`}
               />
-              <InfoRow label="Cash winner bonus" value="+30 Stars" />
+              <InfoRow label="SOL winner bonus" value="+30 Stars" />
               <InfoRow label="Week" value={`#${weekly.weekId}`} />
             </div>
             <p>
@@ -123,7 +124,7 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
             </p>
           </InfoSheet>
         </div>
-        {(canClaimCash || canClaimStars) && (
+        {(canClaimSol || canClaimStars) && (
           <div className="mt-3 flex flex-col gap-2">
             {canClaimStars && (
               <ArcadeButton
@@ -133,12 +134,12 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
                 {controller.action === "claim:stars" ? "Claiming..." : "Claim Weekly Stars"}
               </ArcadeButton>
             )}
-            {canClaimCash && (
+            {canClaimSol && (
               <ArcadeButton
                 disabled={controller.action !== null}
-                onClick={() => void controller.claimCash()}
+                onClick={() => void controller.claimSol()}
               >
-                {controller.action === "claim:cash" ? "Claiming..." : "Claim Weekly cash"}
+                {controller.action === "claim:sol" ? "Claiming..." : "Claim Weekly SOL"}
               </ArcadeButton>
             )}
           </div>
@@ -174,10 +175,4 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
       {controller.error && <p className="text-center text-xs text-red-300">{controller.error}</p>}
     </div>
   );
-}
-
-function formatUsdc(amount: bigint): string {
-  const whole = amount / 1_000_000n;
-  const fraction = ((amount % 1_000_000n) / 10_000n).toString().padStart(2, "0");
-  return `${whole}.${fraction}`;
 }

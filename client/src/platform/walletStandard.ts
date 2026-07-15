@@ -243,7 +243,7 @@ export function verifyWalletSignedOutput(
     assertBytesEqual(
       original.message.serialize(),
       signed.message.serialize(),
-      "Wallet changed the sponsored transaction message",
+      "Wallet changed the transaction message",
     );
     const signerKeys = original.message.staticAccountKeys.slice(
       0,
@@ -262,7 +262,7 @@ export function verifyWalletSignedOutput(
   assertBytesEqual(
     original.serializeMessage(),
     signed.serializeMessage(),
-    "Wallet changed the sponsored transaction message",
+    "Wallet changed the transaction message",
   );
   const signerKeys = original.signatures.map(({ publicKey }) => publicKey);
   verifySignatureSet(

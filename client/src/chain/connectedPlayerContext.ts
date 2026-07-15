@@ -26,7 +26,6 @@ export interface ConnectedPlayerValue {
   session: DeviceSession | null;
   sessionStatus: PlayerSessionStatus;
   balanceLamports: number | null;
-  usdcBaseUnits: bigint | null;
   balanceLoading: boolean;
   error: string | null;
   connectAndEnable(connectorId: string): Promise<void>;

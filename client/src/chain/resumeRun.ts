@@ -1,6 +1,10 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { RunSessionMarker } from "./runSessionStore";
-import { isRunSessionFresh, loadRunSession } from "./runSessionStore";
+import {
+  isRunSessionFresh,
+  loadRunSession,
+  saveRunSession,
+} from "./runSessionStore";
 import {
   fetchActiveRun,
   type ActiveRunView,
@@ -9,6 +13,8 @@ import {
 import { getDelegationStatus, type DelegationStatus } from "./router";
 import type { WalletLike } from "./sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
+import type { DeviceSession } from "./deviceSessionStore";
+import { derivePlayerProfilePda, deriveRunAddresses } from "./pdas";
 
 export type ResumedRun =
   | { phase: "none" }
@@ -29,9 +35,8 @@ export type ResumedRun =
       sessionAuthorized: boolean;
     }
   | {
-      // Undelegated, terminal, receipt not consumed: the Magic Action never
-      // ran. Settlement can be completed directly on base (no signer needed
-      // for consumption) — this is the recovery path.
+      // Undelegated terminal state is durably back on Solana, but canonical
+      // base settlement has not consumed its receipt yet.
       phase: "settleable";
       marker: RunSessionMarker;
       activeRun: ActiveRunView;
@@ -81,17 +86,34 @@ export interface ResumeRunDependencies {
     wallet: WalletLike,
     receipt: PublicKey,
   ) => Promise<RunReceiptView | null>;
+  fetchActiveRunId?: (
+    connection: Connection,
+    wallet: WalletLike,
+    owner: PublicKey,
+  ) => Promise<bigint>;
 }
 
 export async function resolvePersistedRun(args: {
   owner: PublicKey;
   wallet: WalletLike;
   baseConnection: Connection;
+  /** Current device authorization used to reconstruct a missing local marker. */
+  deviceSession?: DeviceSession | null;
   dependencies?: ResumeRunDependencies;
 }): Promise<ResumedRun> {
-  const marker = loadRunSession(args.owner);
-  if (!marker) return { phase: "none" };
   const dependencies = args.dependencies ?? {};
+  let marker = loadRunSession(args.owner);
+  if (!marker && args.deviceSession) {
+    marker = await discoverActiveRunMarker({
+      owner: args.owner,
+      wallet: args.wallet,
+      baseConnection: args.baseConnection,
+      deviceSession: args.deviceSession,
+      dependencies,
+    });
+    if (marker) saveRunSession(marker);
+  }
+  if (!marker) return { phase: "none" };
   const sessionAuthorized =
     isRunSessionFresh(marker) &&
     Boolean(
@@ -196,6 +218,118 @@ export async function resolvePersistedRun(args: {
     return { phase: "resolving", marker, sessionAuthorized };
   }
   return { phase: "missing", marker, sessionAuthorized };
+}
+
+/**
+ * Reconstructs the local run marker from the owner's durable active-run
+ * pointer. The pointer is authoritative across browsers; browser storage is
+ * only a cache for the current device key.
+ */
+export async function discoverActiveRunMarker(args: {
+  owner: PublicKey;
+  wallet: WalletLike;
+  baseConnection: Connection;
+  deviceSession: DeviceSession;
+  dependencies?: ResumeRunDependencies;
+}): Promise<RunSessionMarker | null> {
+  if (!args.deviceSession.owner.equals(args.owner)) {
+    throw new Error("The device session owner does not match the connected wallet");
+  }
+  const dependencies = args.dependencies ?? {};
+  const runId = await (
+    dependencies.fetchActiveRunId ?? fetchActiveRunId
+  )(args.baseConnection, args.wallet, args.owner);
+  if (runId === 0n) return null;
+
+  const addresses = deriveRunAddresses(args.owner, runId);
+  const status = await (dependencies.getStatus ?? getDelegationStatus)(
+    addresses.activeRun,
+  );
+  const fetchRun = dependencies.fetchRun ?? fetchActiveRun;
+  let activeRun: ActiveRunView | null = null;
+  if (status.isDelegated) {
+    if (!status.fqdn) return null;
+    if (
+      status.delegationRecord &&
+      status.delegationRecord.owner !== ZKUBE_PROGRAM_ID.toBase58()
+    ) {
+      throw new Error(
+        `Delegation record owner ${status.delegationRecord.owner} does not match zKube`,
+      );
+    }
+    const connection = (dependencies.makeErConnection ?? defaultErConnection)(
+      status.fqdn,
+    );
+    const info = await connection.getAccountInfo(addresses.activeRun, "confirmed");
+    if (!info) return null;
+    if (!info.owner.equals(ZKUBE_PROGRAM_ID)) {
+      throw new Error("The discovered ER ActiveRun is not owned by zKube");
+    }
+    activeRun = await fetchRun(connection, args.wallet, addresses.activeRun);
+  } else {
+    const info = await args.baseConnection.getAccountInfo(
+      addresses.activeRun,
+      "confirmed",
+    );
+    // A delegation-program owner with a temporarily stale Router response is
+    // retried by the watcher instead of being decoded as a zKube account.
+    if (info?.owner.equals(DELEGATION_PROGRAM_ID)) return null;
+    if (!info) {
+      throw new Error(
+        `PlayerProfile points to missing ActiveRun ${runId.toString()}`,
+      );
+    }
+    if (!info.owner.equals(ZKUBE_PROGRAM_ID)) {
+      throw new Error("The discovered base ActiveRun is not owned by zKube");
+    }
+    activeRun = await fetchRun(
+      args.baseConnection,
+      args.wallet,
+      addresses.activeRun,
+    );
+  }
+  if (
+    !activeRun ||
+    !activeRun.owner.equals(args.owner) ||
+    activeRun.runId !== runId
+  ) {
+    throw new Error("The discovered ActiveRun does not match its owner and run id");
+  }
+  const mode = activeRun.mode === "daily" ? "daily" : "campaign";
+  return {
+    owner: args.owner,
+    runId,
+    mode,
+    dailyVersion: mode === "daily" ? 2 : undefined,
+    session: args.deviceSession.signer,
+    sessionToken: args.deviceSession.sessionToken,
+    addresses,
+    validUntil: args.deviceSession.validUntil,
+    createdAt: args.deviceSession.createdAt,
+  };
+}
+
+async function fetchActiveRunId(
+  connection: Connection,
+  wallet: WalletLike,
+  owner: PublicKey,
+): Promise<bigint> {
+  const profileAddress = derivePlayerProfilePda(owner);
+  const info = await connection.getAccountInfo(profileAddress, "confirmed");
+  if (!info) return 0n;
+  const program = zkubeProgram(connection, wallet);
+  if (
+    !info.owner.equals(ZKUBE_PROGRAM_ID) ||
+    info.executable ||
+    info.data.length !== program.account.playerProfile.size
+  ) {
+    throw new Error("PlayerProfile has an invalid owner or data length");
+  }
+  const profile = await program.account.playerProfile.fetch(profileAddress);
+  if (!profile.owner.equals(owner)) {
+    throw new Error("PlayerProfile owner does not match the connected wallet");
+  }
+  return BigInt(profile.activeRunId.toString());
 }
 
 export async function fetchReceipt(

@@ -136,10 +136,8 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     if (runtime.phase === "checking" || runtime.phase === "ready") return;
-    console.warn("[zKube runtime]", runtime.phase, runtime.message, {
-      paymasterBalanceLamports: runtime.paymasterBalanceLamports,
-    });
-  }, [runtime.message, runtime.paymasterBalanceLamports, runtime.phase]);
+    console.warn("[zKube runtime]", runtime.phase, runtime.message);
+  }, [runtime.message, runtime.phase]);
 
   const activeStoryRun = useActiveStoryAttempt();
   const activeStoryAttemptId = activeStoryRun?.gameId ?? null;

@@ -7,7 +7,6 @@
   },
   "include": [
     "src/vite-env.d.ts",
-    "src/server/**/*.ts",
     "src/chain/**/*.ts",
     "src/play/usePlayController.ts",
     "src/ui/pages/PlayScreen.tsx",
