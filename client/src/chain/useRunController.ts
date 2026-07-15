@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSolanaConnection } from "./connectionContext";
 import { Keypair, type PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants";
+import { ActiveRunObserver } from "./activeRunObserver";
 import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
 import { SessionWallet } from "./sessionWallet";
-import type { WalletLike } from "./sessionWallet";
 import {
   buildApplyBonusPlan,
   buildCommitRunPlan,
@@ -15,14 +15,19 @@ import {
   buildPrepareCampaignRunPlan,
   buildRequestRowPlan,
   buildSealRunPlan,
+  decodeActiveRunAccount,
   fetchActiveRun,
   resolveRunErConnection,
   submitPreparedRunPlan,
   submitVersionedTransactionPlan,
-  submitWalletTransactionPlan,
   type ActiveRunView,
   type PreparedRunPlan,
 } from "./runPlan";
+import {
+  prewarmErTransport,
+  submitErTransactionPlan,
+  type ErSubmissionResult,
+} from "./erTransport";
 import {
   fetchReceipt,
   resolvePersistedRun,
@@ -46,7 +51,11 @@ import {
 import { withTransientErRetry } from "./erRetry";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { awaitAccountCondition } from "./awaitAccountCondition";
-import { createChainTraceId, emitChainMetric, type ChainMetricLayer } from "./telemetry";
+import {
+  createChainTraceId,
+  emitChainMetric,
+  type ChainMetricLayer,
+} from "./telemetry";
 
 const plog = (
   traceId: string,
@@ -79,8 +88,25 @@ const plogFailure = (
     layer,
     phase: phases[phases.length - 1] ?? label,
     ok: false,
-    error:
-      (error instanceof Error ? error.message : String(error)).slice(0, 200),
+    error: (error instanceof Error ? error.message : String(error)).slice(
+      0,
+      200,
+    ),
+    ...data,
+  });
+};
+
+const plogErSubmission = (
+  traceId: string,
+  operation: string,
+  connection: import("@solana/web3.js").Connection,
+  result: ErSubmissionResult,
+  data: Record<string, unknown> = {},
+): void => {
+  plog(traceId, operation, "magicblock-er", {
+    signature: result.signature,
+    endpointHost: new URL(connection.rpcEndpoint).host,
+    ...result.timing,
     ...data,
   });
 };
@@ -193,11 +219,70 @@ export function useRunController() {
     ResumedRun,
     { phase: "settleable" }
   > | null>(null);
+  const activeRunObserver = useRef<{
+    endpoint: string;
+    address: PublicKey;
+    observer: ActiveRunObserver<ActiveRunView>;
+  } | null>(null);
   // While a move/bonus is in flight the action itself is the authoritative
   // state source; watcher snapshots taken mid-action (awaitingVrf, stale
   // counters) must not clobber currentRun or reach the board.
   const actionInFlight = useRef(false);
   const telemetryTrace = useRef(createChainTraceId());
+
+  const closeActiveRunObserver = useCallback(async () => {
+    const attached = activeRunObserver.current;
+    activeRunObserver.current = null;
+    if (attached) await attached.observer.close();
+  }, []);
+
+  const ensureActiveRunObserver = useCallback(
+    async (
+      erConnection: import("@solana/web3.js").Connection,
+      address: PublicKey,
+      observerWallet: SessionWallet,
+    ): Promise<ActiveRunObserver<ActiveRunView>> => {
+      const attached = activeRunObserver.current;
+      if (
+        attached &&
+        attached.endpoint === erConnection.rpcEndpoint &&
+        attached.address.equals(address)
+      ) {
+        await attached.observer.start();
+        return attached.observer;
+      }
+      await closeActiveRunObserver();
+      const observer = new ActiveRunObserver(
+        erConnection,
+        address,
+        (data, owner) => decodeActiveRunAccount(data, owner),
+        () => fetchActiveRun(erConnection, observerWallet, address),
+        (diagnostic) =>
+          plogFailure(
+            telemetryTrace.current,
+            "er-observer:error",
+            "magicblock-er",
+            new Error(diagnostic.error),
+            { observerEvent: diagnostic.event },
+          ),
+      );
+      activeRunObserver.current = {
+        endpoint: erConnection.rpcEndpoint,
+        address,
+        observer,
+      };
+      await observer.start();
+      return observer;
+    },
+    [closeActiveRunObserver],
+  );
+
+  useEffect(
+    () => () => {
+      void closeActiveRunObserver();
+    },
+    [closeActiveRunObserver, publicKey],
+  );
   useEffect(() => {
     if (!publicKey || !wallet) {
       currentRun.current = null;
@@ -231,6 +316,9 @@ export function useRunController() {
           return;
         }
         currentRun.current = run.phase === "delegated" ? run : null;
+        if (run.phase === "none" || run.phase === "settled") {
+          void closeActiveRunObserver();
+        }
         settleableRun.current = run.phase === "settleable" ? run : null;
         setState((value) => ({
           ...value,
@@ -252,14 +340,23 @@ export function useRunController() {
     });
     watcher.start();
     return () => void watcher.stop();
-  }, [connection, epoch, player.session, publicKey, readOnlyWallet, wallet]);
+  }, [
+    closeActiveRunObserver,
+    connection,
+    epoch,
+    player.session,
+    publicKey,
+    readOnlyWallet,
+    wallet,
+  ]);
 
   useEffect(() => {
     if (!publicKey || player.sessionStatus !== "ready") return;
     const device = player.session;
     if (!device || !device.owner.equals(publicKey)) return;
     const marker = loadRunSession(publicKey);
-    if (!marker || marker.session.publicKey.equals(device.signer.publicKey)) return;
+    if (!marker || marker.session.publicKey.equals(device.signer.publicKey))
+      return;
     saveRunSession({
       ...marker,
       session: device.signer,
@@ -339,12 +436,28 @@ export function useRunController() {
         endpointHost: new URL(erConnection.rpcEndpoint).host,
         runId: prepared.runId.toString(),
       });
+      const erWarmStartedAt = Date.now();
+      const [observer, prewarm] = await Promise.all([
+        ensureActiveRunObserver(
+          erConnection,
+          prepared.addresses.activeRun,
+          sessionWallet,
+        ),
+        prewarmErTransport(erConnection),
+      ]);
+      plog(traceId, "launch:er-ready", "magicblock-er", {
+        durationMs: Date.now() - erWarmStartedAt,
+        blockhashMs: prewarm.durationMs,
+        blockhashCacheHit: prewarm.cacheHit,
+        endpointHost: new URL(erConnection.rpcEndpoint).host,
+      });
       const activeRun = await hydrateRows({
         prepared,
         session,
         erConnection,
         owner: publicKey,
         traceId,
+        observer,
       });
       lap("vrf-hydrate", "orchestration");
       plog(traceId, "launch:total", "orchestration", {
@@ -371,7 +484,7 @@ export function useRunController() {
       }));
       return activeRun;
     },
-    [connection, player, publicKey, wallet],
+    [connection, ensureActiveRunObserver, player, publicKey, wallet],
   );
 
   const startCampaignRun = useCallback(
@@ -379,11 +492,17 @@ export function useRunController() {
       try {
         return await withBusy(setState, () => launchCampaignRun(mapId, level));
       } catch (error) {
-        plogFailure(telemetryTrace.current, "launch:error", "orchestration", error, {
-          mode: "campaign",
-          mapId,
-          level,
-        });
+        plogFailure(
+          telemetryTrace.current,
+          "launch:error",
+          "orchestration",
+          error,
+          {
+            mode: "campaign",
+            mapId,
+            level,
+          },
+        );
         throw error;
       }
     },
@@ -455,12 +574,29 @@ export function useRunController() {
           runId: prepared.runId.toString(),
           mode: "daily",
         });
+        const erWarmStartedAt = Date.now();
+        const [observer, prewarm] = await Promise.all([
+          ensureActiveRunObserver(
+            erConnection,
+            prepared.addresses.activeRun,
+            sessionWallet,
+          ),
+          prewarmErTransport(erConnection),
+        ]);
+        plog(traceId, "launch:er-ready", "magicblock-er", {
+          durationMs: Date.now() - erWarmStartedAt,
+          blockhashMs: prewarm.durationMs,
+          blockhashCacheHit: prewarm.cacheHit,
+          endpointHost: new URL(erConnection.rpcEndpoint).host,
+          mode: "daily",
+        });
         const activeRun = await hydrateRows({
           prepared,
           session,
           erConnection,
           owner: publicKey,
           traceId,
+          observer,
         });
         lap("vrf-hydrate", "orchestration");
         plog(traceId, "launch:total", "orchestration", {
@@ -487,14 +623,20 @@ export function useRunController() {
         }));
         return activeRun;
       }).catch((error: unknown) => {
-        plogFailure(telemetryTrace.current, "launch:error", "orchestration", error, {
-          mode: "daily",
-          dayId: daily.dayId,
-        });
+        plogFailure(
+          telemetryTrace.current,
+          "launch:error",
+          "orchestration",
+          error,
+          {
+            mode: "daily",
+            dayId: daily.dayId,
+          },
+        );
         throw error;
       });
     },
-    [connection, player, publicKey, wallet],
+    [connection, ensureActiveRunObserver, player, publicKey, wallet],
   );
 
   const playMove = useCallback(
@@ -506,7 +648,14 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
+          const observer = await ensureActiveRunObserver(
+            run.connection,
+            run.marker.addresses.activeRun,
+            sessionWallet,
+          );
           const moveStart = Date.now();
+          const expectedAction = run.activeRun.actionCounter + 1;
+          const previousVrfRequestCounter = run.activeRun.vrfRequestCounter;
           plog(telemetryTrace.current, "move:start", "magicblock-er", {
             move: run.activeRun.moves,
             action: run.activeRun.actionCounter,
@@ -526,29 +675,45 @@ export function useRunController() {
             start,
             destination,
           });
-          const signature = await submitWalletTransactionPlan({
+          const submission = await submitErTransactionPlan({
             transactionPlan: plan,
             wallet: sessionWallet,
           });
           const submittedAt = Date.now();
-          plog(telemetryTrace.current, "move:submit", "magicblock-er", {
-            durationMs: submittedAt - moveStart,
-            signature,
-            endpointHost: new URL(run.connection.rpcEndpoint).host,
-          });
-          const activeRun = await hydrateRows({
-            prepared: {
-              runId: run.marker.runId,
-              addresses: run.marker.addresses,
-              sessionToken: device.sessionToken,
-              sessionValidUntil: device.validUntil,
-              transactionPlan: plan,
+          plogErSubmission(
+            telemetryTrace.current,
+            "move:submit",
+            run.connection,
+            submission,
+            { durationMs: submittedAt - moveStart },
+          );
+          const callbackStartedAt = Date.now();
+          const update = await observer.waitFor(
+            (active) =>
+              active.actionCounter >= expectedAction &&
+              (isTerminal(active.lifecycle) ||
+                (active.lifecycle === "playing" &&
+                  active.pendingVrfCounter === 0)),
+            {
+              fallbackPollMs: 250,
+              timeoutMs: 20_000,
+              timeoutMessage: "Timed out waiting for the move and VRF callback",
             },
-            session: device.signer,
-            erConnection: run.connection,
-            owner: device.owner,
-            traceId: telemetryTrace.current,
-          });
+          );
+          const activeRun = update.state;
+          const requestedVrf =
+            activeRun.vrfRequestCounter > previousVrfRequestCounter;
+          plog(
+            telemetryTrace.current,
+            requestedVrf ? "vrf:callback" : "move:state-ready",
+            requestedVrf ? "vrf" : "magicblock-er",
+            {
+              durationMs: Date.now() - callbackStartedAt,
+              endpointHost: new URL(run.connection.rpcEndpoint).host,
+              notificationSource: update.source,
+              requestCounter: activeRun.vrfRequestCounter,
+            },
+          );
           plog(telemetryTrace.current, "move:total", "magicblock-er", {
             durationMs: Date.now() - moveStart,
             vrfHydrateMs: Date.now() - submittedAt,
@@ -560,7 +725,7 @@ export function useRunController() {
           setState((value) => ({
             ...value,
             activeRun,
-            lastSignature: signature,
+            lastSignature: submission.signature,
           }));
           return activeRun;
         });
@@ -576,7 +741,7 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [player],
+    [ensureActiveRunObserver, player],
   );
 
   const setStage = useCallback(
@@ -593,7 +758,8 @@ export function useRunController() {
    */
   const finalizeBaseSettlement = useCallback(
     async (descriptor: PublicRunSettlementDescriptor) => {
-      if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
+      if (!wallet || !publicKey)
+        throw new Error("Connect the run owner wallet");
       const device = player.requireSession();
       const sessionWallet = new SessionWallet(device.signer);
       const receiptReadStartedAt = Date.now();
@@ -629,17 +795,27 @@ export function useRunController() {
         transactionPlan: finalizePlan,
         wallet: sessionWallet,
       });
-      plog(telemetryTrace.current, "settle:consume-close-submit", "solana-base", {
-        durationMs: Date.now() - submitStartedAt,
-        signature,
-        consumedInTransaction: !receipt?.consumed,
-      });
+      plog(
+        telemetryTrace.current,
+        "settle:consume-close-submit",
+        "solana-base",
+        {
+          durationMs: Date.now() - submitStartedAt,
+          signature,
+          consumedInTransaction: !receipt?.consumed,
+        },
+      );
       const confirmationStartedAt = Date.now();
       await connection.confirmTransaction(signature, "confirmed");
-      plog(telemetryTrace.current, "settle:consume-close-confirm", "solana-base", {
-        durationMs: Date.now() - confirmationStartedAt,
-        signature,
-      });
+      plog(
+        telemetryTrace.current,
+        "settle:consume-close-confirm",
+        "solana-base",
+        {
+          durationMs: Date.now() - confirmationStartedAt,
+          signature,
+        },
+      );
       const remaining = await connection.getMultipleAccountsInfo(
         [
           descriptor.addresses.runShell,
@@ -649,7 +825,9 @@ export function useRunController() {
         "confirmed",
       );
       if (remaining.some((account) => account !== null)) {
-        throw new Error("Canonical settlement confirmed without closing every run account");
+        throw new Error(
+          "Canonical settlement confirmed without closing every run account",
+        );
       }
       plog(telemetryTrace.current, "settle:postcondition", "solana-base", {
         runAccountsClosed: true,
@@ -692,14 +870,17 @@ export function useRunController() {
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
           });
-          const sealSignature = await submitWalletTransactionPlan({
+          const sealSubmission = await submitErTransactionPlan({
             transactionPlan: seal,
             wallet: sessionWallet,
           });
-          plog(telemetryTrace.current, "settle:seal", "magicblock-er", {
-            durationMs: Date.now() - sealStartedAt,
-            signature: sealSignature,
-          });
+          plogErSubmission(
+            telemetryTrace.current,
+            "settle:seal",
+            run.connection,
+            sealSubmission,
+            { durationMs: Date.now() - sealStartedAt },
+          );
           setStage("committing");
           const commitStartedAt = Date.now();
           const commit =
@@ -718,19 +899,21 @@ export function useRunController() {
                   addresses: run.marker.addresses,
                   erConnection: run.connection,
                 });
-          const signature = await submitWalletTransactionPlan({
+          const commitSubmission = await submitErTransactionPlan({
             transactionPlan: commit,
             wallet: sessionWallet,
           });
-          plog(
+          plogErSubmission(
             telemetryTrace.current,
             "settle:commit-undelegate",
-            "magicblock-er",
+            run.connection,
+            commitSubmission,
             {
               durationMs: Date.now() - commitStartedAt,
-              signature,
             },
           );
+          const signature = commitSubmission.signature;
+          await closeActiveRunObserver();
           setStage("settling");
           // Wait for the commit-and-undelegate to copy back to Solana base.
           // Subscribe to the base ActiveRun account and re-check delegation on
@@ -796,7 +979,15 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [connection, finalizeBaseSettlement, launchCampaignRun, player, setStage, wallet],
+    [
+      closeActiveRunObserver,
+      connection,
+      finalizeBaseSettlement,
+      launchCampaignRun,
+      player,
+      setStage,
+      wallet,
+    ],
   );
 
   /**
@@ -842,7 +1033,8 @@ export function useRunController() {
    */
   const recoverBaseRun = useCallback(
     async (runId: bigint): Promise<string> => {
-      if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
+      if (!wallet || !publicKey)
+        throw new Error("Connect the run owner wallet");
       if (actionInFlight.current) {
         throw new Error("Another run action is already in progress");
       }
@@ -851,9 +1043,7 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           const validRunId = requirePositiveRunId(runId);
           if (!wallet.publicKey.equals(publicKey)) {
-            throw new Error(
-              "Connected wallet changed before run recovery",
-            );
+            throw new Error("Connected wallet changed before run recovery");
           }
           requireNoAttachedRunSession({
             owner: publicKey,
@@ -956,6 +1146,11 @@ export function useRunController() {
       try {
         await withBusy(setState, async () => {
           setStage("abandoning");
+          const observer = await ensureActiveRunObserver(
+            run.connection,
+            run.marker.addresses.activeRun,
+            sessionWallet,
+          );
           const abandon = await buildAbandonRunPlan({
             owner: run.marker.owner,
             signerWallet: sessionWallet,
@@ -963,17 +1158,26 @@ export function useRunController() {
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
           });
-          const signature = await submitWalletTransactionPlan({
+          const submission = await submitErTransactionPlan({
             transactionPlan: abandon,
             wallet: sessionWallet,
           });
-          const abandoned = await fetchActiveRun(
+          plogErSubmission(
+            telemetryTrace.current,
+            "abandon:submit",
             run.connection,
-            sessionWallet,
-            run.marker.addresses.activeRun,
+            submission,
           );
-          if (abandoned) run.activeRun = abandoned;
-          return signature;
+          const abandoned = await observer.waitFor(
+            (active) => active.lifecycle === "finished",
+            {
+              fallbackPollMs: 250,
+              timeoutMs: 10_000,
+              timeoutMessage: "Timed out waiting for abandoned run state",
+            },
+          );
+          run.activeRun = abandoned.state;
+          return submission.signature;
         });
       } finally {
         setStage(null);
@@ -1055,6 +1259,7 @@ export function useRunController() {
     }
   }, [
     connection,
+    ensureActiveRunObserver,
     finalizeBaseSettlement,
     player,
     publicKey,
@@ -1068,6 +1273,7 @@ export function useRunController() {
    *  accounts (they stay recoverable later). */
   const dismissRun = useCallback(() => {
     if (!publicKey) return;
+    void closeActiveRunObserver();
     clearRunSession(publicKey);
     currentRun.current = null;
     settleableRun.current = null;
@@ -1081,7 +1287,7 @@ export function useRunController() {
       settleStage: null,
       sessionAuthorized: false,
     }));
-  }, [publicKey]);
+  }, [closeActiveRunObserver, publicKey]);
 
   const applyBonus = useCallback(
     async (row: number, column: number) => {
@@ -1092,40 +1298,65 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
-        const plan = await buildApplyBonusPlan({
-          owner: run.marker.owner,
-          sessionWallet,
+          const observer = await ensureActiveRunObserver(
+            run.connection,
+            run.marker.addresses.activeRun,
+            sessionWallet,
+          );
+          const expectedAction = run.activeRun.actionCounter + 1;
+          const bonusStartedAt = Date.now();
+          const plan = await buildApplyBonusPlan({
+            owner: run.marker.owner,
+            sessionWallet,
             sessionToken: device.sessionToken,
-          activeRun: run.marker.addresses.activeRun,
-          erConnection: run.connection,
-          expectedAction: run.activeRun.actionCounter,
-          row,
-          column,
-        });
-        const signature = await submitWalletTransactionPlan({
-          transactionPlan: plan,
-          wallet: sessionWallet,
-        });
-        const activeRun = await fetchActiveRun(
-          run.connection,
-          sessionWallet,
-          run.marker.addresses.activeRun,
-        );
-        if (!activeRun)
-          throw new Error("ActiveRun disappeared after bonus application");
-        run.activeRun = activeRun;
-        setState((value) => ({
-          ...value,
-          activeRun,
-          lastSignature: signature,
-        }));
+            activeRun: run.marker.addresses.activeRun,
+            erConnection: run.connection,
+            expectedAction: run.activeRun.actionCounter,
+            row,
+            column,
+          });
+          const submission = await submitErTransactionPlan({
+            transactionPlan: plan,
+            wallet: sessionWallet,
+          });
+          plogErSubmission(
+            telemetryTrace.current,
+            "bonus:submit",
+            run.connection,
+            submission,
+            { durationMs: Date.now() - bonusStartedAt },
+          );
+          const update = await observer.waitFor(
+            (active) =>
+              active.actionCounter >= expectedAction &&
+              (isTerminal(active.lifecycle) ||
+                (active.lifecycle === "playing" &&
+                  active.pendingVrfCounter === 0)),
+            {
+              fallbackPollMs: 250,
+              timeoutMs: 20_000,
+              timeoutMessage: "Timed out waiting for bonus state",
+            },
+          );
+          const activeRun = update.state;
+          plog(telemetryTrace.current, "bonus:state-ready", "magicblock-er", {
+            durationMs: Date.now() - bonusStartedAt,
+            notificationSource: update.source,
+            requestCounter: activeRun.vrfRequestCounter,
+          });
+          run.activeRun = activeRun;
+          setState((value) => ({
+            ...value,
+            activeRun,
+            lastSignature: submission.signature,
+          }));
           return activeRun;
         });
       } finally {
         actionInFlight.current = false;
       }
     },
-    [player],
+    [ensureActiveRunObserver, player],
   );
 
   const cleanup = useCallback(async () => {
@@ -1163,7 +1394,8 @@ export function useRunController() {
       return await withBusy(setState, async () => {
         await player.renew();
         const device = loadDeviceSession(publicKey);
-        if (!device) throw new Error("Renewed device session was not persisted");
+        if (!device)
+          throw new Error("Renewed device session was not persisted");
         const marker: RunSessionMarker = {
           ...run.marker,
           session: device.signer,
@@ -1214,22 +1446,25 @@ async function hydrateRows(args: {
   erConnection: import("@solana/web3.js").Connection;
   owner: PublicKey;
   traceId: string;
+  observer: ActiveRunObserver<ActiveRunView>;
 }): Promise<ActiveRunView> {
   const sessionWallet = new SessionWallet(args.session);
-  for (let attempt = 0; attempt < 14; attempt += 1) {
-    const active = await fetchActiveRun(
-      args.erConnection,
-      sessionWallet,
-      args.prepared.addresses.activeRun,
-    );
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const active =
+      args.observer.latest() ??
+      (await fetchActiveRun(
+        args.erConnection,
+        sessionWallet,
+        args.prepared.addresses.activeRun,
+      ));
     if (!active)
       throw new Error("Delegated ActiveRun is missing from the resolved ER");
     if (active.lifecycle === "playing" || isTerminal(active.lifecycle))
       return active;
+    let expectedRequestCounter = active.pendingVrfCounter;
     if (active.pendingVrfCounter === 0) {
       const requestStartedAt = Date.now();
-      let signature = "";
-      await withTransientErRetry(async () => {
+      const submission = await withTransientErRetry(async () => {
         const request = await buildRequestRowPlan({
           owner: args.owner,
           sessionWallet,
@@ -1237,54 +1472,44 @@ async function hydrateRows(args: {
           activeRun: args.prepared.addresses.activeRun,
           erConnection: args.erConnection,
         });
-        signature = await submitWalletTransactionPlan({
+        return submitErTransactionPlan({
           transactionPlan: request,
           wallet: sessionWallet,
         });
-        return signature;
       });
-      plog(args.traceId, "vrf:request", "vrf", {
-        durationMs: Date.now() - requestStartedAt,
-        signature,
-        endpointHost: new URL(args.erConnection.rpcEndpoint).host,
-        hydrateAttempt: attempt + 1,
-        vrfRequestCounter: active.vrfRequestCounter,
-      });
+      expectedRequestCounter = active.vrfRequestCounter + 1;
+      plogErSubmission(
+        args.traceId,
+        "vrf:request",
+        args.erConnection,
+        submission,
+        {
+          durationMs: Date.now() - requestStartedAt,
+          hydrateAttempt: attempt + 1,
+          requestCounter: expectedRequestCounter,
+        },
+      );
     }
     const callbackStartedAt = Date.now();
-    await waitForVrf(
-      args.erConnection,
-      sessionWallet,
-      args.prepared.addresses.activeRun,
+    const update = await args.observer.waitFor(
+      (state) =>
+        state.vrfRequestCounter >= expectedRequestCounter &&
+        state.pendingVrfCounter === 0,
+      {
+        fallbackPollMs: 250,
+        timeoutMs: 20_000,
+        timeoutMessage: "Timed out waiting for the MagicBlock VRF callback",
+      },
     );
     plog(args.traceId, "vrf:callback", "vrf", {
       durationMs: Date.now() - callbackStartedAt,
       endpointHost: new URL(args.erConnection.rpcEndpoint).host,
+      notificationSource: update.source,
+      requestCounter: update.state.vrfRequestCounter,
+      lifecycle: update.state.lifecycle,
     });
   }
-  throw new Error("VRF initialization exceeded the configured row budget");
-}
-
-async function waitForVrf(
-  connection: import("@solana/web3.js").Connection,
-  wallet: WalletLike,
-  activeRunAddress: import("@solana/web3.js").PublicKey,
-): Promise<void> {
-  // After a move the run sits in AwaitingVrf until the MagicBlock oracle writes
-  // the next row (pendingVrfCounter → 0). Subscribe to the ER account and
-  // resolve the instant that write lands, instead of polling — the ~1s fallback
-  // is only a dropped-socket safety net.
-  await awaitAccountCondition({
-    connection,
-    address: activeRunAddress,
-    isSatisfied: async () => {
-      const active = await fetchActiveRun(connection, wallet, activeRunAddress);
-      return active !== null && active.pendingVrfCounter === 0;
-    },
-    fallbackPollMs: 1_000,
-    timeoutMs: 20_000,
-    timeoutMessage: "Timed out waiting for the MagicBlock VRF callback",
-  });
+  throw new Error("VRF initialization exceeded the bounded callback budget");
 }
 
 function isTerminal(lifecycle: string): boolean {

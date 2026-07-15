@@ -10,7 +10,7 @@ mod randomness;
 mod rules;
 
 pub use grid::{Bonus, Grid, GridError, Row, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH};
-pub use randomness::{row_from_vrf, BlockWeights, RandomnessError};
+pub use randomness::{row_from_vrf, row_from_vrf_with_draw_budget, BlockWeights, RandomnessError};
 pub use rules::{
     calculate_level_stars, Constraint, ConstraintKind, EndlessRules, LevelRules, MoveReport,
     MutatorRules, RunEngine, RunError, RunPhase,
