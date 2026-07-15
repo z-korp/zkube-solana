@@ -10,8 +10,10 @@ import {
 } from "@solana/web3.js";
 
 import {
+  MINIMUM_EXTEND_PROGRAM_BYTES,
   legacyExtendProgramData,
   legacyExtendProgramInstruction,
+  plannedProgramExtensionBytes,
 } from "./programExtension";
 
 const LOADER_ID = "BPFLoaderUpgradeab1e11111111111111111111111";
@@ -29,11 +31,11 @@ describe("legacy ProgramData extension", () => {
       programId,
       programDataAddress,
       payer,
-      additionalBytes: 1_096,
+      additionalBytes: MINIMUM_EXTEND_PROGRAM_BYTES,
     });
 
     expect(instruction.programId.toBase58()).toBe(LOADER_ID);
-    expect(instruction.data.toString("hex")).toBe("0600000048040000");
+    expect(instruction.data.toString("hex")).toBe("0600000000280000");
     expect(
       instruction.keys.map(({ pubkey, isWritable, isSigner }) => ({
         publicKey: pubkey.toBase58(),
@@ -64,7 +66,7 @@ describe("legacy ProgramData extension", () => {
         "ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB",
       ),
       payer: payer.publicKey,
-      additionalBytes: 1_096,
+      additionalBytes: MINIMUM_EXTEND_PROGRAM_BYTES,
     });
     const message = new TransactionMessage({
       payerKey: payer.publicKey,
@@ -91,5 +93,13 @@ describe("legacy ProgramData extension", () => {
     expect(() => legacyExtendProgramData(0x1_0000_0000)).toThrow(
       /positive u32/,
     );
+  });
+
+  it("rounds a small required extension up to the active loader minimum", () => {
+    expect(plannedProgramExtensionBytes(1_716_784, 1_717_880)).toBe(
+      MINIMUM_EXTEND_PROGRAM_BYTES,
+    );
+    expect(plannedProgramExtensionBytes(1_716_784, 1_716_784)).toBe(0);
+    expect(plannedProgramExtensionBytes(1_000_000, 1_020_000)).toBe(20_000);
   });
 });
