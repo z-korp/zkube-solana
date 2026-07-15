@@ -24,10 +24,16 @@ Read-only inspection confirms the live ProgramData capacity is 1,716,784
 bytes, so a separately approved 1,096-byte extension is required before the
 breaking upgrade. The added rent is 7,628,160 lamports and the extension's
 total payer-spend ceiling is 12,628,160 lamports including its fee ceiling.
-There is currently no executable approved extension or upgrade fingerprint:
-the old previews used an unavailable payer and must not be approved or reused.
-Both previews will be regenerated with the funded local operator payer after
-the final artifact is fixed. No transaction was signed or sent.
+The executable dry-run now pins local operator payer
+`7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA` under approval fingerprint
+`171a22aa5202267b`; the upgrade authority is preserved and is not an extension
+signer. The provisional unsigned upgrade preview is `21495a282ff985a5`, but it
+must be regenerated and separately approved only after extension verification.
+The operator payer currently has 11,833,442,841 lamports, while the deployment
+guard requires 12,007,648,880 lamports before creating the upgrade buffer; its
+current shortfall is 174,206,039 lamports before extension fees. A separately
+approved 1-SOL Devnet faucet request provides bounded headroom. No transaction
+was signed or sent.
 
 This binary fixes **swipe/bonus block-boundary parity for adjacent same-width
 blocks**. `Grid::swipe` used to reject moving any but the first block of a
@@ -203,11 +209,12 @@ concurrency limits; `zkube-solana-devnet-keeper` is a non-public,
 restart-always worker with one non-overlapping pass every five minutes. The
 keeper owns only identity `6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg` and
 the configured paymaster public key/endpoint. Both app names are provisioned in
-the `jcn-data` organization. Neither app currently has a Machine or image;
-runtime secret transfer, live health evidence, and deletion of the legacy
-Vercel service secrets remain rollout work. No signer bytes are stored in the
-repository. Deployment payer and upgrade-authority signers remain local to the
-operator and must never be installed on either Fly app.
+the `jcn-data` organization. Neither app currently has a Machine or image. The
+relay has only its staged `PAYMASTER_SECRET_KEY`; the worker has only its staged
+`KEEPER_SECRET_KEY`. Machine deployment, live health evidence, and deletion of
+the legacy Vercel service secrets remain rollout work. No signer bytes are
+stored in the repository. Deployment payer and upgrade-authority signers remain
+local to the operator and must never be installed on either Fly app.
 
 ## Paymaster reserve incident
 
@@ -274,9 +281,9 @@ conservatively labelled `magicblock_or_system`.
    Phantom plus one other Wallet Standard wallet. Verify a separately approved
    owner-signed Star purchase and its exact 10/10/80 split. Do not produce the
    signed TWA APK before this evidence exists.
-2. **Operations rollout.** Transfer the existing runtime signer secrets through
-   Fly's secret manager, extend and upgrade the program under separate exact
-   approvals, then deploy and verify the relay and disabled keeper. The static
+2. **Operations rollout.** The isolated Fly runtime secrets are staged. Extend
+   and upgrade the program under separate exact approvals, then deploy and
+   verify the relay and disabled keeper. The static
    client is already public; remove legacy Vercel service secrets after Fly is
    healthy.
    Separately approve `KEEPER_ENABLED=true` only after the breaking program is
