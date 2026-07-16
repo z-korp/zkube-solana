@@ -150,11 +150,11 @@ and renewal.
 
 ## Devnet release status and sequence
 
-Devnet runs the breaking native-SOL program at deployment slot `476660453`.
-The deployed program artifact is 1,738,648 bytes with SHA-256
-`3bc51bc687a1ed30396a3197fbf7a38a39cfb8771687975d799cf021285fb50b`;
+Devnet runs the breaking native-SOL program at deployment slot `476696498`.
+The deployed program artifact is 1,758,456 bytes with SHA-256
+`52bdd43dc4f0f14c421302b0553dfaa79a1e7fa347df487a4bb77598cf0f02ea`;
 the full padded ProgramData payload has SHA-256
-`a5c583ada44f915db6182d5809e2f69fd0a623de672be55d152cdea4173399bf`.
+`13a240476008e629534a090d7f43848691d529635d8328f51681ad7eedbe1430`.
 Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
 are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
