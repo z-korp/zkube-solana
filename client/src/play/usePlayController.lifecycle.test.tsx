@@ -50,43 +50,8 @@ vi.mock("@/stores/navigationStore", () => ({
     }),
 }));
 
-const receipt = {
-  owner: { equals: () => true },
-  runId: 7n,
-  mode: "campaign",
-  mapId: 1,
-  level: 1,
-  score: 10,
-  moves: 6,
-  levelStars: 3,
-  campaignXpAwarded: 20,
-  completed: true,
-  consumed: true,
-};
-
 function strictWrapper({ children }: { children: ReactNode }) {
   return <React.StrictMode>{children}</React.StrictMode>;
-}
-
-function settledRun(cleanup: ReturnType<typeof vi.fn>) {
-  return {
-    phase: "settled",
-    receipt,
-    activeRun: null,
-    busy: false,
-    error: null,
-    sessionAuthorized: false,
-    settleStage: null,
-    cleanup,
-    recoverBaseRun: vi.fn(),
-    recoverSettlement: vi.fn(),
-    settleAndAdvance: vi.fn(),
-    startCampaignRun: vi.fn(),
-    playMove: vi.fn(),
-    applyBonus: vi.fn(),
-    recoverSession: vi.fn(),
-    watchStatus: null,
-  };
 }
 
 function delegatedRun(
@@ -156,72 +121,6 @@ function delegatedRun(
     ...overrides,
   };
 }
-
-describe("usePlayController automatic settled cleanup", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fixtures.campaignRefresh.mockResolvedValue(undefined);
-    fixtures.progressRefresh.mockResolvedValue(undefined);
-    fixtures.dailyRefresh.mockResolvedValue(undefined);
-    fixtures.recoveryRunId = null;
-  });
-
-  it("fires cleanup once, retains the summary, and keeps Continue navigation-only", async () => {
-    const cleanup = vi.fn().mockImplementation(async () => {
-      fixtures.run.phase = "none";
-      fixtures.run.receipt = null;
-      return "cleanup-signature";
-    });
-    fixtures.run = settledRun(cleanup);
-
-    const { result, rerender } = renderHook(() => usePlayController(), {
-      wrapper: strictWrapper,
-    });
-
-    await waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
-    rerender();
-    await waitFor(() =>
-      expect(result.current.settledCleanupStatus).toBe("complete"),
-    );
-
-    expect(cleanup).toHaveBeenCalledOnce();
-    expect(result.current.settledReceipt).toMatchObject({
-      runId: 7n,
-      score: 10,
-      moves: 6,
-    });
-    expect(fixtures.navigate).not.toHaveBeenCalled();
-
-    act(() => result.current.continueSettled());
-
-    expect(cleanup).toHaveBeenCalledOnce();
-    expect(fixtures.navigate).toHaveBeenCalledOnce();
-    expect(fixtures.navigate).toHaveBeenCalledWith("map");
-    expect(fixtures.setPendingLevelCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({ xpAwarded: 20 }),
-    );
-  });
-
-  it("does not auto-retry a failed cleanup until Retry settlement", async () => {
-    const cleanup = vi.fn().mockRejectedValue(new Error("device fee balance low"));
-    fixtures.run = settledRun(cleanup);
-
-    const { result, rerender } = renderHook(() => usePlayController(), {
-      wrapper: strictWrapper,
-    });
-
-    await waitFor(() =>
-      expect(result.current.settledCleanupStatus).toBe("failed"),
-    );
-    rerender();
-    rerender();
-    expect(cleanup).toHaveBeenCalledOnce();
-
-    act(() => result.current.retrySettlement());
-
-    await waitFor(() => expect(cleanup).toHaveBeenCalledTimes(2));
-  });
-});
 
 describe("usePlayController silent session renewal", () => {
   beforeEach(() => {

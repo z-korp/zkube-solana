@@ -15,6 +15,7 @@ import {
   buildPrepareCampaignRunPlan,
   buildRequestRowPlan,
   buildSealRunPlan,
+  combinePreparedAndDelegatePlan,
   decodeActiveRunAccount,
   fetchActiveRun,
   resolveRunErConnection,
@@ -29,10 +30,9 @@ import {
   type ErSubmissionResult,
 } from "./erTransport";
 import {
-  fetchReceipt,
   resolvePersistedRun,
   type ResumedRun,
-  type RunReceiptView,
+  type RunResultView,
 } from "./resumeRun";
 import { getDelegationStatus } from "./router";
 import {
@@ -123,7 +123,7 @@ export type SettleStage =
 
 export interface RunControllerState {
   activeRun: ActiveRunView | null;
-  receipt: RunReceiptView | null;
+  receipt: RunResultView | null;
   phase: ResumedRun["phase"];
   watchStatus: RunWatchStatus | null;
   busy: boolean;
@@ -317,7 +317,7 @@ export function useRunController() {
           return;
         }
         currentRun.current = run.phase === "delegated" ? run : null;
-        if (run.phase === "none" || run.phase === "settled") {
+        if (run.phase === "none") {
           void closeActiveRunObserver();
         }
         settleableRun.current = run.phase === "settleable" ? run : null;
@@ -330,7 +330,7 @@ export function useRunController() {
             run.phase === "settleable"
               ? run.activeRun
               : null,
-          receipt: run.phase === "settled" ? run.receipt : null,
+          receipt: null,
           sessionAuthorized:
             run.phase === "none" ? false : run.sessionAuthorized,
           error: value.phase === run.phase ? value.error : null,
@@ -409,26 +409,19 @@ export function useRunController() {
         connection,
         sessionValidUntil: device.validUntil,
       });
-      const prepareSignature = await submitPreparedRunPlan({
-        preparedRun: prepared,
+      const launch = await combinePreparedAndDelegatePlan({
+        prepared,
+        wallet: sessionWallet,
+        ownerAuthority: publicKey,
+        sessionToken: device.sessionToken,
+      });
+      const launchSignature = await submitPreparedRunPlan({
+        preparedRun: launch,
         owner: publicKey,
         wallet: sessionWallet,
         sessionSigner: session,
       });
-      lap("prepare", "solana-base", { signature: prepareSignature });
-      const delegate = await buildDelegateRunPlan({
-        wallet: sessionWallet,
-        ownerAuthority: publicKey,
-        sessionToken: device.sessionToken,
-        addresses: prepared.addresses,
-        connection,
-      });
-      const delegateSignature = await submitVersionedTransactionPlan({
-        transactionPlan: delegate,
-        wallet: sessionWallet,
-      });
-      await connection.confirmTransaction(delegateSignature, "confirmed");
-      lap("delegate", "solana-base", { signature: delegateSignature });
+      lap("prepare-delegate", "solana-base", { signature: launchSignature });
       const erConnection = await resolveRunErConnection(
         prepared.addresses.activeRun,
       );
@@ -480,7 +473,7 @@ export function useRunController() {
         phase: "delegated",
         activeRun,
         receipt: null,
-        lastSignature: delegateSignature || prepareSignature,
+        lastSignature: launchSignature,
         sessionAuthorized: true,
       }));
       return activeRun;
@@ -544,28 +537,21 @@ export function useRunController() {
           connection,
           sessionValidUntil: device.validUntil,
         });
-        const prepareSignature = await submitPreparedRunPlan({
-          preparedRun: prepared,
+        const launch = await combinePreparedAndDelegatePlan({
+          prepared,
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
+        });
+        const launchSignature = await submitPreparedRunPlan({
+          preparedRun: launch,
           owner: publicKey,
           wallet: sessionWallet,
           sessionSigner: session,
           mode: "daily",
           dailyVersion: daily.economyVersion,
         });
-        lap("prepare", "solana-base", { signature: prepareSignature });
-        const delegate = await buildDelegateRunPlan({
-          wallet: sessionWallet,
-          ownerAuthority: publicKey,
-          sessionToken: device.sessionToken,
-          addresses: prepared.addresses,
-          connection,
-        });
-        const delegateSignature = await submitVersionedTransactionPlan({
-          transactionPlan: delegate,
-          wallet: sessionWallet,
-        });
-        await connection.confirmTransaction(delegateSignature, "confirmed");
-        lap("delegate", "solana-base", { signature: delegateSignature });
+        lap("prepare-delegate", "solana-base", { signature: launchSignature });
         const erConnection = await resolveRunErConnection(
           prepared.addresses.activeRun,
         );
@@ -619,7 +605,7 @@ export function useRunController() {
           phase: "delegated",
           activeRun,
           receipt: null,
-          lastSignature: delegateSignature || prepareSignature,
+          lastSignature: launchSignature,
           sessionAuthorized: true,
         }));
         return activeRun;
@@ -884,8 +870,8 @@ export function useRunController() {
   );
 
   /**
-   * Canonical base-layer settlement tail: consume the receipt and close the
-   * ActiveRun atomically with the current device session
+   * Canonical base-layer settlement tail: consume and close ActiveRun
+   * atomically with the current device session
    * and clear the local marker. Shared by the normal pipeline and the
    * stuck-run recovery.
    */
@@ -895,22 +881,11 @@ export function useRunController() {
         throw new Error("Connect the run owner wallet");
       const device = player.requireSession();
       const sessionWallet = new SessionWallet(device.signer);
-      const receiptReadStartedAt = Date.now();
-      const receipt = await fetchReceipt(
-        connection,
-        readOnlyWallet,
-        descriptor.addresses.runReceipt,
-      );
-      plog(telemetryTrace.current, "settle:receipt-read", "solana-base", {
-        durationMs: Date.now() - receiptReadStartedAt,
-        receiptConsumed: Boolean(receipt?.consumed),
-      });
       plog(telemetryTrace.current, "settle:finalize-start", "solana-base", {
         runId: descriptor.runId.toString(),
-        receiptConsumed: Boolean(receipt?.consumed),
         mode: descriptor.mode,
       });
-      setStage(receipt?.consumed ? "cleaning" : "consuming");
+      setStage("consuming");
       const finalizePlan = await buildFinalizeRunPlan({
         wallet: sessionWallet,
         owner: descriptor.owner,
@@ -920,7 +895,6 @@ export function useRunController() {
         mode: descriptor.mode,
         dailyChallenge: descriptor.dailyChallenge,
         dailyVersion: descriptor.dailyVersion ?? 1,
-        receiptConsumed: Boolean(receipt?.consumed),
         connection,
       });
       const submitStartedAt = Date.now();
@@ -935,7 +909,7 @@ export function useRunController() {
         {
           durationMs: Date.now() - submitStartedAt,
           signature,
-          consumedInTransaction: !receipt?.consumed,
+          consumedInTransaction: true,
         },
       );
       const confirmationStartedAt = Date.now();
@@ -949,17 +923,13 @@ export function useRunController() {
           signature,
         },
       );
-      const remaining = await connection.getMultipleAccountsInfo(
-        [
-          descriptor.addresses.runShell,
-          descriptor.addresses.activeRun,
-          descriptor.addresses.runReceipt,
-        ],
+      const remaining = await connection.getAccountInfo(
+        descriptor.addresses.activeRun,
         "confirmed",
       );
-      if (remaining.some((account) => account !== null)) {
+      if (remaining !== null) {
         throw new Error(
-          "Canonical settlement confirmed without closing every run account",
+          "Canonical settlement confirmed without closing ActiveRun",
         );
       }
       plog(telemetryTrace.current, "settle:postcondition", "solana-base", {
@@ -976,13 +946,13 @@ export function useRunController() {
       }
       return signature;
     },
-    [connection, player, publicKey, readOnlyWallet, setStage, wallet],
+    [connection, player, publicKey, setStage, wallet],
   );
 
   /**
    * Full auto-settle pipeline for the attached delegated run:
    * seal (session) → commit-and-undelegate (session) → wait for the base
-   * copyback → consume receipt + close for rent
+   * copyback → consume progression + close ActiveRun for rent
    * → optionally launch the next campaign level. No manual settle button.
    */
   const settleAndAdvance = useCallback(
@@ -1124,7 +1094,7 @@ export function useRunController() {
   );
 
   /**
-   * Explicit recovery for an undelegated terminal run whose receipt was not
+   * Explicit recovery for an undelegated terminal ActiveRun that was not
    * consumed on base. Keeping this controller-driven prevents a
    * background watcher from erasing the result before the UI can snapshot it,
    * refresh progress, and route to the correct campaign/Daily destination.
@@ -1362,7 +1332,6 @@ export function useRunController() {
           mode: marker.mode,
           dailyChallenge: activeRun.dailyChallenge,
           dailyVersion: marker.dailyVersion ?? 1,
-          receiptConsumed: false,
           abandonFirst: true,
           connection,
         });
@@ -1627,16 +1596,45 @@ async function hydrateRows(args: {
       );
     }
     const callbackStartedAt = Date.now();
-    const update = await args.observer.waitFor(
-      (state) =>
-        state.vrfRequestCounter >= expectedRequestCounter &&
-        state.pendingVrfCounter === 0,
-      {
-        fallbackPollMs: 250,
-        timeoutMs: 20_000,
-        timeoutMessage: "Timed out waiting for the MagicBlock VRF callback",
-      },
-    );
+    let update: Awaited<ReturnType<typeof args.observer.waitFor>>;
+    try {
+      update = await args.observer.waitFor(
+        (state) =>
+          state.vrfRequestCounter >= expectedRequestCounter &&
+          state.pendingVrfCounter === 0,
+        {
+          fallbackPollMs: 250,
+          timeoutMs: 20_000,
+          timeoutMessage: "Timed out waiting for the MagicBlock VRF callback",
+        },
+      );
+    } catch (cause) {
+      // The request transaction already committed. A slow oracle callback is
+      // pending state, not a failed launch, and submitting another request is
+      // forbidden while pending_vrf_counter is non-zero. Return the validated
+      // snapshot so the persisted watcher can finish hydration in place.
+      const pending =
+        args.observer.latest() ??
+        (await fetchActiveRun(
+          args.erConnection,
+          sessionWallet,
+          args.prepared.addresses.activeRun,
+        ));
+      if (
+        pending &&
+        pending.vrfRequestCounter >= expectedRequestCounter &&
+        pending.pendingVrfCounter === expectedRequestCounter
+      ) {
+        plog(args.traceId, "vrf:pending", "vrf", {
+          durationMs: Date.now() - callbackStartedAt,
+          endpointHost: new URL(args.erConnection.rpcEndpoint).host,
+          requestCounter: expectedRequestCounter,
+          lifecycle: pending.lifecycle,
+        });
+        return pending;
+      }
+      throw cause;
+    }
     plog(args.traceId, "vrf:callback", "vrf", {
       durationMs: Date.now() - callbackStartedAt,
       endpointHost: new URL(args.erConnection.rpcEndpoint).host,
@@ -1651,8 +1649,7 @@ async function hydrateRows(args: {
 function isTerminal(lifecycle: string): boolean {
   return (
     lifecycle === "levelComplete" ||
-    lifecycle === "finished" ||
-    lifecycle === "settled"
+    lifecycle === "finished"
   );
 }
 

@@ -4,7 +4,7 @@
 //! instructions accept either that owner signer or a scoped, unexpired
 //! SessionTokenV2 actor targeting this program; native-SOL purchases remain
 //! owner-only. Active gameplay is delegated to MagicBlock, but progression,
-//! receipts, contests, custody, and final settlement remain authoritative on
+//! contests, custody, and final settlement remain authoritative on
 //! Solana base. Permissionless keeper instructions are valid only when their
 //! account relationships and one-way lifecycle predicates are satisfied.
 
@@ -18,7 +18,7 @@ use ephemeral_rollups_sdk::anchor::ephemeral;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA");
+declare_id!("Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR");
 
 #[ephemeral]
 #[program]
@@ -148,8 +148,8 @@ pub mod solana {
         instructions::economy_v2_instructions::handler_commit_daily_run(ctx)
     }
 
-    pub fn consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Result<()> {
-        instructions::economy_v2_instructions::handler_consume_daily_receipt(ctx)
+    pub fn consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
+        instructions::economy_v2_instructions::handler_consume_daily_run(ctx)
     }
 
     pub fn finalize_daily_challenge(ctx: Context<FinalizeDailyChallenge>) -> Result<()> {
@@ -329,14 +329,7 @@ pub mod solana {
         instructions::run_lifecycle::handler_commit_run(ctx)
     }
 
-    pub fn consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()> {
-        instructions::run_lifecycle::handler_consume_run_receipt(ctx)
-    }
-
-    pub fn close_settled_active_run(
-        ctx: Context<CloseSettledActiveRun>,
-        run_id: u64,
-    ) -> Result<()> {
-        instructions::run_lifecycle::handler_close_settled_active_run(ctx, run_id)
+    pub fn consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
+        instructions::run_lifecycle::handler_consume_campaign_run(ctx)
     }
 }

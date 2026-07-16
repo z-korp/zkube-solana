@@ -70,7 +70,6 @@ export default function PlayScreen() {
       activeRunLifecycle === undefined ||
       activeRunLifecycle === "levelComplete" ||
       activeRunLifecycle === "finished" ||
-      activeRunLifecycle === "settled" ||
       run.phase !== "delegated"
     ) {
       return;
@@ -223,7 +222,7 @@ export default function PlayScreen() {
               {run.error ??
                 (attachedRun
                   ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
-                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for receipt consumption and cleanup.`)}
+                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for terminal run consumption and cleanup.`)}
             </p>
           )}
           {!resolving && (
@@ -406,8 +405,7 @@ export default function PlayScreen() {
 
   const chainTerminal =
     activeRun.lifecycle === "levelComplete" ||
-    activeRun.lifecycle === "finished" ||
-    activeRun.lifecycle === "settled";
+    activeRun.lifecycle === "finished";
   // Hold the level-complete PRESENTATION until the client cascade for the final
   // move has finished. The chain settles in the background, but the overlay,
   // next-line clear and terminal styling wait for onCascadeComplete so the
@@ -415,11 +413,21 @@ export default function PlayScreen() {
   // the completion screen mid-animation.
   const terminal = chainTerminal && !controller.awaitingTerminalCascade;
   const basePhase = run.phase === "base" || run.phase === "settleable";
-  const preparedBase = run.phase === "base" && activeRun.lifecycle === "prepared";
+  const preparedBase =
+    run.phase === "base" && activeRun.lifecycle === "prepared";
+  const waitingForOpening =
+    run.phase === "delegated" &&
+    activeRun.lifecycle === "awaitingVrf" &&
+    activeRun.pendingVrfCounter > 0 &&
+    activeRun.moves === 0;
   // Lock input across the whole terminal window (including the final cascade),
   // so `chainTerminal` here — not the gated `terminal`.
   const locked =
-    run.busy || chainTerminal || basePhase || !run.sessionAuthorized;
+    run.busy ||
+    waitingForOpening ||
+    chainTerminal ||
+    basePhase ||
+    !run.sessionAuthorized;
   const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
   const firstOccupiedRow = grid.findIndex((row) =>
     row.some((cell) => cell !== 0),
@@ -519,8 +527,8 @@ export default function PlayScreen() {
               {preparedBase
                 ? "Run ready"
                 : activeRun.lifecycle === "levelComplete"
-                ? "Level complete"
-                : "Run finished"}
+                  ? "Level complete"
+                  : "Run finished"}
             </p>
             <p className="mt-1 font-sans text-xs font-bold text-cyan-200">
               {!run.sessionAuthorized && run.phase === "delegated"
@@ -533,8 +541,8 @@ export default function PlayScreen() {
                       ? "Resuming on MagicBlock…"
                       : "Preparation is complete. Continue this run or abandon it."
                     : run.phase === "settleable"
-                    ? "Finalizing settlement on Solana…"
-                    : "Result copied to the Solana base layer…"
+                      ? "Finalizing settlement on Solana…"
+                      : "Result copied to the Solana base layer…"
                   : controller.settlingLabel}
             </p>
             {!run.sessionAuthorized && run.phase === "delegated" ? (
@@ -596,6 +604,18 @@ export default function PlayScreen() {
                 Abandon run
               </button>
             )}
+          </div>
+        )}
+
+        {waitingForOpening && (
+          <div className="absolute inset-x-4 bottom-4 z-50 rounded-2xl border border-cyan-300/30 bg-black/90 p-4 text-center backdrop-blur-xl">
+            <p className="font-display text-xl text-cyan-200">
+              Preparing verified opening…
+            </p>
+            <p className="mt-1 font-sans text-xs text-white/65">
+              The randomness request is confirmed. zKube will continue here as
+              soon as the MagicBlock oracle callback arrives.
+            </p>
           </div>
         )}
 

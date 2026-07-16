@@ -4,6 +4,7 @@ import {
 } from "@anchor-lang/core";
 import {
   PublicKey,
+  SystemProgram,
   type AccountInfo,
   type Connection,
 } from "@solana/web3.js";
@@ -11,13 +12,12 @@ import {
 import { ZKUBE_PROGRAM_ID } from "./constants.js";
 import { IDL } from "./idl/index.js";
 import {
-  deriveCampaignProgressPda,
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
   deriveDailyPlayerPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
+  derivePlayerFundingPda,
   deriveRunAddresses,
-  deriveWeeklyStipendPda,
   type RunAddresses,
 } from "./pdas.js";
 
@@ -27,19 +27,18 @@ const ACTIVE_RUN_BYTES = CODER.size("activeRun");
 
 type RecoveryMode = "campaign" | "daily";
 
-export interface OrphanedReceiptCandidate {
+export interface OrphanedRunCandidate {
   mode: RecoveryMode;
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
   dailyChallenge: PublicKey | null;
-  receiptConsumed: boolean;
 }
 
-export async function fetchOrphanedReceiptCandidates(
+export async function fetchOrphanedRunCandidates(
   connection: Connection,
   maximum = 32,
-): Promise<OrphanedReceiptCandidate[]> {
+): Promise<OrphanedRunCandidate[]> {
   const accounts = await connection.getProgramAccounts(ZKUBE_PROGRAM_ID, {
     commitment: "confirmed",
     filters: [
@@ -56,7 +55,7 @@ export async function fetchOrphanedReceiptCandidates(
       const lifecycle = enumName(active.lifecycle);
       if (
         runId <= 0n ||
-        (!isTerminal(mode, lifecycle) && lifecycle !== "settled") ||
+        !isTerminal(mode, lifecycle) ||
         bigintField(active, "finishedAt") <= 0n ||
         bigintField(active, "pendingVrfCounter") !== 0n
       ) {
@@ -82,12 +81,12 @@ export async function fetchOrphanedReceiptCandidates(
       (left.runId < right.runId ? -1 : left.runId > right.runId ? 1 : 0),
   );
 
-  const candidates: OrphanedReceiptCandidate[] = [];
+  const candidates: OrphanedRunCandidate[] = [];
   for (const preliminary of preliminaries.slice(0, maximum)) {
-    const keys = consumeReceiptAccountKeys(preliminary);
+    const keys = consumeRunAccountKeys(preliminary);
     try {
       candidates.push(
-        await validateConsumeReceiptAccountKeys(
+        await validateConsumeRunAccountKeys(
           connection,
           preliminary.mode,
           keys,
@@ -101,76 +100,67 @@ export async function fetchOrphanedReceiptCandidates(
   return candidates;
 }
 
-export function consumeReceiptAccountKeys(
-  candidate: Omit<OrphanedReceiptCandidate, "dailyChallenge" | "receiptConsumed"> & {
+export function consumeRunAccountKeys(
+  candidate: Omit<OrphanedRunCandidate, "dailyChallenge"> & {
     dailyChallenge?: PublicKey | null;
   },
 ): PublicKey[] {
   const common = [
     candidate.addresses.activeRun,
-    candidate.addresses.runShell,
-    candidate.addresses.runReceipt,
-    derivePlayerProfilePda(candidate.owner),
+    derivePlayerStatePda(candidate.owner),
   ];
   if (candidate.mode === "campaign") {
-    return [...common, deriveCampaignProgressPda(candidate.owner), candidate.owner];
+    return [...common, candidate.owner, derivePlayerFundingPda(candidate.owner)];
   }
   const dailyChallenge = candidate.dailyChallenge;
   if (!dailyChallenge) {
-    throw new Error("Daily receipt recovery requires its challenge address");
+    throw new Error("Daily run recovery requires its challenge address");
   }
   return [
     ...common,
     dailyChallenge,
     deriveDailyPlayerPda(dailyChallenge, candidate.owner),
     deriveDailyLeaderboardPda(dailyChallenge),
-    deriveWeeklyStipendPda(candidate.owner),
     candidate.owner,
+    derivePlayerFundingPda(candidate.owner),
   ];
 }
 
-export async function validateConsumeReceiptAccountKeys(
+export async function validateConsumeRunAccountKeys(
   connection: Connection,
   mode: RecoveryMode,
   keys: readonly PublicKey[],
-): Promise<OrphanedReceiptCandidate> {
-  const expectedCount = mode === "daily" ? 9 : 6;
+): Promise<OrphanedRunCandidate> {
+  const expectedCount = mode === "daily" ? 7 : 4;
   if (keys.length !== expectedCount) {
-    throw new Error(`${mode} receipt consumer has an invalid account count`);
+    throw new Error(`${mode} run consumer has an invalid account count`);
   }
-  const owner = keys[expectedCount - 1];
+  const ownerIndex = mode === "daily" ? 5 : 2;
+  const owner = keys[ownerIndex];
   if (!owner || owner.equals(PublicKey.default) || owner.equals(ZKUBE_PROGRAM_ID)) {
-    throw new Error("receipt consumer owner is invalid");
+    throw new Error("run consumer owner is invalid");
   }
+  const programKeyCount = mode === "daily" ? 5 : 2;
   const infos = await connection.getMultipleAccountsInfo(
-    keys.slice(0, expectedCount - 1),
+    [...keys.slice(0, programKeyCount), keys[expectedCount - 1]!],
     "confirmed",
   );
   if (infos.some((info) => info === null)) {
-    throw new Error("receipt consumer account is missing");
+    throw new Error("run consumer account is missing");
   }
 
   const active = decodeAccount("activeRun", infos[0]!, true);
-  const shell = decodeAccount("runShell", infos[1]!, true);
-  const receipt = decodeAccount("runReceipt", infos[2]!, true);
-  const profile = decodeAccount("playerProfile", infos[3]!);
+  const profile = decodeAccount("playerState", infos[1]!, true);
   const runId = bigintField(active, "runId");
   const addresses = deriveRunAddresses(owner, runId);
   requireKey(keys[0], addresses.activeRun, "active run PDA");
-  requireKey(keys[1], addresses.runShell, "run shell PDA");
-  requireKey(keys[2], addresses.runReceipt, "run receipt PDA");
-  requireKey(keys[3], derivePlayerProfilePda(owner), "player profile PDA");
+  requireKey(keys[1], derivePlayerStatePda(owner), "player state PDA");
   requireKey(publicKeyField(active, "owner"), owner, "active run owner");
-  requireKey(publicKeyField(active, "runShell"), addresses.runShell, "active run shell");
-  requireKey(publicKeyField(shell, "owner"), owner, "run shell owner");
-  requireKey(publicKeyField(receipt, "owner"), owner, "run receipt owner");
-  requireKey(publicKeyField(receipt, "runShell"), addresses.runShell, "receipt shell");
-  requireKey(publicKeyField(profile, "owner"), owner, "player profile owner");
-  requireEqualBigint(bigintField(shell, "runId"), runId, "run shell ID");
-  requireEqualBigint(bigintField(receipt, "runId"), runId, "run receipt ID");
+  requireKey(publicKeyField(profile, "owner"), owner, "player state owner");
+  requireEqualBigint(bigintField(profile, "activeRunId"), runId, "active run pointer");
   if (runId <= 0n) throw new Error("run ID is invalid");
-  if (recoveryMode(active) !== mode || enumName(shell.mode) !== mode || enumName(receipt.mode) !== mode) {
-    throw new Error("receipt consumer run mode is inconsistent");
+  if (recoveryMode(active) !== mode) {
+    throw new Error("run consumer mode is inconsistent");
   }
   const lifecycle = enumName(active.lifecycle);
   if (
@@ -179,56 +169,49 @@ export async function validateConsumeReceiptAccountKeys(
   ) {
     throw new Error("active run is not ready for settlement");
   }
-  const receiptConsumed = booleanField(receipt, "consumed");
-  if (receiptConsumed) {
-    if (lifecycle !== "settled" || enumName(shell.lifecycle) !== "settled") {
-      throw new Error("consumed receipt has an unsettled run shell");
-    }
-    requireBytes(active.actionHash, receipt.actionHash, "consumed action hash");
-    requireBytes(active.vrfHash, receipt.vrfHash, "consumed VRF hash");
-  } else if (!isTerminal(mode, lifecycle)) {
+  if (!isTerminal(mode, lifecycle)) {
     throw new Error("active run is not terminal");
   }
-  requireBytes(active.rulesHash, shell.rulesHash, "run rules hash");
-  requireBytes(active.rulesHash, receipt.rulesHash, "receipt rules hash");
+  const rentInfo = infos[programKeyCount]!;
+  if (
+    rentInfo.executable ||
+    !rentInfo.owner.equals(SystemProgram.programId) ||
+    rentInfo.data.length !== 0
+  ) {
+    throw new Error("player funding PDA is not a zero-data System account");
+  }
+  requireKey(
+    keys[expectedCount - 1],
+    derivePlayerFundingPda(owner),
+    "player funding PDA",
+  );
 
   if (mode === "campaign") {
-    requireKey(keys[4], deriveCampaignProgressPda(owner), "campaign progress PDA");
-    const campaign = decodeAccount("campaignProgress", infos[4]!);
-    requireKey(publicKeyField(campaign, "owner"), owner, "campaign progress owner");
-    return { mode, owner, runId, addresses, dailyChallenge: null, receiptConsumed };
+    return { mode, owner, runId, addresses, dailyChallenge: null };
   }
 
-  const dailyChallenge = keys[4]!;
+  const dailyChallenge = keys[2]!;
   requireKey(publicKeyField(active, "dailyChallenge"), dailyChallenge, "active Daily challenge");
-  requireKey(publicKeyField(shell, "dailyChallenge"), dailyChallenge, "run shell Daily challenge");
-  const challenge = decodeAccount("dailyChallenge", infos[4]!);
-  const player = decodeAccount("dailyPlayer", infos[5]!);
-  const leaderboard = decodeAccount("dailyLeaderboard", infos[6]!);
-  const stipend = decodeAccount("weeklyStipend", infos[7]!);
+  const challenge = decodeAccount("dailyChallenge", infos[2]!);
+  const player = decodeAccount("dailyPlayer", infos[3]!);
+  const leaderboard = decodeAccount("dailyLeaderboard", infos[4]!);
   const dayId = numberField(challenge, "dayId");
   requireKey(dailyChallenge, deriveDailyChallengePda(dayId), "Daily challenge PDA");
-  requireKey(keys[5], deriveDailyPlayerPda(dailyChallenge, owner), "Daily player PDA");
-  requireKey(keys[6], deriveDailyLeaderboardPda(dailyChallenge), "Daily leaderboard PDA");
-  requireKey(keys[7], deriveWeeklyStipendPda(owner), "Weekly stipend PDA");
+  requireKey(keys[3], deriveDailyPlayerPda(dailyChallenge, owner), "Daily player PDA");
+  requireKey(keys[4], deriveDailyLeaderboardPda(dailyChallenge), "Daily leaderboard PDA");
   requireKey(publicKeyField(player, "challenge"), dailyChallenge, "Daily player challenge");
   requireKey(publicKeyField(player, "player"), owner, "Daily player owner");
   requireKey(publicKeyField(leaderboard, "challenge"), dailyChallenge, "Daily leaderboard challenge");
-  requireKey(publicKeyField(stipend, "owner"), owner, "Weekly stipend owner");
-  return { mode, owner, runId, addresses, dailyChallenge, receiptConsumed };
+  return { mode, owner, runId, addresses, dailyChallenge };
 }
 
 function decodeAccount(
   name:
     | "activeRun"
-    | "runShell"
-    | "runReceipt"
-    | "playerProfile"
-    | "campaignProgress"
+    | "playerState"
     | "dailyChallenge"
     | "dailyPlayer"
-    | "dailyLeaderboard"
-    | "weeklyStipend",
+    | "dailyLeaderboard",
   info: AccountInfo<Buffer>,
   exactSize = false,
 ): Record<string, unknown> {
@@ -301,41 +284,10 @@ function numberField(record: Record<string, unknown>, field: string): number {
   return number;
 }
 
-function booleanField(record: Record<string, unknown>, field: string): boolean {
-  const value = record[field];
-  if (typeof value !== "boolean") throw new Error(`${field} is malformed`);
-  return value;
-}
-
 function requireKey(actual: PublicKey | undefined, expected: PublicKey, label: string): void {
   if (!actual?.equals(expected)) throw new Error(`${label} is invalid`);
 }
 
 function requireEqualBigint(actual: bigint, expected: bigint, label: string): void {
   if (actual !== expected) throw new Error(`${label} is invalid`);
-}
-
-function requireBytes(left: unknown, right: unknown, label: string): void {
-  const leftBytes = byteArray(left);
-  const rightBytes = byteArray(right);
-  if (
-    !leftBytes ||
-    !rightBytes ||
-    leftBytes.length !== rightBytes.length ||
-    leftBytes.some((value, index) => value !== rightBytes[index])
-  ) {
-    throw new Error(`${label} is invalid`);
-  }
-}
-
-function byteArray(value: unknown): number[] | null {
-  if (Array.isArray(value) && value.every((byte) => Number.isInteger(byte))) {
-    return value.map(Number);
-  }
-  if (ArrayBuffer.isView(value)) {
-    return Array.from(
-      new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
-    );
-  }
-  return null;
 }

@@ -9,7 +9,7 @@ do not add approval prompts to the shipped product.
   single owner-approved `Enable zKube` flow.
 - The connected Solana address is the player identity. There are no embedded
   wallets, recovery codes, deposits, or recovery material.
-- The owner funds a shared 0.035 SOL System-owned, zero-data player funding PDA
+- The owner funds a shared 0.025 SOL System-owned, zero-data player funding PDA
   and a 0.001 SOL device fee allowance. There is no Kora or custom paymaster.
 - A scoped device session authorizes safe play for about seven days; ER gameplay
   is gasless. Its on-chain rent payer must equal the player owner; the keeper
@@ -27,10 +27,9 @@ do not add approval prompts to the shipped product.
 - The Devnet Fly keeper is temporarily hosted in the `jcn-data` Fly
   organization until a z-korp Fly organization is available. This is the only
   approved JCN infrastructure exception and must not be copied to Vercel.
-- Two product changes remain deliberately deferred: reducing the currently
-  deployed 0.035 SOL funding target to 0.025 SOL, and replacing the currently
-  deployed 10-Star Daily entry with a 0.01 SOL entry. Neither value may change
-  without its own contract, client, migration, and deployment review.
+- Replacing the currently deployed 10-Star Daily entry with a 0.01 SOL entry
+  remains deliberately deferred and requires its own contract, client,
+  migration, and deployment review.
 
 If code or comments contradict these rules, fix them with the implementation.
 Architecture and operations documentation belongs in code comments and
@@ -59,6 +58,8 @@ Architecture and operations documentation belongs in code comments and
 - Prefix every Solana, Anchor, or pnpm chain command with `NO_DNA=1`.
 - Never print, copy, expose, or commit signer bytes, seeds, recovery material,
   `.env` contents, keeper secrets, or Android signing credentials.
+- The ignored v3 program identity is `.devnet/zkube-v3-program-keypair.json`;
+  source control contains only its public address. Never display the file.
 
 ## Worktree rules
 
@@ -81,8 +82,9 @@ Architecture and operations documentation belongs in code comments and
   generic PDA transfer or arbitrary-instruction forwarding path.
 - Require owner signatures for every Star purchase. A session must never
   authorize native-SOL spending outside the fixed safe-action boundary.
-- Preserve run accounts until the durable base receipt is consumed. Clear
-  `active_run_id` only in that atomic consumption path, before cleanup.
+- Preserve `ActiveRun` until its copied-back terminal state is consumed. Clear
+  `active_run_id`, update progression, and close `ActiveRun` in that one atomic
+  base-layer instruction.
 
 ## Validation gates
 

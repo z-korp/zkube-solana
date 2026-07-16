@@ -41,9 +41,6 @@ fn invoke_with_player_funding<'info>(
 /// MagicBlock account constraints remain the single source of truth.
 #[derive(Accounts)]
 pub struct FundedDelegateActiveRun<'info> {
-    /// CHECK: Mutated and fully constrained by the inner delegation instruction.
-    #[account(mut)]
-    pub run_shell: UncheckedAccount<'info>,
     /// CHECK: MagicBlock buffer PDA constrained by the inner instruction.
     #[account(mut)]
     pub buffer_pda: UncheckedAccount<'info>,
@@ -86,7 +83,6 @@ pub fn handler_funded_delegate_active_run<'info>(
         owner_authority: ctx.accounts.owner_authority.key(),
         session_token: Some(ctx.accounts.session_token.key()),
         actor: ctx.accounts.actor.key(),
-        run_shell: ctx.accounts.run_shell.key(),
         buffer_pda: ctx.accounts.buffer_pda.key(),
         delegation_record_pda: ctx.accounts.delegation_record_pda.key(),
         delegation_metadata_pda: ctx.accounts.delegation_metadata_pda.key(),
@@ -107,7 +103,6 @@ pub fn handler_funded_delegate_active_run<'info>(
         ctx.accounts.owner_authority.to_account_info(),
         ctx.accounts.session_token.to_account_info(),
         ctx.accounts.actor.to_account_info(),
-        ctx.accounts.run_shell.to_account_info(),
         ctx.accounts.buffer_pda.to_account_info(),
         ctx.accounts.delegation_record_pda.to_account_info(),
         ctx.accounts.delegation_metadata_pda.to_account_info(),
@@ -134,18 +129,11 @@ pub struct FundedPrepareCampaignRun<'info> {
     /// this unchecked prevents Anchor from serializing a stale outer copy over
     /// the changes made by the self-CPI.
     #[account(mut)]
-    pub player_profile: UncheckedAccount<'info>,
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: UncheckedAccount<'info>,
     pub map_catalog: Box<Account<'info, MapCatalog>>,
     /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
     #[account(mut)]
-    pub run_shell: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
-    #[account(mut)]
     pub active_run: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
-    #[account(mut)]
-    pub run_receipt: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
     #[account(
         mut,
@@ -169,12 +157,9 @@ pub fn handler_funded_prepare_campaign_run(
 ) -> Result<()> {
     let accounts = crate::accounts::PrepareCampaignRun {
         protocol: ctx.accounts.protocol.key(),
-        player_profile: ctx.accounts.player_profile.key(),
-        campaign_progress: ctx.accounts.campaign_progress.key(),
+        player_state: ctx.accounts.player_state.key(),
         map_catalog: ctx.accounts.map_catalog.key(),
-        run_shell: ctx.accounts.run_shell.key(),
         active_run: ctx.accounts.active_run.key(),
-        run_receipt: ctx.accounts.run_receipt.key(),
         payer: ctx.accounts.player_funding.key(),
         owner_authority: ctx.accounts.owner_authority.key(),
         session_token: Some(ctx.accounts.session_token.key()),
@@ -193,12 +178,9 @@ pub fn handler_funded_prepare_campaign_run(
     };
     let infos = [
         ctx.accounts.protocol.to_account_info(),
-        ctx.accounts.player_profile.to_account_info(),
-        ctx.accounts.campaign_progress.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
         ctx.accounts.map_catalog.to_account_info(),
-        ctx.accounts.run_shell.to_account_info(),
         ctx.accounts.active_run.to_account_info(),
-        ctx.accounts.run_receipt.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),
         ctx.accounts.session_token.to_account_info(),
@@ -222,25 +204,16 @@ pub struct FundedEnterDaily<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     /// CHECK: Mutated and fully constrained by the inner instruction.
     #[account(mut)]
-    pub player_profile: UncheckedAccount<'info>,
+    pub player_state: UncheckedAccount<'info>,
     /// CHECK: Mutated and fully constrained by the inner instruction.
     #[account(mut)]
     pub daily_challenge: UncheckedAccount<'info>,
     /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
     #[account(mut)]
     pub daily_player: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
-    #[account(mut)]
-    pub weekly_stipend: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
-    #[account(mut)]
-    pub run_shell: UncheckedAccount<'info>,
     /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
     #[account(mut)]
     pub active_run: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
-    #[account(mut)]
-    pub run_receipt: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
     #[account(
         mut,
@@ -260,13 +233,10 @@ pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -
     let accounts = crate::accounts::EnterDaily {
         protocol: ctx.accounts.protocol.key(),
         economy_config: ctx.accounts.economy_config.key(),
-        player_profile: ctx.accounts.player_profile.key(),
+        player_state: ctx.accounts.player_state.key(),
         daily_challenge: ctx.accounts.daily_challenge.key(),
         daily_player: ctx.accounts.daily_player.key(),
-        weekly_stipend: ctx.accounts.weekly_stipend.key(),
-        run_shell: ctx.accounts.run_shell.key(),
         active_run: ctx.accounts.active_run.key(),
-        run_receipt: ctx.accounts.run_receipt.key(),
         payer: ctx.accounts.player_funding.key(),
         owner_authority: ctx.accounts.owner_authority.key(),
         session_token: Some(ctx.accounts.session_token.key()),
@@ -281,13 +251,10 @@ pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -
     let infos = [
         ctx.accounts.protocol.to_account_info(),
         ctx.accounts.economy_config.to_account_info(),
-        ctx.accounts.player_profile.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
         ctx.accounts.daily_challenge.to_account_info(),
         ctx.accounts.daily_player.to_account_info(),
-        ctx.accounts.weekly_stipend.to_account_info(),
-        ctx.accounts.run_shell.to_account_info(),
         ctx.accounts.active_run.to_account_info(),
-        ctx.accounts.run_receipt.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),
         ctx.accounts.session_token.to_account_info(),
@@ -309,13 +276,7 @@ pub struct FundedClaimQuest<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     /// CHECK: Mutated and fully constrained by the inner instruction.
     #[account(mut)]
-    pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
-    #[account(mut)]
-    pub quest_claims: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
-    #[account(mut)]
-    pub weekly_stipend: UncheckedAccount<'info>,
+    pub player_state: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
     #[account(
         mut,
@@ -334,9 +295,7 @@ pub struct FundedClaimQuest<'info> {
 pub fn handler_funded_claim_quest(ctx: Context<FundedClaimQuest>, quest_index: u8) -> Result<()> {
     let accounts = crate::accounts::ClaimQuest {
         protocol: ctx.accounts.protocol.key(),
-        player_profile: ctx.accounts.player_profile.key(),
-        quest_claims: ctx.accounts.quest_claims.key(),
-        weekly_stipend: ctx.accounts.weekly_stipend.key(),
+        player_state: ctx.accounts.player_state.key(),
         payer: ctx.accounts.player_funding.key(),
         owner_authority: ctx.accounts.owner_authority.key(),
         session_token: Some(ctx.accounts.session_token.key()),
@@ -350,9 +309,7 @@ pub fn handler_funded_claim_quest(ctx: Context<FundedClaimQuest>, quest_index: u
     };
     let infos = [
         ctx.accounts.protocol.to_account_info(),
-        ctx.accounts.player_profile.to_account_info(),
-        ctx.accounts.quest_claims.to_account_info(),
-        ctx.accounts.weekly_stipend.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),
         ctx.accounts.session_token.to_account_info(),
@@ -375,10 +332,7 @@ pub struct FundedClaimLevelMilestone<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     /// CHECK: Mutated and fully constrained by the inner instruction.
     #[account(mut)]
-    pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
-    #[account(mut)]
-    pub level_milestones: UncheckedAccount<'info>,
+    pub player_state: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
     #[account(
         mut,
@@ -401,8 +355,7 @@ pub fn handler_funded_claim_level_milestone(
     let accounts = crate::accounts::ClaimLevelMilestone {
         protocol: ctx.accounts.protocol.key(),
         economy_config: ctx.accounts.economy_config.key(),
-        player_profile: ctx.accounts.player_profile.key(),
-        level_milestones: ctx.accounts.level_milestones.key(),
+        player_state: ctx.accounts.player_state.key(),
         payer: ctx.accounts.player_funding.key(),
         owner_authority: ctx.accounts.owner_authority.key(),
         session_token: Some(ctx.accounts.session_token.key()),
@@ -417,8 +370,7 @@ pub fn handler_funded_claim_level_milestone(
     let infos = [
         ctx.accounts.protocol.to_account_info(),
         ctx.accounts.economy_config.to_account_info(),
-        ctx.accounts.player_profile.to_account_info(),
-        ctx.accounts.level_milestones.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),
         ctx.accounts.session_token.to_account_info(),

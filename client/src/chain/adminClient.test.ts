@@ -9,10 +9,9 @@ import {
   buildPublishCanonicalMapsPlan,
 } from "./adminClient";
 import {
-  deriveCampaignProgressPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRewardVaultPda,
 } from "./pdas";
@@ -115,9 +114,8 @@ describe("authority publication client", () => {
     });
     const keys = plan.transaction.instructions[0].keys;
 
-    expect(keys[0].pubkey.equals(derivePlayerProfilePda(owner.publicKey))).toBe(true);
-    expect(keys[1].pubkey.equals(deriveCampaignProgressPda(owner.publicKey))).toBe(true);
-    expect(keys[2].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(true);
+    expect(keys[0].pubkey.equals(derivePlayerStatePda(owner.publicKey))).toBe(true);
+    expect(keys[1].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(true);
     expect(plan.feePayer.equals(payer)).toBe(true);
   });
 });

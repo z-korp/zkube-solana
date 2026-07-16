@@ -6,11 +6,11 @@ import {
 import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
-export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v1";
+export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v2";
 export const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
 
 interface StoredRunSession {
-  version: 1;
+  version: 2;
   owner: string;
   runId: string;
   mode: "campaign" | "daily";
@@ -18,8 +18,6 @@ interface StoredRunSession {
   sessionSecretKey: number[];
   sessionToken: string;
   activeRun: string;
-  runShell: string;
-  runReceipt: string;
   validUntil: number;
   createdAt: number;
 }
@@ -43,7 +41,7 @@ export function saveRunSession(
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
   sessions[marker.owner.toBase58()] = {
-    version: 1,
+    version: 2,
     owner: marker.owner.toBase58(),
     runId: marker.runId.toString(),
     mode: marker.mode,
@@ -51,8 +49,6 @@ export function saveRunSession(
     sessionSecretKey: Array.from(marker.session.secretKey),
     sessionToken: marker.sessionToken.toBase58(),
     activeRun: marker.addresses.activeRun.toBase58(),
-    runShell: marker.addresses.runShell.toBase58(),
-    runReceipt: marker.addresses.runReceipt.toBase58(),
     validUntil: marker.validUntil,
     createdAt: marker.createdAt,
   };
@@ -122,9 +118,7 @@ function restoreStoredRunSession(
     const addresses = deriveRunAddresses(owner, runId);
     if (
       !expectedSessionToken.equals(new PublicKey(stored.sessionToken)) ||
-      !addresses.activeRun.equals(new PublicKey(stored.activeRun)) ||
-      !addresses.runShell.equals(new PublicKey(stored.runShell)) ||
-      !addresses.runReceipt.equals(new PublicKey(stored.runReceipt))
+      !addresses.activeRun.equals(new PublicKey(stored.activeRun))
     )
       return null;
     return {
@@ -164,7 +158,7 @@ function loadStoredSessions(
 function isStoredRunSession(value: unknown): value is StoredRunSession {
   return (
     isRecord(value) &&
-    value.version === 1 &&
+    value.version === 2 &&
     typeof value.owner === "string" &&
     typeof value.runId === "string" &&
     (value.mode === "campaign" || value.mode === "daily") &&
@@ -172,8 +166,6 @@ function isStoredRunSession(value: unknown): value is StoredRunSession {
     validSecretKey(value.sessionSecretKey) &&
     typeof value.sessionToken === "string" &&
     typeof value.activeRun === "string" &&
-    typeof value.runShell === "string" &&
-    typeof value.runReceipt === "string" &&
     Number.isInteger(value.validUntil) &&
     Number.isInteger(value.createdAt)
   );

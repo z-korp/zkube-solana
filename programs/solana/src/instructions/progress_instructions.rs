@@ -153,17 +153,11 @@ pub struct ClaimAchievement<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
-        bump = campaign_progress.bump,
-        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Immutable durable player identity, constrained above.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
@@ -185,17 +179,17 @@ pub fn handler_claim_achievement(
         .ok_or(ErrorCode::InvalidProgressRule)?;
     let progress = ctx
         .accounts
-        .player_profile
-        .achievement_metric(definition.metric, &ctx.accounts.campaign_progress)
+        .player_state
+        .achievement_metric(definition.metric)
         .ok_or(ErrorCode::InvalidProgressRule)?;
     claim_achievement_once(
-        &mut ctx.accounts.player_profile.achievement_flags,
+        &mut ctx.accounts.player_state.achievement_flags,
         index,
         progress,
         definition,
     )?;
     ctx.accounts
-        .player_profile
+        .player_state
         .credit_progression_rewards(0, definition.xp)?;
     emit!(AchievementClaimed {
         owner: ctx.accounts.owner_authority.key(),
@@ -215,27 +209,11 @@ pub struct ClaimQuest<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + QuestClaims::INIT_SPACE,
-        seeds = [QUEST_CLAIMS_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
-    pub quest_claims: Box<Account<'info, QuestClaims>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + WeeklyStipend::INIT_SPACE,
-        seeds = [WEEKLY_STIPEND_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
-    pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
@@ -261,59 +239,32 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     let day = cadence_day(now);
     let week = cadence_week(now);
     let definition = quest_definition(index, day)?;
-    ctx.accounts.player_profile.roll_quest_cadences(now);
+    ctx.accounts.player_state.roll_quest_cadences(now);
 
-    let claims = &mut ctx.accounts.quest_claims;
-    if claims.version == 0 {
-        claims.version = ACCOUNT_VERSION;
-        claims.owner = ctx.accounts.owner_authority.key();
-        claims.daily_cadence_id = day;
-        claims.weekly_cadence_id = week;
-        claims.daily_claimed = 0;
-        claims.weekly_claimed = 0;
-        claims.bump = ctx.bumps.quest_claims;
-    } else {
-        require_keys_eq!(
-            claims.owner,
-            ctx.accounts.owner_authority.key(),
-            ErrorCode::Unauthorized
-        );
-        claims.roll(day, week);
-    }
+    ctx.accounts.player_state.roll_claims(day, week);
 
+    let progress = ctx.accounts.player_state.quest_counters[usize::from(definition.metric)];
     let claimed = if definition.cadence == 0 {
-        &mut claims.daily_claimed
+        &mut ctx.accounts.player_state.daily_claimed
     } else {
-        &mut claims.weekly_claimed
+        &mut ctx.accounts.player_state.weekly_claimed
     };
-    let progress = ctx.accounts.player_profile.quest_counters[usize::from(definition.metric)];
     claim_quest_once(claimed, index, day, progress, definition)?;
 
     if definition.cadence == 0 && index < DAILY_QUEST_POOL_SIZE {
-        ctx.accounts.player_profile.quest_counters[9] = ctx.accounts.player_profile.quest_counters
-            [9]
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
+        ctx.accounts.player_state.quest_counters[9] = ctx.accounts.player_state.quest_counters[9]
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
 
     let owner = ctx.accounts.owner_authority.key();
-    initialize_or_roll_stipend(
-        &mut ctx.accounts.weekly_stipend,
-        owner,
-        week,
-        ctx.bumps.weekly_stipend,
-    )?;
+    roll_stipend(&mut ctx.accounts.player_state, week);
     ctx.accounts
-        .player_profile
+        .player_state
         .credit_progression_rewards(definition.star_reward, definition.xp_reward)?;
     if definition.xp_reward > 0 {
-        ctx.accounts
-            .weekly_stipend
-            .record_recurring_xp(week, definition.xp_reward)?;
-        emit_stipend_if_awarded(
-            &mut ctx.accounts.weekly_stipend,
-            &mut ctx.accounts.player_profile,
-        )?;
+        record_stipend_xp(&mut ctx.accounts.player_state, week, definition.xp_reward)?;
+        emit_stipend_if_awarded(&mut ctx.accounts.player_state)?;
     }
     if definition.cadence == 0 {
         emit!(DailyQuestXpClaimed {
@@ -335,34 +286,38 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     Ok(())
 }
 
-pub(crate) fn initialize_or_roll_stipend(
-    stipend: &mut WeeklyStipend,
-    owner: Pubkey,
-    week: u32,
-    bump: u8,
-) -> Result<()> {
-    if stipend.version == 0 {
-        *stipend = WeeklyStipend::initialize(owner, week, bump);
-    } else {
-        require!(
-            stipend.version == ECONOMY_ACCOUNT_VERSION,
-            ErrorCode::InvalidVersion
-        );
-        require_keys_eq!(stipend.owner, owner, ErrorCode::Unauthorized);
-        stipend.roll(week);
+pub(crate) fn roll_stipend(player: &mut PlayerState, week: u32) {
+    if player.stipend_week_id != week {
+        player.stipend_week_id = week;
+        player.stipend_recurring_xp = 0;
+        player.stipend_stars_awarded = false;
     }
+}
+
+pub(crate) fn record_stipend_xp(player: &mut PlayerState, week: u32, amount: u32) -> Result<()> {
+    roll_stipend(player, week);
+    player.stipend_recurring_xp = player
+        .stipend_recurring_xp
+        .checked_add(amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
     Ok(())
 }
 
-pub(crate) fn emit_stipend_if_awarded(
-    stipend: &mut WeeklyStipend,
-    player: &mut PlayerProfile,
-) -> Result<()> {
-    if stipend.maybe_award(player)? {
+pub(crate) fn emit_stipend_if_awarded(player: &mut PlayerState) -> Result<()> {
+    if !player.stipend_stars_awarded
+        && player.stipend_recurring_xp >= WEEKLY_STIPEND_XP
+        && player.lifetime_xp >= LEVEL_100_XP
+    {
+        player.credit_stars(WEEKLY_STIPEND_STARS)?;
+        player.stipend_stars_awarded = true;
+        player.lifetime_stipend_stars_awarded = player
+            .lifetime_stipend_stars_awarded
+            .checked_add(WEEKLY_STIPEND_STARS)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
         emit!(WeeklyStipendAwarded {
-            owner: stipend.owner,
-            week_id: stipend.week_id,
-            recurring_xp: stipend.recurring_xp,
+            owner: player.owner,
+            week_id: player.stipend_week_id,
+            recurring_xp: player.stipend_recurring_xp,
             stars: WEEKLY_STIPEND_STARS,
         });
     }
@@ -370,16 +325,16 @@ pub(crate) fn emit_stipend_if_awarded(
 }
 
 fn claim_achievement_once(
-    flags: &mut [u64; 4],
+    flags: &mut u32,
     index: usize,
     progress: u64,
     definition: AchievementDefinition,
 ) -> Result<()> {
-    let word = index / 64;
-    let mask = 1u64 << (index % 64);
-    require!(flags[word] & mask == 0, ErrorCode::RewardAlreadyClaimed);
+    require!(index < MAX_ACHIEVEMENTS, ErrorCode::InvalidProgressRule);
+    let mask = 1u32 << index;
+    require!(*flags & mask == 0, ErrorCode::RewardAlreadyClaimed);
     require!(progress >= definition.threshold, ErrorCode::RewardNotEarned);
-    flags[word] |= mask;
+    *flags |= mask;
     Ok(())
 }
 

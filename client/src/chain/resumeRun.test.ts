@@ -265,7 +265,7 @@ describe("persisted run resolution", () => {
     expect(baseConnection.getAccountInfo).toHaveBeenCalledOnce();
   });
 
-  it("falls back to a consumed base receipt after undelegation", async () => {
+  it("reports a consumed-and-closed run as missing so its marker can clear", async () => {
     const owner = Keypair.generate();
     const session = Keypair.generate();
     persist(owner, session, 4n);
@@ -278,23 +278,10 @@ describe("persisted run resolution", () => {
       baseConnection,
       dependencies: {
         getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
-        fetchReceipt: vi.fn().mockResolvedValue({
-          owner: owner.publicKey,
-          runId: 4n,
-          mode: "campaign",
-          mapId: 2,
-          level: 7,
-          score: 100,
-          moves: 5,
-          levelStars: 3,
-          campaignXpAwarded: 30,
-          completed: true,
-          consumed: true,
-        }),
       },
     });
-    expect(result.phase).toBe("settled");
-    expect(result.phase === "settled" && result.sessionAuthorized).toBe(false);
+    expect(result.phase).toBe("missing");
+    expect(result.phase === "missing" && result.sessionAuthorized).toBe(false);
   });
 
   it("rejects a delegated account that does not match the persisted epoch", async () => {

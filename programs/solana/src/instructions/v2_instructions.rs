@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{self as anchor_system_program, Transfer};
 use session_keys::SessionTokenV2;
-use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
+use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
@@ -71,6 +71,7 @@ pub fn handler_initialize_protocol(
     protocol.treasury_destination = args.treasury_destination;
     protocol.reward_vault = ctx.accounts.reward_vault.key();
     protocol.content_version = args.content_version;
+    protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
     protocol.paused = false;
     protocol.bump = ctx.bumps.protocol;
@@ -98,19 +99,11 @@ pub struct InitializePlayer<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        space = 8 + PlayerProfile::INIT_SPACE,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
+        space = 8 + PlayerState::INIT_SPACE,
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + CampaignProgress::INIT_SPACE,
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Canonical owner-scoped funding PDA. The handler accepts only an
     /// absent/normalized System account or the exact legacy zKube layout.
     #[account(
@@ -136,27 +129,14 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         ctx.accounts.session_token.as_ref(),
     )?;
     require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
-    let player = &mut ctx.accounts.player_profile;
+    let player = &mut ctx.accounts.player_state;
     if player.version == 0 {
-        player.set_inner(PlayerProfile::initialize(owner, ctx.bumps.player_profile));
+        player.set_inner(PlayerState::initialize(owner, ctx.bumps.player_state));
     } else {
         require!(player.owner == owner, ErrorCode::Unauthorized);
         require!(player.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
     }
 
-    let campaign = &mut ctx.accounts.campaign_progress;
-    if campaign.version == 0 {
-        campaign.set_inner(CampaignProgress::initialize(
-            owner,
-            ctx.bumps.campaign_progress,
-        ));
-    } else {
-        require!(campaign.owner == owner, ErrorCode::Unauthorized);
-        require!(
-            campaign.version == ACCOUNT_VERSION,
-            ErrorCode::InvalidVersion
-        );
-    }
     normalize_player_funding(
         &ctx.accounts.player_funding.to_account_info(),
         owner,
@@ -344,7 +324,8 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     );
     require!(rules.starting_charges <= 15, ErrorCode::InvalidLevel);
     require!(
-        (1..=9).contains(&rules.starting_rows),
+        (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
+            .contains(&rules.starting_rows),
         ErrorCode::InvalidLevel
     );
     match rules.bonus_trigger_type {
@@ -430,17 +411,11 @@ pub struct PrepareCampaignRun<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
-        bump = campaign_progress.bump,
-        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
         seeds = [
             MAP_CATALOG_SEED,
@@ -455,27 +430,11 @@ pub struct PrepareCampaignRun<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + RunShell::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    #[account(
-        init,
-        payer = payer,
         space = 8 + ActiveRun::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [ACTIVE_RUN_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + RunReceipt::INIT_SPACE,
-        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained by all player PDAs.
@@ -502,15 +461,15 @@ pub fn handler_prepare_campaign_run(
         ctx.accounts.payer.key(),
     )?;
     require!(
-        ctx.accounts.player_profile.next_run_id == run_id,
+        ctx.accounts.player_state.next_run_id == run_id,
         ErrorCode::InvalidRunId
     );
     require!(
-        ctx.accounts.player_profile.active_run_id == 0,
+        ctx.accounts.player_state.active_run_id == 0,
         ErrorCode::ActiveRunExists
     );
     require!(
-        ctx.accounts.campaign_progress.is_map_unlocked(map_id),
+        ctx.accounts.player_state.is_map_unlocked(map_id),
         ErrorCode::MapLocked
     );
     require!(
@@ -528,31 +487,16 @@ pub fn handler_prepare_campaign_run(
     let now = Clock::get()?.unix_timestamp;
     let owner = ctx.accounts.owner_authority.key();
 
-    let shell = &mut ctx.accounts.run_shell;
-    shell.version = ACCOUNT_VERSION;
-    shell.owner = owner;
-    shell.run_id = run_id;
-    shell.mode = RunMode::Campaign;
-    shell.settlement_target = SettlementTarget::CampaignProgress;
-    shell.content_version = ctx.accounts.protocol.content_version;
-    shell.rules_hash = rules_hash;
-    shell.map_catalog = ctx.accounts.map_catalog.key();
-    shell.daily_challenge = Pubkey::default();
-    shell.delegated_validator = Pubkey::default();
-    shell.lifecycle = RunLifecycle::Prepared;
-    shell.created_at = now;
-    shell.settled_at = 0;
-    shell.bump = ctx.bumps.run_shell;
-
     let active = &mut ctx.accounts.active_run;
     active.version = ACCOUNT_VERSION;
     active.owner = owner;
-    active.run_shell = shell.key();
+    active.map_catalog = ctx.accounts.map_catalog.key();
     active.daily_challenge = Pubkey::default();
+    active.delegated_validator = Pubkey::default();
     active.run_id = run_id;
     active.mode = RunMode::Campaign;
     active.lifecycle = RunLifecycle::Prepared;
-    active.content_version = shell.content_version;
+    active.content_version = ctx.accounts.protocol.content_version;
     active.rules_hash = rules_hash;
     active.map_id = map_id;
     active.level = level;
@@ -586,64 +530,28 @@ pub fn handler_prepare_campaign_run(
     active.current_difficulty = rules.difficulty;
     active.vrf_request_counter = 0;
     active.pending_vrf_counter = 0;
-    active.vrf_requested_at = 0;
     active.action_hash = [0; 32];
     active.vrf_hash = [0; 32];
+    active.created_at = now;
     active.started_at = 0;
     active.finished_at = 0;
     active.bump = ctx.bumps.active_run;
 
-    let receipt = &mut ctx.accounts.run_receipt;
-    receipt.version = ACCOUNT_VERSION;
-    receipt.owner = owner;
-    receipt.run_shell = shell.key();
-    receipt.run_id = run_id;
-    receipt.mode = RunMode::Campaign;
-    receipt.settlement_target = SettlementTarget::CampaignProgress;
-    receipt.content_version = shell.content_version;
-    receipt.rules_hash = rules_hash;
-    receipt.map_id = map_id;
-    receipt.level = level;
-    receipt.score = 0;
-    receipt.daily_score = 0;
-    receipt.pressure_score = 0;
-    receipt.final_pressure_tier = 0;
-    receipt.daily_scoring_rule = DailyScoringRule::default();
-    receipt.moves = 0;
-    receipt.level_stars = 0;
-    receipt.campaign_xp_awarded = 0;
-    receipt.lines_cleared = 0;
-    receipt.bonus_uses = 0;
-    receipt.combo2_hits = 0;
-    receipt.combo3_hits = 0;
-    receipt.combo4_hits = 0;
-    receipt.high_combo_hits = 0;
-    receipt.blocks_destroyed_by_size = [0; 4];
-    receipt.max_combo = 0;
-    receipt.completed = false;
-    receipt.action_hash = [0; 32];
-    receipt.vrf_hash = [0; 32];
-    receipt.started_at = 0;
-    receipt.finished_at = 0;
-    receipt.consumed_at = 0;
-    receipt.consumed = false;
-    receipt.bump = ctx.bumps.run_receipt;
-
-    ctx.accounts.player_profile.record_run_started(now)?;
-    ctx.accounts.player_profile.reserve_run(run_id)?;
+    ctx.accounts.player_state.record_run_started(now)?;
+    ctx.accounts.player_state.reserve_run(run_id)?;
     Ok(())
 }
 
 fn hash_rules(content_version: u32, map_id: u8, rules: &LevelRuleSnapshot) -> Result<[u8; 32]> {
     let mut serialized = Vec::new();
     rules.serialize(&mut serialized)?;
-    Ok(Sha256::new()
-        .chain_update(b"zkube-rules-v1")
-        .chain_update(content_version.to_le_bytes())
-        .chain_update([map_id])
-        .chain_update(serialized)
-        .finalize()
-        .into())
+    let content = content_version.to_le_bytes();
+    Ok(sha256v(&[
+        b"zkube-rules-v1",
+        &content,
+        &[map_id],
+        &serialized,
+    ]))
 }
 
 #[cfg(test)]

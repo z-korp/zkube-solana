@@ -5,7 +5,7 @@ import type { ActiveRunView } from "@/chain/runPlan";
 import {
   canSettleTerminalRun,
   pendingCompletionFromRun,
-  projectRunReceipt,
+  projectRunResult,
   settleStageLabel,
 } from "./usePlayController";
 
@@ -54,8 +54,8 @@ const activeRun = (): ActiveRunView => ({
 });
 
 describe("play controller projections", () => {
-  it("returns the authoritative board receipt to Grid", () => {
-    expect(projectRunReceipt(activeRun())).toMatchObject({
+  it("returns the authoritative board result to Grid", () => {
+    expect(projectRunResult(activeRun())).toMatchObject({
       over: true,
       nextRow: Array.from({ length: 8 }, () => 0),
     });

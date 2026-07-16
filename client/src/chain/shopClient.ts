@@ -8,12 +8,10 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog";
 import {
-  deriveCampaignProgressPda,
   deriveEconomyConfigPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveStarSalesLedgerPda,
 } from "./pdas";
@@ -59,11 +57,10 @@ export async function fetchStarShopView(args: {
   const owner = args.wallet.publicKey;
   const protocolAddress = deriveProtocolConfigPda();
   const economyAddress = deriveEconomyConfigPda();
-  const playerAddress = derivePlayerProfilePda(owner);
-  const campaignAddress = deriveCampaignProgressPda(owner);
-  const [protocolInfo, economyInfo, playerInfo, campaignInfo] =
+  const playerAddress = derivePlayerStatePda(owner);
+  const [protocolInfo, economyInfo, playerInfo] =
     await args.connection.getMultipleAccountsInfo(
-      [protocolAddress, economyAddress, playerAddress, campaignAddress],
+      [protocolAddress, economyAddress, playerAddress],
       "confirmed",
     );
   if (!protocolInfo || !economyInfo) return null;
@@ -88,10 +85,7 @@ export async function fetchStarShopView(args: {
     ReturnType<typeof program.account.economyConfig.fetch>
   >;
   type PlayerAccount = Awaited<
-    ReturnType<typeof program.account.playerProfile.fetch>
-  >;
-  type CampaignAccount = Awaited<
-    ReturnType<typeof program.account.campaignProgress.fetch>
+    ReturnType<typeof program.account.playerState.fetch>
   >;
   const protocol = program.coder.accounts.decode(
     "protocolConfig",
@@ -111,38 +105,23 @@ export async function fetchStarShopView(args: {
   ) {
     return null;
   }
-  const playerInitialized = Boolean(playerInfo && campaignInfo);
-  if (Boolean(playerInfo) !== Boolean(campaignInfo)) {
-    throw new Error("Player state is incomplete");
-  }
+  const playerInitialized = Boolean(playerInfo);
   let starsBalance = 0n;
-  if (playerInfo && campaignInfo) {
+  if (playerInfo) {
     assertProgramAccount(
       playerInfo,
       program.programId,
-      program.account.playerProfile.size,
-      "PlayerProfile",
-    );
-    assertProgramAccount(
-      campaignInfo,
-      program.programId,
-      program.account.campaignProgress.size,
-      "CampaignProgress",
+      program.account.playerState.size,
+      "PlayerState",
     );
     const player = program.coder.accounts.decode(
-      "playerProfile",
+      "playerState",
       playerInfo.data,
     ) as unknown as PlayerAccount;
-    const campaign = program.coder.accounts.decode(
-      "campaignProgress",
-      campaignInfo.data,
-    ) as unknown as CampaignAccount;
     if (
       Number(player.version) !== 1 ||
       !player.owner.equals(owner) ||
-      Number(campaign.version) !== 1 ||
-      !campaign.owner.equals(owner) ||
-      campaign.levelStars.length !== MAX_CAMPAIGN_MAPS
+      player.levelStars.length !== 80
     ) {
       return null;
     }
@@ -246,8 +225,7 @@ export async function buildStarPurchasePlan(args: {
       await program.methods
         .initializePlayer()
         .accountsPartial({
-          playerProfile: derivePlayerProfilePda(owner),
-          campaignProgress: deriveCampaignProgressPda(owner),
+          playerState: derivePlayerStatePda(owner),
           playerFunding: derivePlayerFundingPda(owner),
           payer: owner,
           ownerAuthority: owner,
@@ -269,7 +247,7 @@ export async function buildStarPurchasePlan(args: {
         protocol: deriveProtocolConfigPda(),
         economyConfig: deriveEconomyConfigPda(),
         starSalesLedger: deriveStarSalesLedgerPda(),
-        playerProfile: derivePlayerProfilePda(owner),
+        playerState: derivePlayerStatePda(owner),
         teamDestination: args.shop.teamDestination,
         rewardVault: args.shop.rewardVault,
         treasuryDestination: args.shop.treasuryDestination,

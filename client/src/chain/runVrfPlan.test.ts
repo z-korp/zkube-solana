@@ -68,27 +68,15 @@ describe("atomic action + VRF plans", () => {
     ).toThrow("account length is invalid");
   });
 
-  it("decodes the camelCase account shape from raw Anchor IDL bytes", () => {
-    // Captured from a valid prepared Devnet ActiveRun. It is public account
-    // data, fixed here so this regression remains completely offline.
+  it("rejects a pre-v3 ActiveRun fixture with the obsolete layout", () => {
     const serialized = Buffer.from(
       "EtVxKSwB9+kBe00aMMUkeud+8+ntXv5Bg81ujcY+PNRdthKPhrvAXf2PwsR11biNzPVMxuEJ536kRvCLbI/KC5Coe/ruwz86mQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAEAAACT8B6BIBMxJNQwF3/+ljzJNEi/JPlszCmQTRNeM8cUewEBAQoAAAAQAAAAAAAAAAABAgAPAB4AHgAPAAoAZABkAAAAAAB+AwEDAAEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAEgAAAB4AAAAqAAAANgAAAEIAAABOAAAAZABuAH0AjACgALQA0gD6ABkAHgAZAA8ABQAWABwAGQASAAcAFAAZABkAFAAKABIAFgAYABYADgAQABQAFgAYABIADgASABQAGgAWAAwAEAASABwAGgAKAA4AEAAeAB4ABGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAQEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP4=",
       "base64",
     );
-    // Anchor allocated ActiveRun with fixed InitSpace padding beyond the
-    // currently serialized fields.
-    const bytes = Buffer.concat([serialized, Buffer.alloc(12)]);
-
-    const active = decodeActiveRunAccount(bytes, ZKUBE_PROGRAM_ID);
-
-    expect(active.owner.toBase58()).toBe(
-      "9JKLWyKA3FrTae4wRcaSK6TDu8n1GNdhJSjpBAPrcpNQ",
+    const bytes = Buffer.concat([serialized, Buffer.alloc(4)]);
+    expect(() => decodeActiveRunAccount(bytes, ZKUBE_PROGRAM_ID)).toThrow(
+      "account length is invalid",
     );
-    expect(active.runId).toBe(1n);
-    expect(active.lifecycle).toBe("prepared");
-    expect(active.dailyPressure.thresholds).toEqual([
-      8, 18, 30, 42, 54, 66, 78,
-    ]);
   });
 });
 

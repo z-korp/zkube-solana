@@ -15,7 +15,7 @@ function collisionConnection(
 ): Pick<Connection, "getMultipleAccountsInfo"> {
   return {
     getMultipleAccountsInfo: vi.fn(async () =>
-      [0, 1, 2].map((index) =>
+      [0].map((index) =>
         occupiedIndexes.includes(index) ? ({} as AccountInfo<Buffer>) : null,
       ),
     ) as Connection["getMultipleAccountsInfo"],
@@ -30,11 +30,7 @@ describe("run identity invariants", () => {
 
     expect(INITIAL_RUN_ID).toBe(BigInt(invariants.initialRunId));
     expect(resolved.runId).toBe(1n);
-    expect(resolved.addresses.runShell.equals(expected.runShell)).toBe(true);
     expect(resolved.addresses.activeRun.equals(expected.activeRun)).toBe(true);
-    expect(resolved.addresses.runReceipt.equals(expected.runReceipt)).toBe(
-      true,
-    );
   });
 
   it("always prefers an existing profile's authoritative next run ID", () => {
@@ -57,9 +53,7 @@ describe("run identity invariants", () => {
     const first = deriveRunAddresses(firstOwner, 1n);
     const second = deriveRunAddresses(secondOwner, 1n);
 
-    expect(first.runShell.equals(second.runShell)).toBe(false);
     expect(first.activeRun.equals(second.activeRun)).toBe(false);
-    expect(first.runReceipt.equals(second.runReceipt)).toBe(false);
   });
 
   it("accepts an owner-scoped run ID only when all candidate accounts are free", async () => {
@@ -76,11 +70,7 @@ describe("run identity invariants", () => {
     ).resolves.toBeUndefined();
   });
 
-  it.each([
-    [0, "run shell"],
-    [1, "active run"],
-    [2, "run receipt"],
-  ])(
+  it.each([[0, "active run"]])(
     "rejects an occupied candidate account at index %i (%s)",
     async (index, label) => {
       const owner = Keypair.generate().publicKey;

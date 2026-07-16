@@ -1,5 +1,5 @@
 {
-  "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA",
+  "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
   "metadata": {
     "name": "solana",
     "version": "0.1.0",
@@ -346,7 +346,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -359,30 +359,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "campaign_progress",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  109,
-                  112,
-                  97,
-                  105,
-                  103,
-                  110
                 ]
               },
               {
@@ -464,7 +440,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -477,39 +453,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "level_milestones",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  101,
-                  118,
-                  101,
-                  108,
-                  95,
-                  109,
-                  105,
-                  108,
-                  101,
-                  115,
-                  116,
-                  111,
-                  110,
-                  101,
-                  115
                 ]
               },
               {
@@ -581,7 +524,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -594,66 +537,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "quest_claims",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  113,
-                  117,
-                  101,
-                  115,
-                  116,
-                  95,
-                  99,
-                  108,
-                  97,
-                  105,
-                  109,
-                  115
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "weekly_stipend",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  115,
-                  116,
-                  105,
-                  112,
-                  101,
-                  110,
-                  100
                 ]
               },
               {
@@ -904,7 +787,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1213,168 +1096,6 @@
       "args": []
     },
     {
-      "name": "close_settled_active_run",
-      "discriminator": [
-        156,
-        85,
-        34,
-        175,
-        240,
-        226,
-        191,
-        171
-      ],
-      "accounts": [
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "rent_recipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_receipt",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  99,
-                  101,
-                  105,
-                  112,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "active_run",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "close_weekly_challenge",
       "discriminator": [
         35,
@@ -1655,158 +1376,6 @@
           "writable": true
         },
         {
-          "name": "run_shell"
-        },
-        {
-          "name": "run_receipt",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  99,
-                  101,
-                  105,
-                  112,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_profile",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "daily_challenge"
-        },
-        {
-          "name": "daily_player",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "daily_challenge"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "leaderboard",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "daily_challenge"
-              }
-            ]
-          }
-        },
-        {
-          "name": "weekly_stipend",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  115,
-                  116,
-                  105,
-                  112,
-                  101,
-                  110,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner"
-        },
-        {
           "name": "magic_context",
           "writable": true,
           "address": "MagicContext1111111111111111111111111111111"
@@ -1841,28 +1410,57 @@
           "writable": true
         },
         {
-          "name": "run_shell"
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
         },
         {
-          "name": "run_receipt",
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "consume_campaign_run",
+      "discriminator": [
+        168,
+        216,
+        114,
+        59,
+        82,
+        199,
+        176,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "active_run",
+          "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
                   114,
-                  101,
+                  117,
+                  110
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  97,
                   99,
-                  101,
+                  116,
                   105,
-                  112,
-                  116
+                  118,
+                  101
                 ]
               },
               {
                 "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
+                "path": "owner"
               },
               {
                 "kind": "account",
@@ -1873,7 +1471,8 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1889,71 +1488,67 @@
               },
               {
                 "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
+                "path": "owner"
               }
             ]
           }
         },
         {
-          "name": "campaign_progress",
+          "name": "owner",
+          "relations": [
+            "active_run",
+            "player_state"
+          ]
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  97,
-                  109,
                   112,
+                  108,
                   97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
                   105,
-                  103,
-                  110
+                  110,
+                  103
                 ]
               },
               {
                 "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
+                "path": "owner"
               }
             ]
           }
-        },
-        {
-          "name": "owner"
-        },
-        {
-          "name": "magic_context",
-          "writable": true,
-          "address": "MagicContext1111111111111111111111111111111"
-        },
-        {
-          "name": "magic_program",
-          "address": "Magic11111111111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
-      "name": "consume_daily_receipt",
+      "name": "consume_daily_run",
       "discriminator": [
-        50,
-        99,
-        137,
-        88,
-        226,
-        117,
-        6,
-        58
+        145,
+        0,
+        25,
+        18,
+        186,
+        167,
+        172,
+        180
       ],
       "accounts": [
         {
           "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "run_shell",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1966,32 +1561,14 @@
                 ]
               },
               {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_receipt",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
                 "kind": "const",
                 "value": [
-                  114,
-                  101,
+                  97,
                   99,
-                  101,
+                  116,
                   105,
-                  112,
-                  116
+                  118,
+                  101
                 ]
               },
               {
@@ -2007,7 +1584,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -2114,132 +1691,34 @@
           }
         },
         {
-          "name": "weekly_stipend",
+          "name": "owner",
+          "relations": [
+            "active_run",
+            "player_state"
+          ]
+        },
+        {
+          "name": "rent_recipient",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
-                  101,
-                  101,
-                  107,
+                  112,
                   108,
+                  97,
                   121,
+                  101,
+                  114,
                   95,
-                  115,
-                  116,
-                  105,
-                  112,
-                  101,
-                  110,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "relations": [
-            "run_shell",
-            "run_receipt",
-            "player_profile"
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "consume_run_receipt",
-      "discriminator": [
-        219,
-        125,
-        28,
-        198,
-        150,
-        131,
-        196,
-        252
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
+                  102,
                   117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_receipt",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  99,
-                  101,
+                  110,
+                  100,
                   105,
-                  112,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_profile",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
+                  110,
+                  103
                 ]
               },
               {
@@ -2248,40 +1727,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "campaign_progress",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  109,
-                  112,
-                  97,
-                  105,
-                  103,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "relations": [
-            "run_shell",
-            "run_receipt",
-            "player_profile",
-            "campaign_progress"
-          ]
         }
       ],
       "args": []
@@ -2316,31 +1761,6 @@
           "signer": true
         },
         {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "account",
-                "path": "run_shell.run_id",
-                "account": "RunShell"
-              }
-            ]
-          }
-        },
-        {
           "name": "buffer_pda",
           "writable": true,
           "pda": {
@@ -2364,38 +1784,38 @@
             "program": {
               "kind": "const",
               "value": [
-                64,
-                251,
+                146,
+                3,
+                213,
+                22,
+                79,
+                196,
+                194,
+                100,
+                101,
                 111,
-                12,
-                166,
+                223,
+                88,
+                170,
+                10,
+                216,
+                141,
+                192,
+                13,
+                182,
+                62,
+                9,
+                29,
+                41,
+                102,
+                28,
+                126,
+                104,
                 107,
-                14,
-                237,
-                123,
-                134,
-                40,
-                121,
-                177,
-                73,
-                152,
-                143,
-                130,
-                82,
-                225,
-                233,
-                116,
-                14,
-                169,
-                93,
-                234,
-                219,
-                219,
-                218,
-                250,
-                137,
-                225,
-                129
+                159,
+                27,
+                16,
+                246
               ]
             }
           }
@@ -2477,7 +1897,7 @@
         },
         {
           "name": "owner_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         },
         {
           "name": "delegation_program",
@@ -2543,7 +1963,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -2622,61 +2042,6 @@
           }
         },
         {
-          "name": "weekly_stipend",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  115,
-                  116,
-                  105,
-                  112,
-                  101,
-                  110,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
           "name": "active_run",
           "writable": true,
           "pda": {
@@ -2698,34 +2063,6 @@
                   105,
                   118,
                   101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_receipt",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  99,
-                  101,
-                  105,
-                  112,
-                  116
                 ]
               },
               {
@@ -3068,11 +2405,7 @@
           "name": "economy_config"
         },
         {
-          "name": "player_profile",
-          "writable": true
-        },
-        {
-          "name": "level_milestones",
+          "name": "player_state",
           "writable": true
         },
         {
@@ -3122,7 +2455,7 @@
         },
         {
           "name": "zkube_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         }
       ],
       "args": [
@@ -3149,15 +2482,7 @@
           "name": "protocol"
         },
         {
-          "name": "player_profile",
-          "writable": true
-        },
-        {
-          "name": "quest_claims",
-          "writable": true
-        },
-        {
-          "name": "weekly_stipend",
+          "name": "player_state",
           "writable": true
         },
         {
@@ -3207,7 +2532,7 @@
         },
         {
           "name": "zkube_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         }
       ],
       "args": [
@@ -3230,10 +2555,6 @@
         177
       ],
       "accounts": [
-        {
-          "name": "run_shell",
-          "writable": true
-        },
         {
           "name": "buffer_pda",
           "writable": true
@@ -3293,7 +2614,7 @@
         },
         {
           "name": "owner_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         },
         {
           "name": "delegation_program"
@@ -3325,7 +2646,7 @@
           "name": "economy_config"
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true
         },
         {
@@ -3337,19 +2658,7 @@
           "writable": true
         },
         {
-          "name": "weekly_stipend",
-          "writable": true
-        },
-        {
-          "name": "run_shell",
-          "writable": true
-        },
-        {
           "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "run_receipt",
           "writable": true
         },
         {
@@ -3399,7 +2708,7 @@
         },
         {
           "name": "zkube_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         }
       ],
       "args": [
@@ -3426,7 +2735,7 @@
           "name": "protocol"
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "docs": [
             "this unchecked prevents Anchor from serializing a stale outer copy over",
             "the changes made by the self-CPI."
@@ -3434,21 +2743,10 @@
           "writable": true
         },
         {
-          "name": "campaign_progress"
-        },
-        {
           "name": "map_catalog"
         },
         {
-          "name": "run_shell",
-          "writable": true
-        },
-        {
           "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "run_receipt",
           "writable": true
         },
         {
@@ -3498,7 +2796,7 @@
         },
         {
           "name": "zkube_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         }
       ],
       "args": [
@@ -3596,7 +2894,7 @@
         },
         {
           "name": "zkube_program",
-          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
         }
       ],
       "args": []
@@ -3698,7 +2996,7 @@
       ],
       "accounts": [
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -3711,31 +3009,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "campaign_progress",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  109,
-                  112,
-                  97,
-                  105,
-                  103,
-                  110
                 ]
               },
               {
@@ -4308,7 +3581,7 @@
           "name": "protocol"
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -4331,55 +3604,7 @@
           }
         },
         {
-          "name": "campaign_progress",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  109,
-                  112,
-                  97,
-                  105,
-                  103,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
           "name": "map_catalog"
-        },
-        {
-          "name": "run_shell",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
         },
         {
           "name": "active_run",
@@ -4403,34 +3628,6 @@
                   105,
                   118,
                   101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "run_receipt",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  99,
-                  101,
-                  105,
-                  112,
-                  116
                 ]
               },
               {
@@ -4729,7 +3926,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -4789,7 +3986,7 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "player_profile"
+            "player_state"
           ]
         },
         {
@@ -4881,7 +4078,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -5452,7 +4649,7 @@
           }
         },
         {
-          "name": "player_profile",
+          "name": "player_state",
           "writable": true,
           "pda": {
             "seeds": [
@@ -5465,31 +4662,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "campaign_progress",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  109,
-                  112,
-                  97,
-                  105,
-                  103,
-                  110
                 ]
               },
               {
@@ -5780,19 +4952,6 @@
       ]
     },
     {
-      "name": "CampaignProgress",
-      "discriminator": [
-        113,
-        253,
-        6,
-        60,
-        161,
-        124,
-        158,
-        147
-      ]
-    },
-    {
       "name": "DailyChallenge",
       "discriminator": [
         217,
@@ -5858,19 +5017,6 @@
       ]
     },
     {
-      "name": "LevelMilestones",
-      "discriminator": [
-        82,
-        166,
-        107,
-        159,
-        231,
-        26,
-        138,
-        56
-      ]
-    },
-    {
       "name": "MapCatalog",
       "discriminator": [
         24,
@@ -5884,16 +5030,16 @@
       ]
     },
     {
-      "name": "PlayerProfile",
+      "name": "PlayerState",
       "discriminator": [
-        82,
-        226,
-        99,
-        87,
-        164,
-        130,
-        181,
-        80
+        56,
+        3,
+        60,
+        86,
+        174,
+        16,
+        244,
+        195
       ]
     },
     {
@@ -5910,19 +5056,6 @@
       ]
     },
     {
-      "name": "QuestClaims",
-      "discriminator": [
-        142,
-        16,
-        157,
-        235,
-        54,
-        117,
-        4,
-        212
-      ]
-    },
-    {
       "name": "RewardVault",
       "discriminator": [
         201,
@@ -5933,32 +5066,6 @@
         16,
         210,
         33
-      ]
-    },
-    {
-      "name": "RunReceipt",
-      "discriminator": [
-        48,
-        216,
-        255,
-        36,
-        103,
-        169,
-        66,
-        46
-      ]
-    },
-    {
-      "name": "RunShell",
-      "discriminator": [
-        31,
-        110,
-        221,
-        66,
-        84,
-        140,
-        196,
-        213
       ]
     },
     {
@@ -6011,19 +5118,6 @@
         152,
         210,
         240
-      ]
-    },
-    {
-      "name": "WeeklyStipend",
-      "discriminator": [
-        130,
-        244,
-        57,
-        210,
-        130,
-        131,
-        44,
-        180
       ]
     }
   ],
@@ -6621,8 +5715,8 @@
     },
     {
       "code": 6032,
-      "name": "ReceiptMismatch",
-      "msg": "The run receipt does not match the committed run"
+      "name": "RunAlreadyConsumed",
+      "msg": "The run has already been consumed"
     },
     {
       "code": 6033,
@@ -6725,11 +5819,15 @@
             "type": "pubkey"
           },
           {
-            "name": "run_shell",
+            "name": "map_catalog",
             "type": "pubkey"
           },
           {
             "name": "daily_challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "delegated_validator",
             "type": "pubkey"
           },
           {
@@ -6927,10 +6025,6 @@
             "type": "u32"
           },
           {
-            "name": "vrf_requested_at",
-            "type": "i64"
-          },
-          {
             "name": "action_hash",
             "type": {
               "array": [
@@ -6947,6 +6041,10 @@
                 32
               ]
             }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
           },
           {
             "name": "started_at",
@@ -7103,64 +6201,6 @@
           },
           {
             "name": "starting_rows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "CampaignProgress",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "unlocked_maps",
-            "docs": [
-              "Bit `map_id - 1`; Map 1 is set on initialization."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "purchased_maps",
-            "type": "u32"
-          },
-          {
-            "name": "cleared_maps",
-            "type": "u32"
-          },
-          {
-            "name": "perfected_maps",
-            "type": "u32"
-          },
-          {
-            "name": "level_stars",
-            "docs": [
-              "Two bits per level, ten levels per map."
-            ],
-            "type": {
-              "array": [
-                "u32",
-                32
-              ]
-            }
-          },
-          {
-            "name": "last_consumed_run_id",
-            "docs": [
-              "Prevents replayed receipts from changing progress twice."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "bump",
             "type": "u8"
           }
         ]
@@ -7446,10 +6486,6 @@
             "type": "pubkey"
           },
           {
-            "name": "receipt",
-            "type": "pubkey"
-          },
-          {
             "name": "run_id",
             "type": "u64"
           },
@@ -7545,10 +6581,6 @@
           {
             "name": "best_run_id",
             "type": "u64"
-          },
-          {
-            "name": "best_receipt",
-            "type": "pubkey"
           },
           {
             "name": "best_daily_score",
@@ -8145,37 +7177,6 @@
       }
     },
     {
-      "name": "LevelMilestones",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "claimed",
-            "docs": [
-              "Bits 0..9 represent levels 10, 20, ... 100."
-            ],
-            "type": "u16"
-          },
-          {
-            "name": "total_stars_claimed",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "LevelRuleSnapshot",
       "type": {
         "kind": "struct",
@@ -8357,7 +7358,7 @@
       }
     },
     {
-      "name": "PlayerProfile",
+      "name": "PlayerState",
       "type": {
         "kind": "struct",
         "fields": [
@@ -8400,12 +7401,10 @@
           },
           {
             "name": "achievement_flags",
-            "type": {
-              "array": [
-                "u64",
-                4
-              ]
-            }
+            "docs": [
+              "Bit per canonical achievement; the catalog is bounded to 24 entries."
+            ],
+            "type": "u32"
           },
           {
             "name": "lifetime_xp",
@@ -8463,6 +7462,84 @@
           {
             "name": "last_daily_challenge_day",
             "type": "u32"
+          },
+          {
+            "name": "unlocked_maps",
+            "docs": [
+              "Bit `map_id - 1`; Map 1 is unlocked on initialization."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "purchased_maps",
+            "type": "u32"
+          },
+          {
+            "name": "cleared_maps",
+            "type": "u32"
+          },
+          {
+            "name": "perfected_maps",
+            "type": "u32"
+          },
+          {
+            "name": "level_stars",
+            "docs": [
+              "Two bits per Campaign level across all maps."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                80
+              ]
+            }
+          },
+          {
+            "name": "last_consumed_run_id",
+            "type": "u64"
+          },
+          {
+            "name": "daily_claim_cadence_id",
+            "type": "u32"
+          },
+          {
+            "name": "weekly_claim_cadence_id",
+            "type": "u32"
+          },
+          {
+            "name": "daily_claimed",
+            "type": "u16"
+          },
+          {
+            "name": "weekly_claimed",
+            "type": "u16"
+          },
+          {
+            "name": "milestone_claimed",
+            "docs": [
+              "Bits 0..9 represent levels 10, 20, ... 100."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "milestone_stars_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "stipend_week_id",
+            "type": "u32"
+          },
+          {
+            "name": "stipend_recurring_xp",
+            "type": "u32"
+          },
+          {
+            "name": "stipend_stars_awarded",
+            "type": "bool"
+          },
+          {
+            "name": "lifetime_stipend_stars_awarded",
+            "type": "u64"
           },
           {
             "name": "bump",
@@ -8557,6 +7634,10 @@
             "type": "u32"
           },
           {
+            "name": "player_funding_target_lamports",
+            "type": "u64"
+          },
+          {
             "name": "campaign_map_count",
             "docs": [
               "Number of contiguous, authority-activated Campaign maps."
@@ -8645,42 +7726,6 @@
       }
     },
     {
-      "name": "QuestClaims",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "daily_cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "weekly_cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "daily_claimed",
-            "type": "u16"
-          },
-          {
-            "name": "weekly_claimed",
-            "type": "u16"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "RevenueDestinationsChanged",
       "type": {
         "kind": "struct",
@@ -8749,15 +7794,6 @@
           },
           {
             "name": "Finished"
-          },
-          {
-            "name": "Committing"
-          },
-          {
-            "name": "Settled"
-          },
-          {
-            "name": "Cancelled"
           }
         ]
       }
@@ -8772,267 +7808,6 @@
           },
           {
             "name": "Daily"
-          }
-        ]
-      }
-    },
-    {
-      "name": "RunReceipt",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "run_shell",
-            "type": "pubkey"
-          },
-          {
-            "name": "run_id",
-            "type": "u64"
-          },
-          {
-            "name": "mode",
-            "type": {
-              "defined": {
-                "name": "RunMode"
-              }
-            }
-          },
-          {
-            "name": "settlement_target",
-            "type": {
-              "defined": {
-                "name": "SettlementTarget"
-              }
-            }
-          },
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "rules_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "score",
-            "type": "u32"
-          },
-          {
-            "name": "daily_score",
-            "type": "u32"
-          },
-          {
-            "name": "pressure_score",
-            "type": "u32"
-          },
-          {
-            "name": "final_pressure_tier",
-            "type": "u8"
-          },
-          {
-            "name": "daily_scoring_rule",
-            "type": {
-              "defined": {
-                "name": "DailyScoringRule"
-              }
-            }
-          },
-          {
-            "name": "moves",
-            "type": "u16"
-          },
-          {
-            "name": "level_stars",
-            "type": "u8"
-          },
-          {
-            "name": "campaign_xp_awarded",
-            "docs": [
-              "Improvement-only campaign XP credited while consuming this receipt.",
-              "Daily receipts and equal-or-worse campaign replays keep this at zero."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "lines_cleared",
-            "type": "u16"
-          },
-          {
-            "name": "bonus_uses",
-            "type": "u16"
-          },
-          {
-            "name": "combo2_hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo3_hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo4_hits",
-            "type": "u16"
-          },
-          {
-            "name": "high_combo_hits",
-            "type": "u16"
-          },
-          {
-            "name": "blocks_destroyed_by_size",
-            "type": {
-              "array": [
-                "u16",
-                4
-              ]
-            }
-          },
-          {
-            "name": "max_combo",
-            "type": "u8"
-          },
-          {
-            "name": "completed",
-            "type": "bool"
-          },
-          {
-            "name": "action_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "vrf_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "started_at",
-            "type": "i64"
-          },
-          {
-            "name": "finished_at",
-            "type": "i64"
-          },
-          {
-            "name": "consumed_at",
-            "type": "i64"
-          },
-          {
-            "name": "consumed",
-            "type": "bool"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "RunShell",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "run_id",
-            "type": "u64"
-          },
-          {
-            "name": "mode",
-            "type": {
-              "defined": {
-                "name": "RunMode"
-              }
-            }
-          },
-          {
-            "name": "settlement_target",
-            "type": {
-              "defined": {
-                "name": "SettlementTarget"
-              }
-            }
-          },
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "rules_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "map_catalog",
-            "type": "pubkey"
-          },
-          {
-            "name": "daily_challenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "delegated_validator",
-            "type": "pubkey"
-          },
-          {
-            "name": "lifecycle",
-            "type": {
-              "defined": {
-                "name": "RunLifecycle"
-              }
-            }
-          },
-          {
-            "name": "created_at",
-            "type": "i64"
-          },
-          {
-            "name": "settled_at",
-            "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
@@ -9086,20 +7861,6 @@
           {
             "name": "valid_until",
             "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SettlementTarget",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "CampaignProgress"
-          },
-          {
-            "name": "DailyLeaderboard"
           }
         ]
       }
@@ -9612,42 +8373,6 @@
           },
           {
             "name": "Closed"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyStipend",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "week_id",
-            "type": "u32"
-          },
-          {
-            "name": "recurring_xp",
-            "type": "u32"
-          },
-          {
-            "name": "stars_awarded",
-            "type": "bool"
-          },
-          {
-            "name": "lifetime_stars_awarded",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

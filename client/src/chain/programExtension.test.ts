@@ -21,7 +21,7 @@ const LOADER_ID = "BPFLoaderUpgradeab1e11111111111111111111111";
 describe("legacy ProgramData extension", () => {
   it("uses the official bincode variant and exact account positions", () => {
     const programId = new PublicKey(
-      "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA",
+      "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
     );
     const programDataAddress = new PublicKey(
       "ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB",
@@ -61,7 +61,7 @@ describe("legacy ProgramData extension", () => {
   it("retains a deterministic real payer signature through v0 serialization", () => {
     const payer = Keypair.fromSeed(new Uint8Array(32).fill(9));
     const instruction = legacyExtendProgramInstruction({
-      programId: new PublicKey("5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"),
+      programId: new PublicKey("Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"),
       programDataAddress: new PublicKey(
         "ALpqN17vyyQr3vuqaHiCAdawtiMniVxK6PzEgPw7P9sB",
       ),

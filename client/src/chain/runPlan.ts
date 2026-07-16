@@ -45,15 +45,13 @@ import {
 import { saveRunSession } from "./runSessionStore.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
-  deriveCampaignProgressPda,
   deriveDailyLeaderboardPda,
   deriveDailyPlayerPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveWeeklyStipendPda,
   type RunAddresses,
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
@@ -243,10 +241,9 @@ export async function buildPrepareCampaignRunPlan(args: {
   const program = zkubeProgram(connection, args.wallet);
   const owner = args.ownerAuthority;
   const actor = args.wallet.publicKey;
-  const profileAddress = derivePlayerProfilePda(owner);
-  const campaignAddress = deriveCampaignProgressPda(owner);
+  const profileAddress = derivePlayerStatePda(owner);
   const profile =
-    await program.account.playerProfile.fetchNullable(profileAddress);
+    await program.account.playerState.fetchNullable(profileAddress);
   const protocolAddress = deriveProtocolConfigPda();
   const protocol = await program.account.protocolConfig.fetch(protocolAddress);
   const { runId, addresses } = resolvePreparedRunAddresses(owner, profile);
@@ -272,12 +269,9 @@ export async function buildPrepareCampaignRunPlan(args: {
       )
       .accountsPartial({
         protocol: protocolAddress,
-        playerProfile: profileAddress,
-        campaignProgress: campaignAddress,
+        playerState: profileAddress,
         mapCatalog,
-        runShell: addresses.runShell,
         activeRun: addresses.activeRun,
-        runReceipt: addresses.runReceipt,
         playerFunding: derivePlayerFundingPda(owner),
         ownerAuthority: owner,
         sessionToken: args.sessionToken,
@@ -329,9 +323,9 @@ export async function assertPreparedRunAddressesAvailable(
   runId: bigint,
   addresses: RunAddresses,
 ): Promise<void> {
-  const labels = ["run shell", "active run", "run receipt"] as const;
+  const labels = ["active run"] as const;
   const infos = await connection.getMultipleAccountsInfo(
-    [addresses.runShell, addresses.activeRun, addresses.runReceipt],
+    [addresses.activeRun],
     "confirmed",
   );
   const occupied = infos.flatMap((info, index) =>
@@ -363,7 +357,6 @@ export async function buildDelegateRunPlan(args: {
   const instruction = await program.methods
     .fundedDelegateActiveRun()
     .accountsPartial({
-      runShell: args.addresses.runShell,
       bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
         activeRun,
         ZKUBE_PROGRAM_ID,
@@ -387,6 +380,53 @@ export async function buildDelegateRunPlan(args: {
   return plan("solana-base", "Delegate active run", connection, payer, [
     instruction,
   ]);
+}
+
+/**
+ * Fresh-run fast path: prepare and delegate in one atomic v0 transaction.
+ *
+ * The delegate instruction may consume accounts created by the immediately
+ * preceding prepare instruction. If either instruction fails, Solana rolls
+ * the entire transaction back, so the player cannot be left with a prepared
+ * run solely because the second base-layer submission failed.
+ */
+export async function combinePreparedAndDelegatePlan(args: {
+  prepared: PreparedRunPlan;
+  wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey;
+}): Promise<PreparedRunPlan> {
+  const delegate = await buildDelegateRunPlan({
+    wallet: args.wallet,
+    ownerAuthority: args.ownerAuthority,
+    sessionToken: args.sessionToken,
+    addresses: args.prepared.addresses,
+    connection: args.prepared.transactionPlan.connection,
+  });
+  if (
+    delegate.layer !== "solana-base" ||
+    !delegate.feePayer.equals(args.prepared.transactionPlan.feePayer) ||
+    delegate.connection.rpcEndpoint !==
+      args.prepared.transactionPlan.connection.rpcEndpoint
+  ) {
+    throw new Error(
+      "Prepare and delegate plans do not share one base boundary",
+    );
+  }
+  return {
+    ...args.prepared,
+    transactionPlan: plan(
+      "solana-base",
+      "Prepare and delegate active run",
+      args.prepared.transactionPlan.connection,
+      args.prepared.transactionPlan.feePayer,
+      [
+        ...args.prepared.transactionPlan.transaction.instructions,
+        ...delegate.transaction.instructions,
+      ],
+      [...args.prepared.transactionPlan.signers, ...delegate.signers],
+    ),
+  };
 }
 
 export async function resolveRunErConnection(
@@ -590,11 +630,6 @@ export async function buildCommitRunPlan(args: {
     .accountsPartial({
       payer: args.payerWallet.publicKey,
       activeRun: args.addresses.activeRun,
-      runShell: args.addresses.runShell,
-      runReceipt: args.addresses.runReceipt,
-      playerProfile: derivePlayerProfilePda(args.owner),
-      campaignProgress: deriveCampaignProgressPda(args.owner),
-      owner: args.owner,
       magicContext: MAGIC_CONTEXT_ID,
       magicProgram: MAGIC_PROGRAM_ID,
     })
@@ -608,33 +643,10 @@ export async function buildCommitRunPlan(args: {
   );
 }
 
-export async function buildCloseSettledRunPlan(args: {
-  wallet: WalletLike;
-  owner: PublicKey;
-  runId: bigint;
-  addresses: RunAddresses;
-  connection?: Connection;
-}): Promise<TransactionPlan> {
-  const connection =
-    args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
-  const program = zkubeProgram(connection, args.wallet);
-  const instruction = await buildCloseSettledInstruction(program, args);
-  return plan(
-    "solana-base",
-    "Close settled active run",
-    connection,
-    args.wallet.publicKey,
-    [instruction],
-  );
-}
-
 /**
- * Canonical base-layer settlement in ONE atomic transaction: consume the
- * durable receipt and close the ActiveRun for rent.
- * Neither receipt consumption nor canonical rent recovery needs a program-level
- * signer; every mutable account and the System-owned rent destination are
- * validated PDAs. This is both the tail of
- * the normal settle pipeline and the recovery path for wedged runs.
+ * Canonical base-layer settlement in one atomic transaction: consume the
+ * copied-back ActiveRun, update durable state, clear active_run_id, and close
+ * the transient account to the owner's funding PDA.
  */
 export async function buildFinalizeRunPlan(args: {
   wallet: WalletLike;
@@ -645,7 +657,6 @@ export async function buildFinalizeRunPlan(args: {
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
   dailyVersion?: 1 | 2;
-  receiptConsumed: boolean;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
   connection?: Connection;
@@ -667,12 +678,7 @@ export async function buildFinalizeRunPlan(args: {
         .instruction(),
     );
   }
-  if (!args.receiptConsumed) {
-    instructions.push(await buildConsumeReceiptInstruction(program, args));
-  }
-  instructions.push(
-    await buildCloseSettledInstruction(program, args),
-  );
+  instructions.push(await buildConsumeRunInstruction(program, args));
   return plan(
     "solana-base",
     "Finalize run settlement",
@@ -682,22 +688,18 @@ export async function buildFinalizeRunPlan(args: {
   );
 }
 
-export async function buildConsumeReceiptRecoveryPlan(args: {
+export async function buildConsumeRunRecoveryPlan(args: {
   wallet: WalletLike;
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
-  receiptConsumed?: boolean;
   connection: Connection;
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.connection, args.wallet);
   const instructions: TransactionInstruction[] = [];
-  if (!args.receiptConsumed) {
-    instructions.push(await buildConsumeReceiptInstruction(program, args));
-  }
-  instructions.push(await buildCloseSettledInstruction(program, args));
+  instructions.push(await buildConsumeRunInstruction(program, args));
   return plan(
     "solana-base",
     `Finalize orphaned ${args.mode} run`,
@@ -707,24 +709,7 @@ export async function buildConsumeReceiptRecoveryPlan(args: {
   );
 }
 
-async function buildCloseSettledInstruction(
-  program: Program<ZkubeProgram>,
-  args: { owner: PublicKey; runId: bigint; addresses: RunAddresses },
-): Promise<TransactionInstruction> {
-  return program.methods
-    .closeSettledActiveRun(new BN(args.runId.toString()))
-    .accountsPartial({
-      ownerAuthority: args.owner,
-      protocol: deriveProtocolConfigPda(),
-      rentRecipient: derivePlayerFundingPda(args.owner),
-      runShell: args.addresses.runShell,
-      runReceipt: args.addresses.runReceipt,
-      activeRun: args.addresses.activeRun,
-    })
-    .instruction();
-}
-
-async function buildConsumeReceiptInstruction(
+async function buildConsumeRunInstruction(
   program: Program<ZkubeProgram>,
   args: {
     owner: PublicKey;
@@ -739,29 +724,25 @@ async function buildConsumeReceiptInstruction(
       throw new Error("Daily settlement requires the challenge address");
     }
     return program.methods
-      .consumeDailyReceipt()
+      .consumeDailyRun()
       .accountsPartial({
         activeRun: args.addresses.activeRun,
-        runShell: args.addresses.runShell,
-        runReceipt: args.addresses.runReceipt,
-        playerProfile: derivePlayerProfilePda(args.owner),
+        playerState: derivePlayerStatePda(args.owner),
         dailyChallenge,
         dailyPlayer: deriveDailyPlayerPda(dailyChallenge, args.owner),
         leaderboard: deriveDailyLeaderboardPda(dailyChallenge),
-        weeklyStipend: deriveWeeklyStipendPda(args.owner),
         owner: args.owner,
+        rentRecipient: derivePlayerFundingPda(args.owner),
       })
       .instruction();
   }
   return program.methods
-    .consumeRunReceipt()
+    .consumeCampaignRun()
     .accountsPartial({
       activeRun: args.addresses.activeRun,
-      runShell: args.addresses.runShell,
-      runReceipt: args.addresses.runReceipt,
-      playerProfile: derivePlayerProfilePda(args.owner),
-      campaignProgress: deriveCampaignProgressPda(args.owner),
+      playerState: derivePlayerStatePda(args.owner),
       owner: args.owner,
+      rentRecipient: derivePlayerFundingPda(args.owner),
     })
     .instruction();
 }

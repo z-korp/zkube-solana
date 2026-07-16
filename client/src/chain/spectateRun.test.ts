@@ -49,33 +49,20 @@ describe("spectated run resolution", () => {
     expect(fetchRun.mock.calls[0][0]).toBe(erConnection);
   });
 
-  it("prefers the consumed receipt on base and reports settled", async () => {
+  it("reports a consumed-and-closed run as archived", async () => {
     const owner = Keypair.generate();
-    const receipt = {
-      owner: owner.publicKey,
-      runId: 4n,
-      mode: "campaign",
-      score: 88,
-      moves: 9,
-      levelStars: 3,
-      campaignXpAwarded: 30,
-      completed: true,
-      consumed: true,
-    };
     const result = await resolveSpectatedRun({
       baseConnection: {} as Connection,
       target: { player: owner.publicKey, runId: 4n },
       dependencies: {
         getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
-        fetchRunReceipt: vi.fn().mockResolvedValue(receipt),
         fetchRun: vi.fn(),
       },
     });
-    expect(result.phase).toBe("settled");
-    expect(result.phase === "settled" && result.receipt.score).toBe(88);
+    expect(result.phase).toBe("archived");
   });
 
-  it("derives the latest run from the player profile", async () => {
+  it("derives the latest run from player state", async () => {
     const owner = Keypair.generate();
     const expected = deriveRunAddresses(owner.publicKey, 6n);
     const fetchRun = vi.fn().mockResolvedValue(activeRunStub(owner, 6n));
@@ -85,7 +72,6 @@ describe("spectated run resolution", () => {
       dependencies: {
         getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
         fetchNextRunId: vi.fn().mockResolvedValue(7n),
-        fetchRunReceipt: vi.fn().mockResolvedValue(null),
         fetchRun,
       },
     });

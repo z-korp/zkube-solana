@@ -10,6 +10,7 @@ import {
   Keypair,
   SystemProgram,
   Transaction,
+  TransactionMessage,
   VersionedTransaction,
   type Connection,
 } from "@solana/web3.js";
@@ -18,10 +19,9 @@ import { describe, expect, it, vi } from "vitest";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import { IDL } from "./idl";
 import {
-  deriveCampaignProgressPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
 } from "./pdas";
@@ -45,11 +45,15 @@ describe("native SOL transaction boundaries", () => {
       packIndex: 0,
     });
     const instruction = plan.transaction.instructions.at(-1)!;
-    const ownerMeta = instruction.keys.find((key) => key.pubkey.equals(owner.publicKey));
+    const ownerMeta = instruction.keys.find((key) =>
+      key.pubkey.equals(owner.publicKey),
+    );
 
     expect(plan.feePayer.equals(owner.publicKey)).toBe(true);
     expect(ownerMeta?.isSigner).toBe(true);
-    expect(instruction.keys.at(-1)?.pubkey.equals(SystemProgram.programId)).toBe(true);
+    expect(
+      instruction.keys.at(-1)?.pubkey.equals(SystemProgram.programId),
+    ).toBe(true);
     expect(instruction.data.readBigUInt64LE(9)).toBe(10n);
     expect(instruction.data.readBigUInt64LE(17)).toBe(10_000_000n);
     expect(splitStarPurchase(10_000_001n)).toEqual({
@@ -65,16 +69,13 @@ describe("native SOL transaction boundaries", () => {
     const sessionToken = Keypair.generate().publicKey;
     const runId = 7n;
     const run = deriveRunAddresses(owner, runId);
-    const instruction = await zkubeProgram({} as Connection, actor).methods
-      .fundedPrepareCampaignRun(new BN(runId.toString()), 1, 1)
+    const instruction = await zkubeProgram({} as Connection, actor)
+      .methods.fundedPrepareCampaignRun(new BN(runId.toString()), 1, 1)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
-        playerProfile: derivePlayerProfilePda(owner),
-        campaignProgress: deriveCampaignProgressPda(owner),
+        playerState: derivePlayerStatePda(owner),
         mapCatalog: deriveMapCatalogPda(1, 1),
-        runShell: run.runShell,
         activeRun: run.activeRun,
-        runReceipt: run.runReceipt,
         playerFunding: derivePlayerFundingPda(owner),
         ownerAuthority: owner,
         sessionToken,
@@ -93,22 +94,24 @@ describe("native SOL transaction boundaries", () => {
     expect(signers).toHaveLength(1);
     expect(signers[0]?.pubkey.equals(actor.publicKey)).toBe(true);
     expect(zkubeProgramMeta?.pubkey.equals(ZKUBE_PROGRAM_ID)).toBe(true);
-    expect(zkubeProgramMeta).toMatchObject({ isSigner: false, isWritable: false });
-    expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual([
-      deriveProtocolConfigPda(),
-      derivePlayerProfilePda(owner),
-      deriveCampaignProgressPda(owner),
-      deriveMapCatalogPda(1, 1),
-      run.runShell,
-      run.activeRun,
-      run.runReceipt,
-      derivePlayerFundingPda(owner),
-      owner,
-      sessionToken,
-      actor.publicKey,
-      SystemProgram.programId,
-      ZKUBE_PROGRAM_ID,
-    ].map((publicKey) => publicKey.toBase58()));
+    expect(zkubeProgramMeta).toMatchObject({
+      isSigner: false,
+      isWritable: false,
+    });
+    expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
+      [
+        deriveProtocolConfigPda(),
+        derivePlayerStatePda(owner),
+        deriveMapCatalogPda(1, 1),
+        run.activeRun,
+        derivePlayerFundingPda(owner),
+        owner,
+        sessionToken,
+        actor.publicKey,
+        SystemProgram.programId,
+        ZKUBE_PROGRAM_ID,
+      ].map((publicKey) => publicKey.toBase58()),
+    );
   });
 
   it("pins every funded self-CPI wrapper to the executable zKube program", () => {
@@ -148,10 +151,9 @@ describe("native SOL transaction boundaries", () => {
     );
     const record = delegationRecordPdaFromDelegatedAccount(run.activeRun);
     const metadata = delegationMetadataPdaFromDelegatedAccount(run.activeRun);
-    const instruction = await zkubeProgram({} as Connection, actor).methods
-      .fundedDelegateActiveRun()
+    const instruction = await zkubeProgram({} as Connection, actor)
+      .methods.fundedDelegateActiveRun()
       .accountsPartial({
-        runShell: run.runShell,
         bufferPda: buffer,
         delegationRecordPda: record,
         delegationMetadataPda: metadata,
@@ -174,7 +176,6 @@ describe("native SOL transaction boundaries", () => {
     ]);
     expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
       [
-        run.runShell,
         buffer,
         record,
         metadata,
@@ -189,7 +190,7 @@ describe("native SOL transaction boundaries", () => {
         validator,
       ].map((publicKey) => publicKey.toBase58()),
     );
-    expect(instruction.keys[5]).toMatchObject({
+    expect(instruction.keys[4]).toMatchObject({
       isSigner: false,
       isWritable: true,
     });
@@ -223,7 +224,10 @@ describe("native SOL transaction boundaries", () => {
       feePayer: signer.publicKey,
       signers: [],
     };
-    const signed = await compileWalletTransactionPlan({ transactionPlan, wallet });
+    const signed = await compileWalletTransactionPlan({
+      transactionPlan,
+      wallet,
+    });
     const restored = VersionedTransaction.deserialize(signed.serialize());
 
     expect(signed.message.header.numRequiredSignatures).toBe(1);
@@ -234,6 +238,69 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(restored.signatures[0]!)).toEqual(
       Buffer.from(signed.signatures[0]!),
     );
+  });
+
+  it("fits atomic prepare plus delegation in one v0 packet", async () => {
+    const owner = Keypair.generate().publicKey;
+    const actor = new SessionWallet(Keypair.generate());
+    const sessionToken = Keypair.generate().publicKey;
+    const run = deriveRunAddresses(owner, 1n);
+    const program = zkubeProgram({} as Connection, actor);
+    const prepare = await program.methods
+      .fundedPrepareCampaignRun(new BN(1), 1, 1)
+      .accountsPartial({
+        protocol: deriveProtocolConfigPda(),
+        playerState: derivePlayerStatePda(owner),
+        mapCatalog: deriveMapCatalogPda(1, 1),
+        activeRun: run.activeRun,
+        playerFunding: derivePlayerFundingPda(owner),
+        ownerAuthority: owner,
+        sessionToken,
+        actor: actor.publicKey,
+        systemProgram: SystemProgram.programId,
+        zkubeProgram: ZKUBE_PROGRAM_ID,
+      })
+      .instruction();
+    const delegate = await program.methods
+      .fundedDelegateActiveRun()
+      .accountsPartial({
+        bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
+          run.activeRun,
+          ZKUBE_PROGRAM_ID,
+        ),
+        delegationRecordPda: delegationRecordPdaFromDelegatedAccount(
+          run.activeRun,
+        ),
+        delegationMetadataPda: delegationMetadataPdaFromDelegatedAccount(
+          run.activeRun,
+        ),
+        pda: run.activeRun,
+        playerFunding: derivePlayerFundingPda(owner),
+        ownerAuthority: owner,
+        sessionToken,
+        actor: actor.publicKey,
+        ownerProgram: ZKUBE_PROGRAM_ID,
+        delegationProgram: DELEGATION_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([
+        {
+          pubkey: Keypair.generate().publicKey,
+          isSigner: false,
+          isWritable: false,
+        },
+      ])
+      .instruction();
+    const message = new TransactionMessage({
+      payerKey: actor.publicKey,
+      recentBlockhash: Keypair.generate().publicKey.toBase58(),
+      instructions: [prepare, delegate],
+    }).compileToV0Message();
+    const serialized = new VersionedTransaction(message).serialize();
+
+    expect(message.compiledInstructions).toHaveLength(2);
+    expect(message.header.numRequiredSignatures).toBe(1);
+    expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
   });
 });
 
@@ -257,9 +324,27 @@ function shopView(): StarShopView {
     packs: [10n, 50n, 100n, 500n, 1_000n].map((stars, index) => ({
       index,
       stars,
-      regularPrice: [10_000_000n, 47_500_000n, 90_000_000n, 425_000_000n, 800_000_000n][index]!,
-      currentPrice: [10_000_000n, 47_500_000n, 90_000_000n, 425_000_000n, 800_000_000n][index]!,
-      salePrice: [10_000_000n, 47_500_000n, 90_000_000n, 425_000_000n, 800_000_000n][index]!,
+      regularPrice: [
+        10_000_000n,
+        47_500_000n,
+        90_000_000n,
+        425_000_000n,
+        800_000_000n,
+      ][index]!,
+      currentPrice: [
+        10_000_000n,
+        47_500_000n,
+        90_000_000n,
+        425_000_000n,
+        800_000_000n,
+      ][index]!,
+      salePrice: [
+        10_000_000n,
+        47_500_000n,
+        90_000_000n,
+        425_000_000n,
+        800_000_000n,
+      ][index]!,
       enabled: true,
       onSale: false,
     })),

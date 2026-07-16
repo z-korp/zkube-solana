@@ -5,7 +5,7 @@ import type { PageId } from "@/stores/navigationStore";
 
 const INITIAL_MAP_1 = canonicalCampaignMap(1, 1);
 
-// A new identity has no CampaignProgress account yet. Map 1 remains playable,
+// A new identity has no PlayerState account yet. Map 1 remains playable,
 // and its preview uses the same authored catalog that is published on-chain.
 export const UNINITIALIZED_MAP_1: CampaignMapView = {
   mapId: 1,

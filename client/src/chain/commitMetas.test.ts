@@ -17,13 +17,11 @@ import {
 } from "./sessionV2";
 
 describe("commit meta invariants", () => {
-  it("derives distinct shell, active, and receipt addresses for each run", () => {
+  it("derives one distinct ActiveRun address for each run", () => {
     const owner = Keypair.generate().publicKey;
     const first = deriveRunAddresses(owner, 1n);
     const second = deriveRunAddresses(owner, 2n);
-    expect(
-      new Set(Object.values(first).map((key) => key.toBase58())).size,
-    ).toBe(3);
+    expect(Object.keys(first)).toEqual(["activeRun"]);
     expect(first.activeRun.equals(second.activeRun)).toBe(false);
   });
 
@@ -61,7 +59,7 @@ describe("commit meta invariants", () => {
     ]);
   });
 
-  it("keeps canonical base-settlement targets read-only on the ER", async () => {
+  it("commits only ActiveRun through the ER boundary", async () => {
     const owner = Keypair.generate();
     const wallet = new SessionWallet(owner);
     const connection = new Connection(
@@ -78,8 +76,9 @@ describe("commit meta invariants", () => {
     const campaignKeys = campaign.transaction.instructions[0].keys;
     expect(campaignKeys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(campaignKeys[1].isWritable).toBe(true);
-    expect(campaignKeys.slice(2, 7).every((key) => !key.isWritable)).toBe(true);
-    expect(campaignKeys[7].isWritable).toBe(true);
+    expect(campaignKeys).toHaveLength(4);
+    expect(campaignKeys[2].isWritable).toBe(true);
+    expect(campaignKeys[3].isWritable).toBe(false);
 
     const daily = await buildCommitDailyRunPlan({
       owner: owner.publicKey,
@@ -91,8 +90,9 @@ describe("commit meta invariants", () => {
     const dailyKeys = daily.transaction.instructions[0].keys;
     expect(dailyKeys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(dailyKeys[1].isWritable).toBe(true);
-    expect(dailyKeys.slice(2, 10).every((key) => !key.isWritable)).toBe(true);
-    expect(dailyKeys[10].isWritable).toBe(true);
+    expect(dailyKeys).toHaveLength(4);
+    expect(dailyKeys[2].isWritable).toBe(true);
+    expect(dailyKeys[3].isWritable).toBe(false);
   });
 
   it("parses and normalizes router delegation status", async () => {

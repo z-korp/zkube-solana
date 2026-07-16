@@ -12,7 +12,7 @@ import {
 } from "@/game/level";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/chain/runPlan";
-import type { RunReceiptView } from "@/chain/resumeRun";
+import type { RunResultView } from "@/chain/resumeRun";
 import type { SettleStage } from "@/chain/useRunController";
 import { toDisplayGrid } from "@/chain/gridProjection";
 import {
@@ -45,14 +45,10 @@ export function canSettleTerminalRun(
 }
 
 export function isTerminalLifecycle(lifecycle: string): boolean {
-  return (
-    lifecycle === "levelComplete" ||
-    lifecycle === "finished" ||
-    lifecycle === "settled"
-  );
+  return lifecycle === "levelComplete" || lifecycle === "finished";
 }
 
-export function projectRunReceipt(activeRun: ActiveRunView): ReceiptProjection {
+export function projectRunResult(activeRun: ActiveRunView): ReceiptProjection {
   return {
     blocks: toDisplayGrid(activeRun.grid),
     nextRow: activeRun.nextRow ?? [],
@@ -189,7 +185,7 @@ export function usePlayController() {
   const [outcome, setOutcome] = useState<PlayOutcome>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [settledReceiptSnapshot, setSettledReceiptSnapshot] =
-    useState<RunReceiptView | null>(null);
+    useState<RunResultView | null>(null);
   const [settledCleanupStatus, setSettledCleanupStatus] =
     useState<SettledCleanupStatus>("idle");
   const [sessionRenewalStatus, setSessionRenewalStatus] =
@@ -290,7 +286,7 @@ export function usePlayController() {
           setAwaitingTerminalCascade(true);
           rememberTerminal(activeRun);
         }
-        return projectRunReceipt(activeRun);
+        return projectRunResult(activeRun);
       } finally {
         setLocalActionPending(false);
       }
@@ -309,7 +305,7 @@ export function usePlayController() {
           setAwaitingTerminalCascade(true);
           rememberTerminal(activeRun);
         }
-        return projectRunReceipt(activeRun);
+        return projectRunResult(activeRun);
       } finally {
         setLocalActionPending(false);
       }
@@ -327,7 +323,7 @@ export function usePlayController() {
   // signal is missed (e.g. a Grid unmount). Once the run has settled or gone
   // away, there is no cascade left to wait for.
   useEffect(() => {
-    if (run.phase === "settled" || run.phase === "none") {
+    if (run.phase === "none") {
       setAwaitingTerminalCascade(false);
     }
   }, [run.phase]);
@@ -335,8 +331,6 @@ export function usePlayController() {
   const settleAndAdvance = run.settleAndAdvance;
   const recoverSettlement = run.recoverSettlement;
   const recoverSession = run.recoverSession;
-  const cleanup = run.cleanup;
-  const chainSettledReceipt = run.receipt;
   const campaignRefresh = campaign.refresh;
   const progressRefresh = progress.refresh;
   const dailyRefresh = daily.refresh;
@@ -494,54 +488,6 @@ export function usePlayController() {
     terminalRun,
   ]);
 
-  useEffect(() => {
-    if (
-      recoveryRunId !== null ||
-      run.phase !== "settled" ||
-      !chainSettledReceipt ||
-      run.busy
-    ) {
-      return;
-    }
-    setSettledReceiptSnapshot(chainSettledReceipt);
-    if (settlingRunRef.current === chainSettledReceipt.runId) {
-      if (run.error) setSettledCleanupStatus("failed");
-      return;
-    }
-
-    // A consumed receipt still leaves transient ActiveRun rent to reclaim.
-    // Fire that session-signed cleanup once on attachment; only an explicit retry
-    // clears this per-run latch after failure, so watcher refreshes cannot
-    // drain the device fee allowance.
-    settlingRunRef.current = chainSettledReceipt.runId;
-    setSettledCleanupStatus("running");
-    void cleanup()
-      .then(async () => {
-        await Promise.allSettled([
-          campaignRefresh(),
-          progressRefresh(),
-          dailyRefresh(),
-        ]);
-        setSettledCleanupStatus("complete");
-      })
-      .catch(() => {
-        // The run hook owns the error message. Keep the latch set until the
-        // player chooses the existing explicit retry affordance.
-        setSettledCleanupStatus("failed");
-      });
-  }, [
-    campaignRefresh,
-    cascadeVersion,
-    chainSettledReceipt,
-    cleanup,
-    dailyRefresh,
-    progressRefresh,
-    recoveryRunId,
-    run.busy,
-    run.error,
-    run.phase,
-  ]);
-
   const retrySettlement = useCallback(() => {
     settlingRunRef.current = null;
     terminalAwaitingCascadeRef.current = null;
@@ -556,7 +502,7 @@ export function usePlayController() {
   }, []);
 
   const recoverBaseRun = run.recoverBaseRun;
-  const settledReceipt = chainSettledReceipt ?? settledReceiptSnapshot;
+  const settledReceipt = settledReceiptSnapshot;
   const continueSettled = useCallback(() => {
     if (!settledReceipt) return;
 

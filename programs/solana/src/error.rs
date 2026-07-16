@@ -82,8 +82,8 @@ pub enum ErrorCode {
     NoVrfRequestPending,
     #[msg("The VRF callback does not match the pending request")]
     VrfRequestMismatch,
-    #[msg("The run receipt does not match the committed run")]
-    ReceiptMismatch,
+    #[msg("The run has already been consumed")]
+    RunAlreadyConsumed,
     #[msg("The player has no Daily prize")]
     NoPrize,
     #[msg("The Daily prize has already been claimed")]

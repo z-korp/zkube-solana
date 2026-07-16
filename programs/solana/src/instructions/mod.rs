@@ -2,8 +2,8 @@
 //!
 //! Account constraints are part of the public security model: callers do not
 //! gain authority merely because another signer pays a transaction fee. Rent
-//! destinations are pinned to protocol state and unsettled run accounts remain
-//! open until a canonical base-layer receipt has been consumed.
+//! destinations are pinned to protocol state and ActiveRun remains open until
+//! terminal state is atomically consumed and closed on the base layer.
 
 pub mod economy_v2_instructions;
 pub mod governance_instructions;

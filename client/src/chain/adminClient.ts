@@ -6,10 +6,9 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
-  deriveCampaignProgressPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRewardVaultPda,
 } from "./pdas";
@@ -157,8 +156,7 @@ export async function buildInitializePlayerPlan(args: {
   const instruction = await zkubeProgram(args.connection, args.owner).methods
     .initializePlayer()
     .accountsPartial({
-      playerProfile: derivePlayerProfilePda(args.owner.publicKey),
-      campaignProgress: deriveCampaignProgressPda(args.owner.publicKey),
+      playerState: derivePlayerStatePda(args.owner.publicKey),
       playerFunding: derivePlayerFundingPda(args.owner.publicKey),
       payer,
       ownerAuthority: args.owner.publicKey,

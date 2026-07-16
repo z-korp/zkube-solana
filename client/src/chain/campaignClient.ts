@@ -1,11 +1,15 @@
 import type BN from "bn.js";
-import { PublicKey, Transaction, type AccountInfo, type Connection } from "@solana/web3.js";
+import {
+  PublicKey,
+  Transaction,
+  type AccountInfo,
+  type Connection,
+} from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
-  deriveCampaignProgressPda,
   deriveEconomyConfigPda,
   deriveMapCatalogPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
 import {
@@ -44,15 +48,15 @@ export async function fetchCampaignView(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
   const protocolAddress = deriveProtocolConfigPda();
-  const playerAddress = derivePlayerProfilePda(owner);
-  const campaignAddress = deriveCampaignProgressPda(owner);
+  const playerAddress = derivePlayerStatePda(owner);
   const economyAddress = deriveEconomyConfigPda();
-  const [protocolInfo, playerInfo, campaignInfo, economyInfo] =
+  const [protocolInfo, playerInfo, economyInfo] =
     await args.connection.getMultipleAccountsInfo(
-      [protocolAddress, playerAddress, campaignAddress, economyAddress],
+      [protocolAddress, playerAddress, economyAddress],
       "confirmed",
     );
-  if (!protocolInfo || !playerInfo || !campaignInfo || !economyInfo) return null;
+  if (!protocolInfo || !playerInfo || !economyInfo)
+    return null;
   assertProgramAccount(
     protocolInfo,
     program.programId,
@@ -62,14 +66,8 @@ export async function fetchCampaignView(args: {
   assertProgramAccount(
     playerInfo,
     program.programId,
-    program.account.playerProfile.size,
-    "PlayerProfile",
-  );
-  assertProgramAccount(
-    campaignInfo,
-    program.programId,
-    program.account.campaignProgress.size,
-    "CampaignProgress",
+    program.account.playerState.size,
+    "PlayerState",
   );
   assertProgramAccount(
     economyInfo,
@@ -82,10 +80,7 @@ export async function fetchCampaignView(args: {
     ReturnType<typeof program.account.protocolConfig.fetch>
   >;
   type PlayerAccount = Awaited<
-    ReturnType<typeof program.account.playerProfile.fetch>
-  >;
-  type CampaignAccount = Awaited<
-    ReturnType<typeof program.account.campaignProgress.fetch>
+    ReturnType<typeof program.account.playerState.fetch>
   >;
   type EconomyAccount = Awaited<
     ReturnType<typeof program.account.economyConfig.fetch>
@@ -95,37 +90,32 @@ export async function fetchCampaignView(args: {
     protocolInfo.data,
   ) as unknown as ProtocolAccount;
   const player = program.coder.accounts.decode(
-    "playerProfile",
+    "playerState",
     playerInfo.data,
   ) as unknown as PlayerAccount;
-  const campaign = program.coder.accounts.decode(
-    "campaignProgress",
-    campaignInfo.data,
-  ) as unknown as CampaignAccount;
   const economy = program.coder.accounts.decode(
     "economyConfig",
     economyInfo.data,
   ) as unknown as EconomyAccount;
   if (
-    Number(protocol.version) !== 1
-    || Number(player.version) !== 1
-    || !player.owner.equals(owner)
-    || Number(campaign.version) !== 1
-    || !campaign.owner.equals(owner)
-    || campaign.levelStars.length !== MAX_CAMPAIGN_MAPS
-    || Number(economy.version) !== 1
-    || !economy.protocol.equals(protocolAddress)
-    || !economy.active
+    Number(protocol.version) !== 1 ||
+    Number(player.version) !== 1 ||
+    !player.owner.equals(owner) ||
+    player.levelStars.length !== 80 ||
+    Number(economy.version) !== 1 ||
+    !economy.protocol.equals(protocolAddress) ||
+    !economy.active
   ) {
     return null;
   }
   const contentVersion = Number(protocol.contentVersion);
   const campaignMapCount = Number(protocol.campaignMapCount);
   if (
-    !Number.isInteger(campaignMapCount)
-    || campaignMapCount < 1
-    || campaignMapCount > MAX_CAMPAIGN_MAPS
-  ) return null;
+    !Number.isInteger(campaignMapCount) ||
+    campaignMapCount < 1 ||
+    campaignMapCount > MAX_CAMPAIGN_MAPS
+  )
+    return null;
   if (Number(economy.contentVersion) !== contentVersion) return null;
   const catalogAddresses = Array.from(
     { length: campaignMapCount },
@@ -151,33 +141,39 @@ export async function fetchCampaignView(args: {
       info.data,
     ) as unknown as MapCatalogAccount;
   });
-  if (!catalogs.every((catalog, index) =>
-    catalog
-    && Number(catalog.version) === 1
-    && Number(catalog.contentVersion) === contentVersion
-    && Number(catalog.mapId) === index + 1
-    && catalog.levels.length === 10)) return null;
+  if (
+    !catalogs.every(
+      (catalog, index) =>
+        catalog &&
+        Number(catalog.version) === 1 &&
+        Number(catalog.contentVersion) === contentVersion &&
+        Number(catalog.mapId) === index + 1 &&
+        catalog.levels.length === 10,
+    )
+  )
+    return null;
   const maps = catalogs.map((catalog, index) => {
     if (!catalog) {
       throw new Error("active campaign catalog disappeared during decode");
     }
     const mapId = index + 1;
-    const packedStars = Number(campaign.levelStars[index]);
     return {
       mapId,
       themeId: Number(catalog.themeId),
       enabled: Boolean(catalog.enabled),
-      unlocked: hasMapFlag(campaign.unlockedMaps, mapId),
-      purchased: hasMapFlag(campaign.purchasedMaps, mapId),
-      cleared: hasMapFlag(campaign.clearedMaps, mapId),
-      perfected: hasMapFlag(campaign.perfectedMaps, mapId),
+      unlocked: hasMapFlag(player.unlockedMaps, mapId),
+      purchased: hasMapFlag(player.purchasedMaps, mapId),
+      cleared: hasMapFlag(player.clearedMaps, mapId),
+      perfected: hasMapFlag(player.perfectedMaps, mapId),
       starCost: mapId > 1 ? BigInt(economy.zoneUnlockStars.toString()) : 0n,
-      levelStars: unpackLevelStars(packedStars),
-      levels: catalog.levels.map((level, levelIndex) => mapLevelRuleSnapshot({
-        ...level,
-        ...catalog.mapRules,
-        bossId: levelIndex === 9 ? catalog.mapRules.bossId : 0,
-      } as RawLevelRuleSnapshot)),
+      levelStars: unpackCompactLevelStars(player.levelStars, index),
+      levels: catalog.levels.map((level, levelIndex) =>
+        mapLevelRuleSnapshot({
+          ...level,
+          ...catalog.mapRules,
+          bossId: levelIndex === 9 ? catalog.mapRules.bossId : 0,
+        } as RawLevelRuleSnapshot),
+      ),
     };
   });
   return {
@@ -215,7 +211,23 @@ export function hasMapFlag(
 }
 
 export function unpackLevelStars(packedStars: number): number[] {
-  return Array.from({ length: 10 }, (_, level) => (packedStars >>> (level * 2)) & 0x3);
+  return Array.from(
+    { length: 10 },
+    (_, level) => (packedStars >>> (level * 2)) & 0x3,
+  );
+}
+
+export function unpackCompactLevelStars(
+  bytes: readonly number[],
+  mapIndex: number,
+): number[] {
+  if (bytes.length !== 80 || mapIndex < 0 || mapIndex >= MAX_CAMPAIGN_MAPS) {
+    throw new Error("Campaign level-star bitmap has an invalid layout");
+  }
+  return Array.from({ length: 10 }, (_, level) => {
+    const bit = (mapIndex * 10 + level) * 2;
+    return ((bytes[bit >> 3] ?? 0) >> (bit & 7)) & 0x3;
+  });
 }
 
 export async function buildUnlockMapWithStarsPlan(args: {
@@ -230,8 +242,7 @@ export async function buildUnlockMapWithStarsPlan(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const accounts = {
     protocol: deriveProtocolConfigPda(),
-    playerProfile: derivePlayerProfilePda(owner),
-    campaignProgress: deriveCampaignProgressPda(owner),
+    playerState: derivePlayerStatePda(owner),
     mapCatalog: deriveMapCatalogPda(args.contentVersion, args.mapId),
     ownerAuthority: owner,
     sessionToken: args.sessionToken,
@@ -242,15 +253,19 @@ export async function buildUnlockMapWithStarsPlan(args: {
     .accountsPartial({
       protocol: accounts.protocol,
       economyConfig: deriveEconomyConfigPda(),
-      playerProfile: accounts.playerProfile,
-      campaignProgress: accounts.campaignProgress,
+      playerState: accounts.playerState,
       mapCatalog: accounts.mapCatalog,
       ownerAuthority: accounts.ownerAuthority,
       sessionToken: accounts.sessionToken,
       actor: accounts.actor,
     })
     .instruction();
-  return plan("Unlock map with Stars", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Unlock map with Stars",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 function plan(

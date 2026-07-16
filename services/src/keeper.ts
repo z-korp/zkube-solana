@@ -6,7 +6,7 @@
  * never overlaps passes, and stops write-enabled passes when the keeper's own
  * fee balance is below its reserve floor. Read-only passes still discover work
  * without signing or submitting. Orphan recovery may atomically consume an
- * exact terminal receipt and close the now-settled run accounts, returning rent
+ * exact copied-back terminal ActiveRun and close it, returning rent
  * only to the player's canonical System-owned funding PDA.
  */
 import { randomUUID } from "node:crypto";
@@ -27,11 +27,11 @@ import {
 import { fetchEconomyRuntime } from "../../client/src/chain/economyClient.js";
 import { deriveDailyChallengePda } from "../../client/src/chain/pdas.js";
 import {
-  buildConsumeReceiptRecoveryPlan,
+  buildConsumeRunRecoveryPlan,
   submitVersionedTransactionPlan,
   type TransactionPlan,
 } from "../../client/src/chain/runPlan.js";
-import { fetchOrphanedReceiptCandidates } from "../../client/src/chain/settlementRecovery.js";
+import { fetchOrphanedRunCandidates } from "../../client/src/chain/settlementRecovery.js";
 import {
   buildRevokeExpiredSessionPlan,
   fetchExpiredZkubeSessions,
@@ -231,14 +231,14 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     }
   };
 
-  const orphanedReceipts = await fetchOrphanedReceiptCandidates(
+  const orphanedRuns = await fetchOrphanedRunCandidates(
     dependencies.connection,
     maxWrites,
   );
-  for (const candidate of orphanedReceipts) {
+  for (const candidate of orphanedRuns) {
     await execute(
       `finalize_orphaned_${candidate.mode}_run`,
-      await buildConsumeReceiptRecoveryPlan({
+      await buildConsumeRunRecoveryPlan({
         connection: dependencies.connection,
         wallet,
         owner: candidate.owner,
@@ -246,7 +246,6 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         addresses: candidate.addresses,
         mode: candidate.mode,
         dailyChallenge: candidate.dailyChallenge,
-        receiptConsumed: candidate.receiptConsumed,
       }),
     );
   }

@@ -23,18 +23,6 @@ export const useActiveStoryAttempt = (): ActiveStoryRun | null => {
         settled: false,
       };
     }
-    if (
-      run.phase === "settled" &&
-      run.receipt?.mode === "campaign" &&
-      run.receipt.runId > 0n
-    ) {
-      return {
-        gameId: run.receipt.runId,
-        zoneId: run.receipt.mapId,
-        level: run.receipt.level,
-        settled: true,
-      };
-    }
     return null;
-  }, [run.activeRun, run.phase, run.receipt]);
+  }, [run.activeRun]);
 };

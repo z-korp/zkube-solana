@@ -23,12 +23,12 @@ vi.mock("../../client/src/chain/economyClient", () => ({
 }));
 
 vi.mock("../../client/src/chain/runPlan", () => ({
-  buildConsumeReceiptRecoveryPlan: vi.fn(),
+  buildConsumeRunRecoveryPlan: vi.fn(),
   submitVersionedTransactionPlan,
 }));
 
 vi.mock("../../client/src/chain/settlementRecovery", () => ({
-  fetchOrphanedReceiptCandidates: vi.fn().mockResolvedValue([]),
+  fetchOrphanedRunCandidates: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../../client/src/chain/sessionCleanup", () => ({

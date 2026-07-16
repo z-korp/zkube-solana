@@ -2,9 +2,9 @@
 //!
 //! `ActiveRun` is authoritative on the Router-resolved ER only while delegated.
 //! Terminal state is sealed, committed, and copied back before a Solana-base
-//! receipt consumer may update durable progression. Once the receipt is
-//! consumed, anyone may close the fully pinned transient accounts; rent returns
-//! only to the owner's canonical System-owned funding PDA.
+//! consumer may update durable progression. That same instruction closes the
+//! single transient account and returns rent only to the owner's canonical
+//! System-owned funding PDA.
 
 use anchor_lang::{prelude::*, Discriminator};
 use ephemeral_rollups_sdk::anchor::{commit, delegate};
@@ -12,12 +12,12 @@ use ephemeral_rollups_sdk::anchor::{vrf, vrf_callback};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
-use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
 use crate::game::{
-    calculate_level_stars, row_from_vrf_with_draw_budget, BlockWeights, Bonus, Constraint,
-    ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+    calculate_level_stars, opening_from_vrf, row_from_vrf, sha256v, BlockWeights, Bonus,
+    Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError,
+    RunPhase,
 };
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
@@ -29,26 +29,16 @@ use crate::state::economy_v2::{
 };
 use crate::state::v2::*;
 
-const MAX_OPENING_ROWS_PER_CALLBACK: u8 = 32;
-const MAX_OPENING_DRAWS_PER_CALLBACK: u16 = 256;
-
 #[delegate]
 #[derive(Accounts)]
 pub struct DelegateActiveRun<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: Immutable durable player identity, constrained by the run shell.
+    /// CHECK: Immutable durable player identity, constrained by ActiveRun.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_shell.run_id.to_le_bytes().as_ref()],
-        bump = run_shell.bump,
-        constraint = run_shell.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub run_shell: Account<'info, RunShell>,
-    /// CHECK: Deserialized and matched to the owner, shell, run id, and PDA in the handler.
+    /// CHECK: Deserialized and matched to the owner, run id, and PDA in the handler.
     #[account(mut, owner = crate::ID, del)]
     pub pda: UncheckedAccount<'info>,
 }
@@ -61,55 +51,42 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
         ctx.accounts.session_token.as_ref(),
     )?;
     require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
-    let run_id = ctx.accounts.run_shell.run_id;
-    let expected = Pubkey::find_program_address(
-        &[
-            RUN_SHELL_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &crate::ID,
-    )
-    .0;
-    require_keys_eq!(ctx.accounts.pda.key(), expected, ErrorCode::InvalidRunId);
-
     let validator = ctx
         .remaining_accounts
         .first()
         .map(|account| account.key())
         .unwrap_or_default();
-    {
+    let run_id = {
         let mut data = ctx.accounts.pda.try_borrow_mut_data()?;
         let mut active = ActiveRun::try_deserialize(&mut data.as_ref())?;
         require_keys_eq!(active.owner, owner, ErrorCode::Unauthorized);
-        require_keys_eq!(
-            active.run_shell,
-            ctx.accounts.run_shell.key(),
-            ErrorCode::InvalidRunId
-        );
-        require!(active.run_id == run_id, ErrorCode::InvalidRunId);
         require!(
             active.lifecycle == RunLifecycle::Prepared,
             ErrorCode::InvalidState
         );
+        let run_id = active.run_id;
+        let expected = Pubkey::find_program_address(
+            &[
+                ACTIVE_RUN_SEED,
+                b"active",
+                owner.as_ref(),
+                &run_id.to_le_bytes(),
+            ],
+            &crate::ID,
+        )
+        .0;
+        require_keys_eq!(ctx.accounts.pda.key(), expected, ErrorCode::InvalidRunId);
         active.lifecycle = RunLifecycle::Delegated;
+        active.delegated_validator = validator;
         let mut writer = std::io::Cursor::new(&mut data[..]);
         active.try_serialize(&mut writer)?;
-    }
-
-    let shell = &mut ctx.accounts.run_shell;
-    require!(
-        shell.lifecycle == RunLifecycle::Prepared,
-        ErrorCode::InvalidState
-    );
-    shell.lifecycle = RunLifecycle::Delegated;
-    shell.delegated_validator = validator;
+        run_id
+    };
 
     ctx.accounts.delegate_pda(
         &ctx.accounts.payer,
         &[
-            RUN_SHELL_SEED,
+            ACTIVE_RUN_SEED,
             b"active",
             owner.as_ref(),
             &run_id.to_le_bytes(),
@@ -184,21 +161,21 @@ fn prepare_row_vrf_request(
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     active.vrf_request_counter = request_counter;
     active.pending_vrf_counter = request_counter;
-    active.vrf_requested_at = Clock::get()?.unix_timestamp;
     active.lifecycle = RunLifecycle::AwaitingVrf;
 
     let (magic_fee_vault, _) = Pubkey::find_program_address(
         &[b"magic-fee-vault", validator.as_ref()],
         &Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()),
     );
-    let caller_seed: [u8; 32] = Sha256::new()
-        .chain_update(b"zkube-row-vrf-v2")
-        .chain_update(client_seed)
-        .chain_update(active.run_id.to_le_bytes())
-        .chain_update(request_counter.to_le_bytes())
-        .chain_update(active.rules_hash)
-        .finalize()
-        .into();
+    let run_id = active.run_id.to_le_bytes();
+    let request = request_counter.to_le_bytes();
+    let caller_seed = sha256v(&[
+        b"zkube-row-vrf-v2",
+        &client_seed,
+        &run_id,
+        &request,
+        &active.rules_hash,
+    ]);
 
     Ok(create_request_high_priority_scoped_randomness_ix(
         RequestRandomnessParams {
@@ -299,6 +276,7 @@ pub fn handler_fulfill_row_vrf(
         &mut engine,
         randomness,
         request_counter,
+        active.rules_hash,
         BlockWeights {
             values: row_weights,
         },
@@ -306,14 +284,14 @@ pub fn handler_fulfill_row_vrf(
     )?;
     write_engine(active, &engine);
     active.pending_vrf_counter = 0;
-    active.vrf_hash = Sha256::new()
-        .chain_update(b"zkube-vrf-chain-v2")
-        .chain_update(active.vrf_hash)
-        .chain_update(request_counter.to_le_bytes())
-        .chain_update([rows_derived])
-        .chain_update(batch_hash)
-        .finalize()
-        .into();
+    let request = request_counter.to_le_bytes();
+    active.vrf_hash = sha256v(&[
+        b"zkube-vrf-chain-v2",
+        &active.vrf_hash,
+        &request,
+        &[rows_derived],
+        &batch_hash,
+    ]);
     if active.started_at == 0 && engine.phase == RunPhase::Playing {
         active.started_at = Clock::get()?.unix_timestamp;
     }
@@ -325,51 +303,36 @@ fn provide_verified_vrf_rows(
     engine: &mut RunEngine,
     randomness: [u8; 32],
     request_counter: u32,
+    rules_hash: [u8; 32],
     weights: BlockWeights,
     opening: bool,
 ) -> Result<(u8, [u8; 32])> {
-    let mut rows_derived = 0u8;
-    let mut draws_remaining = MAX_OPENING_DRAWS_PER_CALLBACK;
-    let max_rows = if opening {
-        MAX_OPENING_ROWS_PER_CALLBACK
-    } else {
-        1
-    };
-    let mut batch_hasher = Sha256::new()
-        .chain_update(b"zkube-vrf-batch-v1")
-        .chain_update(randomness)
-        .chain_update(request_counter.to_le_bytes())
-        .chain_update([u8::from(opening)]);
-
-    while rows_derived < max_rows && draws_remaining > 0 {
-        let row_randomness = if opening {
-            Sha256::new()
-                .chain_update(b"zkube-opening-row-v1")
-                .chain_update(randomness)
-                .chain_update(request_counter.to_le_bytes())
-                .chain_update([rows_derived])
-                .finalize()
-                .into()
-        } else {
-            randomness
-        };
-        let (row, draws_used) = row_from_vrf_with_draw_budget(
-            row_randomness,
-            request_counter,
-            weights,
-            draws_remaining,
-        )
-        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-        engine.provide_vrf_row(row).map_err(map_run_error)?;
-        batch_hasher.update(row);
-        rows_derived = rows_derived.saturating_add(1);
-        draws_remaining = draws_remaining.saturating_sub(draws_used);
-        if engine.phase != RunPhase::AwaitingVrf || !opening {
-            break;
-        }
+    let request = request_counter.to_le_bytes();
+    if opening {
+        let height = engine.starting_height_target;
+        let layout = opening_from_vrf(randomness, request_counter, rules_hash, height, weights)
+            .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
+        engine.grid = layout.grid;
+        engine.next_row = Some(layout.preview);
+        engine.starting_height_target = 0;
+        engine.phase = RunPhase::Playing;
+        let rows = height.saturating_add(1);
+        let batch_hash = sha256v(&[
+            b"zkube-vrf-batch-v2",
+            &randomness,
+            &request,
+            &[1, rows, layout.hash_blocks],
+            engine.grid.cells(),
+            &layout.preview,
+        ]);
+        return Ok((rows, batch_hash));
     }
 
-    Ok((rows_derived, batch_hasher.finalize().into()))
+    let row = row_from_vrf(randomness, request_counter, weights)
+        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
+    engine.provide_vrf_row(row).map_err(map_run_error)?;
+    let batch_hash = sha256v(&[b"zkube-vrf-batch-v2", &randomness, &request, &[0, 1], &row]);
+    Ok((1, batch_hash))
 }
 
 #[vrf]
@@ -510,19 +473,24 @@ pub fn handler_play_move(
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     active.lifecycle = lifecycle_from_phase(engine.phase);
-    active.action_hash = Sha256::new()
-        .chain_update(b"zkube-action-chain-v1")
-        .chain_update(active.action_hash)
-        .chain_update(expected_action.to_le_bytes())
-        .chain_update(expected_move.to_le_bytes())
-        .chain_update([row, start, destination])
-        .chain_update(active.score.to_le_bytes())
-        .chain_update(active.daily_score.to_le_bytes())
-        .chain_update(active.pressure_score.to_le_bytes())
-        .chain_update(active.moves.to_le_bytes())
-        .chain_update([active.lifecycle as u8])
-        .finalize()
-        .into();
+    let action = expected_action.to_le_bytes();
+    let expected_move = expected_move.to_le_bytes();
+    let score = active.score.to_le_bytes();
+    let daily_score = active.daily_score.to_le_bytes();
+    let pressure_score = active.pressure_score.to_le_bytes();
+    let moves = active.moves.to_le_bytes();
+    active.action_hash = sha256v(&[
+        b"zkube-action-chain-v1",
+        &active.action_hash,
+        &action,
+        &expected_move,
+        &[row, start, destination],
+        &score,
+        &daily_score,
+        &pressure_score,
+        &moves,
+        &[active.lifecycle as u8],
+    ]);
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -619,16 +587,18 @@ pub fn handler_apply_bonus(
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     active.lifecycle = lifecycle_from_phase(engine.phase);
-    active.action_hash = Sha256::new()
-        .chain_update(b"zkube-action-chain-v1")
-        .chain_update(active.action_hash)
-        .chain_update(expected_action.to_le_bytes())
-        .chain_update([0xff, row, column])
-        .chain_update(active.score.to_le_bytes())
-        .chain_update(active.moves.to_le_bytes())
-        .chain_update([active.lifecycle as u8])
-        .finalize()
-        .into();
+    let action = expected_action.to_le_bytes();
+    let score = active.score.to_le_bytes();
+    let moves = active.moves.to_le_bytes();
+    active.action_hash = sha256v(&[
+        b"zkube-action-chain-v1",
+        &active.action_hash,
+        &action,
+        &[0xff, row, column],
+        &score,
+        &moves,
+        &[active.lifecycle as u8],
+    ]);
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -773,21 +743,6 @@ pub struct CommitRun<'info> {
     pub payer: Signer<'info>,
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
-    /// CHECK: Base-layer shell; address is pinned by active_run.
-    #[account(address = active_run.run_shell @ ErrorCode::InvalidRunId)]
-    pub run_shell: UncheckedAccount<'info>,
-    /// CHECK: Reserved receipt PDA; validated by canonical base settlement.
-    #[account(seeds = [RUN_RECEIPT_SEED, active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump)]
-    pub run_receipt: UncheckedAccount<'info>,
-    /// CHECK: Durable profile PDA, written only by canonical base settlement.
-    #[account(seeds = [PLAYER_PROFILE_SEED, active_run.owner.as_ref()], bump)]
-    pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Durable campaign PDA, written only by canonical base settlement.
-    #[account(seeds = [CAMPAIGN_PROGRESS_SEED, active_run.owner.as_ref()], bump)]
-    pub campaign_progress: UncheckedAccount<'info>,
-    /// CHECK: Player wallet whose address is pinned by active_run.
-    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
-    pub owner: UncheckedAccount<'info>,
     /// CHECK: MagicBlock context required by MagicIntentBundleBuilder.
     #[account(mut, address = ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID @ ErrorCode::InvalidMagicProgram)]
     pub magic_context: UncheckedAccount<'info>,
@@ -823,86 +778,43 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
 }
 
 #[derive(Accounts)]
-pub struct ConsumeRunReceipt<'info> {
-    #[account(mut, owner = crate::ID)]
+pub struct ConsumeCampaignRun<'info> {
+    #[account(
+        mut,
+        close = rent_recipient,
+        owner = crate::ID,
+        seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
+        bump = active_run.bump,
+        has_one = owner @ ErrorCode::Unauthorized
+    )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     #[account(
         mut,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = run_shell.bump,
+        seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
+        bump = player_state.bump,
         has_one = owner @ ErrorCode::Unauthorized
     )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    #[account(
-        mut,
-        seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = run_receipt.bump,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub run_receipt: Box<Account<'info, RunReceipt>>,
-    #[account(
-        mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
-        bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        mut,
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner.key().as_ref()],
-        bump = campaign_progress.bump,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Player wallet pinned by every durable account and active_run.
     pub owner: UncheckedAccount<'info>,
+    /// CHECK: Canonical zero-data System PDA receives recycled ActiveRun rent.
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub rent_recipient: UncheckedAccount<'info>,
 }
 
-pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()> {
+pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
-    let active_run_id = active.run_id;
     require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
-    require_keys_eq!(
-        active.owner,
-        ctx.accounts.owner.key(),
-        ErrorCode::Unauthorized
-    );
-    require_keys_eq!(
-        active.run_shell,
-        ctx.accounts.run_shell.key(),
+    require!(
+        ctx.accounts.player_state.active_run_id == active.run_id,
         ErrorCode::InvalidRunId
     );
-    require!(
-        active.run_id == ctx.accounts.run_shell.run_id,
-        ErrorCode::InvalidRunId
-    );
-    require!(
-        ctx.accounts.player_profile.active_run_id == active.run_id,
-        ErrorCode::InvalidRunId
-    );
-    let receipt = &mut ctx.accounts.run_receipt;
-    require!(receipt.run_id == active.run_id, ErrorCode::ReceiptMismatch);
-    require_keys_eq!(
-        receipt.run_shell,
-        active.run_shell,
-        ErrorCode::ReceiptMismatch
-    );
-    require!(
-        receipt.rules_hash == active.rules_hash,
-        ErrorCode::ReceiptMismatch
-    );
-    if receipt.consumed {
-        require!(
-            active.lifecycle == RunLifecycle::Settled,
-            ErrorCode::ReceiptMismatch
-        );
-        require!(
-            receipt.action_hash == active.action_hash && receipt.vrf_hash == active.vrf_hash,
-            ErrorCode::ReceiptMismatch
-        );
-        ctx.accounts.player_profile.release_run(active.run_id)?;
-        return Ok(());
-    }
     require!(
         matches!(
             active.lifecycle,
@@ -911,6 +823,10 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
         ErrorCode::GameNotFinished
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
+    require!(
+        active.run_id > ctx.accounts.player_state.last_consumed_run_id,
+        ErrorCode::RunAlreadyConsumed
+    );
 
     let completed = active.lifecycle == RunLifecycle::LevelComplete;
     let stars = if completed {
@@ -922,94 +838,56 @@ pub fn handler_consume_run_receipt(ctx: Context<ConsumeRunReceipt>) -> Result<()
     } else {
         0
     };
-    receipt.score = active.score;
-    receipt.daily_score = active.daily_score;
-    receipt.pressure_score = active.pressure_score;
-    receipt.final_pressure_tier = active.current_difficulty;
-    receipt.daily_scoring_rule = active.daily_scoring_rule;
-    receipt.moves = active.moves;
-    receipt.level_stars = stars;
-    receipt.campaign_xp_awarded = 0;
-    receipt.lines_cleared = active.total_lines_cleared;
-    receipt.bonus_uses = active.bonus_uses;
-    receipt.combo2_hits = active.combo2_hits;
-    receipt.combo3_hits = active.combo3_hits;
-    receipt.combo4_hits = active.combo4_hits;
-    receipt.high_combo_hits = active.high_combo_hits;
-    receipt.blocks_destroyed_by_size = active.blocks_destroyed_by_size;
-    receipt.max_combo = active.max_combo;
-    receipt.completed = completed;
-    receipt.action_hash = active.action_hash;
-    receipt.vrf_hash = active.vrf_hash;
-    receipt.started_at = active.started_at;
-    receipt.finished_at = active.finished_at;
-    receipt.consumed_at = Clock::get()?.unix_timestamp;
-    receipt.consumed = true;
+    let consumed_at = Clock::get()?.unix_timestamp;
 
     let newly_perfect = completed
         && stars == 3
         && ctx
             .accounts
-            .campaign_progress
-            .best_stars(receipt.map_id, receipt.level)?
+            .player_state
+            .best_stars(active.map_id, active.level)?
             < 3;
-    ctx.accounts.player_profile.record_run_metrics(
+    ctx.accounts.player_state.record_run_metrics(
         RunProgressMetrics {
-            lines_cleared: receipt.lines_cleared,
-            bonus_uses: receipt.bonus_uses,
-            combo2_hits: receipt.combo2_hits,
-            combo3_hits: receipt.combo3_hits,
-            combo4_hits: receipt.combo4_hits,
-            high_combo_hits: receipt.high_combo_hits,
-            blocks_destroyed_by_size: receipt.blocks_destroyed_by_size,
-            max_combo: receipt.max_combo,
+            lines_cleared: active.total_lines_cleared,
+            bonus_uses: active.bonus_uses,
+            combo2_hits: active.combo2_hits,
+            combo3_hits: active.combo3_hits,
+            combo4_hits: active.combo4_hits,
+            high_combo_hits: active.high_combo_hits,
+            blocks_destroyed_by_size: active.blocks_destroyed_by_size,
+            max_combo: active.max_combo,
             campaign_level_completed: completed,
             new_perfect_level: newly_perfect,
-            boss_cleared: completed && receipt.level == LEVELS_PER_MAP as u8,
+            boss_cleared: completed && active.level == LEVELS_PER_MAP as u8,
         },
-        receipt.consumed_at,
+        consumed_at,
     )?;
 
-    if receipt.settlement_target == SettlementTarget::CampaignProgress {
-        let reward = award_campaign_level_progression(
-            &mut ctx.accounts.campaign_progress,
-            &mut ctx.accounts.player_profile,
-            receipt.map_id,
-            receipt.level,
-            stars,
-        )?;
-        receipt.campaign_xp_awarded = reward.xp;
-        emit!(CampaignLevelRewarded {
-            owner: receipt.owner,
-            run_id: receipt.run_id,
-            map_id: receipt.map_id,
-            level: receipt.level,
-            achieved_stars: stars,
-            newly_earned_stars: reward.stars,
-            xp: reward.xp,
-        });
-        update_campaign_unlocks(
-            &mut ctx.accounts.campaign_progress,
-            &mut ctx.accounts.player_profile,
-            receipt.map_id,
-            receipt.level,
-            completed,
-        )?;
-        award_map_perfection(
-            &mut ctx.accounts.campaign_progress,
-            &mut ctx.accounts.player_profile,
-            receipt.map_id,
-        )?;
-    }
-    ctx.accounts.campaign_progress.last_consumed_run_id = ctx
-        .accounts
-        .campaign_progress
-        .last_consumed_run_id
-        .max(active.run_id);
-    ctx.accounts.run_shell.lifecycle = RunLifecycle::Settled;
-    ctx.accounts.run_shell.settled_at = receipt.consumed_at;
-    ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
-    ctx.accounts.player_profile.release_run(active_run_id)?;
+    let reward = award_campaign_level_progression(
+        &mut ctx.accounts.player_state,
+        active.map_id,
+        active.level,
+        stars,
+    )?;
+    emit!(CampaignLevelRewarded {
+        owner: active.owner,
+        run_id: active.run_id,
+        map_id: active.map_id,
+        level: active.level,
+        achieved_stars: stars,
+        newly_earned_stars: reward.stars,
+        xp: reward.xp,
+    });
+    update_campaign_unlocks(
+        &mut ctx.accounts.player_state,
+        active.map_id,
+        active.level,
+        completed,
+    )?;
+    award_map_perfection(&mut ctx.accounts.player_state, active.map_id)?;
+    ctx.accounts.player_state.last_consumed_run_id = active.run_id;
+    ctx.accounts.player_state.release_run(active.run_id)?;
     Ok(())
 }
 
@@ -1023,104 +901,17 @@ struct CampaignLevelReward {
 /// the progress mutation and both credits behind one helper makes replay
 /// idempotence explicit: equal or worse results return a zero reward.
 fn award_campaign_level_progression(
-    campaign: &mut CampaignProgress,
-    player: &mut PlayerProfile,
+    player: &mut PlayerState,
     map_id: u8,
     level: u8,
     achieved_stars: u8,
 ) -> Result<CampaignLevelReward> {
-    let stars = campaign.record_level_stars(map_id, level, achieved_stars)?;
+    let stars = player.record_level_stars(map_id, level, achieved_stars)?;
     let xp = u32::from(stars)
         .checked_mul(CAMPAIGN_LEVEL_XP_PER_STAR)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     player.credit_progression_rewards(u64::from(stars), xp)?;
     Ok(CampaignLevelReward { stars, xp })
-}
-
-#[derive(Accounts)]
-#[instruction(run_id: u64)]
-pub struct CloseSettledActiveRun<'info> {
-    /// CHECK: Immutable durable player identity, constrained by every run PDA.
-    pub owner_authority: UncheckedAccount<'info>,
-    // No pause check on purpose: rent recovery must never be blockable.
-    #[account(
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    /// CHECK: Canonical zero-data System PDA receives all recycled run rent.
-    #[account(
-        mut,
-        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
-        bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
-    )]
-    pub rent_recipient: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        close = rent_recipient,
-        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump = run_shell.bump,
-        constraint = run_shell.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    #[account(
-        mut,
-        close = rent_recipient,
-        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump = run_receipt.bump,
-        constraint = run_receipt.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub run_receipt: Box<Account<'info, RunReceipt>>,
-    #[account(
-        mut,
-        close = rent_recipient,
-        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump = active_run.bump,
-        constraint = active_run.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = active_run.run_shell == run_shell.key() @ ErrorCode::ReceiptMismatch
-    )]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-}
-
-pub fn handler_close_settled_active_run(
-    ctx: Context<CloseSettledActiveRun>,
-    run_id: u64,
-) -> Result<()> {
-    let active = &ctx.accounts.active_run;
-    let shell = &ctx.accounts.run_shell;
-    let receipt = &ctx.accounts.run_receipt;
-    require!(active.run_id == run_id, ErrorCode::InvalidRunId);
-    require!(shell.run_id == run_id, ErrorCode::InvalidRunId);
-    require!(receipt.run_id == run_id, ErrorCode::ReceiptMismatch);
-    require!(
-        cleanup_is_allowed(
-            active.lifecycle,
-            shell.lifecycle,
-            receipt.consumed,
-            active.action_hash == receipt.action_hash,
-            active.vrf_hash == receipt.vrf_hash,
-        ),
-        ErrorCode::InvalidState
-    );
-    require_keys_eq!(receipt.run_shell, shell.key(), ErrorCode::ReceiptMismatch);
-    Ok(())
-}
-
-fn cleanup_is_allowed(
-    active_lifecycle: RunLifecycle,
-    shell_lifecycle: RunLifecycle,
-    receipt_consumed: bool,
-    action_hash_matches: bool,
-    vrf_hash_matches: bool,
-) -> bool {
-    active_lifecycle == RunLifecycle::Settled
-        && shell_lifecycle == RunLifecycle::Settled
-        && receipt_consumed
-        && action_hash_matches
-        && vrf_hash_matches
 }
 
 #[inline(never)]
@@ -1134,8 +925,7 @@ fn record_destroyed_blocks(active: &mut ActiveRun, destroyed: [u8; 4]) -> Result
 }
 
 fn update_campaign_unlocks(
-    campaign: &mut CampaignProgress,
-    player: &mut PlayerProfile,
+    player: &mut PlayerState,
     map_id: u8,
     level: u8,
     completed: bool,
@@ -1144,30 +934,26 @@ fn update_campaign_unlocks(
         return Ok(());
     }
     let bit = 1u32 << (map_id - 1);
-    campaign.cleared_maps |= bit;
+    player.cleared_maps |= bit;
     if map_id == 1 {
         player.daily_eligible = true;
     }
     Ok(())
 }
 
-fn award_map_perfection(
-    campaign: &mut CampaignProgress,
-    player: &mut PlayerProfile,
-    map_id: u8,
-) -> Result<bool> {
+fn award_map_perfection(player: &mut PlayerState, map_id: u8) -> Result<bool> {
     let perfected = (1..=LEVELS_PER_MAP as u8)
-        .all(|candidate| campaign.best_stars(map_id, candidate).ok() == Some(3));
+        .all(|candidate| player.best_stars(map_id, candidate).ok() == Some(3));
     if !perfected {
         return Ok(false);
     }
     let bit = 1u32
         .checked_shl(u32::from(map_id.saturating_sub(1)))
         .ok_or(ErrorCode::InvalidMap)?;
-    if campaign.perfected_maps & bit != 0 {
+    if player.perfected_maps & bit != 0 {
         return Ok(false);
     }
-    campaign.perfected_maps |= bit;
+    player.perfected_maps |= bit;
     player.credit_progression_rewards(PERFECT_MAP_STARS, PERFECT_MAP_XP)?;
     emit!(MapPerfected {
         owner: player.owner,
@@ -1294,10 +1080,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         RunLifecycle::AwaitingVrf => RunPhase::AwaitingVrf,
         RunLifecycle::Playing => RunPhase::Playing,
         RunLifecycle::LevelComplete => RunPhase::LevelComplete,
-        RunLifecycle::Finished | RunLifecycle::Committing | RunLifecycle::Settled => {
-            RunPhase::Finished
-        }
-        RunLifecycle::Cancelled => return err!(ErrorCode::InvalidState),
+        RunLifecycle::Finished => RunPhase::Finished,
     };
     Ok(RunEngine {
         grid: Grid::try_from_cells(active.grid).map_err(|_| error!(ErrorCode::InvalidState))?,
@@ -1391,20 +1174,18 @@ mod tests {
     }
 
     #[test]
-    fn campaign_receipt_consumer_is_permissionless_and_has_no_action_escrow() {
+    fn campaign_consumer_is_permissionless_and_has_no_action_escrow() {
         let owner = Pubkey::new_unique();
-        let metas = crate::accounts::ConsumeRunReceipt {
+        let metas = crate::accounts::ConsumeCampaignRun {
             active_run: Pubkey::new_unique(),
-            run_shell: Pubkey::new_unique(),
-            run_receipt: Pubkey::new_unique(),
-            player_profile: Pubkey::new_unique(),
-            campaign_progress: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
             owner,
+            rent_recipient: Pubkey::new_unique(),
         }
         .to_account_metas(None);
 
-        assert_eq!(metas.len(), 6);
-        assert_eq!(metas[5].pubkey, owner);
+        assert_eq!(metas.len(), 4);
+        assert_eq!(metas[2].pubkey, owner);
         assert!(metas.iter().all(|meta| !meta.is_signer));
     }
 
@@ -1541,14 +1322,19 @@ mod tests {
             starting_height_target: 5,
             ..RunEngine::default()
         };
-        let (rows, hash) =
-            provide_verified_vrf_rows(&mut engine, [17u8; 32], 1, BlockWeights::default(), true)
-                .unwrap();
+        let (rows, hash) = provide_verified_vrf_rows(
+            &mut engine,
+            [17u8; 32],
+            1,
+            [4; 32],
+            BlockWeights::default(),
+            true,
+        )
+        .unwrap();
 
-        assert!(rows > 1);
-        assert!(rows <= MAX_OPENING_ROWS_PER_CALLBACK);
+        assert_eq!(rows, 6);
         assert_eq!(engine.phase, RunPhase::Playing);
-        assert!(engine.grid.occupied_height() >= 5);
+        assert_eq!(engine.grid.occupied_height(), 5);
         assert!(engine.next_row.is_some());
         assert_ne!(hash, [0; 32]);
     }
@@ -1563,15 +1349,33 @@ mod tests {
         let mut first = opening();
         let mut replay = opening();
         let mut different = opening();
-        let first_result =
-            provide_verified_vrf_rows(&mut first, [29u8; 32], 4, BlockWeights::default(), true)
-                .unwrap();
-        let replay_result =
-            provide_verified_vrf_rows(&mut replay, [29u8; 32], 4, BlockWeights::default(), true)
-                .unwrap();
-        let different_result =
-            provide_verified_vrf_rows(&mut different, [30u8; 32], 4, BlockWeights::default(), true)
-                .unwrap();
+        let first_result = provide_verified_vrf_rows(
+            &mut first,
+            [29u8; 32],
+            4,
+            [5; 32],
+            BlockWeights::default(),
+            true,
+        )
+        .unwrap();
+        let replay_result = provide_verified_vrf_rows(
+            &mut replay,
+            [29u8; 32],
+            4,
+            [5; 32],
+            BlockWeights::default(),
+            true,
+        )
+        .unwrap();
+        let different_result = provide_verified_vrf_rows(
+            &mut different,
+            [30u8; 32],
+            4,
+            [5; 32],
+            BlockWeights::default(),
+            true,
+        )
+        .unwrap();
 
         assert_eq!(first, replay);
         assert_eq!(first_result, replay_result);
@@ -1584,20 +1388,22 @@ mod tests {
         for seed in 0..=u8::MAX {
             let mut engine = RunEngine {
                 phase: RunPhase::AwaitingVrf,
-                starting_height_target: 9,
+                starting_height_target: 8,
                 ..RunEngine::default()
             };
             let (rows, _) = provide_verified_vrf_rows(
                 &mut engine,
                 [seed; 32],
                 1,
+                [6; 32],
                 BlockWeights::default(),
                 true,
             )
             .unwrap();
 
             assert_eq!(engine.phase, RunPhase::Playing, "seed {seed}");
-            assert!(rows <= MAX_OPENING_ROWS_PER_CALLBACK);
+            assert_eq!(rows, 9);
+            assert_eq!(engine.grid.occupied_height(), 8);
             assert!(engine.next_row.is_some());
         }
     }
@@ -1614,9 +1420,15 @@ mod tests {
             .unwrap(),
             ..RunEngine::default()
         };
-        let (rows, _) =
-            provide_verified_vrf_rows(&mut engine, [41u8; 32], 9, BlockWeights::default(), false)
-                .unwrap();
+        let (rows, _) = provide_verified_vrf_rows(
+            &mut engine,
+            [41u8; 32],
+            9,
+            [7; 32],
+            BlockWeights::default(),
+            false,
+        )
+        .unwrap();
 
         assert_eq!(rows, 1);
         assert_eq!(engine.phase, RunPhase::Playing);
@@ -1841,37 +1653,33 @@ mod tests {
     }
 
     fn simulated_vrf_row(seed: u32, counter: u32, weights: [u16; 5]) -> [u8; 8] {
-        let randomness: [u8; 32] = Sha256::new()
-            .chain_update(b"zkube-daily-simulation-v1")
-            .chain_update(seed.to_le_bytes())
-            .chain_update(counter.to_le_bytes())
-            .finalize()
-            .into();
+        let seed = seed.to_le_bytes();
+        let counter_bytes = counter.to_le_bytes();
+        let randomness = sha256v(&[b"zkube-daily-simulation-v1", &seed, &counter_bytes]);
         crate::game::row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
     }
 
     #[test]
     fn final_non_boss_rating_awards_map_perfection_once_without_unlocking_next_map() {
         let owner = Pubkey::new_unique();
-        let mut campaign = CampaignProgress::initialize(owner, 1);
+        let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
-            campaign
+            player
                 .record_level_stars(1, level, if level == 4 { 2 } else { 3 })
                 .unwrap();
         }
-        let mut player = PlayerProfile::initialize(owner, 1);
         player.next_run_id = 2;
-        update_campaign_unlocks(&mut campaign, &mut player, 1, 10, true).unwrap();
-        assert!(!award_map_perfection(&mut campaign, &mut player, 1).unwrap());
-        campaign.record_level_stars(1, 4, 3).unwrap();
-        assert!(award_map_perfection(&mut campaign, &mut player, 1).unwrap());
+        update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
+        assert!(!award_map_perfection(&mut player, 1).unwrap());
+        player.record_level_stars(1, 4, 3).unwrap();
+        assert!(award_map_perfection(&mut player, 1).unwrap());
         assert!(player.daily_eligible);
-        assert!(!campaign.is_map_unlocked(2));
-        assert_eq!(campaign.cleared_maps, 1);
-        assert_eq!(campaign.perfected_maps, 1);
+        assert!(!player.is_map_unlocked(2));
+        assert_eq!(player.cleared_maps, 1);
+        assert_eq!(player.perfected_maps, 1);
         assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
         assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
-        assert!(!award_map_perfection(&mut campaign, &mut player, 1).unwrap());
+        assert!(!award_map_perfection(&mut player, 1).unwrap());
         assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
         assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
     }
@@ -1879,31 +1687,24 @@ mod tests {
     #[test]
     fn campaign_level_xp_tracks_only_lifetime_star_improvements() {
         let owner = Pubkey::new_unique();
-        let mut campaign = CampaignProgress::initialize(owner, 1);
-        let mut player = PlayerProfile::initialize(owner, 1);
+        let mut player = PlayerState::initialize(owner, 1);
 
-        let one_star =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 1).unwrap();
+        let one_star = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
         assert_eq!(one_star, CampaignLevelReward { stars: 1, xp: 10 });
 
-        let equal_replay =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 1).unwrap();
-        let worse_replay =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 0).unwrap();
+        let equal_replay = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
+        let worse_replay = award_campaign_level_progression(&mut player, 1, 1, 0).unwrap();
         assert_eq!(equal_replay, CampaignLevelReward { stars: 0, xp: 0 });
         assert_eq!(worse_replay, CampaignLevelReward { stars: 0, xp: 0 });
 
-        let improved_to_three =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 1, 3).unwrap();
+        let improved_to_three = award_campaign_level_progression(&mut player, 1, 1, 3).unwrap();
         assert_eq!(improved_to_three, CampaignLevelReward { stars: 2, xp: 20 });
 
-        let fresh_two_star =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 2, 2).unwrap();
-        let fresh_three_star =
-            award_campaign_level_progression(&mut campaign, &mut player, 1, 3, 3).unwrap();
+        let fresh_two_star = award_campaign_level_progression(&mut player, 1, 2, 2).unwrap();
+        let fresh_three_star = award_campaign_level_progression(&mut player, 1, 3, 3).unwrap();
         assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 20 });
         assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 30 });
-        assert_eq!(campaign.best_stars(1, 1).unwrap(), 3);
+        assert_eq!(player.best_stars(1, 1).unwrap(), 3);
         assert_eq!(player.stars_balance, 8);
         assert_eq!(player.lifetime_stars_earned, 8);
         assert_eq!(player.lifetime_xp, 80);
@@ -1912,55 +1713,15 @@ mod tests {
     #[test]
     fn ordinary_boss_clear_enables_daily_without_unlocking_the_next_map() {
         let owner = Pubkey::new_unique();
-        let mut campaign = CampaignProgress::initialize(owner, 1);
+        let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
-            campaign.record_level_stars(1, level, 2).unwrap();
+            player.record_level_stars(1, level, 2).unwrap();
         }
-        let mut player = PlayerProfile::initialize(owner, 1);
-        update_campaign_unlocks(&mut campaign, &mut player, 1, 10, true).unwrap();
+        update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
         assert!(player.daily_eligible);
-        assert!(!campaign.is_map_unlocked(2));
-        assert_eq!(campaign.cleared_maps, 1);
-        assert_eq!(campaign.perfected_maps, 0);
-    }
-
-    #[test]
-    fn cleanup_requires_a_fully_consumed_matching_settlement() {
-        assert!(cleanup_is_allowed(
-            RunLifecycle::Settled,
-            RunLifecycle::Settled,
-            true,
-            true,
-            true,
-        ));
-        assert!(!cleanup_is_allowed(
-            RunLifecycle::Finished,
-            RunLifecycle::Settled,
-            true,
-            true,
-            true,
-        ));
-        assert!(!cleanup_is_allowed(
-            RunLifecycle::Settled,
-            RunLifecycle::Settled,
-            false,
-            true,
-            true,
-        ));
-        assert!(!cleanup_is_allowed(
-            RunLifecycle::Settled,
-            RunLifecycle::Settled,
-            true,
-            false,
-            true,
-        ));
-        assert!(!cleanup_is_allowed(
-            RunLifecycle::Settled,
-            RunLifecycle::Settled,
-            true,
-            true,
-            false,
-        ));
+        assert!(!player.is_map_unlocked(2));
+        assert_eq!(player.cleared_maps, 1);
+        assert_eq!(player.perfected_maps, 0);
     }
 
     #[test]
@@ -1971,9 +1732,6 @@ mod tests {
         assert!(abandon_lifecycle_is_allowed(RunLifecycle::Playing));
         assert!(!abandon_lifecycle_is_allowed(RunLifecycle::LevelComplete));
         assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Finished));
-        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Committing));
-        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Settled));
-        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Cancelled));
     }
 
     #[test]

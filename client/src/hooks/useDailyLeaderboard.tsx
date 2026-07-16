@@ -8,7 +8,6 @@ export interface DailyLeaderboardEntry {
   rank: number;
   player: string;
   playerName: string;
-  receipt: string;
   runId: bigint;
   score: number;
   dailyScore: number;
@@ -26,7 +25,6 @@ export function projectDailyLeaderboard(
       rank: index + 1,
       player,
       playerName: truncatePublicKey(player),
-      receipt: entry.receipt.toBase58(),
       runId: entry.runId,
       score: entry.score,
       dailyScore: entry.dailyScore ?? entry.score,

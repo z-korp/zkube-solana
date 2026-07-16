@@ -16,7 +16,7 @@ export function useCampaignController() {
   const wallet = player.readOnlyWallet;
   const [campaign, setCampaign] = useState<CampaignView | null>(null);
   // Player-independent pricing fallback: fresh players have no
-  // PlayerProfile/CampaignProgress yet, so fetchCampaignView returns null and
+  // PlayerState yet, so fetchCampaignView returns null and
   // the UI would otherwise have no zone-unlock price to show.
   const [economy, setEconomy] = useState<EconomyRuntime | null>(null);
   const [loading, setLoading] = useState(false);

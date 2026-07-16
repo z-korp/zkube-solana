@@ -19,10 +19,9 @@ import {
   deriveDailyRulesCatalogPda,
   deriveEconomyConfigPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveWeeklyStipendPda,
   deriveWeeklyChallengePda,
 } from "./pdas.js";
 import { fetchEconomyRuntime } from "./economyClient.js";
@@ -48,7 +47,6 @@ import type { WalletLike } from "./sessionWallet.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
-  receipt: PublicKey;
   runId: bigint;
   dailyScore: number;
   engineScore: number;
@@ -188,9 +186,12 @@ export async function buildOpenDailyChallengePlan(args: {
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return basePlan("Open Daily challenge", args.connection, args.payer ?? caller, [
-    instruction,
-  ]);
+  return basePlan(
+    "Open Daily challenge",
+    args.connection,
+    args.payer ?? caller,
+    [instruction],
+  );
 }
 
 export async function buildFinalizeDailyChallengePlan(args: {
@@ -207,12 +208,9 @@ export async function buildFinalizeDailyChallengePlan(args: {
       caller,
     })
     .instruction();
-  return basePlan(
-    "Finalize Daily challenge",
-    args.connection,
-    caller,
-    [instruction],
-  );
+  return basePlan("Finalize Daily challenge", args.connection, caller, [
+    instruction,
+  ]);
 }
 
 export async function fetchDailyView(args: {
@@ -224,7 +222,7 @@ export async function fetchDailyView(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
   const [profile, protocol, economy] = await Promise.all([
-    program.account.playerProfile.fetchNullable(derivePlayerProfilePda(owner)),
+    program.account.playerState.fetchNullable(derivePlayerStatePda(owner)),
     program.account.protocolConfig.fetchNullable(deriveProtocolConfigPda()),
     program.account.economyConfig.fetchNullable(deriveEconomyConfigPda()),
   ]);
@@ -288,7 +286,6 @@ export async function fetchDailyView(args: {
       : null,
     leaderboard: (leaderboard?.entries ?? []).map((entry) => ({
       player: entry.player,
-      receipt: entry.receipt,
       runId: asBigInt(entry.runId),
       dailyScore: Number(entry.dailyScore),
       engineScore: Number(entry.engineScore),
@@ -327,12 +324,10 @@ export async function buildPrepareDailyRunPlan(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const common = {
     protocol: deriveProtocolConfigPda(),
-    playerProfile: derivePlayerProfilePda(owner),
+    playerState: derivePlayerStatePda(owner),
     dailyChallenge: args.daily.address,
     dailyPlayer: deriveDailyPlayerPda(args.daily.address, owner),
-    runShell: addresses.runShell,
     activeRun: addresses.activeRun,
-    runReceipt: addresses.runReceipt,
     playerFunding: derivePlayerFundingPda(owner),
     ownerAuthority: owner,
     sessionToken: args.sessionToken,
@@ -345,7 +340,6 @@ export async function buildPrepareDailyRunPlan(args: {
     .accountsPartial({
       ...common,
       economyConfig: deriveEconomyConfigPda(),
-      weeklyStipend: deriveWeeklyStipendPda(owner),
     })
     .instruction();
   instructions.push(enter);
@@ -376,14 +370,6 @@ export async function buildCommitDailyRunPlan(args: {
   const common = {
     payer: args.payerWallet.publicKey,
     activeRun: args.addresses.activeRun,
-    runShell: args.addresses.runShell,
-    runReceipt: args.addresses.runReceipt,
-    playerProfile: derivePlayerProfilePda(args.owner),
-    dailyChallenge: args.dailyChallenge,
-    dailyPlayer: deriveDailyPlayerPda(args.dailyChallenge, args.owner),
-    leaderboard: deriveDailyLeaderboardPda(args.dailyChallenge),
-    weeklyStipend: deriveWeeklyStipendPda(args.owner),
-    owner: args.owner,
     magicContext: MAGIC_CONTEXT_ID,
     magicProgram: MAGIC_PROGRAM_ID,
   };
@@ -412,7 +398,7 @@ export async function buildRefundDailyEntryPlan(args: {
     .accountsPartial({
       dailyChallenge: args.daily.address,
       dailyPlayer: deriveDailyPlayerPda(args.daily.address, owner),
-      playerProfile: derivePlayerProfilePda(owner),
+      playerState: derivePlayerStatePda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
@@ -467,7 +453,9 @@ export async function fetchDailyPlayerRecords(args: {
         !Number.isSafeInteger(finalizedAttempts) ||
         finalizedAttempts < 0 ||
         finalizedAttempts > attempts ||
-        !match.publicKey.equals(deriveDailyPlayerPda(args.daily.address, player.player))
+        !match.publicKey.equals(
+          deriveDailyPlayerPda(args.daily.address, player.player),
+        )
       ) {
         throw new Error("Daily cleanup player relationship is invalid");
       }
@@ -481,7 +469,9 @@ export async function fetchDailyPlayerRecords(args: {
         starRefunded: Boolean(player.starRefunded),
       };
     })
-    .sort((left, right) => left.owner.toBuffer().compare(right.owner.toBuffer()));
+    .sort((left, right) =>
+      left.owner.toBuffer().compare(right.owner.toBuffer()),
+    );
 }
 
 export async function fetchDailyChallengeIds(args: {
@@ -492,7 +482,10 @@ export async function fetchDailyChallengeIds(args: {
   const matches = await program.account.dailyChallenge.all();
   return matches
     .map((match) => {
-      const challenge = match.account as unknown as { version: number; dayId: number };
+      const challenge = match.account as unknown as {
+        version: number;
+        dayId: number;
+      };
       const dayId = Number(challenge.dayId);
       if (
         Number(challenge.version) !== 1 ||
@@ -529,12 +522,18 @@ export async function fetchOwnerCancelledDailyIds(args: {
       !player.player.equals(owner) ||
       !match.publicKey.equals(deriveDailyPlayerPda(player.challenge, owner))
     ) {
-      throw new Error("Owner Daily refund scan returned an invalid player account");
+      throw new Error(
+        "Owner Daily refund scan returned an invalid player account",
+      );
     }
     if (player.starRefunded) continue;
-    const challenge = await program.account.dailyChallenge.fetchNullable(player.challenge);
+    const challenge = await program.account.dailyChallenge.fetchNullable(
+      player.challenge,
+    );
     if (!challenge || Number(challenge.version) !== 1) {
-      throw new Error("Owner Daily refund scan returned an invalid challenge account");
+      throw new Error(
+        "Owner Daily refund scan returned an invalid challenge account",
+      );
     }
     const dayId = Number(challenge.dayId);
     if (
@@ -555,8 +554,8 @@ export async function buildCloseDailyPlayerPlan(args: {
   daily: DailyView;
   owner: PublicKey;
 }): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .closeDailyPlayer()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.closeDailyPlayer()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       dailyChallenge: args.daily.address,
@@ -567,7 +566,12 @@ export async function buildCloseDailyPlayerPlan(args: {
       caller: args.wallet.publicKey,
     })
     .instruction();
-  return basePlan("Close settled Daily player record", args.connection, args.wallet.publicKey, [instruction]);
+  return basePlan(
+    "Close settled Daily player record",
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
 }
 
 export async function buildCloseDailyChallengePlan(args: {
@@ -575,8 +579,8 @@ export async function buildCloseDailyChallengePlan(args: {
   wallet: WalletLike;
   daily: DailyView;
 }): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .closeDailyChallenge()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.closeDailyChallenge()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       weeklyChallenge: deriveWeeklyChallengePda(args.daily.weekId),
@@ -586,7 +590,12 @@ export async function buildCloseDailyChallengePlan(args: {
       caller: args.wallet.publicKey,
     })
     .instruction();
-  return basePlan("Close settled Daily challenge", args.connection, args.wallet.publicKey, [instruction]);
+  return basePlan(
+    "Close settled Daily challenge",
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
 }
 
 function basePlan(

@@ -2,9 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants.js";
 
 export interface RunAddresses {
-  runShell: PublicKey;
   activeRun: PublicKey;
-  runReceipt: PublicKey;
 }
 
 export function deriveProtocolConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
@@ -19,20 +17,6 @@ export function deriveStarSalesLedgerPda(programId = ZKUBE_PROGRAM_ID): PublicKe
   return derive([Buffer.from("star_sales")], programId);
 }
 
-export function deriveLevelMilestonesPda(
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("level_milestones"), owner.toBuffer()], programId);
-}
-
-export function deriveWeeklyStipendPda(
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("weekly_stipend"), owner.toBuffer()], programId);
-}
-
 export function deriveDailyRulesCatalogPda(
   rulesVersion: number,
   programId = ZKUBE_PROGRAM_ID,
@@ -41,7 +25,7 @@ export function deriveDailyRulesCatalogPda(
   return derive([Buffer.from("daily_rules"), u32le(rulesVersion)], programId);
 }
 
-export function derivePlayerProfilePda(owner: PublicKey, programId = ZKUBE_PROGRAM_ID): PublicKey {
+export function derivePlayerStatePda(owner: PublicKey, programId = ZKUBE_PROGRAM_ID): PublicKey {
   return derive([Buffer.from("player"), owner.toBuffer()], programId);
 }
 
@@ -56,10 +40,6 @@ export function deriveRewardVaultPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
   return derive([Buffer.from("reward_vault")], programId);
 }
 
-export function deriveCampaignProgressPda(owner: PublicKey, programId = ZKUBE_PROGRAM_ID): PublicKey {
-  return derive([Buffer.from("campaign"), owner.toBuffer()], programId);
-}
-
 export function deriveMapCatalogPda(
   contentVersion: number,
   mapId: number,
@@ -71,13 +51,6 @@ export function deriveMapCatalogPda(
     [Buffer.from("map"), u32le(contentVersion), Buffer.from([mapId])],
     programId,
   );
-}
-
-export function deriveQuestClaimsPda(
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("quest_claims"), owner.toBuffer()], programId);
 }
 
 export function deriveDailyChallengePda(
@@ -147,12 +120,10 @@ export function deriveRunAddresses(
 ): RunAddresses {
   const encodedRunId = u64le(runId);
   return {
-    runShell: derive([Buffer.from("run"), owner.toBuffer(), encodedRunId], programId),
     activeRun: derive(
       [Buffer.from("run"), Buffer.from("active"), owner.toBuffer(), encodedRunId],
       programId,
     ),
-    runReceipt: derive([Buffer.from("receipt"), owner.toBuffer(), encodedRunId], programId),
   };
 }
 

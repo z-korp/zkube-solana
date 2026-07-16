@@ -10,9 +10,9 @@ use anchor_lang::system_program::{self, Transfer};
 use ephemeral_rollups_sdk::anchor::commit;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 use session_keys::SessionTokenV2;
-use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
+use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
@@ -293,11 +293,11 @@ pub struct PurchaseStars<'info> {
     pub star_sales_ledger: Box<Account<'info, StarSalesLedger>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
-        bump = player_profile.bump,
+        seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
+        bump = player_state.bump,
         has_one = owner @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Native-SOL destination pinned by protocol state.
     #[account(mut, address = protocol.team_destination)]
     pub team_destination: UncheckedAccount<'info>,
@@ -340,7 +340,7 @@ pub fn handler_purchase_stars<'info>(
     ctx.accounts
         .star_sales_ledger
         .record_sale(gross, team, reward, treasury, stars)?;
-    ctx.accounts.player_profile.credit_stars(stars)?;
+    ctx.accounts.player_state.credit_stars(stars)?;
     emit!(StarsPurchased {
         owner: ctx.accounts.owner.key(),
         pack_index,
@@ -423,18 +423,11 @@ pub struct UnlockZone<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        mut,
-        seeds = [CAMPAIGN_PROGRESS_SEED, owner_authority.key().as_ref()],
-        bump = campaign_progress.bump,
-        constraint = campaign_progress.owner == owner_authority.key() @ ErrorCode::Unauthorized
-    )]
-    pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
         seeds = [MAP_CATALOG_SEED, protocol.content_version.to_le_bytes().as_ref(), &[map_catalog.map_id]],
         bump = map_catalog.bump,
@@ -460,13 +453,13 @@ pub fn handler_unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
         ErrorCode::InvalidMap
     );
     require!(
-        !ctx.accounts.campaign_progress.is_map_unlocked(map_id),
+        !ctx.accounts.player_state.is_map_unlocked(map_id),
         ErrorCode::MapAlreadyUnlocked
     );
     ctx.accounts
-        .player_profile
+        .player_state
         .spend_stars(ctx.accounts.economy_config.zone_unlock_stars)?;
-    ctx.accounts.campaign_progress.unlock_map(map_id, true)?;
+    ctx.accounts.player_state.unlock_map(map_id, true)?;
     emit!(ZoneUnlocked {
         owner: ctx.accounts.owner_authority.key(),
         map_id,
@@ -493,19 +486,11 @@ pub struct ClaimLevelMilestone<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + LevelMilestones::INIT_SPACE,
-        seeds = [LEVEL_MILESTONES_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
-    pub level_milestones: Box<Account<'info, LevelMilestones>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
@@ -531,38 +516,22 @@ pub fn handler_claim_level_milestone(
     )?;
     let index = usize::from(milestone_index);
     require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
-    let milestones = &mut ctx.accounts.level_milestones;
-    if milestones.version == 0 {
-        milestones.version = ECONOMY_ACCOUNT_VERSION;
-        milestones.owner = ctx.accounts.owner_authority.key();
-        milestones.claimed = 0;
-        milestones.total_stars_claimed = 0;
-        milestones.bump = ctx.bumps.level_milestones;
-    } else {
-        require_keys_eq!(
-            milestones.owner,
-            ctx.accounts.owner_authority.key(),
-            ErrorCode::Unauthorized
-        );
-        require!(
-            milestones.version == ECONOMY_ACCOUNT_VERSION,
-            ErrorCode::InvalidVersion
-        );
-    }
     let mask = 1u16 << index;
     require!(
-        milestones.claimed & mask == 0,
+        ctx.accounts.player_state.milestone_claimed & mask == 0,
         ErrorCode::RewardAlreadyClaimed
     );
     let required_level = (milestone_index + 1) * 10;
-    let current_level = player_level(ctx.accounts.player_profile.lifetime_xp);
+    let current_level = player_level(ctx.accounts.player_state.lifetime_xp);
     require!(current_level >= required_level, ErrorCode::RewardNotEarned);
-    milestones.claimed |= mask;
-    milestones.total_stars_claimed = milestones
-        .total_stars_claimed
+    ctx.accounts.player_state.milestone_claimed |= mask;
+    ctx.accounts.player_state.milestone_stars_claimed = ctx
+        .accounts
+        .player_state
+        .milestone_stars_claimed
         .checked_add(10)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    ctx.accounts.player_profile.credit_stars(10)?;
+    ctx.accounts.player_state.credit_stars(10)?;
     emit!(LevelMilestoneClaimed {
         owner: ctx.accounts.owner_authority.key(),
         level: required_level,
@@ -706,12 +675,12 @@ pub struct EnterDaily<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = player_profile.daily_eligible @ ErrorCode::MapLocked
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.daily_eligible @ ErrorCode::MapLocked
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
         mut,
         seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
@@ -728,37 +697,13 @@ pub struct EnterDaily<'info> {
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
     #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + WeeklyStipend::INIT_SPACE,
-        seeds = [WEEKLY_STIPEND_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
-    pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + RunShell::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    #[account(
         init,
         payer = payer,
         space = 8 + ActiveRun::INIT_SPACE,
-        seeds = [RUN_SHELL_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
+        seeds = [ACTIVE_RUN_SEED, b"active", owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
         bump
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + RunReceipt::INIT_SPACE,
-        seeds = [RUN_RECEIPT_SEED, owner_authority.key().as_ref(), run_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub run_receipt: Box<Account<'info, RunReceipt>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
@@ -793,23 +738,21 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         ErrorCode::ChallengeEnded
     );
     require!(
-        ctx.accounts.player_profile.next_run_id == run_id,
+        ctx.accounts.player_state.next_run_id == run_id,
         ErrorCode::InvalidRunId
     );
     require!(
-        ctx.accounts.player_profile.active_run_id == 0,
+        ctx.accounts.player_state.active_run_id == 0,
         ErrorCode::ActiveRunExists
     );
     require!(
         ctx.accounts.daily_challenge.entry_stars == ctx.accounts.economy_config.daily_entry_stars,
         ErrorCode::AccountingInvariant
     );
-    crate::instructions::progress_instructions::initialize_or_roll_stipend(
-        &mut ctx.accounts.weekly_stipend,
-        ctx.accounts.owner_authority.key(),
+    crate::instructions::progress_instructions::roll_stipend(
+        &mut ctx.accounts.player_state,
         cadence_week(now),
-        ctx.bumps.weekly_stipend,
-    )?;
+    );
 
     let daily_player = &mut ctx.accounts.daily_player;
     if daily_player.version == 0 {
@@ -819,7 +762,6 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         daily_player.attempts = 0;
         daily_player.finalized_attempts = 0;
         daily_player.best_run_id = 0;
-        daily_player.best_receipt = Pubkey::default();
         daily_player.best_daily_score = 0;
         daily_player.best_engine_score = 0;
         daily_player.best_moves = 0;
@@ -852,7 +794,7 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         );
     }
     ctx.accounts
-        .player_profile
+        .player_state
         .spend_stars(ctx.accounts.daily_challenge.entry_stars)?;
     daily_player.attempts = daily_player
         .attempts
@@ -867,17 +809,11 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
 
     let challenge_key = ctx.accounts.daily_challenge.key();
     initialize_daily_run(
-        &mut ctx.accounts.player_profile,
+        &mut ctx.accounts.player_state,
         &ctx.accounts.daily_challenge,
         challenge_key,
-        &mut ctx.accounts.run_shell,
         &mut ctx.accounts.active_run,
-        &mut ctx.accounts.run_receipt,
-        DailyRunBumps {
-            shell: ctx.bumps.run_shell,
-            active: ctx.bumps.active_run,
-            receipt: ctx.bumps.run_receipt,
-        },
+        ctx.bumps.active_run,
         ctx.accounts.owner_authority.key(),
         run_id,
         now,
@@ -892,49 +828,22 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
     Ok(())
 }
 
-struct DailyRunBumps {
-    shell: u8,
-    active: u8,
-    receipt: u8,
-}
-
 #[allow(clippy::too_many_arguments)]
 fn initialize_daily_run(
-    player: &mut PlayerProfile,
+    player: &mut PlayerState,
     challenge: &DailyChallenge,
     challenge_key: Pubkey,
-    shell: &mut RunShell,
     active: &mut ActiveRun,
-    receipt: &mut RunReceipt,
-    bumps: DailyRunBumps,
+    active_bump: u8,
     owner: Pubkey,
     run_id: u64,
     now: i64,
 ) -> Result<()> {
-    let shell_key = Pubkey::find_program_address(
-        &[RUN_SHELL_SEED, owner.as_ref(), &run_id.to_le_bytes()],
-        &crate::ID,
-    )
-    .0;
-    shell.version = ACCOUNT_VERSION;
-    shell.owner = owner;
-    shell.run_id = run_id;
-    shell.mode = RunMode::Daily;
-    shell.settlement_target = SettlementTarget::DailyLeaderboard;
-    shell.content_version = challenge.content_version;
-    shell.rules_hash = challenge.rules_hash;
-    shell.map_catalog = Pubkey::default();
-    shell.daily_challenge = challenge_key;
-    shell.delegated_validator = Pubkey::default();
-    shell.lifecycle = RunLifecycle::Prepared;
-    shell.created_at = now;
-    shell.settled_at = 0;
-    shell.bump = bumps.shell;
-
     active.version = ACCOUNT_VERSION;
     active.owner = owner;
-    active.run_shell = shell_key;
+    active.map_catalog = Pubkey::default();
     active.daily_challenge = challenge_key;
+    active.delegated_validator = Pubkey::default();
     active.run_id = run_id;
     active.mode = RunMode::Daily;
     active.lifecycle = RunLifecycle::Prepared;
@@ -972,47 +881,12 @@ fn initialize_daily_run(
     active.current_difficulty = 0;
     active.vrf_request_counter = 0;
     active.pending_vrf_counter = 0;
-    active.vrf_requested_at = 0;
     active.action_hash = [0; 32];
     active.vrf_hash = [0; 32];
+    active.created_at = now;
     active.started_at = 0;
     active.finished_at = 0;
-    active.bump = bumps.active;
-
-    receipt.version = ACCOUNT_VERSION;
-    receipt.owner = owner;
-    receipt.run_shell = shell_key;
-    receipt.run_id = run_id;
-    receipt.mode = RunMode::Daily;
-    receipt.settlement_target = SettlementTarget::DailyLeaderboard;
-    receipt.content_version = challenge.content_version;
-    receipt.rules_hash = challenge.rules_hash;
-    receipt.map_id = challenge.map_id;
-    receipt.level = 1;
-    receipt.score = 0;
-    receipt.daily_score = 0;
-    receipt.pressure_score = 0;
-    receipt.final_pressure_tier = 0;
-    receipt.daily_scoring_rule = challenge.scoring_rule;
-    receipt.moves = 0;
-    receipt.level_stars = 0;
-    receipt.campaign_xp_awarded = 0;
-    receipt.lines_cleared = 0;
-    receipt.bonus_uses = 0;
-    receipt.combo2_hits = 0;
-    receipt.combo3_hits = 0;
-    receipt.combo4_hits = 0;
-    receipt.high_combo_hits = 0;
-    receipt.blocks_destroyed_by_size = [0; 4];
-    receipt.max_combo = 0;
-    receipt.completed = false;
-    receipt.action_hash = [0; 32];
-    receipt.vrf_hash = [0; 32];
-    receipt.started_at = 0;
-    receipt.finished_at = 0;
-    receipt.consumed_at = 0;
-    receipt.consumed = false;
-    receipt.bump = bumps.receipt;
+    active.bump = active_bump;
 
     player.record_run_started(now)?;
     player.record_daily_join(challenge.day_id, now)?;
@@ -1031,30 +905,6 @@ pub struct CommitDailyRun<'info> {
         constraint = active_run.mode == RunMode::Daily @ ErrorCode::InvalidState
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
-    /// CHECK: Base-layer shell pinned by active_run.
-    #[account(address = active_run.run_shell @ ErrorCode::InvalidRunId)]
-    pub run_shell: UncheckedAccount<'info>,
-    /// CHECK: Reserved receipt PDA validated by canonical base settlement.
-    #[account(seeds = [RUN_RECEIPT_SEED, active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump)]
-    pub run_receipt: UncheckedAccount<'info>,
-    /// CHECK: Durable player profile written only by canonical base settlement.
-    #[account(seeds = [PLAYER_PROFILE_SEED, active_run.owner.as_ref()], bump)]
-    pub player_profile: UncheckedAccount<'info>,
-    /// CHECK: Daily challenge pinned by active_run and canonical base settlement.
-    #[account(address = active_run.daily_challenge @ ErrorCode::InvalidRunId)]
-    pub daily_challenge: UncheckedAccount<'info>,
-    /// CHECK: Daily player PDA written only by canonical base settlement.
-    #[account(seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), active_run.owner.as_ref()], bump)]
-    pub daily_player: UncheckedAccount<'info>,
-    /// CHECK: Leaderboard PDA written only by canonical base settlement.
-    #[account(seeds = [DAILY_LEADERBOARD_SEED, daily_challenge.key().as_ref()], bump)]
-    pub leaderboard: UncheckedAccount<'info>,
-    /// CHECK: Weekly stipend PDA written only by canonical base settlement.
-    #[account(seeds = [WEEKLY_STIPEND_SEED, active_run.owner.as_ref()], bump)]
-    pub weekly_stipend: UncheckedAccount<'info>,
-    /// CHECK: Player wallet pinned by active_run.
-    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
-    pub owner: UncheckedAccount<'info>,
     /// CHECK: MagicBlock context required by MagicIntentBundleBuilder.
     #[account(mut, address = ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID @ ErrorCode::InvalidMagicProgram)]
     pub magic_context: UncheckedAccount<'info>,
@@ -1086,31 +936,24 @@ pub fn handler_commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
 }
 
 #[derive(Accounts)]
-pub struct ConsumeDailyReceipt<'info> {
-    #[account(mut, owner = crate::ID)]
+pub struct ConsumeDailyRun<'info> {
+    #[account(
+        mut,
+        close = rent_recipient,
+        owner = crate::ID,
+        seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
+        bump = active_run.bump,
+        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = active_run.daily_challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
+    )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     #[account(
         mut,
-        seeds = [RUN_SHELL_SEED, owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = run_shell.bump,
-        has_one = owner @ ErrorCode::Unauthorized,
-        constraint = run_shell.daily_challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
-    )]
-    pub run_shell: Box<Account<'info, RunShell>>,
-    #[account(
-        mut,
-        seeds = [RUN_RECEIPT_SEED, owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = run_receipt.bump,
+        seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
+        bump = player_state.bump,
         has_one = owner @ ErrorCode::Unauthorized
     )]
-    pub run_receipt: Box<Account<'info, RunReceipt>>,
-    #[account(
-        mut,
-        seeds = [PLAYER_PROFILE_SEED, owner.key().as_ref()],
-        bump = player_profile.bump,
-        has_one = owner @ ErrorCode::Unauthorized
-    )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
         mut,
         seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
@@ -1132,101 +975,46 @@ pub struct ConsumeDailyReceipt<'info> {
         constraint = leaderboard.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, DailyLeaderboard>>,
-    #[account(
-        mut,
-        seeds = [WEEKLY_STIPEND_SEED, owner.key().as_ref()],
-        bump = weekly_stipend.bump,
-        constraint = weekly_stipend.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = weekly_stipend.owner == owner.key() @ ErrorCode::Unauthorized
-    )]
-    pub weekly_stipend: Box<Account<'info, WeeklyStipend>>,
     /// CHECK: Player identity pinned by every durable account.
     pub owner: UncheckedAccount<'info>,
+    /// CHECK: Canonical zero-data System PDA receives recycled ActiveRun rent.
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub rent_recipient: UncheckedAccount<'info>,
 }
 
-pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Result<()> {
+pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
-    let active_run_id = active.run_id;
-    require_keys_eq!(
-        active.owner,
-        ctx.accounts.owner.key(),
-        ErrorCode::Unauthorized
-    );
-    require_keys_eq!(
-        active.run_shell,
-        ctx.accounts.run_shell.key(),
-        ErrorCode::InvalidRunId
-    );
-    require_keys_eq!(
-        active.daily_challenge,
-        ctx.accounts.daily_challenge.key(),
-        ErrorCode::InvalidRunId
-    );
     require!(
-        ctx.accounts.player_profile.active_run_id == active.run_id,
+        ctx.accounts.player_state.active_run_id == active.run_id,
         ErrorCode::InvalidRunId
     );
-    let receipt = &mut ctx.accounts.run_receipt;
-    require!(receipt.run_id == active.run_id, ErrorCode::ReceiptMismatch);
-    require!(
-        receipt.rules_hash == active.rules_hash,
-        ErrorCode::ReceiptMismatch
-    );
-    if receipt.consumed {
-        require!(
-            active.lifecycle == RunLifecycle::Settled,
-            ErrorCode::ReceiptMismatch
-        );
-        require!(
-            receipt.action_hash == active.action_hash && receipt.vrf_hash == active.vrf_hash,
-            ErrorCode::ReceiptMismatch
-        );
-        ctx.accounts.player_profile.release_run(active.run_id)?;
-        return Ok(());
-    }
     require!(
         active.lifecycle == RunLifecycle::Finished,
         ErrorCode::GameNotFinished
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
-    receipt.score = active.score;
-    receipt.daily_score = active.daily_score;
-    receipt.pressure_score = active.pressure_score;
-    receipt.final_pressure_tier = active.current_difficulty;
-    receipt.daily_scoring_rule = active.daily_scoring_rule;
-    receipt.moves = active.moves;
-    receipt.level_stars = 0;
-    receipt.campaign_xp_awarded = 0;
-    receipt.lines_cleared = active.total_lines_cleared;
-    receipt.bonus_uses = active.bonus_uses;
-    receipt.combo2_hits = active.combo2_hits;
-    receipt.combo3_hits = active.combo3_hits;
-    receipt.combo4_hits = active.combo4_hits;
-    receipt.high_combo_hits = active.high_combo_hits;
-    receipt.blocks_destroyed_by_size = active.blocks_destroyed_by_size;
-    receipt.max_combo = active.max_combo;
-    receipt.completed = true;
-    receipt.action_hash = active.action_hash;
-    receipt.vrf_hash = active.vrf_hash;
-    receipt.started_at = active.started_at;
-    receipt.finished_at = active.finished_at;
-    receipt.consumed_at = Clock::get()?.unix_timestamp;
-    receipt.consumed = true;
-    ctx.accounts.player_profile.record_run_metrics(
+    let consumed_at = Clock::get()?.unix_timestamp;
+    ctx.accounts.player_state.record_run_metrics(
         RunProgressMetrics {
-            lines_cleared: receipt.lines_cleared,
-            bonus_uses: receipt.bonus_uses,
-            combo2_hits: receipt.combo2_hits,
-            combo3_hits: receipt.combo3_hits,
-            combo4_hits: receipt.combo4_hits,
-            high_combo_hits: receipt.high_combo_hits,
-            blocks_destroyed_by_size: receipt.blocks_destroyed_by_size,
-            max_combo: receipt.max_combo,
+            lines_cleared: active.total_lines_cleared,
+            bonus_uses: active.bonus_uses,
+            combo2_hits: active.combo2_hits,
+            combo3_hits: active.combo3_hits,
+            combo4_hits: active.combo4_hits,
+            high_combo_hits: active.high_combo_hits,
+            blocks_destroyed_by_size: active.blocks_destroyed_by_size,
+            max_combo: active.max_combo,
             campaign_level_completed: false,
             new_perfect_level: false,
             boss_cleared: false,
         },
-        receipt.consumed_at,
+        consumed_at,
     )?;
     let player = &mut ctx.accounts.daily_player;
     player.finalized_attempts = player
@@ -1237,15 +1025,16 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
         daily_progression_xp(player, active.current_difficulty)?;
     if xp_awarded > 0 {
         ctx.accounts
-            .player_profile
+            .player_state
             .credit_progression_rewards(0, xp_awarded)?;
-        let week = cadence_week(receipt.consumed_at);
-        ctx.accounts
-            .weekly_stipend
-            .record_recurring_xp(week, xp_awarded)?;
+        let week = cadence_week(consumed_at);
+        crate::instructions::progress_instructions::record_stipend_xp(
+            &mut ctx.accounts.player_state,
+            week,
+            xp_awarded,
+        )?;
         crate::instructions::progress_instructions::emit_stipend_if_awarded(
-            &mut ctx.accounts.weekly_stipend,
-            &mut ctx.accounts.player_profile,
+            &mut ctx.accounts.player_state,
         )?;
     }
     if pressure_mastery_awarded {
@@ -1266,7 +1055,6 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
         && ctx.accounts.daily_challenge.status == DailyStatus::Open;
     let candidate = DailyLeaderboardEntry {
         player: active.owner,
-        receipt: receipt.key(),
         run_id: active.run_id,
         daily_score: active.daily_score,
         engine_score: active.score,
@@ -1275,7 +1063,6 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
     };
     let current = DailyLeaderboardEntry {
         player: active.owner,
-        receipt: player.best_receipt,
         run_id: player.best_run_id,
         daily_score: player.best_daily_score,
         engine_score: player.best_engine_score,
@@ -1293,17 +1080,13 @@ pub fn handler_consume_daily_receipt(ctx: Context<ConsumeDailyReceipt>) -> Resul
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
         }
         player.best_run_id = active.run_id;
-        player.best_receipt = receipt.key();
         player.best_daily_score = active.daily_score;
         player.best_engine_score = active.score;
         player.best_moves = active.moves;
         player.best_submitted_at = active.finished_at;
         ctx.accounts.leaderboard.record_best(candidate);
     }
-    ctx.accounts.run_shell.lifecycle = RunLifecycle::Settled;
-    ctx.accounts.run_shell.settled_at = receipt.consumed_at;
-    ctx.accounts.active_run.lifecycle = RunLifecycle::Settled;
-    ctx.accounts.player_profile.release_run(active_run_id)?;
+    ctx.accounts.player_state.release_run(active.run_id)?;
     Ok(())
 }
 
@@ -1403,11 +1186,11 @@ pub struct RefundDailyStars<'info> {
     pub daily_player: Box<Account<'info, DailyPlayer>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Immutable durable player identity, constrained above.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
@@ -1428,7 +1211,7 @@ pub fn handler_refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> 
         .checked_mul(ctx.accounts.daily_challenge.entry_stars)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     require!(refund > 0, ErrorCode::InsufficientFunds);
-    ctx.accounts.player_profile.refund_stars(refund)?;
+    ctx.accounts.player_state.refund_stars(refund)?;
     ctx.accounts.daily_player.star_refunded = true;
     Ok(())
 }
@@ -1952,11 +1735,11 @@ pub struct ClaimWeeklyStars<'info> {
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
     #[account(
         mut,
-        seeds = [PLAYER_PROFILE_SEED, owner_authority.key().as_ref()],
-        bump = player_profile.bump,
-        constraint = player_profile.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
-    pub player_profile: Box<Account<'info, PlayerProfile>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Immutable durable player identity, constrained above.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
@@ -1987,7 +1770,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
         ctx.accounts.weekly_challenge.sol_winner_count,
         ctx.accounts.weekly_challenge.star_winner_count,
     )?;
-    ctx.accounts.player_profile.credit_stars(stars)?;
+    ctx.accounts.player_state.credit_stars(stars)?;
     ctx.accounts.weekly_player.stars_claimed = true;
     emit!(WeeklyStarsClaimed {
         owner: ctx.accounts.owner_authority.key(),
@@ -2333,11 +2116,7 @@ fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
 fn hash_daily_rules(args: &PublishDailyRulesArgs) -> Result<[u8; 32]> {
     let mut serialized = Vec::new();
     args.serialize(&mut serialized)?;
-    Ok(Sha256::new()
-        .chain_update(b"zkube-daily-season-v1")
-        .chain_update(serialized)
-        .finalize()
-        .into())
+    Ok(sha256v(&[b"zkube-daily-season-v1", &serialized]))
 }
 
 fn neutral_daily_rules(pressure: DailyPressureProfile) -> LevelRuleSnapshot {
@@ -2373,14 +2152,14 @@ fn hash_daily_challenge(
 ) -> Result<[u8; 32]> {
     let mut rule = Vec::new();
     scoring_rule.serialize(&mut rule)?;
-    Ok(Sha256::new()
-        .chain_update(b"zkube-daily-challenge-v1")
-        .chain_update(catalog.catalog_hash)
-        .chain_update(day_id.to_le_bytes())
-        .chain_update([map_id])
-        .chain_update(rule)
-        .finalize()
-        .into())
+    let day = day_id.to_le_bytes();
+    Ok(sha256v(&[
+        b"zkube-daily-challenge-v1",
+        &catalog.catalog_hash,
+        &day,
+        &[map_id],
+        &rule,
+    ]))
 }
 
 #[event]
@@ -2557,23 +2336,21 @@ mod tests {
     use anchor_lang::ToAccountMetas;
 
     #[test]
-    fn daily_receipt_consumer_is_permissionless_and_has_no_action_escrow() {
+    fn daily_consumer_is_permissionless_and_has_no_action_escrow() {
         let owner = Pubkey::new_unique();
-        let metas = crate::accounts::ConsumeDailyReceipt {
+        let metas = crate::accounts::ConsumeDailyRun {
             active_run: Pubkey::new_unique(),
-            run_shell: Pubkey::new_unique(),
-            run_receipt: Pubkey::new_unique(),
-            player_profile: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
             daily_challenge: Pubkey::new_unique(),
             daily_player: Pubkey::new_unique(),
             leaderboard: Pubkey::new_unique(),
-            weekly_stipend: Pubkey::new_unique(),
             owner,
+            rent_recipient: Pubkey::new_unique(),
         }
         .to_account_metas(None);
 
-        assert_eq!(metas.len(), 9);
-        assert_eq!(metas[8].pubkey, owner);
+        assert_eq!(metas.len(), 7);
+        assert_eq!(metas[5].pubkey, owner);
         assert!(metas.iter().all(|meta| !meta.is_signer));
     }
 
@@ -2585,7 +2362,6 @@ mod tests {
             attempts: 1,
             finalized_attempts: 0,
             best_run_id: 0,
-            best_receipt: Pubkey::default(),
             best_daily_score: 0,
             best_engine_score: 0,
             best_moves: 0,

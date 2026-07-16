@@ -54,16 +54,16 @@ import {
 import type { WalletLike } from "./sessionWallet";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import {
-  deriveCampaignProgressPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
+  deriveProtocolConfigPda,
 } from "./pdas";
 import { zkubeProgram } from "./runPlan";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
 const DEVICE_FEE_ALLOWANCE_LAMPORTS = 1_000_000;
-export const PLAYER_FUNDING_TARGET_LAMPORTS = 35_000_000;
+export const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
 const LEGACY_PLAYER_FUNDING_BYTES = 42;
 const LEGACY_PLAYER_FUNDING_DISCRIMINATOR = Uint8Array.from([
   61, 237, 220, 223, 77, 198, 8, 22,
@@ -221,7 +221,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         return "unavailable";
       }
       try {
-        if (!info) throw new Error("Stored device session does not exist on Devnet");
+        if (!info)
+          throw new Error("Stored device session does not exist on Devnet");
         const token = decodeSessionTokenV2Account(stored.sessionToken, info);
         if (
           !token.authority.equals(owner) ||
@@ -229,10 +230,14 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           !token.targetProgram.equals(ZKUBE_PROGRAM_ID) ||
           token.validUntil !== stored.validUntil
         ) {
-          throw new Error("Stored device session does not match the connected wallet");
+          throw new Error(
+            "Stored device session does not match the connected wallet",
+          );
         }
         if (!token.feePayer.equals(owner)) {
-          throw new Error("Stored device session was created by a different owner payer");
+          throw new Error(
+            "Stored device session was created by a different owner payer",
+          );
         }
         if (!isNormalizedPlayerFunding(fundingInfo)) {
           // A live legacy session cannot use the new rent wrappers. Keep the
@@ -262,8 +267,11 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const connectWallet = useCallback(
     async (connectorId: string): Promise<SessionRefreshResult> => {
-      const connector = connectors.find((candidate) => candidate.id === connectorId);
-      if (!connector) throw new Error("The selected wallet is no longer available");
+      const connector = connectors.find(
+        (candidate) => candidate.id === connectorId,
+      );
+      if (!connector)
+        throw new Error("The selected wallet is no longer available");
       setConnectionStatus("connecting");
       setError(null);
       try {
@@ -336,10 +344,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         connectedRef.current = next;
         setConnectedWallet(next);
         setConnectionStatus("connected");
-        await Promise.all([
-          refreshSession(next.publicKey),
-          refreshBalance(),
-        ]);
+        await Promise.all([refreshSession(next.publicKey), refreshBalance()]);
       } catch {
         // Silent restore is best-effort; the gate stays one tap away.
         if (!connectedRef.current) setConnectionStatus("disconnected");
@@ -349,7 +354,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const authorizeDeviceSession = useCallback(async () => {
     const current = connectedRef.current;
-    if (!current) throw new Error("Connect a Solana wallet before enabling zKube");
+    if (!current)
+      throw new Error("Connect a Solana wallet before enabling zKube");
     assertDeviceSessionStorageAvailable();
     const signer = Keypair.generate();
     const now = Math.floor(Date.now() / 1_000);
@@ -361,43 +367,25 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     const { blockhash, lastValidBlockHeight } =
       await connection.getLatestBlockhash("confirmed");
     const program = zkubeProgram(connection, current.wallet);
-    const playerProfile = derivePlayerProfilePda(current.publicKey);
+    const playerState = derivePlayerStatePda(current.publicKey);
     const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const campaignProgress = deriveCampaignProgressPda(current.publicKey);
-    const [profileInfo, campaignInfo, fundingInfo] = await Promise.all([
-      connection.getAccountInfo(playerProfile, "confirmed"),
-      connection.getAccountInfo(campaignProgress, "confirmed"),
-      connection.getAccountInfo(playerFunding, "confirmed"),
-    ]);
+    const [protocol, profileInfo, fundingInfo] =
+      await Promise.all([
+        program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
+        connection.getAccountInfo(playerState, "confirmed"),
+        connection.getAccountInfo(playerFunding, "confirmed"),
+      ]);
     if (profileInfo) {
       if (
         !profileInfo.owner.equals(ZKUBE_PROGRAM_ID) ||
         profileInfo.executable ||
-        profileInfo.data.length !== program.account.playerProfile.size
+        profileInfo.data.length !== program.account.playerState.size
       ) {
-        throw new Error("PlayerProfile has an invalid owner or account layout");
+        throw new Error("PlayerState has an invalid owner or account layout");
       }
-      const profile = await program.account.playerProfile.fetch(playerProfile);
+      const profile = await program.account.playerState.fetch(playerState);
       if (!profile.owner.equals(current.publicKey)) {
-        throw new Error("PlayerProfile belongs to a different wallet");
-      }
-    }
-    if (Boolean(profileInfo) !== Boolean(campaignInfo)) {
-      throw new Error(
-        "Devnet player initialization is incomplete; the program release must be reset.",
-      );
-    }
-    if (campaignInfo) {
-      if (
-        !campaignInfo.owner.equals(ZKUBE_PROGRAM_ID) ||
-        campaignInfo.executable ||
-        campaignInfo.data.length !== program.account.campaignProgress.size
-      ) {
-        throw new Error("CampaignProgress has an invalid owner or account layout");
-      }
-      const campaign = await program.account.campaignProgress.fetch(campaignProgress);
-      if (!campaign.owner.equals(current.publicKey)) {
-        throw new Error("CampaignProgress belongs to a different wallet");
+        throw new Error("PlayerState belongs to a different wallet");
       }
     }
     if (
@@ -405,18 +393,29 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       !isNormalizedPlayerFunding(fundingInfo) &&
       !isLegacyPlayerFunding(fundingInfo, current.publicKey)
     ) {
-      throw new Error("Player funding PDA has an invalid owner or account layout");
+      throw new Error(
+        "Player funding PDA has an invalid owner or account layout",
+      );
+    }
+    const configuredFundingTarget = Number(
+      protocol.playerFundingTargetLamports,
+    );
+    if (
+      !Number.isSafeInteger(configuredFundingTarget) ||
+      configuredFundingTarget <= 0 ||
+      configuredFundingTarget > PLAYER_FUNDING_TARGET_LAMPORTS
+    ) {
+      throw new Error("Protocol player funding target is invalid");
     }
     const fundingTopUp = Math.max(
       0,
-      PLAYER_FUNDING_TARGET_LAMPORTS - (fundingInfo?.lamports ?? 0),
+      configuredFundingTarget - (fundingInfo?.lamports ?? 0),
     );
     const instructions = [
       await program.methods
         .initializePlayer()
         .accountsPartial({
-          playerProfile,
-          campaignProgress,
+          playerState,
           playerFunding,
           payer: current.publicKey,
           ownerAuthority: current.publicKey,
@@ -480,7 +479,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       { signature, blockhash, lastValidBlockHeight },
       "confirmed",
     );
-    if (confirmation.value.err) throw new Error("Enable zKube was not confirmed");
+    if (confirmation.value.err)
+      throw new Error("Enable zKube was not confirmed");
     const next: DeviceSession = {
       owner: current.publicKey,
       signer,
@@ -599,14 +599,12 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function isNormalizedPlayerFunding(
-  info: AccountInfo<Buffer> | null,
-): boolean {
+function isNormalizedPlayerFunding(info: AccountInfo<Buffer> | null): boolean {
   return Boolean(
     info &&
-      !info.executable &&
-      info.owner.equals(SystemProgram.programId) &&
-      info.data.length === 0,
+    !info.executable &&
+    info.owner.equals(SystemProgram.programId) &&
+    info.data.length === 0,
   );
 }
 

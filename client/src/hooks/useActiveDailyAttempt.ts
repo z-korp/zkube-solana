@@ -21,18 +21,6 @@ export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
         settled: false,
       };
     }
-    if (
-      run.phase === "settled" &&
-      run.receipt?.mode === "daily" &&
-      run.receipt.runId > 0n
-    ) {
-      return {
-        gameId: run.receipt.runId,
-        level: run.receipt.level,
-        isReplay: false,
-        settled: true,
-      };
-    }
     return null;
-  }, [run.activeRun, run.phase, run.receipt]);
+  }, [run.activeRun]);
 };

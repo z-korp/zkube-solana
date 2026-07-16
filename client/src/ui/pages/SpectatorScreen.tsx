@@ -103,9 +103,7 @@ export default function SpectatorScreen() {
               ? "Live · Rollup"
               : run?.phase === "base"
                 ? "Live · Base"
-                : run?.phase === "settled"
-                  ? "Settled"
-                  : "Spectating"}
+                : "Spectating"}
           </span>
           <span className="font-mono text-white/40">{watchedLabel}</span>
           {status?.phase === "reconnecting" && (
@@ -149,47 +147,6 @@ export default function SpectatorScreen() {
             <p className="animate-pulse text-lg font-bold text-cyan-300">
               Resolving run…
             </p>
-          </Panel>
-        )}
-
-        {run?.phase === "settled" && (
-          <Panel>
-            <h2 className="text-2xl font-black text-yellow-300">
-              {run.receipt.completed ? "Run completed" : "Run finished"}
-            </h2>
-            <div className="grid w-full grid-cols-3 gap-2 text-center">
-              <Metric
-                label={run.receipt.mode === "daily" ? "Daily" : "Score"}
-                value={
-                  run.receipt.mode === "daily"
-                    ? run.receipt.dailyScore
-                    : run.receipt.score
-                }
-              />
-              <Metric label="Moves" value={run.receipt.moves} />
-              <Metric
-                label={run.receipt.mode === "daily" ? "Mode" : "Stars"}
-                value={
-                  run.receipt.mode === "daily"
-                    ? "Daily"
-                    : `${run.receipt.levelStars}★`
-                }
-              />
-              {run.receipt.mode === "daily" && (
-                <>
-                  <Metric label="Engine" value={run.receipt.score} />
-                  <Metric
-                    label="Challenge"
-                    value={`+${Math.max(0, run.receipt.dailyScore - run.receipt.score)}`}
-                  />
-                  <Metric
-                    label="Pressure"
-                    value={`${run.receipt.pressureScore} · T${run.receipt.finalPressureTier}`}
-                  />
-                </>
-              )}
-            </div>
-            <BackButton onClick={() => navigate("ranks")} />
           </Panel>
         )}
 
@@ -245,17 +202,6 @@ function Panel({ children }: { children: React.ReactNode }) {
       <div className="flex w-[min(390px,92vw)] flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/70 p-8 backdrop-blur-md">
         {children}
       </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-3">
-      <strong className="block text-lg text-cyan-200">{value}</strong>
-      <span className="text-[8px] uppercase tracking-widest text-white/40">
-        {label}
-      </span>
     </div>
   );
 }

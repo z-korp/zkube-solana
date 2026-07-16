@@ -88,7 +88,7 @@ describe("base-run recovery validation", () => {
     ).toThrow(/lifecycle playing is not terminal/i);
   });
 
-  it.each(["levelComplete", "finished", "settled"])(
+  it.each(["levelComplete", "finished"])(
     "accepts terminal campaign lifecycle %s and derives owner-scoped PDAs",
     (lifecycle) => {
       const descriptor = validate({ activeRun: activeRun({ lifecycle }) });
@@ -96,12 +96,6 @@ describe("base-run recovery validation", () => {
       expect(descriptor.mode).toBe("campaign");
       expect(descriptor.dailyChallenge).toBeNull();
       expect(descriptor.addresses.activeRun.equals(expected.activeRun)).toBe(
-        true,
-      );
-      expect(descriptor.addresses.runShell.equals(expected.runShell)).toBe(
-        true,
-      );
-      expect(descriptor.addresses.runReceipt.equals(expected.runReceipt)).toBe(
         true,
       );
     },

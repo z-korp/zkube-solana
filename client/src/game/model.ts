@@ -108,10 +108,7 @@ export class Game {
   }
 
   public get levelCompleted(): boolean {
-    return (
-      this.view.lifecycle === "levelComplete" ||
-      this.view.lifecycle === "settled"
-    );
+    return this.view.lifecycle === "levelComplete";
   }
 
   public get zoneCleared(): boolean {

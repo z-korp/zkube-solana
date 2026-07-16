@@ -1,8 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import { derivePlayerProfilePda, deriveRunAddresses } from "./pdas";
+import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
 import { createReadOnlyWallet } from "./readOnlyWallet";
-import { fetchReceipt, type RunReceiptView } from "./resumeRun";
 import { getDelegationStatus } from "./router";
 import {
   fetchActiveRun,
@@ -14,7 +13,7 @@ const READ_ONLY_WALLET = createReadOnlyWallet();
 export interface SpectateTarget {
   /** Direct ActiveRun PDA. */
   pda?: PublicKey;
-  /** Run owner; latest run is resolved from their PlayerProfile. */
+  /** Run owner; latest run is resolved from their PlayerState. */
   player?: PublicKey;
   /** Explicit run id (only meaningful with `player`). */
   runId?: bigint;
@@ -28,14 +27,12 @@ export type SpectatedRun =
       activeRun: ActiveRunView;
       connection: Connection;
       activeRunPda: PublicKey;
-    }
-  | { phase: "settled"; receipt: RunReceiptView };
+    };
 
 export interface SpectateRunDependencies {
   getStatus?: typeof getDelegationStatus;
   makeErConnection?: (endpoint: string) => Connection;
   fetchRun?: typeof fetchActiveRun;
-  fetchRunReceipt?: typeof fetchReceipt;
   fetchNextRunId?: (
     connection: Connection,
     player: PublicKey,
@@ -50,7 +47,7 @@ export async function resolveSpectatedRun(args: {
   const deps = args.dependencies ?? {};
   const resolved = await resolveAddresses(args.baseConnection, args.target, deps);
   if (!resolved) return { phase: "not-found" };
-  const { activeRunPda, runReceiptPda } = resolved;
+  const { activeRunPda } = resolved;
 
   // Delegation status FIRST: while delegated the base-layer account still
   // decodes but is stale — the ER copy is the authoritative one.
@@ -87,23 +84,14 @@ export async function resolveSpectatedRun(args: {
     };
   }
 
-  if (runReceiptPda) {
-    const receipt = await (deps.fetchRunReceipt ?? fetchReceipt)(
-      args.baseConnection,
-      READ_ONLY_WALLET,
-      runReceiptPda,
-    );
-    if (receipt?.consumed) return { phase: "settled", receipt };
-  }
-
   const activeRun = await (deps.fetchRun ?? fetchActiveRun)(
     args.baseConnection,
     READ_ONLY_WALLET,
     activeRunPda,
   );
   if (!activeRun) {
-    // A player-resolved run whose accounts no longer exist was settled and
-    // cleaned up (cleanup closes ActiveRun, RunShell, and RunReceipt).
+    // A player-resolved run whose account no longer exists was atomically
+    // consumed and closed after its terminal state copied back from the ER.
     if (resolved.resolvedRunId !== null) {
       return { phase: "archived", runId: resolved.resolvedRunId };
     }
@@ -123,12 +111,11 @@ async function resolveAddresses(
   deps: SpectateRunDependencies,
 ): Promise<{
   activeRunPda: PublicKey;
-  runReceiptPda: PublicKey | null;
   resolvedRunId: bigint | null;
 } | null> {
   if (target.pda) {
-    // A bare PDA has no owner/runId context, so no receipt fallback.
-    return { activeRunPda: target.pda, runReceiptPda: null, resolvedRunId: null };
+    // A bare PDA has no owner/runId context for archived-result discovery.
+    return { activeRunPda: target.pda, resolvedRunId: null };
   }
   if (!target.player) return null;
   let runId = target.runId;
@@ -143,7 +130,6 @@ async function resolveAddresses(
   const addresses = deriveRunAddresses(target.player, runId);
   return {
     activeRunPda: addresses.activeRun,
-    runReceiptPda: addresses.runReceipt,
     resolvedRunId: runId,
   };
 }
@@ -155,7 +141,7 @@ async function defaultFetchNextRunId(
   const profile = await zkubeProgram(
     connection,
     READ_ONLY_WALLET,
-  ).account.playerProfile.fetchNullable(derivePlayerProfilePda(player));
+  ).account.playerState.fetchNullable(derivePlayerStatePda(player));
   if (!profile) return null;
   return BigInt(profile.nextRunId.toString());
 }

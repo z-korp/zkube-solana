@@ -22,7 +22,7 @@ import {
 import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 import {
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
 } from "../../src/chain/pdas";
 import {
   buildPrepareCampaignRunPlan,
@@ -175,8 +175,8 @@ async function main(): Promise<void> {
     });
     const signature = await submit(prepared.transactionPlan, actorWallet);
     const program = zkubeProgram(connection, actorWallet);
-    const profile = await program.account.playerProfile.fetch(
-      derivePlayerProfilePda(owner.publicKey),
+    const profile = await program.account.playerState.fetch(
+      derivePlayerStatePda(owner.publicKey),
     );
     if (profile.activeRunId.toString() !== "1" || profile.nextRunId.toString() !== "2") {
       throw new Error(
@@ -184,9 +184,7 @@ async function main(): Promise<void> {
       );
     }
     const runAccounts = await connection.getMultipleAccountsInfo([
-      prepared.addresses.runShell,
       prepared.addresses.activeRun,
-      prepared.addresses.runReceipt,
     ]);
     if (
       runAccounts.some(

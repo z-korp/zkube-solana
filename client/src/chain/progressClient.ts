@@ -7,14 +7,10 @@ import {
 import type { WalletLike } from "./sessionWallet";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
-  deriveCampaignProgressPda,
   deriveEconomyConfigPda,
-  deriveLevelMilestonesPda,
   derivePlayerFundingPda,
-  derivePlayerProfilePda,
+  derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveQuestClaimsPda,
-  deriveWeeklyStipendPda,
 } from "./pdas";
 import {
   CANONICAL_ACHIEVEMENT_RULES,
@@ -84,33 +80,18 @@ export async function fetchProgressView(args: {
   const protocol = await program.account.protocolConfig.fetchNullable(
     deriveProtocolConfigPda(),
   );
-  const player = await program.account.playerProfile.fetchNullable(
-    derivePlayerProfilePda(owner),
+  const player = await program.account.playerState.fetchNullable(
+    derivePlayerStatePda(owner),
   );
-  const campaign = await program.account.campaignProgress.fetchNullable(
-    deriveCampaignProgressPda(owner),
-  );
-  if (!protocol || !player || !campaign) return null;
-  const [claims, milestones, weeklyStipend] = await Promise.all([
-    program.account.questClaims.fetchNullable(deriveQuestClaimsPda(owner)),
-    program.account.levelMilestones.fetchNullable(
-      deriveLevelMilestonesPda(owner),
-    ),
-    program.account.weeklyStipend.fetchNullable(deriveWeeklyStipendPda(owner)),
-  ]);
+  if (!protocol || !player) return null;
   const now = args.nowUnix ?? Math.floor(Date.now() / 1_000);
   const day = Math.max(0, Math.floor(now / 86_400));
   const week = Math.max(0, Math.floor((now + 259_200) / 604_800));
-  const achievementFlags = player.achievementFlags.map((value) =>
-    BigInt(value.toString()),
-  );
-  const metrics = achievementMetrics(player, campaign);
+  const achievementFlags = BigInt(player.achievementFlags);
+  const metrics = achievementMetrics(player);
   const achievements = CANONICAL_ACHIEVEMENT_RULES.map((rule, index) => {
     const progress = metrics[rule.metric] ?? 0n;
-    const claimed =
-      (achievementFlags[Math.floor(index / 64)] &
-        (1n << BigInt(index % 64))) !==
-      0n;
+    const claimed = (achievementFlags & (1n << BigInt(index))) !== 0n;
     return {
       index,
       metric: rule.metric,
@@ -122,12 +103,12 @@ export async function fetchProgressView(args: {
     };
   });
   const dailyClaims =
-    claims && Number(claims.dailyCadenceId) === day
-      ? Number(claims.dailyClaimed)
+    Number(player.dailyClaimCadenceId) === day
+      ? Number(player.dailyClaimed)
       : 0;
   const weeklyClaims =
-    claims && Number(claims.weeklyCadenceId) === week
-      ? Number(claims.weeklyClaimed)
+    Number(player.weeklyClaimCadenceId) === week
+      ? Number(player.weeklyClaimed)
       : 0;
   const dailyCounterIsCurrent = Number(player.questCadenceDay) === day;
   const weeklyCounterIsCurrent = Number(player.questCadenceWeek) === week;
@@ -178,29 +159,27 @@ export async function fetchProgressView(args: {
     },
     achievements,
     quests,
-    levelMilestones: milestones
-      ? {
-          claimed: Number(milestones.claimed),
-          totalStarsClaimed: BigInt(milestones.totalStarsClaimed.toString()),
-        }
-      : { claimed: 0, totalStarsClaimed: 0n },
+    levelMilestones: {
+      claimed: Number(player.milestoneClaimed),
+      totalStarsClaimed: BigInt(player.milestoneStarsClaimed.toString()),
+    },
     weeklyStipend:
-      weeklyStipend && Number(weeklyStipend.weekId) === week
+      Number(player.stipendWeekId) === week
         ? {
-            weekId: Number(weeklyStipend.weekId),
-            recurringXp: Number(weeklyStipend.recurringXp),
-            starsAwarded: Boolean(weeklyStipend.starsAwarded),
+            weekId: Number(player.stipendWeekId),
+            recurringXp: Number(player.stipendRecurringXp),
+            starsAwarded: Boolean(player.stipendStarsAwarded),
             lifetimeStarsAwarded: BigInt(
-              weeklyStipend.lifetimeStarsAwarded.toString(),
+              player.lifetimeStipendStarsAwarded.toString(),
             ),
           }
         : {
             weekId: week,
             recurringXp: 0,
             starsAwarded: false,
-            lifetimeStarsAwarded: weeklyStipend
-              ? BigInt(weeklyStipend.lifetimeStarsAwarded.toString())
-              : 0n,
+            lifetimeStarsAwarded: BigInt(
+              player.lifetimeStipendStarsAwarded.toString(),
+            ),
           },
   };
 }
@@ -219,8 +198,7 @@ export async function buildClaimLevelMilestonePlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
-      playerProfile: derivePlayerProfilePda(owner),
-      levelMilestones: deriveLevelMilestonesPda(owner),
+      playerState: derivePlayerStatePda(owner),
       playerFunding: derivePlayerFundingPda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
@@ -250,8 +228,7 @@ export async function buildClaimAchievementPlan(args: {
     .methods.claimAchievement(args.achievementIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      playerProfile: derivePlayerProfilePda(owner),
-      campaignProgress: deriveCampaignProgressPda(owner),
+      playerState: derivePlayerStatePda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
@@ -278,9 +255,7 @@ export async function buildClaimQuestPlan(args: {
     .methods.fundedClaimQuest(args.questIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      playerProfile: derivePlayerProfilePda(owner),
-      questClaims: deriveQuestClaimsPda(owner),
-      weeklyStipend: deriveWeeklyStipendPda(owner),
+      playerState: derivePlayerStatePda(owner),
       playerFunding: derivePlayerFundingPda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
@@ -297,12 +272,9 @@ export async function buildClaimQuestPlan(args: {
   );
 }
 
-function achievementMetrics(
-  player: Record<string, unknown>,
-  campaign: Record<string, unknown>,
-): bigint[] {
+function achievementMetrics(player: Record<string, unknown>): bigint[] {
   const value = (key: string) => BigInt(String(player[key] ?? 0));
-  const clearedMaps = Number(campaign.clearedMaps ?? 0);
+  const clearedMaps = Number(player.clearedMaps ?? 0);
   return [
     value("lifetimeRunsStarted"),
     value("lifetimeLinesCleared"),

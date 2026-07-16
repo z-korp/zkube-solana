@@ -14,7 +14,7 @@ import { getDelegationStatus, type DelegationStatus } from "./router";
 import type { WalletLike } from "./sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import type { DeviceSession } from "./deviceSessionStore";
-import { derivePlayerProfilePda, deriveRunAddresses } from "./pdas";
+import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
 
 export type ResumedRun =
   | { phase: "none" }
@@ -36,7 +36,7 @@ export type ResumedRun =
     }
   | {
       // Undelegated terminal state is durably back on Solana, but canonical
-      // base settlement has not consumed its receipt yet.
+      // base settlement has not consumed and closed ActiveRun yet.
       phase: "settleable";
       marker: RunSessionMarker;
       activeRun: ActiveRunView;
@@ -49,15 +49,11 @@ export type ResumedRun =
       activeRun: ActiveRunView;
       connection: Connection;
       sessionAuthorized: boolean;
-    }
-  | {
-      phase: "settled";
-      marker: RunSessionMarker;
-      receipt: RunReceiptView;
-      sessionAuthorized: boolean;
     };
 
-export interface RunReceiptView {
+/** Compatibility result shape used only by the UI's in-memory terminal
+ * snapshot. Results are never persisted in a separate on-chain account. */
+export interface RunResultView {
   owner: PublicKey;
   runId: bigint;
   mode: string;
@@ -82,11 +78,6 @@ export interface ResumeRunDependencies {
     wallet: WalletLike,
     activeRun: PublicKey,
   ) => Promise<ActiveRunView | null>;
-  fetchReceipt?: (
-    connection: Connection,
-    wallet: WalletLike,
-    receipt: PublicKey,
-  ) => Promise<RunReceiptView | null>;
   fetchActiveRunId?: (
     connection: Connection,
     wallet: WalletLike,
@@ -170,18 +161,6 @@ export async function resolvePersistedRun(args: {
     };
   }
 
-  const receipt = await (dependencies.fetchReceipt ?? fetchReceipt)(
-    args.baseConnection,
-    args.wallet,
-    marker.addresses.runReceipt,
-  );
-  if (
-    receipt?.consumed &&
-    receipt.owner.equals(marker.owner) &&
-    receipt.runId === marker.runId
-  ) {
-    return { phase: "settled", marker, receipt, sessionAuthorized };
-  }
   const activeRun = await fetchRun(
     args.baseConnection,
     args.wallet,
@@ -191,7 +170,7 @@ export async function resolvePersistedRun(args: {
     const terminal =
       activeRun.lifecycle === "levelComplete" ||
       activeRun.lifecycle === "finished";
-    if (terminal && !receipt?.consumed) {
+    if (terminal) {
       return {
         phase: "settleable",
         marker,
@@ -277,7 +256,7 @@ export async function discoverActiveRunMarker(args: {
     if (info?.owner.equals(DELEGATION_PROGRAM_ID)) return null;
     if (!info) {
       throw new Error(
-        `PlayerProfile points to missing ActiveRun ${runId.toString()}`,
+        `PlayerState points to missing ActiveRun ${runId.toString()}`,
       );
     }
     if (!info.owner.equals(ZKUBE_PROGRAM_ID)) {
@@ -315,50 +294,22 @@ async function fetchActiveRunId(
   wallet: WalletLike,
   owner: PublicKey,
 ): Promise<bigint> {
-  const profileAddress = derivePlayerProfilePda(owner);
+  const profileAddress = derivePlayerStatePda(owner);
   const info = await connection.getAccountInfo(profileAddress, "confirmed");
   if (!info) return 0n;
   const program = zkubeProgram(connection, wallet);
   if (
     !info.owner.equals(ZKUBE_PROGRAM_ID) ||
     info.executable ||
-    info.data.length !== program.account.playerProfile.size
+    info.data.length !== program.account.playerState.size
   ) {
-    throw new Error("PlayerProfile has an invalid owner or data length");
+    throw new Error("PlayerState has an invalid owner or data length");
   }
-  const profile = await program.account.playerProfile.fetch(profileAddress);
+  const profile = await program.account.playerState.fetch(profileAddress);
   if (!profile.owner.equals(owner)) {
-    throw new Error("PlayerProfile owner does not match the connected wallet");
+    throw new Error("PlayerState owner does not match the connected wallet");
   }
   return BigInt(profile.activeRunId.toString());
-}
-
-export async function fetchReceipt(
-  connection: Connection,
-  wallet: WalletLike,
-  receiptAddress: PublicKey,
-): Promise<RunReceiptView | null> {
-  const receipt = await zkubeProgram(
-    connection,
-    wallet,
-  ).account.runReceipt.fetchNullable(receiptAddress);
-  if (!receipt) return null;
-  return {
-    owner: receipt.owner,
-    runId: BigInt(receipt.runId.toString()),
-    mode: Object.keys(receipt.mode)[0] ?? "unknown",
-    mapId: Number(receipt.mapId),
-    level: Number(receipt.level),
-    score: Number(receipt.score),
-    dailyScore: Number(receipt.dailyScore),
-    pressureScore: Number(receipt.pressureScore),
-    finalPressureTier: Number(receipt.finalPressureTier),
-    moves: Number(receipt.moves),
-    levelStars: Number(receipt.levelStars),
-    campaignXpAwarded: Number(receipt.campaignXpAwarded),
-    completed: Boolean(receipt.completed),
-    consumed: Boolean(receipt.consumed),
-  };
 }
 
 function defaultErConnection(endpoint: string): Connection {

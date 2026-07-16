@@ -19,8 +19,7 @@ export const useGrid = (options: {
   const terminal = useMemo(
     () =>
       run.activeRun?.lifecycle === "levelComplete" ||
-      run.activeRun?.lifecycle === "finished" ||
-      run.activeRun?.lifecycle === "settled",
+      run.activeRun?.lifecycle === "finished",
     [run.activeRun?.lifecycle],
   );
 
@@ -40,7 +39,7 @@ export const useGrid = (options: {
     }
 
     // Preserve the last playable board while terminal settlement progresses.
-    // The receipt projection and terminal snapshot own the frozen result; a
+    // The result projection and terminal snapshot own the frozen result; a
     // watcher refresh must not replace it underneath completion animations.
     if (terminal) return;
 

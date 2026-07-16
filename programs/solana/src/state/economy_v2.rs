@@ -1,19 +1,17 @@
 //! Canonical economy accounts.
 //!
-//! Stars are identity-bound counters in `PlayerProfile`. These accounts pin
+//! Stars are identity-bound counters in `PlayerState`. These accounts pin
 //! pricing, sales accounting, Daily/Weekly contests, and claims.
 
 use anchor_lang::prelude::*;
-use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
-use crate::state::v2::{DailyStatus, LevelRuleSnapshot, PlayerProfile};
+use crate::game::sha256v;
+use crate::state::v2::{DailyStatus, LevelRuleSnapshot};
 
 pub const ECONOMY_ACCOUNT_VERSION: u8 = 1;
 pub const ECONOMY_CONFIG_SEED: &[u8] = b"economy";
 pub const STAR_SALES_LEDGER_SEED: &[u8] = b"star_sales";
-pub const LEVEL_MILESTONES_SEED: &[u8] = b"level_milestones";
-pub const WEEKLY_STIPEND_SEED: &[u8] = b"weekly_stipend";
 pub const DAILY_RULES_CATALOG_SEED: &[u8] = b"daily_rules";
 pub const DAILY_CHALLENGE_SEED: &[u8] = b"daily";
 pub const DAILY_PLAYER_SEED: &[u8] = b"daily_player";
@@ -259,76 +257,6 @@ impl StarSalesLedger {
     }
 }
 
-#[account]
-#[derive(InitSpace)]
-pub struct LevelMilestones {
-    pub version: u8,
-    pub owner: Pubkey,
-    /// Bits 0..9 represent levels 10, 20, ... 100.
-    pub claimed: u16,
-    pub total_stars_claimed: u64,
-    pub bump: u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct WeeklyStipend {
-    pub version: u8,
-    pub owner: Pubkey,
-    pub week_id: u32,
-    pub recurring_xp: u32,
-    pub stars_awarded: bool,
-    pub lifetime_stars_awarded: u64,
-    pub bump: u8,
-}
-
-impl WeeklyStipend {
-    pub fn initialize(owner: Pubkey, week_id: u32, bump: u8) -> Self {
-        Self {
-            version: ECONOMY_ACCOUNT_VERSION,
-            owner,
-            week_id,
-            recurring_xp: 0,
-            stars_awarded: false,
-            lifetime_stars_awarded: 0,
-            bump,
-        }
-    }
-
-    pub fn roll(&mut self, week_id: u32) {
-        if self.week_id != week_id {
-            self.week_id = week_id;
-            self.recurring_xp = 0;
-            self.stars_awarded = false;
-        }
-    }
-
-    pub fn record_recurring_xp(&mut self, week_id: u32, amount: u32) -> Result<()> {
-        self.roll(week_id);
-        self.recurring_xp = self
-            .recurring_xp
-            .checked_add(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(())
-    }
-
-    pub fn maybe_award(&mut self, player: &mut PlayerProfile) -> Result<bool> {
-        if self.stars_awarded
-            || self.recurring_xp < WEEKLY_STIPEND_XP
-            || player.lifetime_xp < LEVEL_100_XP
-        {
-            return Ok(false);
-        }
-        player.credit_stars(WEEKLY_STIPEND_STARS)?;
-        self.stars_awarded = true;
-        self.lifetime_stars_awarded = self
-            .lifetime_stars_awarded
-            .checked_add(WEEKLY_STIPEND_STARS)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(true)
-    }
-}
-
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
@@ -416,7 +344,9 @@ impl DailyPressureProfile {
             ErrorCode::InvalidBlockWeights
         );
         require!(
-            (1..=9).contains(&self.starting_height) && self.max_moves == DAILY_MAX_MOVES,
+            (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
+                .contains(&self.starting_height)
+                && self.max_moves == DAILY_MAX_MOVES,
             ErrorCode::InvalidLevel
         );
         Ok(())
@@ -639,13 +569,14 @@ fn family_permutation(seed: [u8; 32], week_id: u32) -> [u8; DAILY_SCORE_FAMILY_C
 }
 
 fn daily_hash_u64(seed: [u8; 32], domain: &[u8], value: u32, discriminator: u8) -> u64 {
-    let digest = Sha256::new()
-        .chain_update(b"zkube-daily-selection-v1")
-        .chain_update(seed)
-        .chain_update(domain)
-        .chain_update(value.to_le_bytes())
-        .chain_update([discriminator])
-        .finalize();
+    let value = value.to_le_bytes();
+    let digest = sha256v(&[
+        b"zkube-daily-selection-v1",
+        &seed,
+        domain,
+        &value,
+        &[discriminator],
+    ]);
     u64::from_le_bytes(
         digest[..8]
             .try_into()
@@ -697,7 +628,6 @@ pub struct DailyPlayer {
     pub attempts: u32,
     pub finalized_attempts: u32,
     pub best_run_id: u64,
-    pub best_receipt: Pubkey,
     pub best_daily_score: u32,
     pub best_engine_score: u32,
     pub best_moves: u16,
@@ -724,7 +654,6 @@ pub struct DailyLeaderboard {
 )]
 pub struct DailyLeaderboardEntry {
     pub player: Pubkey,
-    pub receipt: Pubkey,
     pub run_id: u64,
     pub daily_score: u32,
     pub engine_score: u32,
@@ -734,11 +663,21 @@ pub struct DailyLeaderboardEntry {
 
 impl DailyLeaderboard {
     pub fn record_best(&mut self, entry: DailyLeaderboardEntry) {
-        self.entries
-            .retain(|current| current.player != entry.player);
-        self.entries.push(entry);
-        self.entries.sort_unstable_by(compare_daily_entries);
-        self.entries.truncate(DAILY_LEADERBOARD_CAPACITY);
+        if let Some(index) = self
+            .entries
+            .iter()
+            .position(|current| current.player == entry.player)
+        {
+            self.entries.remove(index);
+        }
+        let index = self
+            .entries
+            .binary_search_by(|current| compare_daily_entries(current, &entry))
+            .unwrap_or_else(|index| index);
+        self.entries.insert(index, entry);
+        if self.entries.len() > DAILY_LEADERBOARD_CAPACITY {
+            self.entries.pop();
+        }
     }
 
     pub fn rank_of(&self, player: Pubkey) -> Option<usize> {
@@ -1163,7 +1102,6 @@ mod tests {
         let mut entries = vec![
             DailyLeaderboardEntry {
                 player,
-                receipt: Pubkey::new_unique(),
                 run_id: 1,
                 daily_score: 10,
                 engine_score: 5,
@@ -1172,7 +1110,6 @@ mod tests {
             },
             DailyLeaderboardEntry {
                 player: Pubkey::new_unique(),
-                receipt: Pubkey::new_unique(),
                 run_id: 2,
                 daily_score: 10,
                 engine_score: 8,
@@ -1181,7 +1118,6 @@ mod tests {
             },
             DailyLeaderboardEntry {
                 player: Pubkey::new_unique(),
-                receipt: Pubkey::new_unique(),
                 run_id: 3,
                 daily_score: 11,
                 engine_score: 1,
@@ -1190,7 +1126,6 @@ mod tests {
             },
             DailyLeaderboardEntry {
                 player: Pubkey::new_unique(),
-                receipt: Pubkey::new_unique(),
                 run_id: 4,
                 daily_score: 10,
                 engine_score: 5,
@@ -1258,8 +1193,6 @@ mod tests {
         let sizes = [
             EconomyConfig::INIT_SPACE,
             StarSalesLedger::INIT_SPACE,
-            LevelMilestones::INIT_SPACE,
-            WeeklyStipend::INIT_SPACE,
             DailyRulesCatalog::INIT_SPACE,
             DailyChallenge::INIT_SPACE,
             DailyPlayer::INIT_SPACE,
@@ -1274,32 +1207,10 @@ mod tests {
     #[test]
     fn cadence_account_allocations_include_full_leaderboard_capacity() {
         assert_eq!(8 + DailyChallenge::INIT_SPACE, 415);
-        assert_eq!(8 + DailyLeaderboard::INIT_SPACE, 4_546);
+        assert_eq!(8 + DailyLeaderboard::INIT_SPACE, 2_946);
+        assert_eq!(8 + DailyPlayer::INIT_SPACE, 112);
         assert_eq!(8 + WeeklyChallenge::INIT_SPACE, 153);
         assert_eq!(8 + WeeklyLeaderboard::INIT_SPACE, 1_012);
-    }
-
-    #[test]
-    fn level_one_hundred_stipend_awards_once_and_never_backfills() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerProfile::initialize(owner, 1);
-        player.lifetime_xp = LEVEL_100_XP;
-        let mut stipend = WeeklyStipend::initialize(owner, 8, 2);
-
-        stipend.record_recurring_xp(8, 2_499).unwrap();
-        assert!(!stipend.maybe_award(&mut player).unwrap());
-        stipend.record_recurring_xp(8, 1).unwrap();
-        assert!(stipend.maybe_award(&mut player).unwrap());
-        assert_eq!(player.stars_balance, WEEKLY_STIPEND_STARS);
-        assert!(!stipend.maybe_award(&mut player).unwrap());
-
-        stipend.record_recurring_xp(10, WEEKLY_STIPEND_XP).unwrap();
-        assert_eq!(stipend.week_id, 10);
-        assert_eq!(stipend.recurring_xp, WEEKLY_STIPEND_XP);
-        assert!(!stipend.stars_awarded);
-        assert!(stipend.maybe_award(&mut player).unwrap());
-        assert_eq!(player.stars_balance, WEEKLY_STIPEND_STARS * 2);
-        assert_eq!(stipend.lifetime_stars_awarded, WEEKLY_STIPEND_STARS * 2);
     }
 
     #[test]

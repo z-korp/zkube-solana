@@ -199,7 +199,6 @@ mod tests {
         let funding =
             Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
         let metas = crate::accounts::FundedDelegateActiveRun {
-            run_shell: Pubkey::new_unique(),
             buffer_pda: Pubkey::new_unique(),
             delegation_record_pda: Pubkey::new_unique(),
             delegation_metadata_pda: Pubkey::new_unique(),
@@ -214,14 +213,14 @@ mod tests {
         }
         .to_account_metas(None);
 
-        assert_eq!(metas.len(), 12);
-        assert_eq!(metas[5].pubkey, funding);
-        assert!(metas[5].is_writable);
-        assert!(!metas[5].is_signer);
-        assert_eq!(metas[8].pubkey, actor);
-        assert!(metas[8].is_signer);
-        assert_eq!(metas[9].pubkey, crate::ID);
-        assert!(!metas[9].is_signer);
+        assert_eq!(metas.len(), 11);
+        assert_eq!(metas[4].pubkey, funding);
+        assert!(metas[4].is_writable);
+        assert!(!metas[4].is_signer);
+        assert_eq!(metas[7].pubkey, actor);
+        assert!(metas[7].is_signer);
+        assert_eq!(metas[8].pubkey, crate::ID);
+        assert!(!metas[8].is_signer);
     }
 
     #[test]
@@ -232,37 +231,35 @@ mod tests {
         let safe = crate::accounts::UnlockZone {
             protocol: Pubkey::new_unique(),
             economy_config: Pubkey::new_unique(),
-            player_profile: Pubkey::new_unique(),
-            campaign_progress: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
             map_catalog: Pubkey::new_unique(),
             owner_authority: owner,
             session_token: Some(session),
             actor,
         }
         .to_account_metas(None);
-        assert_eq!(safe.len(), 8);
-        assert_eq!(safe[5].pubkey, owner);
+        assert_eq!(safe.len(), 7);
+        assert_eq!(safe[4].pubkey, owner);
+        assert!(!safe[4].is_signer);
+        assert_eq!(safe[5].pubkey, session);
         assert!(!safe[5].is_signer);
-        assert_eq!(safe[6].pubkey, session);
-        assert!(!safe[6].is_signer);
-        assert_eq!(safe[7].pubkey, actor);
-        assert!(safe[7].is_signer);
+        assert_eq!(safe[6].pubkey, actor);
+        assert!(safe[6].is_signer);
 
         let direct = crate::accounts::UnlockZone {
             protocol: Pubkey::new_unique(),
             economy_config: Pubkey::new_unique(),
-            player_profile: Pubkey::new_unique(),
-            campaign_progress: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
             map_catalog: Pubkey::new_unique(),
             owner_authority: owner,
             session_token: None,
             actor: owner,
         }
         .to_account_metas(None);
-        assert_eq!(direct[5].pubkey, owner);
-        assert_eq!(direct[6].pubkey, crate::ID);
-        assert_eq!(direct[7].pubkey, owner);
-        assert!(direct[7].is_signer);
+        assert_eq!(direct[4].pubkey, owner);
+        assert_eq!(direct[5].pubkey, crate::ID);
+        assert_eq!(direct[6].pubkey, owner);
+        assert!(direct[6].is_signer);
     }
 
     #[test]
@@ -272,7 +269,7 @@ mod tests {
             protocol: Pubkey::new_unique(),
             economy_config: Pubkey::new_unique(),
             star_sales_ledger: Pubkey::new_unique(),
-            player_profile: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
             team_destination: Pubkey::new_unique(),
             reward_vault: Pubkey::new_unique(),
             treasury_destination: Pubkey::new_unique(),
@@ -283,24 +280,5 @@ mod tests {
         assert_eq!(purchase.len(), 9);
         assert_eq!(purchase[7].pubkey, owner);
         assert!(purchase[7].is_signer);
-    }
-
-    #[test]
-    fn settled_run_cleanup_is_permissionless_and_returns_only_to_funding() {
-        let owner = Pubkey::new_unique();
-        let funding =
-            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
-        let cleanup = crate::accounts::CloseSettledActiveRun {
-            owner_authority: owner,
-            protocol: Pubkey::new_unique(),
-            rent_recipient: funding,
-            run_shell: Pubkey::new_unique(),
-            run_receipt: Pubkey::new_unique(),
-            active_run: Pubkey::new_unique(),
-        }
-        .to_account_metas(None);
-        assert_eq!(cleanup.len(), 6);
-        assert_eq!(cleanup[2].pubkey, funding);
-        assert!(cleanup.iter().all(|meta| !meta.is_signer));
     }
 }

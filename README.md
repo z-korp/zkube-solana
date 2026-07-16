@@ -11,8 +11,8 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 | --- | --- | --- |
 | External wallet | Durable player owner, first enable, renewals, Star purchases | Owner signs and pays |
 | Device session | Seven-day scoped signer stored only in that browser | Receives a 0.001 SOL fee allowance from the owner |
-| Player funding PDA | System-owned, zero-data 0.035 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can make it sign |
-| Solana program | Identity, Campaign/Daily/Weekly state, Stars, native-SOL accounting, receipts | Device session for safe play; owner for SOL purchases |
+| Player funding PDA | System-owned, zero-data 0.025 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can make it sign |
+| Solana program | Identity, Campaign/Daily/Weekly state, Stars, native-SOL accounting, run settlement | Device session for safe play; owner for SOL purchases |
 | MagicBlock ER | Delegated active gameplay and VRF | Gasless gameplay; Router selects the validator |
 | Fly keeper | Daily/Weekly cadence, permissionless settlement recovery, cleanup | Its own SOL-funded keypair |
 | Static PWA/TWA | UI, wallet discovery, session storage, transaction assembly | No server signer and no paymaster |
@@ -21,7 +21,7 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 wallet ── Connect & Enable (one owner approval) ──> 7-day device session
    │                                                   │
    ├── exact SOL approval ──> Star purchase             ├── silent base actions
-   └── funds 0.035 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
+   └── funds 0.025 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
 
 Solana base <── delegate / copy back ──> Router-selected MagicBlock ER
      ▲
@@ -44,23 +44,27 @@ single versioned `Enable zKube` transaction. That transaction initializes a new
 player when necessary, replenishes the shared funding float, creates the scoped
 session token, and gives the device signer its bounded fee allowance.
 
-Normal Campaign and Daily play is silent after enablement. A run is prepared on
-Solana, delegated through the MagicBlock Router, played on the resolved ER, then
+Normal Campaign and Daily play is silent after enablement. A fresh run is
+prepared and delegated atomically in one Solana v0 transaction, played on the resolved ER, then
 sealed, committed, copied back, consumed, and cleaned automatically. Base,
 Router, and ER connections are always separate.
 
 The opening board uses one verified VRF callback and expands that unpredictable
-result with domain-separated hashes into only the rows visible at launch. Each
+result with a domain-separated SHA-256 syscall stream into exactly the configured
+3–8 stable rows plus one preview. Eight draws are consumed from each digest; the
+callback has no retry or settle loop, and every generated row is nonempty,
+nonfull, coherent, and supported. Each
 move that exposes a future hidden row atomically requests a fresh VRF value in
 the same ER transaction, so client timing cannot select the next row. The
 client prewarms an endpoint-scoped ER blockhash, skips ER preflight, and keeps a
 single ActiveRun account subscription alive; notification data is validated and
 decoded directly, with short polling used only while recovering a missed write.
 
-`PlayerProfile.active_run_id` enforces one open run per owner. It prevents two
+`PlayerState.active_run_id` enforces one open run per owner. It prevents two
 enabled devices from launching overlapping runs and lets a fresh device
 reconstruct the exact run PDA from chain state. Browser storage is only a cache;
-the durable pointer is cleared only after the receipt is consumed on Solana.
+the durable pointer is cleared only when copied-back terminal `ActiveRun` state
+is consumed into progression and closed atomically on Solana.
 
 ## Native-SOL economy
 
@@ -150,7 +154,13 @@ and renewal.
 
 ## Devnet release status and sequence
 
-Devnet runs the breaking native-SOL program at deployment slot `476696498`.
+The v3 source tree uses the new program address
+`Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR`. It is not live until its
+initial-deploy, bootstrap, keeper, and client transaction bundle is separately
+simulated, fingerprinted, approved, and executed. The old v2 deployment remains
+the currently reachable Devnet program during this maintenance window.
+
+The previous Devnet release ran the native-SOL program at deployment slot `476696498`.
 The deployed program artifact is 1,758,456 bytes with SHA-256
 `52bdd43dc4f0f14c421302b0553dfaa79a1e7fa347df487a4bb77598cf0f02ea`;
 the full padded ProgramData payload has SHA-256
@@ -165,16 +175,19 @@ and playable. The keeper has a `0.1 SOL` reserve floor covering the full
 variable-capacity leaderboard rent, at most eight writes per pass, and at most
 two expired-session revocations per pass. The matching static PWA is live.
 
-The remaining release work is real-wallet desktop and Seeker acceptance against
-this deployment, followed by the signed TWA APK only after browser acceptance
-passes.
+The v3 account pass compacts Campaign stars to 80 bytes, achievement claims to
+one 24-bit-bounded word, removes stale run addresses from Daily ranking state,
+and reduces the fully allocated 50-entry Daily leaderboard from 4,546 to 2,946
+bytes. Per-player profile, Campaign, quest, milestone, and stipend state now
+live in one 363-byte `PlayerState`; each run uses one 595-byte `ActiveRun`
+instead of shell/active/receipt triplication. The funding target is stored in
+`ProtocolConfig`; the client treats
+larger or malformed values as invalid instead of trusting a browser constant.
 
-Two requested economy changes are intentionally not folded into infrastructure
-cleanup: the deployed player-funding target remains 0.035 SOL pending an audit
-of a proposed 0.025 SOL target, and Daily entry remains 10 Stars pending a
-separate design and migration for a proposed 0.01 SOL entry. Both affect the
-program, client signing UX, and deployed configuration and therefore require a
-dedicated release.
+The remaining release work is the approved v3 initial deployment and fresh
+bootstrap, followed by real-wallet desktop and Seeker acceptance and the signed
+TWA APK only after browser acceptance passes. Existing v2 Devnet progress is
+intentionally not migrated.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a
@@ -188,7 +201,8 @@ fingerprints are fixed in advance; any drift stops the bundle. Mainnet is disabl
   cluster genesis before decoding untrusted RPC data.
 - A session token must match owner, actor, target program, fee payer, and expiry.
 - Star purchases require the owner signer and exact quoted lamports.
-- Preserve unsettled run accounts until durable receipt evidence exists.
+- Preserve `ActiveRun` until terminal copyback; consume progression, clear the
+  active pointer, and close rent atomically.
 - Resolve ER endpoints through `getDelegationStatus`; never hardcode a region.
 - Keep Android signing keys, deploy authorities, and keeper secrets outside git.
 

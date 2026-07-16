@@ -10,7 +10,7 @@ async function main(): Promise<void> {
       [
         "zKube Devnet deployment planner",
         "",
-        "Required for the default upgrade of deployed 5NfTo5...:",
+        "Required for the configured zKube program deployment:",
         "  ZKUBE_DEPLOYER_KEYPAIR=<funded Devnet fee-payer path>",
         "  ZKUBE_UPGRADE_AUTHORITY_KEYPAIR=<dedicated zKube authority path>",
         "",
