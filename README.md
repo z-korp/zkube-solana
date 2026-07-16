@@ -146,17 +146,15 @@ Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
 are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
 
-The Fly keeper is deployed with `KEEPER_WRITE_ENABLED=false`. Its first bounded
-write pass opened Devnet day `20650` and week `2950`; both accounts are verified
-and playable. The keeper returned to read-only mode while its reserve floor was
-raised to `0.1 SOL` to cover the full variable-capacity leaderboard rent. The
-remaining rollout is:
+The Fly keeper is live with its separately approved bounded write policy. Its
+first pass opened Devnet day `20650` and week `2950`; both accounts are verified
+and playable. The keeper has a `0.1 SOL` reserve floor covering the full
+variable-capacity leaderboard rent, at most eight writes per pass, and at most
+two expired-session revocations per pass. The matching static PWA is live.
 
-1. Separately approve the bounded keeper write policy and enable it in Fly.
-2. Verify the current Weekly and Daily accounts after the first write pass.
-3. Publish the matching static PWA and complete desktop and real Seeker
-   acceptance against the deployed program artifact.
-4. Produce the signed TWA APK only after browser acceptance passes.
+The remaining release work is real-wallet desktop and Seeker acceptance against
+this deployment, followed by the signed TWA APK only after browser acceptance
+passes.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs its own exact operator approval. Mainnet is disabled.
