@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { loadRunSession } from "@/chain/runSessionStore";
 
 export interface ActiveDailyRun {
   gameId: bigint;
@@ -12,15 +10,12 @@ export interface ActiveDailyRun {
 }
 
 export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
-  const { publicKey } = useConnectedPlayer();
   const run = useRun();
   return useMemo(() => {
-    const marker = publicKey ? loadRunSession(publicKey) : null;
     const active = run.activeRun;
-    if (!marker || marker.mode !== "daily") return null;
-    if (active && active.mode === "daily" && active.runId === marker.runId) {
+    if (active && active.mode === "daily") {
       return {
-        gameId: marker.runId,
+        gameId: active.runId,
         level: active.level,
         isReplay: false,
         settled: false,
@@ -29,15 +24,15 @@ export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
     if (
       run.phase === "settled" &&
       run.receipt?.mode === "daily" &&
-      run.receipt.runId === marker.runId
+      run.receipt.runId > 0n
     ) {
       return {
-        gameId: marker.runId,
+        gameId: run.receipt.runId,
         level: run.receipt.level,
         isReplay: false,
         settled: true,
       };
     }
     return null;
-  }, [publicKey, run.activeRun, run.phase, run.receipt]);
+  }, [run.activeRun, run.phase, run.receipt]);
 };

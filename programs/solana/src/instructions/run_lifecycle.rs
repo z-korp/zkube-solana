@@ -19,7 +19,9 @@ use crate::game::{
     calculate_level_stars, row_from_vrf_with_draw_budget, BlockWeights, Bonus, Constraint,
     ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
 };
-use crate::instructions::player_authorization::require_player_authorization;
+use crate::instructions::player_authorization::{
+    require_player_authorization, require_player_rent_payer,
+};
 use crate::state::economy_v2::{
     DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
     DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
@@ -58,6 +60,7 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
+    require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
     let run_id = ctx.accounts.run_shell.run_id;
     let expected = Pubkey::find_program_address(
         &[

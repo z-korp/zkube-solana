@@ -7,6 +7,11 @@
  * markers are saved only after base confirmation.
  */
 import {
+  delegateBufferPdaFromDelegatedAccountAndOwnerProgram,
+  delegationMetadataPdaFromDelegatedAccount,
+  delegationRecordPdaFromDelegatedAccount,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+import {
   AnchorProvider,
   BorshAccountsCoder,
   Program as AnchorProgram,
@@ -28,6 +33,7 @@ import {
 } from "@solana/web3.js";
 import { IDL, type ZkubeProgram } from "./idl/index.js";
 import {
+  DELEGATION_PROGRAM_ID,
   INITIAL_RUN_ID,
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
@@ -343,7 +349,7 @@ export async function assertPreparedRunAddressesAvailable(
 export async function buildDelegateRunPlan(args: {
   wallet: WalletLike;
   ownerAuthority: PublicKey;
-  sessionToken: PublicKey | null;
+  sessionToken: PublicKey;
   addresses: RunAddresses;
   connection?: Connection;
 }): Promise<TransactionPlan> {
@@ -352,15 +358,26 @@ export async function buildDelegateRunPlan(args: {
   const program = zkubeProgram(connection, args.wallet);
   const validator = await getClosestValidator();
   const payer = args.wallet.publicKey;
+  const activeRun = args.addresses.activeRun;
   const instruction = await program.methods
-    .delegateActiveRun()
+    .fundedDelegateActiveRun()
     .accountsPartial({
-      payer,
+      runShell: args.addresses.runShell,
+      bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
+        activeRun,
+        ZKUBE_PROGRAM_ID,
+      ),
+      delegationRecordPda: delegationRecordPdaFromDelegatedAccount(activeRun),
+      delegationMetadataPda:
+        delegationMetadataPdaFromDelegatedAccount(activeRun),
+      pda: activeRun,
+      playerFunding: derivePlayerFundingPda(args.ownerAuthority),
       ownerAuthority: args.ownerAuthority,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
-      runShell: args.addresses.runShell,
-      pda: args.addresses.activeRun,
+      ownerProgram: ZKUBE_PROGRAM_ID,
+      delegationProgram: DELEGATION_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       { pubkey: validator.identity, isSigner: false, isWritable: false },

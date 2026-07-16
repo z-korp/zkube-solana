@@ -30,6 +30,7 @@ const fixtures = vi.hoisted(() => ({
   },
   dismissRun: vi.fn(),
   abandonRun: vi.fn(() => Promise.reject(new Error("no chain in tests"))),
+  resumePreparedRun: vi.fn(() => Promise.resolve()),
   recoverSession: vi.fn(),
   retrySessionRenewal: vi.fn(),
   sessionRenewalStatus: "renewing" as "idle" | "renewing" | "failed",
@@ -71,6 +72,7 @@ vi.mock("@/play/usePlayController", () => ({
         publicKey: fixtures.publicKey,
         dismissRun: fixtures.dismissRun,
         abandonRun: fixtures.abandonRun,
+        resumePreparedRun: fixtures.resumePreparedRun,
         recoverSession: fixtures.recoverSession,
       },
       game: fixtures.gameAvailable
@@ -156,6 +158,46 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
+});
+
+describe("PlayScreen prepared-run recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.lifecycle = "prepared";
+    fixtures.phase = "base";
+    fixtures.gameAvailable = true;
+    fixtures.error = null;
+    fixtures.sessionAuthorized = true;
+    fixtures.settledReceipt = null;
+    fixtures.settledCleanupStatus = "idle";
+    fixtures.sessionRenewalStatus = "idle";
+    fixtures.recoveryRunId = null;
+  });
+
+  it("resumes the durable prepared run instead of starting a replacement", async () => {
+    render(<PlayScreen />);
+
+    expect(screen.getByText("Run ready")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Resume run" }));
+    });
+
+    expect(fixtures.resumePreparedRun).toHaveBeenCalledOnce();
+    expect(fixtures.abandonRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed abandon attached and visible", async () => {
+    render(<PlayScreen />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Abandon run" }));
+    });
+
+    expect(fixtures.abandonRun).toHaveBeenCalledOnce();
+    expect(fixtures.dismissRun).not.toHaveBeenCalled();
+    expect(fixtures.navigate).not.toHaveBeenCalledWith("home");
+    expect(screen.getByText("Run ready")).toBeInTheDocument();
+  });
 });
 
 describe("PlayScreen expired-session escape", () => {

@@ -136,23 +136,29 @@ export default function PlayScreen() {
   );
 
   const abandonRun = run.abandonRun;
+  const resumePreparedRun = run.resumePreparedRun;
   const [quitting, setQuitting] = useState(false);
   const handleQuit = useCallback(() => {
     // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed).
     // Stay on a "Forfeiting…" screen until the run has really settled
-    // on-chain, then return home. Fall back to a local dismiss if the
-    // abandon cannot run (e.g. a deployed program that predates abandonRun).
+    // on-chain, then return home. A failed abandon must keep the durable run
+    // attached; forgetting it would hide a still-live active_run_id.
     setQuitting(true);
     void (async () => {
       try {
         await abandonRun();
-      } catch {
-        dismissRun();
-      } finally {
         navigate("home");
+      } catch {
+        setQuitting(false);
       }
     })();
-  }, [abandonRun, dismissRun, navigate]);
+  }, [abandonRun, navigate]);
+
+  const handleResumePrepared = useCallback(() => {
+    void resumePreparedRun().catch(() => {
+      // The shared controller keeps the actionable error on the run screen.
+    });
+  }, [resumePreparedRun]);
 
   /** Local-only escape hatch: forget the marker, never touch the chain. */
   const handleForgetLocally = useCallback(() => {
@@ -409,6 +415,7 @@ export default function PlayScreen() {
   // the completion screen mid-animation.
   const terminal = chainTerminal && !controller.awaitingTerminalCascade;
   const basePhase = run.phase === "base" || run.phase === "settleable";
+  const preparedBase = run.phase === "base" && activeRun.lifecycle === "prepared";
   // Lock input across the whole terminal window (including the final cascade),
   // so `chainTerminal` here — not the gated `terminal`.
   const locked =
@@ -509,7 +516,9 @@ export default function PlayScreen() {
         {(terminal || basePhase) && (
           <div className="absolute inset-x-4 bottom-4 z-50 rounded-2xl border border-yellow-300/30 bg-black/85 p-4 text-center backdrop-blur-xl">
             <p className="font-display text-xl text-yellow-300">
-              {activeRun.lifecycle === "levelComplete"
+              {preparedBase
+                ? "Run ready"
+                : activeRun.lifecycle === "levelComplete"
                 ? "Level complete"
                 : "Run finished"}
             </p>
@@ -519,7 +528,11 @@ export default function PlayScreen() {
                   ? "Session renewal failed."
                   : "Renewing session…"
                 : basePhase
-                  ? run.phase === "settleable"
+                  ? preparedBase
+                    ? run.busy
+                      ? "Resuming on MagicBlock…"
+                      : "Preparation is complete. Continue this run or abandon it."
+                    : run.phase === "settleable"
                     ? "Finalizing settlement on Solana…"
                     : "Result copied to the Solana base layer…"
                   : controller.settlingLabel}
@@ -561,6 +574,16 @@ export default function PlayScreen() {
                 className="mt-3 rounded-xl bg-emerald-600 px-5 py-2 font-sans text-xs font-bold text-white"
               >
                 Retry settlement
+              </button>
+            )}
+            {preparedBase && (
+              <button
+                type="button"
+                disabled={run.busy || !run.sessionAuthorized}
+                onClick={handleResumePrepared}
+                className="mt-3 rounded-xl bg-emerald-600 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
+              >
+                {run.busy ? "Resuming…" : "Resume run"}
               </button>
             )}
             {(run.phase === "base" ||

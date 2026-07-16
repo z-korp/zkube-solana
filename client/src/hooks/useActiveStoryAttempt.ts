@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { loadRunSession } from "@/chain/runSessionStore";
 
 export interface ActiveStoryRun {
   gameId: bigint;
@@ -12,15 +10,14 @@ export interface ActiveStoryRun {
 }
 
 export const useActiveStoryAttempt = (): ActiveStoryRun | null => {
-  const { publicKey } = useConnectedPlayer();
   const run = useRun();
   return useMemo(() => {
-    const marker = publicKey ? loadRunSession(publicKey) : null;
     const active = run.activeRun;
-    if (!marker || marker.mode !== "campaign") return null;
-    if (active && active.mode !== "daily" && active.runId === marker.runId) {
+    // The durable ActiveRun is authoritative. Browser storage is only a cache
+    // and may be unavailable after refresh or inside a wallet browser.
+    if (active && active.mode !== "daily") {
       return {
-        gameId: marker.runId,
+        gameId: active.runId,
         zoneId: active.mapId,
         level: active.level,
         settled: false,
@@ -29,15 +26,15 @@ export const useActiveStoryAttempt = (): ActiveStoryRun | null => {
     if (
       run.phase === "settled" &&
       run.receipt?.mode === "campaign" &&
-      run.receipt.runId === marker.runId
+      run.receipt.runId > 0n
     ) {
       return {
-        gameId: marker.runId,
+        gameId: run.receipt.runId,
         zoneId: run.receipt.mapId,
         level: run.receipt.level,
         settled: true,
       };
     }
     return null;
-  }, [publicKey, run.activeRun, run.phase, run.receipt]);
+  }, [run.activeRun, run.phase, run.receipt]);
 };

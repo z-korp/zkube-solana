@@ -2,6 +2,11 @@
 
 import BN from "bn.js";
 import {
+  delegateBufferPdaFromDelegatedAccountAndOwnerProgram,
+  delegationMetadataPdaFromDelegatedAccount,
+  delegationRecordPdaFromDelegatedAccount,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+import {
   Keypair,
   SystemProgram,
   Transaction,
@@ -10,7 +15,7 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import { IDL } from "./idl";
 import {
   deriveCampaignProgressPda,
@@ -110,6 +115,7 @@ describe("native SOL transaction boundaries", () => {
     const fundedInstructions = [
       "funded_claim_level_milestone",
       "funded_claim_quest",
+      "funded_delegate_active_run",
       "funded_enter_daily",
       "funded_prepare_campaign_run",
       "funded_rollup_daily_to_weekly",
@@ -119,14 +125,78 @@ describe("native SOL transaction boundaries", () => {
       const instruction = IDL.instructions.find(
         (candidate) => (candidate.name as string) === name,
       );
-      const zkubeProgramMeta = instruction?.accounts.at(-1);
+      const zkubeProgramMeta = instruction?.accounts.find((account) =>
+        ["zkube_program", "owner_program"].includes(account.name as string),
+      );
       expect(zkubeProgramMeta, name).toMatchObject({
-        name: "zkube_program",
         address: ZKUBE_PROGRAM_ID.toBase58(),
       });
       expect(zkubeProgramMeta, name).not.toHaveProperty("writable", true);
       expect(zkubeProgramMeta, name).not.toHaveProperty("signer", true);
     }
+  });
+
+  it("funds delegation rent only from the canonical player PDA", async () => {
+    const owner = Keypair.generate().publicKey;
+    const actor = new SessionWallet(Keypair.generate());
+    const sessionToken = Keypair.generate().publicKey;
+    const run = deriveRunAddresses(owner, 7n);
+    const validator = Keypair.generate().publicKey;
+    const buffer = delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
+      run.activeRun,
+      ZKUBE_PROGRAM_ID,
+    );
+    const record = delegationRecordPdaFromDelegatedAccount(run.activeRun);
+    const metadata = delegationMetadataPdaFromDelegatedAccount(run.activeRun);
+    const instruction = await zkubeProgram({} as Connection, actor).methods
+      .fundedDelegateActiveRun()
+      .accountsPartial({
+        runShell: run.runShell,
+        bufferPda: buffer,
+        delegationRecordPda: record,
+        delegationMetadataPda: metadata,
+        pda: run.activeRun,
+        playerFunding: derivePlayerFundingPda(owner),
+        ownerAuthority: owner,
+        sessionToken,
+        actor: actor.publicKey,
+        ownerProgram: ZKUBE_PROGRAM_ID,
+        delegationProgram: DELEGATION_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([
+        { pubkey: validator, isSigner: false, isWritable: false },
+      ])
+      .instruction();
+
+    expect(instruction.keys.filter(({ isSigner }) => isSigner)).toEqual([
+      expect.objectContaining({ pubkey: actor.publicKey }),
+    ]);
+    expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
+      [
+        run.runShell,
+        buffer,
+        record,
+        metadata,
+        run.activeRun,
+        derivePlayerFundingPda(owner),
+        owner,
+        sessionToken,
+        actor.publicKey,
+        ZKUBE_PROGRAM_ID,
+        DELEGATION_PROGRAM_ID,
+        SystemProgram.programId,
+        validator,
+      ].map((publicKey) => publicKey.toBase58()),
+    );
+    expect(instruction.keys[5]).toMatchObject({
+      isSigner: false,
+      isWritable: true,
+    });
+    expect(instruction.keys.at(-1)).toMatchObject({
+      isSigner: false,
+      isWritable: false,
+    });
   });
 
   it("preserves a real device signature through v0 serialization", async () => {

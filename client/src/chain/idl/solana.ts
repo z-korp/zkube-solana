@@ -3224,6 +3224,94 @@ export type Solana = {
       ]
     },
     {
+      "name": "fundedDelegateActiveRun",
+      "discriminator": [
+        102,
+        174,
+        16,
+        12,
+        194,
+        90,
+        137,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "runShell",
+          "writable": true
+        },
+        {
+          "name": "bufferPda",
+          "writable": true
+        },
+        {
+          "name": "delegationRecordPda",
+          "writable": true
+        },
+        {
+          "name": "delegationMetadataPda",
+          "writable": true
+        },
+        {
+          "name": "pda",
+          "writable": true
+        },
+        {
+          "name": "playerFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ownerAuthority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "ownerProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
+        },
+        {
+          "name": "delegationProgram"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "fundedEnterDaily",
       "discriminator": [
         181,

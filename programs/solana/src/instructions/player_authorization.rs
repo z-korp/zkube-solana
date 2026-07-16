@@ -193,6 +193,38 @@ mod tests {
     }
 
     #[test]
+    fn funded_delegate_outer_metas_never_make_the_funding_pda_a_signer() {
+        let owner = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
+        let funding =
+            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
+        let metas = crate::accounts::FundedDelegateActiveRun {
+            run_shell: Pubkey::new_unique(),
+            buffer_pda: Pubkey::new_unique(),
+            delegation_record_pda: Pubkey::new_unique(),
+            delegation_metadata_pda: Pubkey::new_unique(),
+            pda: Pubkey::new_unique(),
+            player_funding: funding,
+            owner_authority: owner,
+            session_token: token_address(owner, actor),
+            actor,
+            owner_program: crate::ID,
+            delegation_program: ephemeral_rollups_sdk::id().to_bytes().into(),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 12);
+        assert_eq!(metas[5].pubkey, funding);
+        assert!(metas[5].is_writable);
+        assert!(!metas[5].is_signer);
+        assert_eq!(metas[8].pubkey, actor);
+        assert!(metas[8].is_signer);
+        assert_eq!(metas[9].pubkey, crate::ID);
+        assert!(!metas[9].is_signer);
+    }
+
+    #[test]
     fn generated_account_metas_preserve_the_common_authorization_shape() {
         let owner = Pubkey::new_unique();
         let actor = Pubkey::new_unique();

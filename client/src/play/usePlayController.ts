@@ -116,6 +116,8 @@ export function settleStageLabel(stage: SettleStage | null): string {
   switch (stage) {
     case "abandoning":
       return "Abandoning run…";
+    case "delegating":
+      return "Resuming run on MagicBlock…";
     case "sealing":
       return "Sealing result…";
     case "committing":

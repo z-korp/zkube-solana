@@ -76,6 +76,65 @@ describe("persisted run resolution", () => {
       .toBe(true);
   });
 
+  it("discovers a prepared base run without a browser marker", async () => {
+    const owner = Keypair.generate();
+    const deviceSigner = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: deviceSigner.publicKey,
+    }).sessionToken;
+    const deviceSession = {
+      owner: owner.publicKey,
+      signer: deviceSigner,
+      sessionToken,
+      validUntil: Math.floor(Date.now() / 1_000) + 3_600,
+      createdAt: Math.floor(Date.now() / 1_000),
+    };
+    const prepared = {
+      owner: owner.publicKey,
+      runId: 1n,
+      mode: "campaign",
+      lifecycle: "prepared",
+      mapId: 1,
+      level: 1,
+      score: 0,
+      actionCounter: 0,
+      moves: 0,
+      grid: new Array(80).fill(0),
+      nextRow: new Array(8).fill(0),
+      pendingVrfCounter: 0,
+    };
+    const baseConnection = {
+      getAccountInfo: vi.fn().mockImplementation(async (address) => ({
+        owner: address.equals(sessionToken)
+          ? Keypair.generate().publicKey
+          : ZKUBE_PROGRAM_ID,
+        data: new Uint8Array([1]),
+      })),
+    } as unknown as Connection;
+    const fetchRun = vi.fn().mockResolvedValue(prepared);
+
+    const result = await resolvePersistedRun({
+      owner: owner.publicKey,
+      wallet: new SessionWallet(owner),
+      baseConnection,
+      deviceSession,
+      dependencies: {
+        fetchActiveRunId: vi.fn().mockResolvedValue(1n),
+        getStatus: vi.fn().mockResolvedValue({ isDelegated: false }),
+        fetchRun,
+        fetchReceipt: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    expect(result.phase).toBe("base");
+    expect(result.phase === "base" && result.activeRun.lifecycle).toBe(
+      "prepared",
+    );
+    expect(result.phase === "base" && result.sessionAuthorized).toBe(true);
+    expect(loadRunSession(owner.publicKey)?.runId).toBe(1n);
+  });
+
   it("re-resolves the ER and verifies the active run identity", async () => {
     const owner = Keypair.generate();
     const session = Keypair.generate();

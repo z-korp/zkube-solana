@@ -54,6 +54,12 @@ pub mod solana {
         )
     }
 
+    pub fn funded_delegate_active_run<'info>(
+        ctx: Context<'info, FundedDelegateActiveRun<'info>>,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_delegate_active_run(ctx)
+    }
+
     pub fn funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
         instructions::player_funding_instructions::handler_funded_enter_daily(ctx, run_id)
     }

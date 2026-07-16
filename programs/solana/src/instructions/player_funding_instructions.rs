@@ -8,7 +8,10 @@
 
 use anchor_lang::{
     prelude::*,
-    solana_program::{instruction::Instruction, program::invoke_signed},
+    solana_program::{
+        instruction::{AccountMeta, Instruction},
+        program::invoke_signed,
+    },
     InstructionData, ToAccountMetas,
 };
 use session_keys::SessionTokenV2;
@@ -29,6 +32,98 @@ fn invoke_with_player_funding<'info>(
     let bump = [bump];
     let signer: &[&[u8]] = &[PLAYER_FUNDING_SEED, owner.as_ref(), &bump];
     invoke_signed(&instruction, account_infos, &[signer]).map_err(Into::into)
+}
+
+/// Pays MagicBlock's delegation-account rent from the owner's reusable funding
+/// PDA while leaving the scoped device actor responsible only for the outer
+/// transaction fee. The self-CPI deliberately targets the existing
+/// `delegate_active_run` instruction so its authorization, lifecycle, PDA, and
+/// MagicBlock account constraints remain the single source of truth.
+#[derive(Accounts)]
+pub struct FundedDelegateActiveRun<'info> {
+    /// CHECK: Mutated and fully constrained by the inner delegation instruction.
+    #[account(mut)]
+    pub run_shell: UncheckedAccount<'info>,
+    /// CHECK: MagicBlock buffer PDA constrained by the inner instruction.
+    #[account(mut)]
+    pub buffer_pda: UncheckedAccount<'info>,
+    /// CHECK: MagicBlock delegation record constrained by the inner instruction.
+    #[account(mut)]
+    pub delegation_record_pda: UncheckedAccount<'info>,
+    /// CHECK: MagicBlock delegation metadata constrained by the inner instruction.
+    #[account(mut)]
+    pub delegation_metadata_pda: UncheckedAccount<'info>,
+    /// CHECK: The canonical ActiveRun PDA is constrained and decoded by the inner instruction.
+    #[account(mut)]
+    pub pda: UncheckedAccount<'info>,
+    /// CHECK: Canonical zero-data System PDA validated before self-CPI.
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
+        bump
+    )]
+    pub player_funding: UncheckedAccount<'info>,
+    /// CHECK: Immutable wallet identity checked by the inner instruction.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Account<'info, SessionTokenV2>,
+    pub actor: Signer<'info>,
+    pub owner_program: Program<'info, crate::program::Solana>,
+    /// CHECK: Address-constrained by the inner generated delegation accounts.
+    pub delegation_program: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_funded_delegate_active_run<'info>(
+    ctx: Context<'info, FundedDelegateActiveRun<'info>>,
+) -> Result<()> {
+    require!(
+        ctx.remaining_accounts.len() == 1,
+        ErrorCode::InvalidMagicProgram
+    );
+    let validator = &ctx.remaining_accounts[0];
+    let accounts = crate::accounts::DelegateActiveRun {
+        payer: ctx.accounts.player_funding.key(),
+        owner_authority: ctx.accounts.owner_authority.key(),
+        session_token: Some(ctx.accounts.session_token.key()),
+        actor: ctx.accounts.actor.key(),
+        run_shell: ctx.accounts.run_shell.key(),
+        buffer_pda: ctx.accounts.buffer_pda.key(),
+        delegation_record_pda: ctx.accounts.delegation_record_pda.key(),
+        delegation_metadata_pda: ctx.accounts.delegation_metadata_pda.key(),
+        pda: ctx.accounts.pda.key(),
+        owner_program: ctx.accounts.owner_program.key(),
+        delegation_program: ctx.accounts.delegation_program.key(),
+        system_program: ctx.accounts.system_program.key(),
+    };
+    let mut metas = accounts.to_account_metas(None);
+    metas.push(AccountMeta::new_readonly(validator.key(), false));
+    let instruction = Instruction {
+        program_id: crate::ID,
+        accounts: metas,
+        data: crate::instruction::DelegateActiveRun {}.data(),
+    };
+    let infos = vec![
+        ctx.accounts.player_funding.to_account_info(),
+        ctx.accounts.owner_authority.to_account_info(),
+        ctx.accounts.session_token.to_account_info(),
+        ctx.accounts.actor.to_account_info(),
+        ctx.accounts.run_shell.to_account_info(),
+        ctx.accounts.buffer_pda.to_account_info(),
+        ctx.accounts.delegation_record_pda.to_account_info(),
+        ctx.accounts.delegation_metadata_pda.to_account_info(),
+        ctx.accounts.pda.to_account_info(),
+        ctx.accounts.owner_program.to_account_info(),
+        ctx.accounts.delegation_program.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        validator.to_account_info(),
+    ];
+    invoke_with_player_funding(
+        ctx.accounts.owner_authority.key(),
+        &ctx.accounts.player_funding.to_account_info(),
+        ctx.bumps.player_funding,
+        instruction,
+        &infos,
+    )
 }
 
 #[derive(Accounts)]

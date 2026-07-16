@@ -113,6 +113,7 @@ const plogErSubmission = (
 
 export type SettleStage =
   | "abandoning"
+  | "delegating"
   | "sealing"
   | "committing"
   | "settling"
@@ -639,6 +640,144 @@ export function useRunController() {
     [connection, ensureActiveRunObserver, player, publicKey, wallet],
   );
 
+  const setStage = useCallback(
+    (settleStage: SettleStage | null) =>
+      setState((value) => ({ ...value, settleStage })),
+    [],
+  );
+
+  /**
+   * Continues a base-layer run whose preparation committed but delegation did
+   * not. The durable ActiveRun is reused exactly as-is: no run ID is allocated
+   * and no preparation rent is paid twice.
+   */
+  const resumePreparedRun = useCallback(async () => {
+    if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
+    const preparedOnBase = state.activeRun;
+    if (state.phase !== "base" || preparedOnBase?.lifecycle !== "prepared") {
+      throw new Error("No prepared base-layer run is available to resume");
+    }
+    if (actionInFlight.current) {
+      throw new Error("Another run action is already in progress");
+    }
+    actionInFlight.current = true;
+    telemetryTrace.current = createChainTraceId();
+    const traceId = telemetryTrace.current;
+    try {
+      return await withBusy(setState, async () => {
+        const device = player.requireSession();
+        const session = device.signer;
+        const sessionWallet = new SessionWallet(session);
+        const addresses = deriveRunAddresses(publicKey, preparedOnBase.runId);
+        const marker: RunSessionMarker = {
+          owner: publicKey,
+          runId: preparedOnBase.runId,
+          mode: preparedOnBase.mode === "daily" ? "daily" : "campaign",
+          dailyVersion:
+            preparedOnBase.mode === "daily"
+              ? (loadRunSession(publicKey)?.dailyVersion ?? 2)
+              : undefined,
+          session,
+          sessionToken: device.sessionToken,
+          addresses,
+          validUntil: device.validUntil,
+          createdAt: device.createdAt,
+        };
+        saveRunSession(marker);
+        setStage("delegating");
+        const delegateStartedAt = Date.now();
+        const delegate = await buildDelegateRunPlan({
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
+          addresses,
+          connection,
+        });
+        const delegateSignature = await submitVersionedTransactionPlan({
+          transactionPlan: delegate,
+          wallet: sessionWallet,
+        });
+        await connection.confirmTransaction(delegateSignature, "confirmed");
+        plog(traceId, "resume:delegate", "solana-base", {
+          durationMs: Date.now() - delegateStartedAt,
+          signature: delegateSignature,
+          runId: marker.runId.toString(),
+          mode: marker.mode,
+        });
+        const erConnection = await resolveRunErConnection(addresses.activeRun);
+        plog(traceId, "resume:router-resolved", "router", {
+          endpointHost: new URL(erConnection.rpcEndpoint).host,
+          runId: marker.runId.toString(),
+          mode: marker.mode,
+        });
+        const [observer, prewarm] = await Promise.all([
+          ensureActiveRunObserver(
+            erConnection,
+            addresses.activeRun,
+            sessionWallet,
+          ),
+          prewarmErTransport(erConnection),
+        ]);
+        plog(traceId, "resume:er-ready", "magicblock-er", {
+          blockhashMs: prewarm.durationMs,
+          blockhashCacheHit: prewarm.cacheHit,
+          endpointHost: new URL(erConnection.rpcEndpoint).host,
+          runId: marker.runId.toString(),
+        });
+        const activeRun = await hydrateRows({
+          prepared: {
+            runId: marker.runId,
+            addresses,
+            sessionToken: marker.sessionToken,
+            sessionValidUntil: marker.validUntil,
+          },
+          session,
+          erConnection,
+          owner: publicKey,
+          traceId,
+          observer,
+        });
+        currentRun.current = {
+          phase: "delegated",
+          marker,
+          activeRun,
+          connection: erConnection,
+          sessionAuthorized: true,
+        };
+        setStage(null);
+        setEpoch((value) => value + 1);
+        setState((value) => ({
+          ...value,
+          phase: "delegated",
+          activeRun,
+          receipt: null,
+          lastSignature: delegateSignature,
+          sessionAuthorized: true,
+          settleStage: null,
+        }));
+        return activeRun;
+      });
+    } catch (error) {
+      plogFailure(traceId, "resume:error", "orchestration", error, {
+        runId: preparedOnBase.runId.toString(),
+        mode: preparedOnBase.mode,
+      });
+      throw error;
+    } finally {
+      actionInFlight.current = false;
+      setStage(null);
+    }
+  }, [
+    connection,
+    ensureActiveRunObserver,
+    player,
+    publicKey,
+    setStage,
+    state.activeRun,
+    state.phase,
+    wallet,
+  ]);
+
   const playMove = useCallback(
     async (row: number, start: number, destination: number) => {
       const run = currentRun.current;
@@ -742,12 +881,6 @@ export function useRunController() {
       }
     },
     [ensureActiveRunObserver, player],
-  );
-
-  const setStage = useCallback(
-    (settleStage: SettleStage | null) =>
-      setState((value) => ({ ...value, settleStage })),
-    [],
   );
 
   /**
@@ -1129,9 +1262,8 @@ export function useRunController() {
    * terminal with zero stars, settle through the unchanged pipeline, and
    * reclaim the ActiveRun rent. A delegated run abandons on the ER
    * (session-signed) and then settles normally; a stuck non-terminal base
-   * run abandons inside one session-signed finalize envelope. Throws for
-   * callers to fall back to the local `dismissRun` (e.g. against a deployed
-   * program that predates `abandonRun`).
+   * run abandons inside one session-signed finalize envelope. Failures retain
+   * the durable marker so the still-live run cannot disappear from the UI.
    */
   const abandonRun = useCallback(async () => {
     if (!wallet || !publicKey) throw new Error("Connect the run owner wallet");
@@ -1427,6 +1559,7 @@ export function useRunController() {
     publicKey,
     startCampaignRun,
     startDailyRun,
+    resumePreparedRun,
     playMove,
     applyBonus,
     settleAndAdvance,
@@ -1441,7 +1574,10 @@ export function useRunController() {
 }
 
 async function hydrateRows(args: {
-  prepared: PreparedRunPlan;
+  prepared: Pick<
+    PreparedRunPlan,
+    "runId" | "addresses" | "sessionToken" | "sessionValidUntil"
+  >;
   session: Keypair;
   erConnection: import("@solana/web3.js").Connection;
   owner: PublicKey;
