@@ -10,6 +10,8 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { ZKUBE_PROGRAM_ID } from "./constants";
+import { IDL } from "./idl";
 import {
   deriveCampaignProgressPda,
   deriveMapCatalogPda,
@@ -28,7 +30,7 @@ import { buildStarPurchasePlan, type StarShopView } from "./shopClient";
 import { splitStarPurchase } from "../utils/currency";
 
 describe("native SOL transaction boundaries", () => {
-  it("keeps Star spending owner-signed and encodes the exact maximum lamports", async () => {
+  it("keeps Star spending owner-signed and encodes the exact quoted lamports", async () => {
     const owner = new SessionWallet(Keypair.generate());
     const shop = shopView();
     const plan = await buildStarPurchasePlan({
@@ -55,6 +57,7 @@ describe("native SOL transaction boundaries", () => {
   it("exposes no generic vault signer: funded prepare is pinned to owner PDAs", async () => {
     const owner = Keypair.generate().publicKey;
     const actor = new SessionWallet(Keypair.generate());
+    const sessionToken = Keypair.generate().publicKey;
     const runId = 7n;
     const run = deriveRunAddresses(owner, runId);
     const instruction = await zkubeProgram({} as Connection, actor).methods
@@ -69,9 +72,10 @@ describe("native SOL transaction boundaries", () => {
         runReceipt: run.runReceipt,
         playerFunding: derivePlayerFundingPda(owner),
         ownerAuthority: owner,
-        sessionToken: Keypair.generate().publicKey,
+        sessionToken,
         actor: actor.publicKey,
         systemProgram: SystemProgram.programId,
+        zkubeProgram: ZKUBE_PROGRAM_ID,
       })
       .instruction();
 
@@ -79,9 +83,50 @@ describe("native SOL transaction boundaries", () => {
       key.pubkey.equals(derivePlayerFundingPda(owner)),
     );
     const signers = instruction.keys.filter((key) => key.isSigner);
+    const zkubeProgramMeta = instruction.keys.at(-1);
     expect(funding).toMatchObject({ isSigner: false, isWritable: true });
     expect(signers).toHaveLength(1);
     expect(signers[0]?.pubkey.equals(actor.publicKey)).toBe(true);
+    expect(zkubeProgramMeta?.pubkey.equals(ZKUBE_PROGRAM_ID)).toBe(true);
+    expect(zkubeProgramMeta).toMatchObject({ isSigner: false, isWritable: false });
+    expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual([
+      deriveProtocolConfigPda(),
+      derivePlayerProfilePda(owner),
+      deriveCampaignProgressPda(owner),
+      deriveMapCatalogPda(1, 1),
+      run.runShell,
+      run.activeRun,
+      run.runReceipt,
+      derivePlayerFundingPda(owner),
+      owner,
+      sessionToken,
+      actor.publicKey,
+      SystemProgram.programId,
+      ZKUBE_PROGRAM_ID,
+    ].map((publicKey) => publicKey.toBase58()));
+  });
+
+  it("pins every funded self-CPI wrapper to the executable zKube program", () => {
+    const fundedInstructions = [
+      "funded_claim_level_milestone",
+      "funded_claim_quest",
+      "funded_enter_daily",
+      "funded_prepare_campaign_run",
+      "funded_rollup_daily_to_weekly",
+    ];
+
+    for (const name of fundedInstructions) {
+      const instruction = IDL.instructions.find(
+        (candidate) => (candidate.name as string) === name,
+      );
+      const zkubeProgramMeta = instruction?.accounts.at(-1);
+      expect(zkubeProgramMeta, name).toMatchObject({
+        name: "zkube_program",
+        address: ZKUBE_PROGRAM_ID.toBase58(),
+      });
+      expect(zkubeProgramMeta, name).not.toHaveProperty("writable", true);
+      expect(zkubeProgramMeta, name).not.toHaveProperty("signer", true);
+    }
   });
 
   it("preserves a real device signature through v0 serialization", async () => {

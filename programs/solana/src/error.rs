@@ -104,7 +104,7 @@ pub enum ErrorCode {
     AccountingInvariant,
     #[msg("The selected Star pack does not exist")]
     InvalidPack,
-    #[msg("The Star pack price changed; refresh the quote")]
+    #[msg("The Star pack price changed; refresh the exact quote")]
     PriceChanged,
     #[msg("The scoped player session is invalid")]
     InvalidSession,

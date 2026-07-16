@@ -1229,14 +1229,6 @@
           "name": "owner_authority"
         },
         {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
           "name": "protocol",
           "pda": {
             "seeds": [
@@ -3033,6 +3025,10 @@
         },
         {
           "name": "magic_fee_vault",
+          "docs": [
+            "protocol infrastructure for gasless ER VRF and is unrelated to the",
+            "owner's base-layer player funding PDA."
+          ],
           "writable": true
         }
       ],
@@ -3123,6 +3119,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3204,6 +3204,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3304,6 +3308,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3331,6 +3339,10 @@
         },
         {
           "name": "player_profile",
+          "docs": [
+            "this unchecked prevents Anchor from serializing a stale outer copy over",
+            "the changes made by the self-CPI."
+          ],
           "writable": true
         },
         {
@@ -3395,6 +3407,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3489,6 +3505,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": []
@@ -3639,6 +3659,9 @@
         },
         {
           "name": "player_funding",
+          "docs": [
+            "absent/normalized System account or the exact legacy zKube layout."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -4696,7 +4719,7 @@
           "type": "u64"
         },
         {
-          "name": "max_lamports",
+          "name": "expected_lamports",
           "type": "u64"
         }
       ]
@@ -5596,6 +5619,10 @@
           "name": "owner",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -5766,19 +5793,6 @@
         15,
         187,
         130
-      ]
-    },
-    {
-      "name": "PlayerFundingVault",
-      "discriminator": [
-        61,
-        237,
-        220,
-        223,
-        77,
-        198,
-        8,
-        22
       ]
     },
     {
@@ -6575,7 +6589,7 @@
     {
       "code": 6043,
       "name": "PriceChanged",
-      "msg": "The Star pack price changed; refresh the quote"
+      "msg": "The Star pack price changed; refresh the exact quote"
     },
     {
       "code": 6044,
@@ -8250,30 +8264,6 @@
           {
             "name": "xp",
             "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlayerFundingVault",
-      "docs": [
-        "Owner-scoped reusable rent float. Device sessions may spend it only through",
-        "zKube's canonical account-creation paths; only the owner may withdraw it."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

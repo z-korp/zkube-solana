@@ -55,16 +55,6 @@ pub struct RewardVault {
     pub bump: u8,
 }
 
-/// Owner-scoped reusable rent float. Device sessions may spend it only through
-/// zKube's canonical account-creation paths; only the owner may withdraw it.
-#[account]
-#[derive(InitSpace)]
-pub struct PlayerFundingVault {
-    pub version: u8,
-    pub owner: Pubkey,
-    pub bump: u8,
-}
-
 #[account]
 #[derive(InitSpace)]
 pub struct PlayerProfile {

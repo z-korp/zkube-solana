@@ -5,8 +5,9 @@
  * chain state, submits at most the configured number of one-way transitions,
  * never overlaps passes, and stops write-enabled passes when the keeper's own
  * fee balance is below its reserve floor. Read-only passes still discover work
- * without signing or submitting. Orphan recovery may consume an exact terminal
- * receipt but cannot close player run accounts.
+ * without signing or submitting. Orphan recovery may atomically consume an
+ * exact terminal receipt and close the now-settled run accounts, returning rent
+ * only to the player's canonical System-owned funding PDA.
  */
 import { randomUUID } from "node:crypto";
 import { Connection, Keypair } from "@solana/web3.js";
@@ -236,7 +237,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   );
   for (const candidate of orphanedReceipts) {
     await execute(
-      `consume_orphaned_${candidate.mode}_receipt`,
+      `finalize_orphaned_${candidate.mode}_run`,
       await buildConsumeReceiptRecoveryPlan({
         connection: dependencies.connection,
         wallet,
@@ -245,6 +246,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         addresses: candidate.addresses,
         mode: candidate.mode,
         dailyChallenge: candidate.dailyChallenge,
+        receiptConsumed: candidate.receiptConsumed,
       }),
     );
   }

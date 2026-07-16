@@ -33,6 +33,7 @@ export interface OrphanedReceiptCandidate {
   runId: bigint;
   addresses: RunAddresses;
   dailyChallenge: PublicKey | null;
+  receiptConsumed: boolean;
 }
 
 export async function fetchOrphanedReceiptCandidates(
@@ -55,7 +56,7 @@ export async function fetchOrphanedReceiptCandidates(
       const lifecycle = enumName(active.lifecycle);
       if (
         runId <= 0n ||
-        !isTerminal(mode, lifecycle) ||
+        (!isTerminal(mode, lifecycle) && lifecycle !== "settled") ||
         bigintField(active, "finishedAt") <= 0n ||
         bigintField(active, "pendingVrfCounter") !== 0n
       ) {
@@ -101,7 +102,7 @@ export async function fetchOrphanedReceiptCandidates(
 }
 
 export function consumeReceiptAccountKeys(
-  candidate: Omit<OrphanedReceiptCandidate, "dailyChallenge"> & {
+  candidate: Omit<OrphanedReceiptCandidate, "dailyChallenge" | "receiptConsumed"> & {
     dailyChallenge?: PublicKey | null;
   },
 ): PublicKey[] {
@@ -171,17 +172,22 @@ export async function validateConsumeReceiptAccountKeys(
   if (recoveryMode(active) !== mode || enumName(shell.mode) !== mode || enumName(receipt.mode) !== mode) {
     throw new Error("receipt consumer run mode is inconsistent");
   }
-  if (!isTerminal(mode, enumName(active.lifecycle))) {
-    throw new Error("active run is not terminal");
-  }
+  const lifecycle = enumName(active.lifecycle);
   if (
     bigintField(active, "finishedAt") <= 0n ||
     bigintField(active, "pendingVrfCounter") !== 0n
   ) {
     throw new Error("active run is not ready for settlement");
   }
-  if (booleanField(receipt, "consumed")) {
-    throw new Error("run receipt is already consumed");
+  const receiptConsumed = booleanField(receipt, "consumed");
+  if (receiptConsumed) {
+    if (lifecycle !== "settled" || enumName(shell.lifecycle) !== "settled") {
+      throw new Error("consumed receipt has an unsettled run shell");
+    }
+    requireBytes(active.actionHash, receipt.actionHash, "consumed action hash");
+    requireBytes(active.vrfHash, receipt.vrfHash, "consumed VRF hash");
+  } else if (!isTerminal(mode, lifecycle)) {
+    throw new Error("active run is not terminal");
   }
   requireBytes(active.rulesHash, shell.rulesHash, "run rules hash");
   requireBytes(active.rulesHash, receipt.rulesHash, "receipt rules hash");
@@ -190,7 +196,7 @@ export async function validateConsumeReceiptAccountKeys(
     requireKey(keys[4], deriveCampaignProgressPda(owner), "campaign progress PDA");
     const campaign = decodeAccount("campaignProgress", infos[4]!);
     requireKey(publicKeyField(campaign, "owner"), owner, "campaign progress owner");
-    return { mode, owner, runId, addresses, dailyChallenge: null };
+    return { mode, owner, runId, addresses, dailyChallenge: null, receiptConsumed };
   }
 
   const dailyChallenge = keys[4]!;
@@ -209,7 +215,7 @@ export async function validateConsumeReceiptAccountKeys(
   requireKey(publicKeyField(player, "player"), owner, "Daily player owner");
   requireKey(publicKeyField(leaderboard, "challenge"), dailyChallenge, "Daily leaderboard challenge");
   requireKey(publicKeyField(stipend, "owner"), owner, "Weekly stipend owner");
-  return { mode, owner, runId, addresses, dailyChallenge };
+  return { mode, owner, runId, addresses, dailyChallenge, receiptConsumed };
 }
 
 function decodeAccount(

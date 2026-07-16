@@ -2,15 +2,15 @@
 //!
 //! `ActiveRun` is authoritative on the Router-resolved ER only while delegated.
 //! Terminal state is sealed, committed, and copied back before a Solana-base
-//! receipt consumer may update durable progression. Closing transient accounts
-//! is a separate owner/session-authorized step whose rent returns to the
-//! owner's shared funding vault.
+//! receipt consumer may update durable progression. Once the receipt is
+//! consumed, anyone may close the fully pinned transient accounts; rent returns
+//! only to the owner's canonical System-owned funding PDA.
 
 use anchor_lang::{prelude::*, Discriminator};
 use ephemeral_rollups_sdk::anchor::{commit, delegate};
+use ephemeral_rollups_sdk::anchor::{vrf, vrf_callback};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
-use ephemeral_vrf_sdk::anchor::{vrf, vrf_callback};
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 use sha2::{Digest, Sha256};
 
@@ -132,7 +132,7 @@ pub struct RequestRowVrf<'info> {
     #[account(mut)]
     pub actor: Signer<'info>,
     /// CHECK: Address-constrained to MagicBlock's devnet ER queue.
-    #[account(mut, address = ephemeral_vrf_sdk::consts::DEFAULT_EPHEMERAL_QUEUE)]
+    #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
     pub oracle_queue: UncheckedAccount<'info>,
     /// CHECK: Address/owner constrained; the handler validates the SDK record before use.
     #[account(
@@ -146,7 +146,7 @@ impl<'info> RequestRowVrf<'info> {
     pub(crate) fn invoke_vrf_request<'a>(
         &self,
         payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_vrf_sdk::compat::Instruction,
+        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
     ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
         self.invoke_signed_vrf(payer, ix)
     }
@@ -159,12 +159,12 @@ fn prepare_row_vrf_request(
     oracle_queue: Pubkey,
     validator: Pubkey,
     client_seed: [u8; 32],
-) -> Result<ephemeral_vrf_sdk::compat::Instruction> {
+) -> Result<ephemeral_rollups_sdk::vrf::compat::Instruction> {
     use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
-    use ephemeral_vrf_sdk::instructions::{
+    use ephemeral_rollups_sdk::vrf::instructions::{
         create_request_high_priority_scoped_randomness_ix, RequestRandomnessParams,
     };
-    use ephemeral_vrf_sdk::types::SerializableAccountMeta;
+    use ephemeral_rollups_sdk::vrf::types::SerializableAccountMeta;
 
     require!(
         vrf_request_lifecycle_is_allowed(active.lifecycle),
@@ -265,7 +265,9 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
 pub struct FulfillRowVrf<'info> {
     #[account(mut, owner = crate::ID)]
     pub active_run: Account<'info, ActiveRun>,
-    /// CHECK: Callback fee vault supplied by and charged through MagicBlock.
+    /// CHECK: MagicBlock's validator-scoped ER callback fee vault. This is
+    /// protocol infrastructure for gasless ER VRF and is unrelated to the
+    /// owner's base-layer player funding PDA.
     #[account(mut)]
     pub magic_fee_vault: UncheckedAccount<'info>,
 }
@@ -380,7 +382,7 @@ pub struct PlayMove<'info> {
     #[account(mut)]
     pub actor: Signer<'info>,
     /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
-    #[account(mut, address = ephemeral_vrf_sdk::consts::DEFAULT_EPHEMERAL_QUEUE)]
+    #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
     pub oracle_queue: UncheckedAccount<'info>,
     /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
     #[account(
@@ -394,7 +396,7 @@ impl<'info> PlayMove<'info> {
     fn invoke_vrf_request<'a>(
         &self,
         payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_vrf_sdk::compat::Instruction,
+        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
     ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
         self.invoke_signed_vrf(payer, ix)
     }
@@ -549,7 +551,7 @@ pub struct ApplyBonus<'info> {
     #[account(mut)]
     pub actor: Signer<'info>,
     /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
-    #[account(mut, address = ephemeral_vrf_sdk::consts::DEFAULT_EPHEMERAL_QUEUE)]
+    #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
     pub oracle_queue: UncheckedAccount<'info>,
     /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
     #[account(
@@ -563,7 +565,7 @@ impl<'info> ApplyBonus<'info> {
     fn invoke_vrf_request<'a>(
         &self,
         payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_vrf_sdk::compat::Instruction,
+        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
     ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
         self.invoke_signed_vrf(payer, ix)
     }
@@ -1037,8 +1039,6 @@ fn award_campaign_level_progression(
 pub struct CloseSettledActiveRun<'info> {
     /// CHECK: Immutable durable player identity, constrained by every run PDA.
     pub owner_authority: UncheckedAccount<'info>,
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    pub actor: Signer<'info>,
     // No pause check on purpose: rent recovery must never be blockable.
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -1046,13 +1046,15 @@ pub struct CloseSettledActiveRun<'info> {
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
+    /// CHECK: Canonical zero-data System PDA receives all recycled run rent.
     #[account(
         mut,
         seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
-        bump = rent_recipient.bump,
-        constraint = rent_recipient.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
     )]
-    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
+    pub rent_recipient: UncheckedAccount<'info>,
     #[account(
         mut,
         close = rent_recipient,
@@ -1084,11 +1086,6 @@ pub fn handler_close_settled_active_run(
     ctx: Context<CloseSettledActiveRun>,
     run_id: u64,
 ) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
     let active = &ctx.accounts.active_run;
     let shell = &ctx.accounts.run_shell;
     let receipt = &ctx.accounts.run_receipt;

@@ -17,6 +17,7 @@
     "chain:devnet:bootstrap": "tsx tools/chain/bootstrap-devnet.ts",
     "chain:manifest": "tsx tools/chain/check-deployment-manifest.ts",
     "chain:local:validator": "mb-test-validator --reset --ledger ../.localnet/ledger --bpf-program 5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA ../target/deploy/solana.so",
+    "chain:local:test-funded-cpi": "tsx tools/chain/test-funded-self-cpi.ts",
     "chain:local:stack": "mb-stack --reset --ledger ../.localnet/ledger --bpf-program 5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA ../target/deploy/solana.so",
     "chain:local:er": "ephemeral-validator --no-tui --reset --remotes http://127.0.0.1:8899 --remotes ws://127.0.0.1:8900 --listen 127.0.0.1:7799 --lifecycle ephemeral",
     "chain:local:vrf": "vrf-oracle --rpc-url http://127.0.0.1:8899 --websocket-url ws://127.0.0.1:8900 --skip-preflight",

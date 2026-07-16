@@ -1,9 +1,12 @@
 use anchor_lang::prelude::*;
+use anchor_lang::system_program::{self as anchor_system_program, Transfer};
 use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::require_player_authorization;
+use crate::instructions::player_authorization::{
+    require_player_authorization, require_player_rent_payer,
+};
 use crate::state::economy_v2::{DailyPressureProfile, DailyScoringRule};
 use crate::state::v2::*;
 
@@ -108,14 +111,14 @@ pub struct InitializePlayer<'info> {
         bump
     )]
     pub campaign_progress: Box<Account<'info, CampaignProgress>>,
+    /// CHECK: Canonical owner-scoped funding PDA. The handler accepts only an
+    /// absent/normalized System account or the exact legacy zKube layout.
     #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PlayerFundingVault::INIT_SPACE,
+        mut,
         seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
         bump
     )]
-    pub player_funding: Box<Account<'info, PlayerFundingVault>>,
+    pub player_funding: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity used for the player PDAs.
@@ -132,6 +135,7 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
+    require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
     let player = &mut ctx.accounts.player_profile;
     if player.version == 0 {
         player.set_inner(PlayerProfile::initialize(owner, ctx.bumps.player_profile));
@@ -153,35 +157,66 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
             ErrorCode::InvalidVersion
         );
     }
-    let funding = &mut ctx.accounts.player_funding;
-    if funding.version == 0 {
-        funding.set_inner(PlayerFundingVault {
-            version: ACCOUNT_VERSION,
-            owner,
-            bump: ctx.bumps.player_funding,
-        });
-    } else {
-        require_keys_eq!(funding.owner, owner, ErrorCode::Unauthorized);
-        require!(
-            funding.version == ACCOUNT_VERSION,
-            ErrorCode::InvalidVersion
-        );
+    normalize_player_funding(
+        &ctx.accounts.player_funding.to_account_info(),
+        owner,
+        ctx.bumps.player_funding,
+    )?;
+    Ok(())
+}
+
+// `PlayerFundingVault` was previously an Anchor account with this exact wire
+// layout. It is decoded manually only during the one-time conversion so the
+// obsolete type does not remain in the public IDL.
+const LEGACY_PLAYER_FUNDING_BYTES: usize = 42;
+const LEGACY_PLAYER_FUNDING_DISCRIMINATOR: [u8; 8] = [61, 237, 220, 223, 77, 198, 8, 22];
+
+fn normalize_player_funding(
+    funding: &AccountInfo<'_>,
+    owner: Pubkey,
+    expected_bump: u8,
+) -> Result<()> {
+    require!(!funding.executable, ErrorCode::InvalidOwner);
+    if funding.owner == &system_program::ID {
+        require!(funding.data_is_empty(), ErrorCode::InvalidOwner);
+        return Ok(());
     }
+
+    require_keys_eq!(*funding.owner, crate::ID, ErrorCode::InvalidOwner);
+    let data = funding.try_borrow_data()?;
+    require!(
+        data.len() == LEGACY_PLAYER_FUNDING_BYTES,
+        ErrorCode::InvalidOwner
+    );
+    require!(
+        data[..8] == LEGACY_PLAYER_FUNDING_DISCRIMINATOR,
+        ErrorCode::InvalidOwner
+    );
+    require!(data[8] == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
+    require!(data[9..41] == owner.to_bytes(), ErrorCode::Unauthorized);
+    require!(data[41] == expected_bump, ErrorCode::InvalidOwner);
+    drop(data);
+
+    // Solana permits only the current owner to resize/reassign an account and
+    // requires zero data before assignment. Lamports are deliberately kept at
+    // the same address and become the reusable System-owned rent float.
+    funding.resize(0)?;
+    funding.assign(&system_program::ID);
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct WithdrawPlayerFunding<'info> {
+    /// CHECK: Canonical System-owned funding PDA validated in the handler.
     #[account(
         mut,
         seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
-        bump = player_funding.bump,
-        constraint = player_funding.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = player_funding.owner == owner.key() @ ErrorCode::Unauthorized
+        bump
     )]
-    pub player_funding: Box<Account<'info, PlayerFundingVault>>,
+    pub player_funding: UncheckedAccount<'info>,
     #[account(mut)]
     pub owner: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler_withdraw_player_funding(
@@ -190,30 +225,30 @@ pub fn handler_withdraw_player_funding(
 ) -> Result<()> {
     require!(lamports > 0, ErrorCode::InsufficientFunds);
     let funding_info = ctx.accounts.player_funding.to_account_info();
-    let reserve = Rent::get()?.minimum_balance(funding_info.data_len());
-    let spendable = funding_info
-        .lamports()
-        .checked_sub(reserve)
-        .ok_or(ErrorCode::AccountingInvariant)?;
-    require!(spendable >= lamports, ErrorCode::InsufficientFunds);
-    let funding_after = funding_info
-        .lamports()
-        .checked_sub(lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let owner_after = ctx
-        .accounts
-        .owner
-        .to_account_info()
-        .lamports()
-        .checked_add(lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    **funding_info.try_borrow_mut_lamports()? = funding_after;
-    **ctx
-        .accounts
-        .owner
-        .to_account_info()
-        .try_borrow_mut_lamports()? = owner_after;
-    Ok(())
+    require_keys_eq!(
+        *funding_info.owner,
+        system_program::ID,
+        ErrorCode::InvalidOwner
+    );
+    require!(funding_info.data_is_empty(), ErrorCode::InvalidOwner);
+    require!(
+        funding_info.lamports() >= lamports,
+        ErrorCode::InsufficientFunds
+    );
+    let bump = [ctx.bumps.player_funding];
+    let owner = ctx.accounts.owner.key();
+    let seeds: &[&[u8]] = &[PLAYER_FUNDING_SEED, owner.as_ref(), &bump];
+    anchor_system_program::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.system_program.key(),
+            Transfer {
+                from: funding_info,
+                to: ctx.accounts.owner.to_account_info(),
+            },
+            &[seeds],
+        ),
+        lamports,
+    )
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -460,6 +495,11 @@ pub fn handler_prepare_campaign_run(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
+    )?;
+    require_player_rent_payer(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.payer.key(),
     )?;
     require!(
         ctx.accounts.player_profile.next_run_id == run_id,

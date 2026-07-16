@@ -1,5 +1,6 @@
 import { SystemProgram, Transaction, type Connection, type PublicKey } from "@solana/web3.js";
 
+import { ZKUBE_PROGRAM_ID } from "./constants.js";
 import { fetchEconomyRuntime } from "./economyClient.js";
 import {
   deriveDailyChallengePda,
@@ -154,6 +155,7 @@ export async function buildRollupDailyPlan(args: {
       playerFunding: derivePlayerFundingPda(owner),
       caller,
       systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return plan("Roll Daily result into Weekly", args.connection, caller, instruction);

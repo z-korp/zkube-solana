@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
+use crate::state::PLAYER_FUNDING_SEED;
 
 /// The common authorization boundary for owner-controlled, non-custodial
 /// player actions. The owner address remains the durable identity; `actor`
@@ -25,6 +26,18 @@ pub fn require_player_authorization(
         }),
         now,
     )
+}
+
+/// Rent may be paid directly by the owner/actor or by the owner's canonical
+/// zero-data System PDA. No unrelated signer may be substituted as a sponsor.
+pub fn require_player_rent_payer(owner: Pubkey, actor: Pubkey, payer: Pubkey) -> Result<()> {
+    let funding =
+        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
+    require!(
+        payer == owner || payer == actor || payer == funding,
+        ErrorCode::InvalidOwner
+    );
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -168,6 +181,18 @@ mod tests {
     }
 
     #[test]
+    fn rent_payer_is_owner_actor_or_canonical_funding_only() {
+        let owner = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
+        let funding =
+            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
+        assert!(require_player_rent_payer(owner, actor, owner).is_ok());
+        assert!(require_player_rent_payer(owner, actor, actor).is_ok());
+        assert!(require_player_rent_payer(owner, actor, funding).is_ok());
+        assert!(require_player_rent_payer(owner, actor, Pubkey::new_unique()).is_err());
+    }
+
+    #[test]
     fn generated_account_metas_preserve_the_common_authorization_shape() {
         let owner = Pubkey::new_unique();
         let actor = Pubkey::new_unique();
@@ -226,5 +251,24 @@ mod tests {
         assert_eq!(purchase.len(), 9);
         assert_eq!(purchase[7].pubkey, owner);
         assert!(purchase[7].is_signer);
+    }
+
+    #[test]
+    fn settled_run_cleanup_is_permissionless_and_returns_only_to_funding() {
+        let owner = Pubkey::new_unique();
+        let funding =
+            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
+        let cleanup = crate::accounts::CloseSettledActiveRun {
+            owner_authority: owner,
+            protocol: Pubkey::new_unique(),
+            rent_recipient: funding,
+            run_shell: Pubkey::new_unique(),
+            run_receipt: Pubkey::new_unique(),
+            active_run: Pubkey::new_unique(),
+        }
+        .to_account_metas(None);
+        assert_eq!(cleanup.len(), 6);
+        assert_eq!(cleanup[2].pubkey, funding);
+        assert!(cleanup.iter().all(|meta| !meta.is_signer));
     }
 }

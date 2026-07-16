@@ -7,7 +7,11 @@ import {
   type Connection,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID } from "./constants.js";
+import {
+  MAGIC_CONTEXT_ID,
+  MAGIC_PROGRAM_ID,
+  ZKUBE_PROGRAM_ID,
+} from "./constants.js";
 import {
   deriveDailyChallengePda,
   deriveDailyLeaderboardPda,
@@ -334,6 +338,7 @@ export async function buildPrepareDailyRunPlan(args: {
     sessionToken: args.sessionToken,
     actor,
     systemProgram: SystemProgram.programId,
+    zkubeProgram: ZKUBE_PROGRAM_ID,
   };
   const enter = await program.methods
     .fundedEnterDaily(new BN(args.daily.nextRunId.toString()))

@@ -13,7 +13,9 @@ use session_keys::SessionTokenV2;
 use sha2::{Digest, Sha256};
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::require_player_authorization;
+use crate::instructions::player_authorization::{
+    require_player_authorization, require_player_rent_payer,
+};
 use crate::state::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -319,14 +321,14 @@ pub fn handler_purchase_stars<'info>(
     ctx: Context<'info, PurchaseStars<'info>>,
     pack_index: u8,
     expected_stars: u64,
-    max_lamports: u64,
+    expected_lamports: u64,
 ) -> Result<()> {
     let (stars, gross) = ctx
         .accounts
         .economy_config
         .quote(pack_index, Clock::get()?.unix_timestamp)?;
     require!(stars == expected_stars, ErrorCode::InvalidPack);
-    require!(gross <= max_lamports, ErrorCode::PriceChanged);
+    require!(gross == expected_lamports, ErrorCode::PriceChanged);
     let (team, reward, treasury) = ctx.accounts.economy_config.split_sale(gross)?;
     transfer_from_player(&ctx, ctx.accounts.team_destination.to_account_info(), team)?;
     transfer_from_player(&ctx, ctx.accounts.reward_vault.to_account_info(), reward)?;
@@ -521,6 +523,11 @@ pub fn handler_claim_level_milestone(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
+    )?;
+    require_player_rent_payer(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.payer.key(),
     )?;
     let index = usize::from(milestone_index);
     require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
@@ -766,6 +773,11 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
+    )?;
+    require_player_rent_payer(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.payer.key(),
     )?;
     let now = Clock::get()?.unix_timestamp;
     require!(
@@ -1453,13 +1465,15 @@ pub struct CloseDailyPlayer<'info> {
         constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
+    /// CHECK: Canonical zero-data System PDA receives recycled Daily rent.
     #[account(
         mut,
         seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
-        bump = rent_recipient.bump,
-        constraint = rent_recipient.owner == owner.key() @ ErrorCode::Unauthorized
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
     )]
-    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
+    pub rent_recipient: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
 }
 
@@ -1736,6 +1750,11 @@ pub struct RollupDailyToWeekly<'info> {
 }
 
 pub fn handler_rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Result<()> {
+    require_player_rent_payer(
+        ctx.accounts.owner.key(),
+        ctx.accounts.caller.key(),
+        ctx.accounts.payer.key(),
+    )?;
     require!(
         !ctx.accounts.daily_player.weekly_rolled_up,
         ErrorCode::AlreadySubmitted
@@ -2144,13 +2163,15 @@ pub struct CloseWeeklyPlayer<'info> {
         constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
+    /// CHECK: Canonical zero-data System PDA receives recycled Weekly rent.
     #[account(
         mut,
         seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
-        bump = rent_recipient.bump,
-        constraint = rent_recipient.owner == owner.key() @ ErrorCode::Unauthorized
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
     )]
-    pub rent_recipient: Box<Account<'info, PlayerFundingVault>>,
+    pub rent_recipient: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
 }
 

@@ -21,8 +21,7 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
-ephemeral-vrf-sdk = { version = "0.4.1", features = ["anchor"] }
-ephemeral-rollups-sdk = { version = "0.15.5", features = ["anchor"] }
+ephemeral-rollups-sdk = { version = "0.15.5", features = ["anchor", "vrf"] }
 session-keys = { version = "3.1.1", features = ["no-entrypoint"] }
 sha2 = "0.10"
 

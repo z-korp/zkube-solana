@@ -2,7 +2,9 @@ use anchor_lang::prelude::*;
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::require_player_authorization;
+use crate::instructions::player_authorization::{
+    require_player_authorization, require_player_rent_payer,
+};
 use crate::state::*;
 
 #[derive(Clone, Copy)]
@@ -248,6 +250,11 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
+    )?;
+    require_player_rent_payer(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.payer.key(),
     )?;
     let index = usize::from(quest_index);
     let now = Clock::get()?.unix_timestamp;

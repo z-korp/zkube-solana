@@ -5,6 +5,7 @@ import {
   type PublicKey,
 } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet";
+import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
   deriveCampaignProgressPda,
   deriveEconomyConfigPda,
@@ -225,6 +226,7 @@ export async function buildClaimLevelMilestonePlan(args: {
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return basePlan(
@@ -284,6 +286,7 @@ export async function buildClaimQuestPlan(args: {
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return basePlan(

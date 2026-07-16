@@ -93,7 +93,7 @@ export function pendingCompletionFromRun(
 /**
  * Translate low-level run-start failures into player-honest copy. A prepare
  * simulation failing with the System program's `Custom:1` means the device fee
- * allowance or shared player funding vault is too low. The next Enable/renew
+ * allowance or shared player funding PDA is too low. The next Enable/renew
  * approval replenishes both balances.
  */
 export function describeRunStartError(message: string): {

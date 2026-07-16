@@ -11,7 +11,7 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 | --- | --- | --- |
 | External wallet | Durable player owner, first enable, renewals, Star purchases | Owner signs and pays |
 | Device session | Seven-day scoped signer stored only in that browser | Receives a 0.001 SOL fee allowance from the owner |
-| Player funding PDA | Shared 0.025 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can spend it |
+| Player funding PDA | System-owned, zero-data 0.035 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can make it sign |
 | Solana program | Identity, Campaign/Daily/Weekly state, Stars, native-SOL accounting, receipts | Device session for safe play; owner for SOL purchases |
 | MagicBlock ER | Delegated active gameplay and VRF | Gasless gameplay; Router selects the validator |
 | Fly keeper | Daily/Weekly cadence, permissionless settlement recovery, cleanup | Its own SOL-funded keypair |
@@ -21,7 +21,7 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 wallet ── Connect & Enable (one owner approval) ──> 7-day device session
    │                                                   │
    ├── exact SOL approval ──> Star purchase             ├── silent base actions
-   └── funds 0.025 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
+   └── funds 0.035 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
 
 Solana base <── delegate / copy back ──> Router-selected MagicBlock ER
      ▲
@@ -29,9 +29,12 @@ Solana base <── delegate / copy back ──> Router-selected MagicBlock ER
 ```
 
 There is deliberately no Kora or custom paymaster. The user's owner-funded PDA
-is not a generic wallet: its signer seeds are exposed only inside narrow
-self-CPI instructions for known zKube account-creation paths. A session cannot
-transfer arbitrary SOL and can never authorize a Star purchase.
+is a zero-data System account, not a program-owned vault or generic wallet: its
+signer seeds are used only inside narrow self-CPI instructions for known zKube
+account-creation paths. A session cannot transfer arbitrary SOL and can never
+authorize a Star purchase. Enable also converts the exact retired 42-byte
+program-owned funding account in place, preserving its address and lamports;
+any other owner or layout fails closed.
 
 ## Connection and run lifecycle
 

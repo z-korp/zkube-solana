@@ -109,13 +109,13 @@ pub mod solana {
         ctx: Context<'info, PurchaseStars<'info>>,
         pack_index: u8,
         expected_stars: u64,
-        max_lamports: u64,
+        expected_lamports: u64,
     ) -> Result<()> {
         instructions::economy_v2_instructions::handler_purchase_stars(
             ctx,
             pack_index,
             expected_stars,
-            max_lamports,
+            expected_lamports,
         )
     }
 

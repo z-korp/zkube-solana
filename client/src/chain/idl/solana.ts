@@ -1235,14 +1235,6 @@ export type Solana = {
           "name": "ownerAuthority"
         },
         {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
           "name": "protocol",
           "pda": {
             "seeds": [
@@ -3039,6 +3031,10 @@ export type Solana = {
         },
         {
           "name": "magicFeeVault",
+          "docs": [
+            "protocol infrastructure for gasless ER VRF and is unrelated to the",
+            "owner's base-layer player funding PDA."
+          ],
           "writable": true
         }
       ],
@@ -3129,6 +3125,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3210,6 +3210,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3310,6 +3314,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3337,6 +3345,10 @@ export type Solana = {
         },
         {
           "name": "playerProfile",
+          "docs": [
+            "this unchecked prevents Anchor from serializing a stale outer copy over",
+            "the changes made by the self-CPI."
+          ],
           "writable": true
         },
         {
@@ -3401,6 +3413,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": [
@@ -3495,6 +3511,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "5NfTo5ML4UTa6ep4x9d616fyWQYM3CTcpcE5V9P7YUbA"
         }
       ],
       "args": []
@@ -3645,6 +3665,9 @@ export type Solana = {
         },
         {
           "name": "playerFunding",
+          "docs": [
+            "absent/normalized System account or the exact legacy zKube layout."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -4702,7 +4725,7 @@ export type Solana = {
           "type": "u64"
         },
         {
-          "name": "maxLamports",
+          "name": "expectedLamports",
           "type": "u64"
         }
       ]
@@ -5602,6 +5625,10 @@ export type Solana = {
           "name": "owner",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -5772,19 +5799,6 @@ export type Solana = {
         15,
         187,
         130
-      ]
-    },
-    {
-      "name": "playerFundingVault",
-      "discriminator": [
-        61,
-        237,
-        220,
-        223,
-        77,
-        198,
-        8,
-        22
       ]
     },
     {
@@ -6581,7 +6595,7 @@ export type Solana = {
     {
       "code": 6043,
       "name": "priceChanged",
-      "msg": "The Star pack price changed; refresh the quote"
+      "msg": "The Star pack price changed; refresh the exact quote"
     },
     {
       "code": 6044,
@@ -8256,30 +8270,6 @@ export type Solana = {
           {
             "name": "xp",
             "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "playerFundingVault",
-      "docs": [
-        "Owner-scoped reusable rent float. Device sessions may spend it only through",
-        "zKube's canonical account-creation paths; only the owner may withdraw it."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

@@ -2,8 +2,8 @@
  * Transaction orchestration boundary.
  *
  * Solana base plans use the device session signer for transaction fees while
- * narrow on-chain wrappers use the owner's shared funding PDA for account
- * rent. Router-selected ER plans use that same device signer. Durable run
+ * narrow on-chain wrappers use the owner's System-owned, zero-data funding PDA
+ * for account rent. Router-selected ER plans use that same device signer. Durable run
  * markers are saved only after base confirmation.
  */
 import {
@@ -276,6 +276,7 @@ export async function buildPrepareCampaignRunPlan(args: {
         sessionToken: args.sessionToken,
         actor,
         systemProgram: SystemProgram.programId,
+        zkubeProgram: ZKUBE_PROGRAM_ID,
       })
       .instruction(),
   ];
@@ -592,7 +593,6 @@ export async function buildCommitRunPlan(args: {
 export async function buildCloseSettledRunPlan(args: {
   wallet: WalletLike;
   owner: PublicKey;
-  sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
   connection?: Connection;
@@ -600,19 +600,7 @@ export async function buildCloseSettledRunPlan(args: {
   const connection =
     args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const program = zkubeProgram(connection, args.wallet);
-  const instruction = await program.methods
-    .closeSettledActiveRun(new BN(args.runId.toString()))
-    .accountsPartial({
-      ownerAuthority: args.owner,
-      sessionToken: args.sessionToken,
-      actor: args.wallet.publicKey,
-      protocol: deriveProtocolConfigPda(),
-      rentRecipient: derivePlayerFundingPda(args.owner),
-      runShell: args.addresses.runShell,
-      runReceipt: args.addresses.runReceipt,
-      activeRun: args.addresses.activeRun,
-    })
-    .instruction();
+  const instruction = await buildCloseSettledInstruction(program, args);
   return plan(
     "solana-base",
     "Close settled active run",
@@ -625,9 +613,9 @@ export async function buildCloseSettledRunPlan(args: {
 /**
  * Canonical base-layer settlement in ONE atomic transaction: consume the
  * durable receipt and close the ActiveRun for rent.
- * Receipt consumption needs no program-level signer (`owner` is unchecked;
- * every account is a validated PDA); the bundled close carries the owner
- * session signature. This is both the tail of
+ * Neither receipt consumption nor canonical rent recovery needs a program-level
+ * signer; every mutable account and the System-owned rent destination are
+ * validated PDAs. This is both the tail of
  * the normal settle pipeline and the recovery path for wedged runs.
  */
 export async function buildFinalizeRunPlan(args: {
@@ -665,19 +653,7 @@ export async function buildFinalizeRunPlan(args: {
     instructions.push(await buildConsumeReceiptInstruction(program, args));
   }
   instructions.push(
-    await program.methods
-      .closeSettledActiveRun(new BN(args.runId.toString()))
-      .accountsPartial({
-        ownerAuthority: args.owner,
-        sessionToken: args.sessionToken,
-        actor: args.wallet.publicKey,
-        protocol: deriveProtocolConfigPda(),
-        rentRecipient: derivePlayerFundingPda(args.owner),
-        runShell: args.addresses.runShell,
-        runReceipt: args.addresses.runReceipt,
-        activeRun: args.addresses.activeRun,
-      })
-      .instruction(),
+    await buildCloseSettledInstruction(program, args),
   );
   return plan(
     "solana-base",
@@ -695,17 +671,39 @@ export async function buildConsumeReceiptRecoveryPlan(args: {
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
+  receiptConsumed?: boolean;
   connection: Connection;
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.connection, args.wallet);
-  const instruction = await buildConsumeReceiptInstruction(program, args);
+  const instructions: TransactionInstruction[] = [];
+  if (!args.receiptConsumed) {
+    instructions.push(await buildConsumeReceiptInstruction(program, args));
+  }
+  instructions.push(await buildCloseSettledInstruction(program, args));
   return plan(
     "solana-base",
-    `Consume orphaned ${args.mode} receipt`,
+    `Finalize orphaned ${args.mode} run`,
     args.connection,
     args.wallet.publicKey,
-    [instruction],
+    instructions,
   );
+}
+
+async function buildCloseSettledInstruction(
+  program: Program<ZkubeProgram>,
+  args: { owner: PublicKey; runId: bigint; addresses: RunAddresses },
+): Promise<TransactionInstruction> {
+  return program.methods
+    .closeSettledActiveRun(new BN(args.runId.toString()))
+    .accountsPartial({
+      ownerAuthority: args.owner,
+      protocol: deriveProtocolConfigPda(),
+      rentRecipient: derivePlayerFundingPda(args.owner),
+      runShell: args.addresses.runShell,
+      runReceipt: args.addresses.runReceipt,
+      activeRun: args.addresses.activeRun,
+    })
+    .instruction();
 }
 
 async function buildConsumeReceiptInstruction(
