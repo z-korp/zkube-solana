@@ -15,6 +15,7 @@ import {
   AnchorProvider,
   BorshAccountsCoder,
   Program as AnchorProgram,
+  convertIdlToCamelCase,
   type Program,
 } from "@anchor-lang/core";
 import BN from "bn.js";
@@ -779,8 +780,12 @@ type DecodedActiveRunAccount = Awaited<
   ReturnType<ReturnType<typeof zkubeProgram>["account"]["activeRun"]["fetch"]>
 >;
 
-const activeRunCoder = new BorshAccountsCoder(IDL);
-const activeRunAccountSize = activeRunCoder.size("ActiveRun");
+// Program clients normalize raw Anchor IDL names to camelCase before building
+// their coder. This standalone decoder must do the same: constructing directly
+// from the raw snake_case JSON produces objects whose fields silently disagree
+// with the generated TypeScript account shape.
+const activeRunCoder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
+const activeRunAccountSize = activeRunCoder.size("activeRun");
 
 /** Validate owner, exact fixed size, and discriminator before ER/base decode. */
 export function decodeActiveRunAccount(
@@ -796,7 +801,7 @@ export function decodeActiveRunAccount(
     );
   }
   const decoded = activeRunCoder.decode<DecodedActiveRunAccount>(
-    "ActiveRun",
+    "activeRun",
     Buffer.from(data),
   );
   return mapActiveRunAccount(decoded);
