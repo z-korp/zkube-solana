@@ -1,0 +1,47 @@
+{
+  "schema": "zkube-solana-deployment",
+  "schemaVersion": 3,
+  "cluster": "devnet",
+  "createdAt": "2026-07-16T21:30:11.000Z",
+  "approval": {
+    "status": "approved",
+    "fingerprint": "3523eb94ffee7e48",
+    "approvedAt": "2026-07-16T21:54:18.000Z",
+    "evidenceSha256": "3523eb94ffee7e48e476cf882ce3a0d1fe7aeaf80af9b371ae8d84794a6f913e"
+  },
+  "program": {
+    "id": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
+    "artifactSha256": "4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf",
+    "deploymentSignature": "4yiEiDVpPQgSrigy2wFmbGQjHAADb9aXESGQaXRcnbmQ95w7tGEuATbekj4L7gtrcWYBfgiynCWovksLjouifECo",
+    "deployedAt": "2026-07-16T20:46:19.000Z"
+  },
+  "rpc": {
+    "base": "https://rpc.magicblock.app/devnet",
+    "expectedGenesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "magicRouter": "https://devnet-router.magicblock.app/"
+  },
+  "magic": {
+    "routerPolicy": "closest",
+    "context": "MagicContext1111111111111111111111111111111",
+    "program": "Magic11111111111111111111111111111111111111",
+    "delegationProgram": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+    "vrfQueue": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+  },
+  "payment": {
+    "asset": "native-sol",
+    "decimals": 9
+  },
+  "destinations": {
+    "team": "FVN2XcPhXJGyUmDZWts5EBmsiK7aHzQoMFCkT57oZZhP",
+    "treasury": "9rVYVyB3xUEhVMixoz44ssdJJc8C7CGPkyrRLrh7R5jR",
+    "reward": "H7ooKBnVwCjHR524JZ5gW5CaTuJxqFswKxdusYjsgMag"
+  },
+  "protocol": {
+    "authority": "HmCGfPTW2ahuNySTddvbQpJxutDUhjMbR9j8ekFzHQ5b",
+    "pricingOperator": "HmCGfPTW2ahuNySTddvbQpJxutDUhjMbR9j8ekFzHQ5b"
+  },
+  "versions": {
+    "content": 1,
+    "dailyRules": 1
+  }
+}

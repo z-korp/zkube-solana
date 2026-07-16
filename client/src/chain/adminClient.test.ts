@@ -4,6 +4,7 @@ import { Keypair, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   buildActivateCampaignMapPlan,
+  buildActivateContentReleasePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
@@ -88,6 +89,24 @@ describe("authority publication client", () => {
     expect(accounts[0].pubkey.equals(deriveProtocolConfigPda())).toBe(true);
     expect(accounts[1].pubkey.equals(deriveMapCatalogPda(7, 10))).toBe(true);
     expect(accounts[2].pubkey.equals(authority.publicKey)).toBe(true);
+  });
+
+  it("activates one fully staged release with exact ordered map accounts", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const plan = await buildActivateContentReleasePlan({
+      connection: {} as Connection,
+      authority,
+      contentVersion: 8,
+      dailyRulesVersion: 4,
+      campaignMapCount: 3,
+    });
+
+    const accounts = plan.transaction.instructions[0].keys;
+    expect(accounts.slice(-3).map(({ pubkey }) => pubkey.toBase58())).toEqual(
+      [1, 2, 3].map((mapId) => deriveMapCatalogPda(8, mapId).toBase58()),
+    );
+    expect(accounts.slice(-3).every((account) => !account.isWritable && !account.isSigner))
+      .toBe(true);
   });
 
   it("pins achievement XP and the dual Daily and Weekly quest rewards", () => {

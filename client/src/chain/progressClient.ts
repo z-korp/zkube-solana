@@ -1,14 +1,11 @@
 import {
-  SystemProgram,
   Transaction,
   type Connection,
   type PublicKey,
 } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet";
-import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
   deriveEconomyConfigPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas";
@@ -194,17 +191,14 @@ export async function buildClaimLevelMilestonePlan(args: {
   assertIndex(args.milestoneIndex, 10, "milestoneIndex");
   const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedClaimLevelMilestone(args.milestoneIndex)
+    .methods.claimLevelMilestone(args.milestoneIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
       playerState: derivePlayerStatePda(owner),
-      playerFunding: derivePlayerFundingPda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
-      systemProgram: SystemProgram.programId,
-      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return basePlan(
@@ -252,16 +246,13 @@ export async function buildClaimQuestPlan(args: {
   assertIndex(args.questIndex, 12, "questIndex");
   const owner = args.ownerAuthority;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedClaimQuest(args.questIndex)
+    .methods.claimQuest(args.questIndex)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerState: derivePlayerStatePda(owner),
-      playerFunding: derivePlayerFundingPda(owner),
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
-      systemProgram: SystemProgram.programId,
-      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return basePlan(

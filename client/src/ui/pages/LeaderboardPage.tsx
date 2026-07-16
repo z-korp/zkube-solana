@@ -61,6 +61,7 @@ const LeaderboardPage: React.FC = () => {
         rank: entry.rank,
         name: truncatePublicKey(entry.player),
         score: entry.dailyScore ?? entry.score,
+        dailyBonusTriggers: entry.dailyBonusTriggers ?? 0,
         engineScore: entry.engineScore ?? entry.score,
         moves: entry.moves ?? 0,
         playerAddress: entry.player,
@@ -76,6 +77,7 @@ const LeaderboardPage: React.FC = () => {
       return {
         rank: ranked.rank,
         score: ranked.dailyScore ?? ranked.score,
+        dailyBonusTriggers: ranked.dailyBonusTriggers ?? 0,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
@@ -87,6 +89,7 @@ const LeaderboardPage: React.FC = () => {
       return {
         rank: playerEntry.rank,
         score: playerEntry.bestDailyScore ?? playerEntry.bestScore,
+        dailyBonusTriggers: playerEntry.bestDailyBonusTriggers,
         name: `You · ${truncatePublicKey(address)}`,
       };
     }
@@ -231,7 +234,7 @@ const LeaderboardPage: React.FC = () => {
                         entry.score - entry.engineScore,
                       ).toLocaleString()}{" "}
                       challenge · {entry.engineScore.toLocaleString()} engine ·{" "}
-                      {entry.moves} moves
+                      {entry.dailyBonusTriggers} bonus triggers · {entry.moves} moves
                     </span>
                     <Eye size={15} style={{ color: colors.textMuted }} />
                   </div>

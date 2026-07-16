@@ -51,6 +51,11 @@ validate_sbf() {
     return 1
   fi
   rm -f "$anchor_log"
+  # Execute the compiled ELF directly in a minified SVM. This covers real SBF
+  # account/instruction behavior without a validator, RPC, signatures, or
+  # sent transactions.
+  SBF_OUT_DIR="$root/target/deploy" NO_DNA=1 \
+    cargo test --features sbf-tests --test sbf_contract
 }
 
 validate_program() {

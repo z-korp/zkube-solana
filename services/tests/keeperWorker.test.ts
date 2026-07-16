@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  KEEPER_WRITE_RELEASE_FINGERPRINT,
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
 } from "../src/keeperWorker";
@@ -17,6 +18,16 @@ describe("keeper worker scheduling", () => {
       false,
     );
     expect(keeperWriteEnabledFromEnv({ KEEPER_WRITE_ENABLED: "true" })).toBe(
+      false,
+    );
+    expect(keeperWriteEnabledFromEnv({
+      KEEPER_WRITE_ENABLED: "true",
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: "wrong-release",
+    })).toBe(false);
+    expect(keeperWriteEnabledFromEnv({
+      KEEPER_WRITE_ENABLED: "true",
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: KEEPER_WRITE_RELEASE_FINGERPRINT,
+    })).toBe(
       true,
     );
   });

@@ -114,8 +114,6 @@ export function settleStageLabel(stage: SettleStage | null): string {
       return "Abandoning run…";
     case "delegating":
       return "Resuming run on MagicBlock…";
-    case "sealing":
-      return "Sealing result…";
     case "committing":
       return "Committing to Solana…";
     case "settling":
@@ -173,7 +171,6 @@ export function usePlayController() {
     (state) => state.setPendingLevelCompletion,
   );
   const [localActionPending, setLocalActionPending] = useState(false);
-  const [cascadeVersion, setCascadeVersion] = useState(0);
   // Observable twin of terminalAwaitingCascadeRef: true from the moment a
   // move/bonus lands a terminal lifecycle until the client cascade finishes
   // (onCascadeComplete). The board keeps rendering/animating the final cascade
@@ -316,7 +313,6 @@ export function usePlayController() {
   const onCascadeComplete = useCallback(() => {
     terminalAwaitingCascadeRef.current = null;
     setAwaitingTerminalCascade(false);
-    setCascadeVersion((value) => value + 1);
   }, []);
 
   // Defensive: never let the level-complete overlay be stranded if the cascade
@@ -423,7 +419,6 @@ export function usePlayController() {
       recoveryRunId,
     );
     if (!terminalRun || !canSettle || localActionPending || run.busy) return;
-    if (terminalAwaitingCascadeRef.current === terminalRun.runId) return;
     if (settlingRunRef.current === terminalRun.runId) return;
 
     settlingRunRef.current = terminalRun.runId;
@@ -431,12 +426,17 @@ export function usePlayController() {
     const settle =
       run.phase === "settleable" ? recoverSettlement : settleAndAdvance;
     void (async () => {
-      // Refresh before consumption so the displayed delta is based on the
-      // same lifetime best that the program will read, including after a
-      // cross-device resume. A failed read falls back to the last validated
-      // campaign snapshot and never blocks the settlement itself.
-      const refreshedCampaign =
-        terminalRun.mode === "daily" ? null : await campaignRefresh();
+      // Start commit/copyback as soon as terminal state is observed. The
+      // display-only progression refresh runs concurrently and never delays
+      // the settlement boundary or waits for the local cascade animation.
+      const refreshBeforeConsumption = terminalRun.mode === "daily"
+        ? Promise.resolve(null)
+        : campaignRefresh().catch(() => null);
+      const settlement = settle().then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      const refreshedCampaign = await refreshBeforeConsumption;
       const levelStars =
         terminalRun.mode === "daily"
           ? []
@@ -451,7 +451,8 @@ export function usePlayController() {
       );
       setTerminalSnapshot(snapshot);
 
-      await settle();
+      const settlementFailure = await settlement;
+      if (settlementFailure) throw settlementFailure;
       await Promise.all([
         campaignRefresh(),
         progressRefresh(),
@@ -473,7 +474,6 @@ export function usePlayController() {
   }, [
     campaign.campaign,
     campaignRefresh,
-    cascadeVersion,
     dailyRefresh,
     localActionPending,
     navigate,
@@ -492,7 +492,6 @@ export function usePlayController() {
     settlingRunRef.current = null;
     terminalAwaitingCascadeRef.current = null;
     setSettledCleanupStatus("idle");
-    setCascadeVersion((value) => value + 1);
   }, []);
 
   const retrySessionRenewal = useCallback(() => {

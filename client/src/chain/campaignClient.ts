@@ -103,8 +103,7 @@ export async function fetchCampaignView(args: {
     !player.owner.equals(owner) ||
     player.levelStars.length !== 80 ||
     Number(economy.version) !== 1 ||
-    !economy.protocol.equals(protocolAddress) ||
-    !economy.active
+    !economy.protocol.equals(protocolAddress)
   ) {
     return null;
   }

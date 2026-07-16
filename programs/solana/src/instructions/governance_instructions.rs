@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::v2::{ProtocolConfig, RewardVault, PROTOCOL_CONFIG_SEED, REWARD_VAULT_SEED};
+use crate::instructions::content_instructions::validate_revenue_destinations;
+use crate::state::protocol::{
+    ProtocolConfig, RewardVault, ACCOUNT_VERSION, PROTOCOL_CONFIG_SEED, REWARD_VAULT_SEED,
+};
 
 #[derive(Accounts)]
 pub struct SetProtocolPause<'info> {
@@ -9,7 +12,8 @@ pub struct SetProtocolPause<'info> {
         mut,
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub authority: Signer<'info>,
@@ -34,7 +38,8 @@ pub struct ProposeProtocolAuthority<'info> {
         mut,
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub authority: Signer<'info>,
@@ -68,7 +73,8 @@ pub struct AcceptProtocolAuthority<'info> {
         mut,
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
-        constraint = protocol.pending_authority == pending_authority.key() @ ErrorCode::Unauthorized
+        constraint = protocol.pending_authority == pending_authority.key() @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub pending_authority: Signer<'info>,
@@ -91,7 +97,8 @@ pub struct SetPricingOperator<'info> {
         mut,
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub authority: Signer<'info>,
@@ -119,6 +126,7 @@ pub struct UpdateRevenueDestinations<'info> {
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
         has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -130,6 +138,7 @@ pub struct UpdateRevenueDestinations<'info> {
         address = protocol.reward_vault,
         seeds = [REWARD_VAULT_SEED],
         bump = reward_vault.bump,
+        constraint = reward_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
     pub reward_vault: Box<Account<'info, RewardVault>>,
@@ -139,21 +148,11 @@ pub struct UpdateRevenueDestinations<'info> {
 pub fn handler_update_revenue_destinations(ctx: Context<UpdateRevenueDestinations>) -> Result<()> {
     let team_destination = ctx.accounts.team_destination.key();
     let treasury_destination = ctx.accounts.treasury_destination.key();
-    require_keys_neq!(
+    validate_revenue_destinations([
         team_destination,
         treasury_destination,
-        ErrorCode::InvalidOwner
-    );
-    require_keys_neq!(
-        team_destination,
         ctx.accounts.protocol.reward_vault,
-        ErrorCode::InvalidOwner
-    );
-    require_keys_neq!(
-        treasury_destination,
-        ctx.accounts.protocol.reward_vault,
-        ErrorCode::InvalidOwner
-    );
+    ])?;
     let previous_team_destination = ctx.accounts.protocol.team_destination;
     let previous_treasury_destination = ctx.accounts.protocol.treasury_destination;
     ctx.accounts.protocol.team_destination = team_destination;

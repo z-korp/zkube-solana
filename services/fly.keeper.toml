@@ -15,7 +15,8 @@ kill_timeout = "240s"
   SOLANA_EXPECTED_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
   ZKUBE_KEEPER_PUBLIC_KEY = "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg"
   KEEPER_ENABLED = "true"
-  # Production writes require a separate Fly secret override after a dry pass.
+  # Production writes require exact write=true and release-fingerprint secret
+  # overrides after the new image completes a read-only planning pass.
   KEEPER_WRITE_ENABLED = "false"
   KEEPER_INTERVAL_MS = "300000"
   KEEPER_MAX_WRITES = "8"

@@ -1,11 +1,11 @@
-//! Versioned accounts for the zKube Solana/MagicBlock program.
+//! Protocol, player, catalog, and transient-run accounts.
 //!
 //! These are the only account types exported by the compiled program.
 
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::economy_v2::{DailyPressureProfile, DailyScoringRule};
+use crate::state::economy::{DailyPressureProfile, DailyScoringRule};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
@@ -93,7 +93,6 @@ pub struct PlayerState {
     pub perfected_maps: u32,
     /// Two bits per Campaign level across all maps.
     pub level_stars: [u8; 80],
-    pub last_consumed_run_id: u64,
     pub daily_claim_cadence_id: u32,
     pub weekly_claim_cadence_id: u32,
     pub daily_claimed: u16,
@@ -137,7 +136,6 @@ impl PlayerState {
             cleared_maps: 0,
             perfected_maps: 0,
             level_stars: [0; 80],
-            last_consumed_run_id: 0,
             daily_claim_cadence_id: 0,
             weekly_claim_cadence_id: 0,
             daily_claimed: 0,
@@ -475,13 +473,10 @@ pub struct ConstraintSnapshot {
 pub struct ActiveRun {
     pub version: u8,
     pub owner: Pubkey,
-    pub map_catalog: Pubkey,
     pub daily_challenge: Pubkey,
-    pub delegated_validator: Pubkey,
     pub run_id: u64,
     pub mode: RunMode,
     pub lifecycle: RunLifecycle,
-    pub content_version: u32,
     pub rules_hash: [u8; 32],
     pub map_id: u8,
     pub level: u8,
@@ -492,6 +487,8 @@ pub struct ActiveRun {
     pub score: u32,
     /// Daily leaderboard score: engine score plus pressure-scaled challenge bonus.
     pub daily_score: u32,
+    /// Number of actions that earned nonzero Daily challenge bonus credit.
+    pub daily_bonus_triggers: u16,
     pub pressure_score: u32,
     pub daily_scoring_rule: DailyScoringRule,
     pub daily_pressure: DailyPressureProfile,
@@ -517,12 +514,57 @@ pub struct ActiveRun {
     pub current_difficulty: u8,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
-    pub action_hash: [u8; 32],
-    pub vrf_hash: [u8; 32],
-    pub created_at: i64,
-    pub started_at: i64,
     pub finished_at: i64,
     pub bump: u8,
+}
+
+impl Default for ActiveRun {
+    fn default() -> Self {
+        Self {
+            version: 0,
+            owner: Pubkey::default(),
+            daily_challenge: Pubkey::default(),
+            run_id: 0,
+            mode: RunMode::default(),
+            lifecycle: RunLifecycle::default(),
+            rules_hash: [0; 32],
+            map_id: 0,
+            level: 0,
+            rules: LevelRuleSnapshot::default(),
+            grid: [0; 80],
+            next_row: [0; 8],
+            has_next_row: false,
+            score: 0,
+            daily_score: 0,
+            daily_bonus_triggers: 0,
+            pressure_score: 0,
+            daily_scoring_rule: DailyScoringRule::default(),
+            daily_pressure: DailyPressureProfile::default(),
+            action_counter: 0,
+            moves: 0,
+            combo_counter: 0,
+            max_combo: 0,
+            primary_progress: 0,
+            secondary_progress: 0,
+            level_lines_cleared: 0,
+            total_lines_cleared: 0,
+            bonus_uses: 0,
+            combo2_hits: 0,
+            combo3_hits: 0,
+            combo4_hits: 0,
+            high_combo_hits: 0,
+            blocks_destroyed_by_size: [0; 4],
+            bonus_type: 0,
+            bonus_charges: 0,
+            perfect_trigger_available: false,
+            starting_height_target: 0,
+            current_difficulty: 0,
+            vrf_request_counter: 0,
+            pending_vrf_counter: 0,
+            finished_at: 0,
+            bump: 0,
+        }
+    }
 }
 
 #[derive(
@@ -644,8 +686,8 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 363);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 595);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 355);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 449);
     }
 
     #[test]

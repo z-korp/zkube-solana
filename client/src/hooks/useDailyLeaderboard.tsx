@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 
 import { useDaily } from "@/contexts/daily";
-import type { DailyLeaderboardView } from "@/chain/dailyClient";
+import {
+  dailyLeaderboardRank,
+  type DailyLeaderboardView,
+} from "@/chain/dailyClient";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 export interface DailyLeaderboardEntry {
@@ -11,6 +14,7 @@ export interface DailyLeaderboardEntry {
   runId: bigint;
   score: number;
   dailyScore: number;
+  dailyBonusTriggers: number;
   engineScore: number;
   moves: number;
   submittedAt: number;
@@ -22,12 +26,13 @@ export function projectDailyLeaderboard(
   return entries.map((entry, index) => {
     const player = entry.player.toBase58();
     return {
-      rank: index + 1,
+      rank: dailyLeaderboardRank(entries, index),
       player,
       playerName: truncatePublicKey(player),
       runId: entry.runId,
       score: entry.score,
       dailyScore: entry.dailyScore ?? entry.score,
+      dailyBonusTriggers: entry.dailyBonusTriggers,
       engineScore: entry.engineScore ?? entry.score,
       moves: entry.moves ?? 0,
       submittedAt: entry.submittedAt,

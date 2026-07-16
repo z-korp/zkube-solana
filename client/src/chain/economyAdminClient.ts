@@ -24,6 +24,7 @@ export interface EconomyInitialization {
 }
 
 export interface DailyRulesCatalogPublication {
+  contentVersion: number;
   rulesVersion: number;
   seasonId: number;
   startsDay: number;
@@ -69,6 +70,7 @@ export async function buildPublishDailyRulesPlan(args: {
   publication: DailyRulesCatalogPublication;
 }): Promise<TransactionPlan> {
   const publication = args.publication;
+  assertVersion(publication.contentVersion, "contentVersion");
   assertVersion(publication.rulesVersion, "rulesVersion");
   assertVersion(publication.seasonId, "seasonId");
   if (!Number.isInteger(publication.startsDay) || publication.startsDay < 0)
@@ -85,6 +87,7 @@ export async function buildPublishDailyRulesPlan(args: {
     throw new Error("scoringRuleCount must be between 7 and 16");
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.publishDailyRules({
+      contentVersion: publication.contentVersion,
       rulesVersion: publication.rulesVersion,
       seasonId: publication.seasonId,
       startsDay: publication.startsDay,

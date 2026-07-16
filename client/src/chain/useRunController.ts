@@ -14,7 +14,6 @@ import {
   buildPlayMovePlan,
   buildPrepareCampaignRunPlan,
   buildRequestRowPlan,
-  buildSealRunPlan,
   combinePreparedAndDelegatePlan,
   decodeActiveRunAccount,
   fetchActiveRun,
@@ -114,7 +113,6 @@ const plogErSubmission = (
 export type SettleStage =
   | "abandoning"
   | "delegating"
-  | "sealing"
   | "committing"
   | "settling"
   | "consuming"
@@ -951,7 +949,7 @@ export function useRunController() {
 
   /**
    * Full auto-settle pipeline for the attached delegated run:
-   * seal (session) → commit-and-undelegate (session) → wait for the base
+   * commit-and-undelegate (session) → wait for the base
    * copyback → consume progression + close ActiveRun for rent
    * → optionally launch the next campaign level. No manual settle button.
    */
@@ -964,26 +962,6 @@ export function useRunController() {
         return await withBusy(setState, async () => {
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
-          setStage("sealing");
-          const sealStartedAt = Date.now();
-          const seal = await buildSealRunPlan({
-            owner: run.marker.owner,
-            sessionWallet,
-            sessionToken: device.sessionToken,
-            activeRun: run.marker.addresses.activeRun,
-            erConnection: run.connection,
-          });
-          const sealSubmission = await submitErTransactionPlan({
-            transactionPlan: seal,
-            wallet: sessionWallet,
-          });
-          plogErSubmission(
-            telemetryTrace.current,
-            "settle:seal",
-            run.connection,
-            sealSubmission,
-            { durationMs: Date.now() - sealStartedAt },
-          );
           setStage("committing");
           const commitStartedAt = Date.now();
           const commit =

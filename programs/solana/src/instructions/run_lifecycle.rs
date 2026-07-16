@@ -1,7 +1,8 @@
 //! MagicBlock run delegation, VRF, play, copyback, and durable cleanup.
 //!
 //! `ActiveRun` is authoritative on the Router-resolved ER only while delegated.
-//! Terminal state is sealed, committed, and copied back before a Solana-base
+//! Terminal state is timestamped by the action that reaches it, then committed
+//! and copied back before a Solana-base
 //! consumer may update durable progression. That same instruction closes the
 //! single transient account and returns rent only to the owner's canonical
 //! System-owned funding PDA.
@@ -22,12 +23,12 @@ use crate::game::{
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::economy_v2::{
+use crate::state::economy::{
     DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
     DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
     DAILY_SCORE_SURVIVAL, PERFECT_MAP_STARS, PERFECT_MAP_XP,
 };
-use crate::state::v2::*;
+use crate::state::protocol::*;
 
 #[delegate]
 #[derive(Accounts)]
@@ -51,14 +52,14 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
         ctx.accounts.session_token.as_ref(),
     )?;
     require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
-    let validator = ctx
-        .remaining_accounts
-        .first()
-        .map(|account| account.key())
-        .unwrap_or_default();
     let run_id = {
         let mut data = ctx.accounts.pda.try_borrow_mut_data()?;
+        require!(
+            data.len() == 8 + ActiveRun::INIT_SPACE,
+            ErrorCode::InvalidVersion
+        );
         let mut active = ActiveRun::try_deserialize(&mut data.as_ref())?;
+        require!(active.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
         require_keys_eq!(active.owner, owner, ErrorCode::Unauthorized);
         require!(
             active.lifecycle == RunLifecycle::Prepared,
@@ -77,7 +78,6 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
         .0;
         require_keys_eq!(ctx.accounts.pda.key(), expected, ErrorCode::InvalidRunId);
         active.lifecycle = RunLifecycle::Delegated;
-        active.delegated_validator = validator;
         let mut writer = std::io::Cursor::new(&mut data[..]);
         active.try_serialize(&mut writer)?;
         run_id
@@ -102,7 +102,11 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
 #[vrf]
 #[derive(Accounts, Session)]
 pub struct RequestRowVrf<'info> {
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
@@ -243,7 +247,11 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
 #[vrf_callback]
 #[derive(Accounts)]
 pub struct FulfillRowVrf<'info> {
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: MagicBlock's validator-scoped ER callback fee vault. This is
     /// protocol infrastructure for gasless ER VRF and is unrelated to the
@@ -271,8 +279,8 @@ pub fn handler_fulfill_row_vrf(
     };
     let mut engine = engine_from_active(active)?;
     engine.phase = RunPhase::AwaitingVrf;
-    let opening = active.started_at == 0;
-    let (rows_derived, batch_hash) = provide_verified_vrf_rows(
+    let opening = request_counter == 1;
+    provide_verified_vrf_rows(
         &mut engine,
         randomness,
         request_counter,
@@ -284,17 +292,6 @@ pub fn handler_fulfill_row_vrf(
     )?;
     write_engine(active, &engine);
     active.pending_vrf_counter = 0;
-    let request = request_counter.to_le_bytes();
-    active.vrf_hash = sha256v(&[
-        b"zkube-vrf-chain-v2",
-        &active.vrf_hash,
-        &request,
-        &[rows_derived],
-        &batch_hash,
-    ]);
-    if active.started_at == 0 && engine.phase == RunPhase::Playing {
-        active.started_at = Clock::get()?.unix_timestamp;
-    }
     active.lifecycle = lifecycle_from_phase(engine.phase);
     Ok(())
 }
@@ -306,8 +303,7 @@ fn provide_verified_vrf_rows(
     rules_hash: [u8; 32],
     weights: BlockWeights,
     opening: bool,
-) -> Result<(u8, [u8; 32])> {
-    let request = request_counter.to_le_bytes();
+) -> Result<u8> {
     if opening {
         let height = engine.starting_height_target;
         let layout = opening_from_vrf(randomness, request_counter, rules_hash, height, weights)
@@ -316,29 +312,23 @@ fn provide_verified_vrf_rows(
         engine.next_row = Some(layout.preview);
         engine.starting_height_target = 0;
         engine.phase = RunPhase::Playing;
-        let rows = height.saturating_add(1);
-        let batch_hash = sha256v(&[
-            b"zkube-vrf-batch-v2",
-            &randomness,
-            &request,
-            &[1, rows, layout.hash_blocks],
-            engine.grid.cells(),
-            &layout.preview,
-        ]);
-        return Ok((rows, batch_hash));
+        return Ok(height.saturating_add(1));
     }
 
     let row = row_from_vrf(randomness, request_counter, weights)
         .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
     engine.provide_vrf_row(row).map_err(map_run_error)?;
-    let batch_hash = sha256v(&[b"zkube-vrf-batch-v2", &randomness, &request, &[0, 1], &row]);
-    Ok((1, batch_hash))
+    Ok(1)
 }
 
 #[vrf]
 #[derive(Accounts, Session)]
 pub struct PlayMove<'info> {
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
@@ -396,101 +386,24 @@ pub fn handler_play_move(
         ErrorCode::InvalidMoveOrder
     );
     let level = level_rules(&active.rules)?;
-    let mut mutator = mutator_rules(&active.rules);
     let difficulty_at_action = active.current_difficulty;
-    let mut pressure_multiplier_x100 = 100u16;
-    if active.mode == RunMode::Daily {
-        pressure_multiplier_x100 =
-            active.daily_pressure.score_multipliers_x100[usize::from(difficulty_at_action.min(7))];
-        mutator.score_multiplier_x100 = (u32::from(mutator.score_multiplier_x100)
-            .saturating_mul(u32::from(pressure_multiplier_x100))
-            / 100)
-            .min(u32::from(u16::MAX)) as u16;
-    }
+    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
         .play_move(expected_move, row, start, destination, level, mutator)
         .map_err(map_run_error)?;
     report.difficulty_at_action = difficulty_at_action;
-    write_engine(active, &engine);
-    active.total_lines_cleared = active
-        .total_lines_cleared
-        .checked_add(u16::from(report.lines_cleared))
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
-    if report.lines_cleared >= 2 {
-        active.combo2_hits = active
-            .combo2_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if report.lines_cleared >= 3 {
-        active.combo3_hits = active
-            .combo3_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if report.lines_cleared >= 4 {
-        active.combo4_hits = active
-            .combo4_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if combo_before < 10 && report.combo_counter >= 10 {
-        active.high_combo_hits = active
-            .high_combo_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if active.mode == RunMode::Daily {
-        let (weighted_raw_bonus, awarded_bonus) =
-            daily_challenge_bonus(active.daily_scoring_rule, &report, pressure_multiplier_x100)?;
-        active.pressure_score = active
-            .pressure_score
-            .checked_add(
-                report
-                    .neutral_points_earned
-                    .checked_add(weighted_raw_bonus)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?,
-            )
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        active.daily_score = active
-            .daily_score
-            .checked_add(
-                report
-                    .points_earned
-                    .checked_add(awarded_bonus)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?,
-            )
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        active.current_difficulty = active
-            .daily_pressure
-            .difficulty_for_score(active.pressure_score);
-    }
-    active.action_counter = active
-        .action_counter
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    active.lifecycle = lifecycle_from_phase(engine.phase);
-    let action = expected_action.to_le_bytes();
-    let expected_move = expected_move.to_le_bytes();
-    let score = active.score.to_le_bytes();
-    let daily_score = active.daily_score.to_le_bytes();
-    let pressure_score = active.pressure_score.to_le_bytes();
-    let moves = active.moves.to_le_bytes();
-    active.action_hash = sha256v(&[
-        b"zkube-action-chain-v1",
-        &active.action_hash,
-        &action,
-        &expected_move,
-        &[row, start, destination],
-        &score,
-        &daily_score,
-        &pressure_score,
-        &moves,
-        &[active.lifecycle as u8],
-    ]);
+    let terminal_at = terminal_action_timestamp(engine.phase)?;
+    record_action_accounting(
+        active,
+        &engine,
+        &report,
+        combo_before,
+        ActionKind::Move,
+        pressure_multiplier_x100,
+        terminal_at,
+    )?;
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -512,7 +425,11 @@ pub fn handler_play_move(
 #[vrf]
 #[derive(Accounts, Session)]
 pub struct ApplyBonus<'info> {
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
@@ -568,37 +485,24 @@ pub fn handler_apply_bonus(
         ErrorCode::InvalidMoveOrder
     );
     let level = level_rules(&active.rules)?;
+    let difficulty_at_action = active.current_difficulty;
+    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
+    let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
-    let report = engine
-        .apply_bonus(row, column, level, mutator_rules(&active.rules))
+    let mut report = engine
+        .apply_bonus(row, column, level, mutator)
         .map_err(map_run_error)?;
-    write_engine(active, &engine);
-    active.total_lines_cleared = active
-        .total_lines_cleared
-        .checked_add(u16::from(report.lines_cleared))
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
-    active.bonus_uses = active
-        .bonus_uses
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    active.action_counter = active
-        .action_counter
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    active.lifecycle = lifecycle_from_phase(engine.phase);
-    let action = expected_action.to_le_bytes();
-    let score = active.score.to_le_bytes();
-    let moves = active.moves.to_le_bytes();
-    active.action_hash = sha256v(&[
-        b"zkube-action-chain-v1",
-        &active.action_hash,
-        &action,
-        &[0xff, row, column],
-        &score,
-        &moves,
-        &[active.lifecycle as u8],
-    ]);
+    report.difficulty_at_action = difficulty_at_action;
+    let terminal_at = terminal_action_timestamp(engine.phase)?;
+    record_action_accounting(
+        active,
+        &engine,
+        &report,
+        combo_before,
+        ActionKind::Bonus,
+        pressure_multiplier_x100,
+        terminal_at,
+    )?;
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -617,48 +521,136 @@ pub fn handler_apply_bonus(
     Ok(())
 }
 
-#[derive(Accounts, Session)]
-pub struct SealRun<'info> {
-    #[account(mut, owner = crate::ID)]
-    pub active_run: Account<'info, ActiveRun>,
-    /// CHECK: Logical wallet authority, bound to the active run.
-    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
-    pub owner_authority: UncheckedAccount<'info>,
-    #[session(signer = actor, authority = owner_authority.key())]
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    pub actor: Signer<'info>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionKind {
+    Move,
+    Bonus,
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
-pub fn handler_seal_run(ctx: Context<SealRun>) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.active_run.owner,
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
-    require!(
-        matches!(
-            ctx.accounts.active_run.lifecycle,
-            RunLifecycle::LevelComplete | RunLifecycle::Finished
-        ),
-        ErrorCode::GameNotFinished
-    );
-    require!(
-        ctx.accounts.active_run.pending_vrf_counter == 0,
-        ErrorCode::VrfRequestPending
-    );
-    if ctx.accounts.active_run.finished_at == 0 {
-        ctx.accounts.active_run.finished_at = Clock::get()?.unix_timestamp;
+fn action_mutator(active: &ActiveRun) -> Result<(MutatorRules, u16)> {
+    let mut mutator = mutator_rules(&active.rules);
+    if active.mode != RunMode::Daily {
+        return Ok((mutator, 100));
+    }
+    let pressure_multiplier_x100 =
+        active.daily_pressure.score_multipliers_x100[usize::from(active.current_difficulty.min(7))];
+    let scaled = u32::from(mutator.score_multiplier_x100)
+        .checked_mul(u32::from(pressure_multiplier_x100))
+        .and_then(|value| value.checked_div(100))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    mutator.score_multiplier_x100 =
+        u16::try_from(scaled).map_err(|_| error!(ErrorCode::ArithmeticOverflow))?;
+    Ok((mutator, pressure_multiplier_x100))
+}
+
+fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
+    if matches!(phase, RunPhase::LevelComplete | RunPhase::Finished) {
+        return Ok(Clock::get()?.unix_timestamp);
+    }
+    Ok(0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_action_accounting(
+    active: &mut ActiveRun,
+    engine: &RunEngine,
+    report: &MoveReport,
+    combo_before: u8,
+    kind: ActionKind,
+    pressure_multiplier_x100: u16,
+    terminal_at: i64,
+) -> Result<()> {
+    require!(active.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
+    write_engine(active, engine);
+    active.total_lines_cleared = active
+        .total_lines_cleared
+        .checked_add(u16::from(report.lines_cleared))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
+    if report.lines_cleared >= 2 {
+        active.combo2_hits = active
+            .combo2_hits
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    if report.lines_cleared >= 3 {
+        active.combo3_hits = active
+            .combo3_hits
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    if report.lines_cleared >= 4 {
+        active.combo4_hits = active
+            .combo4_hits
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    if combo_before < 10 && report.combo_counter >= 10 {
+        active.high_combo_hits = active
+            .high_combo_hits
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    if kind == ActionKind::Bonus {
+        active.bonus_uses = active
+            .bonus_uses
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    if active.mode == RunMode::Daily {
+        let (weighted_raw_bonus, awarded_bonus) =
+            daily_challenge_bonus(active.daily_scoring_rule, report, pressure_multiplier_x100)?;
+        active.pressure_score = active
+            .pressure_score
+            .checked_add(
+                report
+                    .neutral_points_earned
+                    .checked_add(weighted_raw_bonus)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?,
+            )
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        active.daily_score = active
+            .daily_score
+            .checked_add(
+                report
+                    .points_earned
+                    .checked_add(awarded_bonus)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?,
+            )
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        if awarded_bonus > 0 {
+            active.daily_bonus_triggers = active
+                .daily_bonus_triggers
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
+        }
+        active.current_difficulty = active
+            .daily_pressure
+            .difficulty_for_score(active.pressure_score);
+    }
+    active.action_counter = active
+        .action_counter
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    active.lifecycle = lifecycle_from_phase(engine.phase);
+    if matches!(
+        active.lifecycle,
+        RunLifecycle::LevelComplete | RunLifecycle::Finished
+    ) && active.finished_at == 0
+    {
+        require!(terminal_at > 0, ErrorCode::InvalidState);
+        active.finished_at = terminal_at;
     }
     Ok(())
 }
 
 #[derive(Accounts, Session)]
 pub struct AbandonRun<'info> {
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
@@ -741,7 +733,11 @@ fn run_has_terminal_projection(lifecycle: RunLifecycle, finished_at: i64) -> boo
 pub struct CommitRun<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    #[account(mut, owner = crate::ID)]
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: MagicBlock context required by MagicIntentBundleBuilder.
     #[account(mut, address = ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID @ ErrorCode::InvalidMagicProgram)]
@@ -785,14 +781,16 @@ pub struct ConsumeCampaignRun<'info> {
         owner = crate::ID,
         seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
         bump = active_run.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
     #[account(
         mut,
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
         bump = player_state.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Player wallet pinned by every durable account and active_run.
@@ -823,11 +821,6 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
         ErrorCode::GameNotFinished
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
-    require!(
-        active.run_id > ctx.accounts.player_state.last_consumed_run_id,
-        ErrorCode::RunAlreadyConsumed
-    );
-
     let completed = active.lifecycle == RunLifecycle::LevelComplete;
     let stars = if completed {
         calculate_level_stars(
@@ -886,7 +879,6 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
         completed,
     )?;
     award_map_perfection(&mut ctx.accounts.player_state, active.map_id)?;
-    ctx.accounts.player_state.last_consumed_run_id = active.run_id;
     ctx.accounts.player_state.release_run(active.run_id)?;
     Ok(())
 }
@@ -1147,7 +1139,7 @@ fn map_run_error(error: RunError) -> anchor_lang::error::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::economy_v2::{
+    use crate::state::economy::{
         canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
     };
     use anchor_lang::{InstructionData, ToAccountMetas};
@@ -1315,6 +1307,101 @@ mod tests {
         );
     }
 
+    fn accounting_fixture(rule: DailyScoringRule) -> (ActiveRun, RunEngine, MoveReport) {
+        let active = ActiveRun {
+            version: ACCOUNT_VERSION,
+            mode: RunMode::Daily,
+            lifecycle: RunLifecycle::Playing,
+            daily_scoring_rule: rule,
+            daily_pressure: DailyPressureProfile::canonical(),
+            ..ActiveRun::default()
+        };
+        let engine = RunEngine {
+            phase: RunPhase::LevelComplete,
+            score: 25,
+            combo_counter: 10,
+            max_combo: 10,
+            ..RunEngine::default()
+        };
+        let report = MoveReport {
+            lines_cleared: 2,
+            points_earned: 25,
+            combo_counter: 10,
+            blocks_destroyed_by_size: [1, 2, 3, 4],
+            neutral_points_earned: 10,
+            ..MoveReport::default()
+        };
+        (active, engine, report)
+    }
+
+    #[test]
+    fn moves_and_bonuses_share_checked_daily_action_accounting() {
+        let rule = DailyScoringRule {
+            id: 4,
+            family: 2,
+            kind: DAILY_SCORE_EXACT_LINES,
+            parameter: 2,
+            bonus_multiplier_x100: 100,
+        };
+        let (mut move_run, engine, report) = accounting_fixture(rule);
+        let (mut bonus_run, _, _) = accounting_fixture(rule);
+        record_action_accounting(
+            &mut move_run,
+            &engine,
+            &report,
+            9,
+            ActionKind::Move,
+            100,
+            123,
+        )
+        .unwrap();
+        record_action_accounting(
+            &mut bonus_run,
+            &engine,
+            &report,
+            9,
+            ActionKind::Bonus,
+            100,
+            123,
+        )
+        .unwrap();
+
+        assert_eq!(move_run.total_lines_cleared, bonus_run.total_lines_cleared);
+        assert_eq!(move_run.blocks_destroyed_by_size, [1, 2, 3, 4]);
+        assert_eq!(
+            move_run.blocks_destroyed_by_size,
+            bonus_run.blocks_destroyed_by_size
+        );
+        assert_eq!((move_run.combo2_hits, move_run.high_combo_hits), (1, 1));
+        assert_eq!(move_run.daily_score, 35);
+        assert_eq!(move_run.pressure_score, 20);
+        assert_eq!(move_run.daily_bonus_triggers, 1);
+        assert_eq!(
+            move_run.daily_bonus_triggers,
+            bonus_run.daily_bonus_triggers
+        );
+        assert_eq!(move_run.finished_at, 123);
+        assert_eq!(move_run.lifecycle, RunLifecycle::LevelComplete);
+        assert_eq!((move_run.bonus_uses, bonus_run.bonus_uses), (0, 1));
+    }
+
+    #[test]
+    fn classic_daily_actions_never_increment_bonus_triggers() {
+        let rule = DailyScoringRule {
+            id: 1,
+            family: 0,
+            kind: DAILY_SCORE_CLASSIC,
+            parameter: 0,
+            bonus_multiplier_x100: 0,
+        };
+        let (mut active, engine, report) = accounting_fixture(rule);
+        record_action_accounting(&mut active, &engine, &report, 9, ActionKind::Move, 100, 456)
+            .unwrap();
+        assert_eq!(active.daily_score, report.points_earned);
+        assert_eq!(active.daily_bonus_triggers, 0);
+        assert_eq!(active.finished_at, 456);
+    }
+
     #[test]
     fn one_verified_result_builds_the_visible_opening_layout() {
         let mut engine = RunEngine {
@@ -1322,7 +1409,7 @@ mod tests {
             starting_height_target: 5,
             ..RunEngine::default()
         };
-        let (rows, hash) = provide_verified_vrf_rows(
+        let rows = provide_verified_vrf_rows(
             &mut engine,
             [17u8; 32],
             1,
@@ -1336,7 +1423,6 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Playing);
         assert_eq!(engine.grid.occupied_height(), 5);
         assert!(engine.next_row.is_some());
-        assert_ne!(hash, [0; 32]);
     }
 
     #[test]
@@ -1379,7 +1465,7 @@ mod tests {
 
         assert_eq!(first, replay);
         assert_eq!(first_result, replay_result);
-        assert_ne!(first_result.1, different_result.1);
+        assert_eq!(different_result, first_result);
         assert_ne!(first.grid, different.grid);
     }
 
@@ -1391,7 +1477,7 @@ mod tests {
                 starting_height_target: 8,
                 ..RunEngine::default()
             };
-            let (rows, _) = provide_verified_vrf_rows(
+            let rows = provide_verified_vrf_rows(
                 &mut engine,
                 [seed; 32],
                 1,
@@ -1420,7 +1506,7 @@ mod tests {
             .unwrap(),
             ..RunEngine::default()
         };
-        let (rows, _) = provide_verified_vrf_rows(
+        let rows = provide_verified_vrf_rows(
             &mut engine,
             [41u8; 32],
             9,

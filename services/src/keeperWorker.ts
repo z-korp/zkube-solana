@@ -19,11 +19,19 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 
-/** Writes stay disabled unless Fly injects the exact, case-sensitive opt-in. */
+/** First 16 hex characters of the selected v3 SBF SHA-256. */
+export const KEEPER_WRITE_RELEASE_FINGERPRINT = "4236db1f07271bfc";
+
+/**
+ * Writes stay disabled unless Fly injects both the case-sensitive opt-in and
+ * the fingerprint compiled into this keeper release. A stale write secret from
+ * an older image therefore cannot authorize a newly deployed image.
+ */
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
 ): boolean {
-  return env.KEEPER_WRITE_ENABLED === "true";
+  return env.KEEPER_WRITE_ENABLED === "true"
+    && env.KEEPER_APPROVED_RELEASE_FINGERPRINT === KEEPER_WRITE_RELEASE_FINGERPRINT;
 }
 
 export interface KeeperWorkerEvent {

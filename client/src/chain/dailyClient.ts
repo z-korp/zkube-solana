@@ -49,6 +49,7 @@ export interface DailyLeaderboardView {
   player: PublicKey;
   runId: bigint;
   dailyScore: number;
+  dailyBonusTriggers: number;
   engineScore: number;
   moves: number;
   /** Daily score compatibility alias for generic rank components. */
@@ -61,6 +62,7 @@ export interface DailyPlayerView {
   finalizedAttempts: number;
   bestRunId: bigint;
   bestDailyScore: number;
+  bestDailyBonusTriggers: number;
   bestEngineScore: number;
   bestMoves: number;
   /** Daily score compatibility alias for generic rank components. */
@@ -69,6 +71,21 @@ export interface DailyPlayerView {
   dailyXpAwarded: boolean;
   pressureMasteryXpAwarded: boolean;
   weeklyRolledUp: boolean;
+}
+
+/** Competition rank using only the contract's three official Daily keys. */
+export function dailyLeaderboardRank(
+  entries: readonly DailyLeaderboardView[],
+  index: number,
+): number {
+  const target = entries[index];
+  if (!target) return 0;
+  const firstTie = entries.findIndex((entry) =>
+    entry.dailyScore === target.dailyScore
+    && entry.dailyBonusTriggers === target.dailyBonusTriggers
+    && entry.submittedAt === target.submittedAt
+  );
+  return firstTie + 1;
 }
 
 export interface DailyGameRulesView extends EndlessRulesView {
@@ -228,7 +245,10 @@ export async function fetchDailyView(args: {
   ]);
   if (
     !protocol ||
-    !economy?.active ||
+    !economy ||
+    Number(protocol.version) !== 1 ||
+    Number(economy.version) !== 1 ||
+    !economy.protocol.equals(deriveProtocolConfigPda()) ||
     Number(economy.contentVersion) !== Number(protocol.contentVersion)
   )
     return null;
@@ -275,6 +295,7 @@ export async function fetchDailyView(args: {
           finalizedAttempts: Number(player.finalizedAttempts),
           bestRunId: asBigInt(player.bestRunId),
           bestDailyScore: Number(player.bestDailyScore),
+          bestDailyBonusTriggers: Number(player.bestDailyBonusTriggers),
           bestEngineScore: Number(player.bestEngineScore),
           bestMoves: Number(player.bestMoves),
           bestScore: Number(player.bestDailyScore),
@@ -288,6 +309,7 @@ export async function fetchDailyView(args: {
       player: entry.player,
       runId: asBigInt(entry.runId),
       dailyScore: Number(entry.dailyScore),
+      dailyBonusTriggers: Number(entry.dailyBonusTriggers),
       engineScore: Number(entry.engineScore),
       moves: Number(entry.moves),
       score: Number(entry.dailyScore),

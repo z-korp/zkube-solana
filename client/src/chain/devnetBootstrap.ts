@@ -43,7 +43,7 @@ import {
 
 export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
 export const DEPLOYED_ZKUBE_SBF_SHA256 =
-  "30dcf6c472114dab224955f9a10d43f4b2d2d1ffbfe9e6accc2b9349f6ca6054";
+  "4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf";
 
 export type DevnetBootstrapStage =
   | "custody"
@@ -156,6 +156,13 @@ export interface DevnetBootstrapPreview {
   signatures: string[];
 }
 
+export function protocolInitializationAccountSizes(accounts: {
+  protocolConfig: { size: number };
+  rewardVault: { size: number };
+}): [number, number] {
+  return [accounts.protocolConfig.size, accounts.rewardVault.size];
+}
+
 interface LiveProgramDeployment {
   programData: string;
   deployedSlot: string;
@@ -175,6 +182,7 @@ const VAULT_PATHS: Record<VaultName, string> = {
 
 function canonicalDailyRulesPublication() {
   return {
+    contentVersion: POLICY.contentVersion,
     rulesVersion: POLICY.dailyRulesVersion,
     seasonId: 1,
     startsDay: 0,
@@ -402,10 +410,16 @@ async function buildProtocolBatches(
     verifyProtocolConfig(protocol, input);
     return [];
   }
-  const rentFunding = await input.connection.getMinimumBalanceForRentExemption(
-    program.account.protocolConfig.size,
-    "confirmed",
-  );
+  // initialize_protocol creates both accounts with the governance authority as
+  // payer. Fund both rents before invoking it so the approval plan and the
+  // unsigned simulation cover the complete atomic initialization.
+  const rentFunding = (
+    await Promise.all(
+      protocolInitializationAccountSizes(program.account).map((size) =>
+        input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
+      ),
+    )
+  ).reduce((sum, rent) => sum + rent, 0);
   const plan = await buildInitializeProtocolPlan({
     connection: input.connection,
     authority: new SessionWallet(authority),
@@ -431,7 +445,10 @@ async function buildProtocolBatches(
     transaction,
     signers: [funder, authority],
     fundingLamports: rentFunding,
-    creates: [deriveProtocolConfigPda().toBase58()],
+    creates: [
+      deriveProtocolConfigPda().toBase58(),
+      deriveRewardVaultPda().toBase58(),
+    ],
   };
   await assertFunderHeadroom(input, [batch]);
   return [batch];
@@ -751,8 +768,7 @@ async function verifyEconomyFoundation(
     economy.protocol.equals(deriveProtocolConfigPda()) &&
     Number(economy.contentVersion) === POLICY.contentVersion &&
     Number(economy.dailyRulesVersion) === POLICY.dailyRulesVersion &&
-    BigInt(economy.revision.toString()) >= 1n &&
-    economy.active;
+    BigInt(economy.revision.toString()) >= 1n;
   const validSales =
     Number(sales.version) === 1 &&
     sales.economyConfig.equals(deriveEconomyConfigPda());

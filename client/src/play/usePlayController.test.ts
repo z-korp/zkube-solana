@@ -93,13 +93,12 @@ describe("play controller projections", () => {
   });
 
   it("exposes each auto-settlement stage", () => {
-    expect(settleStageLabel("sealing")).toBe("Sealing result…");
     expect(settleStageLabel("committing")).toBe("Committing to Solana…");
     expect(settleStageLabel("settling")).toBe("Waiting for base copyback…");
     expect(settleStageLabel("cleaning")).toBe("Cleaning up settled run…");
   });
 
-  it("waits for session renewal before sealing a delegated terminal run", () => {
+  it("waits for session renewal before committing a delegated terminal run", () => {
     expect(canSettleTerminalRun("delegated", false)).toBe(false);
     expect(canSettleTerminalRun("delegated", true)).toBe(true);
     expect(canSettleTerminalRun("settleable", false)).toBe(true);

@@ -25,7 +25,10 @@ export async function fetchEconomyRuntime(args: {
   ]);
   if (
     !protocol ||
-    !economy?.active ||
+    !economy ||
+    Number(protocol.version) !== 1 ||
+    Number(economy.version) !== 1 ||
+    !economy.protocol.equals(deriveProtocolConfigPda()) ||
     Number(economy.contentVersion) !== Number(protocol.contentVersion)
   ) {
     return null;

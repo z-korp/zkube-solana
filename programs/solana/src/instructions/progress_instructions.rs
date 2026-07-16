@@ -2,9 +2,7 @@ use anchor_lang::prelude::*;
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::{
-    require_player_authorization, require_player_rent_payer,
-};
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::*;
 
 #[derive(Clone, Copy)]
@@ -148,6 +146,7 @@ pub struct ClaimAchievement<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -155,7 +154,8 @@ pub struct ClaimAchievement<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Immutable durable player identity, constrained above.
@@ -204,6 +204,7 @@ pub struct ClaimQuest<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -211,16 +212,14 @@ pub struct ClaimQuest<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
-    pub system_program: Program<'info, System>,
 }
 
 pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<()> {
@@ -228,11 +227,6 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
-    )?;
-    require_player_rent_payer(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.payer.key(),
     )?;
     let index = usize::from(quest_index);
     let now = Clock::get()?.unix_timestamp;
@@ -394,6 +388,24 @@ pub struct WeeklyStipendAwarded {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_lang::ToAccountMetas;
+
+    #[test]
+    fn quest_claim_has_no_payer_or_system_account() {
+        let actor = Pubkey::new_unique();
+        let metas = crate::accounts::ClaimQuest {
+            protocol: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
+            owner_authority: Pubkey::new_unique(),
+            session_token: Some(Pubkey::new_unique()),
+            actor,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 5);
+        assert_eq!(metas[4].pubkey, actor);
+        assert_eq!(metas.iter().filter(|meta| meta.is_signer).count(), 1);
+    }
 
     #[test]
     fn canonical_achievements_total_40_200_xp() {

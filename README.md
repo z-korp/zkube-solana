@@ -32,9 +32,8 @@ There is deliberately no Kora or custom paymaster. The user's owner-funded PDA
 is a zero-data System account, not a program-owned vault or generic wallet: its
 signer seeds are used only inside narrow self-CPI instructions for known zKube
 account-creation paths. A session cannot transfer arbitrary SOL and can never
-authorize a Star purchase. Enable also converts the exact retired 42-byte
-program-owned funding account in place, preserving its address and lamports;
-any other owner or layout fails closed.
+authorize a Star purchase. Initialization accepts only the canonical empty,
+System-owned funding PDA; retired program-owned funding layouts fail closed.
 
 ## Connection and run lifecycle
 
@@ -46,8 +45,10 @@ session token, and gives the device signer its bounded fee allowance.
 
 Normal Campaign and Daily play is silent after enablement. A fresh run is
 prepared and delegated atomically in one Solana v0 transaction, played on the resolved ER, then
-sealed, committed, copied back, consumed, and cleaned automatically. Base,
-Router, and ER connections are always separate.
+timestamped by the action that first reaches a terminal state, committed
+immediately, copied back, consumed, and cleaned automatically. There is no
+separate sealing instruction. Base, Router, and ER connections are always
+separate.
 
 The opening board uses one verified VRF callback and expands that unpredictable
 result with a domain-separated SHA-256 syscall stream into exactly the configured
@@ -97,6 +98,22 @@ open the owner wallet. Campaign clears award 10 XP for each improvement to a
 level's lifetime best rating: 1/2/3 stars are worth 10/20/30 XP total for that
 map-level, and equal or worse replays award nothing. The separate one-time
 perfect-map reward remains 20 Stars and 1,000 XP.
+
+Daily rank is determined only by total Daily score descending, qualifying
+Daily bonus-condition triggers descending, then terminal action timestamp
+ascending. Engine score, challenge bonus points, and moves remain visible
+statistics but are not tie-breakers. Classic rules never add bonus triggers;
+other rules add exactly one trigger for each action that earns nonzero
+challenge bonus credit.
+
+Content publication is staged and immutable. Governance may publish future
+Campaign map catalogs and a future Daily rules catalog while the current
+release remains playable. While the protocol is paused,
+`activate_content_release` validates the strict version increase, exact ordered
+enabled map PDAs, Campaign map count, and selected Daily rules catalog, then
+switches the protocol and economy versions atomically. Existing player
+progression is preserved, and runs or challenges that already snapshotted older
+rules remain settleable.
 
 ## Repository map
 
@@ -154,11 +171,31 @@ and renewal.
 
 ## Devnet release status and sequence
 
-The v3 source tree uses the new program address
-`Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR`. It is not live until its
-initial-deploy, bootstrap, keeper, and client transaction bundle is separately
-simulated, fingerprinted, approved, and executed. The old v2 deployment remains
-the currently reachable Devnet program during this maintenance window.
+The v3 program is live on Devnet at
+`Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR`, with ProgramData account
+`7XHh2WTjAw19Nt3eSjTHGBbrw8QgPQbAT3upa3NDATZu` and initial deployment slot
+`476753345`. Its fresh bootstrap and first Daily/Weekly cadence are complete.
+The v3 keeper image is live but returned to read-only mode after that exact
+one-pass bundle. The client release still needs to be separately fingerprinted,
+approved, and executed, so v3 is not yet the client-active release. The old v2
+deployment remains the currently reachable browser program during this
+maintenance window.
+
+The v3 custody preflight is satisfied and the protocol foundation was
+initialized at slot `476755019`. `ProtocolConfig` and `RewardVault` are owned
+by the v3 program, use account version 1, preserve the 0.025 SOL player-funding
+target, and point at the verified external team and treasury destinations. The
+canonical Stars economy was initialized at slot `476756061`; it preserves the
+10-Star Daily entry, owner-approved native-SOL pack prices, disabled sale
+window, and zeroed lifetime sales ledger. Immutable Daily rules catalog v1 was
+published at slot `476757680` with catalog hash
+`7c9d64c4ab5c95c51f9a1e8b52767f84de9245de6604074c0f7f6930a906334f`.
+All ten immutable Campaign map catalogs were published and verified at slots
+`476758274` through `476758292` and activated at slot `476758914`. All six
+bootstrap stages now satisfy their read-only postconditions. The approved
+one-pass keeper stage opened week `2950` at slot `476764468` and day `20650` at
+slot `476764471`; ongoing keeper writes and the client stage remain separately
+approval-gated.
 
 The previous Devnet release ran the native-SOL program at deployment slot `476696498`.
 The deployed program artifact is 1,758,456 bytes with SHA-256
@@ -169,25 +206,58 @@ Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
 are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
 
-The Fly keeper is live with its separately approved bounded write policy. Its
-first pass opened Devnet day `20650` and week `2950`; both accounts are verified
-and playable. The keeper has a `0.1 SOL` reserve floor covering the full
-variable-capacity leaderboard rent, at most eight writes per pass, and at most
-two expired-session revocations per pass. The matching static PWA is live.
+The replacement v3 Fly keeper is live at registry digest
+`sha256:459bc65e6ee620b55e19f8cf9242c1cd3b67c361ab66938f3ffdad05db461537`.
+Its exact one-pass bundle spent 35,770,480 lamports to open and verify Devnet
+day `20650` and week `2950`, then removed the release fingerprint and confirmed
+a fresh zero-write pass. Its remaining balance is 918,019,040 lamports, above
+the `0.1 SOL` reserve floor. The keeper still caps each pass at eight writes and
+expired-session revocation at two accounts, but ongoing writes are currently
+disabled. The production static PWA still targets v2.
 
 The v3 account pass compacts Campaign stars to 80 bytes, achievement claims to
 one 24-bit-bounded word, removes stale run addresses from Daily ranking state,
-and reduces the fully allocated 50-entry Daily leaderboard from 4,546 to 2,946
-bytes. Per-player profile, Campaign, quest, milestone, and stipend state now
-live in one 363-byte `PlayerState`; each run uses one 595-byte `ActiveRun`
-instead of shell/active/receipt triplication. The funding target is stored in
-`ProtocolConfig`; the client treats
+and uses a 3,046-byte fully allocated 50-entry Daily leaderboard with the
+official trigger-count and completion-time tie-breakers. Per-player profile,
+Campaign, quest, milestone, and stipend state live in one 355-byte
+`PlayerState`; each run uses one 449-byte `ActiveRun` instead of
+shell/active/receipt triplication. Removing obsolete run provenance saves about
+0.001 SOL of recyclable rent per concurrent run. The funding target is stored
+in `ProtocolConfig`; the client treats
 larger or malformed values as invalid instead of trusting a browser constant.
 
-The remaining release work is the approved v3 initial deployment and fresh
-bootstrap, followed by real-wallet desktop and Seeker acceptance and the signed
-TWA APK only after browser acceptance passes. Existing v2 Devnet progress is
-intentionally not migrated.
+The pre-deployment SBF profile experiment selected release `opt-level = "s"`;
+`opt-level = "z"` was deliberately excluded. The speed profile produced a
+1,429,168-byte ELF and 9,948,213,360-lamport ProgramData rent estimate, while
+the selected size profile produces a 1,200,672-byte ELF with SHA-256
+`4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf`
+and an 8,357,881,200-lamport estimate. Both estimates use the current Devnet
+rent schedule and the ELF length plus the 45-byte upgradeable-loader metadata.
+The selected profile passed the real SBF account/instruction suite without a
+stack warning. The exact ELF hash was verified again from the deployed
+ProgramData bytes. Initial deployment spent 8,372,157,640 lamports, below its
+8,409,022,640-lamport approved maximum. Solana CLI 4.0.2 used 1,311 loader write
+transactions (1,313 successful loader transactions total); the preflight
+model's 1,371-write estimate was conservative and has been retained in the
+ignored deployment evidence for auditability. Its measured compute units were:
+revenue update 10,961, level
+claim 17,782, quest claim 18,486, Campaign consume 23,365, Star purchase
+30,699, terminal move 44,535, funded prepare 58,675, and full ten-map content
+activation 212,244. These are pre-deployment fingerprints, not authorization
+to deploy or write chain state.
+
+The remaining release work is the Git-driven v3 client cutover, any separately
+approved ongoing keeper write policy, real-wallet desktop and Seeker acceptance,
+and the signed TWA APK only after browser acceptance passes. Each write or
+publication step remains separately approval-gated. Existing v2 Devnet progress
+is intentionally not migrated.
+
+The v3 keeper also requires the exact compiled release fingerprint alongside
+the case-sensitive write opt-in. This keeps a newly deployed image read-only
+even if Fly still holds an older `KEEPER_WRITE_ENABLED=true` secret. The
+fingerprint is enabled only after the replacement image reports a clean
+read-only planning pass, and it is currently absent after the completed
+one-pass cadence release.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a
@@ -201,6 +271,7 @@ fingerprints are fixed in advance; any drift stops the bundle. Mainnet is disabl
   cluster genesis before decoding untrusted RPC data.
 - A session token must match owner, actor, target program, fee payer, and expiry.
 - Star purchases require the owner signer and exact quoted lamports.
+- Revenue destinations must be nonzero and pairwise distinct.
 - Preserve `ActiveRun` until terminal copyback; consume progression, clear the
   active pointer, and close rent atomically.
 - Resolve ER endpoints through `getDelegationStatus`; never hardcode a region.

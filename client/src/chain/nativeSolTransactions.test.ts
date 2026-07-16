@@ -116,8 +116,6 @@ describe("native SOL transaction boundaries", () => {
 
   it("pins every funded self-CPI wrapper to the executable zKube program", () => {
     const fundedInstructions = [
-      "funded_claim_level_milestone",
-      "funded_claim_quest",
       "funded_delegate_active_run",
       "funded_enter_daily",
       "funded_prepare_campaign_run",
@@ -137,6 +135,16 @@ describe("native SOL transaction boundaries", () => {
       expect(zkubeProgramMeta, name).not.toHaveProperty("writable", true);
       expect(zkubeProgramMeta, name).not.toHaveProperty("signer", true);
     }
+  });
+
+  it("omits sealing and retired funded claim wrappers from the public ABI", () => {
+    const instructionNames = new Set(
+      IDL.instructions.map((instruction) => instruction.name as string),
+    );
+    expect(instructionNames.has("seal_run")).toBe(false);
+    expect(instructionNames.has("funded_claim_quest")).toBe(false);
+    expect(instructionNames.has("funded_claim_level_milestone")).toBe(false);
+    expect(instructionNames.has("activate_content_release")).toBe(true);
   });
 
   it("funds delegation rent only from the canonical player PDA", async () => {

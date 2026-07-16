@@ -55,7 +55,7 @@ import {
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 /**
- * Covers a fresh Daily + Weekly cadence allocation (currently 46,200,480
+ * Covers a fresh Daily + Weekly cadence allocation (currently 35,760,480
  * refundable lamports) plus fees and operational headroom. Do not derive this
  * from Anchor client `account.size`: variable-capacity Vec allocations expose
  * only their fixed header there.

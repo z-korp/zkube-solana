@@ -116,6 +116,110 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "activateContentRelease",
+      "discriminator": [
+        112,
+        124,
+        37,
+        124,
+        159,
+        223,
+        144,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "economyConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  99,
+                  111,
+                  110,
+                  111,
+                  109,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "dailyRulesCatalog",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  114,
+                  117,
+                  108,
+                  101,
+                  115
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "dailyRulesVersion"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "contentVersion",
+          "type": "u32"
+        },
+        {
+          "name": "dailyRulesVersion",
+          "type": "u32"
+        },
+        {
+          "name": "campaignMapCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "applyBonus",
       "discriminator": [
         50,
@@ -469,11 +573,6 @@ export type Solana = {
           }
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "ownerAuthority"
         },
         {
@@ -483,10 +582,6 @@ export type Solana = {
         {
           "name": "actor",
           "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -553,11 +648,6 @@ export type Solana = {
           }
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "ownerAuthority"
         },
         {
@@ -567,10 +657,6 @@ export type Solana = {
         {
           "name": "actor",
           "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -2392,163 +2478,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "fundedClaimLevelMilestone",
-      "discriminator": [
-        149,
-        210,
-        165,
-        234,
-        111,
-        234,
-        172,
-        188
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "economyConfig"
-        },
-        {
-          "name": "playerState",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
-        }
-      ],
-      "args": [
-        {
-          "name": "milestoneIndex",
-          "type": "u8"
-        }
-      ]
-    },
-    {
-      "name": "fundedClaimQuest",
-      "discriminator": [
-        221,
-        128,
-        217,
-        239,
-        145,
-        65,
-        3,
-        67
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "playerState",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
-        }
-      ],
-      "args": [
-        {
-          "name": "questIndex",
-          "type": "u8"
-        }
-      ]
-    },
-    {
       "name": "fundedDelegateActiveRun",
       "discriminator": [
         102,
@@ -3027,7 +2956,7 @@ export type Solana = {
         {
           "name": "playerFunding",
           "docs": [
-            "absent/normalized System account or the exact legacy zKube layout."
+            "account is accepted; no retired program-owned layout is convertible."
           ],
           "writable": true,
           "pda": {
@@ -4474,37 +4403,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "sealRun",
-      "discriminator": [
-        213,
-        187,
-        245,
-        33,
-        201,
-        15,
-        74,
-        234
-      ],
-      "accounts": [
-        {
-          "name": "activeRun",
-          "writable": true
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "setPricingOperator",
       "discriminator": [
         18,
@@ -5155,6 +5053,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "contentReleaseActivated",
+      "discriminator": [
+        159,
+        30,
+        50,
+        177,
+        23,
+        41,
+        6,
+        246
+      ]
+    },
+    {
       "name": "dailyChallengeClosed",
       "discriminator": [
         89,
@@ -5561,231 +5472,216 @@ export type Solana = {
   "errors": [
     {
       "code": 6000,
-      "name": "notGameOwner",
-      "msg": "The signer is not authorized for this run"
-    },
-    {
-      "code": 6001,
       "name": "gameOver",
       "msg": "The run is already terminal"
     },
     {
-      "code": 6002,
+      "code": 6001,
       "name": "invalidMove",
       "msg": "The move coordinates are invalid"
     },
     {
-      "code": 6003,
+      "code": 6002,
       "name": "unauthorized",
       "msg": "Only the configured authority may perform this action"
     },
     {
-      "code": 6004,
+      "code": 6003,
       "name": "insufficientFunds",
       "msg": "The source account has insufficient funds"
     },
     {
-      "code": 6005,
-      "name": "notDelegated",
-      "msg": "The active run is not delegated to the ephemeral rollup"
-    },
-    {
-      "code": 6006,
+      "code": 6004,
       "name": "invalidState",
       "msg": "The account is in an invalid state for this instruction"
     },
     {
-      "code": 6007,
+      "code": 6005,
       "name": "invalidOwner",
       "msg": "The account owner or relationship is invalid"
     },
     {
-      "code": 6008,
+      "code": 6006,
       "name": "invalidMoveOrder",
       "msg": "The expected move or action counter does not match"
     },
     {
-      "code": 6009,
+      "code": 6007,
       "name": "invalidMagicProgram",
       "msg": "The MagicBlock program is invalid"
     },
     {
-      "code": 6010,
+      "code": 6008,
       "name": "gameNotFinished",
       "msg": "The run is not ready to finish"
     },
     {
-      "code": 6011,
+      "code": 6009,
       "name": "challengeNotStarted",
       "msg": "The Daily challenge has not started"
     },
     {
-      "code": 6012,
+      "code": 6010,
       "name": "challengeEnded",
       "msg": "The Daily challenge entry or play window has ended"
     },
     {
-      "code": 6013,
+      "code": 6011,
       "name": "challengeNotEnded",
       "msg": "The Daily challenge has not ended"
     },
     {
-      "code": 6014,
+      "code": 6012,
       "name": "alreadySubmitted",
       "msg": "This Daily attempt has already been submitted"
     },
     {
-      "code": 6015,
+      "code": 6013,
       "name": "arithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6016,
+      "code": 6014,
       "name": "insufficientStars",
       "msg": "Insufficient Stars"
     },
     {
-      "code": 6017,
+      "code": 6015,
       "name": "invalidMap",
       "msg": "Invalid map"
     },
     {
-      "code": 6018,
+      "code": 6016,
       "name": "invalidLevel",
       "msg": "Invalid level"
     },
     {
-      "code": 6019,
+      "code": 6017,
       "name": "invalidStars",
       "msg": "Invalid star rating"
     },
     {
-      "code": 6020,
+      "code": 6018,
       "name": "protocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6021,
+      "code": 6019,
       "name": "invalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6022,
+      "code": 6020,
       "name": "invalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6023,
+      "code": 6021,
       "name": "activeRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6024,
+      "code": 6022,
       "name": "mapLocked",
       "msg": "Map is locked"
     },
     {
-      "code": 6025,
+      "code": 6023,
       "name": "mapDisabled",
       "msg": "Map is disabled"
     },
     {
-      "code": 6026,
+      "code": 6024,
       "name": "mapAlreadyUnlocked",
       "msg": "Map is already unlocked"
     },
     {
-      "code": 6027,
+      "code": 6025,
       "name": "contentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6028,
+      "code": 6026,
       "name": "invalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6029,
+      "code": 6027,
       "name": "vrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6030,
+      "code": 6028,
       "name": "noVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6031,
+      "code": 6029,
       "name": "vrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6032,
-      "name": "runAlreadyConsumed",
-      "msg": "The run has already been consumed"
-    },
-    {
-      "code": 6033,
+      "code": 6030,
       "name": "noPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6034,
+      "code": 6031,
       "name": "prizeAlreadyClaimed",
       "msg": "The Daily prize has already been claimed"
     },
     {
-      "code": 6035,
+      "code": 6032,
       "name": "prizeClaimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6036,
+      "code": 6033,
       "name": "refundAlreadyClaimed",
       "msg": "The refund has already been claimed"
     },
     {
-      "code": 6037,
+      "code": 6034,
       "name": "invalidProgressRule",
       "msg": "The progression rule is invalid"
     },
     {
-      "code": 6038,
+      "code": 6035,
       "name": "rewardAlreadyClaimed",
       "msg": "This progress reward has already been claimed"
     },
     {
-      "code": 6039,
+      "code": 6036,
       "name": "rewardNotEarned",
       "msg": "The progress requirement has not been met"
     },
     {
-      "code": 6040,
+      "code": 6037,
       "name": "questNotActive",
       "msg": "This quest is not active in the current cadence"
     },
     {
-      "code": 6041,
+      "code": 6038,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6042,
+      "code": 6039,
       "name": "invalidPack",
       "msg": "The selected Star pack does not exist"
     },
     {
-      "code": 6043,
+      "code": 6040,
       "name": "priceChanged",
       "msg": "The Star pack price changed; refresh the exact quote"
     },
     {
-      "code": 6044,
+      "code": 6041,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6045,
+      "code": 6042,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
     }
@@ -5825,15 +5721,7 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "mapCatalog",
-            "type": "pubkey"
-          },
-          {
             "name": "dailyChallenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "delegatedValidator",
             "type": "pubkey"
           },
           {
@@ -5855,10 +5743,6 @@ export type Solana = {
                 "name": "runLifecycle"
               }
             }
-          },
-          {
-            "name": "contentVersion",
-            "type": "u32"
           },
           {
             "name": "rulesHash",
@@ -5917,6 +5801,13 @@ export type Solana = {
               "Daily leaderboard score: engine score plus pressure-scaled challenge bonus."
             ],
             "type": "u32"
+          },
+          {
+            "name": "dailyBonusTriggers",
+            "docs": [
+              "Number of actions that earned nonzero Daily challenge bonus credit."
+            ],
+            "type": "u16"
           },
           {
             "name": "pressureScore",
@@ -6029,32 +5920,6 @@ export type Solana = {
           {
             "name": "pendingVrfCounter",
             "type": "u32"
-          },
-          {
-            "name": "actionHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "vrfHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "createdAt",
-            "type": "i64"
-          },
-          {
-            "name": "startedAt",
-            "type": "i64"
           },
           {
             "name": "finishedAt",
@@ -6227,6 +6092,26 @@ export type Solana = {
           },
           {
             "name": "requiredCount",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "contentReleaseActivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "contentVersion",
+            "type": "u32"
+          },
+          {
+            "name": "dailyRulesVersion",
+            "type": "u32"
+          },
+          {
+            "name": "campaignMapCount",
             "type": "u8"
           }
         ]
@@ -6500,6 +6385,10 @@ export type Solana = {
             "type": "u32"
           },
           {
+            "name": "dailyBonusTriggers",
+            "type": "u16"
+          },
+          {
             "name": "engineScore",
             "type": "u32"
           },
@@ -6591,6 +6480,10 @@ export type Solana = {
           {
             "name": "bestDailyScore",
             "type": "u32"
+          },
+          {
+            "name": "bestDailyBonusTriggers",
+            "type": "u16"
           },
           {
             "name": "bestEngineScore",
@@ -7023,10 +6916,6 @@ export type Solana = {
           {
             "name": "weeklyMaxSolPool",
             "type": "u64"
-          },
-          {
-            "name": "active",
-            "type": "bool"
           },
           {
             "name": "bump",
@@ -7501,10 +7390,6 @@ export type Solana = {
             }
           },
           {
-            "name": "lastConsumedRunId",
-            "type": "u64"
-          },
-          {
             "name": "dailyClaimCadenceId",
             "type": "u32"
           },
@@ -7682,6 +7567,10 @@ export type Solana = {
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "contentVersion",
+            "type": "u32"
+          },
           {
             "name": "rulesVersion",
             "type": "u32"

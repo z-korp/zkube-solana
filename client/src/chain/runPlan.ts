@@ -119,6 +119,7 @@ export interface ActiveRunView extends EndlessRulesView {
   lifecycle: string;
   score: number;
   dailyScore: number;
+  dailyBonusTriggers: number;
   pressureScore: number;
   dailyScoringRule: DailyScoringRuleView;
   dailyPressure: DailyPressureProfileView;
@@ -560,32 +561,6 @@ export async function buildApplyBonusPlan(args: {
   );
 }
 
-export async function buildSealRunPlan(args: {
-  owner: PublicKey;
-  sessionWallet: WalletLike;
-  sessionToken: PublicKey;
-  activeRun: PublicKey;
-  erConnection: Connection;
-}): Promise<TransactionPlan> {
-  const program = zkubeProgram(args.erConnection, args.sessionWallet);
-  const instruction = await program.methods
-    .sealRun()
-    .accountsPartial({
-      activeRun: args.activeRun,
-      ownerAuthority: args.owner,
-      sessionToken: args.sessionToken,
-      actor: args.sessionWallet.publicKey,
-    })
-    .instruction();
-  return plan(
-    "magicblock-er",
-    "Seal run",
-    args.erConnection,
-    args.sessionWallet.publicKey,
-    [instruction],
-  );
-}
-
 /**
  * Give up a non-terminal run on the ER: forces the delegated ActiveRun into
  * the `finished` lifecycle (kept score, zero stars) so the unchanged
@@ -804,6 +779,7 @@ export function mapActiveRunAccount(
     lifecycle,
     score: Number(account.score),
     dailyScore: Number(account.dailyScore),
+    dailyBonusTriggers: Number(account.dailyBonusTriggers),
     pressureScore: Number(account.pressureScore),
     dailyScoringRule: mapDailyScoringRule(account.dailyScoringRule),
     dailyPressure,

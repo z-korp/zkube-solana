@@ -105,7 +105,7 @@ pub struct ManageEconomyPricing<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     pub pricing_operator: Signer<'info>,
@@ -200,6 +200,7 @@ pub fn handler_cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PublishDailyRulesArgs {
+    pub content_version: u32,
     pub rules_version: u32,
     pub season_id: u32,
     pub starts_day: u32,
@@ -214,15 +215,15 @@ pub struct PublishDailyRulesArgs {
 pub struct PublishDailyRules<'info> {
     #[account(
         has_one = authority @ ErrorCode::Unauthorized,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
-        constraint = economy_config.daily_rules_version == args.rules_version @ ErrorCode::ContentVersionMismatch
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
@@ -242,6 +243,17 @@ pub fn handler_publish_daily_rules(
     ctx: Context<PublishDailyRules>,
     args: PublishDailyRulesArgs,
 ) -> Result<()> {
+    let current_release = args.content_version == ctx.accounts.economy_config.content_version
+        && args.rules_version == ctx.accounts.economy_config.daily_rules_version;
+    let future_release = args.content_version > ctx.accounts.economy_config.content_version
+        && args.rules_version > ctx.accounts.economy_config.daily_rules_version;
+    require!(
+        current_release || future_release,
+        ErrorCode::ContentVersionMismatch
+    );
+    if current_release {
+        require!(!ctx.accounts.protocol.paused, ErrorCode::ProtocolPaused);
+    }
     validate_daily_rules(&args)?;
     let catalog_hash = hash_daily_rules(&args)?;
     ctx.accounts
@@ -250,7 +262,7 @@ pub fn handler_publish_daily_rules(
             version: ECONOMY_ACCOUNT_VERSION,
             rules_version: args.rules_version,
             economy_config: ctx.accounts.economy_config.key(),
-            content_version: ctx.accounts.economy_config.content_version,
+            content_version: args.content_version,
             catalog_hash,
             season_id: args.season_id,
             starts_day: args.starts_day,
@@ -273,6 +285,7 @@ pub struct PurchaseStars<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -280,7 +293,7 @@ pub struct PurchaseStars<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
@@ -288,14 +301,16 @@ pub struct PurchaseStars<'info> {
         mut,
         seeds = [STAR_SALES_LEDGER_SEED],
         bump = star_sales_ledger.bump,
-        constraint = star_sales_ledger.economy_config == economy_config.key() @ ErrorCode::InvalidOwner
+        constraint = star_sales_ledger.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = star_sales_ledger.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub star_sales_ledger: Box<Account<'info, StarSalesLedger>>,
     #[account(
         mut,
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
         bump = player_state.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Native-SOL destination pinned by protocol state.
@@ -306,7 +321,8 @@ pub struct PurchaseStars<'info> {
         address = protocol.reward_vault,
         seeds = [REWARD_VAULT_SEED],
         bump = reward_vault.bump,
-        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = reward_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub reward_vault: Box<Account<'info, RewardVault>>,
     /// CHECK: Native-SOL destination pinned by protocol state.
@@ -410,6 +426,7 @@ pub struct UnlockZone<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -417,7 +434,7 @@ pub struct UnlockZone<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
@@ -425,7 +442,8 @@ pub struct UnlockZone<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
@@ -473,6 +491,7 @@ pub struct ClaimLevelMilestone<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -480,7 +499,7 @@ pub struct ClaimLevelMilestone<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
@@ -488,16 +507,14 @@ pub struct ClaimLevelMilestone<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
     /// CHECK: Immutable durable player identity, constrained above.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
-    pub system_program: Program<'info, System>,
 }
 
 pub fn handler_claim_level_milestone(
@@ -508,11 +525,6 @@ pub fn handler_claim_level_milestone(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
-    )?;
-    require_player_rent_payer(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.payer.key(),
     )?;
     let index = usize::from(milestone_index);
     require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
@@ -546,6 +558,7 @@ pub struct OpenDailyChallenge<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -553,14 +566,15 @@ pub struct OpenDailyChallenge<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         seeds = [DAILY_RULES_CATALOG_SEED, economy_config.daily_rules_version.to_le_bytes().as_ref()],
         bump = daily_rules_catalog.bump,
-        constraint = daily_rules_catalog.economy_config == economy_config.key() @ ErrorCode::InvalidOwner
+        constraint = daily_rules_catalog.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_rules_catalog.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(
@@ -662,6 +676,7 @@ pub struct EnterDaily<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -669,7 +684,7 @@ pub struct EnterDaily<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
@@ -678,6 +693,7 @@ pub struct EnterDaily<'info> {
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = player_state.daily_eligible @ ErrorCode::MapLocked
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
@@ -685,7 +701,8 @@ pub struct EnterDaily<'info> {
         mut,
         seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
         bump = daily_challenge.bump,
-        constraint = daily_challenge.economy_config == economy_config.key() @ ErrorCode::InvalidOwner
+        constraint = daily_challenge.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_challenge.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub daily_challenge: Box<Account<'info, DailyChallenge>>,
     #[account(
@@ -763,6 +780,7 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         daily_player.finalized_attempts = 0;
         daily_player.best_run_id = 0;
         daily_player.best_daily_score = 0;
+        daily_player.best_daily_bonus_triggers = 0;
         daily_player.best_engine_score = 0;
         daily_player.best_moves = 0;
         daily_player.best_submitted_at = 0;
@@ -841,13 +859,10 @@ fn initialize_daily_run(
 ) -> Result<()> {
     active.version = ACCOUNT_VERSION;
     active.owner = owner;
-    active.map_catalog = Pubkey::default();
     active.daily_challenge = challenge_key;
-    active.delegated_validator = Pubkey::default();
     active.run_id = run_id;
     active.mode = RunMode::Daily;
     active.lifecycle = RunLifecycle::Prepared;
-    active.content_version = challenge.content_version;
     active.rules_hash = challenge.rules_hash;
     active.map_id = challenge.map_id;
     active.level = 1;
@@ -857,6 +872,7 @@ fn initialize_daily_run(
     active.has_next_row = false;
     active.score = 0;
     active.daily_score = 0;
+    active.daily_bonus_triggers = 0;
     active.pressure_score = 0;
     active.daily_scoring_rule = challenge.scoring_rule;
     active.daily_pressure = challenge.pressure;
@@ -881,10 +897,6 @@ fn initialize_daily_run(
     active.current_difficulty = 0;
     active.vrf_request_counter = 0;
     active.pending_vrf_counter = 0;
-    active.action_hash = [0; 32];
-    active.vrf_hash = [0; 32];
-    active.created_at = now;
-    active.started_at = 0;
     active.finished_at = 0;
     active.bump = active_bump;
 
@@ -902,6 +914,7 @@ pub struct CommitDailyRun<'info> {
     #[account(
         mut,
         owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = active_run.mode == RunMode::Daily @ ErrorCode::InvalidState
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -944,6 +957,7 @@ pub struct ConsumeDailyRun<'info> {
         seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
         bump = active_run.bump,
         has_one = owner @ ErrorCode::Unauthorized,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = active_run.daily_challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -951,13 +965,15 @@ pub struct ConsumeDailyRun<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
         bump = player_state.bump,
-        has_one = owner @ ErrorCode::Unauthorized
+        has_one = owner @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
         mut,
         seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
-        bump = daily_challenge.bump
+        bump = daily_challenge.bump,
+        constraint = daily_challenge.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub daily_challenge: Box<Account<'info, DailyChallenge>>,
     #[account(
@@ -965,14 +981,16 @@ pub struct ConsumeDailyRun<'info> {
         seeds = [DAILY_PLAYER_SEED, daily_challenge.key().as_ref(), owner.key().as_ref()],
         bump = daily_player.bump,
         constraint = daily_player.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId,
-        constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized
+        constraint = daily_player.player == owner.key() @ ErrorCode::Unauthorized,
+        constraint = daily_player.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub daily_player: Box<Account<'info, DailyPlayer>>,
     #[account(
         mut,
         seeds = [DAILY_LEADERBOARD_SEED, daily_challenge.key().as_ref()],
         bump = leaderboard.bump,
-        constraint = leaderboard.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId
+        constraint = leaderboard.challenge == daily_challenge.key() @ ErrorCode::InvalidRunId,
+        constraint = leaderboard.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub leaderboard: Box<Account<'info, DailyLeaderboard>>,
     /// CHECK: Player identity pinned by every durable account.
@@ -1057,6 +1075,7 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         player: active.owner,
         run_id: active.run_id,
         daily_score: active.daily_score,
+        daily_bonus_triggers: active.daily_bonus_triggers,
         engine_score: active.score,
         moves: active.moves,
         submitted_at: active.finished_at,
@@ -1065,6 +1084,7 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         player: active.owner,
         run_id: player.best_run_id,
         daily_score: player.best_daily_score,
+        daily_bonus_triggers: player.best_daily_bonus_triggers,
         engine_score: player.best_engine_score,
         moves: player.best_moves,
         submitted_at: player.best_submitted_at,
@@ -1081,6 +1101,7 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         }
         player.best_run_id = active.run_id;
         player.best_daily_score = active.daily_score;
+        player.best_daily_bonus_triggers = active.daily_bonus_triggers;
         player.best_engine_score = active.score;
         player.best_moves = active.moves;
         player.best_submitted_at = active.finished_at;
@@ -1378,6 +1399,7 @@ pub struct OpenWeeklyChallenge<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -1385,7 +1407,7 @@ pub struct OpenWeeklyChallenge<'info> {
         seeds = [ECONOMY_CONFIG_SEED],
         bump = economy_config.bump,
         constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.active @ ErrorCode::InvalidState,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub economy_config: Box<Account<'info, EconomyConfig>>,
@@ -1688,8 +1710,16 @@ fn validate_weekly_rollups(week_id: u32, daily_accounts: &[AccountInfo<'_>]) -> 
         }
         require_keys_eq!(*account.owner, crate::ID, ErrorCode::InvalidOwner);
         let data = account.try_borrow_data()?;
+        require!(
+            data.len() == 8 + DailyChallenge::INIT_SPACE,
+            ErrorCode::InvalidVersion
+        );
         let mut bytes: &[u8] = &data;
         let daily = DailyChallenge::try_deserialize(&mut bytes)?;
+        require!(
+            daily.version == ECONOMY_ACCOUNT_VERSION,
+            ErrorCode::InvalidVersion
+        );
         require!(daily.day_id == day_id, ErrorCode::InvalidRunId);
         require!(daily.week_id == week_id, ErrorCode::InvalidState);
         require!(
@@ -2089,7 +2119,8 @@ fn validate_closed_weekly_dailies(week_id: u32, daily_accounts: &[AccountInfo<'_
 
 fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
     require!(
-        args.rules_version > 0
+        args.content_version > 0
+            && args.rules_version > 0
             && args.season_id > 0
             && args.season_seed != [0; 32]
             && usize::from(args.scoring_rule_count) >= DAILY_SCORE_FAMILY_COUNT
@@ -2100,7 +2131,7 @@ fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
         version: ECONOMY_ACCOUNT_VERSION,
         rules_version: args.rules_version,
         economy_config: Pubkey::default(),
-        content_version: 1,
+        content_version: args.content_version,
         catalog_hash: [0; 32],
         season_id: args.season_id,
         starts_day: args.starts_day,
@@ -2336,6 +2367,24 @@ mod tests {
     use anchor_lang::ToAccountMetas;
 
     #[test]
+    fn level_milestone_claim_has_no_payer_or_system_account() {
+        let actor = Pubkey::new_unique();
+        let metas = crate::accounts::ClaimLevelMilestone {
+            protocol: Pubkey::new_unique(),
+            economy_config: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
+            owner_authority: Pubkey::new_unique(),
+            session_token: Some(Pubkey::new_unique()),
+            actor,
+        }
+        .to_account_metas(None);
+
+        assert_eq!(metas.len(), 6);
+        assert_eq!(metas[5].pubkey, actor);
+        assert_eq!(metas.iter().filter(|meta| meta.is_signer).count(), 1);
+    }
+
+    #[test]
     fn daily_consumer_is_permissionless_and_has_no_action_escrow() {
         let owner = Pubkey::new_unique();
         let metas = crate::accounts::ConsumeDailyRun {
@@ -2363,6 +2412,7 @@ mod tests {
             finalized_attempts: 0,
             best_run_id: 0,
             best_daily_score: 0,
+            best_daily_bonus_triggers: 0,
             best_engine_score: 0,
             best_moves: 0,
             best_submitted_at: 0,

@@ -43,6 +43,7 @@ describe("economy authority builders", () => {
       connection: {} as Connection,
       authority,
       publication: {
+        contentVersion: 1,
         rulesVersion: 1,
         seasonId: 1,
         startsDay: 0,

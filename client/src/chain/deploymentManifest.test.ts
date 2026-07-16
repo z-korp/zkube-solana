@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,6 +14,7 @@ import {
   deploymentManifestFromEnv,
   deploymentManifestMismatches,
   formatDeploymentManifestValidation,
+  isZkubeDeploymentManifest,
   validateDeploymentBinding,
   validateDeploymentManifest,
   type ZkubeDeploymentManifest,
@@ -130,7 +132,32 @@ describe("zKube deployment manifest", () => {
       requireApproved: true,
     }).approvalSatisfied).toBe(false);
   });
+
+  it("routes Vercel builds through the exact approved v3 release", () => {
+    const config = json(new URL("../../vercel.json", import.meta.url));
+    expect(config).toMatchObject({ buildCommand: "pnpm run deploy:build" });
+
+    const source = json(new URL("../../deployment/devnet-v3.json", import.meta.url));
+    expect(isZkubeDeploymentManifest(source)).toBe(true);
+    if (!isZkubeDeploymentManifest(source)) throw new Error("invalid release manifest");
+
+    expect(validateDeploymentBinding({
+      manifest: source,
+      artifactSha256: source.program.artifactSha256,
+    }).valid).toBe(true);
+    const production = validateDeploymentBinding({
+      manifest: source,
+      artifactSha256: source.program.artifactSha256,
+      requireApproved: true,
+    });
+    expect(production.approvalSatisfied).toBe(true);
+    expect(production.valid).toBe(true);
+  });
 });
+
+function json(url: URL): unknown {
+  return JSON.parse(readFileSync(url, "utf8")) as unknown;
+}
 
 function candidate(): ZkubeDeploymentManifest {
   const destinations = Array.from(

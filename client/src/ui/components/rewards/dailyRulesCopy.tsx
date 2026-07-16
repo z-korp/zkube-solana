@@ -22,7 +22,7 @@ export function DailyScoringRules({
       <div>
         <InfoRow
           label="Ranking order"
-          value="Daily score · challenge bonus · engine score · moves · player ID"
+          value="Daily score · bonus triggers · earlier completion"
         />
         <InfoRow
           label="Retries"

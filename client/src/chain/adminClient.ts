@@ -6,6 +6,8 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  deriveDailyRulesCatalogPda,
+  deriveEconomyConfigPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
@@ -141,6 +143,54 @@ export async function buildActivateCampaignMapPlan(args: {
     .instruction();
   return basePlan(
     `Activate campaign map ${args.mapId}`,
+    args.connection,
+    args.authority.publicKey,
+    [instruction],
+  );
+}
+
+/**
+ * Builds the paused, atomic switch to a completely staged content release.
+ * Every enabled Campaign map is passed in map-id order so the program can
+ * validate the exact immutable release before changing either live version.
+ */
+export async function buildActivateContentReleasePlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  contentVersion: number;
+  dailyRulesVersion: number;
+  campaignMapCount?: number;
+}): Promise<TransactionPlan> {
+  assertPositiveInteger(args.contentVersion, "contentVersion");
+  assertPositiveInteger(args.dailyRulesVersion, "dailyRulesVersion");
+  const campaignMapCount = args.campaignMapCount ?? CANONICAL_CAMPAIGN_MAP_COUNT;
+  if (
+    !Number.isInteger(campaignMapCount)
+    || campaignMapCount < 1
+    || campaignMapCount > MAX_CAMPAIGN_MAPS
+  ) {
+    throw new Error(`campaignMapCount must be between 1 and ${MAX_CAMPAIGN_MAPS}`);
+  }
+  const instruction = await zkubeProgram(args.connection, args.authority)
+    .methods.activateContentRelease(
+      args.contentVersion,
+      args.dailyRulesVersion,
+      campaignMapCount,
+    )
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      economyConfig: deriveEconomyConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.dailyRulesVersion),
+      authority: args.authority.publicKey,
+    })
+    .remainingAccounts(Array.from({ length: campaignMapCount }, (_, index) => ({
+      pubkey: deriveMapCatalogPda(args.contentVersion, index + 1),
+      isSigner: false,
+      isWritable: false,
+    })))
+    .instruction();
+  return basePlan(
+    `Activate content release v${args.contentVersion}`,
     args.connection,
     args.authority.publicKey,
     [instruction],

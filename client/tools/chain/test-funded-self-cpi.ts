@@ -42,15 +42,12 @@ const validatorBinary = resolve(root, "client/node_modules/.bin/mb-test-validato
 const programArtifact = resolve(root, "target/deploy/solana.so");
 const rpcPort = 18_999;
 const rpcEndpoint = `http://127.0.0.1:${rpcPort}`;
-const LEGACY_PLAYER_FUNDING_DISCRIMINATOR = Buffer.from([
-  61, 237, 220, 223, 77, 198, 8, 22,
-]);
 
 async function main(): Promise<void> {
   const temporary = await mkdtemp(resolve(tmpdir(), "zkube-funded-cpi-"));
   const ledger = resolve(temporary, "ledger");
   const sessionFixture = resolve(temporary, "session-token.json");
-  const fundingFixture = resolve(temporary, "legacy-player-funding.json");
+  const fundingFixture = resolve(temporary, "player-funding.json");
   const authority = Keypair.generate();
   const owner = Keypair.generate();
   const actor = Keypair.generate();
@@ -62,10 +59,6 @@ async function main(): Promise<void> {
     sessionSigner: actor.publicKey,
   }).sessionToken;
   const playerFunding = derivePlayerFundingPda(owner.publicKey);
-  const [, playerFundingBump] = PublicKey.findProgramAddressSync(
-    [Buffer.from("player_funding"), owner.publicKey.toBuffer()],
-    ZKUBE_PROGRAM_ID,
-  );
   await writeSessionFixture({
     path: sessionFixture,
     address: sessionToken,
@@ -73,11 +66,9 @@ async function main(): Promise<void> {
     sessionSigner: actor.publicKey,
     validUntil,
   });
-  await writeLegacyFundingFixture({
+  await writeFundingFixture({
     path: fundingFixture,
     address: playerFunding,
-    owner: owner.publicKey,
-    bump: playerFundingBump,
     lamports: 25_000_000,
   });
 
@@ -136,15 +127,15 @@ async function main(): Promise<void> {
       await buildInitializePlayerPlan({ connection, owner: ownerWallet }),
       ownerWallet,
     );
-    const normalizedFunding = await connection.getAccountInfo(playerFunding, "confirmed");
+    const canonicalFunding = await connection.getAccountInfo(playerFunding, "confirmed");
     if (
-      !normalizedFunding ||
-      normalizedFunding.executable ||
-      !normalizedFunding.owner.equals(SystemProgram.programId) ||
-      normalizedFunding.data.length !== 0 ||
-      normalizedFunding.lamports !== 25_000_000
+      !canonicalFunding ||
+      canonicalFunding.executable ||
+      !canonicalFunding.owner.equals(SystemProgram.programId) ||
+      canonicalFunding.data.length !== 0 ||
+      canonicalFunding.lamports !== 25_000_000
     ) {
-      throw new Error("legacy player funding was not normalized in place");
+      throw new Error("canonical player funding PDA changed during initialization");
     }
     await submit(
       {
@@ -289,29 +280,22 @@ async function writeSessionFixture(args: {
   );
 }
 
-async function writeLegacyFundingFixture(args: {
+async function writeFundingFixture(args: {
   path: string;
   address: PublicKey;
-  owner: PublicKey;
-  bump: number;
   lamports: number;
 }): Promise<void> {
-  const data = Buffer.alloc(42);
-  LEGACY_PLAYER_FUNDING_DISCRIMINATOR.copy(data, 0);
-  data[8] = 1;
-  args.owner.toBuffer().copy(data, 9);
-  data[41] = args.bump;
   await writeFile(
     args.path,
     `${JSON.stringify({
       pubkey: args.address.toBase58(),
       account: {
         lamports: args.lamports,
-        data: [data.toString("base64"), "base64"],
-        owner: ZKUBE_PROGRAM_ID.toBase58(),
+        data: ["", "base64"],
+        owner: SystemProgram.programId.toBase58(),
         executable: false,
         rentEpoch: 0,
-        space: data.byteLength,
+        space: 0,
       },
     })}\n`,
     { mode: 0o600 },

@@ -1,3 +1,5 @@
+//! Protocol initialization, content staging/activation, and Campaign preparation.
+
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{self as anchor_system_program, Transfer};
 use session_keys::SessionTokenV2;
@@ -7,8 +9,11 @@ use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::economy_v2::{DailyPressureProfile, DailyScoringRule};
-use crate::state::v2::*;
+use crate::state::economy::{
+    DailyPressureProfile, DailyRulesCatalog, DailyScoringRule, EconomyConfig,
+    DAILY_RULES_CATALOG_SEED, ECONOMY_ACCOUNT_VERSION, ECONOMY_CONFIG_SEED,
+};
+use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeProtocolArgs {
@@ -52,7 +57,8 @@ pub fn handler_initialize_protocol(
     ctx: Context<InitializeProtocol>,
     args: InitializeProtocolArgs,
 ) -> Result<()> {
-    validate_vault_segregation([
+    require!(args.content_version > 0, ErrorCode::ContentVersionMismatch);
+    validate_revenue_destinations([
         args.team_destination,
         args.treasury_destination,
         ctx.accounts.reward_vault.key(),
@@ -83,7 +89,7 @@ pub fn handler_initialize_protocol(
     Ok(())
 }
 
-fn validate_vault_segregation(vaults: [Pubkey; 3]) -> Result<()> {
+pub(crate) fn validate_revenue_destinations(vaults: [Pubkey; 3]) -> Result<()> {
     for (index, vault) in vaults.iter().enumerate() {
         require_keys_neq!(*vault, Pubkey::default(), ErrorCode::InvalidOwner);
         require!(
@@ -104,8 +110,8 @@ pub struct InitializePlayer<'info> {
         bump
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: Canonical owner-scoped funding PDA. The handler accepts only an
-    /// absent/normalized System account or the exact legacy zKube layout.
+    /// CHECK: Canonical owner-scoped funding PDA. Only an empty System-owned
+    /// account is accepted; no retired program-owned layout is convertible.
     #[account(
         mut,
         seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
@@ -137,51 +143,14 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         require!(player.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
     }
 
-    normalize_player_funding(
-        &ctx.accounts.player_funding.to_account_info(),
-        owner,
-        ctx.bumps.player_funding,
-    )?;
+    require_canonical_player_funding(&ctx.accounts.player_funding.to_account_info())?;
     Ok(())
 }
 
-// `PlayerFundingVault` was previously an Anchor account with this exact wire
-// layout. It is decoded manually only during the one-time conversion so the
-// obsolete type does not remain in the public IDL.
-const LEGACY_PLAYER_FUNDING_BYTES: usize = 42;
-const LEGACY_PLAYER_FUNDING_DISCRIMINATOR: [u8; 8] = [61, 237, 220, 223, 77, 198, 8, 22];
-
-fn normalize_player_funding(
-    funding: &AccountInfo<'_>,
-    owner: Pubkey,
-    expected_bump: u8,
-) -> Result<()> {
+fn require_canonical_player_funding(funding: &AccountInfo<'_>) -> Result<()> {
     require!(!funding.executable, ErrorCode::InvalidOwner);
-    if funding.owner == &system_program::ID {
-        require!(funding.data_is_empty(), ErrorCode::InvalidOwner);
-        return Ok(());
-    }
-
-    require_keys_eq!(*funding.owner, crate::ID, ErrorCode::InvalidOwner);
-    let data = funding.try_borrow_data()?;
-    require!(
-        data.len() == LEGACY_PLAYER_FUNDING_BYTES,
-        ErrorCode::InvalidOwner
-    );
-    require!(
-        data[..8] == LEGACY_PLAYER_FUNDING_DISCRIMINATOR,
-        ErrorCode::InvalidOwner
-    );
-    require!(data[8] == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
-    require!(data[9..41] == owner.to_bytes(), ErrorCode::Unauthorized);
-    require!(data[41] == expected_bump, ErrorCode::InvalidOwner);
-    drop(data);
-
-    // Solana permits only the current owner to resize/reassign an account and
-    // requires zero data before assignment. Lamports are deliberately kept at
-    // the same address and become the reusable System-owned rent float.
-    funding.resize(0)?;
-    funding.assign(&system_program::ID);
+    require_keys_eq!(*funding.owner, system_program::ID, ErrorCode::InvalidOwner);
+    require!(funding.data_is_empty(), ErrorCode::InvalidOwner);
     Ok(())
 }
 
@@ -270,15 +239,17 @@ pub fn handler_write_map_catalog(
     ctx: Context<WriteMapCatalog>,
     args: WriteMapCatalogArgs,
 ) -> Result<()> {
-    require!(!ctx.accounts.protocol.paused, ErrorCode::ProtocolPaused);
     require!(
         (1..=MAX_MAPS as u8).contains(&args.map_id),
         ErrorCode::InvalidMap
     );
     require!(
-        args.content_version == ctx.accounts.protocol.content_version,
+        args.content_version >= ctx.accounts.protocol.content_version,
         ErrorCode::ContentVersionMismatch
     );
+    if args.content_version == ctx.accounts.protocol.content_version {
+        require!(!ctx.accounts.protocol.paused, ErrorCode::ProtocolPaused);
+    }
     validate_campaign_map_rules(&args.map_rules)?;
     for (index, level) in args.levels.iter().enumerate() {
         require!(level.level == index as u8 + 1, ErrorCode::InvalidLevel);
@@ -378,6 +349,7 @@ pub struct ActivateCampaignMap<'info> {
             &[map_catalog.map_id]
         ],
         bump = map_catalog.bump,
+        constraint = map_catalog.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = map_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch,
         constraint = map_catalog.enabled @ ErrorCode::MapDisabled
     )]
@@ -402,6 +374,139 @@ pub fn handler_activate_campaign_map(ctx: Context<ActivateCampaignMap>) -> Resul
 }
 
 #[derive(Accounts)]
+#[instruction(content_version: u32, daily_rules_version: u32, campaign_map_count: u8)]
+pub struct ActivateContentRelease<'info> {
+    #[account(
+        mut,
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = protocol.paused @ ErrorCode::ProtocolPaused
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        mut,
+        seeds = [ECONOMY_CONFIG_SEED],
+        bump = economy_config.bump,
+        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
+    )]
+    pub economy_config: Box<Account<'info, EconomyConfig>>,
+    #[account(
+        seeds = [DAILY_RULES_CATALOG_SEED, daily_rules_version.to_le_bytes().as_ref()],
+        bump = daily_rules_catalog.bump,
+        constraint = daily_rules_catalog.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = daily_rules_catalog.rules_version == daily_rules_version @ ErrorCode::ContentVersionMismatch,
+        constraint = daily_rules_catalog.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_rules_catalog.content_version == content_version @ ErrorCode::ContentVersionMismatch
+    )]
+    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
+    pub authority: Signer<'info>,
+}
+
+pub fn handler_activate_content_release(
+    ctx: Context<ActivateContentRelease>,
+    content_version: u32,
+    daily_rules_version: u32,
+    campaign_map_count: u8,
+) -> Result<()> {
+    validate_content_release_transition(
+        ctx.accounts.protocol.content_version,
+        ctx.accounts.economy_config.daily_rules_version,
+        content_version,
+        daily_rules_version,
+        campaign_map_count,
+        ctx.remaining_accounts.len(),
+    )?;
+    ctx.accounts.daily_rules_catalog.validate()?;
+    for (index, account) in ctx.remaining_accounts.iter().enumerate() {
+        validate_release_map(account, content_version, index as u8 + 1)?;
+    }
+
+    ctx.accounts.protocol.content_version = content_version;
+    ctx.accounts.protocol.campaign_map_count = campaign_map_count;
+    ctx.accounts.economy_config.content_version = content_version;
+    ctx.accounts.economy_config.daily_rules_version = daily_rules_version;
+    ctx.accounts.economy_config.revision = ctx
+        .accounts
+        .economy_config
+        .revision
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.economy_config.validate()?;
+    emit!(ContentReleaseActivated {
+        content_version,
+        daily_rules_version,
+        campaign_map_count,
+    });
+    Ok(())
+}
+
+fn validate_content_release_transition(
+    current_content_version: u32,
+    current_daily_rules_version: u32,
+    content_version: u32,
+    daily_rules_version: u32,
+    campaign_map_count: u8,
+    provided_map_count: usize,
+) -> Result<()> {
+    require!(
+        content_version > current_content_version,
+        ErrorCode::ContentVersionMismatch
+    );
+    require!(
+        daily_rules_version > current_daily_rules_version,
+        ErrorCode::ContentVersionMismatch
+    );
+    require!(
+        (1..=MAX_MAPS as u8).contains(&campaign_map_count),
+        ErrorCode::InvalidMap
+    );
+    require!(
+        provided_map_count == usize::from(campaign_map_count),
+        ErrorCode::InvalidMap
+    );
+    Ok(())
+}
+
+fn validate_release_map(account: &AccountInfo<'_>, content_version: u32, map_id: u8) -> Result<()> {
+    require_keys_eq!(*account.owner, crate::ID, ErrorCode::InvalidOwner);
+    let data = account.try_borrow_data()?;
+    require!(
+        data.len() == 8 + MapCatalog::INIT_SPACE,
+        ErrorCode::InvalidOwner
+    );
+    let mut bytes = data.as_ref();
+    let catalog = MapCatalog::try_deserialize(&mut bytes)?;
+    require!(
+        catalog.version == ACCOUNT_VERSION,
+        ErrorCode::InvalidVersion
+    );
+    require!(catalog.enabled, ErrorCode::MapDisabled);
+    require!(catalog.map_id == map_id, ErrorCode::InvalidMap);
+    require!(
+        catalog.content_version == content_version,
+        ErrorCode::ContentVersionMismatch
+    );
+    let (expected, bump) = Pubkey::find_program_address(
+        &[MAP_CATALOG_SEED, &content_version.to_le_bytes(), &[map_id]],
+        &crate::ID,
+    );
+    require_keys_eq!(account.key(), expected, ErrorCode::InvalidMap);
+    require!(catalog.bump == bump, ErrorCode::InvalidMap);
+    Ok(())
+}
+
+#[event]
+pub struct ContentReleaseActivated {
+    pub content_version: u32,
+    pub daily_rules_version: u32,
+    pub campaign_map_count: u8,
+}
+
+#[derive(Accounts)]
 #[instruction(run_id: u64, map_id: u8, level: u8)]
 pub struct PrepareCampaignRun<'info> {
     #[account(
@@ -413,7 +518,8 @@ pub struct PrepareCampaignRun<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
+        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
+        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
@@ -423,6 +529,7 @@ pub struct PrepareCampaignRun<'info> {
             &[map_id]
         ],
         bump = map_catalog.bump,
+        constraint = map_catalog.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = map_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch,
         constraint = map_catalog.map_id == map_id @ ErrorCode::InvalidMap
     )]
@@ -490,13 +597,10 @@ pub fn handler_prepare_campaign_run(
     let active = &mut ctx.accounts.active_run;
     active.version = ACCOUNT_VERSION;
     active.owner = owner;
-    active.map_catalog = ctx.accounts.map_catalog.key();
     active.daily_challenge = Pubkey::default();
-    active.delegated_validator = Pubkey::default();
     active.run_id = run_id;
     active.mode = RunMode::Campaign;
     active.lifecycle = RunLifecycle::Prepared;
-    active.content_version = ctx.accounts.protocol.content_version;
     active.rules_hash = rules_hash;
     active.map_id = map_id;
     active.level = level;
@@ -506,6 +610,7 @@ pub fn handler_prepare_campaign_run(
     active.has_next_row = false;
     active.score = 0;
     active.daily_score = 0;
+    active.daily_bonus_triggers = 0;
     active.pressure_score = 0;
     active.daily_scoring_rule = DailyScoringRule::default();
     active.daily_pressure = DailyPressureProfile::default();
@@ -530,10 +635,6 @@ pub fn handler_prepare_campaign_run(
     active.current_difficulty = rules.difficulty;
     active.vrf_request_counter = 0;
     active.pending_vrf_counter = 0;
-    active.action_hash = [0; 32];
-    active.vrf_hash = [0; 32];
-    active.created_at = now;
-    active.started_at = 0;
     active.finished_at = 0;
     active.bump = ctx.bumps.active_run;
 
@@ -575,11 +676,13 @@ mod tests {
     #[test]
     fn protocol_vaults_must_be_nonzero_and_pairwise_distinct() {
         let vaults: [Pubkey; 3] = std::array::from_fn(|_| Pubkey::new_unique());
-        assert!(validate_vault_segregation(vaults).is_ok());
+        assert!(validate_revenue_destinations(vaults).is_ok());
 
         let duplicate = Pubkey::new_unique();
-        assert!(validate_vault_segregation([duplicate, Pubkey::new_unique(), duplicate,]).is_err());
-        assert!(validate_vault_segregation([
+        assert!(
+            validate_revenue_destinations([duplicate, Pubkey::new_unique(), duplicate,]).is_err()
+        );
+        assert!(validate_revenue_destinations([
             Pubkey::default(),
             Pubkey::new_unique(),
             Pubkey::new_unique(),
@@ -618,5 +721,82 @@ mod tests {
             ..valid
         })
         .is_err());
+    }
+
+    #[test]
+    fn content_release_requires_strict_versions_and_the_exact_campaign_set() {
+        assert!(validate_content_release_transition(1, 2, 3, 4, 10, 10).is_ok());
+        assert!(validate_content_release_transition(3, 2, 3, 4, 10, 10).is_err());
+        assert!(validate_content_release_transition(1, 4, 3, 4, 10, 10).is_err());
+        assert!(validate_content_release_transition(1, 2, 3, 4, 0, 0).is_err());
+        assert!(validate_content_release_transition(1, 2, 3, 4, 10, 9).is_err());
+    }
+
+    #[test]
+    fn staged_release_maps_are_exact_versioned_enabled_pdas() {
+        let content_version = 7u32;
+        let map_id = 3u8;
+        let (key, bump) = Pubkey::find_program_address(
+            &[MAP_CATALOG_SEED, &content_version.to_le_bytes(), &[map_id]],
+            &crate::ID,
+        );
+        let mut lamports = 1;
+        let mut data = release_map_data(content_version, map_id, bump, true, ACCOUNT_VERSION);
+        let owner = crate::ID;
+        let account = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
+        assert!(validate_release_map(&account, content_version, map_id).is_ok());
+        assert!(validate_release_map(&account, content_version + 1, map_id).is_err());
+        assert!(validate_release_map(&account, content_version, map_id + 1).is_err());
+
+        let mut disabled_lamports = 1;
+        let mut disabled_data =
+            release_map_data(content_version, map_id, bump, false, ACCOUNT_VERSION);
+        let disabled = AccountInfo::new(
+            &key,
+            false,
+            false,
+            &mut disabled_lamports,
+            &mut disabled_data,
+            &owner,
+            false,
+        );
+        assert!(validate_release_map(&disabled, content_version, map_id).is_err());
+
+        let mut stale_lamports = 1;
+        let mut stale_data = release_map_data(content_version, map_id, bump, true, 0);
+        let stale = AccountInfo::new(
+            &key,
+            false,
+            false,
+            &mut stale_lamports,
+            &mut stale_data,
+            &owner,
+            false,
+        );
+        assert!(validate_release_map(&stale, content_version, map_id).is_err());
+    }
+
+    fn release_map_data(
+        content_version: u32,
+        map_id: u8,
+        bump: u8,
+        enabled: bool,
+        version: u8,
+    ) -> Vec<u8> {
+        let catalog = MapCatalog {
+            version,
+            content_version,
+            map_id,
+            theme_id: 1,
+            enabled,
+            map_rules: CampaignMapRuleSnapshot::default(),
+            levels: [CampaignLevelSnapshot::default(); LEVELS_PER_MAP],
+            bump,
+        };
+        let mut data = vec![0; 8 + MapCatalog::INIT_SPACE];
+        catalog
+            .try_serialize(&mut std::io::Cursor::new(&mut data[..]))
+            .unwrap();
+        data
     }
 }

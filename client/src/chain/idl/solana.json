@@ -110,6 +110,110 @@
       "args": []
     },
     {
+      "name": "activate_content_release",
+      "discriminator": [
+        112,
+        124,
+        37,
+        124,
+        159,
+        223,
+        144,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "economy_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  99,
+                  111,
+                  110,
+                  111,
+                  109,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_rules_catalog",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  95,
+                  114,
+                  117,
+                  108,
+                  101,
+                  115
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "daily_rules_version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "content_version",
+          "type": "u32"
+        },
+        {
+          "name": "daily_rules_version",
+          "type": "u32"
+        },
+        {
+          "name": "campaign_map_count",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "apply_bonus",
       "discriminator": [
         50,
@@ -463,11 +567,6 @@
           }
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "owner_authority"
         },
         {
@@ -477,10 +576,6 @@
         {
           "name": "actor",
           "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -547,11 +642,6 @@
           }
         },
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "owner_authority"
         },
         {
@@ -561,10 +651,6 @@
         {
           "name": "actor",
           "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -2386,163 +2472,6 @@
       ]
     },
     {
-      "name": "funded_claim_level_milestone",
-      "discriminator": [
-        149,
-        210,
-        165,
-        234,
-        111,
-        234,
-        172,
-        188
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "economy_config"
-        },
-        {
-          "name": "player_state",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
-        }
-      ],
-      "args": [
-        {
-          "name": "milestone_index",
-          "type": "u8"
-        }
-      ]
-    },
-    {
-      "name": "funded_claim_quest",
-      "discriminator": [
-        221,
-        128,
-        217,
-        239,
-        145,
-        65,
-        3,
-        67
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "player_state",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
-        }
-      ],
-      "args": [
-        {
-          "name": "quest_index",
-          "type": "u8"
-        }
-      ]
-    },
-    {
       "name": "funded_delegate_active_run",
       "discriminator": [
         102,
@@ -3021,7 +2950,7 @@
         {
           "name": "player_funding",
           "docs": [
-            "absent/normalized System account or the exact legacy zKube layout."
+            "account is accepted; no retired program-owned layout is convertible."
           ],
           "writable": true,
           "pda": {
@@ -4468,37 +4397,6 @@
       ]
     },
     {
-      "name": "seal_run",
-      "discriminator": [
-        213,
-        187,
-        245,
-        33,
-        201,
-        15,
-        74,
-        234
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "set_pricing_operator",
       "discriminator": [
         18,
@@ -5149,6 +5047,19 @@
       ]
     },
     {
+      "name": "ContentReleaseActivated",
+      "discriminator": [
+        159,
+        30,
+        50,
+        177,
+        23,
+        41,
+        6,
+        246
+      ]
+    },
+    {
       "name": "DailyChallengeClosed",
       "discriminator": [
         89,
@@ -5555,231 +5466,216 @@
   "errors": [
     {
       "code": 6000,
-      "name": "NotGameOwner",
-      "msg": "The signer is not authorized for this run"
-    },
-    {
-      "code": 6001,
       "name": "GameOver",
       "msg": "The run is already terminal"
     },
     {
-      "code": 6002,
+      "code": 6001,
       "name": "InvalidMove",
       "msg": "The move coordinates are invalid"
     },
     {
-      "code": 6003,
+      "code": 6002,
       "name": "Unauthorized",
       "msg": "Only the configured authority may perform this action"
     },
     {
-      "code": 6004,
+      "code": 6003,
       "name": "InsufficientFunds",
       "msg": "The source account has insufficient funds"
     },
     {
-      "code": 6005,
-      "name": "NotDelegated",
-      "msg": "The active run is not delegated to the ephemeral rollup"
-    },
-    {
-      "code": 6006,
+      "code": 6004,
       "name": "InvalidState",
       "msg": "The account is in an invalid state for this instruction"
     },
     {
-      "code": 6007,
+      "code": 6005,
       "name": "InvalidOwner",
       "msg": "The account owner or relationship is invalid"
     },
     {
-      "code": 6008,
+      "code": 6006,
       "name": "InvalidMoveOrder",
       "msg": "The expected move or action counter does not match"
     },
     {
-      "code": 6009,
+      "code": 6007,
       "name": "InvalidMagicProgram",
       "msg": "The MagicBlock program is invalid"
     },
     {
-      "code": 6010,
+      "code": 6008,
       "name": "GameNotFinished",
       "msg": "The run is not ready to finish"
     },
     {
-      "code": 6011,
+      "code": 6009,
       "name": "ChallengeNotStarted",
       "msg": "The Daily challenge has not started"
     },
     {
-      "code": 6012,
+      "code": 6010,
       "name": "ChallengeEnded",
       "msg": "The Daily challenge entry or play window has ended"
     },
     {
-      "code": 6013,
+      "code": 6011,
       "name": "ChallengeNotEnded",
       "msg": "The Daily challenge has not ended"
     },
     {
-      "code": 6014,
+      "code": 6012,
       "name": "AlreadySubmitted",
       "msg": "This Daily attempt has already been submitted"
     },
     {
-      "code": 6015,
+      "code": 6013,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6016,
+      "code": 6014,
       "name": "InsufficientStars",
       "msg": "Insufficient Stars"
     },
     {
-      "code": 6017,
+      "code": 6015,
       "name": "InvalidMap",
       "msg": "Invalid map"
     },
     {
-      "code": 6018,
+      "code": 6016,
       "name": "InvalidLevel",
       "msg": "Invalid level"
     },
     {
-      "code": 6019,
+      "code": 6017,
       "name": "InvalidStars",
       "msg": "Invalid star rating"
     },
     {
-      "code": 6020,
+      "code": 6018,
       "name": "ProtocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6021,
+      "code": 6019,
       "name": "InvalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6022,
+      "code": 6020,
       "name": "InvalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6023,
+      "code": 6021,
       "name": "ActiveRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6024,
+      "code": 6022,
       "name": "MapLocked",
       "msg": "Map is locked"
     },
     {
-      "code": 6025,
+      "code": 6023,
       "name": "MapDisabled",
       "msg": "Map is disabled"
     },
     {
-      "code": 6026,
+      "code": 6024,
       "name": "MapAlreadyUnlocked",
       "msg": "Map is already unlocked"
     },
     {
-      "code": 6027,
+      "code": 6025,
       "name": "ContentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6028,
+      "code": 6026,
       "name": "InvalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6029,
+      "code": 6027,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6030,
+      "code": 6028,
       "name": "NoVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6031,
+      "code": 6029,
       "name": "VrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6032,
-      "name": "RunAlreadyConsumed",
-      "msg": "The run has already been consumed"
-    },
-    {
-      "code": 6033,
+      "code": 6030,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6034,
+      "code": 6031,
       "name": "PrizeAlreadyClaimed",
       "msg": "The Daily prize has already been claimed"
     },
     {
-      "code": 6035,
+      "code": 6032,
       "name": "PrizeClaimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6036,
+      "code": 6033,
       "name": "RefundAlreadyClaimed",
       "msg": "The refund has already been claimed"
     },
     {
-      "code": 6037,
+      "code": 6034,
       "name": "InvalidProgressRule",
       "msg": "The progression rule is invalid"
     },
     {
-      "code": 6038,
+      "code": 6035,
       "name": "RewardAlreadyClaimed",
       "msg": "This progress reward has already been claimed"
     },
     {
-      "code": 6039,
+      "code": 6036,
       "name": "RewardNotEarned",
       "msg": "The progress requirement has not been met"
     },
     {
-      "code": 6040,
+      "code": 6037,
       "name": "QuestNotActive",
       "msg": "This quest is not active in the current cadence"
     },
     {
-      "code": 6041,
+      "code": 6038,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6042,
+      "code": 6039,
       "name": "InvalidPack",
       "msg": "The selected Star pack does not exist"
     },
     {
-      "code": 6043,
+      "code": 6040,
       "name": "PriceChanged",
       "msg": "The Star pack price changed; refresh the exact quote"
     },
     {
-      "code": 6044,
+      "code": 6041,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6045,
+      "code": 6042,
       "name": "SessionExpired",
       "msg": "The scoped player session has expired"
     }
@@ -5819,15 +5715,7 @@
             "type": "pubkey"
           },
           {
-            "name": "map_catalog",
-            "type": "pubkey"
-          },
-          {
             "name": "daily_challenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "delegated_validator",
             "type": "pubkey"
           },
           {
@@ -5849,10 +5737,6 @@
                 "name": "RunLifecycle"
               }
             }
-          },
-          {
-            "name": "content_version",
-            "type": "u32"
           },
           {
             "name": "rules_hash",
@@ -5911,6 +5795,13 @@
               "Daily leaderboard score: engine score plus pressure-scaled challenge bonus."
             ],
             "type": "u32"
+          },
+          {
+            "name": "daily_bonus_triggers",
+            "docs": [
+              "Number of actions that earned nonzero Daily challenge bonus credit."
+            ],
+            "type": "u16"
           },
           {
             "name": "pressure_score",
@@ -6023,32 +5914,6 @@
           {
             "name": "pending_vrf_counter",
             "type": "u32"
-          },
-          {
-            "name": "action_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "vrf_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "created_at",
-            "type": "i64"
-          },
-          {
-            "name": "started_at",
-            "type": "i64"
           },
           {
             "name": "finished_at",
@@ -6221,6 +6086,26 @@
           },
           {
             "name": "required_count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ContentReleaseActivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "content_version",
+            "type": "u32"
+          },
+          {
+            "name": "daily_rules_version",
+            "type": "u32"
+          },
+          {
+            "name": "campaign_map_count",
             "type": "u8"
           }
         ]
@@ -6494,6 +6379,10 @@
             "type": "u32"
           },
           {
+            "name": "daily_bonus_triggers",
+            "type": "u16"
+          },
+          {
             "name": "engine_score",
             "type": "u32"
           },
@@ -6585,6 +6474,10 @@
           {
             "name": "best_daily_score",
             "type": "u32"
+          },
+          {
+            "name": "best_daily_bonus_triggers",
+            "type": "u16"
           },
           {
             "name": "best_engine_score",
@@ -7017,10 +6910,6 @@
           {
             "name": "weekly_max_sol_pool",
             "type": "u64"
-          },
-          {
-            "name": "active",
-            "type": "bool"
           },
           {
             "name": "bump",
@@ -7495,10 +7384,6 @@
             }
           },
           {
-            "name": "last_consumed_run_id",
-            "type": "u64"
-          },
-          {
             "name": "daily_claim_cadence_id",
             "type": "u32"
           },
@@ -7676,6 +7561,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "content_version",
+            "type": "u32"
+          },
           {
             "name": "rules_version",
             "type": "u32"

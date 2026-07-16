@@ -13,7 +13,10 @@ import {
 } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import { usePreviousChallenge } from "@/hooks/usePreviousChallenge";
-import type { DailyView } from "@/chain/dailyClient";
+import {
+  dailyLeaderboardRank,
+  type DailyView,
+} from "@/chain/dailyClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { DailyScoringRules } from "@/ui/components/rewards/dailyRulesCopy";
 import TierContext, {
@@ -239,7 +242,7 @@ function DailyCard({
                     position.score - position.engineScore,
                   ).toLocaleString()}{" "}
                   challenge · {position.engineScore.toLocaleString()} engine ·{" "}
-                  {position.moves} moves
+                  {position.dailyBonusTriggers} bonus triggers · {position.moves} moves
                 </p>
               </>
             ) : (
@@ -339,6 +342,7 @@ function DailyAction({
 interface PlayerPosition {
   rank: number;
   score: number;
+  dailyBonusTriggers: number;
   engineScore: number;
   moves: number;
 }
@@ -351,11 +355,14 @@ function getPlayerPosition(
   const leaderboardIndex = daily.leaderboard.findIndex(
     (entry) => entry.player.toBase58() === address,
   );
-  const rank = leaderboardIndex >= 0 ? leaderboardIndex + 1 : null;
+  const rank = leaderboardIndex >= 0
+    ? dailyLeaderboardRank(daily.leaderboard, leaderboardIndex)
+    : null;
   if (rank === null) return null;
   return {
     rank,
     score: daily.player.bestDailyScore ?? daily.player.bestScore,
+    dailyBonusTriggers: daily.player.bestDailyBonusTriggers ?? 0,
     engineScore: daily.player.bestEngineScore ?? daily.player.bestScore,
     moves: daily.player.bestMoves ?? 0,
   };

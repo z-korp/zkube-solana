@@ -1,4 +1,4 @@
-//! Canonical economy accounts.
+//! Canonical economy and cadence accounts.
 //!
 //! Stars are identity-bound counters in `PlayerState`. These accounts pin
 //! pricing, sales accounting, Daily/Weekly contests, and claims.
@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::game::sha256v;
-use crate::state::v2::{DailyStatus, LevelRuleSnapshot};
+use crate::state::protocol::{DailyStatus, LevelRuleSnapshot};
 
 pub const ECONOMY_ACCOUNT_VERSION: u8 = 1;
 pub const ECONOMY_CONFIG_SEED: &[u8] = b"economy";
@@ -98,7 +98,6 @@ pub struct EconomyConfig {
     pub sale_prices: [u64; STAR_PACK_COUNT],
     pub weekly_min_sol_pool: u64,
     pub weekly_max_sol_pool: u64,
-    pub active: bool,
     pub bump: u8,
 }
 
@@ -126,7 +125,6 @@ impl EconomyConfig {
             sale_prices: [0; STAR_PACK_COUNT],
             weekly_min_sol_pool: WEEKLY_MIN_SOL_POOL,
             weekly_max_sol_pool: WEEKLY_MAX_SOL_POOL,
-            active: true,
             bump,
         }
     }
@@ -629,6 +627,7 @@ pub struct DailyPlayer {
     pub finalized_attempts: u32,
     pub best_run_id: u64,
     pub best_daily_score: u32,
+    pub best_daily_bonus_triggers: u16,
     pub best_engine_score: u32,
     pub best_moves: u16,
     pub best_submitted_at: i64,
@@ -656,6 +655,7 @@ pub struct DailyLeaderboardEntry {
     pub player: Pubkey,
     pub run_id: u64,
     pub daily_score: u32,
+    pub daily_bonus_triggers: u16,
     pub engine_score: u32,
     pub moves: u16,
     pub submitted_at: i64,
@@ -681,7 +681,13 @@ impl DailyLeaderboard {
     }
 
     pub fn rank_of(&self, player: Pubkey) -> Option<usize> {
-        self.entries.iter().position(|entry| entry.player == player)
+        let entry = self.entries.iter().find(|entry| entry.player == player)?;
+        Some(
+            self.entries
+                .iter()
+                .filter(|current| compare_daily_entries(current, entry).is_lt())
+                .count(),
+        )
     }
 }
 
@@ -935,15 +941,8 @@ fn compare_daily_entries(
     right
         .daily_score
         .cmp(&left.daily_score)
-        .then_with(|| {
-            right
-                .daily_score
-                .saturating_sub(right.engine_score)
-                .cmp(&left.daily_score.saturating_sub(left.engine_score))
-        })
-        .then_with(|| right.engine_score.cmp(&left.engine_score))
-        .then_with(|| right.moves.cmp(&left.moves))
-        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
+        .then_with(|| right.daily_bonus_triggers.cmp(&left.daily_bonus_triggers))
+        .then_with(|| left.submitted_at.cmp(&right.submitted_at))
 }
 
 fn best_five_score(results: &[WeeklyDailyResult]) -> Result<u16> {
@@ -1097,13 +1096,14 @@ mod tests {
     }
 
     #[test]
-    fn daily_leaderboard_uses_daily_bonus_engine_moves_without_time_bias() {
+    fn daily_leaderboard_uses_score_triggers_then_earlier_completion() {
         let player = Pubkey::new_unique();
         let mut entries = vec![
             DailyLeaderboardEntry {
                 player,
                 run_id: 1,
                 daily_score: 10,
+                daily_bonus_triggers: 3,
                 engine_score: 5,
                 moves: 70,
                 submitted_at: 99,
@@ -1112,6 +1112,7 @@ mod tests {
                 player: Pubkey::new_unique(),
                 run_id: 2,
                 daily_score: 10,
+                daily_bonus_triggers: 2,
                 engine_score: 8,
                 moves: 90,
                 submitted_at: 1,
@@ -1120,6 +1121,7 @@ mod tests {
                 player: Pubkey::new_unique(),
                 run_id: 3,
                 daily_score: 11,
+                daily_bonus_triggers: 0,
                 engine_score: 1,
                 moves: 1,
                 submitted_at: 3,
@@ -1128,9 +1130,10 @@ mod tests {
                 player: Pubkey::new_unique(),
                 run_id: 4,
                 daily_score: 10,
-                engine_score: 5,
-                moves: 80,
-                submitted_at: 200,
+                daily_bonus_triggers: 3,
+                engine_score: 1,
+                moves: 1,
+                submitted_at: 50,
             },
         ];
         entries.sort_unstable_by(compare_daily_entries);
@@ -1138,6 +1141,26 @@ mod tests {
         assert_eq!(entries[1].run_id, 4);
         assert_eq!(entries[2].run_id, 1);
         assert_eq!(entries[3].run_id, 2);
+
+        let statistical_tie = DailyLeaderboardEntry {
+            player: Pubkey::new_unique(),
+            run_id: 5,
+            engine_score: 999,
+            moves: 0,
+            ..entries[2]
+        };
+        assert_eq!(
+            compare_daily_entries(&entries[2], &statistical_tie),
+            std::cmp::Ordering::Equal
+        );
+        let board = DailyLeaderboard {
+            version: ECONOMY_ACCOUNT_VERSION,
+            challenge: Pubkey::new_unique(),
+            entries: vec![entries[2], statistical_tie],
+            bump: 1,
+        };
+        assert_eq!(board.rank_of(entries[2].player), Some(0));
+        assert_eq!(board.rank_of(statistical_tie.player), Some(0));
     }
 
     #[test]
@@ -1207,8 +1230,8 @@ mod tests {
     #[test]
     fn cadence_account_allocations_include_full_leaderboard_capacity() {
         assert_eq!(8 + DailyChallenge::INIT_SPACE, 415);
-        assert_eq!(8 + DailyLeaderboard::INIT_SPACE, 2_946);
-        assert_eq!(8 + DailyPlayer::INIT_SPACE, 112);
+        assert_eq!(8 + DailyLeaderboard::INIT_SPACE, 3_046);
+        assert_eq!(8 + DailyPlayer::INIT_SPACE, 114);
         assert_eq!(8 + WeeklyChallenge::INIT_SPACE, 153);
         assert_eq!(8 + WeeklyLeaderboard::INIT_SPACE, 1_012);
     }

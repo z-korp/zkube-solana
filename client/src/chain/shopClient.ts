@@ -100,8 +100,7 @@ export async function fetchStarShopView(args: {
     Number(protocol.version) !== 1 ||
     Number(economy.version) !== 1 ||
     !economy.protocol.equals(protocolAddress) ||
-    Number(economy.contentVersion) !== Number(protocol.contentVersion) ||
-    !economy.active
+    Number(economy.contentVersion) !== Number(protocol.contentVersion)
   ) {
     return null;
   }

@@ -1,14 +1,11 @@
 // @vitest-environment node
 
-import {
-  Keypair,
-  SystemProgram,
-  type AccountInfo,
-} from "@solana/web3.js";
+import { Keypair, SystemProgram, type AccountInfo } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   bootstrapFingerprint,
   devnetBootstrapInputFromEnv,
+  protocolInitializationAccountSizes,
   validateNativeSolDestinations,
   type PublicBootstrapPlan,
 } from "./devnetBootstrap";
@@ -58,9 +55,18 @@ describe("Devnet bootstrap approval contract", () => {
         [null, { ...systemAccount(), data: Buffer.alloc(1) }],
       ),
     ).toThrow("not a system wallet");
-    expect(() => validateNativeSolDestinations([team, team], [null, null])).toThrow(
-      "nonzero and distinct",
-    );
+    expect(() =>
+      validateNativeSolDestinations([team, team], [null, null]),
+    ).toThrow("nonzero and distinct");
+  });
+
+  it("funds both accounts created by protocol initialization", () => {
+    expect(
+      protocolInitializationAccountSizes({
+        protocolConfig: { size: 343 },
+        rewardVault: { size: 42 },
+      }),
+    ).toEqual([343, 42]);
   });
 });
 

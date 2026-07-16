@@ -2,9 +2,6 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("The signer is not authorized for this run")]
-    NotGameOwner,
-
     #[msg("The run is already terminal")]
     GameOver,
 
@@ -16,9 +13,6 @@ pub enum ErrorCode {
 
     #[msg("The source account has insufficient funds")]
     InsufficientFunds,
-
-    #[msg("The active run is not delegated to the ephemeral rollup")]
-    NotDelegated,
 
     #[msg("The account is in an invalid state for this instruction")]
     InvalidState,
@@ -82,8 +76,6 @@ pub enum ErrorCode {
     NoVrfRequestPending,
     #[msg("The VRF callback does not match the pending request")]
     VrfRequestMismatch,
-    #[msg("The run has already been consumed")]
-    RunAlreadyConsumed,
     #[msg("The player has no Daily prize")]
     NoPrize,
     #[msg("The Daily prize has already been claimed")]
