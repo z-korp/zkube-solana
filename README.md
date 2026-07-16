@@ -160,7 +160,9 @@ this deployment, followed by the signed TWA APK only after browser acceptance
 passes.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
-Daily publication needs its own exact operator approval. Mainnet is disabled.
+Daily publication needs exact operator approval. A single approval may cover a
+fully enumerated release bundle whose signers, accounts, spends, and deployment
+fingerprints are fixed in advance; any drift stops the bundle. Mainnet is disabled.
 
 ## Security invariants
 

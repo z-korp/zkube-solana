@@ -27,14 +27,19 @@ Architecture and operations documentation belongs in code comments and
 
 ## Transaction policy
 
-- Never sign or send a transaction without explicit user approval for that
-  exact operation, instructions, accounts, signers, and spend. One approval
-  never carries to another operation; simulation is evidence, not authority.
+- Never sign or send a transaction without explicit user approval for its
+  exact instructions, accounts, signers, and spend. One approval may cover an
+  enumerated release bundle only when every operation is presented in advance
+  with its cluster, signer, recipient/accounts, exact or maximum spend, and
+  deterministic fingerprint where available. Stop before signing if any
+  approved detail drifts; vague or standing approvals are invalid. Simulation
+  is evidence, not authority.
 - Automated verification is offline: format, typecheck, lint, tests, builds,
   and read-only RPC probes.
 - Program deploy/upgrade, bootstrap stages, keeper write enablement, moving SOL,
   publishing a Daily challenge, governance changes, and anything on mainnet
-  always require a separate explicit approval. Mainnet is currently rejected.
+  require explicit approval, either individually or as exact operations in an
+  enumerated release bundle. Mainnet is currently rejected.
 - Prefix every Solana, Anchor, or pnpm chain command with `NO_DNA=1`.
 - Never print, copy, expose, or commit signer bytes, seeds, recovery material,
   `.env` contents, keeper secrets, or Android signing credentials.
