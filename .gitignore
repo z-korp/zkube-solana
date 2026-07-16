@@ -44,3 +44,5 @@ client/twa/signing/
 *.jks
 *.keystore
 **/*.rs.bk
+run_logs.txt
+.vercel

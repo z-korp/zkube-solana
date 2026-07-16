@@ -20,12 +20,28 @@ do not add approval prompts to the shipped product.
   cross-device discovery. Settlement and cleanup are automatic.
 - Fly runs only the independently funded Daily/Weekly keeper. The web client is
   static PWA/TWA code and contains no server signer.
+- The canonical web deployment is `https://zkube-solana.vercel.app/`, owned by
+  the z-korp Vercel team (`z-labs`) in project
+  `prj_5kqIxlxgXHXGhldje8unic9h3qYA`. Production deploys only from
+  `z-korp/zkube-solana:main`; never deploy zKube under JCN DATA.
+- The Devnet Fly keeper is temporarily hosted in the `jcn-data` Fly
+  organization until a z-korp Fly organization is available. This is the only
+  approved JCN infrastructure exception and must not be copied to Vercel.
+- Two product changes remain deliberately deferred: reducing the currently
+  deployed 0.035 SOL funding target to 0.025 SOL, and replacing the currently
+  deployed 10-Star Daily entry with a 0.01 SOL entry. Neither value may change
+  without its own contract, client, migration, and deployment review.
 
 If code or comments contradict these rules, fix them with the implementation.
 Architecture and operations documentation belongs in code comments and
 `README.md`; do not add new Markdown documents.
 
 ## Transaction policy
+
+- The funded Devnet deployment fee payer is
+  `/home/djizus/cycling-sim/.devnet/deployer.json` with public key
+  `7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA`. The reference repository is
+  read-only: use this keypair in place; never copy, modify, delete, or commit it.
 
 - Never sign or send a transaction without explicit user approval for its
   exact instructions, accounts, signers, and spend. One approval may cover an
@@ -50,6 +66,10 @@ Architecture and operations documentation belongs in code comments and
   `git checkout --`, blanket cleanup, or destructive file restoration.
 - Use `apply_patch` for edits and `rg`/`rg --files` for discovery.
 - `/home/djizus/zkube` and `/home/djizus/cycling-sim` are read-only references.
+- Vercel CLI inspection must run from the repository root with an existing
+  link to the exact z-korp project above and an explicit `--scope z-labs`.
+  Production publishing is Git-driven; do not run a manual Vercel production
+  deployment.
 
 ## Chain-data discipline
 

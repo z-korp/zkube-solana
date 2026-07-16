@@ -109,6 +109,14 @@ perfect-map reward remains 20 Stars and 1,000 XP.
 The public service worker caches only immutable application assets. RPC,
 Router, ER, keeper, and chain-account responses are never cached.
 
+The canonical production client is
+[`https://zkube-solana.vercel.app/`](https://zkube-solana.vercel.app/). It is
+Git-deployed from `z-korp/zkube-solana:main` into the z-korp Vercel team
+(`z-labs`), project `prj_5kqIxlxgXHXGhldje8unic9h3qYA`. Manual production
+deploys are not part of the release flow. The Devnet keeper is temporarily
+hosted in the `jcn-data` Fly organization until a z-korp Fly organization is
+available; that temporary exception does not apply to the web client.
+
 ## Local development and validation
 
 Requirements: Rust/Anchor toolchain, Node 20.19+, and pnpm. Never place wallet,
@@ -142,9 +150,11 @@ and renewal.
 
 ## Devnet release status and sequence
 
-Devnet runs the breaking native-SOL program at deployment slot `476612636`,
-with ProgramData SHA-256
-`30dcf6c472114dab224955f9a10d43f4b2d2d1ffbfe9e6accc2b9349f6ca6054`.
+Devnet runs the breaking native-SOL program at deployment slot `476660453`.
+The deployed program artifact is 1,738,648 bytes with SHA-256
+`3bc51bc687a1ed30396a3197fbf7a38a39cfb8771687975d799cf021285fb50b`;
+the full padded ProgramData payload has SHA-256
+`a5c583ada44f915db6182d5809e2f69fd0a623de672be55d152cdea4173399bf`.
 Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
 are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
@@ -158,6 +168,13 @@ two expired-session revocations per pass. The matching static PWA is live.
 The remaining release work is real-wallet desktop and Seeker acceptance against
 this deployment, followed by the signed TWA APK only after browser acceptance
 passes.
+
+Two requested economy changes are intentionally not folded into infrastructure
+cleanup: the deployed player-funding target remains 0.035 SOL pending an audit
+of a proposed 0.025 SOL target, and Daily entry remains 10 Stars pending a
+separate design and migration for a proposed 0.01 SOL entry. Both affect the
+program, client signing UX, and deployed configuration and therefore require a
+dedicated release.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a
