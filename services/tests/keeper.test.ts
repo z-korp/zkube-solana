@@ -8,6 +8,7 @@ import type { WeeklyPlayerRecord, WeeklyView } from "../../client/src/chain/week
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
+  DEFAULT_MIN_KEEPER_LAMPORTS,
   expiredSessionCleanupAllowance,
   keeperKeypairFromEnv,
   runKeeperPass,
@@ -15,6 +16,14 @@ import {
 } from "../src/keeper";
 
 describe("autonomous challenge keeper", () => {
+  it("keeps enough reserve for the full variable-capacity cadence accounts", () => {
+    const currentDailyAndWeeklyRent = 46_200_480;
+    const twoTransactionFees = 10_000;
+    expect(DEFAULT_MIN_KEEPER_LAMPORTS).toBeGreaterThan(
+      currentDailyAndWeeklyRent + twoTransactionFees,
+    );
+  });
+
   it("pins the keeper secret to its public identity", () => {
     const keeper = Keypair.generate();
     const secret = JSON.stringify(Array.from(keeper.secretKey));

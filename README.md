@@ -146,9 +146,11 @@ Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
 are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
 
-The Fly keeper is deployed with `KEEPER_WRITE_ENABLED=false`. Its read-only
-pass validates the new accounts and currently plans exactly the current Weekly
-and Daily openings without signing or sending. The remaining rollout is:
+The Fly keeper is deployed with `KEEPER_WRITE_ENABLED=false`. Its first bounded
+write pass opened Devnet day `20650` and week `2950`; both accounts are verified
+and playable. The keeper returned to read-only mode while its reserve floor was
+raised to `0.1 SOL` to cover the full variable-capacity leaderboard rent. The
+remaining rollout is:
 
 1. Separately approve the bounded keeper write policy and enable it in Fly.
 2. Verify the current Weekly and Daily accounts after the first write pass.

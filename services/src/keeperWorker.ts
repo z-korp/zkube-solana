@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createDevnetConnection } from "./serviceReadiness.js";
 import {
   boundedKeeperInteger,
+  DEFAULT_MIN_KEEPER_LAMPORTS,
   keeperKeypairFromEnv,
   runKeeperPass,
   type KeeperLogEvent,
@@ -17,7 +18,6 @@ import {
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
-const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
 
 /** Writes stay disabled unless Fly injects the exact, case-sensitive opt-in. */
 export function keeperWriteEnabledFromEnv(

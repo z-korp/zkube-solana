@@ -19,7 +19,7 @@ kill_timeout = "240s"
   KEEPER_WRITE_ENABLED = "false"
   KEEPER_INTERVAL_MS = "300000"
   KEEPER_MAX_WRITES = "8"
-  MIN_KEEPER_LAMPORTS = "10000000"
+  MIN_KEEPER_LAMPORTS = "100000000"
 
 [[restart]]
   policy = "always"

@@ -1272,6 +1272,14 @@ mod tests {
     }
 
     #[test]
+    fn cadence_account_allocations_include_full_leaderboard_capacity() {
+        assert_eq!(8 + DailyChallenge::INIT_SPACE, 415);
+        assert_eq!(8 + DailyLeaderboard::INIT_SPACE, 4_546);
+        assert_eq!(8 + WeeklyChallenge::INIT_SPACE, 153);
+        assert_eq!(8 + WeeklyLeaderboard::INIT_SPACE, 1_012);
+    }
+
+    #[test]
     fn level_one_hundred_stipend_awards_once_and_never_backfills() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerProfile::initialize(owner, 1);

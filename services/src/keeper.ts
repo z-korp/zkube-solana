@@ -53,7 +53,13 @@ import {
 } from "../../client/src/chain/weeklyClient.js";
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
-const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
+/**
+ * Covers a fresh Daily + Weekly cadence allocation (currently 46,200,480
+ * refundable lamports) plus fees and operational headroom. Do not derive this
+ * from Anchor client `account.size`: variable-capacity Vec allocations expose
+ * only their fixed header there.
+ */
+export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 const MAX_PASS_DURATION_MS = 210_000;
 const MAX_EXPIRED_SESSION_REVOKES_PER_PASS = 2;
 
