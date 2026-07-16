@@ -3,9 +3,10 @@
  *
  * The keeper owns only its own signer. It derives current work from validated
  * chain state, submits at most the configured number of one-way transitions,
- * never overlaps passes, and stops before planning writes when the keeper's
- * own fee balance is below its reserve floor. Orphan recovery may consume an exact
- * terminal receipt but cannot close player run accounts.
+ * never overlaps passes, and stops write-enabled passes when the keeper's own
+ * fee balance is below its reserve floor. Read-only passes still discover work
+ * without signing or submitting. Orphan recovery may consume an exact terminal
+ * receipt but cannot close player run accounts.
  */
 import { randomUUID } from "node:crypto";
 import { Connection, Keypair } from "@solana/web3.js";
@@ -30,6 +31,10 @@ import {
   type TransactionPlan,
 } from "../../client/src/chain/runPlan.js";
 import { fetchOrphanedReceiptCandidates } from "../../client/src/chain/settlementRecovery.js";
+import {
+  buildRevokeExpiredSessionPlan,
+  fetchExpiredZkubeSessions,
+} from "../../client/src/chain/sessionCleanup.js";
 import { SessionWallet, type WalletLike } from "../../client/src/chain/sessionWallet.js";
 import {
   buildCloseWeeklyChallengePlan,
@@ -50,16 +55,23 @@ const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
 const MAX_PASS_DURATION_MS = 210_000;
+const MAX_EXPIRED_SESSION_REVOKES_PER_PASS = 2;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
-  event: "keeper_pass" | "keeper_operation" | "keeper_readiness";
+  event:
+    | "keeper_pass"
+    | "keeper_operation"
+    | "keeper_plan"
+    | "keeper_readiness";
   traceId: string;
   operation?: string;
   ok: boolean;
   durationMs?: number;
   signature?: string;
   writes?: number;
+  plannedWrites?: number;
+  writeEnabled?: boolean;
   operationFailures?: number;
   maxWrites?: number;
   backlog?: number;
@@ -72,6 +84,8 @@ export interface KeeperPassResult {
   ok: boolean;
   traceId: string;
   writes: number;
+  plannedWrites: number;
+  writeEnabled: boolean;
   operationFailures: number;
   maxWrites: number;
   backlog: number;
@@ -82,6 +96,8 @@ export interface KeeperPassResult {
 export interface KeeperDependencies {
   connection: Connection;
   keeper: Keypair;
+  /** Fail-closed production gate. False discovers work without signing or sending. */
+  writeEnabled?: boolean;
   now?: () => number;
   maxWrites?: number;
   minimumBalanceLamports?: number;
@@ -122,6 +138,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     dependencies.minimumBalanceLamports ?? DEFAULT_MIN_KEEPER_LAMPORTS;
   const traceId = randomUUID();
   const log = dependencies.log ?? (() => undefined);
+  const writeEnabled = dependencies.writeEnabled ?? true;
   const wallet = new SessionWallet(dependencies.keeper);
   const balanceLamports = await dependencies.connection.getBalance(
     dependencies.keeper.publicKey,
@@ -135,7 +152,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     balanceLamports,
     minimumBalanceLamports,
   });
-  if (balanceLamports < minimumBalanceLamports) {
+  if (writeEnabled && balanceLamports < minimumBalanceLamports) {
     throw new Error(
       `keeper fee reserve ${balanceLamports} is below floor ${minimumBalanceLamports}`,
     );
@@ -144,20 +161,37 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   if (!runtime) throw new Error("lean economy accounts are not active on this deployment");
 
   let writes = 0;
+  let plannedWrites = 0;
   let backlog = 0;
   let operationFailures = 0;
+  const capacityUsed = () => writes + plannedWrites;
   const execute = async (
     operation: string,
     plan: TransactionPlan,
   ): Promise<boolean> => {
     if (
-      writes >= maxWrites ||
+      capacityUsed() >= maxWrites ||
       Date.now() - startedAt >= MAX_PASS_DURATION_MS
     ) {
       backlog += 1;
       return false;
     }
     const operationStartedAt = Date.now();
+    if (!writeEnabled) {
+      plannedWrites += 1;
+      log({
+        schemaVersion: 1,
+        event: "keeper_plan",
+        traceId,
+        operation,
+        ok: true,
+        durationMs: Date.now() - operationStartedAt,
+        writes,
+        plannedWrites,
+        writeEnabled: false,
+      });
+      return false;
+    }
     try {
       const signature = await submitVersionedTransactionPlan({
         transactionPlan: plan,
@@ -279,7 +313,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   }
 
   for (const candidateDay of dailyIds) {
-    if (writes >= maxWrites) {
+    if (capacityUsed() >= maxWrites) {
       backlog += 1;
       break;
     }
@@ -312,7 +346,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
             playerOwner: owner,
           }),
         )) &&
-        writes >= maxWrites
+        capacityUsed() >= maxWrites
       ) {
         backlog += owners.length;
         break;
@@ -367,7 +401,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   }
 
   for (const candidateDay of dailyIds) {
-    if (writes >= maxWrites) {
+    if (capacityUsed() >= maxWrites) {
       backlog += 1;
       break;
     }
@@ -398,7 +432,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           owner: player.owner,
         }),
       );
-      if (writes >= maxWrites) break;
+      if (capacityUsed() >= maxWrites) break;
     }
     daily = await fetchDailyView({
       connection: dependencies.connection,
@@ -418,7 +452,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   }
 
   for (const candidateWeek of weeklyIds) {
-    if (writes >= maxWrites) {
+    if (capacityUsed() >= maxWrites) {
       backlog += 1;
       break;
     }
@@ -443,7 +477,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
           owner: player.owner,
         }),
       );
-      if (writes >= maxWrites) break;
+      if (capacityUsed() >= maxWrites) break;
     }
     weekly = await fetchWeeklyView({
       connection: dependencies.connection,
@@ -466,10 +500,36 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     }
   }
 
+  const sessionCleanupAllowance = expiredSessionCleanupAllowance(
+    capacityUsed(),
+    maxWrites,
+  );
+  if (sessionCleanupAllowance > 0) {
+    const expiredSessions = await fetchExpiredZkubeSessions({
+      connection: dependencies.connection,
+      nowUnix: now,
+      maximum: sessionCleanupAllowance + 1,
+    });
+    if (expiredSessions.length > sessionCleanupAllowance) backlog += 1;
+    for (const session of expiredSessions.slice(0, sessionCleanupAllowance)) {
+      await execute(
+        "revoke_expired_session",
+        buildRevokeExpiredSessionPlan({
+          connection: dependencies.connection,
+          wallet,
+          session,
+          nowUnix: now,
+        }),
+      );
+    }
+  }
+
   const result: KeeperPassResult = {
     ok: operationFailures === 0,
     traceId,
     writes,
+    plannedWrites,
+    writeEnabled,
     operationFailures,
     maxWrites,
     backlog,
@@ -483,11 +543,23 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     ok: result.ok,
     durationMs: Date.now() - startedAt,
     writes,
+    plannedWrites,
+    writeEnabled,
     operationFailures,
     maxWrites,
     backlog,
   });
   return result;
+}
+
+export function expiredSessionCleanupAllowance(
+  writes: number,
+  maxWrites: number,
+): number {
+  return Math.min(
+    MAX_EXPIRED_SESSION_REVOKES_PER_PASS,
+    Math.max(0, maxWrites - writes),
+  );
 }
 
 export function dailyShouldFinalize(daily: DailyView, nowUnix: number): boolean {

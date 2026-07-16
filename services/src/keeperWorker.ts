@@ -19,6 +19,13 @@ const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 const DEFAULT_MIN_KEEPER_LAMPORTS = 10_000_000;
 
+/** Writes stay disabled unless Fly injects the exact, case-sensitive opt-in. */
+export function keeperWriteEnabledFromEnv(
+  env: Record<string, string | undefined>,
+): boolean {
+  return env.KEEPER_WRITE_ENABLED === "true";
+}
+
 export interface KeeperWorkerEvent {
   schemaVersion: 1;
   event: "keeper_worker";
@@ -107,6 +114,7 @@ async function runConfiguredKeeperPass(
   await runKeeperPass({
     connection,
     keeper: keeperKeypairFromEnv(env),
+    writeEnabled: keeperWriteEnabledFromEnv(env),
     maxWrites: boundedKeeperInteger(
       env.KEEPER_MAX_WRITES,
       DEFAULT_MAX_WRITES,

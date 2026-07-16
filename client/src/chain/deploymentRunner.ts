@@ -21,6 +21,7 @@ export interface ZkubeDevnetDeploymentInput {
   workspaceDir: string;
   artifactPath: string;
   artifactSha256: string;
+  expectedCurrentSbfSha256?: string;
   programKeypairPath?: string;
   programKeypairPublicKey?: string;
   programBufferKeypairPath?: string;
@@ -103,6 +104,13 @@ export function devnetDeploymentInputFromEnv(
     env.ZKUBE_UPGRADE_AUTHORITY_KEYPAIR,
   );
   const deploymentMode = deploymentModeFromEnv(env.ZKUBE_DEPLOY_MODE);
+  const expectedCurrentSbfSha256 =
+    deploymentMode === "upgrade"
+      ? requiredSha256(
+          env.ZKUBE_EXPECTED_CURRENT_SBF_SHA256,
+          "ZKUBE_EXPECTED_CURRENT_SBF_SHA256",
+        )
+      : undefined;
   const programKeypairPublicKey = programKeypairPath
     ? keypairPublicKey(programKeypairPath, "ZKUBE_PROGRAM_KEYPAIR")
     : undefined;
@@ -137,6 +145,7 @@ export function devnetDeploymentInputFromEnv(
     expectedGenesisHash,
     programId: ZKUBE_PROGRAM_ID.toBase58(),
     artifactSha256,
+    expectedCurrentSbfSha256: expectedCurrentSbfSha256 ?? null,
     programKeypairPublicKey: programKeypairPublicKey ?? null,
     programBufferPublicKey: programBufferPublicKey ?? null,
     deployerPublicKey: deployerPublicKey ?? null,
@@ -171,6 +180,7 @@ export function devnetDeploymentInputFromEnv(
     workspaceDir,
     artifactPath,
     artifactSha256,
+    expectedCurrentSbfSha256,
     programKeypairPath,
     programKeypairPublicKey,
     programBufferKeypairPath,
@@ -252,6 +262,11 @@ export async function runZkubeDevnetDeployment(
   );
   if (input.deploymentMode === "upgrade") {
     const state = await inspectUpgradeableProgram(connection, ZKUBE_PROGRAM_ID);
+    if (state.deployedSbfSha256 !== input.expectedCurrentSbfSha256) {
+      throw new Error(
+        `deployed SBF hash ${state.deployedSbfSha256} does not match approved preimage ${input.expectedCurrentSbfSha256 ?? "missing"}`,
+      );
+    }
     if (state.upgradeAuthority !== input.upgradeAuthorityPublicKey) {
       throw new Error(
         `upgrade authority ${input.upgradeAuthorityPublicKey} does not match deployed authority ${state.upgradeAuthority ?? "none"}`,
@@ -338,6 +353,7 @@ export function formatDevnetDeployment(
     `Base RPC: ${input.baseRpc}`,
     `Program: ${input.programId}`,
     `SBF SHA-256: ${input.artifactSha256}`,
+    `Expected current SBF SHA-256: ${input.expectedCurrentSbfSha256 ?? "not applicable"}`,
     `Program deployment key: ${input.programKeypairPublicKey ?? "missing"}`,
     `Program buffer: ${input.programBufferPublicKey ?? "missing"}`,
     `Deployer: ${input.deployerPublicKey ?? "missing"}`,
@@ -550,6 +566,7 @@ export interface UpgradeableProgramState {
   programCapacityBytes: number;
   programDataLamports: number;
   upgradeAuthority: string | null;
+  deployedSbfSha256: string;
 }
 
 export async function inspectUpgradeableProgram(
@@ -594,7 +611,18 @@ export async function inspectUpgradeableProgram(
     programCapacityBytes: info.data.length - PROGRAM_DATA_HEADER_BYTES,
     programDataLamports: info.lamports,
     upgradeAuthority,
+    deployedSbfSha256: createHash("sha256")
+      .update(info.data.subarray(info.data[12] === 1 ? 45 : 13))
+      .digest("hex"),
   };
+}
+
+function requiredSha256(value: string | undefined, label: string): string {
+  const hash = value?.trim().toLowerCase() ?? "";
+  if (!/^[0-9a-f]{64}$/.test(hash)) {
+    throw new Error(`${label} must be a 64-hex SHA-256`);
+  }
+  return hash;
 }
 
 function deploymentModeFromEnv(

@@ -20,6 +20,7 @@ pub fn require_player_authorization(
             authority: token.authority,
             actor: token.session_signer,
             target: token.target_program,
+            fee_payer: token.fee_payer,
             valid_until: token.valid_until,
         }),
         now,
@@ -32,6 +33,7 @@ struct SessionFields {
     authority: Pubkey,
     actor: Pubkey,
     target: Pubkey,
+    fee_payer: Pubkey,
     valid_until: i64,
 }
 
@@ -47,13 +49,13 @@ fn require_authorization_fields(
     }
 
     let session = session.ok_or(ErrorCode::InvalidSession)?;
-    require_keys_eq!(
-        session.authority,
-        owner_authority,
+    require!(
+        session.authority == owner_authority
+            && session.actor == actor
+            && session.target == crate::ID
+            && session.fee_payer == owner_authority,
         ErrorCode::InvalidSession
     );
-    require_keys_eq!(session.actor, actor, ErrorCode::InvalidSession);
-    require_keys_eq!(session.target, crate::ID, ErrorCode::InvalidSession);
     require!(session.valid_until > now, ErrorCode::SessionExpired);
 
     let expected = Pubkey::find_program_address(
@@ -66,7 +68,7 @@ fn require_authorization_fields(
         &session_keys::ID,
     )
     .0;
-    require_keys_eq!(session.address, expected, ErrorCode::InvalidSession);
+    require!(session.address == expected, ErrorCode::InvalidSession);
     Ok(())
 }
 
@@ -94,6 +96,7 @@ mod tests {
             authority: owner,
             actor,
             target: crate::ID,
+            fee_payer: owner,
             valid_until: 11,
         }
     }
@@ -145,6 +148,23 @@ mod tests {
         for session in cases {
             assert!(require_authorization_fields(owner, actor, Some(session), 10).is_err());
         }
+    }
+
+    #[test]
+    fn cross_payer_session_authorization_fails() {
+        let owner = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
+        let third_party_payer = Pubkey::new_unique();
+        assert!(require_authorization_fields(
+            owner,
+            actor,
+            Some(SessionFields {
+                fee_payer: third_party_payer,
+                ..fields(owner, actor)
+            }),
+            10,
+        )
+        .is_err());
     }
 
     #[test]

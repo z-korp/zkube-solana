@@ -13,6 +13,7 @@ import {
 } from "./deploymentRunner";
 
 const directories: string[] = [];
+const CURRENT_SBF = "00".repeat(32);
 
 afterEach(() => {
   for (const directory of directories.splice(0)) {
@@ -27,6 +28,7 @@ describe("Devnet deployment runner", () => {
       {
         ZKUBE_PROGRAM_ARTIFACT: fixture.artifact,
         ZKUBE_ANCHOR_WORKSPACE: fixture.directory,
+        ZKUBE_EXPECTED_CURRENT_SBF_SHA256: CURRENT_SBF,
       },
       fixture.directory,
     );
@@ -56,6 +58,7 @@ describe("Devnet deployment runner", () => {
     const base = {
       ZKUBE_PROGRAM_ARTIFACT: fixture.artifact,
       ZKUBE_ANCHOR_WORKSPACE: fixture.directory,
+      ZKUBE_EXPECTED_CURRENT_SBF_SHA256: CURRENT_SBF,
     };
     expect(() =>
       devnetDeploymentInputFromEnv(
@@ -188,6 +191,7 @@ describe("Devnet deployment runner", () => {
       programCapacityBytes: 1_096,
       programDataLamports: 2,
       upgradeAuthority: authority.toBase58(),
+      deployedSbfSha256: expect.any(String),
     });
   });
 });

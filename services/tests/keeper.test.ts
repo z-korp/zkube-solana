@@ -8,6 +8,7 @@ import type { WeeklyPlayerRecord, WeeklyView } from "../../client/src/chain/week
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
+  expiredSessionCleanupAllowance,
   keeperKeypairFromEnv,
   runKeeperPass,
   weeklyPlayerCanClose,
@@ -137,5 +138,12 @@ describe("autonomous challenge keeper", () => {
       ),
     ).toBe(true);
     expect(weeklyPlayerCanClose({ ...weekly, status: "closed" }, record)).toBe(true);
+  });
+
+  it("caps expired-session revokes inside the shared keeper write budget", () => {
+    expect(expiredSessionCleanupAllowance(0, 8)).toBe(2);
+    expect(expiredSessionCleanupAllowance(7, 8)).toBe(1);
+    expect(expiredSessionCleanupAllowance(8, 8)).toBe(0);
+    expect(expiredSessionCleanupAllowance(9, 8)).toBe(0);
   });
 });

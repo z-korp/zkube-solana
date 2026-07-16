@@ -2,9 +2,25 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { runKeeperWorker } from "../src/keeperWorker";
+import {
+  keeperWriteEnabledFromEnv,
+  runKeeperWorker,
+} from "../src/keeperWorker";
 
 describe("keeper worker scheduling", () => {
+  it("keeps writes fail-closed unless explicitly enabled", () => {
+    expect(keeperWriteEnabledFromEnv({})).toBe(false);
+    expect(keeperWriteEnabledFromEnv({ KEEPER_WRITE_ENABLED: "false" })).toBe(
+      false,
+    );
+    expect(keeperWriteEnabledFromEnv({ KEEPER_WRITE_ENABLED: "TRUE" })).toBe(
+      false,
+    );
+    expect(keeperWriteEnabledFromEnv({ KEEPER_WRITE_ENABLED: "true" })).toBe(
+      true,
+    );
+  });
+
   it("stays inert while disabled without loading either signer", async () => {
     const controller = new AbortController();
     const log = vi.fn();

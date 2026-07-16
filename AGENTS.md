@@ -12,8 +12,10 @@ do not add approval prompts to the shipped product.
 - The owner funds a shared 0.025 SOL player funding PDA and a 0.001 SOL device
   fee allowance. There is no Kora or custom paymaster.
 - A scoped device session authorizes safe play for about seven days; ER gameplay
-  is gasless. Star purchases always require a separate exact native-SOL owner
-  approval and preserve the 10/10/80 split.
+  is gasless. Its on-chain rent payer must equal the player owner; the keeper
+  may reclaim only expired Session Keys accounts, at most two per pass. Star
+  purchases always require a separate exact native-SOL owner approval and
+  preserve the 10/10/80 split.
 - One durable `active_run_id` per player prevents overlapping runs and enables
   cross-device discovery. Settlement and cleanup are automatic.
 - Fly runs only the independently funded Daily/Weekly keeper. The web client is

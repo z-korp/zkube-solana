@@ -72,6 +72,14 @@ price and 10% team / 10% reward / 80% treasury split before opening the wallet.
 | 500 | 0.425 SOL |
 | 1,000 | 0.8 SOL |
 
+The live Devnet `ProtocolConfig` pins these native-SOL destinations:
+
+| Destination | Public address |
+| --- | --- |
+| Team | `FVN2XcPhXJGyUmDZWts5EBmsiK7aHzQoMFCkT57oZZhP` |
+| Treasury | `9rVYVyB3xUEhVMixoz44ssdJJc8C7CGPkyrRLrh7R5jR` |
+| Reward | Program-derived `reward_vault` PDA |
+
 Weekly native-SOL reward pools are bounded from 0.1 to 1 SOL. Program PDAs pin
 the canonical reward vault and every configured destination; integer lamport
 accounting preserves the exact split. The keeper cannot purchase Stars or move
@@ -131,23 +139,22 @@ and renewal.
 
 ## Devnet release status and sequence
 
-The source tree contains a breaking program ABI and native-SOL configuration.
-It is **not compatible with the previously deployed Devnet program** until the
-new SBF, bootstrap state, keeper, and client are released together. Existing
-embedded-wallet-era Devnet progress is intentionally not migrated.
+Devnet runs the breaking native-SOL program at deployment slot `476612636`,
+with ProgramData SHA-256
+`30dcf6c472114dab224955f9a10d43f4b2d2d1ffbfe9e6accc2b9349f6ca6054`.
+Protocol, economy, Daily rules, all ten map catalogs, and Campaign activation
+are initialized and verified. Existing embedded-wallet-era progress was
+intentionally removed rather than migrated.
 
-Going live requires these separately approved operations, in order:
+The Fly keeper is deployed with `KEEPER_WRITE_ENABLED=false`. Its read-only
+pass validates the new accounts and currently plans exactly the current Weekly
+and Daily openings without signing or sending. The remaining rollout is:
 
-1. Freeze writes and archive the current read-only deployment evidence.
-2. Build and verify the exact SBF/IDL artifact from the release commit.
-3. Separately approve and deploy/upgrade the Devnet program.
-4. Separately approve each bootstrap stage for protocol, native-SOL economy,
-   maps, achievements, quests, and governance configuration.
-5. Fund the Fly keeper with SOL, install its secret outside the repository,
-   deploy `services/fly.keeper.toml`, and verify a read-only pass before writes.
-6. Publish the matching static PWA, then complete desktop and real Seeker
-   acceptance against that exact program artifact.
-7. Produce the signed TWA APK only after browser acceptance passes.
+1. Separately approve the bounded keeper write policy and enable it in Fly.
+2. Verify the current Weekly and Daily accounts after the first write pass.
+3. Publish the matching static PWA and complete desktop and real Seeker
+   acceptance against the deployed program artifact.
+4. Produce the signed TWA APK only after browser acceptance passes.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs its own exact operator approval. Mainnet is disabled.

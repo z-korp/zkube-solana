@@ -1,9 +1,15 @@
 // @vitest-environment node
 
+import {
+  Keypair,
+  SystemProgram,
+  type AccountInfo,
+} from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   bootstrapFingerprint,
   devnetBootstrapInputFromEnv,
+  validateNativeSolDestinations,
   type PublicBootstrapPlan,
 } from "./devnetBootstrap";
 
@@ -33,7 +39,40 @@ describe("Devnet bootstrap approval contract", () => {
     expect(bootstrapFingerprint(changedProgram)).not.toBe(first);
     expect(JSON.stringify(plan)).not.toMatch(/keypair|secret|\.devnet/i);
   });
+
+  it("accepts fresh or ordinary system-wallet SOL destinations only", () => {
+    const team = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    expect(() =>
+      validateNativeSolDestinations([team, treasury], [null, systemAccount()]),
+    ).not.toThrow();
+    expect(() =>
+      validateNativeSolDestinations(
+        [team, treasury],
+        [null, { ...systemAccount(), owner: Keypair.generate().publicKey }],
+      ),
+    ).toThrow("not a system wallet");
+    expect(() =>
+      validateNativeSolDestinations(
+        [team, treasury],
+        [null, { ...systemAccount(), data: Buffer.alloc(1) }],
+      ),
+    ).toThrow("not a system wallet");
+    expect(() => validateNativeSolDestinations([team, team], [null, null])).toThrow(
+      "nonzero and distinct",
+    );
+  });
 });
+
+function systemAccount(): AccountInfo<Buffer> {
+  return {
+    executable: false,
+    owner: SystemProgram.programId,
+    lamports: 1,
+    rentEpoch: 0,
+    data: Buffer.alloc(0),
+  };
+}
 
 function fixture(): PublicBootstrapPlan {
   const key = "11111111111111111111111111111111";

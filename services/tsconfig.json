@@ -13,7 +13,7 @@
       "@solana/web3.js": ["node_modules/@solana/web3.js"],
       "bn.js": ["node_modules/bn.js"]
     },
-    "types": ["node"],
+    "types": ["node", "bn.js"],
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,

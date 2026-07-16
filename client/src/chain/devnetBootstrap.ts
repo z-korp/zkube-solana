@@ -43,7 +43,7 @@ import {
 
 export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
 export const DEPLOYED_ZKUBE_SBF_SHA256 =
-  "dd187f69f8c0c3cfb3fcdb9366c5af88a948a27e41ac26e6db3a1d4fc6268be5";
+  "30dcf6c472114dab224955f9a10d43f4b2d2d1ffbfe9e6accc2b9349f6ca6054";
 
 export type DevnetBootstrapStage =
   | "custody"
@@ -169,8 +169,8 @@ const POLICY = {
 } as const;
 
 const VAULT_PATHS: Record<VaultName, string> = {
-  team: "../.devnet/zkube-team-vault.json",
-  treasury: "../.devnet/zkube-treasury-vault.json",
+  team: "../.devnet/zkube-native-team.json",
+  treasury: "../.devnet/zkube-native-treasury.json",
 };
 
 function canonicalDailyRulesPublication() {
@@ -220,7 +220,7 @@ export function devnetBootstrapInputFromEnv(
         resolve(
           cwd,
           env.ZKUBE_PROTOCOL_AUTHORITY_KEYPAIR ??
-            "../.devnet/zkube-protocol-authority.json",
+            "../.devnet/zkube-governance-authority.json",
         ),
         "protocol authority",
       ),
@@ -664,11 +664,37 @@ function fundedAuthorityBatch(args: {
 async function verifyAllVaults(input: DevnetBootstrapInput): Promise<void> {
   const { vaults } = input.identities;
   const addresses = [vaults.team.publicKey, vaults.treasury.publicKey];
+  const infos = await input.connection.getMultipleAccountsInfo(
+    addresses,
+    "confirmed",
+  );
+  validateNativeSolDestinations(addresses, infos);
+}
+
+export function validateNativeSolDestinations(
+  addresses: readonly PublicKey[],
+  infos: readonly (AccountInfo<Buffer> | null)[],
+): void {
   if (
+    addresses.length !== 2 ||
+    infos.length !== addresses.length ||
     addresses.some((address) => address.equals(PublicKey.default)) ||
-    addresses[0]?.equals(addresses[1]!)
+    addresses[0]!.equals(addresses[1]!)
   ) {
     throw new Error("native SOL destinations must be nonzero and distinct");
+  }
+  for (let index = 0; index < addresses.length; index += 1) {
+    const info = infos[index];
+    if (
+      info &&
+      (info.executable ||
+        !info.owner.equals(SystemProgram.programId) ||
+        info.data.length !== 0)
+    ) {
+      throw new Error(
+        `native SOL destination ${addresses[index]!.toBase58()} is not a system wallet`,
+      );
+    }
   }
 }
 
