@@ -408,13 +408,28 @@ export function formatContentReleasePreview(
         `  max fee: ${operation.maximumFeeLamports} lamports`,
         `  transaction bytes: ${operation.transactionBytes}/${MAX_TRANSACTION_BYTES}`,
         `  signers: ${operation.requiredSigners.join(", ")}`,
-        ...operation.instructions.map(
-          (instruction, index) =>
-            `  ix ${index + 1}: ${instruction.programId} ${instruction.dataSha256}`,
-        ),
+        ...operation.instructions.flatMap((instruction, index) => [
+          `  ix ${index + 1}: ${instruction.programId} ${instruction.dataSha256}`,
+          `    accounts: ${formatInstructionAccounts(instruction)}`,
+        ]),
       ].join("\n"),
     ),
   ].join("\n");
+}
+
+function formatInstructionAccounts(instruction: PublicInstruction): string {
+  if (instruction.accounts.length === 0) return "none";
+  return instruction.accounts
+    .map((account) => {
+      const access = [
+        account.signer ? "signer" : null,
+        account.writable ? "writable" : "readonly",
+      ]
+        .filter(Boolean)
+        .join("+");
+      return `${account.pubkey}[${access}]`;
+    })
+    .join(", ");
 }
 
 function releaseOperation(args: {
