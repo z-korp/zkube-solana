@@ -212,12 +212,14 @@ The Cairo scoring-parity upgrade is confirmed at slot `476858563`, the bounded
 keeper is write-enabled, and the Git-driven production client at
 `https://zkube-solana.vercel.app/` targets this v3 program.
 
-The tenth-row boundary correction is committed separately as `a0e233f`; its
-program upgrade still requires a fingerprint-bound Devnet approval. The
-governed pack rebalance, progression rebalance, milestone reconciliation, and
-public-username release described above are implemented and tested in source
-but are likewise not live until their exact program upgrade and pricing update
-operations are approved and verified. No source revision or simulation is
+The tenth-row boundary correction from `a0e233f` is live at slot `476926533`.
+The governed pack rebalance, progression rebalance, milestone reconciliation,
+and public-username release described above are implemented and tested in
+source but are not live until their exact ProgramData extension, program
+upgrade, and pricing update operations are approved and verified. The
+Git-driven production client currently contains that feature surface, so the
+release bundle below must complete before username writes or rebalanced
+progression can be treated as available. No source revision or simulation is
 treated as evidence of deployed state.
 
 The v3 custody preflight is satisfied and the protocol foundation was
@@ -331,35 +333,24 @@ is `316bfbcc8ae622235c0b69cd385c78d8c3770f148c04409c0cb876525d32a31f`
 the buffer closed, the padded postimage matched exactly, and net deployer spend
 was 13,150,000 lamports.
 
-The row-capacity correction is validated as a Devnet upgrade candidate but is
-not yet deployed. Occupying the tenth grid row is legal; only a move whose
+The row-capacity correction is deployed on Devnet. Occupying the tenth grid row
+is legal; only a move whose
 settled board still cannot accept its visible preview (the attempted eleventh
 row) finishes the run. That blocked action still consumes one move and keeps
 its checked score, combo, objective, and terminal-time accounting. A bonus on
 a ten-row board does not end the run, and satisfying the level on the same
 action takes precedence over overflow. Bottom-row insertion now rejects at
-capacity atomically instead of discarding row ten. The selected
-`opt-level = "s"` ELF is 1,202,680 bytes with SHA-256
-`31c8aadd0ce8ec4921a16cebc288224ce5e164a9a485bb1dd8993fc4cfaaf6eb`
-and an 8,371,856,880-lamport ProgramData rent estimate. The speed-profile ELF
-is 1,434,920 bytes with SHA-256
-`4c2fc16843445fb0ecf8afb434734df5f3bf621238bae380abd9096e021fe667`
-and a 9,988,247,280-lamport rent estimate. Neither build emits an SBF stack
-warning; the size profile fits the existing 1,210,912-byte capacity without
-extension and passes the complete real SBF suite. The legal tenth-row move,
-including its mocked VRF boundary, uses 54,190 compute units; the blocked
-eleventh-row move uses 37,548 and proves that no VRF request is enqueued. The
-current padded Devnet preimage is
-`2f345f3b1cfef82fdb32c7e8e913783cd33af555c9f8afcddc3fc1baf0d90e0d`;
-the expected padded postimage is
-`5918ca627dc504c5fd965cc0be4b6897a78a3702291d97dd3b112daa1555f6f1`.
-The dry-run upgrade binds the absent buffer
-`81aC6XkuuUrdzWMfRNhZKVZhPapqi4MzWTmveaKh9koN`, its exact
-8,371,801,200-lamport temporary rent, one signing attempt, and a 50,000,000
-lamport maximum net deployer spend. Its approval evidence SHA-256 is
-`c2322fa6004163a12eb16462a7c73d742a41bcc521511aa589a492b051c153de`
-(`c2322fa6004163a1`). These fingerprints are deployment candidates, not
-authorization to sign or write Devnet.
+capacity atomically instead of discarding row ten. The clean hotfix artifact
+used for deployment is 1,202,992 bytes with SHA-256
+`4146adbd787e40c5aa5634214fb25c59d18b679a37f2f8f024c69be3520e36f7`;
+the deployed 1,210,912-byte ProgramData payload has SHA-256
+`502820620c37390dbe46f6bcffc86322e69e4c9359f04c945746a21d98be5373`.
+The legal tenth-row move, including its mocked VRF boundary, uses 54,190
+compute units; the blocked eleventh-row move uses 37,548 and proves that no VRF
+request is enqueued. Upgrade signature
+`525ZtUR1HM2XfDJVDaWmxHb78bvnRLRccd3qGdTVFULaFAQhMUAEjC2sfVmhYgymJFdUvys8s24EZauWExoEhUrQ`
+is finalized, the temporary buffer is closed, ProgramData capacity and
+authority are unchanged, and net deployer spend was 13,160,000 lamports.
 
 The progression, governed-pack, and public-username release is also validated
 but not deployed. Its selected `opt-level = "s"` ELF is 1,319,656 bytes with
@@ -374,20 +365,24 @@ funded prepare at 59,181, paid username rename at 36,910, registration at
 28,045, milestone reconciliation at 18,155, pack governance at 13,483, and
 moderation at 13,399.
 
-The 1,210,912-byte live ProgramData account would need a 108,744-byte
+The 1,210,912-byte live ProgramData account needs a 108,744-byte
 extension costing exactly 756,858,240 rent lamports. The extension candidate
 has padded postimage
-`fab24713e34c051bf71c44c7573ad7d9091f873a44bba2185639971b73634603`
-and fingerprint `9173f9be2bffad18`; the subsequent upgrade binds a
-9,185,954,160-lamport temporary buffer and fingerprint `f8116c8b0f48ed13`
+`743a1ded711d5c8fa88d350aa0880bfaff2a51a1f827beb5a3e92a9d9e140cd1`
+and fingerprint `c64dff1f5194aed7`; the subsequent upgrade binds a
+9,185,954,160-lamport temporary buffer and fingerprint `14690131e79f879c`
 (full evidence SHA-256
-`f8116c8b0f48ed13c2b5227832c816b02da18e769314e46c044c8ee69e263d22`).
-The deployer currently holds 8,432,332,841 lamports, below the conservative
+`14690131e79f879c8fbc5ab2af258995c795f221b7d65809862b5ef2f8e5c431`).
+The deployer currently holds 8,419,172,841 lamports, below the conservative
 9,997,812,400-lamport sequential extension-plus-upgrade floor by
-1,565,479,559 lamports. The feature bundle therefore remains blocked on an
+1,578,639,559 lamports. The feature bundle therefore remains blocked on an
 explicitly approved funding source; no transaction was signed or sent. The
-pricing update is a separate authority-signed operation after the program
-upgrade and cannot reuse either deployment fingerprint.
+subsequent pricing operation is pinned to the new SBF hash, legacy economy
+revision 1, fee payer `7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA`, pricing
+operator `HmCGfPTW2ahuNySTddvbQpJxutDUhjMbR9j8ekFzHQ5b`, zero native-SOL
+transfer, a 5,000,000-lamport fee ceiling, and fingerprint
+`7fee407b7db9bfbe`. It changes the five packs to 10/50/200/500/1,000 Stars at
+0.02/0.09/0.30/0.70/1.25 SOL and advances only the economy revision to 2.
 
 The remaining release work is real-wallet desktop and Seeker acceptance, the
 deferred Campaign balance review, and the signed TWA APK only after browser
