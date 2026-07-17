@@ -187,11 +187,9 @@ The v3 program is live on Devnet at
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR`, with ProgramData account
 `7XHh2WTjAw19Nt3eSjTHGBbrw8QgPQbAT3upa3NDATZu` and initial deployment slot
 `476753345`. Its fresh bootstrap and first Daily/Weekly cadence are complete.
-The v3 keeper image is live but returned to read-only mode after that exact
-one-pass bundle. The client release still needs to be separately fingerprinted,
-approved, and executed, so v3 is not yet the client-active release. The old v2
-deployment remains the currently reachable browser program during this
-maintenance window.
+The Cairo scoring-parity upgrade is confirmed at slot `476858563`, the bounded
+keeper is write-enabled, and the Git-driven production client at
+`https://zkube-solana.vercel.app/` targets this v3 program.
 
 The v3 custody preflight is satisfied and the protocol foundation was
 initialized at slot `476755019`. `ProtocolConfig` and `RewardVault` are owned
@@ -204,10 +202,10 @@ published at slot `476757680` with catalog hash
 `7c9d64c4ab5c95c51f9a1e8b52767f84de9245de6604074c0f7f6930a906334f`.
 All ten immutable Campaign map catalogs were published and verified at slots
 `476758274` through `476758292` and activated at slot `476758914`. All six
-bootstrap stages now satisfy their read-only postconditions. The approved
+bootstrap stages now satisfy their read-only postconditions. The initial
 one-pass keeper stage opened week `2950` at slot `476764468` and day `20650` at
-slot `476764471`; ongoing keeper writes and the client stage remain separately
-approval-gated.
+slot `476764471`. The bounded recurring release opened day `20651` at slot
+`476858841`; its exact account postconditions are verified below.
 
 The previous Devnet release ran the native-SOL program at deployment slot `476696498`.
 The deployed program artifact is 1,758,456 bytes with SHA-256
@@ -219,13 +217,16 @@ are initialized and verified. Existing embedded-wallet-era progress was
 intentionally removed rather than migrated.
 
 The replacement v3 Fly keeper is live at registry digest
-`sha256:459bc65e6ee620b55e19f8cf9242c1cd3b67c361ab66938f3ffdad05db461537`.
-Its exact one-pass bundle spent 35,770,480 lamports to open and verify Devnet
-day `20650` and week `2950`, then removed the release fingerprint and confirmed
-a fresh zero-write pass. Its remaining balance is 918,019,040 lamports, above
-the `0.1 SOL` reserve floor. The keeper still caps each pass at eight writes and
-expired-session revocation at two accounts, but ongoing writes are currently
-disabled. The production static PWA still targets v2.
+`sha256:2a1eb56732598736543df47515ae9d5772f350bd4c4c73d8d77eece2d7175ebb`.
+Its first bounded recurring pass spent 25,880,320 lamports, opened Devnet day
+`20651` with signature
+`2QR15gqDp2aYszgctVF3Nn6yWVXvbqEngKpMxhxZ6xzmM1sHPG6DD6Xbc9EVLax178QDFTETe23ENew3WfXE4tph`,
+and finalized one eligible historical Daily with signature
+`3cyieojkxJhqsM6UiKkt6HddeFzh9dZYpkj9X9AE6s6qSj2knhEBEWTsEBXCknxATMZMHUMih6rh2sqktUDKBrHU`.
+It completed with two writes, zero failures, zero backlog, and a remaining
+balance of 892,138,720 lamports. Current day `20651` is open on map 3 with a
+10-Star entry; its 415-byte challenge and 3,046-byte leaderboard are owned by
+the v3 program.
 
 The v3 account pass compacts Campaign stars to 80 bytes, achievement claims to
 one 24-bit-bounded word, removes stale run addresses from Daily ranking state,
@@ -277,7 +278,7 @@ the complete eight-row opening callback at 111,002 compute units, the bounded
 sparse-catalog fallback at 126,673, and an ordinary weighted-row callback at
 27,834; the stale-counter rejection also passes.
 
-The follow-up Cairo scoring-parity candidate is not yet deployed. Its selected
+The Cairo scoring-parity release is deployed. Its selected
 `opt-level = "s"` ELF is 1,202,616 bytes with SHA-256
 `a6d7122e9bd6cf5c3fae6d892716df0e5a3a4406cc14c6c3e368dec488e326f2`.
 Its current Devnet ProgramData rent estimate is 8,371,411,440 lamports. The
@@ -296,30 +297,29 @@ The bounded Devnet upgrade plan requires the loader buffer
 exact 8,371,355,760-lamport temporary rent, allows one signing attempt, and
 caps net deployer spend at 50,000,000 lamports. Its approval evidence SHA-256
 is `316bfbcc8ae622235c0b69cd385c78d8c3770f148c04409c0cb876525d32a31f`
-(`316bfbcc8ae62223`). This dry-run fingerprint is evidence only; no transaction
-was signed or sent.
+(`316bfbcc8ae62223`). The approved upgrade signature is
+`MMLv7iMmdko1E4DLfMDQWxBcZtTQvHVpNKEtTQiPWzzQ184Yeb43zCdUXtyqGAvbKzR2TXavAxUmgdAoiz8ubDU`;
+the buffer closed, the padded postimage matched exactly, and net deployer spend
+was 13,150,000 lamports.
 
-The remaining release work is the Git-driven v3 client cutover, the separately
-approved bounded keeper release, real-wallet desktop and Seeker acceptance, and
-the signed TWA APK only after browser acceptance passes. The keeper's initial
-write enablement is approval-gated; after that, only its fingerprint-bound
-allowlist may recur within the fixed per-pass bounds. Existing v2 Devnet
-progress is intentionally not migrated.
+The remaining release work is real-wallet desktop and Seeker acceptance, the
+deferred Campaign balance review, and the signed TWA APK only after browser
+acceptance passes. Only the keeper's fingerprint-bound allowlist may recur
+within the fixed per-pass bounds. Existing v2 Devnet progress is intentionally
+not migrated.
 
 The v3 keeper also requires the exact compiled release fingerprint alongside
 the case-sensitive write opt-in. This keeps a newly deployed image read-only
 even if Fly still holds an older `KEEPER_WRITE_ENABLED=true` secret. The
-fingerprint is enabled only after the replacement image reports a clean
-read-only planning pass, and it is currently absent after the completed
-one-pass cadence release. The next keeper candidate adds a last-line signing
-policy: every transaction must use the base connection, keeper payer, canonical
+fingerprint was enabled only after the replacement image reported a clean
+read-only planning pass. The live keeper has a last-line signing policy: every
+transaction must use the base connection, keeper payer, canonical
 instruction discriminator and fixed PDAs, current Daily/Weekly cadence address,
 and no additional signer. It also verifies the full padded ProgramData SHA-256
 before each pass, simulates the keeper balance delta, caps spend at 50,000,000
 lamports per pass, retains the eight-write/two-session limits, and stops below
-the 0.1 SOL reserve floor. None of those candidate controls enable writes until
-their exact release bundle is approved and applied. That candidate was built
-from commit `041f156` and published without deployment at registry digest
+the 0.1 SOL reserve floor. The release was built from commit `041f156` and is
+deployed at registry digest
 `sha256:2a1eb56732598736543df47515ae9d5772f350bd4c4c73d8d77eece2d7175ebb`.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
