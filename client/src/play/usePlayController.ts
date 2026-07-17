@@ -21,6 +21,8 @@ import {
 } from "@/stores/navigationStore";
 import type { ReceiptProjection } from "@/ui/components/Grid";
 
+export { describeRunStartError } from "@/chain/runStartError";
+
 export interface TerminalRunSnapshot {
   activeRun: ActiveRunView;
   game: Game;
@@ -96,28 +98,6 @@ export function pendingCompletionFromRun(
         : calculateCampaignXpAwarded(previousBestStars, achievedStars),
     isIncomplete,
   };
-}
-
-/**
- * Translate low-level run-start failures into player-honest copy. A prepare
- * simulation failing with the System program's `Custom:1` means the device fee
- * allowance or shared player funding PDA is too low. The next Enable/renew
- * approval replenishes both balances.
- */
-export function describeRunStartError(message: string): {
-  headline: string;
-  detail: string | null;
-} {
-  const fundingDry =
-    message.includes("Simulation failed for") && message.includes('"Custom":1}');
-  if (fundingDry) {
-    return {
-      headline:
-        "Your zKube play balance is low — renew the device session to refill it.",
-      detail: message,
-    };
-  }
-  return { headline: message, detail: null };
 }
 
 export function settleStageLabel(stage: SettleStage | null): string {

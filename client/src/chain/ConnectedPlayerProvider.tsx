@@ -59,10 +59,13 @@ import {
   deriveProtocolConfigPda,
 } from "./pdas";
 import { zkubeProgram } from "./runPlan";
+import {
+  DEVICE_FEE_ALLOWANCE_LAMPORTS,
+  validateDeviceSignerFunding,
+} from "./deviceSessionFunding";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
-const DEVICE_FEE_ALLOWANCE_LAMPORTS = 1_000_000;
 export const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
 const LEGACY_PLAYER_FUNDING_BYTES = 42;
 const LEGACY_PLAYER_FUNDING_DISCRIMINATOR = Uint8Array.from([
@@ -75,7 +78,12 @@ interface ConnectedWalletState {
   wallet: WalletLike;
 }
 
-type SessionRefreshResult = "ready" | "missing" | "expired" | "unavailable";
+type SessionRefreshResult =
+  | "ready"
+  | "missing"
+  | "expired"
+  | "needsRenewal"
+  | "unavailable";
 
 /**
  * Owns the atomic external-wallet lifecycle: connect the exact address, reuse
@@ -209,11 +217,20 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       setSessionStatus("checking");
       let info;
       let fundingInfo;
+      let signerInfo;
+      let signerRentFloor;
       try {
-        [info, fundingInfo] = await connection.getMultipleAccountsInfo(
-          [stored.sessionToken, derivePlayerFundingPda(owner)],
-          "confirmed",
-        );
+        [[info, fundingInfo, signerInfo], signerRentFloor] = await Promise.all([
+          connection.getMultipleAccountsInfo(
+            [
+              stored.sessionToken,
+              derivePlayerFundingPda(owner),
+              stored.signer.publicKey,
+            ],
+            "confirmed",
+          ),
+          connection.getMinimumBalanceForRentExemption(0, "confirmed"),
+        ]);
       } catch (cause) {
         setError(
           `Solana Devnet unavailable; the local session was retained. ${errorMessage(cause)}`,
@@ -248,9 +265,13 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           return "missing";
         }
         const now = Math.floor(Date.now() / 1_000);
+        const fundingStatus = validateDeviceSignerFunding({
+          info: signerInfo,
+          rentFloorLamports: signerRentFloor,
+        });
         const result =
           token.validUntil - now > SESSION_READY_SKEW_SECONDS
-            ? "ready"
+            ? fundingStatus
             : "expired";
         setSessionStatus(result);
         return result;
@@ -539,6 +560,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       throw new Error(
         sessionStatus === "expired"
           ? "The zKube device session expired. Renew it before continuing."
+          : sessionStatus === "needsRenewal"
+            ? "This device's zKube fee allowance is low. Renew it before continuing."
           : "Enable zKube before changing player state.",
       );
     }
@@ -546,6 +569,12 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     if (!current) throw new Error("The connected wallet account changed");
     return requireCurrentDeviceSession(session, current.publicKey);
   }, [session, sessionStatus]);
+
+  const markSessionNeedsRenewal = useCallback(() => {
+    setSessionStatus((status) =>
+      status === "ready" ? "needsRenewal" : status,
+    );
+  }, []);
 
   const value = useMemo<ConnectedPlayerValue>(
     () => ({
@@ -566,6 +595,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       disconnect,
       refreshBalance,
       requireSession,
+      markSessionNeedsRenewal,
     }),
     [
       authorizeDeviceSession,
@@ -580,6 +610,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       readOnlyWallet,
       refreshBalance,
       requireSession,
+      markSessionNeedsRenewal,
       session,
       sessionStatus,
     ],

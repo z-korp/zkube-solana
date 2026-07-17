@@ -61,6 +61,10 @@ import {
   type DailyPressureProfileView,
   type DailyScoringRuleView,
 } from "./dailyRules.js";
+import {
+  assertDeviceSignerCanPay,
+  DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
+} from "./deviceSessionFunding.js";
 
 export type RunLayer = "solana-base" | "magicblock-er";
 
@@ -71,6 +75,9 @@ export interface TransactionPlan {
   transaction: Transaction;
   feePayer: PublicKey;
   signers: Signer[];
+  /** When set, preflight the exact base fee while retaining this much
+   * spendable balance above the zero-data System-account rent floor. */
+  postFeeRentReserveLamports?: number;
 }
 
 export interface PreparedRunPlan {
@@ -380,7 +387,9 @@ export async function buildDelegateRunPlan(args: {
     .instruction();
   return plan("solana-base", "Delegate active run", connection, payer, [
     instruction,
-  ]);
+  ], [], {
+    postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
+  });
 }
 
 /**
@@ -426,6 +435,10 @@ export async function combinePreparedAndDelegatePlan(args: {
         ...delegate.transaction.instructions,
       ],
       [...args.prepared.transactionPlan.signers, ...delegate.signers],
+      {
+        postFeeRentReserveLamports:
+          DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
+      },
     ),
   };
 }
@@ -878,6 +891,30 @@ export async function compileWalletTransactionPlan(args: {
     recentBlockhash: blockhash,
     instructions: transactionPlan.transaction.instructions,
   }).compileToV0Message();
+  if (transactionPlan.postFeeRentReserveLamports !== undefined) {
+    const [fee, balanceLamports, rentFloorLamports] = await Promise.all([
+      transactionPlan.connection.getFeeForMessage(message, "confirmed"),
+      transactionPlan.connection.getBalance(
+        transactionPlan.feePayer,
+        "confirmed",
+      ),
+      transactionPlan.connection.getMinimumBalanceForRentExemption(
+        0,
+        "confirmed",
+      ),
+    ]);
+    if (fee.value === null) {
+      throw new Error(
+        `Unable to estimate the transaction fee for ${transactionPlan.label}`,
+      );
+    }
+    assertDeviceSignerCanPay({
+      balanceLamports,
+      rentFloorLamports,
+      transactionFeeLamports: fee.value,
+      postFeeReserveLamports: transactionPlan.postFeeRentReserveLamports,
+    });
+  }
   let transaction = new VersionedTransaction(message);
   if (transactionPlan.signers.length > 0)
     transaction.sign(transactionPlan.signers);
@@ -953,6 +990,7 @@ function plan(
   feePayer: PublicKey,
   instructions: TransactionInstruction[],
   signers: Signer[] = [],
+  options: Pick<TransactionPlan, "postFeeRentReserveLamports"> = {},
 ): TransactionPlan {
   return {
     layer,
@@ -961,6 +999,7 @@ function plan(
     transaction: new Transaction().add(...instructions),
     feePayer,
     signers,
+    ...options,
   };
 }
 

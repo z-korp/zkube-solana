@@ -115,9 +115,27 @@ describe("describeRunStartError", () => {
       'Simulation failed for Prepare campaign run: {"InstructionError":[4,{"Custom":1}]}';
     const described = describeRunStartError(raw);
     expect(described.headline).toBe(
-      "Your zKube play balance is low — renew the device session to refill it.",
+      "This device's zKube fee allowance is low — renew zKube to keep playing.",
     );
     expect(described.detail).toBe(raw);
+  });
+
+  it("maps InsufficientFundsForRent to the same renewal guidance", async () => {
+    const { describeRunStartError } = await import("./usePlayController");
+    const described = describeRunStartError(
+      'Simulation failed for Prepare and delegate active run: {"InsufficientFundsForRent":{"account_index":0}}',
+    );
+    expect(described.kind).toBe("deviceSessionRenewal");
+    expect(described.headline).toContain("renew zKube");
+  });
+
+  it("maps an authoritative active-run conflict to resume guidance", async () => {
+    const { describeRunStartError } = await import("./usePlayController");
+    const described = describeRunStartError(
+      "Run 15 is already active. Resume or abandon it before starting another.",
+    );
+    expect(described.kind).toBe("activeRunExists");
+    expect(described.headline).toContain("Resume or abandon");
   });
 
   it("passes ordinary errors through unchanged", async () => {

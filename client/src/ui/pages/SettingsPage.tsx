@@ -201,8 +201,8 @@ const SettingsPage: React.FC = () => {
                   <WalletButton disabled={walletBusy || player.balanceLoading} onClick={() => void runWalletAction(player.refreshBalance, "Balances refreshed.")}>
                     {player.balanceLoading ? "Refreshing…" : "Refresh balances"}
                   </WalletButton>
-                  <WalletButton disabled={walletBusy} onClick={() => void runWalletAction(player.sessionStatus === "ready" ? player.renew : player.enable, "zKube device session enabled.")}>
-                    {player.sessionStatus === "ready" ? "Renew session" : "Enable zKube"}
+                  <WalletButton disabled={walletBusy} onClick={() => void runWalletAction(player.sessionStatus === "missing" ? player.enable : player.renew, "zKube device session enabled.")}>
+                    {player.sessionStatus === "missing" || player.sessionStatus === "checking" ? "Enable zKube" : "Renew session"}
                   </WalletButton>
                   <a href="https://faucet.solana.com/" target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-500/10 px-3 py-2.5 font-sans text-xs font-bold text-cyan-100 transition-colors hover:bg-cyan-500/20 sm:col-span-2">
                     Devnet funding guidance <ExternalLink size={13} />
@@ -268,6 +268,7 @@ function sessionLabel(status: string, validUntil?: number): string {
   }
   if (status === "checking") return "Checking";
   if (status === "expired") return "Expired";
+  if (status === "needsRenewal") return "Renew required";
   return "Not enabled";
 }
 

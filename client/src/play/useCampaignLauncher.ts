@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { useRun } from "@/contexts/run";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { showToast } from "@/utils/toast";
-import { describeRunStartError } from "@/play/usePlayController";
+import { describeRunStartError } from "@/chain/runStartError";
 
 /**
  * In-place campaign run launch, mirroring the Daily flow: the run is created
@@ -32,7 +32,7 @@ export function useCampaignLauncher(): {
   const startLevel = useCallback(
     async (mapId: number, level: number) => {
       if (startingRef.current || runBusy) return;
-      if (runPhase === "resolving" || watchPhase === "resolving") {
+      if (runPhase === "resolving" || watchPhase !== "subscribed") {
         showToast({
           message: "Still checking an existing run — try again in a moment.",
           type: "error",

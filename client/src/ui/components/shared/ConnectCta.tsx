@@ -80,7 +80,8 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
             ? "APPROVING..."
             : pendingLabel
           : connected
-            ? player.sessionStatus === "expired"
+            ? player.sessionStatus === "expired" ||
+              player.sessionStatus === "needsRenewal"
               ? "RENEW ZKUBE"
               : "ENABLE ZKUBE"
             : label}

@@ -23,7 +23,7 @@ vi.mock("@/utils/toast", () => ({
 const idleRun = (overrides: Record<string, unknown> = {}) => ({
   phase: "none",
   busy: false,
-  watchStatus: null,
+  watchStatus: { phase: "subscribed" },
   startCampaignRun: vi.fn().mockResolvedValue({ runId: 9n }),
   ...overrides,
 });
@@ -100,6 +100,20 @@ describe("useCampaignLauncher", () => {
       expect.objectContaining({
         message: expect.stringContaining("try again"),
       }),
+    );
+  });
+
+  it("does not launch before the initial durable-run check", async () => {
+    fixtures.run = idleRun({ watchStatus: null });
+    const { result } = renderHook(() => useCampaignLauncher());
+
+    await act(async () => {
+      await result.current.startLevel(1, 3);
+    });
+
+    expect(fixtures.run.startCampaignRun).not.toHaveBeenCalled();
+    expect(fixtures.showToast).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("checking") }),
     );
   });
 

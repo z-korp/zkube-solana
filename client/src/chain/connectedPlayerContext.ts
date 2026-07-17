@@ -13,7 +13,8 @@ export type PlayerSessionStatus =
   | "missing"
   | "checking"
   | "ready"
-  | "expired";
+  | "expired"
+  | "needsRenewal";
 
 export interface ConnectedPlayerValue {
   connectors: WalletConnector[];
@@ -34,6 +35,7 @@ export interface ConnectedPlayerValue {
   disconnect(): Promise<void>;
   refreshBalance(): Promise<void>;
   requireSession(): DeviceSession;
+  markSessionNeedsRenewal(): void;
 }
 
 export const ConnectedPlayerContext =

@@ -32,7 +32,12 @@ const fixtures = vi.hoisted(() => ({
       supportsV0Signing: boolean;
     } | null,
     publicKey: null as PublicKey | null,
-    sessionStatus: "missing" as "missing" | "checking" | "ready" | "expired",
+    sessionStatus: "missing" as
+      | "missing"
+      | "checking"
+      | "ready"
+      | "expired"
+      | "needsRenewal",
     connectAndEnable: vi.fn(),
   },
 }));
@@ -130,6 +135,14 @@ describe("ConnectCta", () => {
 
     render(<ConnectCta />);
 
+    expect(screen.getByRole("button", { name: /renew zkube/i })).toBeEnabled();
+  });
+
+  it("asks for renewal when this origin's signer allowance is low", () => {
+    fixtures.player.connectionStatus = "connected";
+    fixtures.player.publicKey = PublicKey.default;
+    fixtures.player.sessionStatus = "needsRenewal";
+    render(<ConnectCta />);
     expect(screen.getByRole("button", { name: /renew zkube/i })).toBeEnabled();
   });
 

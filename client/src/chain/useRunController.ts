@@ -55,6 +55,11 @@ import {
   emitChainMetric,
   type ChainMetricLayer,
 } from "./telemetry";
+import {
+  isActiveRunConflict,
+  runDiscoveryPendingError,
+} from "./runStartError";
+import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
 
 const plog = (
   traceId: string,
@@ -481,9 +486,30 @@ export function useRunController() {
 
   const startCampaignRun = useCallback(
     async (mapId: number, level: number) => {
+      if (state.watchStatus?.phase !== "subscribed") {
+        throw runDiscoveryPendingError();
+      }
+      if (state.phase !== "none" && state.phase !== "missing") {
+        throw new Error(
+          "Finish the active run before starting another Campaign run.",
+        );
+      }
       try {
         return await withBusy(setState, () => launchCampaignRun(mapId, level));
       } catch (error) {
+        if (isDeviceSessionRenewalError(error)) {
+          player.markSessionNeedsRenewal();
+        }
+        if (isActiveRunConflict(error)) {
+          if (state.phase === "missing" && publicKey) {
+            clearRunSession(publicKey);
+          }
+          setState((value) => ({
+            ...value,
+            watchStatus: { phase: "resolving", attempt: 0 },
+          }));
+          setEpoch((value) => value + 1);
+        }
         plogFailure(
           telemetryTrace.current,
           "launch:error",
@@ -498,11 +524,25 @@ export function useRunController() {
         throw error;
       }
     },
-    [launchCampaignRun],
+    [
+      launchCampaignRun,
+      player,
+      publicKey,
+      state.phase,
+      state.watchStatus?.phase,
+    ],
   );
 
   const startDailyRun = useCallback(
     async (daily: DailyView) => {
+      if (state.watchStatus?.phase !== "subscribed") {
+        throw runDiscoveryPendingError();
+      }
+      if (state.phase !== "none" && state.phase !== "missing") {
+        throw new Error(
+          "Finish the active run before starting another Daily run.",
+        );
+      }
       return withBusy(setState, async () => {
         if (!wallet || !publicKey) {
           throw new Error("Connect a wallet before starting a run");
@@ -608,6 +648,19 @@ export function useRunController() {
         }));
         return activeRun;
       }).catch((error: unknown) => {
+        if (isDeviceSessionRenewalError(error)) {
+          player.markSessionNeedsRenewal();
+        }
+        if (isActiveRunConflict(error)) {
+          if (state.phase === "missing" && publicKey) {
+            clearRunSession(publicKey);
+          }
+          setState((value) => ({
+            ...value,
+            watchStatus: { phase: "resolving", attempt: 0 },
+          }));
+          setEpoch((value) => value + 1);
+        }
         plogFailure(
           telemetryTrace.current,
           "launch:error",
@@ -621,7 +674,15 @@ export function useRunController() {
         throw error;
       });
     },
-    [connection, ensureActiveRunObserver, player, publicKey, wallet],
+    [
+      connection,
+      ensureActiveRunObserver,
+      player,
+      publicKey,
+      state.phase,
+      state.watchStatus?.phase,
+      wallet,
+    ],
   );
 
   const setStage = useCallback(
@@ -992,6 +1053,9 @@ export function useRunController() {
                   addresses: run.marker.addresses,
                   erConnection: run.connection,
                 });
+          // The terminal/abandoned snapshot above is authoritative. Stop
+          // decoding before commit-and-undelegate changes base/ER ownership.
+          await closeActiveRunObserver();
           const commitSubmission = await submitErTransactionPlan({
             transactionPlan: commit,
             wallet: sessionWallet,
@@ -1006,7 +1070,6 @@ export function useRunController() {
             },
           );
           const signature = commitSubmission.signature;
-          await closeActiveRunObserver();
           setStage("settling");
           // Wait for the commit-and-undelegate to copy back to Solana base.
           // Subscribe to the base ActiveRun account and re-check delegation on
