@@ -4,7 +4,6 @@ import {
   canonicalCampaignMap,
 } from "@/chain/campaignCatalog";
 import { mapLevelRuleSnapshot } from "@/chain/runPlan";
-import type { PageId } from "@/stores/navigationStore";
 
 const INITIAL_MAP_1 = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
 
@@ -49,8 +48,4 @@ export function resolveCampaignMap(
   if (current) return current;
   if (!loading && maps === null && mapId === 1) return UNINITIALIZED_MAP_1;
   return undefined;
-}
-
-export function levelIntentDestination(level: number): PageId {
-  return level === 10 ? "boss" : "play";
 }

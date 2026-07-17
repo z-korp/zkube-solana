@@ -8,14 +8,13 @@ type TabId =
   | "shop"
   | "profile"
   | "settings";
-type OverlayId = "play" | "boss" | "map" | "spectate";
+type OverlayId = "play" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 type ShopOrigin = "ranks" | "home";
 type SettingsFocus = "wallet";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
-  "boss",
   "map",
   "spectate",
 ]);
@@ -70,8 +69,6 @@ const getBackTarget = (page: PageId): PageId => {
       return "map";
     case "spectate":
       return "ranks";
-    case "boss":
-      return "map";
     case "map":
       return "home";
     case "settings":

@@ -29,7 +29,6 @@ import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
 import LevelPreview from "@/ui/components/map/LevelPreview";
 import ZoneBackground from "@/ui/components/map/ZoneBackground";
 import {
-  levelIntentDestination,
   resolveCampaignMap,
   unavailableMap,
 } from "@/ui/components/map/mapLogic";
@@ -103,7 +102,7 @@ const MapPage: React.FC = () => {
   const greetedZones = useNavigationStore((state) => state.greetedZones);
   const markZoneGreeted = useNavigationStore((state) => state.markZoneGreeted);
   const { setThemeTemplate } = useTheme();
-  const { setMusicMood } = useMusicPlayer();
+  const { setMusicMood, warmMusic } = useMusicPlayer();
 
   const map = resolveCampaignMap(
     campaign.campaign?.maps ?? null,
@@ -147,6 +146,12 @@ const MapPage: React.FC = () => {
     setMusicMood("menu");
   }, [setMusicMood]);
 
+  // Preview a boss node → warm its track so the fight's music starts instantly
+  // once the run launches in place (no separate reveal screen loads it first).
+  useEffect(() => {
+    if (selectedNode?.type === "boss") warmMusic(["boss"]);
+  }, [selectedNode?.type, warmMusic]);
+
   const themeId = getThemeId(map?.themeId ?? mapZoneId);
   useEffect(() => {
     setThemeTemplate(themeId);
@@ -173,14 +178,10 @@ const MapPage: React.FC = () => {
     }
 
     setMapZoneId(mapZoneId);
-    if (levelIntentDestination(level) === "boss") {
-      // Level 10 gets its constraint reveal first; the launch happens there.
-      setSelectedNode(null);
-      navigate("boss");
-      return;
-    }
-    // Launch in place: the preview stays open (constraints visible, Play
-    // button shows "Preparing…") and navigation happens once the run is live.
+    // Launch in place — boss levels included. The preview card already shows
+    // the full guardian trial (constraints, star tiers), so there is no
+    // separate reveal step; the Play button shows "Preparing…" and navigation
+    // happens once the run is live.
     void startLevel(mapZoneId, level);
   };
 

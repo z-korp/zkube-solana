@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
-import BossRevealPage from "@/ui/pages/BossRevealPage";
 import HomePage from "@/ui/pages/HomePage";
 import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
@@ -53,7 +52,6 @@ const pageComponents: Record<PageId, ReactNode> = {
   shop: <ShopPage />,
   settings: <SettingsPage />,
   play: <PlayScreen />,
-  boss: <BossRevealPage />,
   map: <MapPage />,
   spectate: <SpectatorScreen />,
 };

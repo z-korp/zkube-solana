@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import type { CampaignMapView } from "@/chain/campaignClient";
 import {
-  levelIntentDestination,
   resolveCampaignMap,
   UNINITIALIZED_MAP_1,
 } from "@/ui/components/map/mapLogic";
@@ -27,12 +26,5 @@ describe("MapPage campaign routing", () => {
     expect(resolveCampaignMap(null, 1, true)).toBeUndefined();
     expect(resolveCampaignMap(null, 1, false)).toBe(UNINITIALIZED_MAP_1);
     expect(resolveCampaignMap(null, 2, false)).toBeUndefined();
-  });
-
-  it("routes normal levels directly to play and guardians through reveal", () => {
-    for (let level = 1; level < 10; level += 1) {
-      expect(levelIntentDestination(level)).toBe("play");
-    }
-    expect(levelIntentDestination(10)).toBe("boss");
   });
 });
