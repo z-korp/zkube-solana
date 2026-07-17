@@ -107,19 +107,15 @@ vi.mock("@/hooks/usePlayerEntry", () => ({
   usePlayerEntry: () => ({ entry: null }),
 }));
 
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (
-    selector: (state: typeof fixtures.navigation) => unknown,
-  ) => selector(fixtures.navigation),
-}));
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(
+    fixtures.navigation,
+  ),
+);
 
-vi.mock("@/ui/elements/theme-provider/hooks", async () => {
-  const { getThemeColors } = await import("@/config/themes");
-  return {
-    useTheme: () => ({ themeTemplate: "theme-1" }),
-    useThemeColors: () => getThemeColors("theme-1"),
-  };
-});
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

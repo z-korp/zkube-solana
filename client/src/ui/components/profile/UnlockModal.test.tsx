@@ -35,11 +35,9 @@ vi.mock("@/contexts/campaign", () => ({
 
 const navigation = vi.hoisted(() => ({ openShop: vi.fn() }));
 
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (
-    selector: (state: typeof navigation) => unknown,
-  ) => selector(navigation),
-}));
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(navigation),
+);
 
 beforeAll(() => {
   // vitest.config.ts does not load Vite's React JSX transform.

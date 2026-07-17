@@ -17,9 +17,9 @@ const fixture = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/contexts/run", () => ({
-  useRun: () => fixture.run,
-}));
+vi.mock("@/contexts/run", async () =>
+  (await import("@/test/mocks/contexts")).runContextMock(fixture.run),
+);
 
 describe("authoritative active-attempt projection", () => {
   beforeEach(() => {

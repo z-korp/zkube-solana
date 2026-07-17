@@ -42,17 +42,13 @@ const fixtures = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/chain/connectedPlayerContext", () => ({
-  useConnectedPlayer: () => fixtures.player,
-}));
+vi.mock("@/chain/connectedPlayerContext", async () =>
+  (await import("@/test/mocks/contexts")).connectedPlayerMock(fixtures.player),
+);
 
-vi.mock("@/ui/elements/theme-provider/hooks", async () => {
-  const { getThemeColors } = await import("@/config/themes");
-  return {
-    useTheme: () => ({ themeTemplate: "theme-1" }),
-    useThemeColors: () => getThemeColors("theme-1"),
-  };
-});
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

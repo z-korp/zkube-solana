@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { deriveRunAddresses } from "./pdas";
 import { resolveSpectatedRun } from "./spectateRun";
 import { ZKUBE_PROGRAM_ID } from "./constants";
+import { makeFakeConnection } from "@/test/mocks/connection";
 
 const activeRunStub = (owner: Keypair, runId: bigint) => ({
   owner: owner.publicKey,
@@ -22,9 +23,9 @@ describe("spectated run resolution", () => {
   it("routes to the ER when the run is delegated, never the base copy", async () => {
     const owner = Keypair.generate();
     const addresses = deriveRunAddresses(owner.publicKey, 4n);
-    const erConnection = {
+    const erConnection = makeFakeConnection({
       getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
-    } as unknown as Connection;
+    });
     const fetchRun = vi
       .fn()
       .mockResolvedValue(activeRunStub(owner, 4n));
@@ -96,11 +97,11 @@ describe("spectated run resolution", () => {
 
   it("rejects a delegated account not owned by zKube", async () => {
     const owner = Keypair.generate();
-    const erConnection = {
+    const erConnection = makeFakeConnection({
       getAccountInfo: vi
         .fn()
         .mockResolvedValue({ owner: Keypair.generate().publicKey }),
-    } as unknown as Connection;
+    });
     await expect(
       resolveSpectatedRun({
         baseConnection: {} as Connection,

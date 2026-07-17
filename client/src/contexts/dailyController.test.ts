@@ -18,9 +18,9 @@ const fixtures = vi.hoisted(() => ({
   wallet: { publicKey: { toBase58: () => "connected-wallet" } },
 }));
 
-vi.mock("@/contexts/run", () => ({
-  useRun: fixtures.useRun,
-}));
+vi.mock("@/contexts/run", async () =>
+  (await import("@/test/mocks/contexts")).runContextMock(fixtures.useRun),
+);
 
 vi.mock("@/chain/connectionContext", () => ({
   useSolanaConnection: () => ({ connection: fixtures.connection }),
@@ -31,12 +31,12 @@ vi.mock("@/chain/dailyClient", () => ({
   fetchDailyView: fixtures.fetchDailyView,
 }));
 
-vi.mock("@/chain/connectedPlayerContext", () => ({
-  useConnectedPlayer: () => ({
+vi.mock("@/chain/connectedPlayerContext", async () =>
+  (await import("@/test/mocks/contexts")).connectedPlayerMock(() => ({
     readOnlyWallet: fixtures.wallet,
     sessionStatus: "missing",
-  }),
-}));
+  })),
+);
 
 vi.mock("@/chain/runPlan", () => ({
   submitVersionedTransactionPlan: vi.fn(),

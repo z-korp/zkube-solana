@@ -33,6 +33,8 @@ import {
 import { SessionWallet } from "./sessionWallet";
 import { buildStarPurchasePlan, type StarShopView } from "./shopClient";
 import { splitStarPurchase } from "../utils/currency";
+import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
+import { makeFakeConnection } from "@/test/mocks/connection";
 
 describe("native SOL transaction boundaries", () => {
   it("keeps Star spending owner-signed and encodes the exact quoted lamports", async () => {
@@ -211,13 +213,12 @@ describe("native SOL transaction boundaries", () => {
   it("preserves a real device signature through v0 serialization", async () => {
     const signer = Keypair.generate();
     const wallet = new SessionWallet(signer);
-    const connection = {
+    const connection = makeFakeConnection({
       getLatestBlockhash: vi.fn().mockResolvedValue({
         blockhash: Keypair.generate().publicKey.toBase58(),
         lastValidBlockHeight: 1,
       }),
-      simulateTransaction: vi.fn().mockResolvedValue({ value: { err: null } }),
-    } as unknown as Connection;
+    });
     const transactionPlan: TransactionPlan = {
       layer: "solana-base",
       label: "signed fixture",
@@ -314,6 +315,45 @@ describe("native SOL transaction boundaries", () => {
     expect(message.compiledInstructions).toHaveLength(2);
     expect(message.header.numRequiredSignatures).toBe(1);
     expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
+  });
+});
+
+describe("run transaction funding preflight", () => {
+  it("rejects a low device signer before simulation", async () => {
+    const signer = Keypair.generate();
+    const simulation = vi.fn();
+    const connection = makeFakeConnection({
+      getLatestBlockhash: vi.fn().mockResolvedValue({
+        blockhash: Keypair.generate().publicKey.toBase58(),
+      }),
+      getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
+      getBalance: vi.fn().mockResolvedValue(900_879),
+      getMinimumBalanceForRentExemption: vi.fn().mockResolvedValue(890_880),
+      simulateTransaction: simulation,
+    });
+    const transactionPlan: TransactionPlan = {
+      layer: "solana-base",
+      label: "Prepare and delegate active run",
+      connection,
+      transaction: new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: signer.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 0,
+        }),
+      ),
+      feePayer: signer.publicKey,
+      signers: [],
+      postFeeRentReserveLamports: 5_000,
+    };
+
+    await expect(
+      compileWalletTransactionPlan({
+        transactionPlan,
+        wallet: new SessionWallet(signer),
+      }),
+    ).rejects.toThrow(DEVICE_SESSION_RENEWAL_ERROR_CODE);
+    expect(simulation).not.toHaveBeenCalled();
   });
 });
 

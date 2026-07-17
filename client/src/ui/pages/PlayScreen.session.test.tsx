@@ -122,30 +122,24 @@ vi.mock("@/play/usePlayController", () => ({
 }));
 
 vi.mock("@/hooks/useGrid", () => ({ useGrid: () => [] }));
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (
-    selector: (state: {
-      navigate: typeof fixtures.navigate;
-      recoveryRunId: bigint | null;
-    }) => unknown,
-  ) =>
-    selector({
-      navigate: fixtures.navigate,
-      recoveryRunId: fixtures.recoveryRunId,
-    }),
-}));
-vi.mock("@/contexts/hooks", () => ({
-  useMusicPlayer: () => ({
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(() => ({
+    navigate: fixtures.navigate,
+    recoveryRunId: fixtures.recoveryRunId,
+  })),
+);
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock({
     setMusicMood: fixtures.setMusicMood,
     playSfx: fixtures.playSfx,
   }),
-}));
-vi.mock("@/ui/elements/theme-provider/hooks", () => ({
-  useTheme: () => ({
-    themeTemplate: "theme-1",
-    setThemeTemplate: fixtures.setThemeTemplate,
-  }),
-}));
+);
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(
+    "theme-1",
+    fixtures.setThemeTemplate,
+  ),
+);
 vi.mock("@/ui/theme/ImageAssets", () => ({
   default: () => ({ background: "/background.png" }),
 }));

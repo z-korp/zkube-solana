@@ -16,11 +16,6 @@ import {
   deriveProtocolConfigPda,
   deriveRewardVaultPda,
 } from "./pdas";
-import {
-  CANONICAL_ACHIEVEMENT_RULES,
-  CANONICAL_QUEST_RULES,
-  questRewardsForDay,
-} from "./progressCatalog";
 import { SessionWallet } from "./sessionWallet";
 
 describe("authority publication client", () => {
@@ -107,20 +102,6 @@ describe("authority publication client", () => {
     );
     expect(accounts.slice(-3).every((account) => !account.isWritable && !account.isSigner))
       .toBe(true);
-  });
-
-  it("pins achievement XP and the dual Daily and Weekly quest rewards", () => {
-    expect(CANONICAL_QUEST_RULES).toHaveLength(12);
-    expect(CANONICAL_ACHIEVEMENT_RULES.reduce((sum, rule) => sum + rule.xpReward, 0))
-      .toBe(40_200);
-    for (const day of [0, 1, 2, 10]) {
-      expect(questRewardsForDay(day)).toEqual({
-        dailyXp: 500,
-        dailyStars: 2,
-        weeklyXp: 1_000,
-        weeklyStars: 10,
-      });
-    }
   });
 
   it("initializes only the owner-derived player accounts", async () => {

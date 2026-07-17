@@ -22,16 +22,13 @@ vi.mock("../elements/animatedText", () => ({
   default: () => null,
 }));
 
-vi.mock("@/contexts/hooks", () => ({
-  useMusicPlayer: () => ({
-    playExplode: vi.fn(),
-    playSwipe: vi.fn(),
-  }),
-}));
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock(),
+);
 
-vi.mock("@/ui/elements/theme-provider/hooks", () => ({
-  useTheme: () => ({ themeTemplate: "theme-1" }),
-}));
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 vi.mock("@/config/themes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/config/themes")>();

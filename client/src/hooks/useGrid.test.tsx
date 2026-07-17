@@ -8,9 +8,11 @@ const fixtures = vi.hoisted(() => ({
   activeRun: null as ActiveRunView | null,
 }));
 
-vi.mock("@/contexts/run", () => ({
-  useRun: () => ({ activeRun: fixtures.activeRun }),
-}));
+vi.mock("@/contexts/run", async () =>
+  (await import("@/test/mocks/contexts")).runContextMock(() => ({
+    activeRun: fixtures.activeRun,
+  })),
+);
 
 const projectedRun = (
   runId: bigint,

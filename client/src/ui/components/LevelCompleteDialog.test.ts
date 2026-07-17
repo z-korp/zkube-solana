@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { calculateLevelStars } from "@/game/level";
 import LevelCompleteDialog from "./LevelCompleteDialog";
 
-vi.mock("@/contexts/hooks", () => ({
-  useMusicPlayer: () => ({ playSfx: vi.fn() }),
-}));
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock(),
+);
 
 // Vitest does not load Vite's React JSX plugin; nested legacy components use
 // the classic JSX runtime while the production build uses the automatic one.

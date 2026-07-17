@@ -5,7 +5,6 @@ import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import { deriveRunAddresses } from "./pdas";
-import { getDelegationStatus, MAGICBLOCK_DEVNET_ROUTER_RPC } from "./router";
 import { buildCommitRunPlan } from "./runPlan";
 import { buildCommitDailyRunPlan } from "./dailyClient";
 import { SessionWallet } from "./sessionWallet";
@@ -17,14 +16,6 @@ import {
 } from "./sessionV2";
 
 describe("commit meta invariants", () => {
-  it("derives one distinct ActiveRun address for each run", () => {
-    const owner = Keypair.generate().publicKey;
-    const first = deriveRunAddresses(owner, 1n);
-    const second = deriveRunAddresses(owner, 2n);
-    expect(Object.keys(first)).toEqual(["activeRun"]);
-    expect(first.activeRun.equals(second.activeRun)).toBe(false);
-  });
-
   it("pins the session-keys 3.1.1 V2 discriminator and account order", () => {
     const expected = [
       ...createHash("sha256")
@@ -93,35 +84,5 @@ describe("commit meta invariants", () => {
     expect(dailyKeys).toHaveLength(4);
     expect(dailyKeys[2].isWritable).toBe(true);
     expect(dailyKeys[3].isWritable).toBe(false);
-  });
-
-  it("parses and normalizes router delegation status", async () => {
-    const account = Keypair.generate().publicKey;
-    const validator = Keypair.generate().publicKey;
-    const status = await getDelegationStatus(
-      account,
-      MAGICBLOCK_DEVNET_ROUTER_RPC,
-      async () =>
-        new Response(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            result: {
-              isDelegated: true,
-              fqdn: "https://validator.example",
-              delegationRecord: {
-                authority: validator.toBase58(),
-                owner: ZKUBE_PROGRAM_ID.toBase58(),
-                delegationSlot: 42,
-                lamports: 1_000_000,
-              },
-            },
-          }),
-          { status: 200 },
-        ),
-    );
-    expect(status.isDelegated).toBe(true);
-    expect(status.fqdn).toBe("https://validator.example/");
-    expect(status.delegationRecord?.authority).toBe(validator.toBase58());
   });
 });

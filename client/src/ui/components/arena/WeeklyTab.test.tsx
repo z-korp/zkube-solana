@@ -54,9 +54,11 @@ vi.mock("@/contexts/weekly", () => ({
   useWeekly: () => fixtures.weekly,
 }));
 
-vi.mock("@/chain/connectedPlayerContext", () => ({
-  useConnectedPlayer: () => ({ publicKey: fixtures.owner }),
-}));
+vi.mock("@/chain/connectedPlayerContext", async () =>
+  (await import("@/test/mocks/contexts")).connectedPlayerMock(() => ({
+    publicKey: fixtures.owner,
+  })),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

@@ -15,17 +15,15 @@ vi.mock("@/contexts/progress", () => ({
   useProgress: () => ({ progress: null }),
 }));
 
-vi.mock("@/chain/connectedPlayerContext", () => ({
-  useConnectedPlayer: () => ({ publicKey: fixtures.publicKey }),
-}));
+vi.mock("@/chain/connectedPlayerContext", async () =>
+  (await import("@/test/mocks/contexts")).connectedPlayerMock(() => ({
+    publicKey: fixtures.publicKey,
+  })),
+);
 
-vi.mock("@/ui/elements/theme-provider/hooks", async () => {
-  const { getThemeColors } = await import("@/config/themes");
-  return {
-    useTheme: () => ({ themeTemplate: "theme-1" }),
-    useThemeColors: () => getThemeColors("theme-1"),
-  };
-});
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

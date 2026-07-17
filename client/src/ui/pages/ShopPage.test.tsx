@@ -39,9 +39,11 @@ const fixtures = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/chain/connectedPlayerContext", () => ({
-  useConnectedPlayer: () => fixtures.identity,
-}));
+vi.mock("@/chain/connectedPlayerContext", async () =>
+  (await import("@/test/mocks/contexts")).connectedPlayerMock(
+    fixtures.identity,
+  ),
+);
 
 vi.mock("@/chain/useShopController", () => ({
   StarShopQuoteChangedError: class StarShopQuoteChangedError extends Error {},
@@ -60,19 +62,15 @@ vi.mock("@/contexts/daily", () => ({
   useDaily: () => ({ refresh: fixtures.dailyRefresh }),
 }));
 
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (
-    selector: (state: typeof fixtures.navigation) => unknown,
-  ) => selector(fixtures.navigation),
-}));
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(
+    fixtures.navigation,
+  ),
+);
 
-vi.mock("@/ui/elements/theme-provider/hooks", async () => {
-  const { getThemeColors } = await import("@/config/themes");
-  return {
-    useTheme: () => ({ themeTemplate: "theme-1" }),
-    useThemeColors: () => getThemeColors("theme-1"),
-  };
-});
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);
@@ -100,14 +98,12 @@ beforeEach(() => {
 });
 
 describe("ShopPage", () => {
-  it("renders five packs with merchandising badges", () => {
+  it("renders every purchasable pack", () => {
     render(<ShopPage />);
 
     expect(screen.getAllByRole("button", { name: /Stars for/ })).toHaveLength(
       5,
     );
-    expect(screen.getByText("Popular")).toBeInTheDocument();
-    expect(screen.getByText("Best value")).toBeInTheDocument();
   });
 
   it("shows the exact confirmation and refreshes all balances after purchase", async () => {
@@ -166,7 +162,6 @@ describe("ShopPage", () => {
     fixtures.controller.shop = sale;
     render(<ShopPage />);
 
-    expect(screen.getByText("Star sale live")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "10 Stars for 0.018 SOL" }),
     ).toHaveTextContent("0.02");

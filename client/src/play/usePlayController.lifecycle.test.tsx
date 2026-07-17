@@ -1,8 +1,8 @@
 import React, { type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { Keypair } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeActiveRun, makeRunRules } from "@/test/fixtures/activeRun";
 import { usePlayController } from "./usePlayController";
 
 const fixtures = vi.hoisted(() => ({
@@ -17,9 +17,9 @@ const fixtures = vi.hoisted(() => ({
   recoveryRunId: null as bigint | null,
 }));
 
-vi.mock("@/contexts/run", () => ({
-  useRun: () => fixtures.run,
-}));
+vi.mock("@/contexts/run", async () =>
+  (await import("@/test/mocks/contexts")).runContextMock(() => fixtures.run),
+);
 vi.mock("@/contexts/campaign", () => ({
   useCampaign: () => ({
     campaign: { maps: [] },
@@ -33,22 +33,19 @@ vi.mock("@/contexts/progress", () => ({
 vi.mock("@/contexts/daily", () => ({
   useDaily: () => ({ refresh: fixtures.dailyRefresh }),
 }));
-vi.mock("@/contexts/hooks", () => ({
-  useMusicPlayer: () => ({
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock({
     playSfx: fixtures.playSfx,
-    duck: vi.fn(),
-    unduck: vi.fn(),
   }),
-}));
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector({
-      navigate: fixtures.navigate,
-      recoveryRunId: fixtures.recoveryRunId,
-      setRecoveryRunId: fixtures.setRecoveryRunId,
-      setPendingLevelCompletion: fixtures.setPendingLevelCompletion,
-    }),
-}));
+);
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(() => ({
+    navigate: fixtures.navigate,
+    recoveryRunId: fixtures.recoveryRunId,
+    setRecoveryRunId: fixtures.setRecoveryRunId,
+    setPendingLevelCompletion: fixtures.setPendingLevelCompletion,
+  })),
+);
 
 function strictWrapper({ children }: { children: ReactNode }) {
   return <React.StrictMode>{children}</React.StrictMode>;
@@ -58,48 +55,14 @@ function delegatedRun(
   recoverSession: ReturnType<typeof vi.fn>,
   overrides: Record<string, unknown> = {},
 ) {
-  const activeRun = {
-    owner: Keypair.generate().publicKey,
+  const activeRun = makeActiveRun({
     runId: 9n,
-    mode: "campaign",
-    dailyChallenge: Keypair.generate().publicKey,
-    mapId: 1,
-    level: 1,
-    rules: {
-      pointsRequired: 10,
+    rules: makeRunRules({
       maxMoves: 16,
       difficulty: 1,
-      primary: { kind: 0, value: 0, requiredCount: 0 },
-      secondary: { kind: 0, value: 0, requiredCount: 0 },
-      activeMutatorId: 0,
-      passiveMutatorId: 0,
-      bossId: 0,
       starThresholdModifier: 100,
-      bonusType: 0,
-      bonusTriggerType: 0,
-      bonusThreshold: 0,
-      startingCharges: 0,
-    },
-    lifecycle: "playing",
-    score: 0,
-    actionCounter: 0,
-    moves: 0,
-    comboCounter: 0,
-    maxCombo: 0,
-    primaryProgress: 0,
-    secondaryProgress: 0,
-    levelLinesCleared: 0,
-    totalLinesCleared: 0,
-    bonusUses: 0,
-    currentDifficulty: 1,
-    endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
-    endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
-    bonusType: 0,
-    bonusCharges: 0,
-    grid: new Array(80).fill(0),
-    nextRow: new Array(8).fill(0),
-    pendingVrfCounter: 0,
-  };
+    }),
+  });
   return {
     phase: "delegated",
     receipt: null,

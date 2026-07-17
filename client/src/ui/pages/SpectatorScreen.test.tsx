@@ -24,11 +24,11 @@ vi.mock("@/chain/useSpectatedRun", () => ({
   useSpectatedRun: fixtures.useSpectatedRun,
 }));
 
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (
-    selector: (state: typeof fixtures.navigation) => unknown,
-  ) => selector(fixtures.navigation),
-}));
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(
+    fixtures.navigation,
+  ),
+);
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

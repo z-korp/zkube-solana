@@ -9,13 +9,14 @@ const fixtures = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
-vi.mock("@/contexts/run", () => ({
-  useRun: () => fixtures.run,
-}));
-vi.mock("@/stores/navigationStore", () => ({
-  useNavigationStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector({ navigate: fixtures.navigate }),
-}));
+vi.mock("@/contexts/run", async () =>
+  (await import("@/test/mocks/contexts")).runContextMock(() => fixtures.run),
+);
+vi.mock("@/stores/navigationStore", async () =>
+  (await import("@/test/mocks/navigation")).navigationStoreMock(() => ({
+    navigate: fixtures.navigate,
+  })),
+);
 vi.mock("@/utils/toast", () => ({
   showToast: (options: unknown) => fixtures.showToast(options),
 }));

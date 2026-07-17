@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { ACHIEVEMENT_DEFS } from "../config/achievementDefs";
 import { QUEST_DEFS } from "../config/questDefs";
 import { describe, expect, it } from "vitest";
