@@ -20,6 +20,7 @@ pub enum GridError {
     InvalidBlock,
     DestinationOccupied,
     IncoherentRow,
+    CapacityExceeded,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -265,6 +266,13 @@ impl Grid {
 
     pub fn insert_bottom_row(&mut self, row: Row) -> Result<(), GridError> {
         Self::validate_row(&row)?;
+        // Insertion shifts every existing row upward. Once the top row is
+        // occupied there is no eleventh slot, so reject without dropping any
+        // cells. The engine turns an attempted move-time overflow into a
+        // terminal run; other callers receive an atomic capacity error.
+        if self.is_full() {
+            return Err(GridError::CapacityExceeded);
+        }
         for target in (1..GRID_HEIGHT).rev() {
             let source = (target - 1) * GRID_WIDTH;
             self.cells
@@ -436,6 +444,22 @@ mod tests {
         let mut wave = source;
         wave.apply_bonus(Bonus::Wave, 1, 1).unwrap();
         assert_eq!(wave.row(1).unwrap(), &[0; GRID_WIDTH]);
+    }
+
+    #[test]
+    fn insertion_at_capacity_is_rejected_without_dropping_the_top_row() {
+        let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
+        let rows = (0..GRID_HEIGHT)
+            .map(|row| (row, sparse))
+            .collect::<Vec<_>>();
+        let mut grid = grid_with_rows(&rows);
+        let before = grid;
+
+        assert_eq!(
+            grid.insert_bottom_row([0, 1, 0, 0, 0, 0, 0, 0]),
+            Err(GridError::CapacityExceeded)
+        );
+        assert_eq!(grid, before);
     }
 
     #[test]

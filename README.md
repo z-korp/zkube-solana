@@ -302,6 +302,36 @@ is `316bfbcc8ae622235c0b69cd385c78d8c3770f148c04409c0cb876525d32a31f`
 the buffer closed, the padded postimage matched exactly, and net deployer spend
 was 13,150,000 lamports.
 
+The row-capacity correction is validated as a Devnet upgrade candidate but is
+not yet deployed. Occupying the tenth grid row is legal; only a move whose
+settled board still cannot accept its visible preview (the attempted eleventh
+row) finishes the run. That blocked action still consumes one move and keeps
+its checked score, combo, objective, and terminal-time accounting. A bonus on
+a ten-row board does not end the run, and satisfying the level on the same
+action takes precedence over overflow. Bottom-row insertion now rejects at
+capacity atomically instead of discarding row ten. The selected
+`opt-level = "s"` ELF is 1,202,680 bytes with SHA-256
+`31c8aadd0ce8ec4921a16cebc288224ce5e164a9a485bb1dd8993fc4cfaaf6eb`
+and an 8,371,856,880-lamport ProgramData rent estimate. The speed-profile ELF
+is 1,434,920 bytes with SHA-256
+`4c2fc16843445fb0ecf8afb434734df5f3bf621238bae380abd9096e021fe667`
+and a 9,988,247,280-lamport rent estimate. Neither build emits an SBF stack
+warning; the size profile fits the existing 1,210,912-byte capacity without
+extension and passes the complete real SBF suite. The legal tenth-row move,
+including its mocked VRF boundary, uses 54,190 compute units; the blocked
+eleventh-row move uses 37,548 and proves that no VRF request is enqueued. The
+current padded Devnet preimage is
+`2f345f3b1cfef82fdb32c7e8e913783cd33af555c9f8afcddc3fc1baf0d90e0d`;
+the expected padded postimage is
+`5918ca627dc504c5fd965cc0be4b6897a78a3702291d97dd3b112daa1555f6f1`.
+The dry-run upgrade binds the absent buffer
+`81aC6XkuuUrdzWMfRNhZKVZhPapqi4MzWTmveaKh9koN`, its exact
+8,371,801,200-lamport temporary rent, one signing attempt, and a 50,000,000
+lamport maximum net deployer spend. Its approval evidence SHA-256 is
+`c2322fa6004163a12eb16462a7c73d742a41bcc521511aa589a492b051c153de`
+(`c2322fa6004163a1`). These fingerprints are deployment candidates, not
+authorization to sign or write Devnet.
+
 The remaining release work is real-wallet desktop and Seeker acceptance, the
 deferred Campaign balance review, and the signed TWA APK only after browser
 acceptance passes. Only the keeper's fingerprint-bound allowlist may recur

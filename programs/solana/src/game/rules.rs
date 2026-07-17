@@ -167,6 +167,7 @@ struct ActionContext {
     block_cells_before: [u8; 4],
     lines: u8,
     base_point_parts: [u16; 2],
+    row_insertion_blocked: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -290,10 +291,11 @@ impl RunEngine {
         let next_row = self.next_row.take().ok_or(RunError::MissingNextRow)?;
         let before = self.grid;
         let height_before = self.grid.occupied_height();
-        let block_cells_before = std::array::from_fn(|index| {
+        let grid_block_cells_before =
+            std::array::from_fn(|index| self.grid.count_cells_of_size(index as u8 + 1));
+        let block_cells_with_preview = std::array::from_fn(|index| {
             let size = index as u8 + 1;
-            self.grid
-                .count_cells_of_size(size)
+            grid_block_cells_before[index]
                 .saturating_add(next_row.iter().filter(|cell| **cell == size).count() as u8)
         });
 
@@ -307,9 +309,12 @@ impl RunEngine {
             return Ok(self.finish_move(
                 ActionContext {
                     height_before,
-                    block_cells_before,
+                    // The preview was consumed but never entered the grid, so
+                    // it must not become invented destroyed-block credit.
+                    block_cells_before: grid_block_cells_before,
                     lines: first_lines,
                     base_point_parts: [first_points, 0],
+                    row_insertion_blocked: true,
                 },
                 level,
                 mutator,
@@ -324,9 +329,10 @@ impl RunEngine {
         let report = self.finish_move(
             ActionContext {
                 height_before,
-                block_cells_before,
+                block_cells_before: block_cells_with_preview,
                 lines: first_lines.saturating_add(second_lines),
                 base_point_parts: [first_points, second_points],
+                row_insertion_blocked: false,
             },
             level,
             mutator,
@@ -360,6 +366,7 @@ impl RunEngine {
                 block_cells_before,
                 lines,
                 base_point_parts: [base_points, 0],
+                row_insertion_blocked: false,
             },
             level,
             mutator,
@@ -404,6 +411,7 @@ impl RunEngine {
             block_cells_before,
             lines,
             base_point_parts,
+            row_insertion_blocked,
         } = context;
         if needs_next_row {
             self.perfect_trigger_available = true;
@@ -490,10 +498,14 @@ impl RunEngine {
         self.primary_progress = level.primary.update(self.primary_progress, &report);
         self.secondary_progress = level.secondary.update(self.secondary_progress, &report);
 
-        if self.grid.is_full() || self.moves >= level.max_moves && !self.level_satisfied(level) {
-            self.phase = RunPhase::Finished;
-        } else if self.level_satisfied(level) {
+        // Occupying row ten is legal. A run ends only when a move has settled
+        // and still cannot insert its visible preview row (the attempted
+        // eleventh row). Completion takes precedence when that same action
+        // satisfies the level.
+        if self.level_satisfied(level) {
             self.phase = RunPhase::LevelComplete;
+        } else if row_insertion_blocked || self.moves >= level.max_moves {
+            self.phase = RunPhase::Finished;
         } else if needs_next_row {
             self.phase = RunPhase::AwaitingVrf;
         }
@@ -572,6 +584,113 @@ mod tests {
         assert_eq!(run.phase, RunPhase::LevelComplete);
         assert_eq!(run.moves, 1);
         assert!(run.next_row.is_none());
+    }
+
+    #[test]
+    fn tenth_row_is_playable_and_only_the_next_insertion_ends_the_run() {
+        let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
+        let rows = (0..9).map(|row| (row, sparse)).collect::<Vec<_>>();
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: 20,
+            ..LevelRules::default()
+        };
+        let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
+
+        let tenth_row = run
+            .play_move(0, 0, 0, 0, level, MutatorRules::default())
+            .unwrap();
+        assert_eq!(tenth_row.height_after, 10);
+        assert_eq!(run.grid.occupied_height(), 10);
+        assert_eq!(run.phase, RunPhase::AwaitingVrf);
+        assert_eq!(run.moves, 1);
+        assert!(run.next_row.is_none());
+
+        run.provide_vrf_row(sparse).unwrap();
+        let before_overflow = run.grid;
+        let overflow = run
+            .play_move(1, 0, 0, 0, level, MutatorRules::default())
+            .unwrap();
+        assert_eq!(overflow.height_after, 10);
+        assert_eq!(overflow.blocks_destroyed_by_size, [0; 4]);
+        assert_eq!(run.grid, before_overflow);
+        assert_eq!(run.phase, RunPhase::Finished);
+        assert_eq!(run.moves, 2);
+        assert!(run.next_row.is_none());
+    }
+
+    #[test]
+    fn move_that_clears_space_at_capacity_can_insert_its_preview() {
+        let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
+        let mut rows = vec![(0, [1; 8])];
+        rows.extend((1..10).map(|row| (row, sparse)));
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: 20,
+            ..LevelRules::default()
+        };
+        let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
+
+        let report = run
+            .play_move(0, 1, 0, 0, level, MutatorRules::default())
+            .unwrap();
+
+        assert_eq!(report.lines_cleared, 1);
+        assert_eq!(run.grid.occupied_height(), 10);
+        assert_eq!(run.phase, RunPhase::AwaitingVrf);
+        assert_eq!(run.moves, 1);
+    }
+
+    #[test]
+    fn bonus_on_a_ten_row_grid_does_not_end_the_run() {
+        let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
+        let mut rows = vec![(0, [1, 0, 2, 2, 0, 0, 0, 0])];
+        rows.extend((1..10).map(|row| (row, sparse)));
+        let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
+        run.bonus = Some(Bonus::Totem);
+        run.bonus_charges = 1;
+
+        run.apply_bonus(
+            0,
+            2,
+            LevelRules {
+                points_required: u32::MAX,
+                max_moves: 20,
+                ..LevelRules::default()
+            },
+            MutatorRules::default(),
+        )
+        .unwrap();
+
+        assert_eq!(run.grid.occupied_height(), 10);
+        assert_eq!(run.phase, RunPhase::Playing);
+        assert_eq!(run.moves, 0);
+        assert_eq!(run.bonus_charges, 0);
+    }
+
+    #[test]
+    fn level_completion_wins_when_the_same_move_cannot_insert_row_eleven() {
+        let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
+        let rows = (0..10).map(|row| (row, sparse)).collect::<Vec<_>>();
+        let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
+
+        run.play_move(
+            0,
+            0,
+            0,
+            0,
+            LevelRules {
+                points_required: 0,
+                max_moves: 20,
+                ..LevelRules::default()
+            },
+            MutatorRules::default(),
+        )
+        .unwrap();
+
+        assert_eq!(run.phase, RunPhase::LevelComplete);
+        assert_eq!(run.moves, 1);
+        assert_eq!(run.grid.occupied_height(), 10);
     }
 
     #[test]

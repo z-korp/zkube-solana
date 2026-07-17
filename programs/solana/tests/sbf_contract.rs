@@ -1,6 +1,6 @@
 #![cfg(feature = "sbf-tests")]
 
-use std::io::Cursor;
+use std::{fs, io::Cursor, path::PathBuf};
 
 use anchor_lang::prelude::{AccountDeserialize, AccountSerialize, Pubkey};
 use anchor_lang::{InstructionData, Space, ToAccountMetas};
@@ -81,6 +81,135 @@ fn resulting_account<'a>(
         .find(|(address, _)| address == key)
         .expect("resulting account")
         .1
+}
+
+fn noop_sbf_elf() -> Vec<u8> {
+    // Mollusk's exact, directly-pinned loader dependency ships this minimal
+    // return-Ok SBF fixture. Registering it under the VRF program id lets the
+    // real zKube ELF exercise its nonterminal CPI boundary without pretending
+    // to implement the VRF service itself.
+    let cargo_home = std::env::var_os("CARGO_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cargo")))
+        .expect("Cargo home for the pinned SBF fixture");
+    let registry_sources = cargo_home.join("registry/src");
+    for registry in fs::read_dir(&registry_sources).expect("read Cargo registry sources") {
+        let candidate = registry
+            .expect("read Cargo registry source entry")
+            .path()
+            .join("solana-bpf-loader-program-3.0.14/test_elfs/out/noop_aligned.so");
+        if candidate.is_file() {
+            return fs::read(candidate).expect("read pinned no-op SBF fixture");
+        }
+    }
+    panic!("pinned solana-bpf-loader-program no-op SBF fixture is unavailable");
+}
+
+fn process_play_move(
+    active_state: ActiveRun,
+    row: u8,
+    start: u8,
+    destination: u8,
+    unix_timestamp: i64,
+    stub_vrf: bool,
+) -> (Pubkey, mollusk_svm::result::InstructionResult) {
+    let owner = active_state.owner;
+    let (active_run, expected_bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &active_state.run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    assert_eq!(active_state.bump, expected_bump);
+    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
+        .to_bytes()
+        .into();
+    let delegation_record: Pubkey =
+        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
+            &active_run.to_bytes().into(),
+        )
+        .to_bytes()
+        .into();
+    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
+    let validator = Pubkey::new_unique();
+    let mut delegation_data =
+        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
+    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
+    delegation_data[8..40].copy_from_slice(validator.as_ref());
+    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
+    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
+        .to_bytes()
+        .into();
+    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::PlayMove {
+            active_run,
+            owner_authority: owner,
+            session_token: None,
+            actor: owner,
+            oracle_queue,
+            delegation_record_active: delegation_record,
+            program_identity,
+            vrf_program,
+            slot_hashes,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::PlayMove {
+            expected_action: active_state.action_counter,
+            expected_move: active_state.moves,
+            row,
+            start,
+            destination,
+            client_seed: [0; 32],
+        }
+        .data(),
+    };
+    let mut runtime = mollusk();
+    if stub_vrf {
+        runtime.program_cache.add_program(
+            &vrf_program,
+            &mollusk_svm::program::loader_keys::LOADER_V3,
+            &noop_sbf_elf(),
+        );
+    }
+    runtime.sysvars.clock.unix_timestamp = unix_timestamp;
+    let (_, slot_hashes_account) = runtime.sysvars.keyed_account_for_slot_hashes_sysvar();
+    let accounts = vec![
+        (
+            active_run,
+            program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
+        ),
+        (owner, system_account(ACCOUNT_LAMPORTS)),
+        (oracle_queue, system_account(0)),
+        (
+            delegation_record,
+            Account {
+                lamports: 1,
+                data: delegation_data,
+                owner: delegation_owner,
+                executable: false,
+                rent_epoch: 0,
+            },
+        ),
+        (program_identity, system_account(0)),
+        (
+            vrf_program,
+            executable_program_account(Pubkey::from_str_const(
+                "BPFLoaderUpgradeab1e11111111111111111111111",
+            )),
+        ),
+        (slot_hashes, slot_hashes_account),
+        (anchor_lang::system_program::ID, system_program_account()),
+    ];
+    (
+        active_run,
+        runtime.process_instruction(&instruction, &accounts),
+    )
 }
 
 fn protocol_fixture(
@@ -754,7 +883,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
 fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     let owner = Pubkey::new_unique();
     let run_id = 9u64;
-    let (active_run, bump) = Pubkey::find_program_address(
+    let (_, bump) = Pubkey::find_program_address(
         &[
             ACTIVE_RUN_SEED,
             b"active",
@@ -789,77 +918,7 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
         bump,
         ..ActiveRun::default()
     };
-    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
-        .to_bytes()
-        .into();
-    let delegation_record: Pubkey =
-        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
-            &active_run.to_bytes().into(),
-        )
-        .to_bytes()
-        .into();
-    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
-    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
-    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
-        .to_bytes()
-        .into();
-    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::PlayMove {
-            active_run,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-            oracle_queue,
-            delegation_record_active: delegation_record,
-            program_identity,
-            vrf_program,
-            slot_hashes,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::PlayMove {
-            expected_action: 0,
-            expected_move: 0,
-            row: 4,
-            start: 0,
-            destination: 1,
-            client_seed: [0; 32],
-        }
-        .data(),
-    };
-    let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = 123;
-    let (_, slot_hashes_account) = runtime.sysvars.keyed_account_for_slot_hashes_sysvar();
-    let accounts = vec![
-        (
-            active_run,
-            program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-        (oracle_queue, system_account(0)),
-        (
-            delegation_record,
-            Account {
-                lamports: 1,
-                data: Vec::new(),
-                owner: delegation_owner,
-                executable: false,
-                rent_epoch: 0,
-            },
-        ),
-        (program_identity, system_account(0)),
-        (
-            vrf_program,
-            executable_program_account(Pubkey::from_str_const(
-                "BPFLoaderUpgradeab1e11111111111111111111111",
-            )),
-        ),
-        (slot_hashes, slot_hashes_account),
-        (anchor_lang::system_program::ID, system_program_account()),
-    ];
-    let result = runtime.process_instruction(&instruction, &accounts);
+    let (active_run, result) = process_play_move(active_state, 4, 0, 1, 123, false);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     eprintln!(
         "SBF_COMPUTE terminal_play_move={}",
@@ -875,6 +934,122 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     assert_eq!(active.total_lines_cleared, 4);
     assert_eq!(active.combo_counter, 4);
     assert_eq!(active.max_combo, 4);
+}
+
+#[test]
+fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
+    let owner = Pubkey::new_unique();
+    let run_id = 10u64;
+    let (_, bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let mut grid = [0u8; 80];
+    for row in 0..9 {
+        grid[row * 8] = 1;
+    }
+    let active_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        run_id,
+        mode: RunMode::Campaign,
+        lifecycle: RunLifecycle::Playing,
+        map_id: 1,
+        level: 1,
+        rules: LevelRuleSnapshot {
+            points_required: u32::MAX,
+            max_moves: 20,
+            score_multiplier_x100: 100,
+            combo_multiplier_x100: 100,
+            ..LevelRuleSnapshot::default()
+        },
+        grid,
+        next_row: [1, 0, 0, 0, 0, 0, 0, 0],
+        has_next_row: true,
+        perfect_trigger_available: true,
+        bump,
+        ..ActiveRun::default()
+    };
+
+    let (active_run, result) = process_play_move(active_state, 0, 0, 0, 234, true);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    eprintln!(
+        "SBF_COMPUTE tenth_row_play_move={}",
+        result.compute_units_consumed
+    );
+    let active: ActiveRun = decode(resulting_account(&result, &active_run));
+    assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
+    assert_eq!(active.finished_at, 0);
+    assert_eq!(active.action_counter, 1);
+    assert_eq!(active.moves, 1);
+    assert_eq!(active.grid[72], 1, "row ten must remain occupied");
+    assert!(!active.has_next_row);
+    assert_eq!(active.vrf_request_counter, 1);
+    assert_eq!(active.pending_vrf_counter, 1);
+}
+
+#[test]
+fn sbf_blocked_eleventh_row_finishes_timestamps_and_skips_vrf() {
+    let owner = Pubkey::new_unique();
+    let run_id = 11u64;
+    let (_, bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let mut grid = [0u8; 80];
+    for row in 0..10 {
+        grid[row * 8] = 1;
+    }
+    let active_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        run_id,
+        mode: RunMode::Campaign,
+        lifecycle: RunLifecycle::Playing,
+        map_id: 1,
+        level: 1,
+        rules: LevelRuleSnapshot {
+            points_required: u32::MAX,
+            max_moves: 20,
+            score_multiplier_x100: 100,
+            combo_multiplier_x100: 100,
+            ..LevelRuleSnapshot::default()
+        },
+        grid,
+        next_row: [1, 0, 0, 0, 0, 0, 0, 0],
+        has_next_row: true,
+        vrf_request_counter: 7,
+        perfect_trigger_available: true,
+        bump,
+        ..ActiveRun::default()
+    };
+
+    let (active_run, result) = process_play_move(active_state, 0, 0, 0, 345, false);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    eprintln!(
+        "SBF_COMPUTE blocked_eleventh_row_play_move={}",
+        result.compute_units_consumed
+    );
+    let active: ActiveRun = decode(resulting_account(&result, &active_run));
+    assert_eq!(active.lifecycle, RunLifecycle::Finished);
+    assert_eq!(active.finished_at, 345);
+    assert_eq!(active.action_counter, 1);
+    assert_eq!(active.moves, 1);
+    assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
+    assert_eq!(active.blocks_destroyed_by_size, [0; 4]);
+    assert!(!active.has_next_row);
+    assert_eq!(active.vrf_request_counter, 7);
+    assert_eq!(active.pending_vrf_counter, 0);
 }
 
 #[test]
