@@ -29,6 +29,15 @@ export interface ReceiptProjection {
   over: boolean;
 }
 
+/**
+ * Terminal board show, presentation-only (the board it plays over is the
+ * frozen authoritative terminal grid): "win" detonates the remaining blocks
+ * in a bottom-up ripple, "lose-overflow" erupts them over the top of the
+ * frame (the stack breached the ceiling), "lose-sink" desaturates and settles
+ * them (ran out of moves).
+ */
+export type OutcomeAnimation = "win" | "lose-overflow" | "lose-sink";
+
 export interface GridProps {
   gameId: bigint;
   initialData: Block[];
@@ -54,6 +63,7 @@ export interface GridProps {
   ) => Promise<ReceiptProjection | void>;
   onLocalGameOver?: () => void;
   themeId?: ThemeId;
+  outcomeAnimation?: OutcomeAnimation | null;
 }
 
 const sameBlockGeometry = (a: Block[], b: Block[]): boolean => {
@@ -80,6 +90,7 @@ const Grid: React.FC<GridProps> = ({
   onBonus,
   onLocalGameOver,
   themeId: themeIdOverride,
+  outcomeAnimation = null,
 }) => {
   // ==================== Theme ====================
   const { themeTemplate } = useTheme();
@@ -201,6 +212,18 @@ const Grid: React.FC<GridProps> = ({
     const hasWarning = blocks.some((b) => b.y === 1);
     setDangerLevel(hasCritical ? 2 : hasWarning ? 1 : 0);
   }, [blocks]);
+
+  // Win detonation audio: explosion ticks riding the bottom-up ripple.
+  useEffect(() => {
+    if (outcomeAnimation !== "win") return;
+    playExplode();
+    const tick1 = window.setTimeout(playExplode, 300);
+    const tick2 = window.setTimeout(playExplode, 600);
+    return () => {
+      window.clearTimeout(tick1);
+      window.clearTimeout(tick2);
+    };
+  }, [outcomeAnimation, playExplode]);
 
   // Idle-state resync from authoritative props. The receipt path covers the
   // normal move flow; this covers out-of-band chain updates reaching a
@@ -720,11 +743,38 @@ const Grid: React.FC<GridProps> = ({
     gameState === GameState.GRAVITY_BONUS ||
     gameState === GameState.ADD_LINE_SHIFT;
 
+  // Bottom-up ripple for the win detonation; top-first surge for the
+  // overflow eruption. Deterministic per-cell jitter — no randomness.
+  const outcomeDelayMs = (block: Block): number => {
+    if (outcomeAnimation === "win") {
+      return 150 + (gridHeight - 1 - block.y) * 60 + block.x * 20;
+    }
+    if (outcomeAnimation === "lose-overflow") {
+      return block.y * 30 + ((block.x * 7) % 5) * 12;
+    }
+    return 0;
+  };
+
   return (
     <motion.div
-      animate={shouldBounce ? { scale: [1, 1.1, 1, 1.1, 1] } : {}}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      className="relative"
+      animate={
+        outcomeAnimation === "win"
+          ? { x: [0, -7, 7, -5, 5, -2, 0] }
+          : shouldBounce
+            ? { scale: [1, 1.1, 1, 1.1, 1] }
+            : {}
+      }
+      transition={{
+        duration: outcomeAnimation === "win" ? 0.45 : 0.2,
+        ease: "easeInOut",
+      }}
+      className={`relative ${
+        outcomeAnimation === "lose-sink"
+          ? "board-outcome-sink"
+          : outcomeAnimation === "lose-overflow"
+            ? "board-outcome-overflow"
+            : ""
+      }`}
       style={{ width: frameW, height: frameH }}
     >
       <svg
@@ -774,7 +824,7 @@ const Grid: React.FC<GridProps> = ({
         />
 
         {/* ─── Loading animation (rotating sweep, like old conic-gradient) ─── */}
-        {isTxProcessing && (
+        {isTxProcessing && !outcomeAnimation && (
           <rect
             x={1} y={1}
             width={frameW - 2} height={frameH - 2}
@@ -813,8 +863,14 @@ const Grid: React.FC<GridProps> = ({
           </>
         )}
 
-        {/* ─── Grid area (offset by frame padding, clipped for push animation) ─── */}
-        <g transform={`translate(${framePad}, ${framePad})`} clipPath="url(#grid-clip)">
+        {/* ─── Grid area (offset by frame padding, clipped for push animation;
+            the overflow eruption lifts the clip so blocks escape the frame) ─── */}
+        <g
+          transform={`translate(${framePad}, ${framePad})`}
+          clipPath={
+            outcomeAnimation === "lose-overflow" ? undefined : "url(#grid-clip)"
+          }
+        >
           {/* Grid lines */}
           {Array.from({ length: gridWidth + 1 }, (_, i) => (
             <line
@@ -845,6 +901,8 @@ const Grid: React.FC<GridProps> = ({
               transitionDuration={transitionDuration}
               isGravity={blocksAreFalling}
               isExploding={explodingRows.has(block.y)}
+              outcome={outcomeAnimation}
+              outcomeDelayMs={outcomeDelayMs(block)}
               blockImages={blockImages}
               onPointerDown={stablePointerDown}
               onTransitionBlockStart={stableTransitionStart}
@@ -854,12 +912,48 @@ const Grid: React.FC<GridProps> = ({
         </g>
       </svg>
 
-      {/* Combo text overlay (HTML — complex text effects) */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <AnimatedText textEnum={animateText} reset={resetAnimateText} />
-      </div>
+      {/* Combo text overlay (HTML — complex text effects). Hidden during the
+          outcome show so the final move's combo popup can't stack into the
+          celebration or the completion card. */}
+      {!outcomeAnimation && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <AnimatedText textEnum={animateText} reset={resetAnimateText} />
+        </div>
+      )}
+
+      {/* ─── Win show: frame flash + rising sparks ─── */}
+      {outcomeAnimation === "win" && (
+        <div
+          className="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+          style={{ ["--outcome-accent" as string]: themeColors.accent }}
+        >
+          <div className="board-win-flash absolute inset-0 rounded-lg" />
+          {WIN_SPARKS.map((spark) => (
+            <span
+              key={spark.key}
+              className="board-win-spark absolute rounded-full"
+              style={{
+                left: `${spark.left}%`,
+                bottom: "8%",
+                width: spark.size,
+                height: spark.size,
+                animationDelay: `${spark.delay}ms`,
+              }}
+            />
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 };
+
+// Deterministic spark field for the win show (no runtime randomness). The
+// last spark ends by ~1480ms, inside WIN_OUTCOME_ANIM_MS.
+const WIN_SPARKS = Array.from({ length: 8 }, (_, i) => ({
+  key: i,
+  left: 8 + ((i * 37) % 84),
+  size: 4 + ((i * 13) % 3) * 2,
+  delay: 400 + ((i * 29) % 7) * 80,
+}));
 
 export default Grid;

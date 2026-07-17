@@ -40,10 +40,6 @@ vi.mock("@/stores/navigationStore", () => ({
   useNavigationStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       navigate: fixtures.navigate,
-      mapZoneId: 1,
-      pendingPreviewLevel: null,
-      setPendingPreviewLevel: vi.fn(),
-      setGameId: vi.fn(),
       recoveryRunId: fixtures.recoveryRunId,
       setRecoveryRunId: fixtures.setRecoveryRunId,
       setPendingLevelCompletion: fixtures.setPendingLevelCompletion,
@@ -187,7 +183,7 @@ describe("usePlayController silent session renewal", () => {
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
   });
 
-  it("does not queue a completion reward when settlement fails", async () => {
+  it("marks settlement failed without navigating or queueing rewards", async () => {
     const recoverSession = vi.fn().mockResolvedValue({});
     const settleAndAdvance = vi
       .fn()
@@ -201,11 +197,17 @@ describe("usePlayController silent session renewal", () => {
       },
     });
 
-    renderHook(() => usePlayController(), { wrapper: strictWrapper });
+    const { result } = renderHook(() => usePlayController(), {
+      wrapper: strictWrapper,
+    });
 
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
-    await act(async () => Promise.resolve());
+    await waitFor(() => expect(result.current.settlementStatus).toBe("failed"));
     expect(fixtures.setPendingLevelCompletion).not.toHaveBeenCalled();
+    expect(fixtures.navigate).not.toHaveBeenCalled();
+
+    // Continue stays locked on a failed settlement.
+    act(() => result.current.continueFromTerminal());
     expect(fixtures.navigate).not.toHaveBeenCalled();
   });
 
@@ -229,14 +231,90 @@ describe("usePlayController silent session renewal", () => {
       },
     });
 
-    renderHook(() => usePlayController(), { wrapper: strictWrapper });
+    const { result } = renderHook(() => usePlayController(), {
+      wrapper: strictWrapper,
+    });
 
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
     await waitFor(() =>
-      expect(fixtures.setPendingLevelCompletion).toHaveBeenCalledWith(
-        expect.objectContaining({ xpAwarded: 20 }),
-      ),
+      expect(result.current.terminalSnapshot?.xpAwarded).toBe(20),
     );
+    await waitFor(() =>
+      expect(result.current.settlementStatus).toBe("complete"),
+    );
+    // The reward card lives on the play screen now; the map queue stays empty.
+    expect(fixtures.setPendingLevelCompletion).not.toHaveBeenCalled();
+  });
+
+  it("sequences cascade → outcome → card and gates Continue on settlement", async () => {
+    const recoverSession = vi.fn().mockResolvedValue({});
+    let resolveSettle: (value: null) => void = () => {};
+    const settleAndAdvance = vi.fn().mockReturnValue(
+      new Promise<null>((resolve) => {
+        resolveSettle = resolve;
+      }),
+    );
+    const baseRun = delegatedRun(recoverSession).activeRun as Record<
+      string,
+      unknown
+    >;
+    const terminalRun = { ...baseRun, lifecycle: "levelComplete", moves: 5 };
+    const playMove = vi.fn().mockResolvedValue(terminalRun);
+    fixtures.run = delegatedRun(recoverSession, {
+      playMove,
+      settleAndAdvance,
+      sessionAuthorized: true,
+    });
+
+    const { result, rerender } = renderHook(() => usePlayController(), {
+      wrapper: strictWrapper,
+    });
+
+    // The terminal move latches the cascade wait.
+    await act(async () => {
+      await result.current.onMove(0, 0, 1);
+    });
+    expect(result.current.awaitingTerminalCascade).toBe(true);
+    expect(result.current.presentationPhase).toBe("cascade");
+    expect(result.current.outcome).toBeNull();
+    expect(result.current.showLevelCard).toBe(false);
+
+    // Provider state flips terminal (as playMove does) → settlement starts
+    // immediately, never waiting for the animation.
+    fixtures.run.activeRun = terminalRun;
+    rerender();
+    await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
+    expect(result.current.presentationPhase).toBe("cascade");
+
+    // Cascade completes → outcome show + the terminal sting, exactly once.
+    act(() => result.current.onCascadeComplete());
+    await waitFor(() =>
+      expect(result.current.presentationPhase).toBe("outcome"),
+    );
+    expect(fixtures.playSfx).toHaveBeenCalledWith("levelup");
+    expect(
+      fixtures.playSfx.mock.calls.filter(([sfx]) => sfx === "levelup"),
+    ).toHaveLength(1);
+
+    // Win show duration elapses → card. Continue stays locked mid-settlement.
+    await waitFor(
+      () => expect(result.current.presentationPhase).toBe("card"),
+      { timeout: 4000 },
+    );
+    expect(result.current.showLevelCard).toBe(true);
+    act(() => result.current.continueFromTerminal());
+    expect(fixtures.navigate).not.toHaveBeenCalled();
+
+    // Settlement completes → Continue lands on the plain map (no level
+    // pre-selected — the player picks the next node themselves).
+    await act(async () => {
+      resolveSettle(null);
+    });
+    await waitFor(() =>
+      expect(result.current.settlementStatus).toBe("complete"),
+    );
+    act(() => result.current.continueFromTerminal());
+    expect(fixtures.navigate).toHaveBeenCalledWith("map");
   });
 
   it("allows a later authorization lapse to renew once again", async () => {

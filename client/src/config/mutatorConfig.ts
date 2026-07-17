@@ -33,10 +33,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The sea turtle rewards a strong clear with a Wave.",
     icon: "🐢",
-    effects: [
-      "Clear 3+ lines in a move → Wave charge",
-      "Start with 1 charge",
-    ],
+    effects: ["3+ lines in one move = +1 Wave", "start with 1"],
   },
   // Zone 2 — Sobek 🐊 / Egypt
   3: {
@@ -45,10 +42,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The Nile crocodile rewards exact two-line clears with the Hammer.",
     icon: "🐊",
-    effects: [
-      "Clear exactly 2 lines in a move → Hammer charge",
-      "Start with 1 charge",
-    ],
+    effects: ["exactly 2 lines = +1 Hammer", "start with 1"],
   },
   // Zone 3 — Fenris 🐺 / Norse
   5: {
@@ -57,10 +51,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The frost wolf answers a strong clear with the Totem.",
     icon: "🐺",
-    effects: [
-      "Clear 3+ lines in a move → Totem charge",
-      "Start with 1 charge",
-    ],
+    effects: ["3+ lines in one move = +1 Totem", "start with 1"],
   },
   // Zone 4 — Noctua 🦉 / Greece
   7: {
@@ -69,11 +60,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The owl rewards a perfectly empty board with the Hammer.",
     icon: "🦉",
-    effects: [
-      "Perfect clear after a move or bonus → Hammer charge",
-      "At most 1 perfect-clear charge between moves",
-      "Start with 1 charge",
-    ],
+    effects: ["empty the board = +1 Hammer", "max 1 per move", "start with 1"],
   },
   // Zone 5 — Long 🐲 / China
   9: {
@@ -82,10 +69,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The dragon rewards sustained line clearing with a Wave.",
     icon: "🐲",
-    effects: [
-      "Every 15 lines cleared by moves → Wave charge",
-      "Start with 1 charge",
-    ],
+    effects: ["every 15 lines cleared = +1 Wave", "start with 1"],
   },
   // Zone 6 — Lamassu 🦁 / Persia
   11: {
@@ -94,10 +78,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The gate guardian rewards one move that breaks every block size.",
     icon: "🦁",
-    effects: [
-      "Destroy sizes 1, 2, 3, and 4 in one move → Totem charge",
-      "Start with 1 charge",
-    ],
+    effects: ["break sizes 1-4 in one move = +1 Totem", "start with 1"],
   },
   // Zone 7 — Kitsune 🦊 / Japan
   13: {
@@ -106,10 +87,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The spirit fox rewards exact three-line clears with the Hammer.",
     icon: "🦊",
-    effects: [
-      "Clear exactly 3 lines in a move → Hammer charge",
-      "Start with 1 charge",
-    ],
+    effects: ["exactly 3 lines = +1 Hammer", "start with 1"],
   },
   // Zone 8 — Balam 🐆 / Mayan
   15: {
@@ -118,11 +96,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The jaguar rewards a perfectly empty board with a Wave.",
     icon: "🐆",
-    effects: [
-      "Perfect clear after a move or bonus → Wave charge",
-      "At most 1 perfect-clear charge between moves",
-      "Start with 2 charges",
-    ],
+    effects: ["empty the board = +1 Wave", "max 1 per move", "start with 2"],
   },
   // Zone 9 — Mamba 🐍 / Tribal
   17: {
@@ -131,11 +105,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The serpent turns Combo Meter milestones into Totems.",
     icon: "🐍",
-    effects: [
-      "Every 8 Combo Meter points → Totem charge",
-      "Moves and bonuses can trigger it; at most 1 charge per action",
-      "Start with 1 charge",
-    ],
+    effects: ["every 8 combo points = +1 Totem", "max 1 per action", "start with 1"],
   },
   // Zone 10 — Kuntur 🦅 / Inca
   19: {
@@ -144,10 +114,7 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The condor rewards exact four-line clears with the Hammer.",
     icon: "🦅",
-    effects: [
-      "Clear exactly 4 lines in a move → Hammer charge",
-      "Start with 1 charge",
-    ],
+    effects: ["exactly 4 lines = +1 Hammer", "start with 1"],
   },
 
   // ── Passive Mutators (even IDs 2-20) — change the rules of the zone ──
@@ -157,13 +124,10 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 2,
     name: "Calm Tides",
     description:
-      "Gentle waters make Campaign Stars easier to earn.",
+      "Gentle waters make ⭐ Stars easier to earn.",
     icon: "🌊",
-    effects: [
-      "−10% star thresholds (easier)",
-      "4 starting rows",
-    ],
-    effectsEndless: ["4 starting rows"],
+    effects: ["stars 10% easier", "4 rows at start"],
+    effectsEndless: ["4 rows at start"],
   },
   // Zone 2 — Sobek 🐊 / Egypt
   4: {
@@ -172,12 +136,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Measured scoring and perfect clears make the desert more forgiving.",
     icon: "☀️",
-    effects: ["Move score ×1.25", "+10 on perfect clears", "−5% star thresholds (easier)", "5 starting rows"],
-    effectsEndless: [
-      "Move score ×1.25",
-      "+10 on perfect clears",
-      "5 starting rows",
-    ],
+    effects: ["move score ×1.25", "perfect clear +10", "stars 5% easier", "5 rows at start"],
+    effectsEndless: ["move score ×1.25", "perfect clear +10", "5 rows at start"],
   },
   // Zone 3 — Fenris 🐺 / Norse
   6: {
@@ -186,16 +146,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Fury rewards fury. Combos detonate and line clears chain steady pressure.",
     icon: "❄️",
-    effects: [
-      "×1.5 combo bonus on multi-line clears",
-      "+1 per line clear",
-      "4 starting rows",
-    ],
-    effectsEndless: [
-      "×1.5 combo bonus on multi-line clears",
-      "+1 per line clear",
-      "4 starting rows",
-    ],
+    effects: ["combos ×1.5", "+1 per line", "4 rows at start"],
+    effectsEndless: ["combos ×1.5", "+1 per line", "4 rows at start"],
   },
   // Zone 4 — Noctua 🦉 / Greece
   8: {
@@ -204,16 +156,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Precision pays through stronger moves and perfect clears.",
     icon: "🏛️",
-    effects: [
-      "Move score ×1.25",
-      "+15 on perfect clears",
-      "5 starting rows",
-    ],
-    effectsEndless: [
-      "Move score ×1.25",
-      "+15 on perfect clears",
-      "5 starting rows",
-    ],
+    effects: ["move score ×1.25", "perfect clear +15", "5 rows at start"],
+    effectsEndless: ["move score ×1.25", "perfect clear +15", "5 rows at start"],
   },
   // Zone 5 — Long 🐲 / China
   10: {
@@ -222,8 +166,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Waves roll in from the dragon's domain. Every line you break pays a steady toll.",
     icon: "🐉",
-    effects: ["+1 per line clear", "6 starting rows"],
-    effectsEndless: ["+1 per line clear", "6 starting rows"],
+    effects: ["+1 per line", "6 rows at start"],
+    effectsEndless: ["+1 per line", "6 rows at start"],
   },
   // Zone 6 — Lamassu 🦁 / Persia
   12: {
@@ -232,16 +176,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Patterns reward skilled combos and perfect clears.",
     icon: "🕌",
-    effects: [
-      "×1.5 combo bonus on multi-line clears",
-      "+10 on perfect clears",
-      "5 starting rows",
-    ],
-    effectsEndless: [
-      "×1.5 combo bonus on multi-line clears",
-      "+10 on perfect clears",
-      "5 starting rows",
-    ],
+    effects: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
+    effectsEndless: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
   },
   // Zone 7 — Kitsune 🦊 / Japan
   14: {
@@ -250,14 +186,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The warrior's code turns every scored move into a sharper strike.",
     icon: "🗡️",
-    effects: [
-      "Move score ×1.75",
-      "5 starting rows",
-    ],
-    effectsEndless: [
-      "Move score ×1.75",
-      "5 starting rows",
-    ],
+    effects: ["move score ×1.75", "5 rows at start"],
+    effectsEndless: ["move score ×1.75", "5 rows at start"],
   },
   // Zone 8 — Balam 🐆 / Mayan
   16: {
@@ -266,14 +196,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The jaguar favors the skilled. Combos detonate at double strength.",
     icon: "🌿",
-    effects: [
-      "×2.0 combo bonus on multi-line clears",
-      "6 starting rows",
-    ],
-    effectsEndless: [
-      "×2.0 combo bonus on multi-line clears",
-      "6 starting rows",
-    ],
+    effects: ["combos ×2", "6 rows at start"],
+    effectsEndless: ["combos ×2", "6 rows at start"],
   },
   // Zone 9 — Mamba 🐍 / Tribal
   18: {
@@ -282,16 +206,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The serpent's drum. Combos cascade at ×2 and every line keeps the rhythm.",
     icon: "🔥",
-    effects: [
-      "×2.0 combo bonus on multi-line clears",
-      "+1 per line clear",
-      "6 starting rows",
-    ],
-    effectsEndless: [
-      "×2.0 combo bonus on multi-line clears",
-      "+1 per line clear",
-      "6 starting rows",
-    ],
+    effects: ["combos ×2", "+1 per line", "6 rows at start"],
+    effectsEndless: ["combos ×2", "+1 per line", "6 rows at start"],
   },
   // Zone 10 — Kuntur 🦅 / Inca
   20: {
@@ -300,19 +216,8 @@ export const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Thin air, strong scoring, double combos, and perfect-clear rewards at the summit.",
     icon: "⛰️",
-    effects: [
-      "Move score ×1.5",
-      "×2.0 combo bonus on multi-line clears",
-      "+20 on perfect clears",
-      "+5% star thresholds (harder)",
-      "7 starting rows",
-    ],
-    effectsEndless: [
-      "Move score ×1.5",
-      "×2.0 combo bonus on multi-line clears",
-      "+20 on perfect clears",
-      "7 starting rows",
-    ],
+    effects: ["move score ×1.5", "combos ×2", "perfect clear +20", "stars 5% harder", "7 rows at start"],
+    effectsEndless: ["move score ×1.5", "combos ×2", "perfect clear +20", "7 rows at start"],
   },
 };
 

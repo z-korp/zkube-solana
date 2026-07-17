@@ -19,6 +19,7 @@ import ShopPage from "@/ui/pages/ShopPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 
 const params = new URLSearchParams(window.location.search);
@@ -40,7 +41,6 @@ if (spectatePlayer || spectatePda) {
       currentPage: "play",
       gameId: null,
       recoveryRunId: BigInt(recoverRun),
-      pendingPreviewLevel: null,
       pendingLevelCompletion: null,
     });
   }
@@ -64,6 +64,8 @@ export default function App() {
   const player = useConnectedPlayer();
   const currentPage = useNavigationStore((state) => state.currentPage);
   const { campaign, error, loaded } = useCampaign();
+  // One PlayerState watch keeps every stars/XP display in agreement.
+  usePlayerStateSync();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app
   // opens on the correct background). Spectator/recovery deep-links don't

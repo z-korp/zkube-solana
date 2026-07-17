@@ -15,6 +15,8 @@ import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 interface LevelCompleteDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Blocks Continue while background settlement finishes on-chain. */
+  continueDisabled?: boolean;
   level: number;
   levelMoves: number;
   prevTotalScore: number;
@@ -30,6 +32,7 @@ interface LevelCompleteDialogProps {
 const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   isOpen,
   onClose,
+  continueDisabled = false,
   level,
   levelMoves,
   prevTotalScore,
@@ -116,7 +119,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={animationPhase >= 3 ? onClose : undefined}
+        onClick={animationPhase >= 3 && !continueDisabled ? onClose : undefined}
       >
         {/* Full-height guardian portrait */}
         <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden">
@@ -264,12 +267,14 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               animate={animationPhase >= 3 ? { opacity: 1 } : { opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <ArcadeButton onClick={onClose}>
-                {isIncomplete
-                  ? "Back to Map"
-                  : draftWillOpen
-                    ? "Continue to Draft"
-                    : "Continue"}
+              <ArcadeButton onClick={onClose} disabled={continueDisabled}>
+                {continueDisabled
+                  ? "Settling…"
+                  : isIncomplete
+                    ? "Back to Map"
+                    : draftWillOpen
+                      ? "Continue to Draft"
+                      : "Continue"}
               </ArcadeButton>
             </motion.div>
           </div>

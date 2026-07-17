@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import type { Game } from "@/game/model";
@@ -10,6 +11,7 @@ import {
 import type { ThemeColors } from "@/config/themes";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import type { MapNodeData } from "@/hooks/useMapData";
+import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
 export interface LevelPreviewProps {
@@ -19,6 +21,9 @@ export interface LevelPreviewProps {
   zoneId: number;
   colors: ThemeColors;
   levelStars?: number[];
+  /** True while the run is being created in place — the Play button shows
+   * "Preparing…" and the preview cannot be dismissed mid-launch. */
+  starting?: boolean;
   onPlay: () => void;
   onClose: () => void;
 }
@@ -45,7 +50,9 @@ const DIFFICULTY_LABELS = [
   "Master",
 ] as const;
 
-function constraintDescriptions(level: GameLevelData | null): string[] {
+function constraintDescriptions(
+  level: GameLevelData | null,
+): Array<{ type: ConstraintType; icon: string | null; text: string }> {
   if (!level) return [];
   return [
     {
@@ -60,9 +67,11 @@ function constraintDescriptions(level: GameLevelData | null): string[] {
     },
   ]
     .filter(({ type }) => type !== ConstraintType.None)
-    .map(({ type, value, count }) =>
-      Constraint.fromContractValues(type, value, count).getDescription(),
-    );
+    .map(({ type, value, count }) => ({
+      type,
+      icon: CONSTRAINT_ICON_MAP[type],
+      text: Constraint.fromContractValues(type, value, count).getDescription(),
+    }));
 }
 
 export const LevelPreview: React.FC<LevelPreviewProps> = ({
@@ -72,6 +81,7 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
   zoneId,
   colors,
   levelStars,
+  starting = false,
   onPlay,
   onClose,
 }) => {
@@ -117,7 +127,7 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
+      onClick={starting ? undefined : onClose}
     >
       {/* Full-size guardian portrait */}
       <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden">
@@ -262,16 +272,27 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
                 </div>
               )}
 
-              {/* Constraints */}
+              {/* Constraints — objectives to clear, side by side with their
+                  in-game icons so they read as goals, not flavor. */}
               {constraints.length > 0 && (
-                <div className="space-y-1">
+                <div className="flex gap-1.5">
                   {constraints.map((constraint) => (
-                    <p
-                      key={constraint}
-                      className="rounded-lg border border-amber-400/15 bg-amber-500/8 px-3 py-1.5 font-sans text-[12px] text-amber-200/70"
+                    <div
+                      key={constraint.text}
+                      className="flex flex-1 items-center gap-2 rounded-lg border border-amber-400/15 bg-amber-500/8 px-2.5 py-1.5"
                     >
-                      {constraint}
-                    </p>
+                      {constraint.icon && (
+                        <img
+                          src={constraint.icon}
+                          alt=""
+                          className="h-6 w-6 shrink-0 rounded-full object-cover"
+                          draggable={false}
+                        />
+                      )}
+                      <span className="font-sans text-[11px] leading-tight text-amber-200/80">
+                        {constraint.text}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -281,12 +302,19 @@ export const LevelPreview: React.FC<LevelPreviewProps> = ({
           {/* Action */}
           {canPlay && (
             <div className="mt-3">
-              <ArcadeButton onClick={onPlay}>
-                {isBossLevel
-                  ? `Face ${guardian.name}`
-                  : isCleared
-                    ? "Replay"
-                    : "Play"}
+              <ArcadeButton onClick={onPlay} disabled={starting}>
+                {starting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Preparing…
+                  </>
+                ) : isBossLevel ? (
+                  `Face ${guardian.name}`
+                ) : isCleared ? (
+                  "Replay"
+                ) : (
+                  "Play"
+                )}
               </ArcadeButton>
             </div>
           )}

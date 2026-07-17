@@ -35,6 +35,18 @@ export type PlayOutcome = "victory" | "daily" | null;
 export type SettledCleanupStatus = "idle" | "running" | "complete" | "failed";
 export type SessionRenewalStatus = "idle" | "renewing" | "failed";
 
+/**
+ * End-of-run presentation, sequenced ON TOP of settlement (which starts the
+ * moment the chain reports terminal and never waits for animation):
+ * cascade (final move still animating) → outcome (board win/lose show) →
+ * card (level-complete card / boss victory / daily game-over dialog).
+ */
+export type TerminalPresentationPhase = "idle" | "cascade" | "outcome" | "card";
+export type SettlementStatus = "idle" | "pending" | "complete" | "failed";
+/** Board outcome show durations; the CSS in grid.css must finish within. */
+export const WIN_OUTCOME_ANIM_MS = 1500;
+export const LOSE_OUTCOME_ANIM_MS = 900;
+
 export function canSettleTerminalRun(
   phase: string,
   sessionAuthorized: boolean,
@@ -157,12 +169,6 @@ export function usePlayController() {
   const daily = useDaily();
   const { playSfx } = useMusicPlayer();
   const navigate = useNavigationStore((state) => state.navigate);
-  const mapId = useNavigationStore((state) => state.mapZoneId);
-  const previewLevel = useNavigationStore((state) => state.pendingPreviewLevel);
-  const setPreviewLevel = useNavigationStore(
-    (state) => state.setPendingPreviewLevel,
-  );
-  const setGameId = useNavigationStore((state) => state.setGameId);
   const setRecoveryRunId = useNavigationStore(
     (state) => state.setRecoveryRunId,
   );
@@ -179,8 +185,10 @@ export function usePlayController() {
   const [awaitingTerminalCascade, setAwaitingTerminalCascade] = useState(false);
   const [terminalSnapshot, setTerminalSnapshot] =
     useState<TerminalRunSnapshot | null>(null);
-  const [outcome, setOutcome] = useState<PlayOutcome>(null);
-  const [startError, setStartError] = useState<string | null>(null);
+  const [presentationPhase, setPresentationPhase] =
+    useState<TerminalPresentationPhase>("idle");
+  const [settlementStatus, setSettlementStatus] =
+    useState<SettlementStatus>("idle");
   const [settledReceiptSnapshot, setSettledReceiptSnapshot] =
     useState<RunResultView | null>(null);
   const [settledCleanupStatus, setSettledCleanupStatus] =
@@ -188,76 +196,14 @@ export function usePlayController() {
   const [sessionRenewalStatus, setSessionRenewalStatus] =
     useState<SessionRenewalStatus>("idle");
   const [sessionRenewalVersion, setSessionRenewalVersion] = useState(0);
-  const startIntentRef = useRef<string | null>(null);
   const renewingSessionRunRef = useRef<bigint | null>(null);
   const terminalAwaitingCascadeRef = useRef<bigint | null>(null);
   const settlingRunRef = useRef<bigint | null>(null);
-  const previousLifecycleRef = useRef<{
-    runId: bigint;
-    lifecycle: string;
-  } | null>(null);
 
-  const selectedMap = campaign.campaign?.maps.find(
-    (map) => map.mapId === mapId,
-  );
   const finalCampaignMapId = campaign.campaign?.maps.reduce(
     (highest, map) => Math.max(highest, map.mapId),
     0,
   ) ?? 0;
-  const mapPlayable = campaign.campaign
-    ? selectedMap?.enabled === true && selectedMap.unlocked
-    : mapId === 1;
-  const startCampaignRun = run.startCampaignRun;
-
-  // A launch whose ER delegation timed out throws into startError, but the run
-  // is persisted and the watcher heals it (resolving → delegated). Clear the
-  // stale launch error once the run attaches so no dead banner lingers.
-  useEffect(() => {
-    if (run.phase === "resolving" || run.phase === "delegated") {
-      setStartError(null);
-    }
-  }, [run.phase]);
-
-  useEffect(() => {
-    if (
-      previewLevel === null ||
-      recoveryRunId !== null ||
-      run.phase !== "none" ||
-      run.busy ||
-      run.watchStatus?.phase === "resolving" ||
-      campaign.loading ||
-      !mapPlayable
-    ) {
-      return;
-    }
-    const intent = `${mapId}:${previewLevel}`;
-    if (startIntentRef.current === intent) return;
-    startIntentRef.current = intent;
-    setPreviewLevel(null);
-    setStartError(null);
-    void startCampaignRun(mapId, previewLevel)
-      .then((activeRun) => {
-        setGameId(activeRun.runId);
-        setTerminalSnapshot(null);
-        setOutcome(null);
-      })
-      .catch((cause: unknown) => {
-        startIntentRef.current = null;
-        setStartError(cause instanceof Error ? cause.message : String(cause));
-      });
-  }, [
-    campaign.loading,
-    mapId,
-    mapPlayable,
-    previewLevel,
-    recoveryRunId,
-    run.busy,
-    run.phase,
-    run.watchStatus?.phase,
-    setGameId,
-    setPreviewLevel,
-    startCampaignRun,
-  ]);
 
   const rememberTerminal = useCallback(
     (activeRun: ActiveRunView) => {
@@ -281,6 +227,7 @@ export function usePlayController() {
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
           setAwaitingTerminalCascade(true);
+          setPresentationPhase("cascade");
           rememberTerminal(activeRun);
         }
         return projectRunResult(activeRun);
@@ -300,6 +247,7 @@ export function usePlayController() {
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
           setAwaitingTerminalCascade(true);
+          setPresentationPhase("cascade");
           rememberTerminal(activeRun);
         }
         return projectRunResult(activeRun);
@@ -335,48 +283,52 @@ export function usePlayController() {
       ? run.activeRun
       : null;
 
-  const lifecycleRun = run.activeRun;
+  // Presentation phase driver. The snapshot is produced either by the action
+  // that landed terminal (rememberTerminal → phase already "cascade") or by
+  // the settle effect after a remount/recovery (no cascade pending) — both
+  // funnel into "outcome" once no cascade is left to wait for. "card" is
+  // reached only through the outcome timer below.
   useEffect(() => {
-    if (!lifecycleRun) {
-      previousLifecycleRef.current = null;
+    if (!terminalSnapshot) {
+      setPresentationPhase("idle");
       return;
     }
-    const previous = previousLifecycleRef.current;
-    previousLifecycleRef.current = {
-      runId: lifecycleRun.runId,
-      lifecycle: lifecycleRun.lifecycle,
-    };
-    if (
-      !previous ||
-      previous.runId !== lifecycleRun.runId ||
-      previous.lifecycle === lifecycleRun.lifecycle ||
-      !isTerminalLifecycle(lifecycleRun.lifecycle)
-    ) {
-      return;
-    }
+    if (awaitingTerminalCascade) return;
+    setPresentationPhase((previous) =>
+      previous === "idle" || previous === "cascade" ? "outcome" : previous,
+    );
+  }, [awaitingTerminalCascade, terminalSnapshot]);
 
-    if (
-      lifecycleRun.mode === "daily" ||
-      lifecycleRun.lifecycle === "finished"
-    ) {
+  useEffect(() => {
+    if (presentationPhase !== "outcome" || !terminalSnapshot) return;
+    const timer = window.setTimeout(
+      () => setPresentationPhase("card"),
+      terminalSnapshot.completed ? WIN_OUTCOME_ANIM_MS : LOSE_OUTCOME_ANIM_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [presentationPhase, terminalSnapshot]);
+
+  // Terminal sfx fires with the board outcome show, not on the raw chain
+  // transition — otherwise the sting lands mid-cascade. Star/coin belong to
+  // the level-complete card, which sequences them itself.
+  const outcomeSfxRunRef = useRef<bigint | null>(null);
+  useEffect(() => {
+    if (presentationPhase !== "outcome" || !terminalSnapshot) return;
+    const runId = terminalSnapshot.activeRun.runId;
+    if (outcomeSfxRunRef.current === runId) return;
+    outcomeSfxRunRef.current = runId;
+    if (terminalSnapshot.isDaily || !terminalSnapshot.completed) {
       playSfx("over");
       return;
     }
-    const boss = lifecycleRun.level === 10 || lifecycleRun.rules.bossId > 0;
     playSfx(
-      boss
-        ? lifecycleRun.mapId === finalCampaignMapId
+      terminalSnapshot.isBoss
+        ? terminalSnapshot.activeRun.mapId === finalCampaignMapId
           ? "victory"
           : "boss-defeat"
         : "levelup",
     );
-    const starTimer = window.setTimeout(() => playSfx("star"), 350);
-    const coinTimer = window.setTimeout(() => playSfx("coin"), 650);
-    return () => {
-      window.clearTimeout(starTimer);
-      window.clearTimeout(coinTimer);
-    };
-  }, [finalCampaignMapId, lifecycleRun, playSfx]);
+  }, [finalCampaignMapId, playSfx, presentationPhase, terminalSnapshot]);
 
   useEffect(() => {
     const activeRun = run.activeRun;
@@ -422,6 +374,7 @@ export function usePlayController() {
     if (settlingRunRef.current === terminalRun.runId) return;
 
     settlingRunRef.current = terminalRun.runId;
+    setSettlementStatus("pending");
 
     const settle =
       run.phase === "settleable" ? recoverSettlement : settleAndAdvance;
@@ -443,13 +396,9 @@ export function usePlayController() {
           : ((refreshedCampaign ?? campaign.campaign)?.maps.find(
               (map) => map.mapId === terminalRun.mapId,
             )?.levelStars ?? []);
-      const snapshot = snapshotRun(terminalRun, levelStars);
-      const previousBestStars = levelStars[terminalRun.level - 1] ?? 0;
-      const pendingCompletion = pendingCompletionFromRun(
-        terminalRun,
-        previousBestStars,
-      );
-      setTerminalSnapshot(snapshot);
+      // Refresh the already-open presentation in place: same terminal run,
+      // now with confirmed lifetime stars driving the XP figure.
+      setTerminalSnapshot(snapshotRun(terminalRun, levelStars));
 
       const settlementFailure = await settlement;
       if (settlementFailure) throw settlementFailure;
@@ -458,32 +407,26 @@ export function usePlayController() {
         progressRefresh(),
         dailyRefresh(),
       ]);
-      if (snapshot.isDaily) {
-        setOutcome("daily");
-      } else if (snapshot.isBoss && snapshot.completed) {
-        setOutcome("victory");
-      } else {
-        setPendingLevelCompletion(pendingCompletion);
-        navigate("map");
-      }
+      // Presentation is user-driven from here: the card/dialog Continue
+      // (continueFromTerminal/closeOutcome) unlocks on "complete".
+      setSettlementStatus("complete");
     })().catch(() => {
       // The run hook exposes the failure. Keep the per-run guard set until
       // the user explicitly retries so watcher refreshes cannot hammer the
       // settlement pipeline with repeated session-signed transactions.
+      setSettlementStatus("failed");
     });
   }, [
     campaign.campaign,
     campaignRefresh,
     dailyRefresh,
     localActionPending,
-    navigate,
     progressRefresh,
     recoveryRunId,
     run.phase,
     run.busy,
     run.sessionAuthorized,
     recoverSettlement,
-    setPendingLevelCompletion,
     settleAndAdvance,
     terminalRun,
   ]);
@@ -492,6 +435,7 @@ export function usePlayController() {
     settlingRunRef.current = null;
     terminalAwaitingCascadeRef.current = null;
     setSettledCleanupStatus("idle");
+    setSettlementStatus("idle");
   }, []);
 
   const retrySessionRenewal = useCallback(() => {
@@ -540,13 +484,19 @@ export function usePlayController() {
   ]);
 
   const closeOutcome = useCallback(() => {
-    setOutcome(null);
+    if (settlementStatus !== "complete") return;
     navigate(terminalSnapshot?.isDaily ? "daily" : "map");
-  }, [navigate, terminalSnapshot?.isDaily]);
+  }, [navigate, settlementStatus, terminalSnapshot?.isDaily]);
+
+  // Continue from the level-complete card: hand the player back to the plain
+  // map — no level pre-selected, they pick the next node themselves.
+  const continueFromTerminal = useCallback(() => {
+    if (settlementStatus !== "complete" || !terminalSnapshot) return;
+    navigate(terminalSnapshot.isDaily ? "daily" : "map");
+  }, [navigate, settlementStatus, terminalSnapshot]);
 
   const recoverOrphanedBaseRun = useCallback(
     async (runId: bigint) => {
-      setStartError(null);
       const signature = await recoverBaseRun(runId);
       await Promise.allSettled([
         campaignRefresh(),
@@ -589,6 +539,22 @@ export function usePlayController() {
     [run.activeRun],
   );
 
+  // Which end-of-run surface owns the "card" phase: the boss VictoryDialog,
+  // the daily GameOverDialog, or the on-board level-complete card.
+  const outcome: PlayOutcome =
+    presentationPhase === "card" && terminalSnapshot
+      ? terminalSnapshot.isDaily
+        ? "daily"
+        : terminalSnapshot.isBoss && terminalSnapshot.completed
+          ? "victory"
+          : null
+      : null;
+  const showLevelCard =
+    presentationPhase === "card" &&
+    terminalSnapshot !== null &&
+    !terminalSnapshot.isDaily &&
+    !(terminalSnapshot.isBoss && terminalSnapshot.completed);
+
   return {
     run,
     game: activeGame ?? terminalSnapshot?.game ?? null,
@@ -597,7 +563,10 @@ export function usePlayController() {
     terminalSnapshot,
     outcome,
     closeOutcome,
-    startError,
+    presentationPhase,
+    settlementStatus,
+    showLevelCard,
+    continueFromTerminal,
     onMove,
     onBonus,
     onCascadeComplete,

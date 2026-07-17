@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
@@ -12,6 +12,7 @@ import {
   useGameLevel,
   type GameLevelData,
 } from "@/hooks/useGameLevel";
+import { useCampaignLauncher } from "@/play/useCampaignLauncher";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 
@@ -102,10 +103,8 @@ const BossRevealPage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
   const goBack = useNavigationStore((state) => state.goBack);
   const mapZoneId = useNavigationStore((state) => state.mapZoneId);
-  const setPendingPreviewLevel = useNavigationStore(
-    (state) => state.setPendingPreviewLevel,
-  );
   const activeStoryRun = useActiveStoryAttempt();
+  const { starting, startLevel } = useCampaignLauncher();
 
   const activeGameLevel = useGameLevel({ gameId: gameId ?? undefined });
   const map = campaign.campaign?.maps.find(
@@ -133,21 +132,21 @@ const BossRevealPage: React.FC = () => {
   }, [playSfx, setThemeTemplate, themeId]);
 
   const faceGuardian = () => {
-    // PlayScreen consumes this intent and starts the campaign run when there
-    // is no matching active run yet.
-    setPendingPreviewLevel(10);
     if (activeStoryRun?.zoneId === mapZoneId && activeStoryRun.level === 10) {
       navigate("play", activeStoryRun.gameId);
-    } else {
-      navigate("play");
+      return;
     }
+    // Launch in place: the guardian's constraints stay on screen while the
+    // run is created; navigation happens once it is live.
+    void startLevel(mapZoneId, 10);
   };
 
   return (
     <div className="relative flex h-full min-h-0 flex-col px-5 py-4">
       <button
         onClick={goBack}
-        className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-lg transition-colors"
+        disabled={starting}
+        className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-50"
         style={{
           color: colors.accent,
           background: colors.surface,
@@ -232,13 +231,15 @@ const BossRevealPage: React.FC = () => {
 
         <button
           onClick={faceGuardian}
-          className="mt-5 w-full rounded-xl py-3.5 font-display text-sm font-extrabold tracking-[0.1em] text-white transition-opacity disabled:opacity-50"
+          disabled={starting}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-display text-sm font-extrabold tracking-[0.1em] text-white transition-opacity disabled:opacity-50"
           style={{
             background: "linear-gradient(135deg, #FF3B3B, #FF6B3B)",
             boxShadow: "0 0 30px rgba(255,59,59,0.4)",
           }}
         >
-          FACE GUARDIAN
+          {starting && <Loader2 size={16} className="animate-spin" />}
+          {starting ? "PREPARING…" : "FACE GUARDIAN"}
         </button>
       </div>
     </div>

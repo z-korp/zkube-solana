@@ -11,7 +11,8 @@ import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import { Constraint, ConstraintType } from "@/game/constraint";
-import { getCommonAssetPath, getThemeImages } from "@/config/themes";
+import { getThemeImages } from "@/config/themes";
+import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import type { ThemeId } from "@/config/themes";
 import {
   HudBarSvg,
@@ -19,7 +20,7 @@ import {
   circleToPercent,
   rectToPercent,
 } from "@/ui/components/chrome";
-import { getMutatorDef } from "@/config/mutatorConfig";
+import { getMutatorDef, getMutatorEffects } from "@/config/mutatorConfig";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
 import { isBossLevel } from "@/game/constants";
 import {
@@ -89,19 +90,6 @@ const subscribeResize = (cb: () => void) => {
   window.addEventListener("resize", cb);
   return () => window.removeEventListener("resize", cb);
 };
-const CONSTRAINT_ICON_MAP: Record<ConstraintType, string | null> = {
-  [ConstraintType.ComboLines]: getCommonAssetPath(
-    "constraints/constraint-clear-lines.png",
-  ),
-  [ConstraintType.BreakBlocks]: getCommonAssetPath(
-    "constraints/constraint-break-blocks.png",
-  ),
-  [ConstraintType.ComboMeter]: getCommonAssetPath(
-    "constraints/constraint-combo.png",
-  ),
-  [ConstraintType.None]: null,
-};
-
 const getConstraintIcon = (type: ConstraintType) => {
   const src = CONSTRAINT_ICON_MAP[type];
   if (!src) return null;
@@ -308,6 +296,18 @@ const GameHud: React.FC<GameHudProps> = ({
   }, [combo, gameLevel, constraintProgress, constraint2Progress]);
 
   // ─── Tooltip content for the guardian avatar ───
+  // The flavor line alone leaves players guessing; always follow it with the
+  // mutator's concrete numbers on one compact line.
+  const mutatorEffectLine = (endlessMode: boolean) => {
+    const effects = getMutatorEffects(mutator, endlessMode);
+    if (effects.length === 0) return null;
+    return (
+      <div className="font-sans text-[10px] font-semibold text-yellow-300">
+        {effects.join(" · ")}
+      </div>
+    );
+  };
+
   const avatarTooltipContent = isEndless ? (
     <div className="flex flex-col gap-1.5 max-w-[200px]">
       <div className="font-sans text-xs font-bold">{guardian.name}</div>
@@ -327,9 +327,12 @@ const GameHud: React.FC<GameHudProps> = ({
         </div>
       )}
       {activeMutatorId > 0 && (
-        <div className="font-sans text-[10px] text-yellow-400/90">
-          {mutator.icon} {mutator.name}: {mutator.description}
-        </div>
+        <>
+          <div className="font-sans text-[10px] text-yellow-400/90">
+            {mutator.icon} {mutator.name}: {mutator.description}
+          </div>
+          {mutatorEffectLine(true)}
+        </>
       )}
     </div>
   ) : (
@@ -347,9 +350,12 @@ const GameHud: React.FC<GameHudProps> = ({
         </div>
       )}
       {activeMutatorId > 0 && (
-        <div className="font-sans text-[10px] text-yellow-400/90">
-          {mutator.icon} {mutator.name}: {mutator.description}
-        </div>
+        <>
+          <div className="font-sans text-[10px] text-yellow-400/90">
+            {mutator.icon} {mutator.name}: {mutator.description}
+          </div>
+          {mutatorEffectLine(false)}
+        </>
       )}
     </div>
   );
@@ -551,6 +557,7 @@ const GameHud: React.FC<GameHudProps> = ({
         <div className="font-sans text-[11px] text-slate-300">
           {mutator.description}
         </div>
+        {mutatorEffectLine(isEndless)}
       </div>
     ) : (
       <div className="flex flex-col gap-1 max-w-[200px]">

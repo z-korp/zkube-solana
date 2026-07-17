@@ -125,41 +125,28 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             &quot;{greeting}&quot;
           </p>
 
-          {/* Mutators — sourced from the authoritative map rule snapshot. */}
+          {/* Mutators — the guardian explains each rule in prose; stat lines
+              live in the in-game tooltips, not here. */}
           {(activeMutator || passiveMutator) && (
             <div className="mt-2 flex flex-col gap-1.5">
-              {activeMutator && (
-                <p className="font-sans text-[14px] leading-relaxed text-white">
-                  {activeMutator.icon}{" "}
-                  <span
-                    className="font-semibold"
-                    style={{ color: colors.accent }}
+              {[activeMutator, passiveMutator].map((mutator) =>
+                mutator ? (
+                  <p
+                    key={mutator.id}
+                    className="font-sans text-[14px] leading-relaxed text-white"
                   >
-                    {activeMutator.name}
-                  </span>{" "}
-                  {activeMutator.description}
-                </p>
-              )}
-              {passiveMutator && (
-                <p className="font-sans text-[14px] leading-relaxed text-white">
-                  {passiveMutator.icon}{" "}
-                  <span
-                    className="font-semibold"
-                    style={{ color: colors.accent }}
-                  >
-                    {passiveMutator.name}
-                  </span>{" "}
-                  {passiveMutator.description}
-                </p>
+                    {mutator.icon}{" "}
+                    <span
+                      className="font-semibold"
+                      style={{ color: colors.accent }}
+                    >
+                      {mutator.name}
+                    </span>{" "}
+                    {mutator.description}
+                  </p>
+                ) : null,
               )}
             </div>
-          )}
-
-          {/* Campaign guidance, without promising an unavailable payout. */}
-          {isFirstVisit && mode !== "endless" && (
-            <p className="mt-2 font-sans text-[12px] text-pink-300/70">
-              💎 Earn up to 3 stars on each of the 10 levels
-            </p>
           )}
 
           {bossCleared && mode === "story" && (

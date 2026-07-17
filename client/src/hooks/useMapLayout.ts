@@ -71,17 +71,23 @@ const MIN_X_SHIFT = 0.15;
 /** Maximum Y jitter (fraction of yStep) */
 const Y_JITTER = 0.25;
 
+/** Candidate rolls scored per zone; the prettiest wins (still deterministic) */
+const LAYOUT_CANDIDATES = 8;
+
+/** ViewBox aspect used for crowding distances (matches MapPage's 60×100) */
+const VB_W = 60;
+const VB_H = 100;
+
 /* ------------------------------------------------------------------ */
 /*  Build zone layout                                                  */
 /* ------------------------------------------------------------------ */
 
-function buildZoneLayout(
+function buildCandidate(
   seed: number,
   zoneIndex: number,
   nodesPerZone: number,
-): ZoneLayout {
+): MapLayoutPoint[] {
   const points: MapLayoutPoint[] = [];
-  const edges: MapLayoutEdge[] = [];
   const lastNode = nodesPerZone - 1;
   const yStep = (Y_BOTTOM - Y_TOP) / Math.max(lastNode, 1);
 
@@ -149,7 +155,67 @@ function buildZoneLayout(
     prevX = x;
   }
 
+  return points;
+}
+
+/**
+ * Beauty score for a candidate roll: reward using the full width with
+ * uneven, organic swing amplitudes; punish nodes crowding each other
+ * (distances in viewBox units, where a node with its badge and star row
+ * needs roughly 15 units of air).
+ */
+function scoreCandidate(points: MapLayoutPoint[]): number {
+  const interior = points.slice(1, -1);
+  const xs = interior.map((point) => point.x);
+  const spread = Math.max(...xs) - Math.min(...xs);
+
+  const amplitudes = interior.map((point) => Math.abs(point.x - X_CENTER));
+  const mean =
+    amplitudes.reduce((sum, value) => sum + value, 0) / amplitudes.length;
+  const variety = Math.sqrt(
+    amplitudes.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+      amplitudes.length,
+  );
+
+  let minDist = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const dist = Math.hypot(
+        (points[i].x - points[j].x) * VB_W,
+        (points[i].y - points[j].y) * VB_H,
+      );
+      if (dist < minDist) minDist = dist;
+    }
+  }
+  const crowding = Math.max(0, 15 - minDist);
+
+  return spread * 2 + variety * 6 - crowding * 0.3;
+}
+
+function buildZoneLayout(
+  seed: number,
+  zoneIndex: number,
+  nodesPerZone: number,
+): ZoneLayout {
+  // The walk is the original client's algorithm; rolls vary in quality, so
+  // score a handful of deterministic candidates and keep the prettiest.
+  let points = buildCandidate(seed, zoneIndex, nodesPerZone);
+  let bestScore = scoreCandidate(points);
+  for (let k = 1; k < LAYOUT_CANDIDATES; k++) {
+    const candidate = buildCandidate(
+      (seed ^ Math.imul(k, 0x85ebca6b)) >>> 0,
+      zoneIndex,
+      nodesPerZone,
+    );
+    const score = scoreCandidate(candidate);
+    if (score > bestScore) {
+      bestScore = score;
+      points = candidate;
+    }
+  }
+
   // Linear chain edges
+  const edges: MapLayoutEdge[] = [];
   for (let i = 0; i < nodesPerZone - 1; i++) {
     edges.push({ from: i, to: i + 1, kind: "main" });
   }

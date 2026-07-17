@@ -41,6 +41,7 @@ const fixtures = vi.hoisted(() => ({
   setMusicContext: vi.fn(),
   playSfx: vi.fn(),
   setThemeTemplate: vi.fn(),
+  actionBarProps: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@/play/usePlayController", () => ({
@@ -109,7 +110,13 @@ vi.mock("@/play/usePlayController", () => ({
       settledCleanupStatus: fixtures.settledCleanupStatus,
       closeOutcome: vi.fn(),
       settlingLabel: "Finalizing…",
-      startError: null,
+      terminalSnapshot: null,
+      awaitingTerminalCascade: false,
+      presentationPhase: "idle",
+      settlementStatus: "idle",
+      showLevelCard: false,
+      continueFromTerminal: vi.fn(),
+      finalCampaignMapId: 1,
     };
   },
 }));
@@ -147,10 +154,16 @@ vi.mock("@/ui/components/GameBoard", () => ({
 }));
 vi.mock("@/ui/components/hud/GameHud", () => ({ default: () => null }));
 vi.mock("@/ui/components/actionbar/GameActionBar", () => ({
-  default: () => null,
+  default: (props: Record<string, unknown>) => {
+    fixtures.actionBarProps = props;
+    return null;
+  },
 }));
 vi.mock("@/ui/components/GameOverDialog", () => ({ default: () => null }));
 vi.mock("@/ui/components/VictoryDialog", () => ({ default: () => null }));
+vi.mock("@/ui/components/LevelCompleteDialog", () => ({
+  default: () => null,
+}));
 
 beforeAll(() => {
   vi.stubGlobal("React", React);
@@ -284,6 +297,40 @@ describe("PlayScreen settled summary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry settlement" }));
     expect(fixtures.retrySettlement).toHaveBeenCalledOnce();
     expect(fixtures.continueSettled).not.toHaveBeenCalled();
+  });
+});
+
+describe("PlayScreen terminal action bar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.actionBarProps = null;
+    fixtures.gameAvailable = true;
+    fixtures.error = null;
+    fixtures.settledReceipt = null;
+    fixtures.settledCleanupStatus = "idle";
+    fixtures.sessionRenewalStatus = "idle";
+    fixtures.recoveryRunId = null;
+    fixtures.phase = "delegated";
+    fixtures.sessionAuthorized = true;
+  });
+
+  it("stays mounted but inert through the terminal window", () => {
+    fixtures.lifecycle = "levelComplete";
+    render(<PlayScreen />);
+
+    // Unmounting the bar would resize the board mid-presentation.
+    expect(screen.getByTestId("game-board")).toBeInTheDocument();
+    expect(fixtures.actionBarProps).not.toBeNull();
+    expect(fixtures.actionBarProps?.disabled).toBe(true);
+    expect(fixtures.actionBarProps?.surrenderDisabled).toBe(true);
+  });
+
+  it("is interactive during normal play", () => {
+    fixtures.lifecycle = "playing";
+    render(<PlayScreen />);
+
+    expect(fixtures.actionBarProps?.disabled).toBe(false);
+    expect(fixtures.actionBarProps?.surrenderDisabled).toBe(false);
   });
 });
 

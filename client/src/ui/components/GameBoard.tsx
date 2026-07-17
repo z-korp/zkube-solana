@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChevronUp } from "lucide-react";
-import Grid, { type GridProps } from "./Grid";
+import Grid, { type GridProps, type OutcomeAnimation } from "./Grid";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import NextLine from "./NextLine";
 import { BonusType } from "@/chain/bonusTypes";
@@ -23,6 +29,8 @@ interface GameBoardProps {
    * navigation fires.
    */
   levelTransitionPending: boolean;
+  /** Terminal board show (win/lose) — see Grid's OutcomeAnimation. */
+  outcomeAnimation?: OutcomeAnimation | null;
   onMove: GridProps["onMove"];
   onBonus: GridProps["onBonus"];
 }
@@ -36,6 +44,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   onCascadeComplete,
   forceTxProcessing = false,
   levelTransitionPending,
+  outcomeAnimation = null,
   onMove,
   onBonus,
 }) => {
@@ -51,16 +60,65 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const effectiveTxProcessing =
     isTxProcessing || forceTxProcessing || levelTransitionPending;
   const [nextLineHasBeenConsumed, setNextLineHasBeenConsumed] = useState(false);
-  const [nextLineOverride, setNextLineOverride] = useState<number[] | null>(
-    null,
+
+  // The preview strip must not advance mid-cascade: the chain confirms a move
+  // (and the authoritative `nextLine` prop flips to the FOLLOWING row) while
+  // the cascade for the current one is still animating. Hold what the strip
+  // displays in local state and gate prop-driven updates on "a receipt is in
+  // flight"; the receipt path (Grid's applyReceipt → onNextLineUpdate, which
+  // fires exactly at cascade end) is what advances it. Idle watcher/VRF
+  // corrections and the terminal clear still flow through the prop effect.
+  const [displayNextRow, setDisplayNextRow] = useState<number[]>(nextLine);
+  const pendingReceiptAdvanceRef = useRef(false);
+  const nextLineRef = useRef(nextLine);
+  nextLineRef.current = nextLine;
+
+  useEffect(() => {
+    // New game/run: hard reset the held preview.
+    pendingReceiptAdvanceRef.current = false;
+    setDisplayNextRow(nextLineRef.current);
+  }, [game.id]);
+
+  useEffect(() => {
+    if (pendingReceiptAdvanceRef.current) return;
+    setDisplayNextRow(nextLine);
+  }, [nextLine]);
+
+  const handleNextLineUpdate = useCallback((row: number[]) => {
+    pendingReceiptAdvanceRef.current = false;
+    setDisplayNextRow(row);
+  }, []);
+
+  const handleMove: GridProps["onMove"] = useCallback(
+    async (rowIndex: number, startIndex: number, finalIndex: number) => {
+      pendingReceiptAdvanceRef.current = true;
+      try {
+        const receipt = await onMove(rowIndex, startIndex, finalIndex);
+        // A void result means no receipt (and no onNextLineUpdate) is coming.
+        if (!receipt) pendingReceiptAdvanceRef.current = false;
+        return receipt;
+      } catch (error) {
+        pendingReceiptAdvanceRef.current = false;
+        throw error;
+      }
+    },
+    [onMove],
   );
 
-  // Receipt projection updates the preview before provider state necessarily
-  // re-renders. Once the authoritative run prop advances, release that local
-  // bridge so watcher/VRF reconciliation can keep correcting the next row.
-  useEffect(() => {
-    setNextLineOverride(null);
-  }, [game.id, nextLine]);
+  const handleBonus: GridProps["onBonus"] = useCallback(
+    async (rowIndex: number, columnIndex: number) => {
+      pendingReceiptAdvanceRef.current = true;
+      try {
+        const receipt = await onBonus(rowIndex, columnIndex);
+        if (!receipt) pendingReceiptAdvanceRef.current = false;
+        return receipt;
+      } catch (error) {
+        pendingReceiptAdvanceRef.current = false;
+        throw error;
+      }
+    },
+    [onBonus],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -85,11 +143,19 @@ const GameBoard: React.FC<GameBoardProps> = ({
     return transformDataContractIntoBlock(initialGrid);
   }, [initialGrid]);
 
+  // Grid always receives the AUTHORITATIVE row (its idle-resync and the
+  // ADD_LINE insert must track the chain); only the visible strip is held.
   const memoizedNextLineData = useMemo(() => {
-    return transformDataContractIntoBlock([nextLineOverride ?? nextLine]);
-  }, [nextLine, nextLineOverride]);
+    return transformDataContractIntoBlock([nextLine]);
+  }, [nextLine]);
 
-  if (memoizedInitialData.length === 0) return null;
+  const memoizedDisplayNextLine = useMemo(() => {
+    return transformDataContractIntoBlock([displayNextRow]);
+  }, [displayNextRow]);
+
+  // Gate on the grid shape, not its occupancy: a perfect-clear terminal board
+  // has zero blocks but must keep rendering the frame for the outcome show.
+  if (initialGrid.length === 0) return null;
 
   return (
     <div
@@ -113,10 +179,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
           isTxProcessing={effectiveTxProcessing}
           setIsTxProcessing={setIsTxProcessing}
           levelTransitionPending={levelTransitionPending}
+          outcomeAnimation={outcomeAnimation}
           onCascadeComplete={onCascadeComplete}
-          onNextLineUpdate={setNextLineOverride}
-          onMove={onMove}
-          onBonus={onBonus}
+          onNextLineUpdate={handleNextLineUpdate}
+          onMove={handleMove}
+          onBonus={handleBonus}
         />
         <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
           <div className="chevron-pulse">
@@ -128,7 +195,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
         </div>
         <div>
           <NextLine
-            nextLineData={nextLineHasBeenConsumed ? [] : memoizedNextLineData}
+            nextLineData={nextLineHasBeenConsumed ? [] : memoizedDisplayNextLine}
             gridSize={gridSize}
             gridHeight={1}
             gridWidth={COLS}

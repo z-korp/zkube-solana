@@ -30,22 +30,27 @@ function getEndlessTier(
 interface GameOverDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Blocks dismissal while background settlement finishes on-chain. */
+  closeDisabled?: boolean;
   game: Game;
 }
 
 const GameOverDialog: React.FC<GameOverDialogProps> = ({
   isOpen,
   onClose,
+  closeDisabled = false,
   game,
 }) => {
   const { playerMeta } = usePlayerMeta();
   const isEndless = game.mode === 1;
 
   const handleClose = () => {
+    if (closeDisabled) return;
     onClose();
   };
 
   const handlePlayAgain = () => {
+    if (closeDisabled) return;
     onClose();
   };
 
@@ -354,10 +359,17 @@ app.zkube.xyz`;
             {/* Primary CTA: Play Again */}
             <button
               onClick={handlePlayAgain}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-lg px-4 py-3.5 transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+              disabled={closeDisabled}
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-lg px-4 py-3.5 transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 disabled:cursor-not-allowed disabled:opacity-55"
             >
               <RotateCw size={16} />
-              <span>{isEndless ? "Back to Daily Arena" : "Back to Map"}</span>
+              <span>
+                {closeDisabled
+                  ? "Settling…"
+                  : isEndless
+                    ? "Back to Daily Arena"
+                    : "Back to Map"}
+              </span>
             </button>
 
             {/* Secondary: Share on X */}

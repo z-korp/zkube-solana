@@ -2,24 +2,27 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
+import type { Game } from "@/game/model";
 import {
   dailyScoringRuleDescription,
   dailyScoringRuleName,
   dailyScoringRuleStatus,
 } from "@/chain/dailyRules";
 import { getBonusType } from "@/config/mutatorConfig";
-import { getThemeId } from "@/config/themes";
+import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import GameBoard from "@/ui/components/GameBoard";
 import GameOverDialog from "@/ui/components/GameOverDialog";
+import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import VictoryDialog from "@/ui/components/VictoryDialog";
 import GameActionBar, {
   type BonusSlot,
@@ -43,6 +46,13 @@ export default function PlayScreen() {
   const images = ImageAssets(themeTemplate);
   const [activeBonus, setActiveBonus] = useState(BonusType.None);
   const [recoveringRun, setRecoveringRun] = useState(false);
+  // HUD hold: the chain confirms a move while its cascade is still animating.
+  // Freeze the values the top bar (and the bonus badge) displays at the
+  // pre-move snapshot until the cascade lands, so numbers never jump ahead of
+  // the board. Board/data flow stays authoritative — this is display-only.
+  const [held, setHeld] = useState<{ game: Game; charges: number } | null>(
+    null,
+  );
   const activeRunId = activeRun?.runId;
   const activeRunLevel = activeRun?.level;
   const activeRunBossId = activeRun?.rules.bossId;
@@ -99,7 +109,10 @@ export default function PlayScreen() {
     return [
       {
         type,
-        charges: activeRun.bonusCharges,
+        // Displayed count is held until the cascade lands, so it bumps
+        // together with the badge-pop; the interaction guard below stays
+        // authoritative.
+        charges: held?.charges ?? activeRun.bonusCharges,
         isActive: true,
         icon: info.icon,
         name: info.name,
@@ -118,21 +131,85 @@ export default function PlayScreen() {
         },
       },
     ];
-  }, [activeRun]);
+  }, [activeRun, held]);
 
   const bonusDescription =
     activeBonus !== BonusType.None && activeRun
       ? `TAP A BLOCK TO USE ${getBonusType(activeRun.bonusType).name.toUpperCase()}`
       : "";
 
+  // Freeze the HUD at the pre-action snapshot; a rejected action never fires
+  // onCascadeComplete (Grid recovers straight to WAITING), so failures must
+  // release the hold themselves.
+  const onRunMove = controller.onMove;
+  const handleMove = useCallback(
+    async (row: number, start: number, destination: number) => {
+      if (game && activeRun) {
+        setHeld((prev) => prev ?? { game, charges: activeRun.bonusCharges });
+      }
+      try {
+        return await onRunMove(row, start, destination);
+      } catch (error) {
+        setHeld(null);
+        throw error;
+      }
+    },
+    [activeRun, game, onRunMove],
+  );
+
   const onBonus = useCallback(
     async (row: number, column: number) => {
-      const projection = await onRunBonus(row, column);
-      setActiveBonus(BonusType.None);
-      return projection;
+      if (game && activeRun) {
+        setHeld((prev) => prev ?? { game, charges: activeRun.bonusCharges });
+      }
+      try {
+        const projection = await onRunBonus(row, column);
+        setActiveBonus(BonusType.None);
+        return projection;
+      } catch (error) {
+        setHeld(null);
+        throw error;
+      }
     },
-    [onRunBonus],
+    [activeRun, game, onRunBonus],
   );
+
+  // New run/level snapshot changes identity: never carry a hold across runs.
+  const gameId = game?.id;
+  useEffect(() => {
+    setHeld(null);
+  }, [gameId]);
+
+  // Bonus-earned feedback: a charge INCREASE within the same run+level means
+  // the trigger condition fired. Latch it and celebrate when the cascade that
+  // earned it finishes, so the badge pop lands with the line clears. Charge
+  // decreases (spending) and run/level rollovers never latch.
+  const [bonusEarnSignal, setBonusEarnSignal] = useState(0);
+  const pendingBonusEarnRef = useRef(false);
+  const chargesRef = useRef<{ key: string; charges: number } | null>(null);
+  useEffect(() => {
+    if (!activeRun) {
+      chargesRef.current = null;
+      return;
+    }
+    const key = `${activeRun.runId}:${activeRun.level}`;
+    const prev = chargesRef.current;
+    chargesRef.current = { key, charges: activeRun.bonusCharges };
+    if (prev && prev.key === key && activeRun.bonusCharges > prev.charges) {
+      pendingBonusEarnRef.current = true;
+    }
+  }, [activeRun]);
+
+  const onCascadeCompleteFromController = controller.onCascadeComplete;
+  const handleCascadeComplete = useCallback(() => {
+    onCascadeCompleteFromController();
+    setHeld(null);
+    if (pendingBonusEarnRef.current) {
+      pendingBonusEarnRef.current = false;
+      setBonusEarnSignal((value) => value + 1);
+      playSfx("coin");
+    }
+  }, [onCascadeCompleteFromController, playSfx]);
 
   const abandonRun = run.abandonRun;
   const resumePreparedRun = run.resumePreparedRun;
@@ -350,7 +427,7 @@ export default function PlayScreen() {
             </>
           ) : (
             (() => {
-              const rawError = controller.startError ?? run.error;
+              const rawError = run.error;
               const described = rawError
                 ? describeRunStartError(rawError)
                 : null;
@@ -413,6 +490,28 @@ export default function PlayScreen() {
   // the completion screen mid-animation.
   const terminal = chainTerminal && !controller.awaitingTerminalCascade;
   const basePhase = run.phase === "base" || run.phase === "settleable";
+  // The healthy terminal path is owned by the outcome show + card/dialogs;
+  // the status box only surfaces when the player can (or must) act on it.
+  const terminalNeedsAttention =
+    terminal &&
+    ((!run.sessionAuthorized && run.phase === "delegated") ||
+      run.error !== null ||
+      controller.settlementStatus === "failed");
+  // Board outcome show: win detonation, or the loss that matches how the run
+  // ended — the stack breaching the top overflows the frame, running out of
+  // moves sinks the board.
+  const outcomeAnimation =
+    (controller.presentationPhase === "outcome" ||
+      controller.presentationPhase === "card") &&
+    controller.terminalSnapshot
+      ? controller.terminalSnapshot.completed
+        ? ("win" as const)
+        : controller.terminalSnapshot.game.blocks[0]?.some(
+              (cell) => cell !== 0,
+            )
+          ? ("lose-overflow" as const)
+          : ("lose-sink" as const)
+      : null;
   const preparedBase =
     run.phase === "base" && activeRun.lifecycle === "prepared";
   const waitingForOpening =
@@ -435,42 +534,67 @@ export default function PlayScreen() {
   const occupiedHeight =
     firstOccupiedRow < 0 ? 0 : grid.length - firstOccupiedRow;
   const nextLine = terminal ? [] : game.nextRow;
+  // What the top bar displays: pre-move values while a cascade is in flight.
+  const hudGame = held?.game ?? game;
   const movesDisplay =
-    game.mode === 1
-      ? game.levelMoves
-      : Math.max(0, gameLevel.maxMoves - game.levelMoves);
+    hudGame.mode === 1
+      ? hudGame.levelMoves
+      : Math.max(0, gameLevel.maxMoves - hudGame.levelMoves);
 
   return (
     <PlaySurface>
       {controller.outcome === "daily" && (
-        <GameOverDialog isOpen onClose={controller.closeOutcome} game={game} />
+        <GameOverDialog
+          isOpen
+          onClose={controller.closeOutcome}
+          closeDisabled={controller.settlementStatus !== "complete"}
+          game={game}
+        />
       )}
       {controller.outcome === "victory" && (
         <VictoryDialog
           isOpen
           onClose={controller.closeOutcome}
+          closeDisabled={controller.settlementStatus !== "complete"}
           game={game}
           finalCampaignMapId={controller.finalCampaignMapId}
           xpAwarded={controller.terminalSnapshot?.xpAwarded ?? 0}
         />
       )}
+      {controller.showLevelCard && controller.terminalSnapshot && (
+        <LevelCompleteDialog
+          isOpen
+          onClose={controller.continueFromTerminal}
+          continueDisabled={controller.settlementStatus !== "complete"}
+          level={controller.terminalSnapshot.activeRun.level}
+          levelMoves={controller.terminalSnapshot.activeRun.moves}
+          prevTotalScore={0}
+          totalScore={controller.terminalSnapshot.activeRun.score}
+          gameLevel={controller.terminalSnapshot.gameLevel}
+          xpAwarded={controller.terminalSnapshot.xpAwarded}
+          zoneId={controller.terminalSnapshot.game.zoneId}
+          colors={getThemeColors(themeTemplate as ThemeId)}
+          isIncomplete={!controller.terminalSnapshot.completed}
+          draftWillOpen={false}
+        />
+      )}
 
       <GameHud
-        level={game.level}
-        levelScore={game.levelScore}
+        level={hudGame.level}
+        levelScore={hudGame.levelScore}
         targetScore={gameLevel.pointsRequired}
         movesRemaining={movesDisplay}
-        combo={game.combo}
-        constraintProgress={game.constraintProgress}
-        constraint2Progress={game.constraint2Progress}
+        combo={hudGame.combo}
+        constraintProgress={hudGame.constraintProgress}
+        constraint2Progress={hudGame.constraint2Progress}
         bonusUsedThisLevel={false}
         gameLevel={gameLevel}
         activeMutatorId={activeRun.rules.activeMutatorId}
         mode={game.mode}
-        totalScore={game.totalScore}
-        engineScore={game.engineScore}
-        challengeBonus={game.challengeBonus}
-        pressureScore={game.pressureScore}
+        totalScore={hudGame.totalScore}
+        engineScore={hudGame.engineScore}
+        challengeBonus={hudGame.challengeBonus}
+        pressureScore={hudGame.pressureScore}
         dailyRuleName={
           game.mode === 1
             ? dailyScoringRuleName(activeRun.dailyScoringRule)
@@ -486,7 +610,7 @@ export default function PlayScreen() {
             ? dailyScoringRuleStatus(activeRun.dailyScoringRule, occupiedHeight)
             : undefined
         }
-        currentDifficulty={game.currentDifficulty}
+        currentDifficulty={hudGame.currentDifficulty}
         endlessThresholds={activeRun.endlessThresholds}
         endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
         zoneId={game.zoneId}
@@ -513,15 +637,16 @@ export default function PlayScreen() {
             game={game}
             activeBonus={activeBonus}
             bonusDescription={bonusDescription}
-            onCascadeComplete={controller.onCascadeComplete}
+            onCascadeComplete={handleCascadeComplete}
             forceTxProcessing={locked}
             levelTransitionPending={false}
-            onMove={controller.onMove}
+            outcomeAnimation={outcomeAnimation}
+            onMove={handleMove}
             onBonus={onBonus}
           />
         </div>
 
-        {(terminal || basePhase) && (
+        {(terminalNeedsAttention || basePhase) && (
           <div className="absolute inset-x-4 bottom-4 z-50 rounded-2xl border border-yellow-300/30 bg-black/85 p-4 text-center backdrop-blur-xl">
             <p className="font-display text-xl text-yellow-300">
               {preparedBase
@@ -650,18 +775,23 @@ export default function PlayScreen() {
         )}
       </div>
 
-      {!terminal && !basePhase && run.sessionAuthorized && (
-        <GameActionBar
-          bonusSlots={bonusSlots}
-          activeBonus={activeBonus}
-          bonusDescription={bonusDescription}
-          onSurrender={handleQuit}
-          surrenderDisabled={run.busy}
-          isGameOver={false}
-          zoneId={game.zoneId}
-          activeMutatorId={activeRun.rules.activeMutatorId}
-        />
-      )}
+      {/* Always mounted: unmounting the bar changes the flex space above it,
+          which resizes every grid cell via GameBoard's ResizeObserver. During
+          the terminal/settlement window it stays as an inert height-holder. */}
+      <GameActionBar
+        bonusSlots={bonusSlots}
+        activeBonus={activeBonus}
+        bonusDescription={bonusDescription}
+        onSurrender={handleQuit}
+        surrenderDisabled={
+          run.busy || chainTerminal || basePhase || !run.sessionAuthorized
+        }
+        disabled={chainTerminal || basePhase || !run.sessionAuthorized}
+        bonusEarnSignal={bonusEarnSignal}
+        isGameOver={false}
+        zoneId={game.zoneId}
+        activeMutatorId={activeRun.rules.activeMutatorId}
+      />
     </PlaySurface>
   );
 }
@@ -672,7 +802,7 @@ function PlaySurface({ children }: { children: ReactNode }) {
   // stays on home/map. Both come from the active `data-theme` CSS variables.
   return (
     <div
-      className="flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0 flex-col"
       style={{
         backgroundImage: "var(--theme-grid-bg-image, none)",
         backgroundSize: "cover",

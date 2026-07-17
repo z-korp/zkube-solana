@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef } from "react";
+import type { OutcomeAnimation } from "./Grid";
 import type { Block } from "@/types/types";
 
 interface BlockProps {
@@ -15,6 +16,10 @@ interface BlockProps {
    */
   isGravity?: boolean;
   isExploding?: boolean;
+  /** Terminal board show this block takes part in (win/lose, see Grid). */
+  outcome?: OutcomeAnimation | null;
+  /** Stagger offset within the outcome show. */
+  outcomeDelayMs?: number;
   /** Map of block width (1-4) → image URL */
   blockImages: Record<number, string>;
   onPointerDown?: (
@@ -32,6 +37,8 @@ const BlockContainer: React.FC<BlockProps> = ({
   isTxProcessing = false,
   isGravity = false,
   isExploding = false,
+  outcome = null,
+  outcomeDelayMs = 0,
   blockImages,
   onPointerDown,
   onTransitionBlockStart,
@@ -87,10 +94,33 @@ const BlockContainer: React.FC<BlockProps> = ({
       onPointerDown={(e) => onPointerDown?.(e, block)}
       onTransitionEnd={handleTransitionEnd}
     >
-      {/* Inner group for explosion animation — doesn't conflict with outer translate */}
+      {/* Inner group for explosion/outcome animations — doesn't conflict with
+          the outer positioning translate */}
       <g
-        className={isExploding ? "svg-block-exploding" : ""}
-        style={{ transformOrigin: `${w / 2}px ${h / 2}px` }}
+        className={
+          isExploding
+            ? "svg-block-exploding"
+            : outcome === "win"
+              ? "svg-block-detonate"
+              : outcome === "lose-overflow"
+                ? "svg-block-overflow"
+                : outcome === "lose-sink"
+                  ? "svg-block-sink"
+                  : ""
+        }
+        style={{
+          transformOrigin: `${w / 2}px ${h / 2}px`,
+          ...(outcome
+            ? {
+                animationDelay: `${outcomeDelayMs}ms`,
+                // Eruption distances are per-block: each block must clear the
+                // frame top from its own row, with deterministic drift/spin.
+                ["--overflow-rise" as string]: `${-(block.y + 3) * gridSize}px`,
+                ["--overflow-drift" as string]: `${((block.x % 3) - 1) * gridSize * 0.6}px`,
+                ["--overflow-rot" as string]: `${((block.x * 13 + block.y * 7) % 30) - 15}deg`,
+              }
+            : {}),
+        }}
       >
         <image
           href={imageUrl}

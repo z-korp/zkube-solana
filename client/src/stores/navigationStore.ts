@@ -48,7 +48,6 @@ interface NavigationState {
   isDailyMap: boolean;
   selectedMode: number;
   profileAddress: string | null;
-  pendingPreviewLevel: number | null;
   pendingLevelCompletion: PendingLevelCompletion | null;
   greetedZones: Set<number>;
   showEndlessGreeting: boolean;
@@ -66,7 +65,6 @@ interface NavigationState {
   setIsDailyMap: (isDaily: boolean) => void;
   setSelectedMode: (mode: number) => void;
   setProfileAddress: (address: string | null) => void;
-  setPendingPreviewLevel: (level: number | null) => void;
   setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
   markZoneGreeted: (zoneId: number) => void;
   spectateTarget: SpectateTargetParams | null;
@@ -105,7 +103,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   isDailyMap: false,
   selectedMode: 0,
   profileAddress: null,
-  pendingPreviewLevel: null,
   pendingLevelCompletion: null,
   greetedZones: new Set(),
   showEndlessGreeting: false,
@@ -189,7 +186,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setProfileAddress: (address) => set({ profileAddress: address }),
   spectateTarget: null,
   setSpectateTarget: (target) => set({ spectateTarget: target }),
-  setPendingPreviewLevel: (level) => set({ pendingPreviewLevel: level }),
   setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),
   markZoneGreeted: (zoneId) =>
     set((state) => {

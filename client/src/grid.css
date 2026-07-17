@@ -134,6 +134,16 @@
   animation: mapPlayingRing 1.2s ease-out infinite;
 }
 
+/* ─── Map: next playable node pulse (CSS, not JS) ─── */
+/* The island itself breathes — a bigger sibling of the guardian's 1.04. */
+@keyframes mapCurrentPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.map-current-pulse {
+  animation: mapCurrentPulse 1.8s ease-in-out infinite;
+}
+
 /* ─── Map: guardian node pulse (CSS, not JS) ─── */
 @keyframes mapGuardianPulse {
   0%, 100% { transform: scale(1); }
@@ -186,4 +196,110 @@
 @keyframes shine {
   0% { background-position: 0px; }
   100% { background-position: 600px; }
+}
+
+/* ─── Terminal board show: WIN detonation ─── */
+/* Inner-<g> ripple (like svgBlockExplode); staggered per block via inline
+   animation-delay. `both` keeps blocks invisible before their turn ends and
+   after — the emptied board stays calm under the level-complete card. */
+@keyframes svgBlockDetonate {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  35% { transform: scale(1.3); filter: brightness(2.2); opacity: 1; }
+  100% { transform: scale(1.8); filter: brightness(2.6); opacity: 0; }
+}
+.svg-block-detonate {
+  animation: svgBlockDetonate 400ms ease-out both;
+  pointer-events: none;
+}
+
+/* Frame flash + afterglow, tinted by the zone accent (--outcome-accent). */
+@keyframes boardWinFlash {
+  0% { box-shadow: inset 0 0 0 0 transparent; opacity: 0; }
+  12% { box-shadow: inset 0 0 42px 6px var(--outcome-accent); opacity: 1; }
+  55% { box-shadow: inset 0 0 18px 2px var(--outcome-accent); opacity: 0.55; }
+  100% { box-shadow: inset 0 0 26px 4px var(--outcome-accent); opacity: 0.4; }
+}
+.board-win-flash {
+  animation: boardWinFlash 1400ms ease-out forwards;
+}
+
+@keyframes boardWinSpark {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-260px) scale(1); opacity: 0; }
+}
+.board-win-spark {
+  background: var(--outcome-accent);
+  box-shadow: 0 0 6px 1px var(--outcome-accent);
+  opacity: 0;
+  animation: boardWinSpark 600ms ease-out forwards;
+}
+
+/* ─── Terminal board show: LOSE overflow (stack breached the top) ─── */
+/* Inner-<g> eruption: rise/drift/spin distances are per-block CSS vars set
+   inline. ease-in = the stack accelerating as it blows past the frame. */
+@keyframes svgBlockOverflow {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% {
+    transform: translate(var(--overflow-drift, 0px), var(--overflow-rise, -400px))
+      rotate(var(--overflow-rot, 12deg));
+    opacity: 0.85;
+  }
+}
+.svg-block-overflow {
+  animation: svgBlockOverflow 550ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes boardOverflowFlash {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  25% { box-shadow: inset 0 0 38px 5px rgba(209, 18, 28, 0.55); }
+  60% { box-shadow: inset 0 0 20px 3px rgba(209, 18, 28, 0.35); }
+}
+.board-outcome-overflow {
+  animation: boardOverflowFlash 900ms ease-out forwards;
+}
+
+/* ─── Terminal board show: LOSE sink (ran out of moves) ─── */
+.board-outcome-sink {
+  filter: saturate(0.25) brightness(0.65);
+  transition: filter 700ms ease-in;
+}
+@keyframes svgBlockSink {
+  to { transform: translateY(4px); opacity: 0.75; }
+}
+.svg-block-sink {
+  animation: svgBlockSink 600ms ease-out forwards;
+  pointer-events: none;
+}
+
+/* ─── Bonus charge earned: icon swirl + badge pop + expanding ring ─── */
+/* Restarted via React key changes on the earn signal — no timers. The icon
+   itself swells and spins a full turn so the earn reads even mid-combo. */
+@keyframes bonusEarnSwirl {
+  0% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+  45% { transform: scale(1.9) rotate(240deg); filter: brightness(1.7) drop-shadow(0 0 10px rgba(250, 204, 21, 0.9)); }
+  75% { transform: scale(1.25) rotate(340deg); filter: brightness(1.3) drop-shadow(0 0 6px rgba(250, 204, 21, 0.5)); }
+  100% { transform: scale(1) rotate(360deg); filter: brightness(1); }
+}
+.bonus-earn-swirl {
+  animation: bonusEarnSwirl 900ms cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+
+@keyframes bonusBadgePop {
+  0% { transform: scale(1); }
+  35% { transform: scale(2); }
+  70% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+.bonus-badge-pop {
+  animation: bonusBadgePop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+
+@keyframes bonusEarnRing {
+  0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.9); opacity: 1; }
+  100% { box-shadow: 0 0 0 28px rgba(250, 204, 21, 0); opacity: 0; }
+}
+.bonus-earn-ring {
+  animation: bonusEarnRing 900ms ease-out forwards;
 }

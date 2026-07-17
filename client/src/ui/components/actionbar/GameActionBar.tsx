@@ -26,7 +26,7 @@ import {
   circleToPercent,
 } from "@/ui/components/chrome";
 import { getZoneGuardian, getGuardianPortrait } from "@/config/bossCharacters";
-import { getMutatorDef } from "@/config/mutatorConfig";
+import { getMutatorDef, getMutatorEffects } from "@/config/mutatorConfig";
 
 export interface BonusSlot {
   type: BonusType;
@@ -46,6 +46,13 @@ interface GameActionBarProps {
   bonusDescription: string;
   onSurrender: () => void;
   surrenderDisabled?: boolean;
+  /** Inert mode: the bar stays mounted (its height reserves the flex slot so
+   * the board never resizes) but bonus interactions are off — used across the
+   * terminal/settlement window. */
+  disabled?: boolean;
+  /** Monotonic counter bumped when a bonus charge is EARNED; keys the badge
+   * pop + ring animations so CSS restarts without timers. */
+  bonusEarnSignal?: number;
   isGameOver: boolean;
   zoneId?: number;
   activeMutatorId?: number;
@@ -57,6 +64,8 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
   bonusDescription,
   onSurrender,
   surrenderDisabled = false,
+  disabled = false,
+  bonusEarnSignal = 0,
   isGameOver,
   zoneId = 1,
   activeMutatorId = 0,
@@ -167,9 +176,16 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
                         {guardian.name}
                       </div>
                       {activeMutatorId > 0 && (
-                        <div className="font-sans text-[10px] text-yellow-400/90">
-                          {mutator.icon} {mutator.name}: {mutator.description}
-                        </div>
+                        <>
+                          <div className="font-sans text-[10px] text-yellow-400/90">
+                            {mutator.icon} {mutator.name}: {mutator.description}
+                          </div>
+                          {getMutatorEffects(mutator, false).length > 0 && (
+                            <div className="font-sans text-[10px] font-semibold text-yellow-300">
+                              {getMutatorEffects(mutator, false).join(" · ")}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </TooltipContent>
@@ -189,23 +205,45 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <motion.button
-                          onClick={hasCharges ? slot.onClick : undefined}
-                          disabled={!hasCharges}
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={hasCharges ? { scale: 0.92 } : undefined}
-                          className={`relative w-full h-full overflow-visible flex items-center justify-center cursor-pointer transition-all ${
+                          onClick={
+                            hasCharges && !disabled ? slot.onClick : undefined
+                          }
+                          disabled={!hasCharges || disabled}
+                          whileHover={
+                            hasCharges && !disabled
+                              ? { scale: 1.08 }
+                              : undefined
+                          }
+                          whileTap={
+                            hasCharges && !disabled
+                              ? { scale: 0.92 }
+                              : undefined
+                          }
+                          className={`relative w-full h-full overflow-visible flex items-center justify-center cursor-pointer transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
                             isSelected
                               ? "drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
                               : ""
                           }`}
                         >
+                          {bonusEarnSignal > 0 && (
+                            <span
+                              key={`earn-ring-${bonusEarnSignal}`}
+                              className="bonus-earn-ring pointer-events-none absolute inset-0 rounded-full"
+                            />
+                          )}
                           <img
+                            key={`icon-${bonusEarnSignal}`}
                             src={slot.icon}
                             alt={slot.name}
-                            className="w-[60%] h-[60%] object-contain"
+                            className={`w-[60%] h-[60%] object-contain ${
+                              bonusEarnSignal > 0 ? "bonus-earn-swirl" : ""
+                            }`}
                           />
                           <span
+                            key={`badge-${bonusEarnSignal}`}
                             className={`absolute -bottom-1 -right-1 font-sans text-[clamp(8px,2vw,14px)] font-bold rounded-full min-w-[clamp(16px,4vw,26px)] h-[clamp(16px,4vw,26px)] flex items-center justify-center px-0.5 shadow-[0_0_4px_rgba(0,0,0,0.5)] z-10 ${
+                              bonusEarnSignal > 0 ? "bonus-badge-pop " : ""
+                            }${
                               hasCharges
                                 ? "bg-yellow-500 border border-yellow-400/50 text-white"
                                 : "bg-slate-700 border border-slate-500 text-slate-400"

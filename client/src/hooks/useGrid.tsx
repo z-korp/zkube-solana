@@ -11,6 +11,7 @@ export const useGrid = (options: {
   const run = useRun();
   const [blocks, setBlocks] = useState<number[][]>([]);
   const runIdRef = useRef<bigint | null>(null);
+  const frozenTerminalRunRef = useRef<bigint | null>(null);
   const projectedBlocks = useDeepMemo(
     () => (run.activeRun ? toDisplayGrid(run.activeRun.grid) : []),
     [run.activeRun?.grid],
@@ -26,6 +27,7 @@ export const useGrid = (options: {
   useEffect(() => {
     if (!run.activeRun || runId === null) {
       runIdRef.current = null;
+      frozenTerminalRunRef.current = null;
       setBlocks([]);
       return;
     }
@@ -34,15 +36,23 @@ export const useGrid = (options: {
     // observed projection is already terminal.
     if (runIdRef.current !== runId) {
       runIdRef.current = runId;
+      frozenTerminalRunRef.current = terminal ? runId : null;
       setBlocks(projectedBlocks);
       return;
     }
 
-    // Preserve the last playable board while terminal settlement progresses.
-    // The result projection and terminal snapshot own the frozen result; a
-    // watcher refresh must not replace it underneath completion animations.
-    if (terminal) return;
+    // Adopt the projection that carries the terminal lifecycle — it IS the
+    // final board (playMove/applyBonus commit grid + lifecycle in one update).
+    // Then freeze: a later watcher refresh must not replace the frozen result
+    // underneath completion animations.
+    if (terminal) {
+      if (frozenTerminalRunRef.current === runId) return;
+      frozenTerminalRunRef.current = runId;
+      setBlocks(projectedBlocks);
+      return;
+    }
 
+    frozenTerminalRunRef.current = null;
     setBlocks(projectedBlocks);
   }, [projectedBlocks, run.activeRun, runId, terminal]);
 

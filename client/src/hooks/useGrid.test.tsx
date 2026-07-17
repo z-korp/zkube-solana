@@ -28,7 +28,7 @@ describe("useGrid", () => {
     fixtures.activeRun = null;
   });
 
-  it("hydrates a run, preserves its playable board while terminal, and resets", async () => {
+  it("hydrates a run, adopts the terminal board once, freezes, and resets", async () => {
     fixtures.activeRun = projectedRun(1n, "playing", 1);
     const { result, rerender } = renderHook(() =>
       useGrid({ gameId: 1n, shouldLog: false }),
@@ -36,11 +36,22 @@ describe("useGrid", () => {
 
     await waitFor(() => expect(result.current[9]?.[0]).toBe(1));
 
+    // The update that flips the lifecycle terminal carries the FINAL board —
+    // it must be adopted, not frozen out (the old behavior displayed a board
+    // one move stale and caused the end-of-level snap-back).
     act(() => {
       fixtures.activeRun = projectedRun(1n, "levelComplete", 4);
       rerender();
     });
-    expect(result.current[9]?.[0]).toBe(1);
+    expect(result.current[9]?.[0]).toBe(4);
+
+    // Subsequent same-run refreshes while terminal are frozen out so nothing
+    // repaints the board underneath the completion presentation.
+    act(() => {
+      fixtures.activeRun = projectedRun(1n, "levelComplete", 7);
+      rerender();
+    });
+    expect(result.current[9]?.[0]).toBe(4);
 
     act(() => {
       fixtures.activeRun = null;

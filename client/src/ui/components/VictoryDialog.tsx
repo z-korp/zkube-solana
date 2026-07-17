@@ -8,6 +8,8 @@ import CubeIcon from "@/ui/components/CubeIcon";
 interface VictoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Blocks dismissal while background settlement finishes on-chain. */
+  closeDisabled?: boolean;
   game: Game;
   finalCampaignMapId: number;
   xpAwarded: number;
@@ -16,6 +18,7 @@ interface VictoryDialogProps {
 const VictoryDialog: React.FC<VictoryDialogProps> = ({
   isOpen,
   onClose,
+  closeDisabled = false,
   game,
   finalCampaignMapId,
   xpAwarded,
@@ -38,6 +41,7 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   }, [isOpen]);
 
   const handleClose = () => {
+    if (closeDisabled) return;
     onClose();
   };
 
@@ -221,12 +225,13 @@ Play now: app.zkube.xyz
           {/* Return home button */}
           <motion.button
             onClick={handleClose}
-            className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-4 py-2 transition-colors text-sm"
+            disabled={closeDisabled}
+            className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-4 py-2 transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-55"
             initial={{ opacity: 0 }}
             animate={animationPhase >= 3 ? { opacity: 1 } : {}}
             transition={{ duration: 0.3, delay: 0.1 }}
           >
-            Continue
+            {closeDisabled ? "Settling…" : "Continue"}
           </motion.button>
         </div>
       </DialogContent>

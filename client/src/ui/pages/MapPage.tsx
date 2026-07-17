@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Info } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
@@ -22,6 +22,7 @@ import {
   type NodeState,
 } from "@/hooks/useMapData";
 import { useMapLayout } from "@/hooks/useMapLayout";
+import { useCampaignLauncher } from "@/play/useCampaignLauncher";
 import { useNavigationStore } from "@/stores/navigationStore";
 import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
@@ -33,6 +34,12 @@ import {
   unavailableMap,
 } from "@/ui/components/map/mapLogic";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/ui/elements/tooltip";
 import { highestClearedLevel } from "@/utils/solanaDisplay";
 import { showToast } from "@/utils/toast";
 
@@ -88,12 +95,6 @@ const MapPage: React.FC = () => {
   const mapZoneId = Math.min(10, Math.max(1, rawMapZoneId));
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
   const setIsDailyMap = useNavigationStore((state) => state.setIsDailyMap);
-  const pendingPreviewLevel = useNavigationStore(
-    (state) => state.pendingPreviewLevel,
-  );
-  const setPendingPreviewLevel = useNavigationStore(
-    (state) => state.setPendingPreviewLevel,
-  );
   const pendingLevelCompletion = useNavigationStore(
     (state) => state.pendingLevelCompletion,
   );
@@ -137,6 +138,7 @@ const MapPage: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<MapNodeData | null>(null);
   const [showGreeting, setShowGreeting] = useState(false);
   const guardian = getZoneGuardian(mapZoneId);
+  const { starting: launching, startLevel } = useCampaignLauncher();
 
   useEffect(() => {
     if (rawMapZoneId !== mapZoneId) setMapZoneId(mapZoneId);
@@ -151,17 +153,6 @@ const MapPage: React.FC = () => {
   useEffect(() => {
     setThemeTemplate(themeId);
   }, [setThemeTemplate, themeId]);
-
-  useEffect(() => {
-    if (pendingPreviewLevel == null) return;
-    const node = mapData.nodes.find(
-      (candidate) =>
-        candidate.contractLevel === pendingPreviewLevel &&
-        canOpenPreview(candidate),
-    );
-    if (node) setSelectedNode(node);
-    setPendingPreviewLevel(null);
-  }, [mapData.nodes, pendingPreviewLevel, setPendingPreviewLevel]);
 
   const handlePlay = () => {
     if (!selectedNode) return;
@@ -185,9 +176,15 @@ const MapPage: React.FC = () => {
 
     setMapZoneId(mapZoneId);
     setIsDailyMap(false);
-    setPendingPreviewLevel(level);
-    setSelectedNode(null);
-    navigate(levelIntentDestination(level));
+    if (levelIntentDestination(level) === "boss") {
+      // Level 10 gets its constraint reveal first; the launch happens there.
+      setSelectedNode(null);
+      navigate("boss");
+      return;
+    }
+    // Launch in place: the preview stays open (constraints visible, Play
+    // button shows "Preparing…") and navigation happens once the run is live.
+    void startLevel(mapZoneId, level);
   };
 
   const colors = getThemeColors(themeId);
@@ -272,19 +269,35 @@ const MapPage: React.FC = () => {
           </span>
         </div>
 
-        {/* Right: stars */}
-        <div className="pointer-events-none flex flex-col items-end">
-          <span
-            className="font-display text-[clamp(14px,3.5vw,22px)] font-black drop-shadow-md"
-            style={{ color: colors.accent }}
-          >
-            {zoneStars}/30 ★
-          </span>
-          <span className="font-sans text-[clamp(8px,2vw,11px)] font-bold text-white/70 drop-shadow-md">
-            {map?.perfected
-              ? "Perfect reward earned"
-              : "30/30: +20★ + 1,000 XP"}
-          </span>
+        {/* Right: stars + perfect-reward infotip */}
+        <div className="pointer-events-auto">
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5"
+                  aria-label="Zone completion reward"
+                >
+                  <span
+                    className="font-display text-[clamp(14px,3.5vw,22px)] font-black drop-shadow-md"
+                    style={{ color: colors.accent }}
+                  >
+                    {zoneStars}/30 ★
+                  </span>
+                  <Info className="h-[clamp(12px,3vw,16px)] w-[clamp(12px,3vw,16px)] text-white/60" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="bottom"
+                className="max-w-[220px] bg-slate-900 border border-slate-500 px-3 py-2 font-sans text-[11px] text-white shadow-lg"
+              >
+                {map?.perfected
+                  ? "Perfect reward earned"
+                  : "Clear all 30 stars: +20★ + 1,000 XP"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </motion.div>
 
@@ -506,33 +519,43 @@ const MapPage: React.FC = () => {
                   <clipPath id={`node-clip-${node.nodeInZone}`}>
                     <circle cx={cx} cy={cy} r={radius} />
                   </clipPath>
-                  <image
-                    href={nodeImage}
-                    x={cx - radius}
-                    y={cy - radius}
-                    width={radius * 2}
-                    height={radius * 2}
-                    preserveAspectRatio="xMidYMid slice"
-                    clipPath={`url(#node-clip-${node.nodeInZone})`}
-                  />
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={radius}
-                    fill="none"
-                    stroke={
-                      node.state === "playing"
-                        ? colors.accent
-                        : stateColors.border
+                  {/* Inner group so the next-playable scale pulse composes
+                      with the framer-motion entrance transform on the outer
+                      <motion.g> (same pattern as Block.tsx). */}
+                  <g
+                    className={
+                      node.state === "current" ? "map-current-pulse" : undefined
                     }
-                    strokeWidth={
-                      node.state === "playing"
-                        ? 1.5
-                        : node.type === "boss"
-                          ? 0.6
-                          : 0.4
-                    }
-                  />
+                    style={{ transformOrigin: `${cx}px ${cy}px` }}
+                  >
+                    <image
+                      href={nodeImage}
+                      x={cx - radius}
+                      y={cy - radius}
+                      width={radius * 2}
+                      height={radius * 2}
+                      preserveAspectRatio="xMidYMid slice"
+                      clipPath={`url(#node-clip-${node.nodeInZone})`}
+                    />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={radius}
+                      fill="none"
+                      stroke={
+                        node.state === "playing"
+                          ? colors.accent
+                          : stateColors.border
+                      }
+                      strokeWidth={
+                        node.state === "playing"
+                          ? 1.5
+                          : node.type === "boss"
+                            ? 0.6
+                            : 0.4
+                      }
+                    />
+                  </g>
 
                   {node.state === "playing" && (
                     <>
@@ -617,8 +640,11 @@ const MapPage: React.FC = () => {
             zoneId={mapZoneId}
             colors={colors}
             levelStars={map.levelStars}
+            starting={launching}
             onPlay={handlePlay}
-            onClose={() => setSelectedNode(null)}
+            onClose={() => {
+              if (!launching) setSelectedNode(null);
+            }}
           />
         )}
 
@@ -626,12 +652,8 @@ const MapPage: React.FC = () => {
           <LevelCompleteDialog
             isOpen
             onClose={() => {
-              const completedLevel = pendingLevelCompletion.level;
-              const wasIncomplete = pendingLevelCompletion.isIncomplete;
+              // Land on the plain map — no next level pre-selected.
               setPendingLevelCompletion(null);
-              if (!wasIncomplete && completedLevel < 10) {
-                setPendingPreviewLevel(completedLevel + 1);
-              }
             }}
             level={pendingLevelCompletion.level}
             levelMoves={pendingLevelCompletion.levelMoves}
