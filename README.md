@@ -318,7 +318,9 @@ and no additional signer. It also verifies the full padded ProgramData SHA-256
 before each pass, simulates the keeper balance delta, caps spend at 50,000,000
 lamports per pass, retains the eight-write/two-session limits, and stops below
 the 0.1 SOL reserve floor. None of those candidate controls enable writes until
-their exact release bundle is approved and applied.
+their exact release bundle is approved and applied. That candidate was built
+from commit `46dec64` and published without deployment at registry digest
+`sha256:d9c8009064a0146efd8bc34ddb4ea56c1af0d9456e5088d3c1bf9c641d064a4a`.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a
