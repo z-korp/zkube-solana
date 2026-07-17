@@ -275,6 +275,20 @@ postflight decoding reports content version 2, ten enabled maps with ten levels
 each, map 1 unlocked for a fresh address, economy revision 3, and an unpaused
 protocol.
 
+The cosmetic PlayerLabel ABI replaced the superseded global-username ABI on
+Devnet under upgrade fingerprint `4b1098ba305e0fc0`. The 1,256,248-byte
+`opt-level = "s"` artifact has SHA-256
+`566be735d6a94f7881bad13c8157da5c63cabaec0c5b0c7878c10738a0d9a36d`;
+its exact 1,319,656-byte padded ProgramData postimage is
+`af24e318cb41cf69ccb167e66f020e237ee71031104146478c161a32f1bba24e`.
+Upgrade signature
+`2xL9KsHtk93tygV7grfhtS7DzUE5X3ds8MQrmoZvNnwh7jEdqAD35cTXmAJSBgXNAzCggWUKftUxGzYKwFzPWdTG`
+is finalized. The 8,744,634,480-lamport temporary buffer closed, net deployer
+spend was 13,740,000 lamports, and ProgramData capacity, rent, and authority
+remain unchanged. Postflight probes recognize `create_player_label`,
+`funded_create_player_label`, and `set_player_label`; Campaign/Daily content v2,
+economy revision 3, and the unpaused protocol were preserved.
+
 ## Repository map
 
 | Path | Contents |
