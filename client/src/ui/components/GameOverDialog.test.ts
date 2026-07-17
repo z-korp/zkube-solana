@@ -5,9 +5,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Game } from "@/game/model";
 import GameOverDialog from "./GameOverDialog";
 
-vi.mock("@/hooks/usePlayerMeta", () => ({
-  usePlayerMeta: () => ({ playerMeta: null }),
+vi.mock("@/contexts/daily", () => ({
+  useDaily: () => ({ daily: null }),
 }));
+vi.mock("@/chain/connectedPlayerContext", () => ({
+  useConnectedPlayer: () => ({ publicKey: null }),
+}));
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
 
 describe("GameOverDialog settlement recovery", () => {
   beforeAll(() => {

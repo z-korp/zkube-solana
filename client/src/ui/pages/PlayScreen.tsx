@@ -551,6 +551,7 @@ export default function PlayScreen() {
           settlementError={run.error}
           onRetrySettlement={controller.retrySettlement}
           game={game}
+          colors={getThemeColors(themeTemplate as ThemeId)}
         />
       )}
       {controller.outcome === "victory" && (
