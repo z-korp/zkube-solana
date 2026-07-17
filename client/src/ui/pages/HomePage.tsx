@@ -12,6 +12,7 @@ import {
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import useAccount from "@/hooks/useAccount";
+import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
@@ -139,6 +140,7 @@ const HomePage: React.FC = () => {
 
   const activeStoryRun = useActiveStoryAttempt();
   const activeStoryAttemptId = activeStoryRun?.gameId ?? null;
+  const activeDailyRun = useActiveDailyAttempt();
   const zone = zones[activeZone] ?? zones[0];
   const colors = useThemeColors();
 
@@ -165,10 +167,15 @@ const HomePage: React.FC = () => {
   }, []);
 
   const hasActiveStoryRun = activeStoryAttemptId !== null;
+  const hasActiveDailyRun = Boolean(activeDailyRun);
   const selectedZonePlayable = !!zone?.unlocked;
 
   const handlePrimaryAction = useCallback(() => {
-    if (!zone) return;
+    // A Daily run holds the one active-run slot — resume it before Story.
+    if (activeDailyRun) {
+      navigate("play", activeDailyRun.gameId);
+      return;
+    }
 
     if (activeStoryAttemptId !== null && activeStoryRun) {
       setMapZoneId(activeStoryRun.zoneId);
@@ -176,9 +183,11 @@ const HomePage: React.FC = () => {
       return;
     }
 
+    if (!zone) return;
     setMapZoneId(zone.zoneId);
     navigate("map");
   }, [
+    activeDailyRun,
     activeStoryAttemptId,
     activeStoryRun,
     navigate,
@@ -433,22 +442,28 @@ const HomePage: React.FC = () => {
           <ConnectCta label="PLAY NOW" />
         ) : (
           <ArcadeButton
-            disabled={!selectedZonePlayable && !hasActiveStoryRun}
+            disabled={
+              !selectedZonePlayable && !hasActiveStoryRun && !hasActiveDailyRun
+            }
             onClick={handlePrimaryAction}
             accentOverride={
-              hasActiveStoryRun && activeStoryRun
-                ? getThemeColors(getThemeId(activeStoryRun.zoneId)).accent
-                : zone
-                  ? getThemeColors(getThemeId(zone.themeId ?? zone.zoneId))
-                      .accent
-                  : undefined
+              hasActiveDailyRun
+                ? undefined
+                : hasActiveStoryRun && activeStoryRun
+                  ? getThemeColors(getThemeId(activeStoryRun.zoneId)).accent
+                  : zone
+                    ? getThemeColors(getThemeId(zone.themeId ?? zone.zoneId))
+                        .accent
+                    : undefined
             }
           >
-            {activeStoryRun?.settled
-              ? "Finish Story"
-              : hasActiveStoryRun
-                ? "Resume Story"
-                : "Play Story"}
+            {hasActiveDailyRun
+              ? "Resume Daily"
+              : activeStoryRun?.settled
+                ? "Finish Story"
+                : hasActiveStoryRun
+                  ? "Resume Story"
+                  : "Play Story"}
           </ArcadeButton>
         )}
       </div>
