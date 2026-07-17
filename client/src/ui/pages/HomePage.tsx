@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, type Variants } from "motion/react";
 
 import {
+  LEVEL_THRESHOLDS,
   ZONE_NAMES,
   getLevelFromXp,
   getTitleForLevel,
@@ -25,6 +26,7 @@ import CtaGuardian from "@/ui/components/CtaGuardian";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
+import LevelRing from "@/ui/components/shared/LevelRing";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 import { formatCountdown } from "@/utils/time";
@@ -79,12 +81,18 @@ const HomePage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
   const mapZoneId = useNavigationStore((state) => state.mapZoneId);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-  const setIsDailyMap = useNavigationStore((state) => state.setIsDailyMap);
   const [unlockZone, setUnlockZone] = useState<ZoneProgressData | null>(null);
 
   const { playerMeta } = usePlayerMeta(address);
   const playerLevel = getLevelFromXp(playerMeta?.lifetimeXp ?? 0);
   const playerTitle = getTitleForLevel(playerLevel);
+  const playerXp = playerMeta?.lifetimeXp ?? 0;
+  const levelStartXp = LEVEL_THRESHOLDS[Math.max(playerLevel - 1, 0)] ?? 0;
+  const nextLevelXp = LEVEL_THRESHOLDS[playerLevel] ?? levelStartXp;
+  const levelProgress =
+    playerLevel >= LEVEL_THRESHOLDS.length
+      ? 1
+      : (playerXp - levelStartXp) / Math.max(nextLevelXp - levelStartXp, 1);
   const { balance: zStarBalance } = useZStarBalance(address);
   const { zones: rawZones, isLoading: zonesLoading } = useZoneProgress(
     address,
@@ -171,7 +179,6 @@ const HomePage: React.FC = () => {
 
   const handlePrimaryAction = useCallback(() => {
     if (!zone) return;
-    setIsDailyMap(false);
 
     if (activeStoryAttemptId !== null && activeStoryRun) {
       setMapZoneId(activeStoryRun.zoneId);
@@ -185,7 +192,6 @@ const HomePage: React.FC = () => {
     activeStoryAttemptId,
     activeStoryRun,
     navigate,
-    setIsDailyMap,
     setMapZoneId,
     zone,
   ]);
@@ -219,40 +225,40 @@ const HomePage: React.FC = () => {
             <>
           <motion.div
             variants={itemVariants}
-            className="flex items-center justify-between rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-1.5 backdrop-blur-xl"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-2 backdrop-blur-xl"
           >
             <div className="flex min-w-0 items-center gap-3">
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-sans text-sm font-black"
-                style={{
-                  background: `linear-gradient(145deg, ${colors.accent}, ${colors.accent2})`,
-                  color: "#0a1628",
-                }}
-              >
-                {playerLevel}
-              </div>
+              <LevelRing
+                level={playerLevel}
+                progress={levelProgress}
+                colors={colors}
+                size={52}
+              />
               <div className="min-w-0">
-                <p
-                  className="truncate font-sans text-[15px] font-bold text-white"
-                  title={address}
-                >
-                  Connected wallet · {truncatePublicKey(address)}
-                </p>
-                <p className="font-sans text-[11px] font-semibold text-white/75">
+                <p className="truncate font-sans text-[16px] font-extrabold text-white">
                   {playerTitle}
                 </p>
+                <span
+                  className="mt-0.5 inline-flex max-w-full items-center rounded-full border border-white/[0.12] bg-white/[0.06] px-2 py-0.5"
+                  title={address}
+                >
+                  <span className="truncate font-mono text-[11px] font-semibold text-white/60">
+                    {truncatePublicKey(address)}
+                  </span>
+                </span>
               </div>
             </div>
-            <span
-              className="rounded-full border px-2.5 py-1 font-sans text-[10px] font-bold uppercase tracking-[0.1em]"
-              style={{
-                color: colors.accent,
-                borderColor: `${colors.accent}66`,
-                backgroundColor: `${colors.accent}22`,
-              }}
-            >
-              Connected
-            </span>
+            <div className="shrink-0 text-right">
+              <p
+                className="font-sans text-2xl font-black leading-none"
+                style={{ color: colors.accent2 }}
+              >
+                ★ {zStarBalance}
+              </p>
+              <p className="font-sans text-[10px] font-semibold text-white/50">
+                Stars balance
+              </p>
+            </div>
           </motion.div>
 
           <motion.div
@@ -311,7 +317,6 @@ const HomePage: React.FC = () => {
                         if (isSelectable) {
                           if (isSelected) {
                             // Second tap on the selected zone enters its map.
-                            setIsDailyMap(false);
                             navigate("map");
                           } else {
                             setActiveZone(index);
@@ -341,12 +346,6 @@ const HomePage: React.FC = () => {
                         className="absolute inset-0 h-full w-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                      {isSelected && (
-                        <span className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-0.5 rounded-full bg-black/60 py-0.5 pl-2 pr-1 font-sans text-[9px] font-bold uppercase tracking-[0.08em] text-white/90 backdrop-blur-sm">
-                          Tap to enter
-                          <ChevronRight size={10} />
-                        </span>
-                      )}
                       <div className="relative z-10 w-full">
                         <span
                           className="mb-1 inline-flex rounded-full px-2 py-0.5 font-sans text-[9px] font-extrabold uppercase tracking-[0.12em]"
@@ -403,10 +402,9 @@ const HomePage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                // Daily runs have their own entry screen and never route
-                // through Map; one tap goes straight there.
-                setIsDailyMap(false);
-                navigate("daily");
+                // Daily lives in the Arena: rules, board, and the enter
+                // button on one screen.
+                navigate("ranks");
               }}
               className="relative w-full overflow-hidden rounded-2xl border border-white/[0.16] text-left transition-all active:scale-[0.99]"
             >

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -11,28 +11,14 @@ import {
   type ThemeColors,
   type ThemeId,
 } from "@/config/themes";
-import { useDaily } from "@/contexts/daily";
-import { usePreviousChallenge } from "@/hooks/usePreviousChallenge";
-import {
-  dailyLeaderboardRank,
-  type DailyView,
-} from "@/chain/dailyClient";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { DailyScoringRules } from "@/ui/components/rewards/dailyRulesCopy";
-import TierContext, {
-  type RankContextEntry,
-} from "@/ui/components/rewards/TierContext";
-import EmptyState from "@/ui/components/shared/EmptyState";
-import InfoSheet from "@/ui/components/shared/InfoSheet";
-import { truncatePublicKey } from "@/utils/solanaDisplay";
+import type { DailyView } from "@/chain/dailyClient";
+import type { PlayerPosition } from "@/ui/components/arena/dailyPosition";
 import { formatCountdown } from "@/utils/time";
 
-interface CountdownProps {
+export const Countdown: React.FC<{
   endTime: number;
   colors: ThemeColors;
-}
-
-const Countdown: React.FC<CountdownProps> = ({ endTime, colors }) => {
+}> = ({ endTime, colors }) => {
   const [seconds, setSeconds] = useState(() =>
     Math.max(0, endTime - Math.floor(Date.now() / 1_000)),
   );
@@ -64,137 +50,18 @@ const Countdown: React.FC<CountdownProps> = ({ endTime, colors }) => {
   );
 };
 
-interface DailyTabProps {
-  colors: ThemeColors;
-}
-
-const DailyTab: React.FC<DailyTabProps> = ({ colors }) => {
-  const current = useDaily();
-  const previous = usePreviousChallenge();
-  const { publicKey } = useConnectedPlayer();
-  const address = publicKey?.toBase58() ?? "";
-
-  const currentPosition = useMemo(
-    () => getPlayerPosition(current.daily, address),
-    [address, current.daily],
-  );
-  const previousPosition = useMemo(
-    () => getPlayerPosition(previous.daily, address),
-    [address, previous.daily],
-  );
-  const currentEntries = useMemo(
-    () => toRankEntries(current.daily),
-    [current.daily],
-  );
-
-  if (current.loading && !current.daily) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center py-16"
-        style={{ color: colors.textMuted }}
-      >
-        <Loader2
-          className="mb-4 h-8 w-8 animate-spin"
-          style={{ color: colors.accent }}
-        />
-        <p className="font-sans text-sm font-medium">
-          Loading daily challenge...
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <motion.div
-      variants={{
-        hidden: { opacity: 0 },
-        show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-      }}
-      initial="hidden"
-      animate="show"
-      className="flex flex-col gap-3"
-    >
-      {previous.daily?.player && (
-        <DailyCard
-          daily={previous.daily}
-          position={previousPosition}
-          label="Previous Daily"
-          action={previous.action}
-          onRefund={() => void previous.refund().catch(() => undefined)}
-        />
-      )}
-
-      {!current.daily ? (
-        <EmptyState
-          icon={<span className="text-4xl">📅</span>}
-          title="No daily challenge yet"
-          hint="Today's challenge has not been published."
-          titleColor={colors.text}
-          hintColor={colors.textMuted}
-        />
-      ) : (
-        <>
-          <DailyCard
-            daily={current.daily}
-            position={currentPosition}
-            label="Today"
-            action={current.action}
-            onRefund={() => void current.refund().catch(() => undefined)}
-          />
-
-          {currentPosition && (
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <TierContext
-                colors={colors}
-                myRank={currentPosition.rank}
-                myScore={currentPosition.score}
-                myName="You"
-                entries={currentEntries}
-                scoreLabel=" daily"
-              />
-            </motion.section>
-          )}
-        </>
-      )}
-
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5"
-      >
-        <p className="font-sans text-[11px] font-semibold text-white/50">
-          Daily ranks feed your Weekly score.
-        </p>
-        <InfoSheet title="How Daily scoring works">
-          <DailyScoringRules />
-        </InfoSheet>
-      </motion.section>
-
-      {(current.error || previous.error) && (
-        <p role="alert" className="text-center font-sans text-xs text-red-300">
-          {current.error ?? previous.error}
-        </p>
-      )}
-    </motion.div>
-  );
-};
-
-function DailyCard({
-  daily,
-  position,
-  label,
-  action,
-  onRefund,
-}: {
+/**
+ * A finished (or finishing) daily as a compact result strip: zone art,
+ * guardian, your best line, and the lifecycle pill — including the refund
+ * action for cancelled dailies.
+ */
+const DailyResultCard: React.FC<{
   daily: DailyView;
   position: PlayerPosition | null;
   label: string;
   action: string | null;
   onRefund: () => void;
-}) {
+}> = ({ daily, position, label, action, onRefund }) => {
   const zoneId = daily.mapId || 1;
   const zoneName = ZONE_NAMES[zoneId] ?? `Zone ${zoneId}`;
   const zoneThemeId = `theme-${Math.min(10, Math.max(1, zoneId))}` as ThemeId;
@@ -252,7 +119,7 @@ function DailyCard({
               </p>
             )}
           </div>
-          <DailyAction
+          <StatusAction
             daily={daily}
             canRefund={canRefund}
             isBusy={isBusy}
@@ -267,9 +134,9 @@ function DailyCard({
       </div>
     </motion.section>
   );
-}
+};
 
-function DailyAction({
+function StatusAction({
   daily,
   canRefund,
   isBusy,
@@ -339,46 +206,6 @@ function DailyAction({
   );
 }
 
-interface PlayerPosition {
-  rank: number;
-  score: number;
-  dailyBonusTriggers: number;
-  engineScore: number;
-  moves: number;
-}
-
-function getPlayerPosition(
-  daily: DailyView | null,
-  address: string,
-): PlayerPosition | null {
-  if (!daily?.player) return null;
-  const leaderboardIndex = daily.leaderboard.findIndex(
-    (entry) => entry.player.toBase58() === address,
-  );
-  const rank = leaderboardIndex >= 0
-    ? dailyLeaderboardRank(daily.leaderboard, leaderboardIndex)
-    : null;
-  if (rank === null) return null;
-  return {
-    rank,
-    score: daily.player.bestDailyScore ?? daily.player.bestScore,
-    dailyBonusTriggers: daily.player.bestDailyBonusTriggers ?? 0,
-    engineScore: daily.player.bestEngineScore ?? daily.player.bestScore,
-    moves: daily.player.bestMoves ?? 0,
-  };
-}
-
-function toRankEntries(daily: DailyView | null): RankContextEntry[] {
-  return (daily?.leaderboard ?? []).map((entry, index) => {
-    const address = entry.player.toBase58();
-    return {
-      rank: index + 1,
-      score: entry.dailyScore ?? entry.score,
-      name: truncatePublicKey(address),
-    };
-  });
-}
-
 function hasPendingRefund(daily: DailyView): boolean {
   const player = daily.player;
   if (!player) return false;
@@ -393,4 +220,4 @@ function formatDailyDate(timestamp: number): string {
   });
 }
 
-export default DailyTab;
+export default DailyResultCard;

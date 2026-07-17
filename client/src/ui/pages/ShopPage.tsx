@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ChevronLeft,
-  Clock3,
-  Loader2,
-  ShieldCheck,
-  ShoppingBag,
-  Sparkles,
-  WalletCards,
-  X,
-} from "lucide-react";
+import { ChevronLeft, Clock3, Loader2, WalletCards } from "lucide-react";
 import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -17,14 +8,19 @@ import {
   useShopController,
 } from "@/chain/useShopController";
 import type { StarPackQuote, StarShopView } from "@/chain/shopClient";
-import { getThemeColors } from "@/config/themes";
+import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
 import { useDaily } from "@/contexts/daily";
 import { useProgress } from "@/contexts/progress";
 import { useNavigationStore } from "@/stores/navigationStore";
+import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import Card from "@/ui/components/shared/Card";
+import EmptyState from "@/ui/components/shared/EmptyState";
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import PageHeader from "@/ui/components/shared/PageHeader";
+import Sheet from "@/ui/components/shared/Sheet";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { formatSolLamports, splitStarPurchase } from "@/utils/currency";
+import { formatSolLamports } from "@/utils/currency";
 
 const ShopPage: React.FC = () => {
   const { themeTemplate } = useTheme();
@@ -79,6 +75,17 @@ const ShopPage: React.FC = () => {
 
   const selectedPack =
     selectedIndex === null ? null : controller.shop?.packs[selectedIndex] ?? null;
+  // The smallest enabled pack sets the reference star rate; every other
+  // pack's badge shows what buying bigger saves (live sales included, since
+  // rates compare current prices).
+  const basePack =
+    controller.shop?.packs.reduce<StarPackQuote | null>(
+      (best, candidate) =>
+        candidate.enabled && (best === null || candidate.stars < best.stars)
+          ? candidate
+          : best,
+      null,
+    ) ?? null;
 
   const openWallet = () => {
     setSelectedIndex(null);
@@ -123,13 +130,13 @@ const ShopPage: React.FC = () => {
   };
 
   const returnFromShop = () => {
-    navigate(shopOrigin === "daily" ? "daily" : "home");
+    navigate(shopOrigin === "ranks" ? "ranks" : "home");
   };
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-12">
       <PageHeader
-        title="Star Shop"
+        title="Shop"
         leftSlot={
           shopOrigin ? (
             <button
@@ -146,51 +153,48 @@ const ShopPage: React.FC = () => {
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
         <div className="mx-auto flex max-w-[720px] flex-col gap-4">
-          <motion.section
+          <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-3xl border border-yellow-200/20 bg-gradient-to-br from-yellow-300/[0.14] via-white/[0.06] to-cyan-300/[0.08] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur-2xl"
           >
-            <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-yellow-200/10 blur-3xl" />
-            <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <ShoppingBag size={18} style={{ color: colors.accent2 }} />
-                  <p className="font-sans text-xs font-extrabold uppercase tracking-[0.13em] text-white/60">
-                    Your currency
+            <Card as="section" tone="raised" className="p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p
+                    className="font-sans text-3xl font-black leading-none"
+                    style={{ color: colors.accent2 }}
+                  >
+                    ★ {controller.shop?.starsBalance.toString() ?? "—"}
+                  </p>
+                  <p className="mt-1 font-sans text-[11px] font-semibold text-white/50">
+                    Stars balance
                   </p>
                 </div>
-                <p className="mt-1 font-display text-4xl font-black text-yellow-200">
-                  {controller.shop?.starsBalance.toString() ?? "—"}★
-                </p>
-                <p className="font-sans text-xs text-white/50">
-                  Stars balance
-                </p>
+                <div className="text-right">
+                  <p className="font-sans text-lg font-black leading-none text-white">
+                    {player.balanceLamports === null
+                      ? "—"
+                      : formatSolLamports(BigInt(player.balanceLamports))}{" "}
+                    <span className="text-xs font-semibold text-white/50">
+                      SOL
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openWallet}
+                    className="mt-1.5 inline-flex items-center gap-1 font-sans text-xs font-bold"
+                    style={{ color: colors.accent }}
+                  >
+                    <WalletCards size={13} /> Wallet &amp; funding
+                  </button>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2.5 py-1 font-sans text-[10px] font-extrabold uppercase tracking-wide text-cyan-100">
-                  Devnet · Test SOL
-                </span>
-                <p className="mt-3 font-sans text-lg font-black text-white">
-                  {player.balanceLamports === null
-                    ? "—"
-                    : formatSolLamports(BigInt(player.balanceLamports))}{" "}
-                  <span className="text-xs text-white/50">SOL</span>
-                </p>
-                <button
-                  type="button"
-                  onClick={openWallet}
-                  className="mt-1 inline-flex items-center gap-1 font-sans text-xs font-bold text-cyan-200"
-                >
-                  <WalletCards size={13} /> Wallet &amp; funding
-                </button>
-              </div>
-            </div>
 
-            {controller.shop?.saleEnabled && (
-              <SaleBanner shop={controller.shop} />
-            )}
-          </motion.section>
+              {controller.shop?.saleEnabled && (
+                <SaleBanner shop={controller.shop} />
+              )}
+            </Card>
+          </motion.div>
 
           {success && (
             <section
@@ -201,49 +205,33 @@ const ShopPage: React.FC = () => {
                 {success}
               </p>
               {shopOrigin && (
-                <button
-                  type="button"
+                <ArcadeButton
                   onClick={returnFromShop}
-                  className="mt-2 rounded-xl bg-emerald-300 px-4 py-2 font-sans text-xs font-black text-emerald-950"
+                  accentOverride="#6ee7b7"
+                  className="mt-2 !px-4 !py-2.5 !text-[13px]"
                 >
-                  {shopOrigin === "daily" ? "Return to Daily" : "Return Home"}
-                </button>
+                  {shopOrigin === "ranks" ? "Return to Arena" : "Return Home"}
+                </ArcadeButton>
               )}
             </section>
           )}
 
           {controller.loading && !controller.shop ? (
-            <div className="flex items-center justify-center py-16 text-white/60">
-              <Loader2 size={28} className="animate-spin" />
-            </div>
+            <EmptyState
+              icon={<Loader2 size={28} className="animate-spin" />}
+              title="Fetching live prices…"
+            />
           ) : controller.shop ? (
             <section>
-              <div className="mb-3 flex items-end justify-between gap-3 px-1">
-                <div>
-                  <h2 className="font-display text-xl font-black text-white">
-                    Choose a pack
-                  </h2>
-                  <p className="font-sans text-xs text-white/50">
-                    One wallet-approved SOL transaction.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void controller.refresh()}
-                  disabled={controller.loading}
-                  className="font-sans text-xs font-bold text-white/55 disabled:opacity-40"
-                >
-                  {controller.loading ? "Refreshing…" : "Refresh prices"}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <p className="mb-2 px-1 font-sans text-[11px] font-bold uppercase tracking-[0.15em] text-white/45">
+                Star packs
+              </p>
+              <div className="grid grid-cols-2 gap-2.5">
                 {controller.shop.packs.map((pack) => (
                   <PackCard
                     key={pack.index}
                     pack={pack}
-                    shop={controller.shop!}
-                    solBalance={player.balanceLamports === null ? null : BigInt(player.balanceLamports)}
+                    savingsPct={bulkSavingsPercent(pack, basePack)}
                     connected={Boolean(player.publicKey)}
                     busy={controller.purchasingPack !== null}
                     paused={controller.shop!.protocolPaused}
@@ -253,7 +241,12 @@ const ShopPage: React.FC = () => {
                 ))}
               </div>
             </section>
-          ) : null}
+          ) : (
+            <EmptyState
+              title="Star Shop is unavailable"
+              hint="The shop configuration could not be read. Pull to refresh or try again shortly."
+            />
+          )}
 
           {(status || controller.error) && (
             <p
@@ -264,26 +257,25 @@ const ShopPage: React.FC = () => {
             </p>
           )}
 
-          <section className="rounded-2xl border border-white/[0.1] bg-white/[0.05] p-4 backdrop-blur-xl">
-            <div className="flex items-start gap-3">
-              <ShieldCheck
-                size={19}
-                className="mt-0.5 shrink-0"
-                style={{ color: colors.accent }}
-              />
-              <div className="font-sans text-xs leading-5 text-white/55">
-                <p className="font-bold text-white/80">Know what you buy</p>
-                <p>
-                  Stars are bound to this connected Solana address. They cannot be transferred,
-                  withdrawn, or redeemed for fiat. Purchases use Devnet test SOL.
-                </p>
-                <p className="mt-1">
-                  Each payment settles atomically: 10% team, 10% rewards reserve,
-                  and 80% plus rounding dust to treasury.
-                </p>
-              </div>
-            </div>
-          </section>
+          <div className="flex justify-center">
+            <InfoSheet label="How the Shop works" title="How the Shop works">
+              <p>
+                Stars are bound to your connected Solana address — they cannot
+                be transferred, withdrawn, or redeemed for fiat. Spend them on
+                Daily Arena entries and zone unlocks.
+              </p>
+              <p>
+                Purchases use Devnet test SOL and need one wallet approval for
+                the exact amount shown; a zKube session can never spend SOL.
+              </p>
+              <p>
+                Every payment settles atomically on-chain: 10% team, 10%
+                rewards reserve, 80% plus rounding dust to treasury. Prices are
+                re-checked against the live on-chain quote right before you
+                sign.
+              </p>
+            </InfoSheet>
+          </div>
         </div>
       </div>
 
@@ -291,6 +283,7 @@ const ShopPage: React.FC = () => {
         <PurchaseConfirmation
           pack={selectedPack}
           shop={controller.shop}
+          savingsPct={bulkSavingsPercent(selectedPack, basePack)}
           solBalance={player.balanceLamports === null ? null : BigInt(player.balanceLamports)}
           busy={controller.purchasingPack === selectedPack.index}
           onClose={() => setSelectedIndex(null)}
@@ -304,8 +297,7 @@ const ShopPage: React.FC = () => {
 
 function PackCard({
   pack,
-  shop,
-  solBalance,
+  savingsPct,
   connected,
   busy,
   paused,
@@ -313,85 +305,79 @@ function PackCard({
   onSelect,
 }: {
   pack: StarPackQuote;
-  shop: StarShopView;
-  solBalance: bigint | null;
+  savingsPct: number;
   connected: boolean;
   busy: boolean;
   paused: boolean;
   accent: string;
   onSelect: () => void;
 }) {
-  const insufficient = solBalance !== null && solBalance < pack.currentPrice;
   const badge = pack.stars === 100n
     ? "Popular"
     : pack.stars === 1_000n
       ? "Best value"
       : null;
-  const dailyEntries = shop.dailyEntryStars > 0n
-    ? pack.stars / shop.dailyEntryStars
-    : 0n;
-  const zoneUnlocks = shop.zoneUnlockStars > 0n
-    ? pack.stars / shop.zoneUnlockStars
-    : 0n;
-  const zonePower = zoneUnlocks > 0n
-    ? `${zoneUnlocks.toString()} zone unlock${zoneUnlocks === 1n ? "" : "s"}`
-    : shop.zoneUnlockStars > 0n
-      ? `${pack.stars.toString()}/${shop.zoneUnlockStars.toString()} toward a zone`
-      : "Campaign spending power";
+  const blocked = !pack.enabled
+    ? "Unavailable"
+    : paused
+      ? "Shop paused"
+      : !connected
+        ? "Connect wallet"
+        : null;
+  // Each pack borrows a zone's art — bigger packs wear deeper zones.
+  const packTheme = getThemeId(Math.min(10, pack.index * 2 + 1));
+  const packArt = getThemeImages(packTheme).background;
 
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
       onClick={onSelect}
       disabled={!pack.enabled || busy || paused}
-      className="relative min-h-[188px] overflow-hidden rounded-2xl border border-white/[0.13] bg-white/[0.07] p-3 text-left shadow-lg shadow-black/20 backdrop-blur-xl transition hover:bg-white/[0.11] disabled:opacity-45"
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.14] shadow-lg shadow-black/30 transition disabled:opacity-45"
       aria-label={`${pack.stars.toString()} Stars for ${formatSolLamports(pack.currentPrice)} SOL`}
     >
+      <img
+        src={packArt}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+        draggable={false}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/65 to-black/35" />
+      {savingsPct > 0 && (
+        <span className="absolute left-2 top-2 z-10 rounded-full bg-emerald-400 px-2 py-0.5 font-sans text-[10px] font-black text-emerald-950 shadow-[0_0_12px_rgba(52,211,153,0.6)]">
+          −{savingsPct}%
+        </span>
+      )}
       {badge && (
         <span
-          className="absolute right-2 top-2 rounded-full px-2 py-1 font-sans text-[9px] font-black uppercase tracking-wide text-slate-950"
+          className="absolute right-2 top-2 z-10 rounded-full px-2 py-0.5 font-sans text-[9px] font-black uppercase tracking-wide text-slate-950"
           style={{ background: accent }}
         >
           {badge}
         </span>
       )}
-      <Sparkles size={19} className="text-yellow-200" />
-      <p className="mt-2 font-display text-3xl font-black text-yellow-200">
-        {pack.stars.toString()}★
-      </p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <p className="font-sans text-base font-black text-white">
-          {formatSolLamports(pack.currentPrice)} SOL
+      <div className="relative z-10 flex flex-col items-center justify-center gap-1.5 px-3 py-7">
+        <p className="font-display text-4xl font-black text-yellow-200 drop-shadow-[0_0_14px_rgba(250,204,21,0.45)]">
+          {pack.stars.toString()}★
         </p>
-        {pack.onSale && (
-          <p className="font-sans text-xs font-bold text-white/35 line-through">
-            {formatSolLamports(pack.regularPrice)}
+        <div className="flex items-baseline gap-1.5">
+          <p className="font-sans text-sm font-black text-white drop-shadow-md">
+            {formatSolLamports(pack.currentPrice)} SOL
+          </p>
+          {pack.onSale && (
+            <p className="font-sans text-[11px] font-bold text-white/45 line-through">
+              {formatSolLamports(pack.regularPrice)}
+            </p>
+          )}
+        </div>
+        {blocked && (
+          <p className="font-sans text-[10px] font-bold text-white/55">
+            {blocked}
           </p>
         )}
       </div>
-      {pack.onSale && (
-        <p className="font-sans text-[10px] font-black uppercase text-emerald-300">
-          Save {savingsPercent(pack)}%
-        </p>
-      )}
-      <p className="mt-3 font-sans text-[11px] leading-4 text-white/52">
-        {dailyEntries.toString()} Daily entr{dailyEntries === 1n ? "y" : "ies"}
-        {" · "}{zonePower}
-      </p>
-      <p className="absolute bottom-3 left-3 font-sans text-xs font-extrabold" style={{ color: accent }}>
-        {!pack.enabled
-          ? "Unavailable"
-          : paused
-            ? "Shop paused"
-            : !connected
-              ? "Connect wallet"
-              : solBalance === null
-                ? "Checking wallet…"
-              : insufficient
-                ? "Funding guidance"
-                : "Review purchase"}
-      </p>
     </motion.button>
   );
 }
@@ -418,6 +404,7 @@ function PurchaseConfirmation({
   pack,
   shop,
   solBalance,
+  savingsPct,
   busy,
   onClose,
   onFund,
@@ -426,139 +413,118 @@ function PurchaseConfirmation({
   pack: StarPackQuote;
   shop: StarShopView;
   solBalance: bigint | null;
+  savingsPct: number;
   busy: boolean;
   onClose: () => void;
   onFund: () => void;
   onConfirm: () => void;
 }) {
-  const split = splitStarPurchase(pack.currentPrice);
   const insufficient = solBalance !== null && solBalance < pack.currentPrice;
-  const resultingSol = solBalance === null
-    ? null
-    : solBalance - pack.currentPrice;
+  const dailyEntries =
+    shop.dailyEntryStars > 0n ? pack.stars / shop.dailyEntryStars : 0n;
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center p-3 sm:items-center">
-      <button
-        type="button"
-        aria-label="Close purchase confirmation"
-        onClick={busy ? undefined : onClose}
-        className="absolute inset-0 bg-black/75 backdrop-blur-md"
-      />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="purchase-title"
-        className="relative w-full max-w-[520px] rounded-3xl border border-white/[0.16] bg-slate-950/95 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.7)]"
-      >
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onClose}
-          disabled={busy}
-          className="absolute right-4 top-4 text-white/50 disabled:opacity-30"
-        >
-          <X size={20} />
-        </button>
-        <p className="font-sans text-xs font-black uppercase tracking-[0.13em] text-yellow-200">
-          Confirm purchase
-        </p>
-        <h2 id="purchase-title" className="mt-1 font-display text-3xl font-black text-white">
-          {pack.stars.toString()} Stars
-        </h2>
+    <Sheet
+      open
+      onClose={onClose}
+      dismissible={!busy}
+      srTitle={`Buy ${pack.stars.toString()} Stars`}
+    >
+      <div className="flex flex-col gap-4 pb-1 pt-1">
+        {/* What you GET, front and center. */}
+        <div className="text-center">
+          <p className="font-display text-5xl font-black text-yellow-200 drop-shadow-[0_0_18px_rgba(250,204,21,0.45)]">
+            +{pack.stars.toString()}★
+          </p>
+          <div className="mt-2 flex items-center justify-center gap-2">
+            <p className="font-sans text-lg font-black text-white">
+              {formatSolLamports(pack.currentPrice)} SOL
+            </p>
+            {pack.onSale && (
+              <p className="font-sans text-xs font-bold text-white/40 line-through">
+                {formatSolLamports(pack.regularPrice)}
+              </p>
+            )}
+            {savingsPct > 0 && (
+              <span className="rounded-full bg-emerald-400 px-2 py-0.5 font-sans text-[10px] font-black text-emerald-950">
+                −{savingsPct}%
+              </span>
+            )}
+          </div>
+          <p className="mt-1.5 font-sans text-xs font-semibold text-white/55">
+            Balance after purchase:{" "}
+            <span className="font-black text-yellow-200">
+              ★ {(shop.starsBalance + pack.stars).toString()}
+            </span>
+          </p>
+        </div>
+
         {!shop.playerInitialized && (
-          <p className="mt-2 rounded-xl border border-cyan-200/20 bg-cyan-300/10 px-3 py-2 font-sans text-xs text-cyan-100">
-            Your player profile and Map 1 access will be initialized atomically
-            with this first purchase.
+          <p className="rounded-xl border border-white/[0.14] bg-white/[0.06] px-3 py-2 text-center font-sans text-xs text-white/70">
+            Your player profile and Map 1 access come free with this first
+            purchase.
           </p>
         )}
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <ConfirmMetric
-            label="Stars"
-            value={`${shop.starsBalance.toString()} → ${(shop.starsBalance + pack.stars).toString()}★`}
-          />
-          <ConfirmMetric
-            label="Maximum charge"
-            value={`${formatSolLamports(pack.currentPrice)} SOL`}
-          />
-          <ConfirmMetric
-            label="Wallet SOL"
-            value={
-              solBalance === null
-                ? "—"
-                : `${formatSolLamports(solBalance)} → ${formatSolLamports(resultingSol!)}`
-            }
-          />
-          <ConfirmMetric
-            label="Network fee"
-            value="Paid by wallet · usually <0.00001 SOL"
-          />
-        </div>
-
-        <div className="mt-3 rounded-xl border border-white/[0.1] bg-white/[0.04] p-3 font-sans text-xs text-white/60">
-          <p className="mb-2 font-bold text-white/85">Atomic payment split</p>
-          <SplitRow label="Team · 10%" value={split.team} />
-          <SplitRow label="Rewards · 10%" value={split.rewards} />
-          <SplitRow label="Treasury · 80% + dust" value={split.treasury} />
-        </div>
-
-        <p className="mt-3 font-sans text-[11px] leading-4 text-white/45">
-          The Shop re-checks the on-chain quote before submission. If a sale or
-          pack changes, you will be asked to review the new price. Your wallet
-          must approve this exact SOL purchase; a zKube session cannot spend SOL.
-        </p>
-
         {insufficient ? (
-          <button
-            type="button"
-            onClick={onFund}
-            className="mt-4 w-full rounded-xl bg-cyan-300 py-3 font-sans text-sm font-black text-cyan-950"
-          >
-            Open wallet funding guidance
-          </button>
+          <ArcadeButton onClick={onFund}>
+            Add SOL to your wallet
+          </ArcadeButton>
         ) : (
-          <button
-            type="button"
+          <ArcadeButton
             onClick={onConfirm}
             disabled={busy || solBalance === null}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-300 py-3 font-sans text-sm font-black text-yellow-950 disabled:opacity-45"
+            accentOverride="#fde047"
           >
             {busy && <Loader2 size={16} className="animate-spin" />}
             {busy
               ? "Purchasing…"
-              : `Approve ${formatSolLamports(pack.currentPrice)} SOL in wallet`}
-          </button>
+              : `Buy ${pack.stars.toString()}★ for ${formatSolLamports(pack.currentPrice)} SOL`}
+          </ArcadeButton>
         )}
-      </section>
-    </div>
+
+        {dailyEntries > 0n && (
+          <p className="text-center font-sans text-xs font-semibold text-white/55">
+            Worth{" "}
+            <span className="font-black text-white/85">
+              {dailyEntries.toString()}
+            </span>{" "}
+            Daily Arena entries
+          </p>
+        )}
+      </div>
+    </Sheet>
   );
 }
 
-function ConfirmMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-white/[0.1] bg-white/[0.05] p-3">
-      <p className="font-sans text-[10px] font-bold uppercase tracking-wide text-white/40">
-        {label}
-      </p>
-      <p className="mt-1 font-sans text-sm font-black text-white/90">{value}</p>
-    </div>
-  );
-}
-
-function SplitRow({ label, value }: { label: string; value: bigint }) {
-  return (
-    <div className="flex items-center justify-between py-0.5">
-      <span>{label}</span>
-      <span className="font-bold text-white/80">
-        {formatSolLamports(value)} SOL
-      </span>
-    </div>
-  );
-}
-
-function savingsPercent(pack: StarPackQuote): string {
-  if (pack.regularPrice <= 0n || pack.currentPrice >= pack.regularPrice) return "0";
-  return (((pack.regularPrice - pack.currentPrice) * 100n) / pack.regularPrice).toString();
+/**
+ * Percent saved versus buying the same stars at the smallest pack's current
+ * rate. Bulk pricing and live sales both flow through, since the comparison
+ * uses current prices on both sides.
+ */
+function bulkSavingsPercent(
+  pack: StarPackQuote,
+  base: StarPackQuote | null,
+): number {
+  if (!base || base.index === pack.index) {
+    // The reference pack can still be on sale — show its sale savings.
+    if (
+      pack.onSale &&
+      pack.regularPrice > 0n &&
+      pack.currentPrice < pack.regularPrice
+    ) {
+      return Number(
+        ((pack.regularPrice - pack.currentPrice) * 100n) / pack.regularPrice,
+      );
+    }
+    return 0;
+  }
+  if (base.currentPrice <= 0n || base.stars <= 0n || pack.stars <= 0n) {
+    return 0;
+  }
+  const reference = base.currentPrice * pack.stars;
+  if (reference <= 0n) return 0;
+  const pct = 100n - (pack.currentPrice * base.stars * 100n) / reference;
+  return pct > 0n ? Number(pct) : 0;
 }
 
 function formatDuration(seconds: bigint): string {

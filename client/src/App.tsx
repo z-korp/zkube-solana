@@ -7,9 +7,8 @@ import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
 import BossRevealPage from "@/ui/pages/BossRevealPage";
-import DailyChallengePage from "@/ui/pages/DailyChallengePage";
 import HomePage from "@/ui/pages/HomePage";
-import LeaderboardPage from "@/ui/pages/LeaderboardPage";
+import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
@@ -50,11 +49,10 @@ const pageComponents: Record<PageId, ReactNode> = {
   home: <HomePage />,
   rewards: <RewardsPage />,
   profile: <ProfilePage />,
-  ranks: <LeaderboardPage />,
+  ranks: <ArenaPage />,
   shop: <ShopPage />,
   settings: <SettingsPage />,
   play: <PlayScreen />,
-  daily: <DailyChallengePage />,
   boss: <BossRevealPage />,
   map: <MapPage />,
   spectate: <SpectatorScreen />,

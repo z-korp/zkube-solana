@@ -10,16 +10,39 @@ import {
   vi,
 } from "vitest";
 
-import LeaderboardPage from "./LeaderboardPage";
+import { getThemeColors } from "@/config/themes";
+import ArenaDailyTab from "./ArenaDailyTab";
+
 
 const fixtures = vi.hoisted(() => ({
   accountAddress: "ABCD12345678WXYZ",
-  controller: {
-    error: null as string | null,
+  daily: {
     loading: false,
+    action: null as string | null,
+    error: null as string | null,
+    enter: vi.fn(),
+    refund: vi.fn(),
+    run: { phase: "none" },
+    daily: {
+      status: "open",
+      opensAt: 0,
+      entriesCloseAt: 1234567 + 3_600,
+      runsCloseAt: 1234567 + 3_600,
+      playerEligible: true,
+      playerStars: 10n,
+      starEntryCost: 2n,
+      scoringRule: null,
+    },
+  },
+  previous: {
+    daily: null,
+    action: null as string | null,
+    error: null as string | null,
+    refund: vi.fn(),
   },
   navigation: {
     navigate: vi.fn(),
+    openShop: vi.fn(),
     setSpectateTarget: vi.fn(),
   },
   entries: [
@@ -43,7 +66,15 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/daily", () => ({
-  useDaily: () => fixtures.controller,
+  useDaily: () => fixtures.daily,
+}));
+
+vi.mock("@/hooks/usePreviousChallenge", () => ({
+  usePreviousChallenge: () => fixtures.previous,
+}));
+
+vi.mock("@/hooks/useActiveDailyAttempt", () => ({
+  useActiveDailyAttempt: () => null,
 }));
 
 vi.mock("@/hooks/useAccount", () => ({
@@ -51,7 +82,20 @@ vi.mock("@/hooks/useAccount", () => ({
 }));
 
 vi.mock("@/hooks/useCurrentChallenge", () => ({
-  useCurrentChallenge: () => ({ challenge: { challenge_id: 14 } }),
+  useCurrentChallenge: () => ({
+    challenge: {
+      challenge_id: 14,
+      zone_id: 1,
+      total_attempts: 2n,
+      settled: false,
+      cancelled: false,
+      start_time: 0,
+      end_time: 1234567 + 3_600,
+      active_mutator_id: 0,
+      passive_mutator_id: 0,
+    },
+    isLoading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useDailyLeaderboard", () => ({
@@ -83,25 +127,28 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-describe("LeaderboardPage", () => {
+const colors = getThemeColors("theme-1");
+
+describe("ArenaDailyTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("uses exact base58 identity matches, score labels, and four-character truncation", () => {
-    const { container } = render(<LeaderboardPage />);
+  it("shows the board with exact identity matches and the entry CTA", () => {
+    const { container } = render(<ArenaDailyTab colors={colors} />);
 
     expect(screen.getByText("abcd…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("900 daily")).toBeInTheDocument();
     expect(screen.getByText("750 daily")).toBeInTheDocument();
-    expect(screen.queryByText("Player")).not.toBeInTheDocument();
-    expect(container).not.toHaveTextContent(" XP");
-    expect(container).not.toHaveTextContent("★");
+    expect(
+      screen.getByRole("button", { name: "Enter Daily · 2★" }),
+    ).toBeEnabled();
+    expect(container).not.toHaveTextContent(" XP to Level");
   });
 
-  it("opens the selected finalized run in the read-only spectator", () => {
-    render(<LeaderboardPage />);
+  it("opens a tapped run in the read-only spectator", () => {
+    render(<ArenaDailyTab colors={colors} />);
 
     fireEvent.click(screen.getByText("You · ABCD…WXYZ"));
 
@@ -111,4 +158,15 @@ describe("LeaderboardPage", () => {
     });
     expect(fixtures.navigation.navigate).toHaveBeenCalledWith("spectate");
   });
+
+  it("funnels an underfunded player to the shop with the Arena origin", () => {
+    fixtures.daily.daily.playerStars = 1n;
+    render(<ArenaDailyTab colors={colors} />);
+
+    fireEvent.click(screen.getByText("Need 1 more ★ · Get Stars"));
+
+    expect(fixtures.navigation.openShop).toHaveBeenCalledWith("ranks");
+    fixtures.daily.daily.playerStars = 10n;
+  });
 });
+

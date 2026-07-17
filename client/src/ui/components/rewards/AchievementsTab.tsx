@@ -150,6 +150,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
         </div>
       </motion.section>
 
+      <div className="grid grid-cols-2 gap-2.5">
       {grouped.map(({ category, tiers, activeTier }) => {
         const active = tiers[activeTier];
         if (!active) return null;
@@ -166,7 +167,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
               borderColor: "rgba(255,255,255,0.15)",
             }}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
               <span className="text-lg">{active.icon}</span>
               <p
                 className="font-sans text-[13px] font-extrabold"
@@ -271,6 +272,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
           </motion.section>
         );
       })}
+      </div>
 
       {error && (
         <motion.p

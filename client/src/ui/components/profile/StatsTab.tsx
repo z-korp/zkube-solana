@@ -21,22 +21,30 @@ const itemVariants = {
   },
 };
 
-interface OverviewTabProps {
+interface StatsTabProps {
   colors: ThemeColors;
   totalGames: number;
   totalLines: number;
   maxCombo: number;
   totalBosses: number;
+  dailiesPlayed: number;
+  perfectLevels: number;
+  starsEarned: number;
+  starsSpent: number;
 }
 
-const OverviewTab: React.FC<OverviewTabProps> = ({
+const StatsTab: React.FC<StatsTabProps> = ({
   colors,
   totalGames,
   totalLines,
   maxCombo,
   totalBosses,
+  dailiesPlayed,
+  perfectLevels,
+  starsEarned,
+  starsSpent,
 }) => {
-  const stats = [
+  const stats: Array<{ label: string; value: string; color?: string }> = [
     { label: "Games", value: totalGames.toLocaleString() },
     { label: "Best Combo", value: maxCombo > 0 ? `×${maxCombo}` : "--" },
     {
@@ -47,6 +55,20 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       label: "Guardians",
       value: totalBosses > 0 ? totalBosses.toLocaleString() : "--",
     },
+    {
+      label: "Dailies played",
+      value: dailiesPlayed > 0 ? dailiesPlayed.toLocaleString() : "--",
+    },
+    {
+      label: "Perfect levels",
+      value: perfectLevels > 0 ? perfectLevels.toLocaleString() : "--",
+    },
+    {
+      label: "Lifetime ★ earned",
+      value: starsEarned.toLocaleString(),
+      color: "#fde68a",
+    },
+    { label: "Lifetime ★ spent", value: starsSpent.toLocaleString() },
   ];
 
   return (
@@ -62,7 +84,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           className="mb-2 font-sans text-[11px] font-bold uppercase tracking-[0.15em]"
           style={{ color: colors.textMuted }}
         >
-          Stats
+          Lifetime record
         </motion.p>
         <div className="grid grid-cols-2 gap-2.5">
           {stats.map((stat) => (
@@ -70,7 +92,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <StatTile
                 label={stat.label}
                 value={stat.value}
-                color={colors.text}
+                color={stat.color ?? colors.text}
                 labelColor={colors.textMuted}
                 className="bg-white/[0.1]"
               />
@@ -82,4 +104,4 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   );
 };
 
-export default OverviewTab;
+export default StatsTab;

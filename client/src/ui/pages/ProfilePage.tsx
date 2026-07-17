@@ -15,8 +15,8 @@ import { useZStarBalance } from "@/hooks/useZStarBalance";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useProgress } from "@/contexts/progress";
 import { useNavigationStore } from "@/stores/navigationStore";
-import AchievementsTab from "@/ui/components/profile/AchievementsTab";
-import OverviewTab from "@/ui/components/profile/OverviewTab";
+import LevelRing from "@/ui/components/shared/LevelRing";
+import StatsTab from "@/ui/components/profile/StatsTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
@@ -24,7 +24,7 @@ import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
-const TABS = ["Overview", "Zones", "Achievements"] as const;
+const TABS = ["Stats", "Zones"] as const;
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -61,13 +61,8 @@ const ProfilePage: React.FC = () => {
   const isMaxLevel = level >= LEVEL_THRESHOLDS.length;
   const title = getTitleForLevel(level);
   const nextTitle = getTitleForLevel(Math.min(level + 1, 100));
-  const nextMilestoneIndex = Array.from({ length: 10 }, (_, index) => index).find(
-    (index) =>
-      level >= (index + 1) * 10 &&
-      !((progress.progress?.levelMilestones?.claimed ?? 0) & (1 << index)),
-  );
 
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("Stats");
   const navigate = useNavigationStore((state) => state.navigate);
 
   return (
@@ -99,16 +94,17 @@ const ProfilePage: React.FC = () => {
             className="rounded-3xl border border-white/[0.16] bg-white/[0.12] p-4 shadow-lg shadow-black/20 backdrop-blur-2xl"
           >
             <div className="mb-3 flex items-center gap-3">
-              <div
-                className="flex h-14 w-14 items-center justify-center rounded-2xl font-sans text-2xl font-black"
-                style={{
-                  background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`,
-                  color: colors.background,
-                  boxShadow: colors.glow,
-                }}
-              >
-                {level}
-              </div>
+              <LevelRing
+                level={level}
+                progress={
+                  isMaxLevel
+                    ? 1
+                    : (xp - levelStartXp) /
+                      Math.max(nextLevelXp - levelStartXp, 1)
+                }
+                colors={colors}
+                size={60}
+              />
 
               <div className="min-w-0 flex-1">
                 <p
@@ -183,45 +179,6 @@ const ProfilePage: React.FC = () => {
                   : `${Math.max(0, nextLevelXp - xp).toLocaleString()} XP to Level ${level + 1} · "${nextTitle}"`}
               </p>
             </div>
-            {progress.progress && nextMilestoneIndex !== undefined && (
-                <button
-                  type="button"
-                  disabled={progress.claiming !== null}
-                  onClick={() => void progress.claimLevelMilestone(nextMilestoneIndex)}
-                  className="mt-3 w-full rounded-xl border border-yellow-300/30 bg-yellow-300/10 px-3 py-2 font-sans text-sm font-extrabold text-yellow-200 disabled:opacity-50"
-                >
-                  {progress.claiming === `milestone:${nextMilestoneIndex}`
-                    ? "Claiming..."
-                    : `Claim Level ${(nextMilestoneIndex + 1) * 10} reward · +10 Stars`}
-                </button>
-              )}
-            {isMaxLevel && progress.progress?.weeklyStipend && (
-              <div className="mt-3 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-sans text-sm font-extrabold text-cyan-100">
-                      Weekly Mastery
-                    </p>
-                    <p className="font-sans text-[11px] font-semibold text-white/55">
-                      Earn 2,500 recurring XP for 30 Stars
-                    </p>
-                  </div>
-                  <span className="font-sans text-sm font-black text-cyan-200">
-                    {progress.progress.weeklyStipend.starsAwarded
-                      ? "Claimed"
-                      : `${Math.min(progress.progress.weeklyStipend.recurringXp, 2_500).toLocaleString()} / 2,500 XP`}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar
-                    value={progress.progress.weeklyStipend.recurringXp}
-                    max={2_500}
-                    color="#67e8f9"
-                    height={6}
-                  />
-                </div>
-              </div>
-            )}
           </motion.section>
 
           <motion.div variants={itemVariants}>
@@ -235,13 +192,23 @@ const ProfilePage: React.FC = () => {
           </motion.div>
 
           <motion.div variants={itemVariants} className="px-0.5">
-            {tab === "Overview" && (
-              <OverviewTab
+            {tab === "Stats" && (
+              <StatsTab
                 colors={colors}
                 totalGames={playerMeta?.totalRuns ?? 0}
                 totalLines={playerStats.totalLines}
                 maxCombo={playerStats.maxCombo}
                 totalBosses={playerStats.totalBosses}
+                dailiesPlayed={Number(
+                  progress.progress?.lifetime.dailyChallenges ?? 0n,
+                )}
+                perfectLevels={Number(
+                  progress.progress?.lifetime.perfectLevels ?? 0n,
+                )}
+                starsEarned={Number(
+                  progress.progress?.lifetimeStarsEarned ?? 0n,
+                )}
+                starsSpent={Number(progress.progress?.lifetimeStarsSpent ?? 0n)}
               />
             )}
 
@@ -252,8 +219,6 @@ const ProfilePage: React.FC = () => {
                 totalStars={totalStars}
               />
             )}
-
-            {tab === "Achievements" && <AchievementsTab colors={colors} />}
           </motion.div>
         </motion.div>
       </div>

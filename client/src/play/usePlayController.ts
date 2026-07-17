@@ -455,7 +455,7 @@ export function usePlayController() {
 
     setSettledReceiptSnapshot(null);
     setSettledCleanupStatus("idle");
-    navigate(settledReceipt.mode === "daily" ? "daily" : "map");
+    navigate(settledReceipt.mode === "daily" ? "ranks" : "map");
   }, [
     campaign.campaign?.maps,
     navigate,
@@ -465,14 +465,14 @@ export function usePlayController() {
 
   const closeOutcome = useCallback(() => {
     if (settlementStatus !== "complete") return;
-    navigate(terminalSnapshot?.isDaily ? "daily" : "map");
+    navigate(terminalSnapshot?.isDaily ? "ranks" : "map");
   }, [navigate, settlementStatus, terminalSnapshot?.isDaily]);
 
   // Continue from the level-complete card: hand the player back to the plain
   // map — no level pre-selected, they pick the next node themselves.
   const continueFromTerminal = useCallback(() => {
     if (settlementStatus !== "complete" || !terminalSnapshot) return;
-    navigate(terminalSnapshot.isDaily ? "daily" : "map");
+    navigate(terminalSnapshot.isDaily ? "ranks" : "map");
   }, [navigate, settlementStatus, terminalSnapshot]);
 
   const recoverOrphanedBaseRun = useCallback(

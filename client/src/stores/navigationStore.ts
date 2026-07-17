@@ -8,9 +8,9 @@ export type TabId =
   | "shop"
   | "profile"
   | "settings";
-export type OverlayId = "play" | "daily" | "boss" | "map" | "spectate";
+export type OverlayId = "play" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
-export type ShopOrigin = "daily" | "home";
+export type ShopOrigin = "ranks" | "home";
 export type SettingsFocus = "wallet";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
@@ -45,12 +45,8 @@ interface NavigationState {
   gameId: bigint | null;
   recoveryRunId: bigint | null;
   mapZoneId: number;
-  isDailyMap: boolean;
-  selectedMode: number;
-  profileAddress: string | null;
   pendingLevelCompletion: PendingLevelCompletion | null;
   greetedZones: Set<number>;
-  showEndlessGreeting: boolean;
   shopOrigin: ShopOrigin | null;
   settingsFocus: SettingsFocus | null;
   settingsReturnPage: PageId | null;
@@ -62,9 +58,6 @@ interface NavigationState {
   setGameId: (id: bigint | null) => void;
   setRecoveryRunId: (id: bigint | null) => void;
   setMapZoneId: (zoneId: number) => void;
-  setIsDailyMap: (isDaily: boolean) => void;
-  setSelectedMode: (mode: number) => void;
-  setProfileAddress: (address: string | null) => void;
   setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
   markZoneGreeted: (zoneId: number) => void;
   spectateTarget: SpectateTargetParams | null;
@@ -77,8 +70,6 @@ const getBackTarget = (page: PageId): PageId => {
       return "map";
     case "spectate":
       return "ranks";
-    case "daily":
-      return "home";
     case "boss":
       return "map";
     case "map":
@@ -100,12 +91,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   gameId: null,
   recoveryRunId: null,
   mapZoneId: 1,
-  isDailyMap: false,
-  selectedMode: 0,
-  profileAddress: null,
   pendingLevelCompletion: null,
   greetedZones: new Set(),
-  showEndlessGreeting: false,
   shopOrigin: null,
   settingsFocus: null,
   settingsReturnPage: null,
@@ -181,9 +168,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   setGameId: (id) => set({ gameId: id }),
   setRecoveryRunId: (id) => set({ recoveryRunId: id }),
   setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
-  setIsDailyMap: (isDaily) => set({ isDailyMap: isDaily }),
-  setSelectedMode: (mode) => set({ selectedMode: mode }),
-  setProfileAddress: (address) => set({ profileAddress: address }),
   spectateTarget: null,
   setSpectateTarget: (target) => set({ spectateTarget: target }),
   setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),

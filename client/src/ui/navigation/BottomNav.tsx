@@ -3,6 +3,7 @@ import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import { getLevelFromXp } from "@/config/profileData";
 import { getThemeColors } from "@/config/themes";
 import { motion } from "motion/react";
 import { useProgress } from "@/contexts/progress";
@@ -16,9 +17,20 @@ const BottomNav = () => {
   const { progress } = useProgress();
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;
+  // Everything this badge counts is claimable ON the Rewards page:
+  // quests + feats (achievements) + level milestones.
+  const level = getLevelFromXp(Number(progress?.lifetimeXp ?? 0n));
+  const milestoneBitmap = progress?.levelMilestones?.claimed ?? 0;
+  let milestoneClaimables = 0;
+  for (let index = 0; index < 10; index++) {
+    if (level >= (index + 1) * 10 && !(milestoneBitmap & (1 << index))) {
+      milestoneClaimables++;
+    }
+  }
   const claimableCount =
     (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
-    (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
+    (progress?.quests.filter((entry) => entry.claimable).length ?? 0) +
+    milestoneClaimables;
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;
@@ -32,7 +44,7 @@ const BottomNav = () => {
   }[] = [
     { id: "home", icon: Home, label: "Home" },
     { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
-    { id: "ranks", icon: Trophy, label: "Leaderboard" },
+    { id: "ranks", icon: Trophy, label: "Arena" },
     { id: "shop", icon: ShoppingBag, label: "Shop" },
     { id: "profile", icon: User, label: "Profile" },
   ];

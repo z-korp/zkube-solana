@@ -24,7 +24,7 @@ const fixtures = vi.hoisted(() => ({
   progressRefresh: vi.fn(),
   dailyRefresh: vi.fn(),
   navigation: {
-    shopOrigin: "daily" as "daily" | "home" | null,
+    shopOrigin: "ranks" as "ranks" | "home" | null,
     navigate: vi.fn(),
     goBack: vi.fn(),
     openWalletSettings: vi.fn(),
@@ -86,7 +86,7 @@ beforeEach(() => {
   fixtures.campaignRefresh.mockResolvedValue(null);
   fixtures.progressRefresh.mockResolvedValue(null);
   fixtures.dailyRefresh.mockResolvedValue(null);
-  fixtures.navigation.shopOrigin = "daily";
+  fixtures.navigation.shopOrigin = "ranks";
   fixtures.controller.shop = shopView();
   fixtures.controller.loading = false;
   fixtures.controller.purchasingPack = null;
@@ -96,15 +96,12 @@ beforeEach(() => {
 });
 
 describe("ShopPage", () => {
-  it("renders five packs, dynamic spending power, and merchandising badges", () => {
+  it("renders five packs with merchandising badges", () => {
     render(<ShopPage />);
 
     expect(screen.getAllByRole("button", { name: /Stars for/ })).toHaveLength(5);
     expect(screen.getByText("Popular")).toBeInTheDocument();
     expect(screen.getByText("Best value")).toBeInTheDocument();
-    expect(screen.getByText(/1 Daily entry · 10\/40 toward a zone/)).toBeInTheDocument();
-    expect(screen.getByText(/10 Daily entries · 2 zone unlocks/)).toBeInTheDocument();
-    expect(screen.getByText(/Devnet · Test SOL/)).toBeInTheDocument();
   });
 
   it("shows the exact confirmation and refreshes all balances after purchase", async () => {
@@ -114,11 +111,13 @@ describe("ShopPage", () => {
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Atomic payment split")).toBeInTheDocument();
-    expect(screen.getAllByText("0.009 SOL")).toHaveLength(2);
-    expect(screen.getByText("0.072 SOL")).toBeInTheDocument();
+    expect(screen.getByText("+100★")).toBeInTheDocument();
+    expect(screen.getByText("★ 125")).toBeInTheDocument();
+    expect(screen.getByText(/Daily Arena entries/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve 0.09 SOL in wallet" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Buy 100★ for 0.09 SOL" }),
+    );
     await waitFor(() =>
       expect(fixtures.controller.purchase).toHaveBeenCalledWith(
         expect.objectContaining({ index: 2, stars: 100n }),
@@ -130,7 +129,7 @@ describe("ShopPage", () => {
       expect(fixtures.dailyRefresh).toHaveBeenCalledOnce();
       expect(fixtures.identity.refreshBalance).toHaveBeenCalledOnce();
     });
-    expect(screen.getByRole("button", { name: "Return to Daily" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Return to Arena" })).toBeEnabled();
   });
 
   it("routes an underfunded pack directly to wallet settings", () => {
@@ -163,7 +162,7 @@ describe("ShopPage", () => {
     expect(screen.getByRole("button", { name: "10 Stars for 0.009 SOL" })).toHaveTextContent(
       "0.01",
     );
-    expect(screen.getByText("Save 10%")).toBeInTheDocument();
+    expect(screen.getByText("\u221210%")).toBeInTheDocument();
   });
 });
 

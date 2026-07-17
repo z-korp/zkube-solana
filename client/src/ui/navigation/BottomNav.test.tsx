@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 describe("BottomNav", () => {
-  it("places Shop between Leaderboard and Profile", () => {
+  it("places Shop between Arena and Profile", () => {
     fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 
@@ -50,7 +50,7 @@ describe("BottomNav", () => {
     expect(buttons.map((button) => button.textContent)).toEqual([
       "Home",
       "Rewards",
-      "Leaderboard",
+      "Arena",
       "Shop",
       "Profile",
     ]);

@@ -94,7 +94,6 @@ const MapPage: React.FC = () => {
   const rawMapZoneId = useNavigationStore((state) => state.mapZoneId);
   const mapZoneId = Math.min(10, Math.max(1, rawMapZoneId));
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-  const setIsDailyMap = useNavigationStore((state) => state.setIsDailyMap);
   const pendingLevelCompletion = useNavigationStore(
     (state) => state.pendingLevelCompletion,
   );
@@ -145,9 +144,8 @@ const MapPage: React.FC = () => {
   }, [mapZoneId, rawMapZoneId, setMapZoneId]);
 
   useEffect(() => {
-    setIsDailyMap(false);
     setMusicPlaylist(["main", "level"]);
-  }, [setIsDailyMap, setMusicPlaylist]);
+  }, [setMusicPlaylist]);
 
   const themeId = getThemeId(map?.themeId ?? mapZoneId);
   useEffect(() => {
@@ -175,7 +173,6 @@ const MapPage: React.FC = () => {
     }
 
     setMapZoneId(mapZoneId);
-    setIsDailyMap(false);
     if (levelIntentDestination(level) === "boss") {
       // Level 10 gets its constraint reveal first; the launch happens there.
       setSelectedNode(null);

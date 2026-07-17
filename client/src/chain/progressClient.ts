@@ -54,6 +54,8 @@ export interface LifetimeStatsView {
 
 export interface ProgressView {
   starsBalance: bigint;
+  lifetimeStarsEarned: bigint;
+  lifetimeStarsSpent: bigint;
   lifetimeXp: bigint;
   lifetime: LifetimeStatsView;
   achievements: AchievementProgressView[];
@@ -144,6 +146,8 @@ export async function fetchProgressView(args: {
     BigInt(String((player as Record<string, unknown>)[key] ?? 0));
   return {
     starsBalance: BigInt(player.starsBalance.toString()),
+    lifetimeStarsEarned: lifetimeValue("lifetimeStarsEarned"),
+    lifetimeStarsSpent: lifetimeValue("lifetimeStarsSpent"),
     lifetimeXp: BigInt(player.lifetimeXp.toString()),
     lifetime: {
       runsStarted: lifetimeValue("lifetimeRunsStarted"),
