@@ -260,6 +260,7 @@ pub fn handler_write_map_catalog(
         validate_constraint_snapshot(level.secondary)?;
         require!(
             level.block_weights[0] > 0
+                && level.block_weights[1..].iter().any(|weight| *weight > 0)
                 && level
                     .block_weights
                     .iter()

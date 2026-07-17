@@ -336,7 +336,7 @@ impl DailyPressureProfile {
         require!(
             self.block_weights.iter().all(|weights| {
                 weights[0] > 0
-                    && weights.iter().any(|weight| *weight > 0)
+                    && weights[1..].iter().any(|weight| *weight > 0)
                     && weights.iter().map(|value| u32::from(*value)).sum::<u32>() == 100
             }),
             ErrorCode::InvalidBlockWeights

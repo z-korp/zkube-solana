@@ -31,6 +31,7 @@ export interface ZkubeDevnetDeploymentInput {
   upgradeAuthorityKeypairPath?: string;
   upgradeAuthorityPublicKey?: string;
   commands: DeploymentCommand[];
+  approvalEvidenceSha256: string;
   approvalFingerprint: string;
   sendEnabled: boolean;
   suppliedApproval?: string;
@@ -166,10 +167,10 @@ export function devnetDeploymentInputFromEnv(
       programUpgradeAuthority: upgradeAuthorityPublicKey ?? null,
     },
   };
-  const approvalFingerprint = createHash("sha256")
+  const approvalEvidenceSha256 = createHash("sha256")
     .update(JSON.stringify(approvalPayload))
-    .digest("hex")
-    .slice(0, 16);
+    .digest("hex");
+  const approvalFingerprint = approvalEvidenceSha256.slice(0, 16);
 
   return {
     cluster: "devnet",
@@ -190,6 +191,7 @@ export function devnetDeploymentInputFromEnv(
     upgradeAuthorityKeypairPath,
     upgradeAuthorityPublicKey,
     commands,
+    approvalEvidenceSha256,
     approvalFingerprint,
     sendEnabled: env.ZKUBE_DEPLOY === "1",
     suppliedApproval: env.ZKUBE_DEPLOY_APPROVAL?.trim() || undefined,
@@ -359,6 +361,7 @@ export function formatDevnetDeployment(
     `Deployer: ${input.deployerPublicKey ?? "missing"}`,
     `Upgrade authority: ${input.upgradeAuthorityPublicKey ?? "missing"}`,
     `Approval fingerprint: ${input.approvalFingerprint}`,
+    `Approval evidence SHA-256: ${input.approvalEvidenceSha256}`,
     `Executable plan: ${executable ? "yes" : "no"}`,
     "Preflight skipping: disabled",
     ...input.commands.map((command) => {

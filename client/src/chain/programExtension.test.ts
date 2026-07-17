@@ -10,6 +10,7 @@ import {
 } from "@solana/web3.js";
 
 import {
+  hashExtendedProgramData,
   MINIMUM_EXTEND_PROGRAM_BYTES,
   legacyExtendProgramData,
   legacyExtendProgramInstruction,
@@ -101,5 +102,14 @@ describe("legacy ProgramData extension", () => {
     );
     expect(plannedProgramExtensionBytes(1_716_784, 1_716_784)).toBe(0);
     expect(plannedProgramExtensionBytes(1_000_000, 1_020_000)).toBe(20_000);
+  });
+
+  it("precomputes the padded post-extension deployment preimage", () => {
+    expect(hashExtendedProgramData(Uint8Array.from([1, 2, 3]), 2)).toBe(
+      "e429d4302b8d1d228b9369cb66b8b219e79a5a2e4896ad582cf15c5a36c76035",
+    );
+    expect(hashExtendedProgramData(Uint8Array.from([1, 2, 3]), 0)).toBe(
+      "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+    );
   });
 });

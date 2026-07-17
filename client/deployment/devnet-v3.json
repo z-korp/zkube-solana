@@ -2,18 +2,18 @@
   "schema": "zkube-solana-deployment",
   "schemaVersion": 3,
   "cluster": "devnet",
-  "createdAt": "2026-07-16T21:30:11.000Z",
+  "createdAt": "2026-07-17T06:13:51.000Z",
   "approval": {
     "status": "approved",
-    "fingerprint": "3523eb94ffee7e48",
-    "approvedAt": "2026-07-16T21:54:18.000Z",
-    "evidenceSha256": "3523eb94ffee7e48e476cf882ce3a0d1fe7aeaf80af9b371ae8d84794a6f913e"
+    "fingerprint": "22b025d8732b088d",
+    "approvedAt": "2026-07-17T06:13:51.000Z",
+    "evidenceSha256": "22b025d8732b088dc221842ef350ce39222267c338af79f38b4d5fde6b5a76eb"
   },
   "program": {
     "id": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
-    "artifactSha256": "4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf",
-    "deploymentSignature": "4yiEiDVpPQgSrigy2wFmbGQjHAADb9aXESGQaXRcnbmQ95w7tGEuATbekj4L7gtrcWYBfgiynCWovksLjouifECo",
-    "deployedAt": "2026-07-16T20:46:19.000Z"
+    "artifactSha256": "fb0e7aad8cf8f09c35b61c9c7c1e91d59137d2005c290eb015789d5e955b365f",
+    "deploymentSignature": "5nEBXwRW1cdY8HQhMcN6YD94xCJPQDKnD8ZUPJqCtVeRUszbg8okcxpAtW6jTug2nvn8JpMK56S1SLvn2CoBCZAa",
+    "deployedAt": "2026-07-17T06:13:51.000Z"
   },
   "rpc": {
     "base": "https://rpc.magicblock.app/devnet",

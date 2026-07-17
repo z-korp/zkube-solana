@@ -272,11 +272,7 @@ pub fn handler_fulfill_row_vrf(
     );
     let request_counter = active.pending_vrf_counter;
     require_matching_vrf_callback(request_counter, expected_request_counter)?;
-    let row_weights = if active.mode == RunMode::Daily {
-        active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
-    } else {
-        active.rules.block_weights
-    };
+    let row_weights = generation_weights(active);
     let mut engine = engine_from_active(active)?;
     engine.phase = RunPhase::AwaitingVrf;
     let opening = request_counter == 1;
@@ -294,6 +290,18 @@ pub fn handler_fulfill_row_vrf(
     active.pending_vrf_counter = 0;
     active.lifecycle = lifecycle_from_phase(engine.phase);
     Ok(())
+}
+
+/// Select the weights for the row being fulfilled now. Daily accounting
+/// advances `current_difficulty` before it enqueues the next VRF request, so a
+/// threshold-crossing action immediately affects the next unseen row. Campaign
+/// runs keep their authored level snapshot for their full lifetime.
+fn generation_weights(active: &ActiveRun) -> [u16; 5] {
+    if active.mode == RunMode::Daily {
+        active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
+    } else {
+        active.rules.block_weights
+    }
 }
 
 fn provide_verified_vrf_rows(
@@ -1375,6 +1383,8 @@ mod tests {
         assert_eq!((move_run.combo2_hits, move_run.high_combo_hits), (1, 1));
         assert_eq!(move_run.daily_score, 35);
         assert_eq!(move_run.pressure_score, 20);
+        assert_eq!(move_run.current_difficulty, 2);
+        assert_eq!(move_run.current_difficulty, bonus_run.current_difficulty);
         assert_eq!(move_run.daily_bonus_triggers, 1);
         assert_eq!(
             move_run.daily_bonus_triggers,
@@ -1400,6 +1410,68 @@ mod tests {
         assert_eq!(active.daily_score, report.points_earned);
         assert_eq!(active.daily_bonus_triggers, 0);
         assert_eq!(active.finished_at, 456);
+    }
+
+    #[test]
+    fn generation_weights_cover_campaign_and_every_daily_tier() {
+        let campaign_weights = [3, 5, 7, 11, 13];
+        let campaign = ActiveRun {
+            mode: RunMode::Campaign,
+            current_difficulty: 7,
+            rules: LevelRuleSnapshot {
+                block_weights: campaign_weights,
+                ..LevelRuleSnapshot::default()
+            },
+            ..ActiveRun::default()
+        };
+        assert_eq!(generation_weights(&campaign), campaign_weights);
+
+        let pressure = DailyPressureProfile::canonical();
+        for tier in 0..8u8 {
+            let daily = ActiveRun {
+                mode: RunMode::Daily,
+                current_difficulty: tier,
+                daily_pressure: pressure,
+                ..ActiveRun::default()
+            };
+            assert_eq!(
+                generation_weights(&daily),
+                pressure.block_weights[usize::from(tier)]
+            );
+        }
+    }
+
+    #[test]
+    fn threshold_crossing_bonus_keeps_preview_and_advances_future_row_weights() {
+        let pressure = DailyPressureProfile::canonical();
+        let preview = [2, 2, 0, 3, 3, 3, 0, 0];
+        let mut active = ActiveRun {
+            version: ACCOUNT_VERSION,
+            mode: RunMode::Daily,
+            lifecycle: RunLifecycle::Playing,
+            daily_scoring_rule: canonical_daily_scoring_rules()[0],
+            daily_pressure: pressure,
+            next_row: preview,
+            has_next_row: true,
+            ..ActiveRun::default()
+        };
+        let engine = RunEngine {
+            phase: RunPhase::Playing,
+            next_row: Some(preview),
+            ..RunEngine::default()
+        };
+        let report = MoveReport {
+            neutral_points_earned: pressure.thresholds[0],
+            ..MoveReport::default()
+        };
+
+        record_action_accounting(&mut active, &engine, &report, 0, ActionKind::Bonus, 100, 0)
+            .unwrap();
+
+        assert_eq!(active.current_difficulty, 1);
+        assert_eq!(active.next_row, preview);
+        assert!(active.has_next_row);
+        assert_eq!(generation_weights(&active), pressure.block_weights[1]);
     }
 
     #[test]

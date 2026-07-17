@@ -31,6 +31,16 @@ describe("Daily rules", () => {
     ]);
     expect(decoded.startingHeight).toBe(4);
     expect(decoded.maxMoves).toBe(100);
+    expect(decoded.blockWeights).toEqual([
+      [25, 30, 25, 15, 5],
+      [22, 28, 25, 18, 7],
+      [20, 25, 25, 20, 10],
+      [18, 22, 24, 22, 14],
+      [16, 20, 22, 24, 18],
+      [14, 18, 20, 26, 22],
+      [12, 16, 18, 28, 26],
+      [10, 14, 16, 30, 30],
+    ]);
     expect(
       decoded.blockWeights.every(
         (tier) => tier.reduce((sum, weight) => sum + weight, 0) === 100,

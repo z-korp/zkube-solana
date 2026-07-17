@@ -9,6 +9,7 @@ use session_keys::SessionTokenV2;
 use solana_account::Account;
 
 use solana as zkube;
+use zkube::game::{row_from_vrf, BlockWeights, Grid};
 use zkube::state::economy::*;
 use zkube::state::protocol::*;
 
@@ -380,6 +381,207 @@ fn session_token_address(owner: Pubkey, actor: Pubkey) -> Pubkey {
         &session_keys::ID,
     )
     .0
+}
+
+fn fulfill_row_instruction(
+    vrf_program_identity: Pubkey,
+    active_run: Pubkey,
+    magic_fee_vault: Pubkey,
+    randomness: [u8; 32],
+    expected_request_counter: u32,
+) -> anchor_lang::solana_program::instruction::Instruction {
+    anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::FulfillRowVrf {
+            vrf_program_identity,
+            active_run,
+            magic_fee_vault,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::FulfillRowVrf {
+            randomness,
+            expected_request_counter,
+        }
+        .data(),
+    }
+}
+
+#[test]
+fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
+    let vrf_program_identity: Pubkey =
+        ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
+            .to_bytes()
+            .into();
+    let magic_fee_vault = Pubkey::new_unique();
+    let opening_run = Pubkey::new_unique();
+    let opening_randomness = [37; 32];
+    let opening_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        lifecycle: RunLifecycle::AwaitingVrf,
+        rules_hash: [19; 32],
+        rules: LevelRuleSnapshot {
+            block_weights: [15, 30, 30, 15, 10],
+            ..LevelRuleSnapshot::default()
+        },
+        starting_height_target: 8,
+        vrf_request_counter: 1,
+        pending_vrf_counter: 1,
+        ..ActiveRun::default()
+    };
+    let callback_accounts = vec![
+        (vrf_program_identity, system_account(0)),
+        (
+            opening_run,
+            program_account(&opening_state, 8 + ActiveRun::INIT_SPACE),
+        ),
+        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let opening_instruction = fulfill_row_instruction(
+        vrf_program_identity,
+        opening_run,
+        magic_fee_vault,
+        opening_randomness,
+        1,
+    );
+    let opening_result = mollusk().process_instruction(&opening_instruction, &callback_accounts);
+    assert!(
+        opening_result.program_result.is_ok(),
+        "{:?}",
+        opening_result.program_result
+    );
+    eprintln!(
+        "SBF_COMPUTE fulfill_opening={}",
+        opening_result.compute_units_consumed
+    );
+    assert!(opening_result.compute_units_consumed < 200_000);
+    let opened: ActiveRun = decode(resulting_account(&opening_result, &opening_run));
+    let opening_grid = Grid::try_from_cells(opened.grid).unwrap();
+    let mut settled = opening_grid;
+    settled.apply_gravity();
+    assert_eq!(settled, opening_grid);
+    assert_eq!(opening_grid.occupied_height(), 8);
+    assert!(opened.has_next_row);
+    assert_eq!(opened.lifecycle, RunLifecycle::Playing);
+    assert_eq!(opened.starting_height_target, 0);
+    assert_eq!(opened.pending_vrf_counter, 0);
+
+    let pathological_run = Pubkey::new_unique();
+    let pathological_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        lifecycle: RunLifecycle::AwaitingVrf,
+        rules: LevelRuleSnapshot {
+            block_weights: [99, 1, 0, 0, 0],
+            ..LevelRuleSnapshot::default()
+        },
+        starting_height_target: 8,
+        vrf_request_counter: 1,
+        pending_vrf_counter: 1,
+        ..ActiveRun::default()
+    };
+    let pathological_accounts = vec![
+        (vrf_program_identity, system_account(0)),
+        (
+            pathological_run,
+            program_account(&pathological_state, 8 + ActiveRun::INIT_SPACE),
+        ),
+        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let pathological_instruction = fulfill_row_instruction(
+        vrf_program_identity,
+        pathological_run,
+        magic_fee_vault,
+        [0; 32],
+        1,
+    );
+    let pathological_result =
+        mollusk().process_instruction(&pathological_instruction, &pathological_accounts);
+    assert!(
+        pathological_result.program_result.is_ok(),
+        "{:?}",
+        pathological_result.program_result
+    );
+    eprintln!(
+        "SBF_COMPUTE fulfill_pathological_opening={}",
+        pathological_result.compute_units_consumed
+    );
+    assert!(pathological_result.compute_units_consumed < 200_000);
+    let pathological: ActiveRun =
+        decode(resulting_account(&pathological_result, &pathological_run));
+    let pathological_grid = Grid::try_from_cells(pathological.grid).unwrap();
+    let mut pathological_settled = pathological_grid;
+    pathological_settled.apply_gravity();
+    assert_eq!(pathological_settled, pathological_grid);
+    assert_eq!(pathological_grid.occupied_height(), 8);
+    assert!(pathological.has_next_row);
+
+    let daily_run = Pubkey::new_unique();
+    let daily_randomness = [91; 32];
+    let pressure = DailyPressureProfile::canonical();
+    let mut daily_grid = [0; 80];
+    daily_grid[0] = 1;
+    let daily_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        mode: RunMode::Daily,
+        lifecycle: RunLifecycle::AwaitingVrf,
+        grid: daily_grid,
+        daily_pressure: pressure,
+        current_difficulty: 7,
+        vrf_request_counter: 2,
+        pending_vrf_counter: 2,
+        ..ActiveRun::default()
+    };
+    let daily_accounts = vec![
+        (vrf_program_identity, system_account(0)),
+        (
+            daily_run,
+            program_account(&daily_state, 8 + ActiveRun::INIT_SPACE),
+        ),
+        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let daily_instruction = fulfill_row_instruction(
+        vrf_program_identity,
+        daily_run,
+        magic_fee_vault,
+        daily_randomness,
+        2,
+    );
+    let daily_result = mollusk().process_instruction(&daily_instruction, &daily_accounts);
+    assert!(
+        daily_result.program_result.is_ok(),
+        "{:?}",
+        daily_result.program_result
+    );
+    eprintln!(
+        "SBF_COMPUTE fulfill_next_row={}",
+        daily_result.compute_units_consumed
+    );
+    assert!(daily_result.compute_units_consumed < 50_000);
+    let daily: ActiveRun = decode(resulting_account(&daily_result, &daily_run));
+    assert_eq!(daily.lifecycle, RunLifecycle::Playing);
+    assert_eq!(daily.pending_vrf_counter, 0);
+    assert_eq!(
+        daily.next_row,
+        row_from_vrf(
+            daily_randomness,
+            2,
+            BlockWeights {
+                values: pressure.block_weights[7],
+            },
+        )
+        .unwrap()
+    );
+
+    let stale_instruction = fulfill_row_instruction(
+        vrf_program_identity,
+        daily_run,
+        magic_fee_vault,
+        daily_randomness,
+        1,
+    );
+    assert!(mollusk()
+        .process_instruction(&stale_instruction, &daily_accounts)
+        .program_result
+        .is_err());
 }
 
 #[test]

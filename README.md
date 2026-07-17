@@ -52,10 +52,15 @@ separate.
 
 The opening board uses one verified VRF callback and expands that unpredictable
 result with a domain-separated SHA-256 syscall stream into exactly the configured
-3–8 stable rows plus one preview. Eight draws are consumed from each digest; the
-callback has no retry or settle loop, and every generated row is nonempty,
-nonfull, coherent, and supported. Each
-move that exposes a future hidden row atomically requests a fresh VRF value in
+3–8 stable rows plus one preview. Eight draws are consumed from each digest.
+Opening rows use the same weighted packer as every later row, are inserted and
+settled until the requested height is reached, and have a bounded deterministic
+fallback for pathological future catalogs. Weighted oversized blocks are
+conditioned out instead of becoming accidental holes, then whole block and gap
+entities are shuffled to remove packing-direction bias. Every delivered row is
+nonempty, nonfull, and coherent. Campaign runs keep the authored level weights,
+while Daily runs select the tier reached by the preceding action's pressure
+score. Each move that exposes a future hidden row atomically requests a fresh VRF value in
 the same ER transaction, so client timing cannot select the next row. The
 client prewarms an endpoint-scoped ER blockhash, skips ER preflight, and keeps a
 single ActiveRun account subscription alive; notification data is validated and
@@ -246,6 +251,25 @@ claim 17,782, quest claim 18,486, Campaign consume 23,365, Star purchase
 activation 212,244. These are pre-deployment fingerprints, not authorization
 to deploy or write chain state.
 
+The weighted-generator repair is deployed on v3 Devnet. Its
+`opt-level = "s"` ELF is 1,202,512 bytes with SHA-256
+`fb0e7aad8cf8f09c35b61c9c7c1e91d59137d2005c290eb015789d5e955b365f`.
+The matching speed-profile ELF is 1,434,224 bytes with a 9,983,403,120-lamport
+rent estimate and cannot fit the existing ProgramData account; neither profile
+emits an SBF stack warning. The selected artifact's own rent estimate is
+8,370,687,600 lamports, but it exceeds the live 1,200,672-byte code capacity by
+1,840 bytes. Devnet's loader therefore requires the minimum 10,240-byte
+extension to 1,210,912 bytes: 71,270,400 additional rent lamports and an
+8,429,151,600-lamport final ProgramData balance. Extension signature
+`2h6LRD4BD5gt5qB7LuTvkYNZcVJZn9NxqYQ23DgnWVR7gX3YyxPAMp6pUC9E6otqfvRPVvnUEuKPsofwSSDQ4C2X`
+and upgrade signature
+`5nEBXwRW1cdY8HQhMcN6YD94xCJPQDKnD8ZUPJqCtVeRUszbg8okcxpAtW6jTug2nvn8JpMK56S1SLvn2CoBCZAa`
+are confirmed; the deployed ELF prefix matches the candidate hash and all
+8,400 capacity-tail bytes are zero. Real SBF execution measures
+the complete eight-row opening callback at 111,002 compute units, the bounded
+sparse-catalog fallback at 126,673, and an ordinary weighted-row callback at
+27,834; the stale-counter rejection also passes.
+
 The remaining release work is the Git-driven v3 client cutover, any separately
 approved ongoing keeper write policy, real-wallet desktop and Seeker acceptance,
 and the signed TWA APK only after browser acceptance passes. Each write or
@@ -262,7 +286,11 @@ one-pass cadence release.
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a
 fully enumerated release bundle whose signers, accounts, spends, and deployment
-fingerprints are fixed in advance; any drift stops the bundle. Mainnet is disabled.
+fingerprints are fixed in advance; any drift stops the bundle. When ProgramData
+must grow, the extension dry-run prints the padded post-extension SBF preimage;
+use that preimage to plan the upgrade before presenting both operations as one
+bundle, avoiding a second approval solely because capacity padding changed the
+full ProgramData hash. Mainnet is disabled.
 
 ## Security invariants
 

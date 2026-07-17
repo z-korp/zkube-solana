@@ -40,6 +40,8 @@ export interface ProgramExtensionInput {
   artifactPath: string;
   artifactSha256: string;
   artifactBytes: number;
+  currentDeployedSbfSha256: string;
+  postExtensionDeployedSbfSha256: string;
   currentCapacityBytes: number;
   targetCapacityBytes: number;
   additionalBytes: number;
@@ -99,6 +101,27 @@ export async function programExtensionInputFromEnv(
     state.programCapacityBytes,
     artifactBytes,
   );
+  const programData = await connection.getAccountInfo(
+    state.programDataAddress,
+    "confirmed",
+  );
+  if (
+    !programData
+    || programData.data.length !== state.programCapacityBytes + PROGRAM_DATA_HEADER_BYTES
+  ) {
+    throw new Error("live ProgramData bytes changed during extension planning");
+  }
+  const deployedSbf = programData.data.subarray(PROGRAM_DATA_HEADER_BYTES);
+  const currentDeployedSbfSha256 = createHash("sha256")
+    .update(deployedSbf)
+    .digest("hex");
+  if (currentDeployedSbfSha256 !== state.deployedSbfSha256) {
+    throw new Error("live ProgramData hash changed during extension planning");
+  }
+  const postExtensionDeployedSbfSha256 = hashExtendedProgramData(
+    deployedSbf,
+    additionalBytes,
+  );
   const targetCapacityBytes = state.programCapacityBytes + additionalBytes;
   const requiredRent = await connection.getMinimumBalanceForRentExemption(
     targetCapacityBytes + PROGRAM_DATA_HEADER_BYTES,
@@ -125,6 +148,8 @@ export async function programExtensionInputFromEnv(
     programDataAddress: state.programDataAddress.toBase58(),
     artifactSha256: deployment.artifactSha256,
     artifactBytes,
+    currentDeployedSbfSha256,
+    postExtensionDeployedSbfSha256,
     currentCapacityBytes: state.programCapacityBytes,
     targetCapacityBytes,
     additionalBytes,
@@ -177,6 +202,8 @@ export async function programExtensionInputFromEnv(
     artifactPath: deployment.artifactPath,
     artifactSha256: deployment.artifactSha256,
     artifactBytes,
+    currentDeployedSbfSha256,
+    postExtensionDeployedSbfSha256,
     currentCapacityBytes: state.programCapacityBytes,
     targetCapacityBytes,
     additionalBytes,
@@ -386,6 +413,23 @@ export function plannedProgramExtensionBytes(
   return additionalBytes;
 }
 
+export function hashExtendedProgramData(
+  currentProgramData: Uint8Array,
+  additionalBytes: number,
+): string {
+  if (
+    !Number.isSafeInteger(additionalBytes)
+    || additionalBytes < 0
+    || additionalBytes > MAX_PROGRAM_DATA_BYTES
+  ) {
+    throw new Error("additional ProgramData bytes must be a non-negative safe integer");
+  }
+  return createHash("sha256")
+    .update(currentProgramData)
+    .update(Buffer.alloc(additionalBytes))
+    .digest("hex");
+}
+
 export function legacyExtendProgramData(additionalBytes: number): Buffer {
   if (
     !Number.isSafeInteger(additionalBytes) ||
@@ -410,6 +454,8 @@ export function formatProgramExtension(result: ProgramExtensionResult): string {
     `Program: ${input.programId}`,
     `ProgramData: ${input.programDataAddress}`,
     `SBF SHA-256: ${input.artifactSha256}`,
+    `Current deployed SBF SHA-256: ${input.currentDeployedSbfSha256}`,
+    `Post-extension deployed SBF SHA-256: ${input.postExtensionDeployedSbfSha256}`,
     `Current capacity: ${input.currentCapacityBytes} bytes`,
     `Target artifact: ${input.artifactBytes} bytes`,
     `Target capacity: ${input.targetCapacityBytes} bytes`,

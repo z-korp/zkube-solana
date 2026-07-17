@@ -38,6 +38,8 @@ describe("Devnet deployment runner", () => {
     expect(input.sendEnabled).toBe(false);
     expect(input.artifactSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(input.approvalFingerprint).toMatch(/^[0-9a-f]{16}$/);
+    expect(input.approvalEvidenceSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(input.approvalEvidenceSha256.startsWith(input.approvalFingerprint)).toBe(true);
     expect(input.commands.map(({ label }) => label)).toEqual([
       "Build Anchor program",
       "Upgrade existing program",

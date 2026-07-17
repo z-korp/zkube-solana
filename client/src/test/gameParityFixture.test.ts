@@ -7,6 +7,17 @@ import {
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import { BOSS_IDENTITIES } from "@/config/bossIdentities";
 
+const CAMPAIGN_WEIGHT_CURVE = [
+  [15, 30, 30, 15, 10],
+  [15, 25, 30, 20, 10],
+  [15, 25, 25, 20, 15],
+  [10, 20, 25, 25, 20],
+  [10, 20, 20, 25, 25],
+  [5, 15, 20, 30, 30],
+  [1, 15, 15, 35, 34],
+  [1, 5, 10, 49, 35],
+] as const;
+
 describe("shared game parity fixtures", () => {
   it("renders every coherent Rust/Cairo row as the same block entities", () => {
     for (const fixture of fixtures.validRows) {
@@ -52,6 +63,7 @@ describe("shared game parity fixtures", () => {
       expect(map.mapRules.startingRows).toBeGreaterThanOrEqual(4);
       for (const level of map.levels) {
         expect(level.blockWeights.reduce((sum, weight) => sum + weight, 0)).toBe(100);
+        expect(level.blockWeights).toEqual(CAMPAIGN_WEIGHT_CURVE[level.difficulty]);
       }
     }
   });
