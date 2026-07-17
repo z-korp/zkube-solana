@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ChevronRight, Gamepad2 } from "lucide-react";
+import { errorMessage, isWalletRejection } from "@/utils/errors";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -136,10 +137,9 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
 };
 
 function userFacingError(cause: unknown): string {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  return /reject|declin|cancel/i.test(message)
+  return isWalletRejection(cause)
     ? "The wallet rejected the request. You can try again when ready."
-    : message;
+    : errorMessage(cause);
 }
 
 export default ConnectCta;

@@ -22,11 +22,11 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 import type { DailyView } from "./dailyClient.js";
-import { fetchPlayerIdentities } from "./identityClient.js";
+import { fetchPlayerLabels } from "./playerLabelClient.js";
 
-export type WeeklyStatus = "open" | "claimable" | "closed" | "unknown";
+type WeeklyStatus = "open" | "claimable" | "closed" | "unknown";
 
-export interface WeeklyLeaderboardEntryView {
+interface WeeklyLeaderboardEntryView {
   player: PublicKey;
   playerName: string | null;
   score: number;
@@ -87,16 +87,13 @@ export async function fetchWeeklyView(args: {
     player: entry.player,
     score: Number(entry.score),
   }));
-  const identities = await fetchPlayerIdentities({
+  const labels = await fetchPlayerLabels({
     connection: args.connection,
     wallet: args.wallet,
     owners: leaderboardEntries.map((entry) => entry.player),
   }).catch(() => []);
-  const identityNames = new Map(
-    identities.map((identity) => [
-      identity.owner.toBase58(),
-      identity.displayName,
-    ]),
+  const labelNames = new Map(
+    labels.map((label) => [label.owner.toBase58(), label.displayName]),
   );
   return {
     address,
@@ -124,7 +121,7 @@ export async function fetchWeeklyView(args: {
       : null,
     leaderboard: leaderboardEntries.map((entry) => ({
       ...entry,
-      playerName: identityNames.get(entry.player.toBase58()) ?? null,
+      playerName: labelNames.get(entry.player.toBase58()) ?? null,
     })),
   };
 }

@@ -26,12 +26,9 @@ export interface MusicPlayerContextValue {
   setMusicVolume: (volume: number) => void;
   setEffectsVolume: (volume: number) => void;
   setMusicMood: (mood: MusicMood) => void;
-  setMusicContext: (context: MusicContext) => void;
-  setMusicPlaylist: (contexts: MusicContext[]) => void;
   warmMusic: (contexts: MusicContext[]) => void;
   duck: () => void;
   unduck: () => void;
-  currentContext: MusicContext;
   isPlaying: boolean;
   playSfx: (name: SfxName) => void;
   playSwipe: () => void;
@@ -48,12 +45,9 @@ export const MusicPlayerContext = createContext<MusicPlayerContextValue>({
   setMusicVolume: noop,
   setEffectsVolume: noop,
   setMusicMood: noop,
-  setMusicContext: noop,
-  setMusicPlaylist: noop,
   warmMusic: noop,
   duck: noop,
   unduck: noop,
-  currentContext: DEFAULT_MUSIC_CONTEXT,
   isPlaying: false,
   playSfx: noop,
   playSwipe: noop,
@@ -241,12 +235,9 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       setMusicVolume,
       setEffectsVolume,
       setMusicMood,
-      setMusicContext,
-      setMusicPlaylist,
       warmMusic,
       duck,
       unduck,
-      currentContext,
       isPlaying,
       playSfx,
       playSwipe,
@@ -260,12 +251,9 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       setMusicVolume,
       setEffectsVolume,
       setMusicMood,
-      setMusicContext,
-      setMusicPlaylist,
       warmMusic,
       duck,
       unduck,
-      currentContext,
       isPlaying,
       playSfx,
       playSwipe,

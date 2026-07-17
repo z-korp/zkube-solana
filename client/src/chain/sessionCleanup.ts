@@ -107,17 +107,10 @@ export function buildRevokeExpiredSessionPlan(args: {
   session: ExpiredZkubeSession;
   nowUnix: number;
 }): TransactionPlan {
-  validateExpiredZkubeSession(args.session, args.nowUnix);
-  const instruction = new TransactionInstruction({
-    programId: SESSION_KEYS_PROGRAM_ID,
-    keys: [
-      meta(args.session.address, false, true),
-      meta(args.session.feePayer, false, true),
-      meta(args.session.authority, false, false),
-      meta(SystemProgram.programId, false, false),
-    ],
-    data: Buffer.from(REVOKE_SESSION_V2_DISCRIMINATOR),
-  });
+  const instruction = buildRevokeExpiredSessionInstruction(
+    args.session,
+    args.nowUnix,
+  );
   return {
     layer: "solana-base",
     label: "Revoke expired zKube session",
@@ -126,6 +119,23 @@ export function buildRevokeExpiredSessionPlan(args: {
     feePayer: args.wallet.publicKey,
     signers: [],
   };
+}
+
+export function buildRevokeExpiredSessionInstruction(
+  session: ExpiredZkubeSession,
+  nowUnix: number,
+): TransactionInstruction {
+  validateExpiredZkubeSession(session, nowUnix);
+  return new TransactionInstruction({
+    programId: SESSION_KEYS_PROGRAM_ID,
+    keys: [
+      meta(session.address, false, true),
+      meta(session.feePayer, false, true),
+      meta(session.authority, false, false),
+      meta(SystemProgram.programId, false, false),
+    ],
+    data: Buffer.from(REVOKE_SESSION_V2_DISCRIMINATOR),
+  });
 }
 
 function validateExpiredZkubeSession(

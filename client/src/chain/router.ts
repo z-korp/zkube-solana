@@ -27,7 +27,7 @@ export interface ClosestValidator {
 
 type Fetcher = typeof fetch;
 
-export function routerEndpoint(): string {
+function routerEndpoint(): string {
   const env = (
     import.meta as ImportMeta & {
       env?: Record<string, string | undefined>;

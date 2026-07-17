@@ -14,15 +14,6 @@ export enum ConstraintType {
   ComboMeter = 3,
 }
 
-export interface LevelConstraint {
-  /** The type of constraint */
-  constraintType: ConstraintType;
-  /** For ClearLines: number of lines to clear in one move */
-  value: number;
-  /** For ClearLines: how many times to achieve it */
-  requiredCount: number;
-}
-
 export class Constraint {
   public constraintType: ConstraintType;
   public value: number;

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
+import { errorMessage } from "@/utils/errors";
 import { useRun } from "@/contexts/run";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { showToast } from "@/utils/toast";
@@ -56,9 +57,7 @@ export function useCampaignLauncher(): {
         navigate("play", activeRun.runId);
       } catch (cause) {
         showToast({
-          message: describeRunStartError(
-            cause instanceof Error ? cause.message : String(cause),
-          ).headline,
+          message: describeRunStartError(errorMessage(cause)).headline,
           type: "error",
         });
       } finally {

@@ -14,7 +14,7 @@ import type { MapNodeData } from "@/hooks/useMapData";
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
-export interface LevelPreviewProps {
+interface LevelPreviewProps {
   node: MapNodeData;
   game: Game | null;
   gameLevel: GameLevelData | null;
@@ -74,7 +74,7 @@ function constraintDescriptions(
     }));
 }
 
-export const LevelPreview: React.FC<LevelPreviewProps> = ({
+const LevelPreview: React.FC<LevelPreviewProps> = ({
   node,
   game,
   gameLevel,

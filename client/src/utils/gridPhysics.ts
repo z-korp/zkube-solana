@@ -1,6 +1,6 @@
 import type { Block } from "@/types/types";
 
-export const isCollision = (
+const isCollision = (
   x: number,
   y: number,
   width: number,

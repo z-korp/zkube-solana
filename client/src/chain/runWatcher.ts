@@ -1,4 +1,5 @@
 import type { Connection, PublicKey } from "@solana/web3.js";
+import { errorMessage } from "@/utils/errors";
 import type { ResumedRun } from "./resumeRun";
 
 export type RunWatchPhase = "resolving" | "subscribed" | "reconnecting" | "stopped";
@@ -97,7 +98,7 @@ export class PersistedRunWatcher<T = ResumedRun> {
       this.emit(
         "reconnecting",
         this.attempt,
-        error instanceof Error ? error.message : String(error),
+        errorMessage(error),
       );
       const backoff = Math.min(
         (this.options.pollMs ?? 5_000) * 2 ** Math.min(this.attempt - 1, 4),

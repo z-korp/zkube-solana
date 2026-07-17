@@ -7,7 +7,7 @@ import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v2";
-export const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
+const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
 
 interface StoredRunSession {
   version: 2;

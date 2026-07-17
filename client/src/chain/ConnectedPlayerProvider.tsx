@@ -14,6 +14,8 @@ import {
   TransactionMessage,
   VersionedTransaction,
   type AccountInfo,
+  type Connection,
+  type TransactionInstruction,
 } from "@solana/web3.js";
 
 import {
@@ -24,6 +26,7 @@ import {
   walletRegistry,
   type WalletConnector,
 } from "@/platform/walletStandard";
+import { errorMessage, isWalletRejection } from "@/utils/errors";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
   assertDeviceSessionStorageAvailable,
@@ -61,12 +64,20 @@ import {
 import { zkubeProgram } from "./runPlan";
 import {
   DEVICE_FEE_ALLOWANCE_LAMPORTS,
+  deviceSignerTopUpLamports,
+  validatedDeviceSignerBalance,
   validateDeviceSignerFunding,
 } from "./deviceSessionFunding";
+import {
+  buildDeviceSessionRefillInstructions,
+  buildDeviceSignerReclaimInstruction,
+} from "./deviceSessionLifecycle";
+import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
+import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
-export const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
+const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
 const LEGACY_PLAYER_FUNDING_BYTES = 42;
 const LEGACY_PLAYER_FUNDING_DISCRIMINATOR = Uint8Array.from([
   61, 237, 220, 223, 77, 198, 8, 22,
@@ -199,7 +210,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       setBalanceLamports(lamports);
     } catch (cause) {
       setBalanceLamports(null);
-      setError(errorMessage(cause));
+      setError(walletErrorMessage(cause));
     } finally {
       setBalanceLoading(false);
     }
@@ -207,10 +218,19 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = useCallback(
     async (owner: PublicKey): Promise<SessionRefreshResult> => {
+      const traceId = createChainTraceId();
       const stored = loadDeviceSession(owner);
       if (!stored) {
         setSession(null);
         setSessionStatus("missing");
+        emitChainMetric({
+          traceId,
+          operation: "session:refresh",
+          layer: "solana-base",
+          phase: "missing",
+          ok: true,
+          owner: owner.toBase58(),
+        });
         return "missing";
       }
       setSession(stored);
@@ -232,9 +252,19 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           connection.getMinimumBalanceForRentExemption(0, "confirmed"),
         ]);
       } catch (cause) {
+        const message = walletErrorMessage(cause);
         setError(
-          `Solana Devnet unavailable; the local session was retained. ${errorMessage(cause)}`,
+          `Solana Devnet unavailable; the local session was retained. ${message}`,
         );
+        emitChainMetric({
+          traceId,
+          operation: "session:refresh",
+          layer: "solana-base",
+          phase: "rpc-error",
+          ok: false,
+          owner: owner.toBase58(),
+          error: message,
+        });
         return "unavailable";
       }
       try {
@@ -274,12 +304,34 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
             ? fundingStatus
             : "expired";
         setSessionStatus(result);
+        emitChainMetric({
+          traceId,
+          operation: "session:refresh",
+          layer: "solana-base",
+          phase: result,
+          ok: true,
+          owner: owner.toBase58(),
+          actor: stored.signer.publicKey.toBase58(),
+          balanceAfterLamports: signerInfo?.lamports ?? 0,
+          rentFloorLamports: signerRentFloor,
+          validUntil: token.validUntil,
+        });
         return result;
       } catch (cause) {
         clearDeviceSession(owner);
         setSession(null);
         setSessionStatus("missing");
-        setError(errorMessage(cause));
+        const message = walletErrorMessage(cause);
+        setError(message);
+        emitChainMetric({
+          traceId,
+          operation: "session:refresh",
+          layer: "solana-base",
+          phase: "invalid",
+          ok: false,
+          owner: owner.toBase58(),
+          error: message,
+        });
         return "missing";
       }
     },
@@ -318,7 +370,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         ]);
         return sessionResult;
       } catch (cause) {
-        resetConnection(errorMessage(cause), false);
+        resetConnection(walletErrorMessage(cause), false);
         throw cause;
       }
     },
@@ -378,24 +430,122 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     if (!current)
       throw new Error("Connect a Solana wallet before enabling zKube");
     assertDeviceSessionStorageAvailable();
-    const signer = Keypair.generate();
     const now = Math.floor(Date.now() / 1_000);
+    const traceId = createChainTraceId();
+    const startedAt = Date.now();
+    const stored = loadDeviceSession(current.publicKey);
+    let previousSignerBalance = 0;
+    let previousSession: DeviceSession | null = null;
+    let revokeInstruction: TransactionInstruction | null = null;
+
+    if (stored) {
+      const [tokenInfo, signerInfo] = await connection.getMultipleAccountsInfo(
+        [stored.sessionToken, stored.signer.publicKey],
+        "confirmed",
+      );
+      if (!tokenInfo) {
+        throw new Error("Stored device session token does not exist on Devnet");
+      }
+      const token = decodeSessionTokenV2Account(stored.sessionToken, tokenInfo);
+      if (
+        !token.authority.equals(current.publicKey) ||
+        !token.sessionSigner.equals(stored.signer.publicKey) ||
+        !token.targetProgram.equals(ZKUBE_PROGRAM_ID) ||
+        !token.feePayer.equals(current.publicKey) ||
+        token.validUntil !== stored.validUntil
+      ) {
+        throw new Error("Stored device session relationships are invalid");
+      }
+      // A fully spent zero-data System account disappears. The locally stored
+      // keypair plus the validated live session token still lets the owner
+      // recreate and refill that same scoped signer safely.
+      previousSignerBalance = signerInfo
+        ? validatedDeviceSignerBalance(signerInfo)
+        : 0;
+      previousSession = stored;
+      if (token.validUntil - now > SESSION_READY_SKEW_SECONDS) {
+        const topUpLamports = deviceSignerTopUpLamports(previousSignerBalance);
+        if (topUpLamports === 0) {
+          setSession(stored);
+          setSessionStatus("ready");
+          setError(null);
+          emitChainMetric({
+            traceId,
+            operation: "session:reuse",
+            layer: "solana-base",
+            phase: "ready",
+            ok: true,
+            owner: current.publicKey.toBase58(),
+            actor: stored.signer.publicKey.toBase58(),
+            balanceAfterLamports: previousSignerBalance,
+            validUntil: stored.validUntil,
+          });
+          return "";
+        }
+        emitChainMetric({
+          traceId,
+          operation: "session:refill-start",
+          layer: "solana-base",
+          phase: "refill",
+          ok: true,
+          owner: current.publicKey.toBase58(),
+          actor: stored.signer.publicKey.toBase58(),
+          balanceBeforeLamports: previousSignerBalance,
+          topUpLamports,
+          validUntil: stored.validUntil,
+        });
+        const refill = buildDeviceSessionRefillInstructions({
+          owner: current.publicKey,
+          signer: stored.signer.publicKey,
+          balanceLamports: previousSignerBalance,
+        });
+        const signature = await submitOwnerSessionTransaction({
+          connection,
+          wallet: current.wallet,
+          owner: current.publicKey,
+          label: "Refill zKube device session",
+          instructions: refill.instructions,
+          signers: [stored.signer],
+          assertWalletCurrent: () =>
+            assertConnectedWallet(current, connectedRef.current),
+        });
+        setSession(stored);
+        setSessionStatus("ready");
+        setError(null);
+        emitChainMetric({
+          traceId,
+          operation: "session:refill-done",
+          layer: "solana-base",
+          phase: "refill",
+          ok: true,
+          signature,
+          durationMs: Date.now() - startedAt,
+          balanceAfterLamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
+        });
+        return signature;
+      }
+      if (token.validUntil <= now) {
+        revokeInstruction = buildRevokeExpiredSessionInstruction(
+          { address: stored.sessionToken, ...token },
+          now,
+        );
+      }
+    }
+
+    const signer = Keypair.generate();
     const validUntil = now + SESSION_LIFETIME_SECONDS;
     const { sessionToken } = deriveSessionTokenV2Pda({
       authority: current.publicKey,
       sessionSigner: signer.publicKey,
     });
-    const { blockhash, lastValidBlockHeight } =
-      await connection.getLatestBlockhash("confirmed");
     const program = zkubeProgram(connection, current.wallet);
     const playerState = derivePlayerStatePda(current.publicKey);
     const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const [protocol, profileInfo, fundingInfo] =
-      await Promise.all([
-        program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
-        connection.getAccountInfo(playerState, "confirmed"),
-        connection.getAccountInfo(playerFunding, "confirmed"),
-      ]);
+    const [protocol, profileInfo, fundingInfo] = await Promise.all([
+      program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
+      connection.getAccountInfo(playerState, "confirmed"),
+      connection.getAccountInfo(playerFunding, "confirmed"),
+    ]);
     if (profileInfo) {
       if (
         !profileInfo.owner.equals(ZKUBE_PROGRAM_ID) ||
@@ -432,7 +582,17 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       0,
       configuredFundingTarget - (fundingInfo?.lamports ?? 0),
     );
-    const instructions = [
+    const instructions: TransactionInstruction[] = [];
+    if (revokeInstruction) instructions.push(revokeInstruction);
+    if (previousSession) {
+      const reclaim = buildDeviceSignerReclaimInstruction({
+        owner: current.publicKey,
+        signer: previousSession.signer.publicKey,
+        balanceLamports: previousSignerBalance,
+      });
+      if (reclaim) instructions.push(reclaim);
+    }
+    instructions.push(
       await program.methods
         .initializePlayer()
         .accountsPartial({
@@ -445,7 +605,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           systemProgram: SystemProgram.programId,
         })
         .instruction(),
-    ];
+    );
     if (fundingTopUp > 0) {
       instructions.push(
         SystemProgram.transfer({
@@ -466,42 +626,35 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         lamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
       }),
     );
-    const transaction = new VersionedTransaction(
-      new TransactionMessage({
-        payerKey: current.publicKey,
-        recentBlockhash: blockhash,
-        instructions,
-      }).compileToV0Message(),
-    );
-    transaction.sign([signer]);
-    const simulation = await connection.simulateTransaction(transaction, {
-      sigVerify: false,
-      replaceRecentBlockhash: false,
+    emitChainMetric({
+      traceId,
+      operation: "session:rotate-start",
+      layer: "solana-base",
+      phase: previousSession ? "rotate" : "create",
+      ok: true,
+      owner: current.publicKey.toBase58(),
+      actor: signer.publicKey.toBase58(),
+      reclaimedSignerLamports: previousSignerBalance,
+      revokedExpiredToken: Boolean(revokeInstruction),
+      fundingTopUpLamports: fundingTopUp,
+      allowanceLamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
+      validUntil,
     });
-    if (simulation.value.err) {
-      throw new Error(
-        `Enable zKube simulation failed: ${JSON.stringify(simulation.value.err)}`,
-      );
-    }
-    const signed = await current.wallet.signTransaction(transaction);
-    const stillConnected = connectedRef.current;
-    if (
-      !stillConnected ||
-      !stillConnected.publicKey.equals(current.publicKey) ||
-      stillConnected.connector.id !== current.connector.id
-    ) {
-      throw new Error("The wallet account changed before zKube was enabled");
-    }
-    const signature = await connection.sendRawTransaction(signed.serialize(), {
-      maxRetries: 5,
-      skipPreflight: false,
+    const signature = await submitOwnerSessionTransaction({
+      connection,
+      wallet: current.wallet,
+      owner: current.publicKey,
+      label: previousSession
+        ? "Rotate zKube device session"
+        : "Enable zKube device session",
+      instructions,
+      signers:
+        previousSession && previousSignerBalance > 0
+          ? [signer, previousSession.signer]
+          : [signer],
+      assertWalletCurrent: () =>
+        assertConnectedWallet(current, connectedRef.current),
     });
-    const confirmation = await connection.confirmTransaction(
-      { signature, blockhash, lastValidBlockHeight },
-      "confirmed",
-    );
-    if (confirmation.value.err)
-      throw new Error("Enable zKube was not confirmed");
     const next: DeviceSession = {
       owner: current.publicKey,
       signer,
@@ -513,6 +666,16 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     setSession(next);
     setSessionStatus("ready");
     setError(null);
+    emitChainMetric({
+      traceId,
+      operation: "session:rotate-done",
+      layer: "solana-base",
+      phase: previousSession ? "rotate" : "create",
+      ok: true,
+      signature,
+      durationMs: Date.now() - startedAt,
+      balanceAfterLamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
+    });
     return signature;
   }, [connection]);
 
@@ -535,7 +698,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         if (sessionResult === "ready") return;
         await authorizeDeviceSession();
       } catch (cause) {
-        const message = errorMessage(cause);
+        const message = walletErrorMessage(cause);
         setError(message);
         throw new Error(message);
       }
@@ -562,7 +725,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           ? "The zKube device session expired. Renew it before continuing."
           : sessionStatus === "needsRenewal"
             ? "This device's zKube fee allowance is low. Renew it before continuing."
-          : "Enable zKube before changing player state.",
+            : "Enable zKube before changing player state.",
       );
     }
     const current = connectedRef.current;
@@ -623,11 +786,70 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function errorMessage(cause: unknown): string {
-  if (cause instanceof Error && /reject|declin|cancel/i.test(cause.message)) {
-    return "The wallet rejected the request.";
+async function submitOwnerSessionTransaction(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  owner: PublicKey;
+  label: string;
+  instructions: TransactionInstruction[];
+  signers: Keypair[];
+  assertWalletCurrent(): void;
+}): Promise<string> {
+  if (!args.wallet.publicKey.equals(args.owner)) {
+    throw new Error("The connected wallet is not the session owner");
   }
-  return cause instanceof Error ? cause.message : String(cause);
+  const { blockhash, lastValidBlockHeight } =
+    await args.connection.getLatestBlockhash("confirmed");
+  const transaction = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: args.owner,
+      recentBlockhash: blockhash,
+      instructions: args.instructions,
+    }).compileToV0Message(),
+  );
+  transaction.sign(args.signers);
+  const simulation = await args.connection.simulateTransaction(transaction, {
+    sigVerify: false,
+    replaceRecentBlockhash: false,
+  });
+  if (simulation.value.err) {
+    throw new Error(
+      `${args.label} simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
+  }
+  const signed = await args.wallet.signTransaction(transaction);
+  args.assertWalletCurrent();
+  const signature = await args.connection.sendRawTransaction(
+    signed.serialize(),
+    { maxRetries: 5, skipPreflight: false },
+  );
+  const confirmation = await args.connection.confirmTransaction(
+    { signature, blockhash, lastValidBlockHeight },
+    "confirmed",
+  );
+  if (confirmation.value.err) {
+    throw new Error(`${args.label} was not confirmed`);
+  }
+  return signature;
+}
+
+function assertConnectedWallet(
+  expected: ConnectedWalletState,
+  current: ConnectedWalletState | null,
+): void {
+  if (
+    !current ||
+    !current.publicKey.equals(expected.publicKey) ||
+    current.connector.id !== expected.connector.id
+  ) {
+    throw new Error("The wallet account changed during session authorization");
+  }
+}
+
+function walletErrorMessage(cause: unknown): string {
+  return isWalletRejection(cause)
+    ? "The wallet rejected the request."
+    : errorMessage(cause);
 }
 
 function isNormalizedPlayerFunding(info: AccountInfo<Buffer> | null): boolean {

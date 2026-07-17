@@ -198,7 +198,7 @@ function assertProgramAccount(
   }
 }
 
-export function hasMapFlag(
+function hasMapFlag(
   bitmap: number | bigint | BN,
   mapId: number,
 ): boolean {
@@ -209,14 +209,7 @@ export function hasMapFlag(
   return (value & (1n << BigInt(mapId - 1))) !== 0n;
 }
 
-export function unpackLevelStars(packedStars: number): number[] {
-  return Array.from(
-    { length: 10 },
-    (_, level) => (packedStars >>> (level * 2)) & 0x3,
-  );
-}
-
-export function unpackCompactLevelStars(
+function unpackCompactLevelStars(
   bytes: readonly number[],
   mapIndex: number,
 ): number[] {

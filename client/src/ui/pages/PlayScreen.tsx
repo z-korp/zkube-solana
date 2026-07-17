@@ -576,7 +576,6 @@ export default function PlayScreen() {
           zoneId={controller.terminalSnapshot.game.zoneId}
           colors={getThemeColors(themeTemplate as ThemeId)}
           isIncomplete={!controller.terminalSnapshot.completed}
-          draftWillOpen={false}
         />
       )}
 
@@ -588,7 +587,6 @@ export default function PlayScreen() {
         combo={hudGame.combo}
         constraintProgress={hudGame.constraintProgress}
         constraint2Progress={hudGame.constraint2Progress}
-        bonusUsedThisLevel={false}
         gameLevel={gameLevel}
         activeMutatorId={activeRun.rules.activeMutatorId}
         mode={game.mode}
@@ -640,7 +638,6 @@ export default function PlayScreen() {
             bonusDescription={bonusDescription}
             onCascadeComplete={handleCascadeComplete}
             forceTxProcessing={locked}
-            levelTransitionPending={false}
             outcomeAnimation={outcomeAnimation}
             onMove={handleMove}
             onBonus={onBonus}
@@ -789,7 +786,6 @@ export default function PlayScreen() {
         }
         disabled={chainTerminal || basePhase || !run.sessionAuthorized}
         bonusEarnSignal={bonusEarnSignal}
-        isGameOver={false}
         zoneId={game.zoneId}
         activeMutatorId={activeRun.rules.activeMutatorId}
       />

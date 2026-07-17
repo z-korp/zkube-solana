@@ -1,3 +1,5 @@
+import { errorMessage } from "@/utils/errors";
+
 export interface ErRetryOptions {
   attempts?: number;
   baseDelayMs?: number;
@@ -36,7 +38,7 @@ export async function withTransientErRetry<T>(
 }
 
 export function isTransientErError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /cloner|pending request owner|account.*not found|blockhash not found/i.test(
     message,
   );

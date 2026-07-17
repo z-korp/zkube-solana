@@ -10,7 +10,7 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 | Boundary | Responsibility | Who pays / signs |
 | --- | --- | --- |
 | External wallet | Durable player owner, first enable, renewals, Star purchases | Owner signs and pays |
-| Device session | Seven-day scoped signer stored only in that browser | Receives a 0.001 SOL fee allowance from the owner |
+| Device session | Seven-day scoped signer stored only in that browser | Holds a recyclable 0.005 SOL fee allowance from the owner |
 | Player funding PDA | System-owned, zero-data 0.025 SOL target float for that owner's bounded account rent | Owner funds; only exact zKube wrappers can make it sign |
 | Solana program | Identity, Campaign/Daily/Weekly state, Stars, native-SOL accounting, run settlement | Device session for safe play; owner for SOL purchases |
 | MagicBlock ER | Delegated active gameplay and VRF | Gasless gameplay; Router selects the validator |
@@ -21,7 +21,7 @@ Standard wallets and a Seeker Trusted Web Activity using Mobile Wallet Adapter.
 wallet ── Connect & Enable (one owner approval) ──> 7-day device session
    │                                                   │
    ├── exact SOL approval ──> Star purchase             ├── silent base actions
-   └── funds 0.025 SOL player PDA + 0.001 SOL device ──└── gasless ER moves
+   └── funds 0.025 SOL player PDA + 0.005 SOL device ──└── gasless ER moves
 
 Solana base <── delegate / copy back ──> Router-selected MagicBlock ER
      ▲
@@ -42,12 +42,12 @@ session enablement are ready. Selecting a wallet immediately continues into a
 single versioned `Enable zKube` transaction. That transaction initializes a new
 player when necessary, replenishes the shared funding float, creates the scoped
 session token, and gives the device signer its bounded fee allowance.
-
-Client-assembled owner transactions pin a deterministic 400,000-compute-unit
-limit before wallet approval. This opts out of wallet-side priority-fee message
-enhancement on Devnet, allowing the client to keep its exact-message integrity
-check: changed instructions, accounts, blockhashes, signer roles, or discarded
-partial signatures are still rejected after signing.
+When a live signer runs low, the owner refills that same signer to the target
+instead of creating a new session. Rotation drains the locally controlled old
+signer back to the owner before funding its replacement; an expired token is
+revoked in the same transaction when eligible. A different browser has a
+different signer and therefore parks its own allowance. Changed wallet
+messages or discarded partial signatures remain rejected after signing.
 
 Normal Campaign and Daily play is silent after enablement. A fresh run is
 prepared and delegated atomically in one Solana v0 transaction, played on the resolved ER, then
@@ -126,17 +126,16 @@ milestones at levels 10 through 100 pay their level in Stars, for a 550-Star
 lifetime total. Players who claimed the previous flat rewards receive only the
 aggregate difference, so the transition cannot double-credit them.
 
-The wallet address remains the authoritative player identity. A player may
-also register one globally unique public username for profile and Daily/Weekly
-leaderboard display. Names are 3–16 ASCII letters, digits, or underscores,
-must start with a letter, and are unique case-insensitively while preserving
-display case. Registration has no Star fee and the owner pays refundable
-account rent. The first rename is free; later renames cost 100 Stars and have a
-30-day cooldown. Authority moderation blocks the old name as a tombstone and
-allows one free replacement without weakening wallet ownership. Leaderboard
-accounts continue to store wallets and scores only; clients resolve validated
-username PDAs in batches and fall back to the wallet when metadata is missing
-or invalid. There is deliberately no XP leaderboard in this release.
+The wallet address remains the authoritative player identity. A player may set
+one optional cosmetic label for profile and Daily/Weekly leaderboard display.
+Labels are 3–16 ASCII letters, digits, or underscores and must start with a
+letter. They are not unique, have no moderation state, cooldown, or Star fee,
+and are created or updated by the already-authorized device session. One
+59-byte label PDA is derived only from the wallet; the first creation uses the
+owner's narrow funding wrapper. Leaderboards continue to store wallets and
+scores only. Clients resolve labels in batches and always display the shortened
+wallet beside a label, falling back to the wallet when metadata is missing or
+invalid. There is deliberately no XP leaderboard in this release.
 
 Daily rank is determined only by total Daily score descending, qualifying
 Daily bonus-condition triggers descending, then terminal action timestamp
@@ -220,11 +219,11 @@ keeper is write-enabled, and the Git-driven production client at
 
 The tenth-row boundary correction from `a0e233f` is live at slot `476926533`.
 The governed pack rebalance, progression rebalance, milestone reconciliation,
-and public-username release described above are live from program slot
+and legacy public-username release are live from program slot
 `476930727`; the governed pricing revision finalized at slot `476930939`. The
-Git-driven production client and Devnet program are therefore aligned on this
-release. No source revision or simulation is treated as evidence of deployed
-state.
+cosmetic-label/session-recycling source revision is not live until its separate
+upgrade is approved and verified. No source revision or simulation is treated
+as evidence of deployed state.
 
 The v3 custody preflight is satisfied and the protocol foundation was
 initialized at slot `476755019`. `ProtocolConfig` and `RewardVault` are owned

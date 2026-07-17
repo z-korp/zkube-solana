@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import {
   buildClaimAchievementPlan,
@@ -28,7 +29,7 @@ export function useProgressController() {
       setError(null);
       return next;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -63,7 +64,7 @@ export function useProgressController() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setClaiming(null);
@@ -96,7 +97,7 @@ export function useProgressController() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setClaiming(null);
@@ -131,7 +132,7 @@ export function useProgressController() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setClaiming(null);

@@ -1,46 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
-  blocksMatchGrid,
   reconcileBlocksToGrid,
   transformDataContractIntoBlock,
 } from "./gridUtils";
+import type { Block } from "@/types/types";
 
 const emptyGrid = (): number[][] =>
   Array.from({ length: 10 }, () => Array(8).fill(0));
 
-describe("blocksMatchGrid", () => {
-  const emptyRow = () => [0, 0, 0, 0, 0, 0, 0, 0];
-
-  it("matches when block geometry equals the contract grid", () => {
-    const grid = [emptyRow(), [0, 0, 2, 2, 0, 3, 3, 3]];
-    const blocks = [
-      { id: 7, x: 2, y: 1, width: 2 },
-      { id: 9, x: 5, y: 1, width: 3 },
-    ];
-    expect(blocksMatchGrid(blocks, grid)).toBe(true);
-  });
-
-  it("detects divergence in position", () => {
-    const grid = [emptyRow(), [0, 0, 2, 2, 0, 0, 0, 0]];
-    const blocks = [{ id: 7, x: 3, y: 1, width: 2 }];
-    expect(blocksMatchGrid(blocks, grid)).toBe(false);
-  });
-
-  it("detects blocks missing from the local board", () => {
-    const grid = [emptyRow(), [1, 0, 0, 0, 0, 0, 0, 0]];
-    expect(blocksMatchGrid([], grid)).toBe(false);
-  });
-
-  it("rejects out-of-bounds blocks instead of throwing", () => {
-    const grid = [emptyRow()];
-    expect(blocksMatchGrid([{ id: 1, x: 7, y: 0, width: 2 }], grid)).toBe(
-      false,
-    );
-    expect(blocksMatchGrid([{ id: 1, x: 0, y: 3, width: 1 }], grid)).toBe(
-      false,
-    );
-  });
-});
+/** Test assertion helper: does the block set render exactly this grid? */
+const blocksMatchGrid = (blocks: Block[], grid: number[][]): boolean => {
+  const height = grid.length;
+  const width = grid[0]?.length ?? 0;
+  const matrix = Array.from({ length: height }, () => Array(width).fill(0));
+  for (const block of blocks) {
+    if (block.y < 0 || block.y >= height) return false;
+    for (let i = 0; i < block.width; i++) {
+      const x = block.x + i;
+      if (x < 0 || x >= width) return false;
+      matrix[block.y][x] = block.width;
+    }
+  }
+  return matrix.every((row, y) => row.every((cell, x) => cell === grid[y][x]));
+};
 
 describe("reconcileBlocksToGrid", () => {
   it("always renders the chain grid exactly (no divergence possible)", () => {

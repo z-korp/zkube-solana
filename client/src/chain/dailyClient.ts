@@ -44,7 +44,7 @@ import {
   type RawDailyScoringRule,
 } from "./dailyRules.js";
 import type { WalletLike } from "./sessionWallet.js";
-import { fetchPlayerIdentities } from "./identityClient.js";
+import { fetchPlayerLabels } from "./playerLabelClient.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
@@ -59,7 +59,7 @@ export interface DailyLeaderboardView {
   submittedAt: number;
 }
 
-export interface DailyPlayerView {
+interface DailyPlayerView {
   attempts: number;
   finalizedAttempts: number;
   bestRunId: bigint;
@@ -91,7 +91,7 @@ export function dailyLeaderboardRank(
   return firstTie + 1;
 }
 
-export interface DailyGameRulesView extends EndlessRulesView {
+interface DailyGameRulesView extends EndlessRulesView {
   rules: ActiveRunRulesView;
   scoringRule: DailyScoringRuleView;
   pressure: DailyPressureProfileView;
@@ -127,13 +127,13 @@ export function parseDailyStatus(value: unknown): DailyStatus {
     : "unknown";
 }
 
-export interface RawDailyGameRulesSnapshot {
+interface RawDailyGameRulesSnapshot {
   rules: RawLevelRuleSnapshot;
   scoringRule: RawDailyScoringRule;
   pressure: RawDailyPressureProfile;
 }
 
-export function mapDailyGameRulesSnapshot(
+function mapDailyGameRulesSnapshot(
   challenge: RawDailyGameRulesSnapshot,
 ): DailyGameRulesView {
   const pressure = mapDailyPressureProfile(challenge.pressure);
@@ -143,7 +143,6 @@ export function mapDailyGameRulesSnapshot(
     pressure,
     endlessThresholds: pressure.thresholds,
     endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
-    endlessRampMultiplierX100: 100,
   };
 }
 
@@ -276,16 +275,13 @@ export async function fetchDailyView(args: {
     score: Number(entry.dailyScore),
     submittedAt: Number(entry.submittedAt),
   }));
-  const identities = await fetchPlayerIdentities({
+  const labels = await fetchPlayerLabels({
     connection: args.connection,
     wallet: args.wallet,
     owners: leaderboardEntries.map((entry) => entry.player),
   }).catch(() => []);
-  const identityNames = new Map(
-    identities.map((identity) => [
-      identity.owner.toBase58(),
-      identity.displayName,
-    ]),
+  const labelNames = new Map(
+    labels.map((label) => [label.owner.toBase58(), label.displayName]),
   );
   return {
     economyVersion: 2,
@@ -331,7 +327,7 @@ export async function fetchDailyView(args: {
       : null,
     leaderboard: leaderboardEntries.map((entry) => ({
       ...entry,
-      playerName: identityNames.get(entry.player.toBase58()) ?? null,
+      playerName: labelNames.get(entry.player.toBase58()) ?? null,
     })),
   };
 }

@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 
-import { getThemeColors } from "@/config/themes";
 import ArenaDailyTab from "@/ui/components/arena/ArenaDailyTab";
 import WeeklyTab from "@/ui/components/arena/WeeklyTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
 
 const TABS = ["Daily", "Weekly"] as const;
 
@@ -16,8 +14,6 @@ const TABS = ["Daily", "Weekly"] as const;
  * points, so the two live side by side.
  */
 const ArenaPage: React.FC = () => {
-  const { themeTemplate } = useTheme();
-  const colors = getThemeColors(themeTemplate);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Daily");
 
   return (
@@ -40,10 +36,10 @@ const ArenaPage: React.FC = () => {
       </div>
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
-        {activeTab === "Daily" && <ArenaDailyTab colors={colors} />}
+        {activeTab === "Daily" && <ArenaDailyTab />}
         {activeTab === "Weekly" && (
           <div className="mx-auto max-w-[640px]">
-            <WeeklyTab colors={colors} />
+            <WeeklyTab />
           </div>
         )}
       </div>

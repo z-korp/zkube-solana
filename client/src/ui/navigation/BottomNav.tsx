@@ -2,9 +2,8 @@ import { Home, ShoppingBag, Star, Trophy, User } from "lucide-react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { getLevelFromXp } from "@/config/profileData";
-import { getThemeColors } from "@/config/themes";
 import { motion } from "motion/react";
 import { useProgress } from "@/contexts/progress";
 
@@ -12,8 +11,7 @@ const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
   const openShop = useNavigationStore((s) => s.openShop);
-  const { themeTemplate } = useTheme();
-  const colors = getThemeColors(themeTemplate);
+  const colors = useThemeColors();
   const { progress } = useProgress();
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;

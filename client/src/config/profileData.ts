@@ -9,7 +9,7 @@ export const LEVEL_THRESHOLDS: number[] = Array.from({ length: 100 }, (_, i) =>
 
 // Titles spread across the 100-level ladder. Levels not listed inherit
 // the most recent earlier title.
-export const PLAYER_TITLES: Record<number, string> = {
+const PLAYER_TITLES: Record<number, string> = {
   1: "Novice",
   5: "Apprentice",
   10: "Initiate",

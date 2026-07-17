@@ -14,7 +14,7 @@ export const CROSSFADE_MS = 1200;
 /** Overlap between consecutive playlist tracks. */
 export const PLAYLIST_CROSSFADE_MS = 1000;
 export const MUTE_FADE_MS = 300;
-export const DUCK_FADE_MS = 200;
+const DUCK_FADE_MS = 200;
 /** Music level while a sting/presentation owns the foreground. */
 export const DUCK_LEVEL = 0.35;
 const VOLUME_RAMP_MS = 150;

@@ -41,11 +41,11 @@ import {
   DAILY_SCORING_RULE_COUNT,
 } from "./dailyRules";
 
-export const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
-export const DEPLOYED_ZKUBE_SBF_SHA256 =
+const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
+const DEPLOYED_ZKUBE_SBF_SHA256 =
   "4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf";
 
-export type DevnetBootstrapStage =
+type DevnetBootstrapStage =
   | "custody"
   | "protocol"
   | "economy"
@@ -81,7 +81,7 @@ interface BootstrapBatch {
   creates: string[];
 }
 
-export interface PublicBootstrapBatch {
+interface PublicBootstrapBatch {
   id: string;
   label: string;
   feePayer: string;

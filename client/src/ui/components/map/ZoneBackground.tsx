@@ -5,7 +5,7 @@ import {
   type ThemeId,
 } from "@/config/themes";
 
-export interface ZoneBackgroundProps {
+interface ZoneBackgroundProps {
   zone: number;
   themeId: string;
 }
@@ -19,7 +19,7 @@ const toThemeId = (themeId: string): ThemeId => {
   return DEFAULT_THEME;
 };
 
-export const ZoneBackground: React.FC<ZoneBackgroundProps> = ({ themeId }) => {
+const ZoneBackground: React.FC<ZoneBackgroundProps> = ({ themeId }) => {
   const safeThemeId = toThemeId(themeId);
   const theme = getThemeColors(safeThemeId);
   const images = getThemeImages(safeThemeId);

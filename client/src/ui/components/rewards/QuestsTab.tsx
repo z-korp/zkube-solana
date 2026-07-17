@@ -6,34 +6,18 @@ import type { ThemeColors } from "@/config/themes";
 import { groupQuests, useQuests, type QuestStatus } from "@/hooks/useQuests";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { staggerContainer, staggerItem } from "@/ui/motion";
 import {
   formatDurationCoarse,
   nextDailyResetUnix,
   nextWeeklyResetUnix,
 } from "@/utils/time";
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-};
+const containerVariants = staggerContainer(0.05);
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
-  },
-};
-
-interface QuestsTabProps {
-  colors: ThemeColors;
-}
-
-const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
+const QuestsTab: React.FC = () => {
+  const colors = useThemeColors();
   const { quests, isLoading, claiming, error, claimQuest } = useQuests();
   const { daily, weekly, finisher } = groupQuests(quests);
 
@@ -88,7 +72,7 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
       />
       {isLoading && (
         <motion.p
-          variants={itemVariants}
+          variants={staggerItem}
           className="flex items-center justify-center gap-2 font-sans text-xs text-white/50"
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading on-chain
@@ -97,7 +81,7 @@ const QuestsTab: React.FC<QuestsTabProps> = ({ colors }) => {
       )}
       {error && (
         <motion.p
-          variants={itemVariants}
+          variants={staggerItem}
           role="alert"
           className="text-center font-sans text-xs text-red-300"
         >
@@ -139,7 +123,7 @@ const QuestSection: React.FC<QuestSectionProps> = ({
 
   return (
     <motion.section
-      variants={itemVariants}
+      variants={staggerItem}
       className="rounded-2xl border p-3 backdrop-blur-xl"
       style={{
         background: "rgba(255,255,255,0.08)",

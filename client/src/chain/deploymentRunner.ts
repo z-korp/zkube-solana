@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
-export interface DeploymentCommand {
+interface DeploymentCommand {
   label: string;
   command: string;
   args: string[];
@@ -39,7 +39,7 @@ export interface ZkubeDevnetDeploymentInput {
   suppliedApproval?: string;
 }
 
-export interface DeploymentExecution {
+interface DeploymentExecution {
   label: string;
   status: number | null;
   stdout: string;
@@ -60,8 +60,8 @@ const PROGRAM_BUFFER_HEADER_BYTES = 37;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
-export const MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS = 50_000_000;
-export const MAXIMUM_DEPLOY_SIGN_ATTEMPTS = 1;
+const MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS = 50_000_000;
+const MAXIMUM_DEPLOY_SIGN_ATTEMPTS = 1;
 const EXECUTABLE_OWNERS = new Set([
   "BPFLoader1111111111111111111111111111111111",
   "BPFLoader2111111111111111111111111111111111",

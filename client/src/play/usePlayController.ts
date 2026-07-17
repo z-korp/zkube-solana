@@ -33,7 +33,7 @@ export interface TerminalRunSnapshot {
   xpAwarded: number;
 }
 
-export type PlayOutcome = "victory" | "daily" | null;
+type PlayOutcome = "victory" | "daily" | null;
 export type SettledCleanupStatus = "idle" | "running" | "complete" | "failed";
 export type SessionRenewalStatus = "idle" | "renewing" | "failed";
 
@@ -46,8 +46,8 @@ export type SessionRenewalStatus = "idle" | "renewing" | "failed";
 export type TerminalPresentationPhase = "idle" | "cascade" | "outcome" | "card";
 export type SettlementStatus = "idle" | "pending" | "complete" | "failed";
 /** Board outcome show durations; the CSS in grid.css must finish within. */
-export const WIN_OUTCOME_ANIM_MS = 1500;
-export const LOSE_OUTCOME_ANIM_MS = 900;
+const WIN_OUTCOME_ANIM_MS = 1500;
+const LOSE_OUTCOME_ANIM_MS = 900;
 
 export function canSettleTerminalRun(
   phase: string,
@@ -58,7 +58,7 @@ export function canSettleTerminalRun(
   return phase === "settleable" || (phase === "delegated" && sessionAuthorized);
 }
 
-export function isTerminalLifecycle(lifecycle: string): boolean {
+function isTerminalLifecycle(lifecycle: string): boolean {
   return lifecycle === "levelComplete" || lifecycle === "finished";
 }
 

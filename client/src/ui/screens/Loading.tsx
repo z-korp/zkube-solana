@@ -8,7 +8,7 @@ import ThemeBackground from "@/ui/components/shared/ThemeBackground";
  * renders the themed background so the swap into the app is already the right
  * image (no flash), plus the phone-frame loading art and a floating logo.
  */
-export const Loading = () => {
+const Loading = () => {
   const { themeTemplate } = useTheme();
   const imgAssets = ImageAssets(themeTemplate);
 

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { getThemeColors } from "@/config/themes";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
 interface ArcadeButtonProps {
   children: ReactNode;
@@ -18,8 +17,7 @@ const ArcadeButton: React.FC<ArcadeButtonProps> = ({
   className = "",
   accentOverride,
 }) => {
-  const { themeTemplate } = useTheme();
-  const themeColors = getThemeColors(themeTemplate);
+  const themeColors = useThemeColors();
   const accent = accentOverride ?? themeColors.accent;
 
   return (

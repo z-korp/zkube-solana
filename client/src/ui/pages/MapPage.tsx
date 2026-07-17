@@ -661,7 +661,6 @@ const MapPage: React.FC = () => {
             zoneId={mapZoneId}
             colors={colors}
             isIncomplete={pendingLevelCompletion.isIncomplete}
-            draftWillOpen={false}
           />
         )}
 
@@ -669,7 +668,6 @@ const MapPage: React.FC = () => {
           <GuardianGreeting
             colors={colors}
             guardian={guardian}
-            mode="story"
             activeMutatorId={map?.levels[firstPlayable - 1]?.activeMutatorId}
             passiveMutatorId={map?.levels[firstPlayable - 1]?.passiveMutatorId}
             isFirstVisit={isFirstVisit}

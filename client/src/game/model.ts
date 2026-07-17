@@ -136,11 +136,6 @@ export class Game {
     return this.view.mode === "daily" ? 1 : 0;
   }
 
-  /** On Solana a level boundary is a run boundary — never mid-game. */
-  public get levelTransitionPending(): boolean {
-    return false;
-  }
-
   public get score(): number {
     return this.totalScore;
   }

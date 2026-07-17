@@ -42,7 +42,7 @@ export interface QuestProgressView {
   claimable: boolean;
 }
 
-export interface LifetimeStatsView {
+interface LifetimeStatsView {
   runsStarted: bigint;
   linesCleared: bigint;
   maxCombo: number;

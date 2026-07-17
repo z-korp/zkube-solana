@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { errorMessage } from "@/utils/errors";
 import { motion } from "motion/react";
 import {
   Check,
@@ -11,19 +11,15 @@ import {
 } from "lucide-react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import {
-  THEME_IDS,
-  THEME_META,
-  getThemeColors,
-  type ThemeId,
-} from "@/config/themes";
+import { THEME_IDS, THEME_META, type ThemeId } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 import PageHeader from "@/ui/components/shared/PageHeader";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
+import { formatSol } from "@/utils/currency";
 
 const toPercent = (value: number): number => Math.round(value * 100);
 
@@ -31,7 +27,7 @@ const SettingsPage: React.FC = () => {
   const player = useConnectedPlayer();
   const { campaign } = useCampaign();
   const { themeTemplate, setThemeTemplate } = useTheme();
-  const colors = getThemeColors(themeTemplate);
+  const colors = useThemeColors();
   const goBack = useNavigationStore((state) => state.goBack);
   const settingsFocus = useNavigationStore((state) => state.settingsFocus);
   const clearSettingsFocus = useNavigationStore(
@@ -193,7 +189,7 @@ const SettingsPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <WalletMetric label="Network" value="Devnet" />
-                  <WalletMetric label="SOL" value={player.balanceLamports === null ? "—" : (player.balanceLamports / LAMPORTS_PER_SOL).toFixed(4)} />
+                  <WalletMetric label="SOL" value={player.balanceLamports === null ? "—" : formatSol(player.balanceLamports)} />
                   <WalletMetric label="Session" value={sessionLabel(player.sessionStatus, player.session?.validUntil)} />
                 </div>
 
@@ -270,10 +266,6 @@ function sessionLabel(status: string, validUntil?: number): string {
   if (status === "expired") return "Expired";
   if (status === "needsRenewal") return "Renew required";
   return "Not enabled";
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }
 
 export default SettingsPage;

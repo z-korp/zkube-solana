@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Eye, Loader2, Trophy } from "lucide-react";
+import { Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
 import {
@@ -9,12 +9,7 @@ import {
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import { ZONE_NAMES } from "@/config/profileData";
-import {
-  getThemeColors,
-  getThemeId,
-  getThemeImages,
-  type ThemeColors,
-} from "@/config/themes";
+import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
@@ -28,9 +23,12 @@ import DailyResultCard, {
 } from "@/ui/components/arena/DailyResultCard";
 import { getPlayerPosition } from "@/ui/components/arena/dailyPosition";
 import { DailyScoringRules } from "@/ui/components/arena/dailyRulesCopy";
+import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
+import LoadingState from "@/ui/components/shared/LoadingState";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 const TROPHY_IMAGES: Record<number, string> = {
@@ -57,7 +55,8 @@ const rowVariants = {
  * The whole daily loop on one screen: today's rules, the enter/resume CTA,
  * the live board (rows spectate on tap), and yesterday's result.
  */
-const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
+const ArenaDailyTab: React.FC = () => {
+  const colors = useThemeColors();
   const { address } = useAccount();
   const daily = useDaily();
   const previous = usePreviousChallenge();
@@ -121,7 +120,7 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
       dailyEntries.slice(0, 30).map((entry) => ({
         id: `daily-${entry.rank}`,
         rank: entry.rank,
-        name: entry.playerName,
+        name: playerLabelWithWallet(entry.playerName, entry.player),
         score: entry.dailyScore ?? entry.score,
         dailyBonusTriggers: entry.dailyBonusTriggers ?? 0,
         engineScore: entry.engineScore ?? entry.score,
@@ -139,7 +138,7 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
       return {
         rank: ranked.rank,
         score: ranked.dailyScore ?? ranked.score,
-        name: `You · ${truncatePublicKey(address)}`,
+        name: `You · ${playerLabelWithWallet(ranked.playerName, address)}`,
       };
     }
     if (
@@ -198,18 +197,11 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
 
   if (challengeLoading || (daily.loading && !daily.daily)) {
     return (
-      <div
-        className="flex flex-col items-center justify-center py-16"
-        style={{ color: colors.textMuted }}
-      >
-        <Loader2
-          className="mb-4 h-8 w-8 animate-spin"
-          style={{ color: colors.accent }}
-        />
-        <p className="font-sans text-sm font-medium">
-          Loading today&apos;s arena...
-        </p>
-      </div>
+      <LoadingState
+        className="py-16"
+        spinnerClassName="mb-4 h-8 w-8"
+        label="Loading today's arena..."
+      />
     );
   }
 
@@ -379,18 +371,11 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
 
           {/* ── Today's board ── */}
           {boardLoading ? (
-            <div
-              className="flex flex-col items-center justify-center py-10"
-              style={{ color: colors.textMuted }}
-            >
-              <Loader2
-                className="mb-3 h-7 w-7 animate-spin"
-                style={{ color: colors.accent }}
-              />
-              <p className="font-sans text-sm font-medium">
-                Loading rankings...
-              </p>
-            </div>
+            <LoadingState
+              className="py-10"
+              spinnerClassName="mb-3"
+              label="Loading rankings..."
+            />
           ) : rankRows.length === 0 ? (
             <EmptyState
               icon={<Trophy className="h-12 w-12" />}

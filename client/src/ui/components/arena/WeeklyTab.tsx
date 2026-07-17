@@ -1,18 +1,20 @@
-import { Loader2, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 
-import type { ThemeColors } from "@/config/themes";
 import { useWeekly } from "@/contexts/weekly";
 import { currentWeeklyId } from "@/chain/weeklyClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet, { InfoRow } from "@/ui/components/shared/InfoSheet";
+import { Spinner } from "@/ui/components/shared/LoadingState";
 import StatTile from "@/ui/components/shared/StatTile";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatDurationCoarse } from "@/utils/time";
-import { truncatePublicKey } from "@/utils/solanaDisplay";
 import { formatSolLamports } from "@/utils/currency";
 
-export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
+export default function WeeklyTab() {
+  const colors = useThemeColors();
   const controller = useWeekly();
   const owner = useConnectedPlayer().publicKey;
   const weekly = controller.weekly;
@@ -20,10 +22,7 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
   if (controller.loading && !weekly) {
     return (
       <div className="flex justify-center py-12">
-        <Loader2
-          className="h-7 w-7 animate-spin"
-          style={{ color: colors.accent }}
-        />
+        <Spinner />
       </div>
     );
   }
@@ -163,9 +162,11 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
             </span>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/75">
               {owner && entry.player.equals(owner)
-                ? `You · ${entry.playerName ?? truncatePublicKey(entry.player.toBase58())}`
-                : (entry.playerName ??
-                  truncatePublicKey(entry.player.toBase58()))}
+                ? `You · ${playerLabelWithWallet(entry.playerName, entry.player.toBase58())}`
+                : playerLabelWithWallet(
+                    entry.playerName,
+                    entry.player.toBase58(),
+                  )}
             </span>
             <span className="font-sans text-sm font-black text-white">
               {entry.score} pts

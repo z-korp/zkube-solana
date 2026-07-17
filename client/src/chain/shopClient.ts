@@ -18,7 +18,7 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 
-export const STAR_PACK_COUNT = 5;
+const STAR_PACK_COUNT = 5;
 
 export interface StarPackQuote {
   index: number;

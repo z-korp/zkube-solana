@@ -10,7 +10,6 @@ import type { ThemeColors } from "@/config/themes";
 interface GuardianGreetingProps {
   colors: ThemeColors;
   guardian: ZoneGuardian;
-  mode: "story" | "daily" | "endless";
   activeMutatorId?: number;
   passiveMutatorId?: number;
   isFirstVisit?: boolean;
@@ -21,7 +20,6 @@ interface GuardianGreetingProps {
 const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   colors,
   guardian,
-  mode,
   activeMutatorId,
   passiveMutatorId,
   isFirstVisit = false,
@@ -38,12 +36,7 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
       ? getMutatorDef(passiveMutatorId)
       : null;
 
-  const greeting =
-    mode === "endless"
-      ? "The arena awaits. No end, only how far you can push."
-      : mode === "daily"
-        ? guardian.dailyGreeting
-        : guardian.greeting;
+  const greeting = guardian.greeting;
 
   return (
     <motion.div
@@ -149,7 +142,7 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             </div>
           )}
 
-          {bossCleared && mode === "story" && (
+          {bossCleared && (
             <p className="mt-2 font-sans text-[12px] text-white/70">
               ⚔️ This guardian trial has been mastered.
             </p>
@@ -164,11 +157,7 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
               border: `1px solid ${colors.accent}50`,
             }}
           >
-            {mode === "endless"
-              ? "Enter Arena"
-              : isFirstVisit
-                ? "Begin"
-                : "Close"}
+            {isFirstVisit ? "Begin" : "Close"}
           </button>
         </div>
       </motion.div>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { errorMessage } from "@/utils/errors";
+import { truncatePublicKey } from "@/utils/solanaDisplay";
 import { ChevronLeft, Clock3, Loader2, WalletCards } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -8,10 +10,11 @@ import {
   useShopController,
 } from "@/chain/useShopController";
 import type { StarPackQuote, StarShopView } from "@/chain/shopClient";
-import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
+import { getThemeId, getThemeImages } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
 import { useDaily } from "@/contexts/daily";
 import { useProgress } from "@/contexts/progress";
+import { useNowTick } from "@/hooks/useNowTick";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Card from "@/ui/components/shared/Card";
@@ -19,12 +22,12 @@ import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import Sheet from "@/ui/components/shared/Sheet";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import StarBalance from "@/ui/components/shared/StarBalance";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolLamports } from "@/utils/currency";
 
 const ShopPage: React.FC = () => {
-  const { themeTemplate } = useTheme();
-  const colors = getThemeColors(themeTemplate);
+  const colors = useThemeColors();
   const player = useConnectedPlayer();
   const campaign = useCampaign();
   const progress = useProgress();
@@ -41,12 +44,8 @@ const ShopPage: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [, setClock] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  // Once-per-second re-render pump so the SaleBanner countdown stays live.
+  useNowTick(1_000);
 
   useEffect(() => {
     if (!saleState?.saleEnabled) return;
@@ -118,7 +117,7 @@ const ShopPage: React.FC = () => {
       ]);
       setSelectedIndex(null);
       setSuccess(
-        `${selectedPack.stars.toString()} Stars added · ${shortSignature(signature)}`,
+        `${selectedPack.stars.toString()} Stars added · ${truncatePublicKey(signature, { head: 6 })}`,
       );
     } catch (cause) {
       setStatus(
@@ -159,17 +158,11 @@ const ShopPage: React.FC = () => {
           >
             <Card as="section" tone="raised" className="p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p
-                    className="font-sans text-3xl font-black leading-none"
-                    style={{ color: colors.accent2 }}
-                  >
-                    ★ {controller.shop?.starsBalance.toString() ?? "—"}
-                  </p>
-                  <p className="mt-1 font-sans text-[11px] font-semibold text-white/50">
-                    Stars balance
-                  </p>
-                </div>
+                <StarBalance
+                  value={controller.shop?.starsBalance.toString() ?? "—"}
+                  size="lg"
+                  labelClassName="mt-1"
+                />
                 <div className="text-right">
                   <p className="font-sans text-lg font-black leading-none text-white">
                     {player.balanceLamports === null
@@ -540,16 +533,6 @@ function formatDuration(seconds: bigint): string {
     : `${hours.toString().padStart(2, "0")}:${minutes
         .toString()
         .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-}
-
-function shortSignature(signature: string): string {
-  return signature.length > 12
-    ? `${signature.slice(0, 6)}…${signature.slice(-4)}`
-    : signature;
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }
 
 export default ShopPage;

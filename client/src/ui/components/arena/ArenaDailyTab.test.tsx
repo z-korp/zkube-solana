@@ -10,7 +10,6 @@ import {
   vi,
 } from "vitest";
 
-import { getThemeColors } from "@/config/themes";
 import ArenaDailyTab from "./ArenaDailyTab";
 
 const fixtures = vi.hoisted(() => ({
@@ -114,9 +113,13 @@ vi.mock("@/stores/navigationStore", () => ({
   ) => selector(fixtures.navigation),
 }));
 
-vi.mock("@/ui/elements/theme-provider/hooks", () => ({
-  useTheme: () => ({ themeTemplate: "theme-1" }),
-}));
+vi.mock("@/ui/elements/theme-provider/hooks", async () => {
+  const { getThemeColors } = await import("@/config/themes");
+  return {
+    useTheme: () => ({ themeTemplate: "theme-1" }),
+    useThemeColors: () => getThemeColors("theme-1"),
+  };
+});
 
 beforeAll(() => {
   vi.stubGlobal("React", React);
@@ -126,17 +129,15 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const colors = getThemeColors("theme-1");
-
 describe("ArenaDailyTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("shows the board with exact identity matches and the entry CTA", () => {
-    const { container } = render(<ArenaDailyTab colors={colors} />);
+    const { container } = render(<ArenaDailyTab />);
 
-    expect(screen.getByText("Wave_Rider7")).toBeInTheDocument();
+    expect(screen.getByText("Wave_Rider7 · abcd…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("900 daily")).toBeInTheDocument();
     expect(screen.getByText("750 daily")).toBeInTheDocument();
@@ -147,7 +148,7 @@ describe("ArenaDailyTab", () => {
   });
 
   it("opens a tapped run in the read-only spectator", () => {
-    render(<ArenaDailyTab colors={colors} />);
+    render(<ArenaDailyTab />);
 
     fireEvent.click(screen.getByText("You · ABCD…WXYZ"));
 
@@ -160,7 +161,7 @@ describe("ArenaDailyTab", () => {
 
   it("funnels an underfunded player to the shop with the Arena origin", () => {
     fixtures.daily.daily.playerStars = 1n;
-    render(<ArenaDailyTab colors={colors} />);
+    render(<ArenaDailyTab />);
 
     fireEvent.click(screen.getByText("Need 1 more ★ · Get Stars"));
 

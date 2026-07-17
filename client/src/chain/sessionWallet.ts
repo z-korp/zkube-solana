@@ -11,12 +11,6 @@ export interface WalletLike {
   signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]>;
 }
 
-export interface PlayerAuthorization {
-  ownerAuthority: PublicKey;
-  sessionToken: PublicKey | null;
-  actorWallet: WalletLike;
-}
-
 export class SessionWallet implements WalletLike {
   constructor(readonly keypair: Keypair) {}
 

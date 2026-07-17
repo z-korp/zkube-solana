@@ -1818,6 +1818,115 @@
       "args": []
     },
     {
+      "name": "create_player_label",
+      "discriminator": [
+        61,
+        83,
+        168,
+        37,
+        203,
+        195,
+        254,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_label",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  98,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "PlayerLabelArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "delegate_active_run",
       "discriminator": [
         219,
@@ -2472,6 +2581,90 @@
       ]
     },
     {
+      "name": "funded_create_player_label",
+      "discriminator": [
+        28,
+        170,
+        69,
+        230,
+        197,
+        34,
+        128,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "player_state"
+        },
+        {
+          "name": "player_label",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "PlayerLabelArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "funded_delegate_active_run",
       "discriminator": [
         102,
@@ -3085,109 +3278,6 @@
           "type": {
             "defined": {
               "name": "InitializeProtocolArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "moderate_username",
-      "discriminator": [
-        130,
-        150,
-        110,
-        77,
-        190,
-        82,
-        3,
-        251
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "player_identity.owner",
-                "account": "PlayerIdentity"
-              }
-            ]
-          }
-        },
-        {
-          "name": "username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "ModerateUsernameArgs"
             }
           }
         }
@@ -4147,434 +4237,6 @@
       "args": []
     },
     {
-      "name": "register_username",
-      "discriminator": [
-        134,
-        54,
-        123,
-        181,
-        28,
-        151,
-        36,
-        0
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "UsernameArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "rename_username",
-      "discriminator": [
-        73,
-        36,
-        141,
-        70,
-        62,
-        117,
-        240,
-        15
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "old_username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.old_normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "new_username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "RenameUsernameArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "replace_moderated_username",
-      "discriminator": [
-        173,
-        14,
-        170,
-        131,
-        113,
-        211,
-        237,
-        244
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "blocked_username_claim",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.old_normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "new_username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "RenameUsernameArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "request_row_vrf",
       "discriminator": [
         9,
@@ -4653,105 +4315,6 @@
               32
             ]
           }
-        }
-      ]
-    },
-    {
-      "name": "restore_username",
-      "discriminator": [
-        219,
-        231,
-        40,
-        253,
-        72,
-        241,
-        222,
-        48
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_identity",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  105,
-                  100,
-                  101,
-                  110,
-                  116,
-                  105,
-                  116,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "player_identity.owner",
-                "account": "PlayerIdentity"
-              }
-            ]
-          }
-        },
-        {
-          "name": "username_claim",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  110,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "normalized"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "normalized",
-          "type": "string"
         }
       ]
     },
@@ -5021,6 +4584,106 @@
           "type": {
             "defined": {
               "name": "ScheduleSaleArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_player_label",
+      "discriminator": [
+        9,
+        240,
+        56,
+        233,
+        167,
+        202,
+        97,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_label",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  98,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "PlayerLabelArgs"
             }
           }
         }
@@ -5627,16 +5290,16 @@
       ]
     },
     {
-      "name": "PlayerIdentity",
+      "name": "PlayerLabel",
       "discriminator": [
-        85,
-        172,
-        40,
-        166,
-        220,
-        193,
-        194,
-        235
+        190,
+        106,
+        117,
+        227,
+        51,
+        162,
+        202,
+        216
       ]
     },
     {
@@ -5689,19 +5352,6 @@
         23,
         184,
         221
-      ]
-    },
-    {
-      "name": "UsernameClaim",
-      "discriminator": [
-        83,
-        191,
-        129,
-        214,
-        239,
-        228,
-        224,
-        240
       ]
     },
     {
@@ -5993,6 +5643,19 @@
       ]
     },
     {
+      "name": "PlayerLabelSet",
+      "discriminator": [
+        74,
+        160,
+        127,
+        145,
+        172,
+        254,
+        51,
+        31
+      ]
+    },
+    {
       "name": "PricingOperatorChanged",
       "discriminator": [
         67,
@@ -6068,45 +5731,6 @@
         245,
         78,
         252
-      ]
-    },
-    {
-      "name": "UsernameModerated",
-      "discriminator": [
-        79,
-        97,
-        199,
-        107,
-        59,
-        48,
-        186,
-        75
-      ]
-    },
-    {
-      "name": "UsernameRegistered",
-      "discriminator": [
-        241,
-        79,
-        103,
-        207,
-        185,
-        19,
-        151,
-        5
-      ]
-    },
-    {
-      "name": "UsernameRenamed",
-      "discriminator": [
-        40,
-        213,
-        115,
-        38,
-        195,
-        47,
-        239,
-        112
       ]
     },
     {
@@ -6458,18 +6082,8 @@
     },
     {
       "code": 6043,
-      "name": "InvalidUsername",
-      "msg": "The username is invalid"
-    },
-    {
-      "code": 6044,
-      "name": "UsernameBlocked",
-      "msg": "The username has been blocked by protocol moderation"
-    },
-    {
-      "code": 6045,
-      "name": "UsernameRenameCooldown",
-      "msg": "The username rename cooldown has not elapsed"
+      "name": "InvalidPlayerLabel",
+      "msg": "The player label is invalid"
     }
   ],
   "types": [
@@ -8078,23 +7692,7 @@
       }
     },
     {
-      "name": "ModerateUsernameArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "normalized",
-            "type": "string"
-          },
-          {
-            "name": "reason_code",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlayerIdentity",
+      "name": "PlayerLabel",
       "type": {
         "kind": "struct",
         "fields": [
@@ -8116,41 +7714,48 @@
             }
           },
           {
-            "name": "normalized_name",
-            "type": {
-              "array": [
-                "u8",
-                16
-              ]
-            }
-          },
-          {
             "name": "name_len",
-            "type": "u8"
-          },
-          {
-            "name": "rename_count",
-            "type": "u16"
-          },
-          {
-            "name": "registered_at",
-            "type": "i64"
-          },
-          {
-            "name": "last_renamed_at",
-            "type": "i64"
-          },
-          {
-            "name": "moderated",
-            "type": "bool"
-          },
-          {
-            "name": "moderation_reason",
             "type": "u8"
           },
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerLabelArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "display",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerLabelSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "player_label",
+            "type": "pubkey"
+          },
+          {
+            "name": "display",
+            "type": "string"
+          },
+          {
+            "name": "created",
+            "type": "bool"
           }
         ]
       }
@@ -8524,26 +8129,6 @@
       }
     },
     {
-      "name": "RenameUsernameArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "old_normalized",
-            "type": "string"
-          },
-          {
-            "name": "display",
-            "type": "string"
-          },
-          {
-            "name": "normalized",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
       "name": "RevenueDestinationsChanged",
       "type": {
         "kind": "struct",
@@ -8824,139 +8409,6 @@
                 5
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "UsernameArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "display",
-            "type": "string"
-          },
-          {
-            "name": "normalized",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
-      "name": "UsernameClaim",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "player_identity",
-            "type": "pubkey"
-          },
-          {
-            "name": "normalized_name",
-            "type": {
-              "array": [
-                "u8",
-                16
-              ]
-            }
-          },
-          {
-            "name": "name_len",
-            "type": "u8"
-          },
-          {
-            "name": "status",
-            "type": "u8"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "UsernameModerated",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "player_identity",
-            "type": "pubkey"
-          },
-          {
-            "name": "normalized",
-            "type": "string"
-          },
-          {
-            "name": "reason_code",
-            "type": "u8"
-          },
-          {
-            "name": "blocked",
-            "type": "bool"
-          }
-        ]
-      }
-    },
-    {
-      "name": "UsernameRegistered",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "player_identity",
-            "type": "pubkey"
-          },
-          {
-            "name": "normalized",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
-      "name": "UsernameRenamed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "player_identity",
-            "type": "pubkey"
-          },
-          {
-            "name": "normalized",
-            "type": "string"
-          },
-          {
-            "name": "stars_charged",
-            "type": "u64"
-          },
-          {
-            "name": "moderated_replacement",
-            "type": "bool"
           }
         ]
       }

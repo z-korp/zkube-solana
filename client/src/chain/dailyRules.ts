@@ -1,17 +1,16 @@
-export const DAILY_SCORING_RULE_CAPACITY = 16;
 export const DAILY_SCORING_RULE_COUNT = 15;
 export const CANONICAL_DAILY_SEASON_SEED = [
   122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 115, 101, 97, 115,
   111, 110, 45, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100,
 ] as const;
 
-export const DAILY_SCORE_CLASSIC = 0;
-export const DAILY_SCORE_COMBO = 1;
-export const DAILY_SCORE_EXACT_LINES = 2;
-export const DAILY_SCORE_BLOCKS = 4;
-export const DAILY_SCORE_CLUTCH = 5;
-export const DAILY_SCORE_CLEAN = 6;
-export const DAILY_SCORE_SURVIVAL = 7;
+const DAILY_SCORE_CLASSIC = 0;
+const DAILY_SCORE_COMBO = 1;
+const DAILY_SCORE_EXACT_LINES = 2;
+const DAILY_SCORE_BLOCKS = 4;
+const DAILY_SCORE_CLUTCH = 5;
+const DAILY_SCORE_CLEAN = 6;
+const DAILY_SCORE_SURVIVAL = 7;
 
 export interface DailyScoringRuleView {
   id: number;
@@ -21,7 +20,7 @@ export interface DailyScoringRuleView {
   bonusMultiplierX100: number;
 }
 
-export type DailyPressureThresholds = [
+type DailyPressureThresholds = [
   number,
   number,
   number,
@@ -30,7 +29,7 @@ export type DailyPressureThresholds = [
   number,
   number,
 ];
-export type DailyPressureMultipliers = [
+type DailyPressureMultipliers = [
   number,
   number,
   number,
@@ -40,7 +39,7 @@ export type DailyPressureMultipliers = [
   number,
   number,
 ];
-export type DailyBlockWeights = [number, number, number, number, number];
+type DailyBlockWeights = [number, number, number, number, number];
 
 export interface DailyPressureProfileView {
   thresholds: DailyPressureThresholds;

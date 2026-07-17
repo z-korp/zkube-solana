@@ -17,7 +17,69 @@ use anchor_lang::{
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
+use crate::instructions::player_label_instructions::PlayerLabelArgs;
 use crate::state::*;
+
+#[derive(Accounts)]
+pub struct FundedCreatePlayerLabel<'info> {
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    pub player_state: Box<Account<'info, PlayerState>>,
+    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
+    #[account(mut)]
+    pub player_label: UncheckedAccount<'info>,
+    /// CHECK: Canonical zero-data System PDA validated before self-CPI.
+    #[account(
+        mut,
+        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
+        bump
+    )]
+    pub player_funding: UncheckedAccount<'info>,
+    /// CHECK: Immutable wallet identity checked by the inner instruction.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Account<'info, SessionTokenV2>,
+    pub actor: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub zkube_program: Program<'info, crate::program::Solana>,
+}
+
+pub fn handler_funded_create_player_label(
+    ctx: Context<FundedCreatePlayerLabel>,
+    args: PlayerLabelArgs,
+) -> Result<()> {
+    let accounts = crate::accounts::CreatePlayerLabel {
+        protocol: ctx.accounts.protocol.key(),
+        player_state: ctx.accounts.player_state.key(),
+        player_label: ctx.accounts.player_label.key(),
+        payer: ctx.accounts.player_funding.key(),
+        owner_authority: ctx.accounts.owner_authority.key(),
+        session_token: Some(ctx.accounts.session_token.key()),
+        actor: ctx.accounts.actor.key(),
+        system_program: ctx.accounts.system_program.key(),
+    };
+    let instruction = Instruction {
+        program_id: crate::ID,
+        accounts: accounts.to_account_metas(None),
+        data: crate::instruction::CreatePlayerLabel { args }.data(),
+    };
+    let infos = [
+        ctx.accounts.protocol.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
+        ctx.accounts.player_label.to_account_info(),
+        ctx.accounts.player_funding.to_account_info(),
+        ctx.accounts.owner_authority.to_account_info(),
+        ctx.accounts.session_token.to_account_info(),
+        ctx.accounts.actor.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.zkube_program.to_account_info(),
+    ];
+    invoke_with_player_funding(
+        ctx.accounts.owner_authority.key(),
+        &ctx.accounts.player_funding.to_account_info(),
+        ctx.bumps.player_funding,
+        instruction,
+        &infos,
+    )
+}
 
 fn invoke_with_player_funding<'info>(
     owner: Pubkey,

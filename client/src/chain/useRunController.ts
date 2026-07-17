@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import { Keypair, type PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants";
@@ -92,7 +93,7 @@ const plogFailure = (
     layer,
     phase: phases[phases.length - 1] ?? label,
     ok: false,
-    error: (error instanceof Error ? error.message : String(error)).slice(
+    error: errorMessage(error).slice(
       0,
       200,
     ),
@@ -1749,7 +1750,7 @@ async function withBusy<T>(
   try {
     return await action();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     setState((value) => ({ ...value, error: message }));
     throw error;
   } finally {

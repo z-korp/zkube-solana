@@ -429,15 +429,6 @@ img {
   pointer-events: none;
 }
 
-.h-screen-viewport {
-  height: calc(var(--vh, 1vh) * 100);
-}
-
-.game-container {
-  touch-action: none; /* Prevents touch-based panning */
-  overscroll-behavior: none; /* Prevents pull-to-refresh */
-}
-
 input,
 textarea,
 select {
@@ -449,50 +440,6 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-}
-
-@keyframes wiggle {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  50% {
-    transform: translateX(5px);
-  }
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-@keyframes map-node-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.18);
-  }
-}
-
-.wiggle {
-  animation: wiggle 0.2s ease-in-out infinite;
-}
-
-.blink {
-  animation: blink 0.5s ease-in-out infinite;
-}
-
-.wiggle-blink {
-  animation:
-    wiggle 0.2s ease-in-out infinite,
-    blink 0.5s ease-in-out infinite;
 }
 
 ::-webkit-scrollbar {
@@ -519,17 +466,6 @@ body[style*="pointer-events: none"] #controller {
 
 body[style*="pointer-events: none"] #controller * {
   pointer-events: auto !important;
-}
-
-.swiper {
-  width: 280px;
-  height: 400px;
-}
-
-.swiper-slide {
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .hide-scrollbar {

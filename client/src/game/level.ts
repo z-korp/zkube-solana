@@ -22,7 +22,7 @@ export function applyStarThresholdModifier(modifier: number): {
   return { star3Pct, star2Pct };
 }
 
-export const CAMPAIGN_LEVEL_XP_PER_STAR = 10;
+const CAMPAIGN_LEVEL_XP_PER_STAR = 10;
 
 export function calculateLevelStars(args: {
   movesUsed: number;

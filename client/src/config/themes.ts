@@ -13,8 +13,6 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export type ThemeMode = "dark" | "light" | "system";
-
 export type MusicContext = "main" | "level" | "boss";
 
 export interface ThemeMeta {
@@ -75,7 +73,7 @@ export const THEME_META: Record<ThemeId, ThemeMeta> = {
   },
 };
 
-export interface BlockColors {
+interface BlockColors {
   fill: string;
   glow: string;
   highlight: string;
@@ -592,7 +590,7 @@ const INCA_COLORS: ThemeColors = {
   },
 };
 
-export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
+const THEME_COLORS: Record<ThemeId, ThemeColors> = {
   "theme-1": POLYNESIAN_COLORS,
   "theme-2": ANCIENT_EGYPT_COLORS,
   "theme-3": NORSE_COLORS,
@@ -607,14 +605,6 @@ export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
 
 export function getThemeColors(themeId: ThemeId): ThemeColors {
   return THEME_COLORS[themeId] ?? POLYNESIAN_COLORS;
-}
-
-export function getBlockColors(
-  themeId: ThemeId,
-  blockWidth: 1 | 2 | 3 | 4,
-): BlockColors {
-  const colors = getThemeColors(themeId);
-  return colors.blocks[blockWidth] ?? colors.blocks[1];
 }
 
 export const THEME_MUSIC: Record<ThemeId, Record<MusicContext, string>> = {
@@ -701,10 +691,6 @@ export const SFX_PATHS = {
 
 export type SfxName = keyof typeof SFX_PATHS;
 
-export function getThemeAssetPath(themeId: ThemeId, asset: string): string {
-  return `/assets/${themeId}/${asset}`;
-}
-
 export function getCommonAssetPath(path: string): string {
   return `/assets/common/${path}`;
 }
@@ -723,7 +709,6 @@ export function getThemeImages(themeId: ThemeId) {
     gridBg: `${base}/grid-bg.png`,
     mapBg: `${base}/map-bg.png`,
     mapNodeLevel: `${base}/map-node-level.png`,
-    mapNodeDraft: `${base}/map-node-draft.png`,
     mapNodeBoss: `${base}/map-node-boss.png`,
     mapNodeCompleted: `${base}/map-node-completed.png`,
     themeIcon: `${base}/theme-icon.png`,
@@ -789,11 +774,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function isValidThemeId(value: string): value is ThemeId {
-  return THEME_IDS.includes(value as ThemeId);
-}
-
-export type MapPathStyle = "solid" | "dashed" | "dotted" | "double";
+type MapPathStyle = "solid" | "dashed" | "dotted" | "double";
 
 export interface MapPathTheme {
   clearedColor: string;

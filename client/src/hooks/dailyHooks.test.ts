@@ -51,7 +51,6 @@ const daily = (status: DailyStatus): DailyView => ({
   },
   endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
   endlessScoreMultipliersX100: [100, 110, 120, 130, 140, 150, 160, 170],
-  endlessRampMultiplierX100: 200,
 });
 
 describe("Daily projection", () => {

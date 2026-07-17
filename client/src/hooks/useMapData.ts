@@ -4,7 +4,7 @@ import { getThemeId, type ThemeId } from "@/config/themes";
 import type { CampaignMapView } from "@/chain/campaignClient";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
-export type NodeType = "classic" | "boss";
+type NodeType = "classic" | "boss";
 export type NodeState =
   | "locked"
   | "cleared"
@@ -13,7 +13,7 @@ export type NodeState =
   | "visited"
   | "playing";
 
-export interface ActiveStoryNode {
+interface ActiveStoryNode {
   zoneId: number;
   level: number;
 }
@@ -43,13 +43,6 @@ export interface UseMapDataParams {
 }
 
 export const NODES_PER_ZONE = 10;
-export const TOTAL_ZONES = 10;
-export const GAMEPLAY_LEVELS = 10;
-
-export function contractLevelToNodeIndex(contractLevel: number): number {
-  if (contractLevel < 1 || contractLevel > NODES_PER_ZONE) return 0;
-  return contractLevel - 1;
-}
 
 export function generateMapData({
   map,

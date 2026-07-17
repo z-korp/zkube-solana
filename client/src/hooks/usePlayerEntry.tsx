@@ -2,7 +2,7 @@ import { useDaily } from "@/contexts/daily";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { dailyLeaderboardRank } from "@/chain/dailyClient";
 
-export interface PlayerEntryView {
+interface PlayerEntryView {
   bestDailyScore: number;
   bestDailyBonusTriggers: number;
   bestEngineScore: number;
@@ -48,5 +48,3 @@ export function usePlayerEntry(
     : null;
   return { entry, isRegistered: entry !== null };
 }
-
-export default usePlayerEntry;

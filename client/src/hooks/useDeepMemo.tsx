@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-export function deepCompare(a: unknown, b: unknown): boolean {
+function deepCompare(a: unknown, b: unknown): boolean {
   // Check for strict equality (handles primitives and reference equality)
   if (a === b) return true;
 

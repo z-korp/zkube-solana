@@ -6,7 +6,7 @@ import { cn } from "@/ui/utils";
 import { LucideLoader } from "lucide-react";
 import { buttonVariants } from "./variants";
 
-export interface ButtonProps
+interface ButtonProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {

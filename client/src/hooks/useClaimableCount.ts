@@ -2,16 +2,6 @@ import { useMemo } from "react";
 
 import { useProgress } from "@/contexts/progress";
 
-export const useClaimableCount = (): number => {
-  const { progress } = useProgress();
-  return useMemo(
-    () =>
-      (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
-      (progress?.quests.filter((entry) => entry.claimable).length ?? 0),
-    [progress?.achievements, progress?.quests],
-  );
-};
-
 export const useClaimableCounts = () => {
   const { progress } = useProgress();
   return useMemo(() => {

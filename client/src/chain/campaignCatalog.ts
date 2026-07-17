@@ -1,7 +1,7 @@
 export const CANONICAL_CAMPAIGN_MAP_COUNT = 10;
 export const MAX_CAMPAIGN_MAPS = 32;
 
-export const BONUS_TRIGGER = {
+const BONUS_TRIGGER = {
   none: 0,
   atLeastLines: 1,
   cumulativeLines: 2,
@@ -12,13 +12,13 @@ export const BONUS_TRIGGER = {
   comboMeterBoundary: 7,
 } as const;
 
-export interface CampaignConstraintPublication {
+interface CampaignConstraintPublication {
   kind: number;
   value: number;
   requiredCount: number;
 }
 
-export interface CampaignLevelPublication {
+interface CampaignLevelPublication {
   level: number;
   pointsRequired: number;
   maxMoves: number;
@@ -28,7 +28,7 @@ export interface CampaignLevelPublication {
   blockWeights: [number, number, number, number, number];
 }
 
-export interface CampaignMapRulesPublication {
+interface CampaignMapRulesPublication {
   activeMutatorId: number;
   passiveMutatorId: number;
   bossId: number;

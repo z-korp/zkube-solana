@@ -38,7 +38,7 @@ const fixtures = vi.hoisted(() => ({
   retrySettlement: vi.fn(),
   continueSettled: vi.fn(),
   navigate: vi.fn(),
-  setMusicContext: vi.fn(),
+  setMusicMood: vi.fn(),
   playSfx: vi.fn(),
   setThemeTemplate: vi.fn(),
   actionBarProps: null as Record<string, unknown> | null,
@@ -136,7 +136,7 @@ vi.mock("@/stores/navigationStore", () => ({
 }));
 vi.mock("@/contexts/hooks", () => ({
   useMusicPlayer: () => ({
-    setMusicMood: fixtures.setMusicContext,
+    setMusicMood: fixtures.setMusicMood,
     playSfx: fixtures.playSfx,
   }),
 }));

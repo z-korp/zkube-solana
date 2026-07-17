@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -12,6 +12,7 @@ import {
   type ThemeId,
 } from "@/config/themes";
 import type { DailyView } from "@/chain/dailyClient";
+import { useCountdown } from "@/hooks/useNowTick";
 import type { PlayerPosition } from "@/ui/components/arena/dailyPosition";
 import { formatCountdown } from "@/utils/time";
 
@@ -19,18 +20,7 @@ export const Countdown: React.FC<{
   endTime: number;
   colors: ThemeColors;
 }> = ({ endTime, colors }) => {
-  const [seconds, setSeconds] = useState(() =>
-    Math.max(0, endTime - Math.floor(Date.now() / 1_000)),
-  );
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const remaining = Math.max(0, endTime - Math.floor(Date.now() / 1_000));
-      setSeconds(remaining);
-      if (remaining <= 0) window.clearInterval(timer);
-    }, 1_000);
-    return () => window.clearInterval(timer);
-  }, [endTime]);
+  const seconds = useCountdown(endTime);
 
   if (seconds <= 0) {
     return (

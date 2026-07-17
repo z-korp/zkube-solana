@@ -1,13 +1,14 @@
 import { SystemProgram, type AccountInfo } from "@solana/web3.js";
+import { errorMessage } from "../utils/errors.js";
 
 /** Owner-funded allowance assigned to each origin-scoped device signer. */
-export const DEVICE_FEE_ALLOWANCE_LAMPORTS = 1_000_000;
+export const DEVICE_FEE_ALLOWANCE_LAMPORTS = 5_000_000;
 
 /** One ordinary base-layer signature fee, retained for final settlement. */
 export const DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS = 5_000;
 
 /** A ready session can both launch and later settle one run. */
-export const DEVICE_READY_FEE_RESERVE_LAMPORTS =
+const DEVICE_READY_FEE_RESERVE_LAMPORTS =
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS * 2;
 
 export const DEVICE_SESSION_RENEWAL_ERROR_CODE =
@@ -40,6 +41,16 @@ export function validateDeviceSignerFunding(args: {
 }): DeviceSignerFundingStatus {
   const { info } = args;
   if (!info) return "needsRenewal";
+  const balanceLamports = validatedDeviceSignerBalance(info);
+  return balanceLamports >=
+    requiredDeviceSignerBalance(args.rentFloorLamports, args.feeReserveLamports)
+    ? "ready"
+    : "needsRenewal";
+}
+
+export function validatedDeviceSignerBalance(
+  info: AccountInfo<Buffer>,
+): number {
   if (
     info.executable ||
     !info.owner.equals(SystemProgram.programId) ||
@@ -48,13 +59,12 @@ export function validateDeviceSignerFunding(args: {
     throw new Error("Stored device signer has an invalid account layout");
   }
   requireLamportAmount(info.lamports, "device signer balance");
-  return info.lamports >=
-    requiredDeviceSignerBalance(
-      args.rentFloorLamports,
-      args.feeReserveLamports,
-    )
-    ? "ready"
-    : "needsRenewal";
+  return info.lamports;
+}
+
+export function deviceSignerTopUpLamports(balanceLamports: number): number {
+  requireLamportAmount(balanceLamports, "device signer balance");
+  return Math.max(0, DEVICE_FEE_ALLOWANCE_LAMPORTS - balanceLamports);
 }
 
 /** Exact message-fee check used after a transaction has been compiled. */
@@ -81,7 +91,7 @@ export function assertDeviceSignerCanPay(args: {
   }
 }
 
-export function deviceSessionRenewalError(detail?: string): Error {
+function deviceSessionRenewalError(detail?: string): Error {
   return new Error(
     `${DEVICE_SESSION_RENEWAL_ERROR_CODE}: ${
       detail ?? "Renew zKube to refill this device's fee allowance."
@@ -90,7 +100,7 @@ export function deviceSessionRenewalError(detail?: string): Error {
 }
 
 export function isDeviceSessionRenewalError(value: unknown): boolean {
-  const message = value instanceof Error ? value.message : String(value);
+  const message = errorMessage(value);
   return (
     message.includes(DEVICE_SESSION_RENEWAL_ERROR_CODE) ||
     (message.includes("Simulation failed for") &&

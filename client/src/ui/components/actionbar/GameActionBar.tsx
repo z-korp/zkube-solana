@@ -53,7 +53,6 @@ interface GameActionBarProps {
   /** Monotonic counter bumped when a bonus charge is EARNED; keys the badge
    * pop + ring animations so CSS restarts without timers. */
   bonusEarnSignal?: number;
-  isGameOver: boolean;
   zoneId?: number;
   activeMutatorId?: number;
 }
@@ -66,7 +65,6 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
   surrenderDisabled = false,
   disabled = false,
   bonusEarnSignal = 0,
-  isGameOver,
   zoneId = 1,
   activeMutatorId = 0,
 }) => {
@@ -83,8 +81,6 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
   const guardian = useMemo(() => getZoneGuardian(zoneId), [zoneId]);
   const portraitSrc = useMemo(() => getGuardianPortrait(zoneId), [zoneId]);
   const mutator = getMutatorDef(activeMutatorId);
-
-  if (isGameOver) return null;
 
   return (
     <div className="w-full shrink-0">

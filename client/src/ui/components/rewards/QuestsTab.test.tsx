@@ -2,7 +2,6 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getThemeColors } from "@/config/themes";
 import QuestsTab from "./QuestsTab";
 
 const mocks = vi.hoisted(() => ({
@@ -58,7 +57,7 @@ describe("QuestsTab", () => {
   });
 
   it("claims a live quest by its catalog index", () => {
-    render(<QuestsTab colors={getThemeColors("theme-1")} />);
+    render(<QuestsTab />);
 
     fireEvent.click(screen.getByRole("button", { name: "Claim +100 XP" }));
 

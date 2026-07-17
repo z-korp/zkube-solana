@@ -45,7 +45,6 @@ const activeRun = (): ActiveRunView => ({
   currentDifficulty: 2,
   endlessThresholds: [15, 40, 80, 150, 280, 500, 900],
   endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
-  endlessRampMultiplierX100: 100,
   bonusType: 1,
   bonusCharges: 2,
   grid: Array.from({ length: 80 }, () => 0),

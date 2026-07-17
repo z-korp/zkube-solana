@@ -22,13 +22,6 @@ interface GameBoardProps {
   bonusDescription: string;
   onCascadeComplete?: () => void;
   forceTxProcessing?: boolean;
-  /**
-   * True while the on-chain level is transitioning. PlayScreen owns the
-   * computation; we OR it into effectiveTxProcessing so the grid stays locked
-   * until the authoritative snapshot catches up and the level-complete
-   * navigation fires.
-   */
-  levelTransitionPending: boolean;
   /** Terminal board show (win/lose) — see Grid's OutcomeAnimation. */
   outcomeAnimation?: OutcomeAnimation | null;
   onMove: GridProps["onMove"];
@@ -43,7 +36,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
   bonusDescription,
   onCascadeComplete,
   forceTxProcessing = false,
-  levelTransitionPending,
   outcomeAnimation = null,
   onMove,
   onBonus,
@@ -57,8 +49,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const [gridSize, setGridSize] = useState(40);
 
   const [isTxProcessing, setIsTxProcessing] = useState(false);
-  const effectiveTxProcessing =
-    isTxProcessing || forceTxProcessing || levelTransitionPending;
+  const effectiveTxProcessing = isTxProcessing || forceTxProcessing;
   const [nextLineHasBeenConsumed, setNextLineHasBeenConsumed] = useState(false);
 
   // The preview strip must not advance mid-cascade: the chain confirms a move
@@ -178,7 +169,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
           bonus={activeBonus}
           isTxProcessing={effectiveTxProcessing}
           setIsTxProcessing={setIsTxProcessing}
-          levelTransitionPending={levelTransitionPending}
           outcomeAnimation={outcomeAnimation}
           onCascadeComplete={onCascadeComplete}
           onNextLineUpdate={handleNextLineUpdate}

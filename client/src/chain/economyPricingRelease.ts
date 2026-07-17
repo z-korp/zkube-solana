@@ -27,16 +27,16 @@ const DEFAULT_BASE_RPC = "https://rpc.magicblock.app/devnet";
 const MAXIMUM_PRICING_FEE_LAMPORTS = 5_000_000;
 const ZERO_ADDRESS = PublicKey.default.toBase58();
 
-export const LEGACY_STAR_PACK_STARS = [10n, 50n, 100n, 500n, 1_000n] as const;
-export const LEGACY_STAR_PACK_PRICES = [
+const LEGACY_STAR_PACK_STARS = [10n, 50n, 100n, 500n, 1_000n] as const;
+const LEGACY_STAR_PACK_PRICES = [
   10_000_000n,
   47_500_000n,
   90_000_000n,
   425_000_000n,
   800_000_000n,
 ] as const;
-export const RELEASE_STAR_PACK_STARS = [10n, 50n, 200n, 500n, 1_000n] as const;
-export const RELEASE_STAR_PACK_PRICES = [
+const RELEASE_STAR_PACK_STARS = [10n, 50n, 200n, 500n, 1_000n] as const;
+const RELEASE_STAR_PACK_PRICES = [
   20_000_000n,
   90_000_000n,
   300_000_000n,
@@ -99,7 +99,7 @@ interface PublicInstruction {
   }>;
 }
 
-export interface PublicEconomyPricingPlan {
+interface PublicEconomyPricingPlan {
   schema: "zkube-devnet-economy-pricing-release";
   schemaVersion: 1;
   cluster: "devnet";
@@ -414,7 +414,7 @@ export async function runEconomyPricingRelease(
   };
 }
 
-export function economyPricingReleaseFingerprint(
+function economyPricingReleaseFingerprint(
   plan: PublicEconomyPricingPlan,
 ): string {
   return createHash("sha256")

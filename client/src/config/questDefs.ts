@@ -221,10 +221,3 @@ export const getQuestIntervalId = (
   if (nowSeconds < quest.start || quest.interval <= 0) return 0;
   return Math.floor((nowSeconds - quest.start) / quest.interval);
 };
-
-export const isQuestActive = (quest: QuestDef, nowSeconds: number): boolean => {
-  if (nowSeconds < quest.start || quest.interval <= 0) return false;
-  const elapsed = nowSeconds - quest.start;
-  const cycleOffset = elapsed % quest.interval;
-  return cycleOffset < quest.duration;
-};

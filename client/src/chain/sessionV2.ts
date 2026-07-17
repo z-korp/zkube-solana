@@ -9,7 +9,7 @@ import { ZKUBE_PROGRAM_ID } from "./constants.js";
 export const SESSION_KEYS_PROGRAM_ID = new PublicKey(
   "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
 );
-export const SESSION_TOKEN_V2_SEED = "session_token_v2";
+const SESSION_TOKEN_V2_SEED = "session_token_v2";
 export const CREATE_SESSION_V2_DISCRIMINATOR = [223, 233, 108, 7, 65, 194, 235, 38] as const;
 export const SESSION_TOKEN_V2_DISCRIMINATOR = [178, 3, 85, 254, 13, 116, 128, 41] as const;
 export const SESSION_TOKEN_V2_ACCOUNT_BYTES = 144;

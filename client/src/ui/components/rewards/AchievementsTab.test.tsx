@@ -2,7 +2,6 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getThemeColors } from "@/config/themes";
 import AchievementsTab from "./AchievementsTab";
 
 const { claimAchievement } = vi.hoisted(() => ({
@@ -56,7 +55,7 @@ describe("AchievementsTab", () => {
   });
 
   it("claims the on-chain achievement by catalog index", () => {
-    render(<AchievementsTab colors={getThemeColors("theme-1")} />);
+    render(<AchievementsTab />);
 
     fireEvent.click(screen.getByRole("button", { name: "Claim +50 XP" }));
 

@@ -2,33 +2,15 @@ import React, { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
-import type { ThemeColors } from "@/config/themes";
 import {
   ACHIEVEMENT_CATEGORIES,
   useAchievements,
 } from "@/hooks/useAchievements";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { staggerContainer, staggerItem } from "@/ui/motion";
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
-  },
-};
-
-interface AchievementsTabProps {
-  colors: ThemeColors;
-}
+const containerVariants = staggerContainer(0.05);
 
 const TIER_LABELS = ["I", "II", "III", "IV"] as const;
 
@@ -46,7 +28,8 @@ const RARITY_COLORS = {
   Legendary: "#FFD86E",
 } as const;
 
-const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
+const AchievementsTab: React.FC = () => {
+  const colors = useThemeColors();
   const { achievements, claiming, error, claimAchievement } = useAchievements();
   const totalUnlocked = achievements.filter(
     (achievement) => achievement.completed,
@@ -82,7 +65,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
       className="flex flex-col gap-3.5 pb-2"
     >
       <motion.section
-        variants={itemVariants}
+        variants={staggerItem}
         className="rounded-2xl border px-4 py-3.5 backdrop-blur-xl"
         style={{
           background: "rgba(255,255,255,0.1)",
@@ -159,7 +142,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
 
         return (
           <motion.section
-            variants={itemVariants}
+            variants={staggerItem}
             key={category}
             className="rounded-2xl border p-3 backdrop-blur-xl"
             style={{
@@ -276,7 +259,7 @@ const AchievementsTab: React.FC<AchievementsTabProps> = ({ colors }) => {
 
       {error && (
         <motion.p
-          variants={itemVariants}
+          variants={staggerItem}
           role="alert"
           className="text-center font-sans text-xs text-red-300"
         >

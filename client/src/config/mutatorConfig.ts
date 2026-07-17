@@ -15,7 +15,7 @@ export interface MutatorDef {
 // Campaign trigger types are authored once per map and remain fixed for all ten levels.
 // Bonus types: 1=Hammer (destroy 1 block), 2=Totem (destroy all blocks of same size), 3=Wave (clear entire row)
 
-export const MUTATOR_DEFS: Record<number, MutatorDef> = {
+const MUTATOR_DEFS: Record<number, MutatorDef> = {
   0: {
     id: 0,
     name: "No Mutator",
@@ -241,7 +241,7 @@ export const getMutatorEffects = (
   isEndless: boolean,
 ): string[] => (isEndless ? (def.effectsEndless ?? def.effects) : def.effects);
 
-export const BONUS_TYPES: Record<
+const BONUS_TYPES: Record<
   number,
   { name: string; icon: string; description: string }
 > = {

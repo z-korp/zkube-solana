@@ -1,28 +1,13 @@
 import React from "react";
 import { motion } from "motion/react";
 
-import type { ThemeColors } from "@/config/themes";
 import StatTile from "@/ui/components/shared/StatTile";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { staggerContainer, staggerItem } from "@/ui/motion";
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
-  },
-};
+const containerVariants = staggerContainer(0.05);
 
 interface StatsTabProps {
-  colors: ThemeColors;
   totalGames: number;
   totalLines: number;
   maxCombo: number;
@@ -34,7 +19,6 @@ interface StatsTabProps {
 }
 
 const StatsTab: React.FC<StatsTabProps> = ({
-  colors,
   totalGames,
   totalLines,
   maxCombo,
@@ -44,6 +28,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
   starsEarned,
   starsSpent,
 }) => {
+  const colors = useThemeColors();
   const stats: Array<{ label: string; value: string; color?: string }> = [
     { label: "Games", value: totalGames.toLocaleString() },
     { label: "Best Combo", value: maxCombo > 0 ? `×${maxCombo}` : "--" },
@@ -80,7 +65,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
     >
       <section>
         <motion.p
-          variants={itemVariants}
+          variants={staggerItem}
           className="mb-2 font-sans text-[11px] font-bold uppercase tracking-[0.15em]"
           style={{ color: colors.textMuted }}
         >
@@ -88,7 +73,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </motion.p>
         <div className="grid grid-cols-2 gap-2.5">
           {stats.map((stat) => (
-            <motion.div variants={itemVariants} key={stat.label}>
+            <motion.div variants={staggerItem} key={stat.label}>
               <StatTile
                 label={stat.label}
                 value={stat.value}

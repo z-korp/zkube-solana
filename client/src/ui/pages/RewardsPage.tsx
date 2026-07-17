@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { motion } from "motion/react";
 
-import { getThemeColors } from "@/config/themes";
 import { useClaimableCounts } from "@/hooks/useClaimableCount";
 import { useProgress } from "@/contexts/progress";
 import { getLevelFromXp } from "@/config/profileData";
@@ -12,7 +11,6 @@ import MilestonesTab from "@/ui/components/rewards/MilestonesTab";
 import QuestsTab from "@/ui/components/rewards/QuestsTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
 
 const TABS = ["Quests", "Feats", "Milestones"] as const;
 
@@ -21,8 +19,6 @@ const TABS = ["Quests", "Feats", "Milestones"] as const;
  * and the level-milestone ladder. Competition status lives in the Arena.
  */
 const RewardsPage: React.FC = () => {
-  const { themeTemplate } = useTheme();
-  const colors = getThemeColors(themeTemplate);
   const claimableCounts = useClaimableCounts();
   const progress = useProgress();
   const player = useConnectedPlayer();
@@ -65,9 +61,9 @@ const RewardsPage: React.FC = () => {
 
       <div className="mx-4 mb-4 mt-2 min-h-0 flex-1 overflow-y-auto hide-scrollbar">
         <div className="mx-auto max-w-[640px]">
-          {activeTab === "Quests" && <QuestsTab colors={colors} />}
-          {activeTab === "Feats" && <AchievementsTab colors={colors} />}
-          {activeTab === "Milestones" && <MilestonesTab colors={colors} />}
+          {activeTab === "Quests" && <QuestsTab />}
+          {activeTab === "Feats" && <AchievementsTab />}
+          {activeTab === "Milestones" && <MilestonesTab />}
         </div>
       </div>
     </div>

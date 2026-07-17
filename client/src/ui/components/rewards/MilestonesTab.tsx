@@ -6,12 +6,12 @@ import {
   getLevelFromXp,
   getTitleForLevel,
 } from "@/config/profileData";
-import type { ThemeColors } from "@/config/themes";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { useProgress } from "@/contexts/progress";
 import Card from "@/ui/components/shared/Card";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
 const MILESTONE_COUNT = 10;
 
@@ -27,7 +27,8 @@ const claimedMilestoneEntitlement = (bitmap: number) =>
  * recurring Weekly Mastery stipend. Shown to everyone — the ladder is the
  * long-term carrot, not a max-level secret.
  */
-const MilestonesTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
+const MilestonesTab: React.FC = () => {
+  const colors = useThemeColors();
   const player = useConnectedPlayer();
   const address = player.publicKey?.toBase58() ?? "";
   const { playerMeta } = usePlayerMeta(address);

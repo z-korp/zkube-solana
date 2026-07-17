@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useDaily } from "@/contexts/daily";
 import { currentDailyDayId, type DailyView } from "@/chain/dailyClient";
+import { useNowTick } from "@/hooks/useNowTick";
 
 export interface CurrentChallengeView {
   challenge_id: number;
@@ -34,14 +35,8 @@ export function dailyToCurrentChallenge(
 export function useCurrentChallenge() {
   const { daily, loading, refresh } = useDaily();
   const refreshRequestedForDay = useRef<number | null>(null);
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1_000));
-  useEffect(() => {
-    const timer = window.setInterval(
-      () => setNow(Math.floor(Date.now() / 1_000)),
-      60_000,
-    );
-    return () => window.clearInterval(timer);
-  }, []);
+  // The day boundary only needs minute granularity; useNowTick returns ms.
+  const now = Math.floor(useNowTick(60_000) / 1_000);
   const dayId = currentDailyDayId(now);
   useEffect(() => {
     if (loading || daily?.dayId === dayId) return;
@@ -64,5 +59,3 @@ export function useCurrentChallenge() {
     challengeCount: challenge ? 1 : 0,
   };
 }
-
-export default useCurrentChallenge;

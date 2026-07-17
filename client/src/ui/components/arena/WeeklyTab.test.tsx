@@ -2,7 +2,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { getThemeColors } from "@/config/themes";
 import WeeklyTab from "./WeeklyTab";
 
 const fixtures = vi.hoisted(() => {
@@ -68,10 +67,15 @@ afterAll(() => {
 });
 
 describe("WeeklyTab", () => {
-  it("shows current usernames and falls back to wallet addresses", () => {
-    render(<WeeklyTab colors={getThemeColors("theme-1")} />);
+  it("shows cosmetic labels beside authoritative wallet addresses", () => {
+    render(<WeeklyTab />);
 
-    expect(screen.getByText("You · Wave_Rider7")).toBeInTheDocument();
+    const owner = fixtures.weekly.weekly.leaderboard[0]!.player.toBase58();
+    expect(
+      screen.getByText(
+        `You · Wave_Rider7 · ${owner.slice(0, 4)}…${owner.slice(-4)}`,
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         `${fixtures.weekly.weekly.leaderboard[1]!.player.toBase58().slice(0, 4)}…${fixtures.weekly.weekly.leaderboard[1]!.player.toBase58().slice(-4)}`,

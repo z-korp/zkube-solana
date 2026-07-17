@@ -120,32 +120,6 @@ export async function buildPublishDailyRulesPlan(args: {
   );
 }
 
-export async function buildUpdateRegularPricesPlan(args: {
-  connection: Connection;
-  pricingOperator: WalletLike;
-  prices: readonly [bigint, bigint, bigint, bigint, bigint];
-  enabled: readonly [boolean, boolean, boolean, boolean, boolean];
-}): Promise<TransactionPlan> {
-  assertPrices(args.prices);
-  const instruction = await zkubeProgram(args.connection, args.pricingOperator)
-    .methods.updateRegularPrices({
-      prices: args.prices.map(toBN),
-      enabled: [...args.enabled],
-    })
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
-      pricingOperator: args.pricingOperator.publicKey,
-    })
-    .instruction();
-  return plan(
-    "Update regular Star prices",
-    args.connection,
-    args.pricingOperator.publicKey,
-    instruction,
-  );
-}
-
 export async function buildUpdateStarPacksPlan(args: {
   connection: Connection;
   pricingOperator: WalletLike;
@@ -168,57 +142,6 @@ export async function buildUpdateStarPacksPlan(args: {
     .instruction();
   return plan(
     "Update governed Star packs",
-    args.connection,
-    args.pricingOperator.publicKey,
-    instruction,
-  );
-}
-
-export async function buildScheduleSalePlan(args: {
-  connection: Connection;
-  pricingOperator: WalletLike;
-  startsAt: number;
-  endsAt: number;
-  prices: readonly [bigint, bigint, bigint, bigint, bigint];
-}): Promise<TransactionPlan> {
-  assertTimestamp(args.startsAt, "startsAt");
-  assertTimestamp(args.endsAt, "endsAt");
-  if (args.startsAt >= args.endsAt) throw new Error("sale window is invalid");
-  assertPrices(args.prices);
-  const instruction = await zkubeProgram(args.connection, args.pricingOperator)
-    .methods.scheduleSale({
-      startsAt: new BN(args.startsAt),
-      endsAt: new BN(args.endsAt),
-      prices: args.prices.map(toBN),
-    })
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
-      pricingOperator: args.pricingOperator.publicKey,
-    })
-    .instruction();
-  return plan(
-    "Schedule Star sale",
-    args.connection,
-    args.pricingOperator.publicKey,
-    instruction,
-  );
-}
-
-export async function buildCancelSalePlan(args: {
-  connection: Connection;
-  pricingOperator: WalletLike;
-}): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.pricingOperator)
-    .methods.cancelSale()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
-      pricingOperator: args.pricingOperator.publicKey,
-    })
-    .instruction();
-  return plan(
-    "Cancel Star sale",
     args.connection,
     args.pricingOperator.publicKey,
     instruction,
@@ -264,11 +187,6 @@ function assertStarPacks(
       );
     }
   }
-}
-
-function assertTimestamp(value: number, label: string): void {
-  if (!Number.isSafeInteger(value))
-    throw new Error(`${label} must be a safe integer`);
 }
 
 function toBN(value: bigint): BN {

@@ -77,37 +77,6 @@
   pointer-events: none;
 }
 
-/* ─── Boss fight vignette (stays on the parent HTML container) ─── */
-.boss-grid {
-  position: relative;
-}
-
-.boss-grid::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 15;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 40%,
-    rgba(239, 68, 68, 0.12) 70%,
-    rgba(127, 29, 29, 0.08) 100%
-  );
-  animation: bossVignettePulse 3s infinite ease-in-out;
-}
-
-@keyframes bossVignettePulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-/* Boss HUD bar */
-.boss-hud-bar {
-  border-bottom: 2px solid rgba(239, 68, 68, 0.4);
-  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.2);
-}
-
 /* ─── Chevron pulse (next-row indicator) ─── */
 @keyframes chevronPulse {
   0%, 100% { opacity: 0.3; transform: translateY(0); }

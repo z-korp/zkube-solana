@@ -49,7 +49,6 @@ export interface GridProps {
   bonus: BonusType;
   isTxProcessing: boolean;
   setIsTxProcessing: React.Dispatch<React.SetStateAction<boolean>>;
-  levelTransitionPending: boolean;
   onCascadeComplete?: () => void;
   onNextLineUpdate?: (nextRow: number[]) => void;
   onMove: (
@@ -368,6 +367,7 @@ const Grid: React.FC<GridProps> = ({
     }
 
     if (currentBonus === BonusType.Hammer || currentBonus === BonusType.Totem || currentBonus === BonusType.Wave) {
+      playSfx("bonus-activate");
       setIsTxProcessing(true);
       setIsMoving(true);
       setGameState(GameState.GRAVITY_BONUS);
@@ -375,7 +375,7 @@ const Grid: React.FC<GridProps> = ({
     }
 
     onDragStart(e.clientX, block);
-  }, [onDragStart, setIsTxProcessing]);
+  }, [onDragStart, playSfx, setIsTxProcessing]);
 
   // Stable callback refs — identity never changes so Block's React.memo works.
   const handlePointerDownRef = useRef(handlePointerDown);
@@ -535,12 +535,11 @@ const Grid: React.FC<GridProps> = ({
             onCascadeComplete?.();
           } else pendingReceiptRef.current = state;
         }
-        playSfx("bonus-activate");
       } catch {
         recoverMoveFailure("Bonus failed to confirm — syncing with the chain…");
       }
     },
-    [gridHeight, onBonus, playSfx, saveGridStateblocks, nextLineData, setIsTxProcessing],
+    [gridHeight, onBonus, saveGridStateblocks, nextLineData, setIsTxProcessing],
   );
 
   // =================== GAME LOGIC ===================

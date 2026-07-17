@@ -8,9 +8,9 @@ import {
 } from "./constants";
 import { VRF_QUEUE } from "./runPlan";
 
-export type DeploymentCluster = "localnet" | "devnet";
-export type DeploymentApprovalStatus = "candidate" | "approved";
-export type ManifestCheckStatus = "pass" | "fail";
+type DeploymentCluster = "localnet" | "devnet";
+type DeploymentApprovalStatus = "candidate" | "approved";
+type ManifestCheckStatus = "pass" | "fail";
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
@@ -57,7 +57,7 @@ export interface ZkubeDeploymentManifest {
   };
 }
 
-export interface DeploymentManifestCheck {
+interface DeploymentManifestCheck {
   id: string;
   label: string;
   status: ManifestCheckStatus;

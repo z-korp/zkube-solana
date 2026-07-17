@@ -205,7 +205,7 @@ export async function resolvePersistedRun(args: {
  * pointer. The pointer is authoritative across browsers; browser storage is
  * only a cache for the current device key.
  */
-export async function discoverActiveRunMarker(args: {
+async function discoverActiveRunMarker(args: {
   owner: PublicKey;
   wallet: WalletLike;
   baseConnection: Connection;

@@ -1,6 +1,7 @@
+import { errorMessage } from "@/utils/errors";
 import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
 
-export type RunStartFailureKind =
+type RunStartFailureKind =
   | "deviceSessionRenewal"
   | "runDiscoveryPending"
   | "activeRunExists"
@@ -12,7 +13,7 @@ export interface DescribedRunStartError {
   detail: string | null;
 }
 
-export const RUN_DISCOVERY_PENDING_ERROR_CODE =
+const RUN_DISCOVERY_PENDING_ERROR_CODE =
   "ZKUBE_RUN_DISCOVERY_PENDING";
 
 export function runDiscoveryPendingError(): Error {
@@ -22,12 +23,12 @@ export function runDiscoveryPendingError(): Error {
 }
 
 export function isActiveRunConflict(value: unknown): boolean {
-  const message = value instanceof Error ? value.message : String(value);
+  const message = errorMessage(value);
   return /Run \d+ is already active\./.test(message);
 }
 
 export function describeRunStartError(value: unknown): DescribedRunStartError {
-  const message = value instanceof Error ? value.message : String(value);
+  const message = errorMessage(value);
   if (isDeviceSessionRenewalError(value)) {
     return {
       kind: "deviceSessionRenewal",

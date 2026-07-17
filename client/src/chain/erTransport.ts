@@ -3,6 +3,7 @@ import type {
   Connection,
 } from "@solana/web3.js";
 import { Transaction } from "@solana/web3.js";
+import { errorMessage } from "@/utils/errors";
 import type { TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 
@@ -14,7 +15,7 @@ interface CachedBlockhash extends BlockhashWithExpiryBlockHeight {
 
 const blockhashByEndpoint = new Map<string, CachedBlockhash>();
 
-export interface ErSubmissionTiming {
+interface ErSubmissionTiming {
   totalMs: number;
   blockhashMs: number;
   signMs: number;
@@ -211,14 +212,14 @@ function invalidateErBlockhash(connection: Connection): void {
 }
 
 function isDefiniteBlockhashError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /blockhash not found|block height exceeded|expired blockhash/i.test(
     message,
   );
 }
 
 function isConfirmationUncertain(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /timeout|timed out|not confirmed|unable to confirm|ws error|websocket|block height exceeded|expired blockhash|blockhash.*expired/i.test(
     message,
   );

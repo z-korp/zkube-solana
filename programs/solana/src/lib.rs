@@ -36,30 +36,22 @@ pub mod solana {
         instructions::content_instructions::handler_initialize_player(ctx)
     }
 
-    pub fn register_username(ctx: Context<RegisterUsername>, args: UsernameArgs) -> Result<()> {
-        instructions::identity_instructions::handler_register_username(ctx, args)
-    }
-
-    pub fn rename_username(ctx: Context<RenameUsername>, args: RenameUsernameArgs) -> Result<()> {
-        instructions::identity_instructions::handler_rename_username(ctx, args)
-    }
-
-    pub fn replace_moderated_username(
-        ctx: Context<ReplaceModeratedUsername>,
-        args: RenameUsernameArgs,
+    pub fn create_player_label(
+        ctx: Context<CreatePlayerLabel>,
+        args: PlayerLabelArgs,
     ) -> Result<()> {
-        instructions::identity_instructions::handler_replace_moderated_username(ctx, args)
+        instructions::player_label_instructions::handler_create_player_label(ctx, args)
     }
 
-    pub fn moderate_username(
-        ctx: Context<ModerateUsername>,
-        args: ModerateUsernameArgs,
+    pub fn funded_create_player_label(
+        ctx: Context<FundedCreatePlayerLabel>,
+        args: PlayerLabelArgs,
     ) -> Result<()> {
-        instructions::identity_instructions::handler_moderate_username(ctx, args)
+        instructions::player_funding_instructions::handler_funded_create_player_label(ctx, args)
     }
 
-    pub fn restore_username(ctx: Context<RestoreUsername>, normalized: String) -> Result<()> {
-        instructions::identity_instructions::handler_restore_username(ctx, normalized)
+    pub fn set_player_label(ctx: Context<SetPlayerLabel>, args: PlayerLabelArgs) -> Result<()> {
+        instructions::player_label_instructions::handler_set_player_label(ctx, args)
     }
 
     pub fn withdraw_player_funding(

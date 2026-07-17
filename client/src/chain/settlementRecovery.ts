@@ -126,7 +126,7 @@ export function consumeRunAccountKeys(
   ];
 }
 
-export async function validateConsumeRunAccountKeys(
+async function validateConsumeRunAccountKeys(
   connection: Connection,
   mode: RecoveryMode,
   keys: readonly PublicKey[],

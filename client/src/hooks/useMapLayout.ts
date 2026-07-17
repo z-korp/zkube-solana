@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 
-export type MapLayoutEdgeKind = "main" | "branch";
+type MapLayoutEdgeKind = "main" | "branch";
 
-export interface MapLayoutPoint {
+interface MapLayoutPoint {
   x: number;
   y: number;
 }
 
-export interface MapLayoutEdge {
+interface MapLayoutEdge {
   from: number;
   to: number;
   kind: MapLayoutEdgeKind;

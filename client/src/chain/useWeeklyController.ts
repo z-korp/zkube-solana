@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { submitVersionedTransactionPlan } from "./runPlan";
@@ -39,7 +40,7 @@ export function useWeeklyController() {
       setError(null);
       return { currentWeek, previousWeek, preferred };
     } catch (cause) {
-      setError(message(cause));
+      setError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -105,7 +106,7 @@ export function useWeeklyController() {
       }
       await refresh();
     } catch (cause) {
-      setError(message(cause));
+      setError(errorMessage(cause));
     } finally {
       maintaining.current = false;
     }
@@ -154,7 +155,7 @@ export function useWeeklyController() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(message(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setAction(null);
@@ -172,8 +173,4 @@ export function useWeeklyController() {
     claimSol: () => claim("sol"),
     claimStars: () => claim("stars"),
   };
-}
-
-function message(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }

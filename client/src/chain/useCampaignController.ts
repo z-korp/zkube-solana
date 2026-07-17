@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import {
   buildUnlockMapWithStarsPlan,
@@ -37,7 +38,7 @@ export function useCampaignController() {
       setError(null);
       return next;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -74,7 +75,7 @@ export function useCampaignController() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setUnlocking(false);

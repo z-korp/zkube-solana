@@ -1,6 +1,6 @@
 pub mod economy;
-pub mod identity;
+pub mod player_label;
 pub mod protocol;
 pub use economy::*;
-pub use identity::*;
+pub use player_label::*;
 pub use protocol::*;

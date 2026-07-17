@@ -15,6 +15,7 @@ import useAccount from "@/hooks/useAccount";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
+import { useCountdown } from "@/hooks/useNowTick";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
@@ -27,24 +28,13 @@ import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 import LevelRing from "@/ui/components/shared/LevelRing";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { truncatePublicKey } from "@/utils/solanaDisplay";
+import StarBalance from "@/ui/components/shared/StarBalance";
+import WalletChip from "@/ui/components/shared/WalletChip";
+import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatCountdown } from "@/utils/time";
 
 const useDailyCountdown = (endTime: number | undefined) => {
-  const [remaining, setRemaining] = useState(() =>
-    endTime ? Math.max(0, endTime - Math.floor(Date.now() / 1000)) : 0,
-  );
-
-  useEffect(() => {
-    if (!endTime) return;
-    const tick = () =>
-      setRemaining(Math.max(0, endTime - Math.floor(Date.now() / 1000)));
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [endTime]);
-
+  const remaining = useCountdown(endTime);
   if (!endTime || remaining <= 0) return null;
   return formatCountdown(remaining);
 };
@@ -150,7 +140,7 @@ const HomePage: React.FC = () => {
   const activeStoryRun = useActiveStoryAttempt();
   const activeStoryAttemptId = activeStoryRun?.gameId ?? null;
   const zone = zones[activeZone] ?? zones[0];
-  const colors = getThemeColors(themeTemplate);
+  const colors = useThemeColors();
 
   // Arrow pagination through the story zone strip. Each click scrolls the
   // container by its own visible width; past an edge, pagination wraps.
@@ -238,27 +228,15 @@ const HomePage: React.FC = () => {
                 <p className="truncate font-sans text-[16px] font-extrabold text-white">
                   {playerTitle}
                 </p>
-                <span
-                  className="mt-0.5 inline-flex max-w-full items-center rounded-full border border-white/[0.12] bg-white/[0.06] px-2 py-0.5"
-                  title={address}
-                >
-                  <span className="truncate font-mono text-[11px] font-semibold text-white/60">
-                    {truncatePublicKey(address)}
-                  </span>
-                </span>
+                <WalletChip address={address} title={address} className="mt-0.5" />
               </div>
             </div>
-            <div className="shrink-0 text-right">
-              <p
-                className="font-sans text-2xl font-black leading-none"
-                style={{ color: colors.accent2 }}
-              >
-                ★ {zStarBalance}
-              </p>
-              <p className="font-sans text-[10px] font-semibold text-white/50">
-                Stars balance
-              </p>
-            </div>
+            <StarBalance
+              value={zStarBalance}
+              size="md"
+              align="right"
+              className="shrink-0"
+            />
           </motion.div>
 
           <motion.div

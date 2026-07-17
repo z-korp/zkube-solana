@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "@/chain/connectionContext";
 import {
   buildRefundDailyEntryPlan,
@@ -33,7 +34,7 @@ export function usePreviousChallenge() {
       setError(null);
       return result;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -67,7 +68,7 @@ export function usePreviousChallenge() {
         await refresh();
         return signature;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(errorMessage(cause));
         throw cause;
       } finally {
         setAction(null);
@@ -86,5 +87,3 @@ export function usePreviousChallenge() {
     refund,
   };
 }
-
-export default usePreviousChallenge;

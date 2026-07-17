@@ -1,17 +1,17 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-export type TabId =
+type TabId =
   | "home"
   | "rewards"
   | "ranks"
   | "shop"
   | "profile"
   | "settings";
-export type OverlayId = "play" | "boss" | "map" | "spectate";
+type OverlayId = "play" | "boss" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
-export type ShopOrigin = "ranks" | "home";
-export type SettingsFocus = "wallet";
+type ShopOrigin = "ranks" | "home";
+type SettingsFocus = "wallet";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
@@ -20,7 +20,7 @@ export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "spectate",
 ]);
 
-export interface SpectateTargetParams {
+interface SpectateTargetParams {
   player?: string;
   pda?: string;
   runId?: string;

@@ -5,7 +5,6 @@ import {
   canonicalCampaignMap,
 } from "@/chain/campaignCatalog";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
-import { BOSS_IDENTITIES } from "@/config/bossIdentities";
 
 const CAMPAIGN_WEIGHT_CURVE = [
   [15, 30, 30, 15, 10],
@@ -41,9 +40,11 @@ describe("shared game parity fixtures", () => {
     }
   });
 
-  it("keeps the canonical boss identity attached to each map snapshot", () => {
+  it("keeps each map snapshot in sync with the authored catalog", () => {
     for (const map of fixtures.mapCatalog) {
-      expect(BOSS_IDENTITIES[map.bossId]?.name, `map ${map.mapId}`).toBe(map.bossName);
+      const authored = canonicalCampaignMap(1, map.mapId);
+      expect(authored.themeId, `map ${map.mapId}`).toBe(map.themeId);
+      expect(authored.mapRules.bossId, `map ${map.mapId}`).toBe(map.bossId);
     }
   });
 

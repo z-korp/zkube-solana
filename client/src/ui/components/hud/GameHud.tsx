@@ -38,7 +38,6 @@ interface GameHudProps {
   combo: number;
   constraintProgress: number;
   constraint2Progress: number;
-  bonusUsedThisLevel: boolean;
   gameLevel: GameLevelData | null;
   activeMutatorId?: number;
   mode?: number;

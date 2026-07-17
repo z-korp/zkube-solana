@@ -38,24 +38,11 @@ export function derivePlayerStatePda(
   return derive([Buffer.from("player"), owner.toBuffer()], programId);
 }
 
-export function derivePlayerIdentityPda(
+export function derivePlayerLabelPda(
   owner: PublicKey,
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {
-  return derive([Buffer.from("identity"), owner.toBuffer()], programId);
-}
-
-export function deriveUsernameClaimPda(
-  normalized: string,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  if (!/^[a-z][a-z0-9_]{2,15}$/.test(normalized)) {
-    throw new Error(
-      "normalized username must be 3-16 lowercase ASCII characters",
-    );
-  }
-  const bytes = Buffer.from(normalized, "ascii");
-  return derive([Buffer.from("username"), bytes], programId);
+  return derive([Buffer.from("label"), owner.toBuffer()], programId);
 }
 
 export function derivePlayerFundingPda(
@@ -132,14 +119,6 @@ export function deriveWeeklyLeaderboardPda(
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {
   return derive([Buffer.from("weekly_board"), challenge.toBuffer()], programId);
-}
-
-export function deriveWeeklyVaultPda(
-  weekId: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(weekId, 0, 0xffff_ffff, "weekId");
-  return derive([Buffer.from("weekly_vault"), u32le(weekId)], programId);
 }
 
 export function deriveRunAddresses(

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useRun } from "@/contexts/run";
+import { errorMessage } from "@/utils/errors";
 
 import { useSolanaConnection } from "./connectionContext";
 import {
@@ -33,7 +34,7 @@ export function useDailyController() {
       setError(null);
       return next;
     } catch (cause) {
-      setError(message(cause));
+      setError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ export function useDailyController() {
     } catch (cause) {
       // Keeper races are expected; a fresh read resolves already-created or
       // already-finalized accounts without making gameplay approval-gated.
-      setError(message(cause));
+      setError(errorMessage(cause));
     } finally {
       maintaining.current = false;
     }
@@ -142,7 +143,7 @@ export function useDailyController() {
       setError(null);
       return active;
     } catch (cause) {
-      setError(message(cause));
+      setError(errorMessage(cause));
       throw cause;
     } finally {
       setAction(null);
@@ -173,7 +174,7 @@ export function useDailyController() {
       setError(null);
       return signature;
     } catch (cause) {
-      setError(message(cause));
+      setError(errorMessage(cause));
       throw cause;
     } finally {
       setAction(null);
@@ -190,8 +191,4 @@ export function useDailyController() {
     enter,
     refund,
   };
-}
-
-function message(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }

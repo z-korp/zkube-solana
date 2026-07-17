@@ -8,7 +8,7 @@ import {
   deriveProtocolConfigPda,
   deriveStarSalesLedgerPda,
 } from "./pdas";
-export type DevnetRuntimePhase =
+type DevnetRuntimePhase =
   | "checking"
   | "bootstrap-pending"
   | "ready"
@@ -40,7 +40,7 @@ export function useDevnetRuntimeStatus(): DevnetRuntimeStatus {
   return status;
 }
 
-export async function probeDevnetRuntime(
+async function probeDevnetRuntime(
   connection: import("@solana/web3.js").Connection,
 ): Promise<DevnetRuntimeStatus> {
   try {

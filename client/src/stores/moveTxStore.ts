@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-export type QueuedMoveStatus = "queued" | "submitting";
+type QueuedMoveStatus = "queued" | "submitting";
 
-export interface QueuedMove {
+interface QueuedMove {
   id: string;
   gameId: bigint;
   rowIndex: number;

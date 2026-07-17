@@ -46,9 +46,13 @@ vi.mock("@/chain/connectedPlayerContext", () => ({
   useConnectedPlayer: () => fixtures.player,
 }));
 
-vi.mock("@/ui/elements/theme-provider/hooks", () => ({
-  useTheme: () => ({ themeTemplate: "theme-1" }),
-}));
+vi.mock("@/ui/elements/theme-provider/hooks", async () => {
+  const { getThemeColors } = await import("@/config/themes");
+  return {
+    useTheme: () => ({ themeTemplate: "theme-1" }),
+    useThemeColors: () => getThemeColors("theme-1"),
+  };
+});
 
 beforeAll(() => {
   vi.stubGlobal("React", React);

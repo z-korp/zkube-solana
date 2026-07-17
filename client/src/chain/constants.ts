@@ -40,22 +40,6 @@ export const SOLANA_ENDPOINT =
 
 export const SOLANA_DEVNET_GENESIS_HASH =
   "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
-export const SOLANA_EXPECTED_GENESIS_HASH =
-  clientEnv.VITE_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH ??
-  (isLocalEndpoint(SOLANA_ENDPOINT) ? null : SOLANA_DEVNET_GENESIS_HASH);
-
-function isLocalEndpoint(endpoint: string): boolean {
-  try {
-    const hostname = new URL(endpoint).hostname;
-    return (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "[::1]"
-    );
-  } catch {
-    return false;
-  }
-}
 
 // MagicBlock delegation record for an active run PDA.
 export function getDelegationRecord(pdaPubkey: PublicKey): PublicKey {

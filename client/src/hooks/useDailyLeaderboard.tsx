@@ -51,5 +51,3 @@ export function useDailyLeaderboard(challengeId: number | undefined) {
     isLoading: loading && challengeId !== undefined,
   };
 }
-
-export default useDailyLeaderboard;

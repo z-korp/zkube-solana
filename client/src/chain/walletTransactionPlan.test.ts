@@ -7,7 +7,6 @@ import {
   delegationRecordPdaFromDelegatedAccount,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
-  ComputeBudgetProgram,
   Keypair,
   SystemProgram,
   Transaction,
@@ -28,7 +27,6 @@ import {
 } from "./pdas";
 import {
   compileWalletTransactionPlan,
-  WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
   zkubeProgram,
   type TransactionPlan,
 } from "./runPlan";
@@ -239,16 +237,13 @@ describe("native SOL transaction boundaries", () => {
       wallet,
     });
     const restored = VersionedTransaction.deserialize(signed.serialize());
-    const computeInstruction = signed.message.compiledInstructions[0]!;
-    const computeProgram =
-      signed.message.staticAccountKeys[computeInstruction.programIdIndex];
+    const transferInstruction = signed.message.compiledInstructions[0]!;
+    const transferProgram =
+      signed.message.staticAccountKeys[transferInstruction.programIdIndex];
 
     expect(signed.message.header.numRequiredSignatures).toBe(1);
-    expect(computeProgram?.equals(ComputeBudgetProgram.programId)).toBe(true);
-    expect(Buffer.from(computeInstruction.data).readUInt8(0)).toBe(2);
-    expect(Buffer.from(computeInstruction.data).readUInt32LE(1)).toBe(
-      WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
-    );
+    expect(transferProgram?.equals(SystemProgram.programId)).toBe(true);
+    expect(signed.message.compiledInstructions).toHaveLength(1);
     expect([...signed.signatures[0]!].some((byte) => byte !== 0)).toBe(true);
     expect(Buffer.from(restored.message.serialize())).toEqual(
       Buffer.from(signed.message.serialize()),
@@ -312,17 +307,11 @@ describe("native SOL transaction boundaries", () => {
     const message = new TransactionMessage({
       payerKey: actor.publicKey,
       recentBlockhash: Keypair.generate().publicKey.toBase58(),
-      instructions: [
-        ComputeBudgetProgram.setComputeUnitLimit({
-          units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
-        }),
-        prepare,
-        delegate,
-      ],
+      instructions: [prepare, delegate],
     }).compileToV0Message();
     const serialized = new VersionedTransaction(message).serialize();
 
-    expect(message.compiledInstructions).toHaveLength(3);
+    expect(message.compiledInstructions).toHaveLength(2);
     expect(message.header.numRequiredSignatures).toBe(1);
     expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
   });

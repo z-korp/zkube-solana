@@ -3,7 +3,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { browserLocalStorage, type StorageLike } from "@/platform/browserStorage";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 
-export const DEVICE_SESSION_STORAGE_KEY = "zkube:device-sessions:v1";
+const DEVICE_SESSION_STORAGE_KEY = "zkube:device-sessions:v1";
 
 interface StoredDeviceSession {
   version: 1;

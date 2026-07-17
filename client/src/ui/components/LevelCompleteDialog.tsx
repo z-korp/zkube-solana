@@ -25,7 +25,6 @@ interface LevelCompleteDialogProps {
   zoneId?: number;
   colors?: ThemeColors;
   isIncomplete?: boolean;
-  draftWillOpen?: boolean;
   xpAwarded: number;
 }
 
@@ -41,7 +40,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   zoneId = 1,
   colors,
   isIncomplete = false,
-  draftWillOpen = false,
   xpAwarded,
 }) => {
   const [animationPhase, setAnimationPhase] = useState(0);
@@ -272,9 +270,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                   ? "Settling…"
                   : isIncomplete
                     ? "Back to Map"
-                    : draftWillOpen
-                      ? "Continue to Draft"
-                      : "Continue"}
+                    : "Continue"}
               </ArcadeButton>
             </motion.div>
           </div>

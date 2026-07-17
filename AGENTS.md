@@ -10,7 +10,9 @@ do not add approval prompts to the shipped product.
 - The connected Solana address is the player identity. There are no embedded
   wallets, recovery codes, deposits, or recovery material.
 - The owner funds a shared 0.025 SOL System-owned, zero-data player funding PDA
-  and a 0.001 SOL device fee allowance. There is no Kora or custom paymaster.
+  and a recyclable 0.005 SOL device fee allowance. A low live signer is refilled
+  in place; a locally controlled expired signer is drained during rotation.
+  There is no Kora or custom paymaster.
 - A scoped device session authorizes safe play for about seven days; ER gameplay
   is gasless. Its on-chain rent payer must equal the player owner; the keeper
   may reclaim only expired Session Keys accounts, at most two per pass. Star
@@ -33,7 +35,17 @@ do not add approval prompts to the shipped product.
 
 If code or comments contradict these rules, fix them with the implementation.
 Architecture and operations documentation belongs in code comments and
-`README.md`; do not add new Markdown documents.
+`README.md`; do not add new Markdown documents unless the user explicitly
+requests a deferred design record.
+
+## Deferred design records
+
+- `KORA_SPONSORSHIP_PLAN.md` is the saved implementation and rollout plan for a
+  possible later Devnet Kora sponsorship release. Its purpose is to preserve
+  the researched no-custom-API design, security constraints, fallback,
+  verification, and hosting decisions. It is planning material only: it does
+  not supersede Product truth, authorize implementation or deployment, or
+  approve funding the Kora signer.
 
 ## Transaction policy
 

@@ -103,29 +103,6 @@ export const reconcileBlocksToGrid = (
   });
 };
 
-export const blocksMatchGrid = (
-  blocks: Block[],
-  grid: number[][]
-): boolean => {
-  const height = grid.length;
-  const width = grid[0]?.length ?? 0;
-  const matrix = Array.from({ length: height }, () => Array(width).fill(0));
-  for (const block of blocks) {
-    if (block.y < 0 || block.y >= height) return false;
-    for (let i = 0; i < block.width; i++) {
-      const x = block.x + i;
-      if (x < 0 || x >= width) return false;
-      matrix[block.y][x] = block.width;
-    }
-  }
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (matrix[y][x] !== grid[y][x]) return false;
-    }
-  }
-  return true;
-};
-
 export const removeBlocksSameWidth = (
   block: Block,
   blocks: Block[]

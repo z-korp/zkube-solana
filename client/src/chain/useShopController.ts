@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { errorMessage } from "@/utils/errors";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
 import { submitVersionedTransactionPlan } from "./runPlan";
@@ -91,8 +92,4 @@ export function useShopController() {
   );
 
   return { shop, loading, purchasingPack, error, refresh, purchase };
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }

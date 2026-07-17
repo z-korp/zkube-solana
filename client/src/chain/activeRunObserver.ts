@@ -1,4 +1,5 @@
 import type { Connection, PublicKey } from "@solana/web3.js";
+import { errorMessage } from "@/utils/errors";
 
 export type ActiveRunUpdateSource = "initial" | "websocket" | "fallback";
 
@@ -156,7 +157,7 @@ export class ActiveRunObserver<T> {
   ): void {
     this.onDiagnostic?.({
       event,
-      error: (error instanceof Error ? error.message : String(error)).slice(
+      error: errorMessage(error).slice(
         0,
         200,
       ),

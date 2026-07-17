@@ -18,15 +18,11 @@ import {
   type StandardDisconnectFeature,
   type StandardEventsFeature,
 } from "@wallet-standard/features";
-import {
-  PublicKey,
-  Transaction,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
 import type { WalletLike } from "@/chain/sessionWallet";
 
-export const DEVNET_CHAIN = "solana:devnet" as const;
+const DEVNET_CHAIN = "solana:devnet" as const;
 
 export interface WalletConnector {
   id: string;
@@ -40,7 +36,7 @@ export interface WalletConnector {
 let mobileRegistered = false;
 
 /** Register MWA before asking Wallet Standard for its first discovery snapshot. */
-export function registerMobileWalletStandard(): void {
+function registerMobileWalletStandard(): void {
   if (mobileRegistered || !isAndroidBrowser()) return;
   mobileRegistered = true;
   registerMwa({
@@ -115,9 +111,9 @@ export async function connectWalletStandard(
 }
 
 export async function disconnectWalletStandard(wallet: Wallet): Promise<void> {
-  const feature = wallet.features[
-    StandardDisconnect
-  ] as StandardDisconnectFeature[typeof StandardDisconnect] | undefined;
+  const feature = wallet.features[StandardDisconnect] as
+    | StandardDisconnectFeature[typeof StandardDisconnect]
+    | undefined;
   await feature?.disconnect();
 }
 
@@ -125,15 +121,17 @@ export function subscribeWalletAccounts(
   wallet: Wallet,
   listener: (accounts: readonly WalletAccount[]) => void,
 ): () => void {
-  const events = wallet.features[
-    StandardEvents
-  ] as StandardEventsFeature[typeof StandardEvents] | undefined;
-  return events?.on("change", ({ accounts }) => {
-    if (accounts) listener(accounts);
-  }) ?? (() => undefined);
+  const events = wallet.features[StandardEvents] as
+    | StandardEventsFeature[typeof StandardEvents]
+    | undefined;
+  return (
+    events?.on("change", ({ accounts }) => {
+      if (accounts) listener(accounts);
+    }) ?? (() => undefined)
+  );
 }
 
-export class WalletStandardWallet implements WalletLike {
+class WalletStandardWallet implements WalletLike {
   readonly publicKey: PublicKey;
 
   constructor(
@@ -161,9 +159,9 @@ export class WalletStandardWallet implements WalletLike {
   private async signTransactions(
     transactions: Array<Transaction | VersionedTransaction>,
   ): Promise<Array<Transaction | VersionedTransaction>> {
-    const feature = this.standardWallet.features[
-      SolanaSignTransaction
-    ] as SolanaSignTransactionFeature[typeof SolanaSignTransaction] | undefined;
+    const feature = this.standardWallet.features[SolanaSignTransaction] as
+      | SolanaSignTransactionFeature[typeof SolanaSignTransaction]
+      | undefined;
     if (!feature || !feature.supportedTransactionVersions.includes(0)) {
       throw new Error(
         `${this.standardWallet.name} does not support unsigned v0 transaction signing.`,
@@ -185,6 +183,7 @@ export class WalletStandardWallet implements WalletLike {
         transactions[index]!,
         output.signedTransaction,
         this.publicKey,
+        this.standardWallet.name,
       ),
     );
   }
@@ -199,13 +198,13 @@ function hasConnectFeature(wallet: Wallet): boolean {
 }
 
 function supportsV0Signing(wallet: Wallet): boolean {
-  const feature = wallet.features[
-    SolanaSignTransaction
-  ] as SolanaSignTransactionFeature[typeof SolanaSignTransaction] | undefined;
+  const feature = wallet.features[SolanaSignTransaction] as
+    | SolanaSignTransactionFeature[typeof SolanaSignTransaction]
+    | undefined;
   return Boolean(
     feature &&
-      wallet.chains.includes(DEVNET_CHAIN) &&
-      feature.supportedTransactionVersions.includes(0),
+    wallet.chains.includes(DEVNET_CHAIN) &&
+    feature.supportedTransactionVersions.includes(0),
   );
 }
 
@@ -237,9 +236,11 @@ export function verifyWalletSignedOutput(
   original: Transaction | VersionedTransaction,
   signedBytes: Uint8Array,
   walletPublicKey: PublicKey,
+  walletName = "Wallet Standard",
 ): Transaction | VersionedTransaction {
   if (original instanceof VersionedTransaction) {
     const signed = VersionedTransaction.deserialize(signedBytes);
+    logWalletMessageShape(walletName, original, signed, walletPublicKey);
     assertBytesEqual(
       original.message.serialize(),
       signed.message.serialize(),
@@ -259,6 +260,7 @@ export function verifyWalletSignedOutput(
   }
 
   const signed = Transaction.from(signedBytes);
+  logWalletMessageShape(walletName, original, signed, walletPublicKey);
   assertBytesEqual(
     original.serializeMessage(),
     signed.serializeMessage(),
@@ -274,13 +276,92 @@ export function verifyWalletSignedOutput(
   return signed;
 }
 
+function logWalletMessageShape(
+  walletName: string,
+  before: Transaction | VersionedTransaction,
+  after: Transaction | VersionedTransaction,
+  walletPublicKey: PublicKey,
+): void {
+  const beforeMessage = serializedMessage(before);
+  const afterMessage = serializedMessage(after);
+  const sameMessage = bytesEqual(beforeMessage, afterMessage);
+  const event = {
+    schemaVersion: 1,
+    event: "wallet_sign_message",
+    wallet: walletName,
+    owner: walletPublicKey.toBase58(),
+    version: before instanceof VersionedTransaction ? "v0" : "legacy",
+    ok: sameMessage,
+    beforeHash: messageFingerprint(beforeMessage),
+    afterHash: messageFingerprint(afterMessage),
+    beforeInstructions: instructionCount(before),
+    afterInstructions: instructionCount(after),
+    requiredSigners:
+      before instanceof VersionedTransaction
+        ? before.message.header.numRequiredSignatures
+        : before.signatures.length,
+    programIds: messageProgramIds(before),
+  };
+  (sameMessage ? console.info : console.warn)(JSON.stringify(event));
+}
+
+function serializedMessage(
+  transaction: Transaction | VersionedTransaction,
+): Uint8Array {
+  return transaction instanceof VersionedTransaction
+    ? transaction.message.serialize()
+    : transaction.serializeMessage();
+}
+
+function instructionCount(
+  transaction: Transaction | VersionedTransaction,
+): number {
+  return transaction instanceof VersionedTransaction
+    ? transaction.message.compiledInstructions.length
+    : transaction.instructions.length;
+}
+
+function messageProgramIds(
+  transaction: Transaction | VersionedTransaction,
+): string[] {
+  if (!(transaction instanceof VersionedTransaction)) {
+    return transaction.instructions.map((instruction) =>
+      instruction.programId.toBase58(),
+    );
+  }
+  return transaction.message.compiledInstructions.map(
+    (instruction) =>
+      transaction.message.staticAccountKeys[
+        instruction.programIdIndex
+      ]?.toBase58() ?? "address-lookup",
+  );
+}
+
+function messageFingerprint(bytes: Uint8Array): string {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of bytes) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return (
+    left.length === right.length &&
+    left.every((byte, index) => byte === right[index])
+  );
+}
+
 function verifySignatureSet(
   signerKeys: readonly PublicKey[],
   before: readonly Uint8Array[],
   after: readonly Uint8Array[],
   walletPublicKey: PublicKey,
 ): void {
-  const walletIndex = signerKeys.findIndex((key) => key.equals(walletPublicKey));
+  const walletIndex = signerKeys.findIndex((key) =>
+    key.equals(walletPublicKey),
+  );
   if (walletIndex < 0 || isZeroSignature(after[walletIndex])) {
     throw new Error("Wallet did not sign with the connected account");
   }

@@ -1,30 +1,13 @@
 import React, { useMemo } from "react";
 import { motion } from "motion/react";
 
-import {
-  getThemeImages,
-  type ThemeColors,
-  type ThemeId,
-} from "@/config/themes";
+import { getThemeImages, type ThemeId } from "@/config/themes";
 import type { ZoneProgressData } from "@/config/profileData";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { staggerContainer, staggerItem } from "@/ui/motion";
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
-  },
-};
+const containerVariants = staggerContainer(0.05);
 
 const THEME_BY_ZONE: Record<number, ThemeId> = {
   1: "theme-1",
@@ -40,16 +23,15 @@ const THEME_BY_ZONE: Record<number, ThemeId> = {
 };
 
 interface ZoneProgressTabProps {
-  colors: ThemeColors;
   zones: ZoneProgressData[];
   totalStars: number;
 }
 
 const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
-  colors,
   zones,
   totalStars,
 }) => {
+  const colors = useThemeColors();
   const sortedZones = useMemo(
     () =>
       [...zones].sort((left, right) =>
@@ -66,7 +48,7 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
       className="flex flex-col gap-3 pb-2"
     >
       <motion.div
-        variants={itemVariants}
+        variants={staggerItem}
         className="flex items-center justify-between"
       >
         <p
@@ -85,7 +67,7 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
 
       {sortedZones.map((zone) => (
         <motion.section
-          variants={itemVariants}
+          variants={staggerItem}
           key={zone.zoneId}
           className="w-full rounded-2xl px-2.5 py-3 text-left backdrop-blur-xl"
           style={{
@@ -181,7 +163,7 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
       ))}
 
       <motion.p
-        variants={itemVariants}
+        variants={staggerItem}
         className="text-center font-sans text-[10px] text-white/40"
       >
         Unlock additional zones from the Map.

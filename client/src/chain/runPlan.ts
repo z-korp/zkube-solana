@@ -21,7 +21,6 @@ import {
 import BN from "bn.js";
 import { Buffer } from "buffer";
 import {
-  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -67,15 +66,7 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 
-/**
- * Phantom enhances otherwise-unsigned dapp transactions with its own priority
- * fee instructions. Pinning a deterministic compute limit opts out of that
- * message rewrite while retaining the exact signed-message integrity check.
- * The largest measured client instruction remains well below this Devnet cap.
- */
-export const WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT = 400_000;
-
-export type RunLayer = "solana-base" | "magicblock-er";
+type RunLayer = "solana-base" | "magicblock-er";
 
 export interface TransactionPlan {
   layer: RunLayer;
@@ -97,7 +88,7 @@ export interface PreparedRunPlan {
   transactionPlan: TransactionPlan;
 }
 
-export type EndlessThresholdsView = [
+type EndlessThresholdsView = [
   number,
   number,
   number,
@@ -107,7 +98,7 @@ export type EndlessThresholdsView = [
   number,
 ];
 
-export type EndlessScoreMultipliersX100View = [
+type EndlessScoreMultipliersX100View = [
   number,
   number,
   number,
@@ -121,7 +112,6 @@ export type EndlessScoreMultipliersX100View = [
 export interface EndlessRulesView {
   endlessThresholds: EndlessThresholdsView;
   endlessScoreMultipliersX100: EndlessScoreMultipliersX100View;
-  endlessRampMultiplierX100: number;
 }
 
 export interface ActiveRunView extends EndlessRulesView {
@@ -790,7 +780,7 @@ export function decodeActiveRunAccount(
   return mapActiveRunAccount(decoded);
 }
 
-export function mapActiveRunAccount(
+function mapActiveRunAccount(
   account: DecodedActiveRunAccount,
 ): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
@@ -824,7 +814,6 @@ export function mapActiveRunAccount(
     // the old Cairo endless mode to Daily pressure tiers.
     endlessThresholds: dailyPressure.thresholds,
     endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
-    endlessRampMultiplierX100: 100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
     grid: [...account.grid].map(Number),
@@ -832,62 +821,6 @@ export function mapActiveRunAccount(
     pendingVrfCounter: Number(account.pendingVrfCounter),
     vrfRequestCounter: Number(account.vrfRequestCounter),
   };
-}
-
-export async function simulateTransactionPlan(
-  transactionPlan: TransactionPlan,
-): Promise<void> {
-  const transaction = transactionPlan.transaction;
-  transaction.feePayer ??= transactionPlan.feePayer;
-  if (!transaction.recentBlockhash) {
-    transaction.recentBlockhash = (
-      await transactionPlan.connection.getLatestBlockhash("confirmed")
-    ).blockhash;
-  }
-  if (transactionPlan.signers.length > 0) {
-    transaction.partialSign(...transactionPlan.signers);
-  }
-  const result =
-    await transactionPlan.connection.simulateTransaction(transaction);
-  if (result.value.err) {
-    throw new Error(
-      `Simulation failed for ${transactionPlan.label}: ${JSON.stringify(result.value.err)}`,
-    );
-  }
-}
-
-export async function submitWalletTransactionPlan(args: {
-  transactionPlan: TransactionPlan;
-  wallet: WalletLike;
-}): Promise<string> {
-  const transaction = args.transactionPlan.transaction;
-  transaction.feePayer = args.transactionPlan.feePayer;
-  transaction.recentBlockhash = (
-    await args.transactionPlan.connection.getLatestBlockhash("confirmed")
-  ).blockhash;
-  if (args.transactionPlan.signers.length > 0) {
-    transaction.partialSign(...args.transactionPlan.signers);
-  }
-  const signed = await args.wallet.signTransaction(transaction);
-  const simulation =
-    await args.transactionPlan.connection.simulateTransaction(signed);
-  if (simulation.value.err) {
-    throw new Error(
-      `Simulation failed for ${args.transactionPlan.label}: ${JSON.stringify(simulation.value.err)}`,
-    );
-  }
-  const signature = await args.transactionPlan.connection.sendRawTransaction(
-    signed.serialize(),
-    {
-      maxRetries: 5,
-      skipPreflight: false,
-    },
-  );
-  await args.transactionPlan.connection.confirmTransaction(
-    signature,
-    "confirmed",
-  );
-  return signature;
 }
 
 export async function compileWalletTransactionPlan(args: {
@@ -900,21 +833,10 @@ export async function compileWalletTransactionPlan(args: {
   }
   const { blockhash } =
     await transactionPlan.connection.getLatestBlockhash("confirmed");
-  const instructions = transactionPlan.transaction.instructions.some(
-    (instruction) =>
-      instruction.programId.equals(ComputeBudgetProgram.programId),
-  )
-    ? transactionPlan.transaction.instructions
-    : [
-        ComputeBudgetProgram.setComputeUnitLimit({
-          units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
-        }),
-        ...transactionPlan.transaction.instructions,
-      ];
   const message = new TransactionMessage({
     payerKey: transactionPlan.feePayer,
     recentBlockhash: blockhash,
-    instructions,
+    instructions: transactionPlan.transaction.instructions,
   }).compileToV0Message();
   if (transactionPlan.postFeeRentReserveLamports !== undefined) {
     const [fee, balanceLamports, rentFloorLamports] = await Promise.all([

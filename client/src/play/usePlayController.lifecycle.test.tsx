@@ -94,7 +94,6 @@ function delegatedRun(
     currentDifficulty: 1,
     endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
     endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
-    endlessRampMultiplierX100: 100,
     bonusType: 0,
     bonusCharges: 0,
     grid: new Array(80).fill(0),
