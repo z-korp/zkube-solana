@@ -214,13 +214,11 @@ keeper is write-enabled, and the Git-driven production client at
 
 The tenth-row boundary correction from `a0e233f` is live at slot `476926533`.
 The governed pack rebalance, progression rebalance, milestone reconciliation,
-and public-username release described above are implemented and tested in
-source but are not live until their exact ProgramData extension, program
-upgrade, and pricing update operations are approved and verified. The
-Git-driven production client currently contains that feature surface, so the
-release bundle below must complete before username writes or rebalanced
-progression can be treated as available. No source revision or simulation is
-treated as evidence of deployed state.
+and public-username release described above are live from program slot
+`476930727`; the governed pricing revision finalized at slot `476930939`. The
+Git-driven production client and Devnet program are therefore aligned on this
+release. No source revision or simulation is treated as evidence of deployed
+state.
 
 The v3 custody preflight is satisfied and the protocol foundation was
 initialized at slot `476755019`. `ProtocolConfig` and `RewardVault` are owned
@@ -352,8 +350,8 @@ request is enqueued. Upgrade signature
 is finalized, the temporary buffer is closed, ProgramData capacity and
 authority are unchanged, and net deployer spend was 13,160,000 lamports.
 
-The progression, governed-pack, and public-username release is also validated
-but not deployed. Its selected `opt-level = "s"` ELF is 1,319,656 bytes with
+The progression, governed-pack, and public-username release is deployed. Its
+selected `opt-level = "s"` ELF is 1,319,656 bytes with
 SHA-256 `f24b7c44e336cdfb67ca7ec5903ee4eb3b63a907f2fa0a851031efbf302c8354`
 and a 9,186,009,840-lamport ProgramData rent estimate. The speed profile is
 1,568,864 bytes with SHA-256
@@ -365,24 +363,36 @@ funded prepare at 59,181, paid username rename at 36,910, registration at
 28,045, milestone reconciliation at 18,155, pack governance at 13,483, and
 moderation at 13,399.
 
-The 1,210,912-byte live ProgramData account needs a 108,744-byte
-extension costing exactly 756,858,240 rent lamports. The extension candidate
-has padded postimage
+The former 1,210,912-byte ProgramData account was extended by 108,744 bytes for
+exactly 756,858,240 rent lamports. The extension produced padded postimage
 `743a1ded711d5c8fa88d350aa0880bfaff2a51a1f827beb5a3e92a9d9e140cd1`
-and fingerprint `c64dff1f5194aed7`; the subsequent upgrade binds a
-9,185,954,160-lamport temporary buffer and fingerprint `14690131e79f879c`
+under fingerprint `c64dff1f5194aed7` and finalized with signature
+`4XPmoz2PW9WW4ceuAE4R4rxHVzpdFhdXMSvgbCMTNhZXdGjJ6SdcM7zdAsSrhbC8MXJXemQu2MDurgR43ny2Y4Qw`.
+The subsequent upgrade bound a 9,185,954,160-lamport temporary buffer and
+fingerprint `14690131e79f879c`
 (full evidence SHA-256
 `14690131e79f879c8fbc5ab2af258995c795f221b7d65809862b5ef2f8e5c431`).
-The deployer currently holds 8,419,172,841 lamports, below the conservative
-9,997,812,400-lamport sequential extension-plus-upgrade floor by
-1,578,639,559 lamports. The feature bundle therefore remains blocked on an
-explicitly approved funding source; no transaction was signed or sent. The
-subsequent pricing operation is pinned to the new SBF hash, legacy economy
+Upgrade signature
+`4ebDAgGsj7ph5Kvk19pGCifrrW3WSgeMs7T4QtVQWxfMjTN16sixjwoDocT69H3ts167yp3XzpJsHYTF5h4YgnHp`
+is finalized. ProgramData now has exact 1,319,656-byte capacity and
+9,186,009,840 lamports, preserves authority
+`2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox`, and the temporary buffer is
+closed.
+
+The release used two separately approved 1 SOL Devnet faucet credits, then the
+extension, upgrade, and governed pricing write under amended bundle
+`c2346b0e29ee4189`. Pricing was pinned to the new SBF hash, exact legacy economy
 revision 1, fee payer `7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA`, pricing
 operator `HmCGfPTW2ahuNySTddvbQpJxutDUhjMbR9j8ekFzHQ5b`, zero native-SOL
-transfer, a 5,000,000-lamport fee ceiling, and fingerprint
-`7fee407b7db9bfbe`. It changes the five packs to 10/50/200/500/1,000 Stars at
-0.02/0.09/0.30/0.70/1.25 SOL and advances only the economy revision to 2.
+transfer, and fingerprint `7fee407b7db9bfbe`. Signature
+`4Ny9prrbV5KjvoZwDAATsPoVZYVb2BofrFDCtsqJpmXDPbBYKDHCszFxBtKMfbZGfiHd1xLBxsnr1sBSnGPY5ayk`
+finalized after a signature-verified 13,483-compute-unit simulation and spent
+10,000 lamports. It advanced only the economy revision to 2 and set the five
+packs to 10/50/200/500/1,000 Stars at 0.02/0.09/0.30/0.70/1.25 SOL. Daily entry
+remains 10 Stars, zone unlock remains 20 Stars, and sales remain disabled.
+Total non-faucet deployer spend for extension, upgrade, and pricing was
+771,303,240 lamports; the verified final deployer balance is 9,647,869,601
+lamports.
 
 The remaining release work is real-wallet desktop and Seeker acceptance, the
 deferred Campaign balance review, and the signed TWA APK only after browser

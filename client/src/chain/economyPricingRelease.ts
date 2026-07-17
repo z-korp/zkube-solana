@@ -211,6 +211,7 @@ export async function economyPricingReleaseInputFromEnv(
     rpc,
     feePayer: feePayer.publicKey,
     pricingOperator: pricingOperator.publicKey,
+    planningSbfSha256: permittedPlanningSbfSha256 ?? live.deployedSbfSha256,
     requiredExecutionSbfSha256,
     live,
     instruction,
@@ -634,6 +635,7 @@ function publicPlan(args: {
   rpc: string;
   feePayer: PublicKey;
   pricingOperator: PublicKey;
+  planningSbfSha256: string;
   requiredExecutionSbfSha256: string;
   live: VerifiedLiveState;
   instruction: TransactionInstruction;
@@ -654,7 +656,7 @@ function publicPlan(args: {
     program: {
       address: ZKUBE_PROGRAM_ID.toBase58(),
       programDataAddress: args.live.programDataAddress,
-      planningSbfSha256: args.live.deployedSbfSha256,
+      planningSbfSha256: args.planningSbfSha256,
       requiredExecutionSbfSha256: args.requiredExecutionSbfSha256,
     },
     identities: {
