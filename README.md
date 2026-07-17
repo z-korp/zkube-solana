@@ -43,6 +43,12 @@ single versioned `Enable zKube` transaction. That transaction initializes a new
 player when necessary, replenishes the shared funding float, creates the scoped
 session token, and gives the device signer its bounded fee allowance.
 
+Client-assembled owner transactions pin a deterministic 400,000-compute-unit
+limit before wallet approval. This opts out of wallet-side priority-fee message
+enhancement on Devnet, allowing the client to keep its exact-message integrity
+check: changed instructions, accounts, blockhashes, signer roles, or discarded
+partial signatures are still rejected after signing.
+
 Normal Campaign and Daily play is silent after enablement. A fresh run is
 prepared and delegated atomically in one Solana v0 transaction, played on the resolved ER, then
 timestamped by the action that first reaches a terminal state, committed
@@ -85,7 +91,7 @@ Star purchases are owner-signed native-SOL transfers. The UI shows the exact
 price and 10% team / 10% reward / 80% treasury split before opening the wallet.
 Pack sizes and prices are governed together; every accepted ladder must have
 strictly increasing quantities and prices, and each larger pack must cost no
-more per Star than the preceding pack. The pending Devnet release defaults are:
+more per Star than the preceding pack. The live Devnet packs are:
 
 | Stars | Price |
 | ---: | ---: |

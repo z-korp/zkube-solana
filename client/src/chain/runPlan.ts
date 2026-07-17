@@ -21,6 +21,7 @@ import {
 import BN from "bn.js";
 import { Buffer } from "buffer";
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -65,6 +66,14 @@ import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
+
+/**
+ * Phantom enhances otherwise-unsigned dapp transactions with its own priority
+ * fee instructions. Pinning a deterministic compute limit opts out of that
+ * message rewrite while retaining the exact signed-message integrity check.
+ * The largest measured client instruction remains well below this Devnet cap.
+ */
+export const WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT = 400_000;
 
 export type RunLayer = "solana-base" | "magicblock-er";
 
@@ -385,11 +394,17 @@ export async function buildDelegateRunPlan(args: {
       { pubkey: validator.identity, isSigner: false, isWritable: false },
     ])
     .instruction();
-  return plan("solana-base", "Delegate active run", connection, payer, [
-    instruction,
-  ], [], {
-    postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
-  });
+  return plan(
+    "solana-base",
+    "Delegate active run",
+    connection,
+    payer,
+    [instruction],
+    [],
+    {
+      postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
+    },
+  );
 }
 
 /**
@@ -436,8 +451,7 @@ export async function combinePreparedAndDelegatePlan(args: {
       ],
       [...args.prepared.transactionPlan.signers, ...delegate.signers],
       {
-        postFeeRentReserveLamports:
-          DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
+        postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
       },
     ),
   };
@@ -886,10 +900,21 @@ export async function compileWalletTransactionPlan(args: {
   }
   const { blockhash } =
     await transactionPlan.connection.getLatestBlockhash("confirmed");
+  const instructions = transactionPlan.transaction.instructions.some(
+    (instruction) =>
+      instruction.programId.equals(ComputeBudgetProgram.programId),
+  )
+    ? transactionPlan.transaction.instructions
+    : [
+        ComputeBudgetProgram.setComputeUnitLimit({
+          units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
+        }),
+        ...transactionPlan.transaction.instructions,
+      ];
   const message = new TransactionMessage({
     payerKey: transactionPlan.feePayer,
     recentBlockhash: blockhash,
-    instructions: transactionPlan.transaction.instructions,
+    instructions,
   }).compileToV0Message();
   if (transactionPlan.postFeeRentReserveLamports !== undefined) {
     const [fee, balanceLamports, rentFloorLamports] = await Promise.all([

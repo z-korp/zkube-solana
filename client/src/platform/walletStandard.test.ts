@@ -2,6 +2,7 @@
 
 import { createPublicKey, verify } from "node:crypto";
 import {
+  ComputeBudgetProgram,
   Keypair,
   SystemProgram,
   TransactionMessage,
@@ -13,9 +14,15 @@ import { verifyWalletSignedOutput } from "./walletStandard";
 
 describe("Wallet Standard signing boundary", () => {
   it("preserves a deterministic v0 message and a real device partial signature", () => {
-    const feePayer = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 1));
-    const owner = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 33));
-    const device = Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i + 65));
+    const feePayer = Keypair.fromSeed(
+      Uint8Array.from({ length: 32 }, (_, i) => i + 1),
+    );
+    const owner = Keypair.fromSeed(
+      Uint8Array.from({ length: 32 }, (_, i) => i + 33),
+    );
+    const device = Keypair.fromSeed(
+      Uint8Array.from({ length: 32 }, (_, i) => i + 65),
+    );
     const original = signedTransaction(feePayer, owner, device);
     original.sign([device]);
     const deviceSignature = Uint8Array.from(original.signatures[2]!);
@@ -75,8 +82,45 @@ describe("Wallet Standard signing boundary", () => {
     discarded.signatures[2] = new Uint8Array(64);
     discarded.sign([owner]);
     expect(() =>
-      verifyWalletSignedOutput(original, discarded.serialize(), owner.publicKey),
+      verifyWalletSignedOutput(
+        original,
+        discarded.serialize(),
+        owner.publicKey,
+      ),
     ).toThrow("discarded an existing partial signature");
+  });
+
+  it("rejects wallet-added priority fees instead of weakening message integrity", () => {
+    const owner = Keypair.generate();
+    const recipient = Keypair.generate();
+    const transfer = SystemProgram.transfer({
+      fromPubkey: owner.publicKey,
+      toPubkey: recipient.publicKey,
+      lamports: 1,
+    });
+    const original = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: owner.publicKey,
+        recentBlockhash: "11111111111111111111111111111111",
+        instructions: [transfer],
+      }).compileToV0Message(),
+    );
+    const enhanced = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: owner.publicKey,
+        recentBlockhash: "11111111111111111111111111111111",
+        instructions: [
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1n }),
+          transfer,
+        ],
+      }).compileToV0Message(),
+    );
+    enhanced.sign([owner]);
+
+    expect(() =>
+      verifyWalletSignedOutput(original, enhanced.serialize(), owner.publicKey),
+    ).toThrow("changed the transaction message");
   });
 });
 
