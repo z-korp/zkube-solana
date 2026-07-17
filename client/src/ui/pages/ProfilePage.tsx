@@ -180,11 +180,10 @@ const ProfilePage: React.FC = () => {
             >
               <div>
                 <p className="font-sans text-sm font-extrabold text-white">
-                  Public player label
+                  Display name
                 </p>
                 <p className="mt-1 font-sans text-[11px] font-semibold text-white/50">
-                  Cosmetic only. Your wallet remains your player identity; the
-                  label is displayed beside it on Daily and Weekly boards.
+                  Shown next to your wallet on the leaderboards.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -217,10 +216,6 @@ const ProfilePage: React.FC = () => {
                       : "Set label"}
                 </button>
               </div>
-              <p className="font-sans text-[10px] font-semibold text-white/40">
-                No Star fee, uniqueness claim, or wallet approval. Your scoped
-                device session saves this optional on-chain label.
-              </p>
               {playerLabel.error && (
                 <p
                   role="alert"
