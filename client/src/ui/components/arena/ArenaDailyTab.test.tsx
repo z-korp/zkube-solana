@@ -135,8 +135,8 @@ describe("ArenaDailyTab", () => {
 
     expect(screen.getByText("Wave_Rider7 · abcd…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
-    expect(screen.getByText("900 daily")).toBeInTheDocument();
-    expect(screen.getByText("750 daily")).toBeInTheDocument();
+    expect(screen.getByText("900")).toBeInTheDocument();
+    expect(screen.getByText("750")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Enter Daily · 2★" }),
     ).toBeEnabled();
@@ -146,7 +146,9 @@ describe("ArenaDailyTab", () => {
   it("opens a tapped run in the read-only spectator", () => {
     render(<ArenaDailyTab />);
 
+    // Tapping a row expands it; the run opens via its Watch control.
     fireEvent.click(screen.getByText("You · ABCD…WXYZ"));
+    fireEvent.click(screen.getByRole("button", { name: /Watch run/ }));
 
     expect(fixtures.navigation.setSpectateTarget).toHaveBeenCalledWith({
       player: fixtures.accountAddress,

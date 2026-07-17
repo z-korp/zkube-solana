@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Eye, Trophy } from "lucide-react";
+import { ChevronDown, Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
 import {
@@ -74,6 +74,7 @@ const ArenaDailyTab: React.FC = () => {
     (state) => state.setSpectateTarget,
   );
   const [starting, setStarting] = useState(false);
+  const [expandedRank, setExpandedRank] = useState<number | null>(null);
 
   const now = Math.floor(Date.now() / 1000);
   const hasActiveDailyRun = Boolean(activeDailyRun);
@@ -330,12 +331,12 @@ const ArenaDailyTab: React.FC = () => {
                     ? "Preparing..."
                     : `Enter Daily · ${daily.daily.starEntryCost.toString()}★`}
                 </ArcadeButton>
-                <div className="flex flex-col items-center gap-1.5">
-                  {insufficientStars ? (
+                <div className="flex items-center justify-center gap-3">
+                  {insufficientStars && (
                     <button
                       type="button"
                       onClick={() => openShop("ranks")}
-                      className="text-center font-sans text-xs font-extrabold text-yellow-200"
+                      className="font-sans text-xs font-extrabold text-yellow-200"
                     >
                       Need{" "}
                       {(
@@ -343,13 +344,12 @@ const ArenaDailyTab: React.FC = () => {
                       ).toString()}{" "}
                       more ★ · Get Stars
                     </button>
-                  ) : (
-                    <p className="text-center font-sans text-[11px] font-semibold text-white/50">
-                      Unlimited retries · best score counts · +100 XP first
-                      finish
-                    </p>
                   )}
-                  <InfoSheet title="How Daily scoring works">
+                  <InfoSheet label="Rules & rewards" title="Daily Arena">
+                    <p>
+                      Unlimited retries — your best score counts. The first
+                      finish each day awards +100 XP.
+                    </p>
                     <DailyScoringRules
                       objectiveWeight={
                         scoringRule
@@ -369,7 +369,7 @@ const ArenaDailyTab: React.FC = () => {
             </p>
           )}
 
-          {/* ── Today's board ── */}
+          {/* ── Today's rankings ── */}
           {boardLoading ? (
             <LoadingState
               className="py-10"
@@ -385,154 +385,196 @@ const ArenaDailyTab: React.FC = () => {
               hintColor={colors.textMuted}
             />
           ) : (
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              className="space-y-2"
-            >
-              {rankRows.map((entry, index) => {
-                const baseBg =
-                  entry.rank === 1
-                    ? "rgba(255,215,0,0.2)"
-                    : entry.rank === 2
-                      ? "rgba(192,192,192,0.18)"
-                      : entry.rank === 3
-                        ? "rgba(205,127,50,0.18)"
-                        : "rgba(255,255,255,0.1)";
-                const pulseBright =
-                  entry.rank === 1
-                    ? "rgba(255,215,0,0.32)"
-                    : entry.rank === 2
-                      ? "rgba(192,192,192,0.28)"
-                      : entry.rank === 3
-                        ? "rgba(205,127,50,0.28)"
-                        : `${colors.accent}40`;
-                const pulseBase =
-                  entry.rank <= 3 ? baseBg : `${colors.accent}20`;
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between px-1 pt-1">
+                <p
+                  className="font-sans text-[11px] font-black uppercase tracking-[0.18em]"
+                  style={{ color: colors.textMuted }}
+                >
+                  Today&apos;s rankings
+                </p>
+                <p
+                  className="font-sans text-[11px] font-bold"
+                  style={{ color: colors.textMuted }}
+                >
+                  {dailyEntries.length} player
+                  {dailyEntries.length !== 1 ? "s" : ""}
+                </p>
+              </div>
 
-                return (
-                  <motion.div
-                    custom={index}
-                    variants={rowVariants}
-                    key={entry.id}
-                    onClick={() => watch(entry.playerAddress, entry.runId)}
-                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl transition-all active:scale-[0.98] ${entry.isYou ? "leaderboard-pulse" : ""}`}
-                    style={{
-                      ...(entry.isYou
-                        ? ({
-                            "--pulse-base": pulseBase,
-                            "--pulse-bright": pulseBright,
-                          } as React.CSSProperties)
-                        : { backgroundColor: baseBg }),
-                      borderColor: entry.isYou
-                        ? `${colors.accent}AA`
-                        : entry.rank <= 3
-                          ? "rgba(255,255,255,0.3)"
-                          : "rgba(255,255,255,0.14)",
-                    }}
-                  >
-                    <div
-                      className="flex w-8 items-center justify-center text-center font-sans text-base font-black"
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                className="space-y-2"
+              >
+                {rankRows.map((entry, index) => {
+                  const expanded = expandedRank === entry.rank;
+                  const baseBg =
+                    entry.rank === 1
+                      ? "rgba(255,215,0,0.2)"
+                      : entry.rank === 2
+                        ? "rgba(192,192,192,0.18)"
+                        : entry.rank === 3
+                          ? "rgba(205,127,50,0.18)"
+                          : "rgba(255,255,255,0.06)";
+                  const pulseBright =
+                    entry.rank === 1
+                      ? "rgba(255,215,0,0.32)"
+                      : entry.rank === 2
+                        ? "rgba(192,192,192,0.28)"
+                        : entry.rank === 3
+                          ? "rgba(205,127,50,0.28)"
+                          : `${colors.accent}40`;
+                  const pulseBase =
+                    entry.rank <= 3 ? baseBg : `${colors.accent}20`;
+                  const challengeBonus = Math.max(
+                    0,
+                    entry.score - entry.engineScore,
+                  );
+
+                  return (
+                    <motion.div
+                      custom={index}
+                      variants={rowVariants}
+                      key={entry.id}
+                      className={`overflow-hidden rounded-2xl border backdrop-blur-xl ${entry.isYou ? "leaderboard-pulse" : ""}`}
                       style={{
-                        color:
-                          entry.rank <= 3 ? colors.accent2 : colors.textMuted,
+                        ...(entry.isYou
+                          ? ({
+                              "--pulse-base": pulseBase,
+                              "--pulse-bright": pulseBright,
+                            } as React.CSSProperties)
+                          : { backgroundColor: baseBg }),
+                        borderColor: entry.isYou
+                          ? `${colors.accent}AA`
+                          : entry.rank <= 3
+                            ? "rgba(255,255,255,0.28)"
+                            : "rgba(255,255,255,0.12)",
                       }}
                     >
-                      {entry.rank <= 3 ? (
-                        <img
-                          src={TROPHY_IMAGES[entry.rank]}
-                          alt={`Rank ${entry.rank}`}
-                          className="h-6 w-6"
-                          draggable={false}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedRank(expanded ? null : entry.rank)
+                        }
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-transform active:scale-[0.99]"
+                      >
+                        <div
+                          className="flex w-7 shrink-0 items-center justify-center font-sans text-base font-black"
+                          style={{
+                            color:
+                              entry.rank <= 3
+                                ? colors.accent2
+                                : colors.textMuted,
+                          }}
+                        >
+                          {entry.rank <= 3 ? (
+                            <img
+                              src={TROPHY_IMAGES[entry.rank]}
+                              alt={`Rank ${entry.rank}`}
+                              className="h-6 w-6"
+                              draggable={false}
+                            />
+                          ) : (
+                            entry.rank
+                          )}
+                        </div>
+
+                        <p
+                          className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
+                          style={{
+                            color: entry.isYou ? colors.accent : colors.text,
+                          }}
+                        >
+                          {entry.isYou ? `You · ${entry.name}` : entry.name}
+                        </p>
+
+                        <span
+                          className="shrink-0 font-sans text-[17px] font-black tracking-wide tabular-nums"
+                          style={{ color: colors.text }}
+                        >
+                          {entry.score.toLocaleString()}
+                        </span>
+                        <ChevronDown
+                          size={16}
+                          className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
+                          style={{ color: colors.textMuted }}
                         />
-                      ) : (
-                        entry.rank
+                      </button>
+
+                      {expanded && (
+                        <div className="border-t border-white/10 px-4 py-2.5">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] font-semibold text-white/55">
+                            <span>
+                              {entry.engineScore.toLocaleString()} engine
+                            </span>
+                            <span>
+                              +{challengeBonus.toLocaleString()} challenge
+                            </span>
+                            <span>{entry.dailyBonusTriggers} bonus</span>
+                            <span>{entry.moves} moves</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              watch(entry.playerAddress, entry.runId)
+                            }
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 font-sans text-xs font-bold text-white/80 transition-colors hover:bg-white/[0.1]"
+                          >
+                            <Eye size={14} /> Watch run
+                          </button>
+                        </div>
                       )}
-                    </div>
+                    </motion.div>
+                  );
+                })}
 
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate font-sans text-sm font-extrabold"
-                        style={{
-                          color: entry.isYou ? colors.accent : colors.text,
-                        }}
-                      >
-                        {entry.isYou ? `You · ${entry.name}` : entry.name}
-                      </p>
+                {visiblePlayerRank && !isMyRankVisible && (
+                  <>
+                    <div className="py-1 text-center font-sans text-[10px] text-white/30">
+                      ···
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="font-sans text-[16px] font-extrabold tracking-wide"
-                        style={{ color: colors.text }}
-                      >
-                        {entry.score.toLocaleString()} daily
-                      </div>
-                      <span className="font-sans text-[10px] text-white/40">
-                        +
-                        {Math.max(
-                          0,
-                          entry.score - entry.engineScore,
-                        ).toLocaleString()}{" "}
-                        challenge · {entry.engineScore.toLocaleString()} engine
-                        · {entry.dailyBonusTriggers} bonus triggers ·{" "}
-                        {entry.moves} moves
-                      </span>
-                      <Eye size={15} style={{ color: colors.textMuted }} />
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {visiblePlayerRank && !isMyRankVisible && (
-                <>
-                  <div className="py-1 text-center font-sans text-[10px] text-white/30">
-                    ···
-                  </div>
-                  <motion.div
-                    custom={rankRows.length}
-                    variants={rowVariants}
-                    className="leaderboard-pulse flex items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl"
-                    style={
-                      {
-                        "--pulse-base": `${colors.accent}20`,
-                        "--pulse-bright": `${colors.accent}40`,
-                        borderColor: `${colors.accent}AA`,
-                      } as React.CSSProperties
-                    }
-                  >
                     <div
-                      className="flex w-8 items-center justify-center text-center font-sans text-base font-black"
-                      style={{ color: colors.accent }}
+                      className="leaderboard-pulse flex items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl"
+                      style={
+                        {
+                          "--pulse-base": `${colors.accent}20`,
+                          "--pulse-bright": `${colors.accent}40`,
+                          borderColor: `${colors.accent}AA`,
+                        } as React.CSSProperties
+                      }
                     >
-                      {visiblePlayerRank.rank}
-                    </div>
-                    <div className="min-w-0 flex-1">
+                      <div
+                        className="flex w-7 shrink-0 items-center justify-center font-sans text-base font-black"
+                        style={{ color: colors.accent }}
+                      >
+                        {visiblePlayerRank.rank}
+                      </div>
                       <p
-                        className="truncate font-sans text-sm font-extrabold"
+                        className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
                         style={{ color: colors.accent }}
                       >
                         {visiblePlayerRank.name}
                       </p>
+                      <span
+                        className="shrink-0 font-sans text-[17px] font-black tracking-wide tabular-nums"
+                        style={{ color: colors.text }}
+                      >
+                        {visiblePlayerRank.score.toLocaleString()}
+                      </span>
                     </div>
-                    <div
-                      className="font-sans text-[16px] font-extrabold tracking-wide"
-                      style={{ color: colors.text }}
-                    >
-                      {visiblePlayerRank.score.toLocaleString()} pts
-                    </div>
-                  </motion.div>
-                </>
-              )}
+                  </>
+                )}
 
-              {!visiblePlayerRank && rankRows.length > 0 && (
-                <div className="mt-2 rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-center">
-                  <p className="font-sans text-xs font-semibold text-white/50">
-                    You&apos;re not ranked yet. Finish a run to appear here!
-                  </p>
-                </div>
-              )}
-            </motion.div>
+                {!visiblePlayerRank && rankRows.length > 0 && (
+                  <div className="mt-1 rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-center">
+                    <p className="font-sans text-xs font-semibold text-white/50">
+                      You&apos;re not ranked yet. Finish a run to appear here!
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            </div>
           )}
         </>
       )}
