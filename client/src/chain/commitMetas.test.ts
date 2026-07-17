@@ -64,6 +64,8 @@ describe("commit meta invariants", () => {
       addresses,
       erConnection: connection,
     });
+    expect(campaign.layer).toBe("magicblock-er");
+    expect(campaign.connection).toBe(connection);
     const campaignKeys = campaign.transaction.instructions[0].keys;
     expect(campaignKeys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(campaignKeys[1].isWritable).toBe(true);
@@ -78,6 +80,8 @@ describe("commit meta invariants", () => {
       dailyChallenge: Keypair.generate().publicKey,
       erConnection: connection,
     });
+    expect(daily.layer).toBe("magicblock-er");
+    expect(daily.connection).toBe(connection);
     const dailyKeys = daily.transaction.instructions[0].keys;
     expect(dailyKeys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(dailyKeys[1].isWritable).toBe(true);

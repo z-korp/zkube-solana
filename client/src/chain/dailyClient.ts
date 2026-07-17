@@ -413,7 +413,7 @@ export async function buildCommitDailyRunPlan(args: {
     .commitDailyRun()
     .accountsPartial(common)
     .instruction();
-  return basePlan(
+  return erPlan(
     "Commit Daily result",
     args.erConnection,
     args.payerWallet.publicKey,
@@ -632,6 +632,23 @@ export async function buildCloseDailyChallengePlan(args: {
     args.wallet.publicKey,
     [instruction],
   );
+}
+
+function erPlan(
+  label: string,
+  connection: Connection,
+  feePayer: PublicKey,
+  instructions: TransactionInstruction[],
+  signers: Keypair[] = [],
+): TransactionPlan {
+  return {
+    layer: "magicblock-er",
+    label,
+    connection,
+    transaction: new Transaction().add(...instructions),
+    feePayer,
+    signers,
+  };
 }
 
 function basePlan(

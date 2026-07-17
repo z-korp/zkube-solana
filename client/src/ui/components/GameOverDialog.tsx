@@ -32,6 +32,9 @@ interface GameOverDialogProps {
   onClose: () => void;
   /** Blocks dismissal while background settlement finishes on-chain. */
   closeDisabled?: boolean;
+  settlementFailed?: boolean;
+  settlementError?: string | null;
+  onRetrySettlement?: () => void;
   game: Game;
 }
 
@@ -39,6 +42,9 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   isOpen,
   onClose,
   closeDisabled = false,
+  settlementFailed = false,
+  settlementError = null,
+  onRetrySettlement,
   game,
 }) => {
   const { playerMeta } = usePlayerMeta();
@@ -50,6 +56,10 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   };
 
   const handlePlayAgain = () => {
+    if (settlementFailed) {
+      onRetrySettlement?.();
+      return;
+    }
     if (closeDisabled) return;
     onClose();
   };
@@ -356,19 +366,27 @@ app.zkube.xyz`;
             variants={itemVariants}
             className="flex flex-col gap-3 mt-1"
           >
+            {settlementFailed && (
+              <p className="text-center text-xs font-semibold text-red-300">
+                {settlementError ??
+                  "Settlement failed. Your score is safe; retry to record it."}
+              </p>
+            )}
             {/* Primary CTA: Play Again */}
             <button
               onClick={handlePlayAgain}
-              disabled={closeDisabled}
+              disabled={closeDisabled && !settlementFailed}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-lg px-4 py-3.5 transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 disabled:cursor-not-allowed disabled:opacity-55"
             >
               <RotateCw size={16} />
               <span>
-                {closeDisabled
-                  ? "Settling…"
-                  : isEndless
-                    ? "Back to Daily Arena"
-                    : "Back to Map"}
+                {settlementFailed
+                  ? "Retry settlement"
+                  : closeDisabled
+                    ? "Settling…"
+                    : isEndless
+                      ? "Back to Daily Arena"
+                      : "Back to Map"}
               </span>
             </button>
 
