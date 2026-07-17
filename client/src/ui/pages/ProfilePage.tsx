@@ -102,16 +102,14 @@ const ProfilePage: React.FC = () => {
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-end">
-                <p
-                  className="font-sans text-xs font-extrabold"
-                  style={{ color: colors.accent }}
-                >
-                  {isMaxLevel
-                    ? `${xp.toLocaleString()} XP`
-                    : `${xp.toLocaleString()} / ${nextLevelXp.toLocaleString()} XP`}
-                </p>
-              </div>
+              <p
+                className="mb-1 font-sans text-xs font-extrabold"
+                style={{ color: colors.accent }}
+              >
+                {isMaxLevel
+                  ? `${xp.toLocaleString()} XP`
+                  : `${xp.toLocaleString()} / ${nextLevelXp.toLocaleString()} XP`}
+              </p>
               <ProgressBar
                 value={isMaxLevel ? 1 : xp - levelStartXp}
                 max={isMaxLevel ? 1 : Math.max(nextLevelXp - levelStartXp, 1)}
