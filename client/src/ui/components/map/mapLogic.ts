@@ -1,9 +1,12 @@
 import type { CampaignMapView } from "@/chain/campaignClient";
-import { canonicalCampaignMap } from "@/chain/campaignCatalog";
+import {
+  CAMPAIGN_CONTENT_VERSION,
+  canonicalCampaignMap,
+} from "@/chain/campaignCatalog";
 import { mapLevelRuleSnapshot } from "@/chain/runPlan";
 import type { PageId } from "@/stores/navigationStore";
 
-const INITIAL_MAP_1 = canonicalCampaignMap(1, 1);
+const INITIAL_MAP_1 = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
 
 // A new identity has no PlayerState account yet. Map 1 remains playable,
 // and its preview uses the same authored catalog that is published on-chain.

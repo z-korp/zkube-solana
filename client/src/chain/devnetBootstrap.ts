@@ -18,7 +18,10 @@ import {
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
 } from "./adminClient";
-import { CANONICAL_CAMPAIGN_MAP_COUNT } from "./campaignCatalog";
+import {
+  CAMPAIGN_CONTENT_VERSION,
+  CANONICAL_CAMPAIGN_MAP_COUNT,
+} from "./campaignCatalog";
 import {
   buildInitializeEconomyPlan,
   buildPublishDailyRulesPlan,
@@ -43,7 +46,7 @@ import {
 
 const DEFAULT_BOOTSTRAP_RPC = "https://rpc.magicblock.app/devnet";
 const DEPLOYED_ZKUBE_SBF_SHA256 =
-  "4236db1f07271bfc0fdd489bfd27c887dde91309427cb40cc78350078781d7bf";
+  "f24b7c44e336cdfb67ca7ec5903ee4eb3b63a907f2fa0a851031efbf302c8354";
 
 type DevnetBootstrapStage =
   | "custody"
@@ -171,8 +174,8 @@ interface LiveProgramDeployment {
 }
 
 const POLICY = {
-  contentVersion: 1,
-  dailyRulesVersion: 1,
+  contentVersion: CAMPAIGN_CONTENT_VERSION,
+  dailyRulesVersion: 2,
 } as const;
 
 const VAULT_PATHS: Record<VaultName, string> = {

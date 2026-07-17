@@ -30,8 +30,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   1: {
     id: 1,
     name: "Mako's Gift",
-    description:
-      "The sea turtle rewards a strong clear with a Wave.",
+    description: "The sea turtle rewards a strong clear with a Wave.",
     icon: "🐢",
     effects: ["3+ lines in one move = +1 Wave", "start with 1"],
   },
@@ -48,8 +47,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   5: {
     id: 5,
     name: "Fenris Howl",
-    description:
-      "The frost wolf answers a strong clear with the Totem.",
+    description: "The frost wolf answers a strong clear with the Totem.",
     icon: "🐺",
     effects: ["3+ lines in one move = +1 Totem", "start with 1"],
   },
@@ -57,8 +55,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   7: {
     id: 7,
     name: "Noctua's Sight",
-    description:
-      "The owl rewards a perfectly empty board with the Hammer.",
+    description: "The owl rewards a perfectly empty board with the Hammer.",
     icon: "🦉",
     effects: ["empty the board = +1 Hammer", "max 1 per move", "start with 1"],
   },
@@ -66,8 +63,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   9: {
     id: 9,
     name: "Long's Breath",
-    description:
-      "The dragon rewards sustained line clearing with a Wave.",
+    description: "The dragon rewards sustained line clearing with a Wave.",
     icon: "🐲",
     effects: ["every 15 lines cleared = +1 Wave", "start with 1"],
   },
@@ -93,8 +89,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   15: {
     id: 15,
     name: "Balam's Rite",
-    description:
-      "The jaguar rewards a perfectly empty board with a Wave.",
+    description: "The jaguar rewards a perfectly empty board with a Wave.",
     icon: "🐆",
     effects: ["empty the board = +1 Wave", "max 1 per move", "start with 2"],
   },
@@ -102,17 +97,19 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   17: {
     id: 17,
     name: "Mamba's Rhythm",
-    description:
-      "The serpent turns Combo Meter milestones into Totems.",
+    description: "The serpent turns Combo Meter milestones into Totems.",
     icon: "🐍",
-    effects: ["every 8 combo points = +1 Totem", "max 1 per action", "start with 1"],
+    effects: [
+      "every 8 combo points = +1 Totem",
+      "max 1 per action",
+      "start with 1",
+    ],
   },
   // Zone 10 — Kuntur 🦅 / Inca
   19: {
     id: 19,
     name: "Kuntur's Trial",
-    description:
-      "The condor rewards exact four-line clears with the Hammer.",
+    description: "The condor rewards exact four-line clears with the Hammer.",
     icon: "🦅",
     effects: ["exactly 4 lines = +1 Hammer", "start with 1"],
   },
@@ -123,8 +120,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   2: {
     id: 2,
     name: "Calm Tides",
-    description:
-      "Gentle waters make ⭐ Stars easier to earn.",
+    description: "Gentle waters make ⭐ Stars easier to earn.",
     icon: "🌊",
     effects: ["stars 10% easier", "4 rows at start"],
     effectsEndless: ["4 rows at start"],
@@ -136,8 +132,17 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Measured scoring and perfect clears make the desert more forgiving.",
     icon: "☀️",
-    effects: ["move score ×1.25", "perfect clear +10", "stars 5% easier", "5 rows at start"],
-    effectsEndless: ["move score ×1.25", "perfect clear +10", "5 rows at start"],
+    effects: [
+      "move score ×1.25",
+      "perfect clear +10",
+      "stars 5% easier",
+      "5 rows at start",
+    ],
+    effectsEndless: [
+      "move score ×1.25",
+      "perfect clear +10",
+      "5 rows at start",
+    ],
   },
   // Zone 3 — Fenris 🐺 / Norse
   6: {
@@ -153,11 +158,14 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   8: {
     id: 8,
     name: "Marble Discipline",
-    description:
-      "Precision pays through stronger moves and perfect clears.",
+    description: "Precision pays through stronger moves and perfect clears.",
     icon: "🏛️",
     effects: ["move score ×1.25", "perfect clear +15", "5 rows at start"],
-    effectsEndless: ["move score ×1.25", "perfect clear +15", "5 rows at start"],
+    effectsEndless: [
+      "move score ×1.25",
+      "perfect clear +15",
+      "5 rows at start",
+    ],
   },
   // Zone 5 — Long 🐲 / China
   10: {
@@ -173,8 +181,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   12: {
     id: 12,
     name: "Geometric Flow",
-    description:
-      "Patterns reward skilled combos and perfect clears.",
+    description: "Patterns reward skilled combos and perfect clears.",
     icon: "🕌",
     effects: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
     effectsEndless: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
@@ -216,8 +223,212 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "Thin air, strong scoring, double combos, and perfect-clear rewards at the summit.",
     icon: "⛰️",
-    effects: ["move score ×1.5", "combos ×2", "perfect clear +20", "stars 5% harder", "7 rows at start"],
-    effectsEndless: ["move score ×1.5", "combos ×2", "perfect clear +20", "7 rows at start"],
+    effects: [
+      "move score ×1.5",
+      "combos ×2",
+      "perfect clear +20",
+      "stars 5% harder",
+      "7 rows at start",
+    ],
+    effectsEndless: [
+      "move score ×1.5",
+      "combos ×2",
+      "perfect clear +20",
+      "7 rows at start",
+    ],
+  },
+
+  // ── Campaign content v2 (IDs 21-40) ──
+  // The v1 definitions above remain immutable so copied-back or resumed v1
+  // runs continue to explain their snapshotted rules correctly.
+  21: {
+    id: 21,
+    name: "Mako's Gift",
+    description: "The sea turtle rewards a strong clear with a Wave.",
+    icon: "🐢",
+    effects: ["3+ lines in one action = +1 Wave", "start with 1"],
+  },
+  22: {
+    id: 22,
+    name: "Calm Tides",
+    description: "Patient line clearing keeps the tide—and the score—moving.",
+    icon: "🌊",
+    effects: ["+1 per line", "stars 10% easier", "4 rows at start"],
+    effectsEndless: ["+1 per line", "4 rows at start"],
+  },
+  23: {
+    id: 23,
+    name: "Sobek's Strike",
+    description:
+      "The Nile crocodile rewards exact two-line clears with the Hammer.",
+    icon: "🐊",
+    effects: ["exactly 2 lines = +1 Hammer", "start with 1"],
+  },
+  24: {
+    id: 24,
+    name: "Foundation Stone",
+    description:
+      "Heavy scoring and perfect clears reward deliberate demolition.",
+    icon: "☀️",
+    effects: [
+      "move score ×1.5",
+      "perfect clear +20",
+      "stars 5% easier",
+      "5 rows at start",
+    ],
+    effectsEndless: ["move score ×1.5", "perfect clear +20", "5 rows at start"],
+  },
+  25: {
+    id: 25,
+    name: "Fenris Howl",
+    description: "The frost wolf answers a strong clear with the Totem.",
+    icon: "🐺",
+    effects: ["3+ lines in one action = +1 Totem", "start with 1"],
+  },
+  26: {
+    id: 26,
+    name: "Frozen Rage",
+    description: "Relentless combo play feeds Fenris's scoring loop.",
+    icon: "❄️",
+    effects: ["combos ×2", "+1 per line", "4 rows at start"],
+    effectsEndless: ["combos ×2", "+1 per line", "4 rows at start"],
+  },
+  27: {
+    id: 27,
+    name: "Noctua's Sight",
+    description: "The owl rewards a perfectly empty board with the Hammer.",
+    icon: "🦉",
+    effects: [
+      "empty the board = +1 Hammer",
+      "max 1 per action",
+      "start with 1",
+    ],
+  },
+  28: {
+    id: 28,
+    name: "Marble Discipline",
+    description: "Clean, deliberate play earns the strongest proofs.",
+    icon: "🏛️",
+    effects: ["move score ×2", "perfect clear +15", "5 rows at start"],
+    effectsEndless: ["move score ×2", "perfect clear +15", "5 rows at start"],
+  },
+  29: {
+    id: 29,
+    name: "Long's Breath",
+    description: "The dragon rewards sustained line clearing with a Wave.",
+    icon: "🐲",
+    effects: ["every 15 lines cleared by moves = +1 Wave", "start with 1"],
+  },
+  30: {
+    id: 30,
+    name: "Imperial Scale",
+    description:
+      "Every cleared line strengthens the dragon's rolling pressure.",
+    icon: "🐉",
+    effects: ["+3 per line", "6 rows at start"],
+    effectsEndless: ["+3 per line", "6 rows at start"],
+  },
+  31: {
+    id: 31,
+    name: "Lamassu's Gaze",
+    description:
+      "The gate guardian rewards breaking every block size in one action.",
+    icon: "🦁",
+    effects: ["break sizes 1-4 in one action = +1 Totem", "start with 1"],
+  },
+  32: {
+    id: 32,
+    name: "Geometric Flow",
+    description: "Stacked patterns reward combos, lines, and perfect clears.",
+    icon: "🕌",
+    effects: [
+      "combos ×2",
+      "+1 per line",
+      "perfect clear +10",
+      "5 rows at start",
+    ],
+    effectsEndless: [
+      "combos ×2",
+      "+1 per line",
+      "perfect clear +10",
+      "5 rows at start",
+    ],
+  },
+  33: {
+    id: 33,
+    name: "Kitsune's Spark",
+    description:
+      "The spirit fox rewards exact three-line clears with the Hammer.",
+    icon: "🦊",
+    effects: ["exactly 3 lines = +1 Hammer", "start with 1"],
+  },
+  34: {
+    id: 34,
+    name: "Bushido",
+    description: "Every precise harvest lands as a decisive strike.",
+    icon: "🗡️",
+    effects: ["move score ×3", "perfect clear +20", "5 rows at start"],
+    effectsEndless: ["move score ×3", "perfect clear +20", "5 rows at start"],
+  },
+  35: {
+    id: 35,
+    name: "Balam's Rite",
+    description: "The jaguar rewards a perfectly empty board with a Totem.",
+    icon: "🐆",
+    effects: ["empty the board = +1 Totem", "max 1 per action", "start with 2"],
+  },
+  36: {
+    id: 36,
+    name: "Jungle Altar",
+    description: "Double-strength combos power Balam's surgical block play.",
+    icon: "🌿",
+    effects: ["combos ×2", "6 rows at start"],
+    effectsEndless: ["combos ×2", "6 rows at start"],
+  },
+  37: {
+    id: 37,
+    name: "Mamba's Rhythm",
+    description: "The serpent turns Combo Meter milestones into Totems.",
+    icon: "🐍",
+    effects: [
+      "every 8 combo points = +1 Totem",
+      "max 1 per action",
+      "start with 1",
+    ],
+  },
+  38: {
+    id: 38,
+    name: "Primal Pulse",
+    description: "Combos and line clears keep the serpent's rhythm alive.",
+    icon: "🔥",
+    effects: ["combos ×2", "+2 per line", "6 rows at start"],
+    effectsEndless: ["combos ×2", "+2 per line", "6 rows at start"],
+  },
+  39: {
+    id: 39,
+    name: "Kuntur's Trial",
+    description: "The condor rewards exact four-line clears with the Hammer.",
+    icon: "🦅",
+    effects: ["exactly 4 lines = +1 Hammer", "start with 1"],
+  },
+  40: {
+    id: 40,
+    name: "Altitude",
+    description: "The summit amplifies scoring, combos, and perfect execution.",
+    icon: "⛰️",
+    effects: [
+      "move score ×2.5",
+      "combos ×2.5",
+      "perfect clear +30",
+      "stars 5% harder",
+      "7 rows at start",
+    ],
+    effectsEndless: [
+      "move score ×2.5",
+      "combos ×2.5",
+      "perfect clear +30",
+      "7 rows at start",
+    ],
   },
 };
 

@@ -1151,6 +1151,7 @@ mod tests {
         canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
     };
     use anchor_lang::{InstructionData, ToAccountMetas};
+    use serde_json::Value;
 
     fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
         use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
@@ -1591,6 +1592,335 @@ mod tests {
         assert_eq!(rows, 1);
         assert_eq!(engine.phase, RunPhase::Playing);
         assert!(engine.next_row.is_some());
+    }
+
+    fn campaign_v2_fixture() -> Value {
+        serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json")).unwrap()
+    }
+
+    fn campaign_constraint(value: &Value) -> Constraint {
+        let tuple = value.as_array().unwrap();
+        Constraint {
+            kind: match tuple[0].as_u64().unwrap() {
+                0 => ConstraintKind::None,
+                1 => ConstraintKind::ComboLines,
+                2 => ConstraintKind::BreakBlocks,
+                3 => ConstraintKind::ComboMeter,
+                kind => panic!("unknown Campaign constraint kind {kind}"),
+            },
+            value: tuple[1].as_u64().unwrap() as u8,
+            required_count: tuple[2].as_u64().unwrap() as u8,
+        }
+    }
+
+    fn campaign_level(value: &Value) -> LevelRules {
+        let tuple = value.as_array().unwrap();
+        LevelRules {
+            points_required: tuple[0].as_u64().unwrap() as u32,
+            max_moves: tuple[1].as_u64().unwrap() as u16,
+            primary: campaign_constraint(&tuple[3]),
+            secondary: campaign_constraint(&tuple[4]),
+        }
+    }
+
+    fn campaign_mutator(value: &Value) -> MutatorRules {
+        let rules = value.as_array().unwrap();
+        MutatorRules {
+            score_multiplier_x100: rules[0].as_u64().unwrap() as u16,
+            combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
+            line_clear_bonus: rules[2].as_u64().unwrap() as u16,
+            perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
+            star_threshold_modifier: rules[4].as_u64().unwrap() as u8,
+            bonus_trigger_type: rules[6].as_u64().unwrap() as u8,
+            bonus_threshold: rules[7].as_u64().unwrap() as u16,
+        }
+    }
+
+    #[test]
+    fn campaign_v2_fixture_has_valid_weighted_objectives() {
+        let fixture = campaign_v2_fixture();
+        let weights = fixture["difficultyWeights"].as_array().unwrap();
+        let maps = fixture["maps"].as_array().unwrap();
+        assert_eq!(maps.len(), 10);
+        assert_eq!(weights.len(), 8);
+        for tier in weights {
+            assert_eq!(
+                tier.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|value| value.as_u64().unwrap())
+                    .sum::<u64>(),
+                100
+            );
+        }
+        for (map_index, map) in maps.iter().enumerate() {
+            assert_eq!(map["mapId"].as_u64().unwrap() as usize, map_index + 1);
+            let rules = map["rules"].as_array().unwrap();
+            assert!((4..=8).contains(&rules[9].as_u64().unwrap()));
+            let levels = map["levels"].as_array().unwrap();
+            assert_eq!(levels.len(), 10);
+            for level in levels {
+                let tuple = level.as_array().unwrap();
+                let difficulty = tuple[2].as_u64().unwrap() as usize;
+                let tier = weights[difficulty].as_array().unwrap();
+                for constraint in [&tuple[3], &tuple[4]] {
+                    let constraint = campaign_constraint(constraint);
+                    match constraint.kind {
+                        ConstraintKind::None => {
+                            assert_eq!((constraint.value, constraint.required_count), (0, 0));
+                        }
+                        ConstraintKind::ComboLines => {
+                            assert!((2..=8).contains(&constraint.value));
+                            assert!(constraint.required_count > 0);
+                        }
+                        ConstraintKind::BreakBlocks => {
+                            assert!((1..=4).contains(&constraint.value));
+                            assert!(constraint.required_count > 0);
+                            assert!(tier[usize::from(constraint.value)].as_u64().unwrap() > 0);
+                        }
+                        ConstraintKind::ComboMeter => {
+                            assert!(constraint.value > 0);
+                            assert_eq!(constraint.required_count, 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Deterministic, constraint-aware Campaign balance harness. The greedy
+    /// player is a regression guardrail—not a substitute for skilled play.
+    /// Run with:
+    /// `cargo test -p solana campaign_v2_simulation -- --ignored --nocapture`
+    #[test]
+    #[ignore = "offline Campaign balance simulation"]
+    fn campaign_v2_simulation() {
+        let fixture = campaign_v2_fixture();
+        let seed_count = std::env::var("CAMPAIGN_SIMULATION_SEEDS")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(64);
+        println!(
+            "seeds={seed_count}\nmap,level,completed,completion_pct,mean_moves,mean_score,max_score,mean_charges,stuck"
+        );
+        for map in fixture["maps"].as_array().unwrap() {
+            let map_id = map["mapId"].as_u64().unwrap() as u8;
+            for (level_index, level) in map["levels"].as_array().unwrap().iter().enumerate() {
+                let attempts = (0..seed_count)
+                    .map(|seed| simulate_campaign_attempt(&fixture, map, level, seed))
+                    .collect::<Vec<_>>();
+                let completed = attempts.iter().filter(|attempt| attempt.completed).count();
+                let stuck = attempts.iter().filter(|attempt| attempt.stuck).count();
+                let total_moves = attempts
+                    .iter()
+                    .map(|attempt| u64::from(attempt.moves))
+                    .sum::<u64>();
+                let total_score = attempts
+                    .iter()
+                    .map(|attempt| u64::from(attempt.score))
+                    .sum::<u64>();
+                let max_score = attempts
+                    .iter()
+                    .map(|attempt| attempt.score)
+                    .max()
+                    .unwrap_or(0);
+                let total_charges = attempts
+                    .iter()
+                    .map(|attempt| u64::from(attempt.bonus_charges))
+                    .sum::<u64>();
+                assert!(attempts
+                    .iter()
+                    .all(|attempt| attempt.moves <= campaign_level(level).max_moves));
+                println!(
+                    "{map_id},{},{completed},{:.1},{:.1},{:.1},{max_score},{:.1},{stuck}",
+                    level_index + 1,
+                    completed as f64 * 100.0 / attempts.len() as f64,
+                    total_moves as f64 / attempts.len() as f64,
+                    total_score as f64 / attempts.len() as f64,
+                    total_charges as f64 / attempts.len() as f64,
+                );
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    struct SimulatedCampaignAttempt {
+        completed: bool,
+        moves: u16,
+        score: u32,
+        bonus_charges: u8,
+        stuck: bool,
+    }
+
+    struct CampaignMoveCandidate {
+        engine: RunEngine,
+        quality: (bool, bool, u8, u16, u8, u32),
+    }
+
+    fn campaign_constraint_signal(level: LevelRules, engine: &RunEngine) -> u16 {
+        fn signal(constraint: Constraint, progress: u8, combo: u8) -> u16 {
+            match constraint.kind {
+                ConstraintKind::None => 0,
+                ConstraintKind::ComboLines => u16::from(progress) * 16,
+                ConstraintKind::BreakBlocks => u16::from(progress),
+                ConstraintKind::ComboMeter => u16::from(combo.min(constraint.value)),
+            }
+        }
+        signal(level.primary, engine.primary_progress, engine.combo_counter)
+            + signal(
+                level.secondary,
+                engine.secondary_progress,
+                engine.combo_counter,
+            )
+    }
+
+    fn simulate_campaign_attempt(
+        fixture: &Value,
+        map: &Value,
+        level_value: &Value,
+        seed: u32,
+    ) -> SimulatedCampaignAttempt {
+        let level = campaign_level(level_value);
+        let level_tuple = level_value.as_array().unwrap();
+        let difficulty = level_tuple[2].as_u64().unwrap() as usize;
+        let weight_values = fixture["difficultyWeights"][difficulty].as_array().unwrap();
+        let weights = std::array::from_fn(|index| weight_values[index].as_u64().unwrap() as u16);
+        let rules = map["rules"].as_array().unwrap();
+        let mutator = campaign_mutator(&map["rules"]);
+        let bonus = match rules[5].as_u64().unwrap() {
+            1 => Some(Bonus::Hammer),
+            2 => Some(Bonus::Totem),
+            3 => Some(Bonus::Wave),
+            kind => panic!("unknown Campaign bonus kind {kind}"),
+        };
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            bonus,
+            bonus_charges: rules[8].as_u64().unwrap() as u8,
+            starting_height_target: rules[9].as_u64().unwrap() as u8,
+            ..RunEngine::default()
+        };
+        let mut row_counter = 0u32;
+        while engine.next_row.is_none() {
+            let row = simulated_campaign_vrf_row(seed, row_counter, weights);
+            engine.provide_vrf_row(row).unwrap();
+            row_counter += 1;
+            assert!(
+                row_counter < 96,
+                "Campaign seed stack failed to reach its target height"
+            );
+        }
+
+        let mut stuck = false;
+        let mut bonus_used_since_move = false;
+        while engine.phase == RunPhase::Playing && engine.moves < level.max_moves {
+            if !bonus_used_since_move && engine.bonus_charges > 0 {
+                let signal_before = campaign_constraint_signal(level, &engine);
+                let mut best_bonus: Option<CampaignMoveCandidate> = None;
+                for row in 0..10 {
+                    for column in 0..8 {
+                        let mut candidate = engine;
+                        let Ok(report) = candidate.apply_bonus(row, column, level, mutator) else {
+                            continue;
+                        };
+                        let signal_after = campaign_constraint_signal(level, &candidate);
+                        if signal_after == signal_before
+                            && report.points_earned == 0
+                            && !candidate.level_satisfied(level)
+                        {
+                            continue;
+                        }
+                        let quality = (
+                            candidate.level_satisfied(level),
+                            candidate.phase != RunPhase::Finished,
+                            u8::MAX - report.height_after,
+                            signal_after,
+                            report.lines_cleared,
+                            report.points_earned,
+                        );
+                        if best_bonus
+                            .as_ref()
+                            .is_none_or(|best| quality > best.quality)
+                        {
+                            best_bonus = Some(CampaignMoveCandidate {
+                                engine: candidate,
+                                quality,
+                            });
+                        }
+                    }
+                }
+                if let Some(best) = best_bonus {
+                    engine = best.engine;
+                    bonus_used_since_move = true;
+                    if engine.phase == RunPhase::AwaitingVrf {
+                        let row = simulated_campaign_vrf_row(seed, row_counter, weights);
+                        engine.provide_vrf_row(row).unwrap();
+                        row_counter += 1;
+                    }
+                    if engine.phase != RunPhase::Playing {
+                        continue;
+                    }
+                }
+            }
+            let mut best: Option<CampaignMoveCandidate> = None;
+            for row in 0..10 {
+                for start in 0..8 {
+                    for destination in 0..8 {
+                        let mut candidate = engine;
+                        let Ok(report) = candidate.play_move(
+                            engine.moves,
+                            row,
+                            start,
+                            destination,
+                            level,
+                            mutator,
+                        ) else {
+                            continue;
+                        };
+                        let quality = (
+                            candidate.level_satisfied(level),
+                            candidate.phase != RunPhase::Finished,
+                            u8::MAX - report.height_after,
+                            campaign_constraint_signal(level, &candidate),
+                            report.lines_cleared,
+                            report.points_earned,
+                        );
+                        if best.as_ref().is_none_or(|best| quality > best.quality) {
+                            best = Some(CampaignMoveCandidate {
+                                engine: candidate,
+                                quality,
+                            });
+                        }
+                    }
+                }
+            }
+            let Some(best) = best else {
+                stuck = true;
+                break;
+            };
+            engine = best.engine;
+            bonus_used_since_move = false;
+            if engine.phase == RunPhase::AwaitingVrf {
+                let row = simulated_campaign_vrf_row(seed, row_counter, weights);
+                engine.provide_vrf_row(row).unwrap();
+                row_counter += 1;
+            }
+        }
+        SimulatedCampaignAttempt {
+            completed: engine.phase == RunPhase::LevelComplete,
+            moves: engine.moves,
+            score: engine.score,
+            bonus_charges: engine.bonus_charges,
+            stuck,
+        }
+    }
+
+    fn simulated_campaign_vrf_row(seed: u32, counter: u32, weights: [u16; 5]) -> [u8; 8] {
+        let seed = seed.to_le_bytes();
+        let counter_bytes = counter.to_le_bytes();
+        let randomness = sha256v(&[b"zkube-campaign-v2-simulation", &seed, &counter_bytes]);
+        crate::game::row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
     }
 
     /// Offline balancing harness, deliberately excluded from the fast gate.

@@ -35,6 +35,105 @@ account-creation paths. A session cannot transfer arbitrary SOL and can never
 authorize a Star purchase. Initialization accepts only the canonical empty,
 System-owned funding PDA; retired program-owned funding layouts fail closed.
 
+### Deferred Kora-sponsored Devnet gameplay
+
+This is a deferred design record, not current product behavior, implementation
+authority, deployment approval, or transaction approval. Product truth and
+verified chain state remain authoritative.
+
+The possible later release would use direct static-client-to-Kora sponsorship
+for session-authorized Solana base actions. Kora would pay transaction fees
+while the device signer silently authorizes gameplay; the owner would still
+provide the reusable 0.025 SOL funding-PDA reserve. It would remove the device
+fee allowance, refill checks, and balance-driven renewal while retaining owner
+approval for initial enablement, seven-day renewal, Star purchases, and a
+Kora-outage fallback. No program upgrade, IDL change, or account migration is
+expected.
+
+Infrastructure requirements:
+
+- Pin the newest audited Kora release containing reCAPTCHA and rolling Redis
+  limits; if unavailable, use `v2.2.0-beta.7` on Devnet only and never track
+  `main`.
+- Host Kora and Redis under z-korp, preferably its Fly organization and
+  otherwise z-korp Railway. The JCN infrastructure exception does not apply.
+- Configure free pricing, forced signature verification, fail-closed Redis,
+  TLS, and CORS restricted to the canonical Vercel origin and approved local
+  development origins.
+- Enable only liveness, configuration, payer/version discovery, and transaction
+  signing. Disable sending, transfers, payments, bundles, plugins, Lighthouse,
+  and every Kora fee-payer System/SPL authority policy.
+- Allow only the exact zKube Devnet program as an outer program, at most two
+  signatures, and no durable nonce transactions.
+- Protect signing with reCAPTCHA v3 and rolling limits of 20 requests/minute
+  and 250/day per supplied device identifier, plus a conservative global
+  limit. Treat client-provided identifiers as throttling rather than identity.
+- Bound abuse through the program allowlist, reCAPTCHA, alerts, and a dedicated
+  Kora signer initially funded with at most 0.02 Devnet SOL. Any refill remains
+  a separately approved transfer.
+- Keep signer material, Redis credentials, and reCAPTCHA secrets in platform
+  secrets. Monitor payer balance, spend, rejection rate, Redis health, and
+  sponsorship latency.
+
+Client transaction requirements:
+
+- Replace the fixed transaction fee-payer assumption with explicit-payer and
+  Kora-preferred policies. Owner, keeper, administration, and ER transactions
+  remain explicit-payer operations.
+- Sponsor safe session-authorized base actions such as run preparation and
+  delegation, terminal consumption/closure, Daily entry, progression claims,
+  and cosmetic-label writes.
+- Exclude session creation/renewal, Star purchases, governance, keeper activity,
+  and ER gameplay from sponsorship.
+- Build a v0 message using the pinned Kora payer, locally add required ephemeral
+  and device signatures, simulate against the base RPC, and request Kora's
+  signature.
+- Before submission, require the returned payer to match the pinned deployment,
+  exact message bytes and signer order to remain unchanged, the device signature
+  to remain present, and Kora's Ed25519 signature to verify.
+- Submit through the existing Solana base connection; do not use
+  `signAndSendTransaction`.
+- On Kora, Redis, or reCAPTCHA failure, rebuild the same instructions with the
+  connected owner as fee payer, retain device authorization, and request one
+  wallet approval. Rejection leaves the action unsubmitted.
+- Ship only public settings for enablement, endpoint, pinned payer, and site key.
+  Emit sponsor attempt/result/fallback telemetry without transaction contents,
+  tokens, or signer material.
+
+Device-session requirements:
+
+- Create sessions with zero device allowance. Readiness depends only on the
+  stored keypair and validated Session Token relationships and expiry.
+- Remove device balance polling, fee reserves, refill/rotation transfers,
+  allowance errors, and low-balance UI while preserving seven-day owner renewal
+  and owner-funded Session Token rent.
+- For legacy funded device signers, perform a retry-safe, one-time exact drain to
+  the validated owner, with the device paying the fee. Never redirect or discard
+  the balance.
+- Leave the 0.025 SOL funding PDA, narrow funded self-CPI wrappers, rent
+  recycling, and cross-device `active_run_id` behavior unchanged.
+
+Verification and rollout requirements:
+
+- Test Kora payer compilation, partial signing, exact-message verification,
+  tampering, wrong payers, invalid signatures, reCAPTCHA and Redis denial, owner
+  fallback, and exclusion of owner-only/keeper/ER paths.
+- Exercise enablement, Campaign/Daily launch, settlement, claims, label writes,
+  outage fallback, and legacy allowance recovery against a local validator with
+  pinned Kora and Redis.
+- Prove Kora loses only network fees, the funding PDA retains its governed target
+  except for recyclable rent use, and Star purchases preserve owner approval and
+  10/10/80 conservation.
+- Roll out Kora/Redis health first, then a staging feature flag, desktop and
+  Seeker acceptance, and finally the Git-driven Vercel production release.
+- Funding the Kora signer requires exact Devnet chain-write approval naming the
+  signer, recipient, and maximum 0.02 SOL. Mainnet remains blocked pending an
+  audited stable Kora release and cryptographically bound usage identity.
+
+References: the [official Kora repository](https://github.com/solana-foundation/kora),
+[Kit client guide](https://solana.com/docs/tools/kora/guides/kit-client), and
+[full transaction flow](https://solana.com/docs/tools/kora/guides/full-demo).
+
 ## Connection and run lifecycle
 
 The app renders only the connection screen until both wallet connection and
@@ -152,6 +251,18 @@ enabled map PDAs, Campaign map count, and selected Daily rules catalog, then
 switches the protocol and economy versions atomically. Existing player
 progression is preserved, and runs or challenges that already snapshotted older
 rules remain settleable.
+
+Campaign content v2 is authored as a version-bound release rather than a
+version-agnostic bootstrap payload. It keeps the existing targets, move caps,
+difficulty tiers, row weights, and opening heights while giving each guardian
+one scoring identity, two matching constraint families, and one renewable
+bonus loop. Mutator IDs 21–40 describe v2 without changing the client copy for
+older snapshotted runs. Activation also requires an unchanged Daily rules v2
+catalog because the governed switch advances both content versions together.
+`NO_DNA=1 pnpm --dir client chain:devnet:content-plan` performs the read-only
+Devnet preflight and prints the exact accounts, spends, packet sizes,
+instruction hashes, and fingerprint needed for one release-bundle approval; it
+does not load a signer or send transactions.
 
 ## Repository map
 
@@ -399,9 +510,10 @@ Total non-faucet deployer spend for extension, upgrade, and pricing was
 771,303,240 lamports; the verified final deployer balance is 9,647,869,601
 lamports.
 
-The remaining release work is real-wallet desktop and Seeker acceptance, the
-deferred Campaign balance review, and the signed TWA APK only after browser
-acceptance passes. Only the keeper's fingerprint-bound allowlist may recur
+The remaining release work is the fingerprint-approved Campaign v2 content
+publication and activation, real-wallet desktop and Seeker acceptance, and the
+signed TWA APK only after browser acceptance passes. Only the keeper's
+fingerprint-bound allowlist may recur
 within the fixed per-pass bounds. Existing v2 Devnet progress is intentionally
 not migrated.
 

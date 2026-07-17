@@ -572,6 +572,208 @@ mod tests {
         Grid::try_from_cells(cells).unwrap()
     }
 
+    fn campaign_v2_mutators() -> Vec<MutatorRules> {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json")).unwrap();
+        fixture["maps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|map| {
+                let rules = map["rules"].as_array().unwrap();
+                MutatorRules {
+                    score_multiplier_x100: rules[0].as_u64().unwrap() as u16,
+                    combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
+                    line_clear_bonus: rules[2].as_u64().unwrap() as u16,
+                    perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
+                    star_threshold_modifier: rules[4].as_u64().unwrap() as u8,
+                    bonus_trigger_type: rules[6].as_u64().unwrap() as u8,
+                    bonus_threshold: rules[7].as_u64().unwrap() as u16,
+                }
+            })
+            .collect()
+    }
+
+    fn campaign_v2_constraint(value: &Value) -> Constraint {
+        let tuple = value.as_array().unwrap();
+        Constraint {
+            kind: match tuple[0].as_u64().unwrap() {
+                0 => ConstraintKind::None,
+                1 => ConstraintKind::ComboLines,
+                2 => ConstraintKind::BreakBlocks,
+                3 => ConstraintKind::ComboMeter,
+                kind => panic!("unknown Campaign constraint kind {kind}"),
+            },
+            value: tuple[1].as_u64().unwrap() as u8,
+            required_count: tuple[2].as_u64().unwrap() as u8,
+        }
+    }
+
+    #[test]
+    fn campaign_v2_levels_have_constructive_accounting_completions() {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json")).unwrap();
+        let mutators = campaign_v2_mutators();
+        for (map_index, map) in fixture["maps"].as_array().unwrap().iter().enumerate() {
+            for (level_index, value) in map["levels"].as_array().unwrap().iter().enumerate() {
+                let tuple = value.as_array().unwrap();
+                let level = LevelRules {
+                    points_required: tuple[0].as_u64().unwrap() as u32,
+                    max_moves: tuple[1].as_u64().unwrap() as u16,
+                    primary: campaign_v2_constraint(&tuple[3]),
+                    secondary: campaign_v2_constraint(&tuple[4]),
+                };
+                let mut run = RunEngine {
+                    phase: RunPhase::Playing,
+                    ..RunEngine::default()
+                };
+                for _ in 0..level.max_moves {
+                    if run.level_satisfied(level) {
+                        break;
+                    }
+                    run.phase = RunPhase::Playing;
+                    run.moves = run.moves.saturating_add(1);
+                    let mut lines = 4u8;
+                    for (constraint, progress) in [
+                        (level.primary, run.primary_progress),
+                        (level.secondary, run.secondary_progress),
+                    ] {
+                        if constraint.kind == ConstraintKind::ComboLines
+                            && progress < constraint.required_count
+                        {
+                            lines = lines.max(constraint.value);
+                        }
+                    }
+                    let mut block_cells_before = [0; 4];
+                    for (constraint, progress) in [
+                        (level.primary, run.primary_progress),
+                        (level.secondary, run.secondary_progress),
+                    ] {
+                        if constraint.kind == ConstraintKind::BreakBlocks
+                            && progress < constraint.required_count
+                        {
+                            let remaining = constraint.required_count - progress;
+                            block_cells_before[usize::from(constraint.value - 1)] =
+                                remaining.saturating_mul(constraint.value);
+                        }
+                    }
+                    let triangular = u16::from(lines) * u16::from(lines + 1) / 2;
+                    run.finish_action(
+                        ActionContext {
+                            block_cells_before,
+                            lines,
+                            base_point_parts: [triangular, 0],
+                            ..ActionContext::default()
+                        },
+                        level,
+                        mutators[map_index],
+                        true,
+                    );
+                }
+                assert!(
+                    run.level_satisfied(level),
+                    "constructive accounting did not complete map {} level {} within {} moves",
+                    map_index + 1,
+                    level_index + 1,
+                    level.max_moves,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn campaign_v2_scoring_synergies_are_exact_for_moves_and_bonus_actions() {
+        let mutators = campaign_v2_mutators();
+        let expected_single = [2, 1, 2, 2, 4, 2, 3, 1, 3, 2];
+        let expected_combo = [5, 4, 10, 6, 9, 10, 9, 6, 14, 17];
+        let expected_perfect_four = [14, 35, 28, 35, 22, 38, 50, 20, 36, 92];
+        let incomplete = LevelRules {
+            points_required: u32::MAX,
+            max_moves: u16::MAX,
+            primary: Constraint::default(),
+            secondary: Constraint::default(),
+        };
+        let bonus_level = LevelRules {
+            primary: Constraint {
+                kind: ConstraintKind::ComboLines,
+                value: 2,
+                required_count: 1,
+            },
+            secondary: Constraint {
+                kind: ConstraintKind::ComboMeter,
+                value: 2,
+                required_count: 1,
+            },
+            ..incomplete
+        };
+
+        for (index, mutator) in mutators.into_iter().enumerate() {
+            let occupied = || RunEngine {
+                grid: grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]),
+                phase: RunPhase::Playing,
+                ..RunEngine::default()
+            };
+            let mut single = occupied();
+            let single_report = single.finish_action(
+                ActionContext {
+                    lines: 1,
+                    base_point_parts: [1, 0],
+                    ..ActionContext::default()
+                },
+                incomplete,
+                mutator,
+                true,
+            );
+            assert_eq!(single_report.points_earned, expected_single[index]);
+
+            let mut combo = occupied();
+            let combo_report = combo.finish_action(
+                ActionContext {
+                    lines: 2,
+                    base_point_parts: [3, 0],
+                    ..ActionContext::default()
+                },
+                incomplete,
+                mutator,
+                true,
+            );
+            assert_eq!(combo_report.points_earned, expected_combo[index]);
+
+            let mut perfect = RunEngine {
+                phase: RunPhase::Playing,
+                ..RunEngine::default()
+            };
+            let perfect_report = perfect.finish_action(
+                ActionContext {
+                    lines: 4,
+                    base_point_parts: [6, 4],
+                    ..ActionContext::default()
+                },
+                incomplete,
+                mutator,
+                true,
+            );
+            assert_eq!(perfect_report.points_earned, expected_perfect_four[index]);
+
+            // Bonus actions share score, combo, and constraint accounting but
+            // do not spend a move or advance move-only trigger counters.
+            let mut bonus = occupied();
+            let bonus_report = bonus.finish_action(
+                ActionContext {
+                    lines: 2,
+                    base_point_parts: [3, 0],
+                    ..ActionContext::default()
+                },
+                bonus_level,
+                mutator,
+                false,
+            );
+            assert_eq!(bonus_report.points_earned, expected_combo[index]);
+            assert_eq!(bonus.moves, 0);
+            assert_eq!((bonus.primary_progress, bonus.secondary_progress), (1, 1));
+        }
+    }
+
     #[test]
     fn move_consumes_visible_row_then_requires_fresh_vrf() {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);

@@ -16,9 +16,8 @@ export function useCampaignController() {
   const player = useConnectedPlayer();
   const wallet = player.readOnlyWallet;
   const [campaign, setCampaign] = useState<CampaignView | null>(null);
-  // Player-independent pricing fallback: fresh players have no
-  // PlayerState yet, so fetchCampaignView returns null and
-  // the UI would otherwise have no zone-unlock price to show.
+  // Independent fallback for protocol/economy fetch failures. A fresh player
+  // without PlayerState now receives the live public Campaign catalog.
   const [economy, setEconomy] = useState<EconomyRuntime | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -84,5 +83,14 @@ export function useCampaignController() {
     [campaign, connection, player, refresh],
   );
 
-  return { campaign, economy, loading, loaded, unlocking, error, refresh, unlock };
+  return {
+    campaign,
+    economy,
+    loading,
+    loaded,
+    unlocking,
+    error,
+    refresh,
+    unlock,
+  };
 }

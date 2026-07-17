@@ -15,6 +15,7 @@
     "chain:devnet:deploy": "tsx tools/chain/deploy-devnet.ts",
     "chain:devnet:extend": "tsx tools/chain/extend-devnet-program.ts",
     "chain:devnet:pricing": "tsx tools/chain/update-devnet-pricing.ts",
+    "chain:devnet:content-plan": "tsx tools/chain/plan-devnet-content.ts",
     "chain:devnet:bootstrap": "tsx tools/chain/bootstrap-devnet.ts",
     "chain:manifest": "tsx tools/chain/check-deployment-manifest.ts",
     "chain:local:validator": "mb-test-validator --reset --ledger ../.localnet/ledger --bpf-program Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR ../target/deploy/solana.so",

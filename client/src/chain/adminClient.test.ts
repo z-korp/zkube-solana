@@ -8,7 +8,9 @@ import {
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPublishCanonicalMapsPlan,
+  buildSetProtocolPausePlan,
 } from "./adminClient";
+import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import {
   deriveMapCatalogPda,
   derivePlayerFundingPda,
@@ -45,16 +47,18 @@ describe("authority publication client", () => {
     const authority = new SessionWallet(Keypair.generate());
     const duplicate = Keypair.generate().publicKey;
     const keys = Array.from({ length: 5 }, () => Keypair.generate().publicKey);
-    await expect(buildInitializeProtocolPlan({
-      connection: {} as Connection,
-      authority,
-      config: {
-        pricingOperator: keys[1],
-        teamDestination: duplicate,
-        treasuryDestination: duplicate,
-        contentVersion: 1,
-      },
-    })).rejects.toThrow("pairwise distinct");
+    await expect(
+      buildInitializeProtocolPlan({
+        connection: {} as Connection,
+        authority,
+        config: {
+          pricingOperator: keys[1],
+          teamDestination: duplicate,
+          treasuryDestination: duplicate,
+          contentVersion: 1,
+        },
+      }),
+    ).rejects.toThrow("pairwise distinct");
   });
 
   it("publishes all ten maps from the authored canonical catalog", async () => {
@@ -63,12 +67,19 @@ describe("authority publication client", () => {
     const plan = await buildPublishCanonicalMapsPlan({
       connection,
       authority,
-      contentVersion: 1,
+      contentVersion: CAMPAIGN_CONTENT_VERSION,
     });
 
     expect(plan.transaction.instructions).toHaveLength(10);
-    expect(plan.transaction.instructions.map((instruction) => instruction.keys[1].pubkey.toBase58()))
-      .toEqual(Array.from({ length: 10 }, (_, index) => deriveMapCatalogPda(1, index + 1).toBase58()));
+    expect(
+      plan.transaction.instructions.map((instruction) =>
+        instruction.keys[1].pubkey.toBase58(),
+      ),
+    ).toEqual(
+      Array.from({ length: 10 }, (_, index) =>
+        deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, index + 1).toBase58(),
+      ),
+    );
   });
 
   it("activates a published campaign map through its content-version PDA", async () => {
@@ -100,8 +111,33 @@ describe("authority publication client", () => {
     expect(accounts.slice(-3).map(({ pubkey }) => pubkey.toBase58())).toEqual(
       [1, 2, 3].map((mapId) => deriveMapCatalogPda(8, mapId).toBase58()),
     );
-    expect(accounts.slice(-3).every((account) => !account.isWritable && !account.isSigner))
-      .toBe(true);
+    expect(
+      accounts
+        .slice(-3)
+        .every((account) => !account.isWritable && !account.isSigner),
+    ).toBe(true);
+  });
+
+  it("builds explicit pause and unpause governance instructions", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const pause = await buildSetProtocolPausePlan({
+      connection: {} as Connection,
+      authority,
+      paused: true,
+    });
+    const unpause = await buildSetProtocolPausePlan({
+      connection: {} as Connection,
+      authority,
+      paused: false,
+    });
+
+    expect(pause.label).toBe("Pause protocol");
+    expect(unpause.label).toBe("Unpause protocol");
+    expect(
+      pause.transaction.instructions[0].keys[0].pubkey.equals(
+        deriveProtocolConfigPda(),
+      ),
+    ).toBe(true);
   });
 
   it("initializes only the owner-derived player accounts", async () => {
@@ -114,8 +150,12 @@ describe("authority publication client", () => {
     });
     const keys = plan.transaction.instructions[0].keys;
 
-    expect(keys[0].pubkey.equals(derivePlayerStatePda(owner.publicKey))).toBe(true);
-    expect(keys[1].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(true);
+    expect(keys[0].pubkey.equals(derivePlayerStatePda(owner.publicKey))).toBe(
+      true,
+    );
+    expect(keys[1].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(
+      true,
+    );
     expect(plan.feePayer.equals(payer)).toBe(true);
   });
 });

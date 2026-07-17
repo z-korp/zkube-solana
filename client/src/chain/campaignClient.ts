@@ -55,20 +55,21 @@ export async function fetchCampaignView(args: {
       [protocolAddress, playerAddress, economyAddress],
       "confirmed",
     );
-  if (!protocolInfo || !playerInfo || !economyInfo)
-    return null;
+  if (!protocolInfo || !economyInfo) return null;
   assertProgramAccount(
     protocolInfo,
     program.programId,
     program.account.protocolConfig.size,
     "ProtocolConfig",
   );
-  assertProgramAccount(
-    playerInfo,
-    program.programId,
-    program.account.playerState.size,
-    "PlayerState",
-  );
+  if (playerInfo) {
+    assertProgramAccount(
+      playerInfo,
+      program.programId,
+      program.account.playerState.size,
+      "PlayerState",
+    );
+  }
   assertProgramAccount(
     economyInfo,
     program.programId,
@@ -89,21 +90,28 @@ export async function fetchCampaignView(args: {
     "protocolConfig",
     protocolInfo.data,
   ) as unknown as ProtocolAccount;
-  const player = program.coder.accounts.decode(
-    "playerState",
-    playerInfo.data,
-  ) as unknown as PlayerAccount;
+  const player = playerInfo
+    ? (program.coder.accounts.decode(
+        "playerState",
+        playerInfo.data,
+      ) as unknown as PlayerAccount)
+    : null;
   const economy = program.coder.accounts.decode(
     "economyConfig",
     economyInfo.data,
   ) as unknown as EconomyAccount;
   if (
     Number(protocol.version) !== 1 ||
-    Number(player.version) !== 1 ||
-    !player.owner.equals(owner) ||
-    player.levelStars.length !== 80 ||
     Number(economy.version) !== 1 ||
     !economy.protocol.equals(protocolAddress)
+  ) {
+    return null;
+  }
+  if (
+    player &&
+    (Number(player.version) !== 1 ||
+      !player.owner.equals(owner) ||
+      player.levelStars.length !== 80)
   ) {
     return null;
   }
@@ -160,12 +168,14 @@ export async function fetchCampaignView(args: {
       mapId,
       themeId: Number(catalog.themeId),
       enabled: Boolean(catalog.enabled),
-      unlocked: hasMapFlag(player.unlockedMaps, mapId),
-      purchased: hasMapFlag(player.purchasedMaps, mapId),
-      cleared: hasMapFlag(player.clearedMaps, mapId),
-      perfected: hasMapFlag(player.perfectedMaps, mapId),
+      unlocked: player ? hasMapFlag(player.unlockedMaps, mapId) : mapId === 1,
+      purchased: player ? hasMapFlag(player.purchasedMaps, mapId) : false,
+      cleared: player ? hasMapFlag(player.clearedMaps, mapId) : false,
+      perfected: player ? hasMapFlag(player.perfectedMaps, mapId) : false,
       starCost: mapId > 1 ? BigInt(economy.zoneUnlockStars.toString()) : 0n,
-      levelStars: unpackCompactLevelStars(player.levelStars, index),
+      levelStars: player
+        ? unpackCompactLevelStars(player.levelStars, index)
+        : Array.from({ length: 10 }, () => 0),
       levels: catalog.levels.map((level, levelIndex) =>
         mapLevelRuleSnapshot({
           ...level,
@@ -178,7 +188,7 @@ export async function fetchCampaignView(args: {
   return {
     economyVersion: 2,
     contentVersion,
-    starsBalance: BigInt(player.starsBalance.toString()),
+    starsBalance: player ? BigInt(player.starsBalance.toString()) : 0n,
     maps,
   };
 }
@@ -198,10 +208,7 @@ function assertProgramAccount(
   }
 }
 
-function hasMapFlag(
-  bitmap: number | bigint | BN,
-  mapId: number,
-): boolean {
+function hasMapFlag(bitmap: number | bigint | BN, mapId: number): boolean {
   if (!Number.isInteger(mapId) || mapId < 1 || mapId > MAX_CAMPAIGN_MAPS) {
     return false;
   }

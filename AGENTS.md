@@ -35,13 +35,13 @@ do not add approval prompts to the shipped product.
 
 If code or comments contradict these rules, fix them with the implementation.
 Architecture and operations documentation belongs in code comments and
-`README.md`; do not add new Markdown documents unless the user explicitly
-requests a deferred design record.
+`README.md`; do not add new Markdown documents.
 
 ## Deferred design records
 
-- `KORA_SPONSORSHIP_PLAN.md` is the saved implementation and rollout plan for a
-  possible later Devnet Kora sponsorship release. Its purpose is to preserve
+- `README.md` under “Deferred Kora-sponsored Devnet gameplay” contains the
+  saved implementation and rollout plan for a possible later Devnet Kora
+  sponsorship release. Its purpose is to preserve
   the researched no-custom-API design, security constraints, fallback,
   verification, and hosting decisions. It is planning material only: it does
   not supersede Product truth, authorize implementation or deployment, or

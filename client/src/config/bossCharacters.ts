@@ -24,7 +24,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "The ocean has many lessons, young one. Let the tides guide your hands.",
     zoneHint:
-      "A gentle start. Clear 3 or more lines in one move to earn a Wave charge.",
+      "Build steady combos. Every cleared line adds a point, and 3 or more lines in one action earns a Wave.",
     encouragement: "The current is with you. Trust the flow.",
     trialIntro:
       "The ocean's final wave approaches. Show me you've learned its rhythm.",
@@ -43,7 +43,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "The sands remember all who enter. Only the precise survive the Nile's judgment.",
     zoneHint:
-      "Precision matters: clear exactly 2 lines in one move to earn a Hammer charge.",
+      "Demolish the board with 1.5× move scoring. Perfect clears add 20, and exactly 2 lines earns a Hammer.",
     encouragement: "Patience and precision. The Nile rewards those who wait.",
     trialIntro: "The waters rise. Face the jaws of the Nile or be swept away.",
     respectLine: "The Nile parts for you. You have earned safe passage.",
@@ -61,7 +61,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "The frozen wastes spare no one. Only those with fire in their heart survive.",
     zoneHint:
-      "Combos hit 50% harder. Clear 3 or more lines in one move to earn a Totem charge.",
+      "Dare to chain clears: combos score at ×2, every line adds a point, and 3 or more lines earns a Totem.",
     encouragement: "Strike hard. Strike fast. The frost does not wait.",
     trialIntro: "The blizzard howls. Face the storm or be buried beneath it.",
     respectLine: "The pack accepts your strength. Run with us through the ice.",
@@ -78,7 +78,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     personality: "Wise owl spirit carved from living marble",
     greeting: "Welcome to the arena of the mind. Here, strategy conquers all.",
     zoneHint:
-      "Perfect clears earn Hammer charges, including clears created by a bonus. Every move counts.",
+      "Pure execution wins: moves score at ×2, perfect clears add 15 and earn a Hammer, including bonus-created clears.",
     encouragement: "Think before you act. Every move is a theorem.",
     trialIntro: "Wisdom alone is not enough. Now prove you can act on it.",
     respectLine: "Knowledge and action, united. The owl sees your worth.",
@@ -95,7 +95,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     personality: "Ancient jade dragon spirit, patient and overwhelming",
     greeting: "The dragon waits. Those who endure its gaze earn its power.",
     zoneHint:
-      "Sustained pressure pays: every 15 lines cleared by moves earns a Wave charge.",
+      "Sustained pressure pays: every line adds 3 points, and every 15 lines cleared by moves earns a Wave.",
     encouragement: "Flow like the river. It carves mountains given time.",
     trialIntro: "The dragon stirs. Withstand its breath or be consumed.",
     respectLine: "The dragon bows. Your endurance is worthy of the heavens.",
@@ -113,7 +113,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "Every tile has its place in the mosaic. Can you see the pattern?",
     zoneHint:
-      "Break blocks of all four sizes in one move to earn a Totem charge. Combos score 50% more.",
+      "Stack patterns: combos score at ×2, lines add points, and breaking sizes 1-4 in one action earns a Totem.",
     encouragement:
       "Look deeper. The pattern reveals itself to the patient eye.",
     trialIntro:
@@ -133,7 +133,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "Catch me if you can. But beware, little puzzler, foxfire burns the careless.",
     zoneHint:
-      "Fast and precise. Clear exactly 3 lines in one move to earn a Hammer charge.",
+      "Harvest fast: moves score at ×3, perfect clears add 20, and exactly 3 lines earns a Hammer.",
     encouragement: "Quick paws, quick mind. Don't overthink it.",
     trialIntro:
       "Nine tails, nine illusions. See through them all or be lost forever.",
@@ -152,7 +152,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "The jungle speaks to those who listen. Three gifts await the worthy.",
     zoneHint:
-      "Start with 2 Wave charges. Perfect clears earn another, and combos score at double strength.",
+      "Start with 2 Totems. Perfect clears earn another, and combos score at double strength.",
     encouragement: "The ritual demands everything. Give it all.",
     trialIntro:
       "Three eyes open. Three powers converge. Survive the jaguar's gaze.",
@@ -170,7 +170,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     personality: "Colossal black mamba spirit, rhythmic and relentless",
     greeting: "Listen. The rhythm pulses through the earth. Follow it or fall.",
     zoneHint:
-      "Combo-driven. Every 8 Combo Meter points earns a Totem charge, at most once per action.",
+      "Combos score at ×2, lines add 2 points, and every 8 Combo Meter points earns one Totem per action.",
     encouragement: "Feel the pulse. Let it guide your strikes.",
     trialIntro:
       "The mamba strikes without warning. Match its speed or be consumed.",
@@ -189,7 +189,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     greeting:
       "The mountain path is narrow and the air is thin. Only the focused reach the summit.",
     zoneHint:
-      "The ultimate test. Clear exactly 4 lines for a Hammer; scoring and combos are strong, while Stars are only 5% tighter.",
+      "The ultimate test: moves and combos score at ×2.5, perfect clears add 30, and exactly 4 lines earns a Hammer.",
     encouragement: "Less is more. One wing beat, one purpose.",
     trialIntro:
       "The summit awaits. With nothing but your will, prove you belong among the stars.",
