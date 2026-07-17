@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import {
@@ -36,6 +37,7 @@ export function createDevnetConnection(
 export async function checkChainReadiness(args: {
   connection: Connection;
   expectedGenesisHash: string;
+  expectedDeployedSbfSha256: string;
 }): Promise<ChainReadinessResult> {
   try {
     const genesisHash = await args.connection.getGenesisHash();
@@ -47,8 +49,35 @@ export async function checkChainReadiness(args: {
     if (!program.owner.equals(UPGRADEABLE_LOADER_ID)) {
       return { ok: false, error: "zkube program has an unexpected owner" };
     }
-    if (!program.executable || program.data.length < 36) {
+    if (
+      !program.executable
+      || program.data.length !== 36
+      || program.data.readUInt32LE(0) !== 2
+    ) {
       return { ok: false, error: "zkube program account is not executable" };
+    }
+    if (!/^[0-9a-f]{64}$/.test(args.expectedDeployedSbfSha256)) {
+      return { ok: false, error: "configured program fingerprint is malformed" };
+    }
+    const programDataAddress = new PublicKey(program.data.subarray(4, 36));
+    const programData = await args.connection.getAccountInfo(
+      programDataAddress,
+      "confirmed",
+    );
+    if (
+      !programData
+      || !programData.owner.equals(UPGRADEABLE_LOADER_ID)
+      || programData.executable
+      || programData.data.length < 45
+      || programData.data.readUInt32LE(0) !== 3
+    ) {
+      return { ok: false, error: "zkube ProgramData account is invalid" };
+    }
+    const deployedSbfSha256 = createHash("sha256")
+      .update(programData.data.subarray(45))
+      .digest("hex");
+    if (deployedSbfSha256 !== args.expectedDeployedSbfSha256) {
+      return { ok: false, error: "deployed zkube program fingerprint does not match keeper" };
     }
     return { ok: true };
   } catch {

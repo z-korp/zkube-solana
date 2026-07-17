@@ -223,10 +223,22 @@ impl Grid {
         }
     }
 
-    /// Resolve gravity and cascading full rows. The returned points reproduce
-    /// Cairo's triangular per-action line score: line 1 = 1, line 2 = 2, ...
+    /// Resolve gravity and cascading full rows from the start of an action.
+    /// The returned points reproduce Cairo's triangular per-action line score:
+    /// line 1 = 1, line 2 = 2, ...
     pub fn settle(&mut self) -> (u8, u16) {
+        self.settle_after(0)
+    }
+
+    /// Resolve another settle phase in the same action.
+    ///
+    /// Cairo passes the same line counter through the settle before next-row
+    /// insertion and the settle after insertion. Resuming from `lines_before`
+    /// keeps a four-line action worth 1 + 2 + 3 + 4 even when the fourth line
+    /// is completed by the inserted row.
+    pub fn settle_after(&mut self, lines_before: u8) -> (u8, u16) {
         let mut lines = 0u8;
+        let mut action_lines = lines_before;
         let mut points = 0u16;
         loop {
             self.apply_gravity();
@@ -239,7 +251,8 @@ impl Grid {
                 {
                     self.cells[offset..offset + GRID_WIDTH].fill(0);
                     lines = lines.saturating_add(1);
-                    points = points.saturating_add(lines as u16);
+                    action_lines = action_lines.saturating_add(1);
+                    points = points.saturating_add(action_lines as u16);
                     cleared = true;
                 }
             }
@@ -385,6 +398,26 @@ mod tests {
             grid_with_rows(&[(0, [1, 1, 1, 1, 1, 1, 1, 1]), (1, [1, 1, 1, 1, 1, 1, 1, 1])]);
         assert_eq!(grid.settle(), (2, 3));
         assert!(grid.is_empty());
+    }
+
+    #[test]
+    fn settle_phases_share_one_cairo_line_curve() {
+        const FULL: Row = [1, 1, 1, 1, 1, 1, 1, 1];
+        const FOUR_LINE_POINTS: u16 = 10;
+
+        for lines_before in 0u8..=4 {
+            let remaining = 4usize - usize::from(lines_before);
+            let rows = (0..remaining).map(|row| (row, FULL)).collect::<Vec<_>>();
+            let mut grid = grid_with_rows(&rows);
+            let points_before = u16::from(lines_before)
+                .saturating_mul(u16::from(lines_before.saturating_add(1)))
+                / 2;
+            let (lines, points) = grid.settle_after(lines_before);
+
+            assert_eq!(lines, 4 - lines_before);
+            assert_eq!(points_before + points, FOUR_LINE_POINTS);
+            assert!(grid.is_empty());
+        }
     }
 
     #[test]

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useDaily } from "@/contexts/daily";
 import { currentDailyDayId, type DailyView } from "@/chain/dailyClient";
@@ -33,6 +33,7 @@ export function dailyToCurrentChallenge(
 
 export function useCurrentChallenge() {
   const { daily, loading, refresh } = useDaily();
+  const refreshRequestedForDay = useRef<number | null>(null);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1_000));
   useEffect(() => {
     const timer = window.setInterval(
@@ -43,9 +44,14 @@ export function useCurrentChallenge() {
   }, []);
   const dayId = currentDailyDayId(now);
   useEffect(() => {
-    if (!loading && daily?.dayId !== dayId) {
-      void refresh();
-    }
+    if (loading || daily?.dayId === dayId) return;
+    // A missing Daily is a completed null read, not an invitation to loop.
+    // The controller performs its own bounded cadence refresh; this hook asks
+    // only once for each UTC day so the UI can leave "Loading" and show the
+    // explicit unpublished state while waiting for the keeper.
+    if (refreshRequestedForDay.current === dayId) return;
+    refreshRequestedForDay.current = dayId;
+    void refresh();
   }, [daily?.dayId, dayId, loading, refresh]);
 
   const challenge = useMemo(

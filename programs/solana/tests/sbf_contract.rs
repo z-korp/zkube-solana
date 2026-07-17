@@ -751,7 +751,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
 }
 
 #[test]
-fn sbf_terminal_move_writes_timestamp_without_a_sealing_instruction() {
+fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     let owner = Pubkey::new_unique();
     let run_id = 9u64;
     let (active_run, bump) = Pubkey::find_program_address(
@@ -764,7 +764,10 @@ fn sbf_terminal_move_writes_timestamp_without_a_sealing_instruction() {
         &zkube::ID,
     );
     let mut grid = [0u8; 80];
-    grid[..8].copy_from_slice(&[1, 1, 1, 1, 1, 1, 0, 1]);
+    for row in 0..4 {
+        grid[row * 8..(row + 1) * 8].copy_from_slice(&[1; 8]);
+    }
+    grid[32..40].copy_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
@@ -819,9 +822,9 @@ fn sbf_terminal_move_writes_timestamp_without_a_sealing_instruction() {
         data: zkube::instruction::PlayMove {
             expected_action: 0,
             expected_move: 0,
-            row: 0,
-            start: 7,
-            destination: 6,
+            row: 4,
+            start: 0,
+            destination: 1,
             client_seed: [0; 32],
         }
         .data(),
@@ -867,6 +870,11 @@ fn sbf_terminal_move_writes_timestamp_without_a_sealing_instruction() {
     assert_eq!(active.finished_at, 123);
     assert_eq!(active.action_counter, 1);
     assert_eq!(active.moves, 1);
+    assert_eq!(active.score, 10);
+    assert_eq!(active.level_lines_cleared, 4);
+    assert_eq!(active.total_lines_cleared, 4);
+    assert_eq!(active.combo_counter, 4);
+    assert_eq!(active.max_combo, 4);
 }
 
 #[test]

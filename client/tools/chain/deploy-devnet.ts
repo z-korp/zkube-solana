@@ -20,6 +20,8 @@ async function main(): Promise<void> {
         "  ZKUBE_PROGRAM_ARTIFACT=../target/deploy/solana.so",
         "  ZKUBE_DEPLOY_MODE=upgrade (default) | initial",
         "  ZKUBE_EXPECTED_CURRENT_SBF_SHA256=<required upgrade preimage hash>",
+        "  ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256=<required padded postimage hash>",
+        "  ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS=<required exact buffer rent>",
         "  ZKUBE_PROGRAM_BUFFER_KEYPAIR=<resumable buffer keypair path>",
         "  ZKUBE_PROGRAM_KEYPAIR=<required only for initial deployment>",
         "",

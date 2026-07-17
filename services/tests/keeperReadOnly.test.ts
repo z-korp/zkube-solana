@@ -3,8 +3,8 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-const { submitVersionedTransactionPlan } = vi.hoisted(() => ({
-  submitVersionedTransactionPlan: vi.fn(),
+const { compileWalletTransactionPlan } = vi.hoisted(() => ({
+  compileWalletTransactionPlan: vi.fn(),
 }));
 
 vi.mock("../../client/src/chain/dailyClient", () => ({
@@ -24,7 +24,7 @@ vi.mock("../../client/src/chain/economyClient", () => ({
 
 vi.mock("../../client/src/chain/runPlan", () => ({
   buildConsumeRunRecoveryPlan: vi.fn(),
-  submitVersionedTransactionPlan,
+  compileWalletTransactionPlan,
 }));
 
 vi.mock("../../client/src/chain/settlementRecovery", () => ({
@@ -75,7 +75,7 @@ describe("keeper read-only planning", () => {
       reserveLow: true,
       operationFailures: 0,
     });
-    expect(submitVersionedTransactionPlan).not.toHaveBeenCalled();
+    expect(compileWalletTransactionPlan).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "keeper_plan",

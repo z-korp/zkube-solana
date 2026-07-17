@@ -779,6 +779,9 @@ export function useRunController() {
           const moveStart = Date.now();
           const expectedAction = run.activeRun.actionCounter + 1;
           const previousVrfRequestCounter = run.activeRun.vrfRequestCounter;
+          const previousScore = run.activeRun.score;
+          const previousLines = run.activeRun.totalLinesCleared;
+          const previousComboCounter = run.activeRun.comboCounter;
           plog(telemetryTrace.current, "move:start", "magicblock-er", {
             move: run.activeRun.moves,
             action: run.activeRun.actionCounter,
@@ -842,6 +845,15 @@ export function useRunController() {
             vrfHydrateMs: Date.now() - submittedAt,
             newMove: activeRun.moves,
             newScore: activeRun.score,
+            scoreDelta: Math.max(0, activeRun.score - previousScore),
+            linesCleared: Math.max(
+              0,
+              activeRun.totalLinesCleared - previousLines,
+            ),
+            comboCounterDelta: Math.max(
+              0,
+              activeRun.comboCounter - previousComboCounter,
+            ),
             lifecycle: activeRun.lifecycle,
           });
           run.activeRun = activeRun;

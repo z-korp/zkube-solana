@@ -10,7 +10,7 @@
  * only to the player's canonical System-owned funding PDA.
  */
 import { randomUUID } from "node:crypto";
-import { Connection, Keypair } from "@solana/web3.js";
+import { Connection, Keypair, type VersionedTransaction } from "@solana/web3.js";
 
 import {
   buildCloseDailyChallengePlan,
@@ -28,7 +28,7 @@ import { fetchEconomyRuntime } from "../../client/src/chain/economyClient.js";
 import { deriveDailyChallengePda } from "../../client/src/chain/pdas.js";
 import {
   buildConsumeRunRecoveryPlan,
-  submitVersionedTransactionPlan,
+  compileWalletTransactionPlan,
   type TransactionPlan,
 } from "../../client/src/chain/runPlan.js";
 import { fetchOrphanedRunCandidates } from "../../client/src/chain/settlementRecovery.js";
@@ -52,6 +52,7 @@ import {
   type WeeklyPlayerRecord,
   type WeeklyView,
 } from "../../client/src/chain/weeklyClient.js";
+import { assertKeeperPlanPolicy } from "./keeperPolicy.js";
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 /**
@@ -61,6 +62,7 @@ const MAX_MAX_WRITES = 16;
  * only their fixed header there.
  */
 export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
+export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 50_000_000;
 const MAX_PASS_DURATION_MS = 210_000;
 const MAX_EXPIRED_SESSION_REVOKES_PER_PASS = 2;
 
@@ -70,7 +72,8 @@ export interface KeeperLogEvent {
     | "keeper_pass"
     | "keeper_operation"
     | "keeper_plan"
-    | "keeper_readiness";
+    | "keeper_readiness"
+    | "keeper_policy";
   traceId: string;
   operation?: string;
   ok: boolean;
@@ -84,6 +87,9 @@ export interface KeeperLogEvent {
   backlog?: number;
   balanceLamports?: number;
   minimumBalanceLamports?: number;
+  maximumSpendLamports?: number;
+  predictedSpendLamports?: number;
+  spentLamports?: number;
   error?: string;
 }
 
@@ -98,6 +104,8 @@ export interface KeeperPassResult {
   backlog: number;
   balanceLamports: number;
   reserveLow: boolean;
+  spentLamports: number;
+  maximumSpendLamports: number;
 }
 
 export interface KeeperDependencies {
@@ -108,6 +116,8 @@ export interface KeeperDependencies {
   now?: () => number;
   maxWrites?: number;
   minimumBalanceLamports?: number;
+  /** Hard-capped at 0.05 SOL even if configuration asks for more. */
+  maximumSpendLamports?: number;
   log?: (event: KeeperLogEvent) => void;
 }
 
@@ -143,6 +153,10 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   );
   const minimumBalanceLamports =
     dependencies.minimumBalanceLamports ?? DEFAULT_MIN_KEEPER_LAMPORTS;
+  const maximumSpendLamports = Math.min(
+    DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
+    Math.max(1, dependencies.maximumSpendLamports ?? DEFAULT_MAX_KEEPER_SPEND_LAMPORTS),
+  );
   const traceId = randomUUID();
   const log = dependencies.log ?? (() => undefined);
   const writeEnabled = dependencies.writeEnabled ?? true;
@@ -158,6 +172,7 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     ok: balanceLamports >= minimumBalanceLamports,
     balanceLamports,
     minimumBalanceLamports,
+    maximumSpendLamports,
   });
   if (writeEnabled && balanceLamports < minimumBalanceLamports) {
     throw new Error(
@@ -171,6 +186,8 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   let plannedWrites = 0;
   let backlog = 0;
   let operationFailures = 0;
+  let spentLamports = 0;
+  let spendCapReached = false;
   const capacityUsed = () => writes + plannedWrites;
   const execute = async (
     operation: string,
@@ -178,7 +195,8 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
   ): Promise<boolean> => {
     if (
       capacityUsed() >= maxWrites ||
-      Date.now() - startedAt >= MAX_PASS_DURATION_MS
+      Date.now() - startedAt >= MAX_PASS_DURATION_MS ||
+      spendCapReached
     ) {
       backlog += 1;
       return false;
@@ -200,11 +218,21 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
       return false;
     }
     try {
-      const signature = await submitVersionedTransactionPlan({
-        transactionPlan: plan,
-        wallet,
+      assertKeeperPlanPolicy({
+        operation,
+        plan,
+        keeper: dependencies.keeper.publicKey,
+        connection: dependencies.connection,
+        nowUnix: now,
       });
-      await dependencies.connection.confirmTransaction(signature, "confirmed");
+      const remainingSpendLamports = maximumSpendLamports - spentLamports;
+      const submitted = await simulateAndSubmitKeeperPlan({
+        plan,
+        wallet,
+        keeper: dependencies.keeper.publicKey,
+        remainingSpendLamports,
+      });
+      spentLamports += submitted.spentLamports;
       writes += 1;
       log({
         schemaVersion: 1,
@@ -213,11 +241,15 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         operation,
         ok: true,
         durationMs: Date.now() - operationStartedAt,
-        signature,
+        signature: submitted.signature,
+        predictedSpendLamports: submitted.predictedSpendLamports,
+        spentLamports,
+        maximumSpendLamports,
       });
       return true;
     } catch (error) {
       operationFailures += 1;
+      if (error instanceof KeeperSpendLimitError) spendCapReached = true;
       log({
         schemaVersion: 1,
         event: "keeper_operation",
@@ -542,6 +574,8 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     backlog,
     balanceLamports,
     reserveLow: balanceLamports < minimumBalanceLamports,
+    spentLamports,
+    maximumSpendLamports,
   };
   log({
     schemaVersion: 1,
@@ -555,8 +589,112 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     operationFailures,
     maxWrites,
     backlog,
+    spentLamports,
+    maximumSpendLamports,
   });
   return result;
+}
+
+class KeeperSpendLimitError extends Error {}
+
+async function simulateAndSubmitKeeperPlan(args: {
+  plan: TransactionPlan;
+  wallet: WalletLike;
+  keeper: Keypair["publicKey"];
+  remainingSpendLamports: number;
+}): Promise<{
+  signature: string;
+  predictedSpendLamports: number;
+  spentLamports: number;
+}> {
+  const balanceBefore = await args.plan.connection.getBalance(args.keeper, "confirmed");
+  const transaction = await compileWalletTransactionPlan({
+    transactionPlan: args.plan,
+    wallet: args.wallet,
+  });
+  const predictedSpendLamports = await simulateKeeperSpend(
+    args.plan.connection,
+    transaction,
+    args.keeper,
+    balanceBefore,
+  );
+  if (!keeperSpendWithinLimit(predictedSpendLamports, args.remainingSpendLamports)) {
+    throw new KeeperSpendLimitError(
+      `keeper policy blocks predicted spend ${predictedSpendLamports} above remaining cap ${args.remainingSpendLamports}`,
+    );
+  }
+  const signature = await args.plan.connection.sendRawTransaction(
+    transaction.serialize(),
+    { maxRetries: 5, skipPreflight: false },
+  );
+  await args.plan.connection.confirmTransaction(signature, "confirmed");
+  const balanceAfter = await args.plan.connection.getBalance(args.keeper, "confirmed");
+  const spentLamports = Math.max(0, balanceBefore - balanceAfter);
+  if (!keeperSpendWithinLimit(spentLamports, args.remainingSpendLamports)) {
+    throw new KeeperSpendLimitError(
+      `keeper actual spend ${spentLamports} exceeded remaining cap ${args.remainingSpendLamports}`,
+    );
+  }
+  return { signature, predictedSpendLamports, spentLamports };
+}
+
+async function simulateKeeperSpend(
+  connection: Connection,
+  transaction: VersionedTransaction,
+  keeper: Keypair["publicKey"],
+  balanceBefore: number,
+): Promise<number> {
+  const [simulation, fee] = await Promise.all([
+    connection.simulateTransaction(transaction, {
+      sigVerify: false,
+      replaceRecentBlockhash: false,
+      accounts: {
+        encoding: "base64",
+        addresses: [keeper.toBase58()],
+      },
+    }),
+    connection.getFeeForMessage(transaction.message, "confirmed"),
+  ]);
+  if (simulation.value.err) {
+    throw new Error(`keeper spend simulation failed: ${JSON.stringify(simulation.value.err)}`);
+  }
+  const simulatedKeeper = simulation.value.accounts?.[0];
+  if (!simulatedKeeper || fee.value === null) {
+    throw new Error("keeper spend simulation did not return payer balance and fee");
+  }
+  // Simulation may omit the transaction fee from the returned payer balance.
+  // Adding it unconditionally is conservative by at most one base fee.
+  return predictedKeeperSpendLamports(
+    balanceBefore,
+    simulatedKeeper.lamports,
+    fee.value,
+  );
+}
+
+export function predictedKeeperSpendLamports(
+  balanceBefore: number,
+  simulatedBalanceAfter: number,
+  feeLamports: number,
+): number {
+  if (
+    ![balanceBefore, simulatedBalanceAfter, feeLamports].every(
+      (value) => Number.isSafeInteger(value) && value >= 0,
+    )
+  ) {
+    throw new Error("keeper spend simulation returned invalid lamports");
+  }
+  return Math.max(0, balanceBefore - simulatedBalanceAfter) + feeLamports;
+}
+
+export function keeperSpendWithinLimit(
+  spendLamports: number,
+  remainingSpendLamports: number,
+): boolean {
+  return Number.isSafeInteger(spendLamports)
+    && Number.isSafeInteger(remainingSpendLamports)
+    && spendLamports >= 0
+    && remainingSpendLamports >= 0
+    && spendLamports <= remainingSpendLamports;
 }
 
 export function expiredSessionCleanupAllowance(

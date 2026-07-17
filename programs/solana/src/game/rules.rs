@@ -317,7 +317,10 @@ impl RunEngine {
         }
 
         self.grid.insert_bottom_row(next_row)?;
-        let (second_lines, second_points) = self.grid.settle();
+        // Cairo carries one line counter through both settle phases of the
+        // action. The inserted row can complete another line, which must keep
+        // climbing the same triangular score curve instead of restarting at 1.
+        let (second_lines, second_points) = self.grid.settle_after(first_lines);
         let report = self.finish_move(
             ActionContext {
                 height_before,
@@ -867,6 +870,9 @@ mod tests {
         assert_eq!(score_base_parts([1, 1], 150), 2);
         assert_eq!(score_base_parts([2, 1], 150), 4);
         assert_ne!(score_base_parts([1, 1], 150), scale(2, 150));
+        // A 3+1 split keeps Cairo's shared 1+2+3+4 curve while retaining
+        // Cairo's per-phase multiplier floors: 6*1.5 + 4*1.5 = 15.
+        assert_eq!(score_base_parts([6, 4], 150), 15);
     }
 
     #[test]

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createDevnetConnection } from "./serviceReadiness.js";
 import {
   boundedKeeperInteger,
+  DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
   DEFAULT_MIN_KEEPER_LAMPORTS,
   keeperKeypairFromEnv,
   runKeeperPass,
@@ -19,8 +20,12 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 16;
 
-/** First 16 hex characters of the selected v3 SBF SHA-256. */
-export const KEEPER_WRITE_RELEASE_FINGERPRINT = "4236db1f07271bfc";
+/** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
+export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
+  "2f345f3b1cfef82fdb32c7e8e913783cd33af555c9f8afcddc3fc1baf0d90e0d";
+/** Operator-facing release binding derived from the full deployed fingerprint. */
+export const KEEPER_WRITE_RELEASE_FINGERPRINT =
+  KEEPER_EXPECTED_DEPLOYED_SBF_SHA256.slice(0, 16);
 
 /**
  * Writes stay disabled unless Fly injects both the case-sensitive opt-in and
@@ -116,6 +121,7 @@ async function runConfiguredKeeperPass(
   const readiness = await checkChainReadiness({
     connection,
     expectedGenesisHash: expectedGenesisHashFromEnv(env),
+    expectedDeployedSbfSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
   });
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
@@ -132,6 +138,11 @@ async function runConfiguredKeeperPass(
       env.MIN_KEEPER_LAMPORTS,
       DEFAULT_MIN_KEEPER_LAMPORTS,
       Number.MAX_SAFE_INTEGER,
+    ),
+    maximumSpendLamports: boundedKeeperInteger(
+      env.KEEPER_MAX_SPEND_LAMPORTS_PER_PASS,
+      DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
+      DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
     ),
     log,
   });

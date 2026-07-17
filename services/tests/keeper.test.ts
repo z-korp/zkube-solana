@@ -8,9 +8,12 @@ import type { WeeklyPlayerRecord, WeeklyView } from "../../client/src/chain/week
 import {
   dailyPlayerCanClose,
   dailyShouldFinalize,
+  DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
   DEFAULT_MIN_KEEPER_LAMPORTS,
   expiredSessionCleanupAllowance,
   keeperKeypairFromEnv,
+  keeperSpendWithinLimit,
+  predictedKeeperSpendLamports,
   runKeeperPass,
   weeklyPlayerCanClose,
 } from "../src/keeper";
@@ -21,6 +24,24 @@ describe("autonomous challenge keeper", () => {
     const twoTransactionFees = 10_000;
     expect(DEFAULT_MIN_KEEPER_LAMPORTS).toBeGreaterThan(
       currentDailyAndWeeklyRent + twoTransactionFees,
+    );
+  });
+
+  it("fails closed at the compiled keeper spend ceiling", () => {
+    expect(DEFAULT_MAX_KEEPER_SPEND_LAMPORTS).toBe(50_000_000);
+    expect(keeperSpendWithinLimit(50_000_000, 50_000_000)).toBe(true);
+    expect(keeperSpendWithinLimit(50_000_001, 50_000_000)).toBe(false);
+    expect(keeperSpendWithinLimit(-1, 50_000_000)).toBe(false);
+    expect(keeperSpendWithinLimit(1, -1)).toBe(false);
+  });
+
+  it("conservatively includes rent debits and the base fee from simulation", () => {
+    expect(predictedKeeperSpendLamports(100_000_000, 75_000_000, 5_000)).toBe(
+      25_005_000,
+    );
+    expect(predictedKeeperSpendLamports(100_000_000, 101_000_000, 5_000)).toBe(5_000);
+    expect(() => predictedKeeperSpendLamports(1, -1, 5_000)).toThrow(
+      "invalid lamports",
     );
   });
 

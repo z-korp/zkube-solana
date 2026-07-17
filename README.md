@@ -66,6 +66,13 @@ client prewarms an endpoint-scoped ER blockhash, skips ER preflight, and keeps a
 single ActiveRun account subscription alive; notification data is validated and
 decoded directly, with short polling used only while recovering a missed write.
 
+Line score follows the original Cairo per-action triangular curve: the first
+line is worth 1 base point, the second adds 2, the third adds 3, and the fourth
+adds 4. The same counter spans the settle before next-row insertion and the
+settle after insertion, so a four-line action is always worth 10 base points
+before the snapshotted score, combo, line, or perfect-clear modifiers. Separate
+settle phases retain Cairo's integer-floor multiplier behavior.
+
 `PlayerState.active_run_id` enforces one open run per owner. It prevents two
 enabled devices from launching overlapping runs and lets a fresh device
 reconstruct the exact run PDA from chain state. Browser storage is only a cache;
@@ -270,18 +277,48 @@ the complete eight-row opening callback at 111,002 compute units, the bounded
 sparse-catalog fallback at 126,673, and an ordinary weighted-row callback at
 27,834; the stale-counter rejection also passes.
 
-The remaining release work is the Git-driven v3 client cutover, any separately
-approved ongoing keeper write policy, real-wallet desktop and Seeker acceptance,
-and the signed TWA APK only after browser acceptance passes. Each write or
-publication step remains separately approval-gated. Existing v2 Devnet progress
-is intentionally not migrated.
+The follow-up Cairo scoring-parity candidate is not yet deployed. Its selected
+`opt-level = "s"` ELF is 1,202,616 bytes with SHA-256
+`a6d7122e9bd6cf5c3fae6d892716df0e5a3a4406cc14c6c3e368dec488e326f2`.
+Its current Devnet ProgramData rent estimate is 8,371,411,440 lamports. The
+matching speed-profile ELF is 1,435,072 bytes with SHA-256
+`43c17062d293076a5d0909052877c5de630755c55b5c56fcf164ac2320cbbb5d`
+and a 9,989,305,200-lamport rent estimate; it cannot fit the live ProgramData
+capacity. Neither profile emits an SBF stack warning, and a clean selected
+rebuild reproduced the candidate byte-for-byte.
+It fits the existing 1,210,912-byte ProgramData capacity without extension;
+the exact post-upgrade padded SBF SHA-256 is
+`2f345f3b1cfef82fdb32c7e8e913783cd33af555c9f8afcddc3fc1baf0d90e0d`.
+The real SBF four-line terminal move uses 48,882 compute units and confirms
+the 10-point Cairo curve plus atomic terminal timestamp/accounting behavior.
+The bounded Devnet upgrade plan requires the loader buffer
+`81aC6XkuuUrdzWMfRNhZKVZhPapqi4MzWTmveaKh9koN` to remain absent, binds its
+exact 8,371,355,760-lamport temporary rent, allows one signing attempt, and
+caps net deployer spend at 50,000,000 lamports. Its approval evidence SHA-256
+is `316bfbcc8ae622235c0b69cd385c78d8c3770f148c04409c0cb876525d32a31f`
+(`316bfbcc8ae62223`). This dry-run fingerprint is evidence only; no transaction
+was signed or sent.
+
+The remaining release work is the Git-driven v3 client cutover, the separately
+approved bounded keeper release, real-wallet desktop and Seeker acceptance, and
+the signed TWA APK only after browser acceptance passes. The keeper's initial
+write enablement is approval-gated; after that, only its fingerprint-bound
+allowlist may recur within the fixed per-pass bounds. Existing v2 Devnet
+progress is intentionally not migrated.
 
 The v3 keeper also requires the exact compiled release fingerprint alongside
 the case-sensitive write opt-in. This keeps a newly deployed image read-only
 even if Fly still holds an older `KEEPER_WRITE_ENABLED=true` secret. The
 fingerprint is enabled only after the replacement image reports a clean
 read-only planning pass, and it is currently absent after the completed
-one-pass cadence release.
+one-pass cadence release. The next keeper candidate adds a last-line signing
+policy: every transaction must use the base connection, keeper payer, canonical
+instruction discriminator and fixed PDAs, current Daily/Weekly cadence address,
+and no additional signer. It also verifies the full padded ProgramData SHA-256
+before each pass, simulates the keeper balance delta, caps spend at 50,000,000
+lamports per pass, retains the eight-write/two-session limits, and stops below
+the 0.1 SOL reserve floor. None of those candidate controls enable writes until
+their exact release bundle is approved and applied.
 
 Every live deploy, bootstrap stage, keeper write enablement, SOL movement, or
 Daily publication needs exact operator approval. A single approval may cover a

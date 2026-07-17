@@ -49,9 +49,17 @@ Architecture and operations documentation belongs in code comments and
   deterministic fingerprint where available. Stop before signing if any
   approved detail drifts; vague or standing approvals are invalid. Simulation
   is evidence, not authority.
+- The sole recurring-write exception is a separately approved, fingerprinted
+  keeper release whose code enforces the canonical instruction allowlist,
+  Devnet genesis and deployed ProgramData hash, exact keeper payer/signer,
+  current cadence PDAs, at most eight writes and two expired-session closures
+  per pass, a 0.05 SOL simulated spend ceiling per pass, and the 0.1 SOL reserve
+  floor. Changing that allowlist, fingerprint, cluster, signer, or any bound
+  requires a new exact approval bundle; the exception grants no general or
+  operator-interactive transaction authority.
 - Automated verification is offline: format, typecheck, lint, tests, builds,
   and read-only RPC probes.
-- Program deploy/upgrade, bootstrap stages, keeper write enablement, moving SOL,
+- Program deploy/upgrade, bootstrap stages, initial keeper write enablement, moving SOL,
   publishing a Daily challenge, governance changes, and anything on mainnet
   require explicit approval, either individually or as exact operations in an
   enumerated release bundle. Mainnet is currently rejected.

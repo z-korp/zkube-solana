@@ -14,6 +14,8 @@ import {
 
 const directories: string[] = [];
 const CURRENT_SBF = "00".repeat(32);
+const POST_DEPLOYMENT_SBF = "11".repeat(32);
+const BUFFER_RENT = "12345678";
 
 afterEach(() => {
   for (const directory of directories.splice(0)) {
@@ -39,13 +41,18 @@ describe("Devnet deployment runner", () => {
     expect(input.artifactSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(input.approvalFingerprint).toMatch(/^[0-9a-f]{16}$/);
     expect(input.approvalEvidenceSha256).toMatch(/^[0-9a-f]{64}$/);
-    expect(input.approvalEvidenceSha256.startsWith(input.approvalFingerprint)).toBe(true);
+    expect(
+      input.approvalEvidenceSha256.startsWith(input.approvalFingerprint),
+    ).toBe(true);
     expect(input.commands.map(({ label }) => label)).toEqual([
       "Build Anchor program",
       "Upgrade existing program",
       "Verify deployed program",
     ]);
     expect(input.commands[1]?.args).toContain("--no-auto-extend");
+    expect(input.commands[1]?.args).toEqual(
+      expect.arrayContaining(["--max-sign-attempts", "1"]),
+    );
     expect(
       formatDevnetDeployment({
         mode: "dry-run",
@@ -101,6 +108,8 @@ describe("Devnet deployment runner", () => {
         ZKUBE_PROGRAM_BUFFER_KEYPAIR: fixture.buffer,
         ZKUBE_DEPLOYER_KEYPAIR: fixture.deployer,
         ZKUBE_UPGRADE_AUTHORITY_KEYPAIR: fixture.program,
+        ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256: POST_DEPLOYMENT_SBF,
+        ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS: BUFFER_RENT,
         ZKUBE_DEPLOY_MODE: "initial",
         ZKUBE_DEPLOY: "1",
         ZKUBE_DEPLOY_APPROVAL: "wrong",
@@ -123,6 +132,8 @@ describe("Devnet deployment runner", () => {
         fixture.deployer,
         "--fee-payer",
         fixture.deployer,
+        "--max-sign-attempts",
+        "1",
       ]),
     );
     expect(
@@ -143,6 +154,8 @@ describe("Devnet deployment runner", () => {
         ZKUBE_PROGRAM_KEYPAIR: fixture.program,
         ZKUBE_PROGRAM_BUFFER_KEYPAIR: fixture.buffer,
         ZKUBE_DEPLOYER_KEYPAIR: fixture.deployer,
+        ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256: POST_DEPLOYMENT_SBF,
+        ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS: BUFFER_RENT,
         ZKUBE_DEPLOY_MODE: "initial",
         ZKUBE_DEPLOY: "1",
       },
@@ -188,7 +201,9 @@ describe("Devnet deployment runner", () => {
             : null,
     } as Connection;
 
-    await expect(inspectUpgradeableProgram(connection, programId)).resolves.toEqual({
+    await expect(
+      inspectUpgradeableProgram(connection, programId),
+    ).resolves.toEqual({
       programDataAddress,
       programCapacityBytes: 1_096,
       programDataLamports: 2,
