@@ -262,7 +262,18 @@ catalog because the governed switch advances both content versions together.
 `NO_DNA=1 pnpm --dir client chain:devnet:content-plan` performs the read-only
 Devnet preflight and prints the exact accounts, spends, packet sizes,
 instruction hashes, and fingerprint needed for one release-bundle approval; it
-does not load a signer or send transactions.
+does not load a signer or send transactions. It deliberately fails closed once
+any immutable target account already exists.
+
+Campaign/Daily content v2 was activated on Devnet on July 17, 2026 under
+fingerprint `7f72e4a188d6513e`. Eleven immutable catalogs and one atomic
+pause/activate/unpause transaction spent exactly 31,467,840 lamports across 12
+confirmed transactions. The activation signature is
+`2K7gxgWxuJWdzQ2ozemKw8tjhKHGVj7yKSeDs2azJupBhr7NMsH2CQochp8JGtfPoVTXpzJWVack6Uc6nn2iVF4E`;
+its signature-verified simulation consumed 99,815 compute units. Independent
+postflight decoding reports content version 2, ten enabled maps with ten levels
+each, map 1 unlocked for a fresh address, economy revision 3, and an unpaused
+protocol.
 
 ## Repository map
 
@@ -510,9 +521,8 @@ Total non-faucet deployer spend for extension, upgrade, and pricing was
 771,303,240 lamports; the verified final deployer balance is 9,647,869,601
 lamports.
 
-The remaining release work is the fingerprint-approved Campaign v2 content
-publication and activation, real-wallet desktop and Seeker acceptance, and the
-signed TWA APK only after browser acceptance passes. Only the keeper's
+The remaining release work is real-wallet desktop and Seeker acceptance and
+the signed TWA APK only after browser acceptance passes. Only the keeper's
 fingerprint-bound allowlist may recur
 within the fixed per-pass bounds. Existing v2 Devnet progress is intentionally
 not migrated.
