@@ -69,6 +69,56 @@ export const getTitleForLevel = (level: number): string => {
   return PLAYER_TITLES[key] ?? "Novice";
 };
 
+// The level ring's color IS the visible rank — the cosmetic title moves to the
+// ring's tooltip. Ocean → Ember across levels 1–100: on-brand cyan early,
+// warming through teal and gold to ember at the cap.
+type Rgb = [number, number, number];
+const LEVEL_RAMP: Array<{ level: number; rgb: Rgb }> = [
+  { level: 1, rgb: [0x38, 0xbd, 0xf8] }, // sky cyan
+  { level: 25, rgb: [0x22, 0xd3, 0xee] }, // bright cyan
+  { level: 50, rgb: [0x34, 0xd3, 0x99] }, // teal-green
+  { level: 75, rgb: [0xfa, 0xcc, 0x15] }, // gold
+  { level: 100, rgb: [0xfb, 0x92, 0x3c] }, // ember orange
+];
+
+const toHex = (rgb: Rgb): string =>
+  `#${rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+
+const mixToward = (rgb: Rgb, target: Rgb, amount: number): Rgb =>
+  rgb.map((v, i) => v + (target[i] - v) * amount) as Rgb;
+
+const rampRgb = (level: number): Rgb => {
+  const clamped = Math.min(100, Math.max(1, level));
+  let lo = LEVEL_RAMP[0];
+  let hi = LEVEL_RAMP[LEVEL_RAMP.length - 1];
+  for (let i = 0; i < LEVEL_RAMP.length - 1; i += 1) {
+    if (clamped >= LEVEL_RAMP[i].level && clamped <= LEVEL_RAMP[i + 1].level) {
+      lo = LEVEL_RAMP[i];
+      hi = LEVEL_RAMP[i + 1];
+      break;
+    }
+  }
+  const span = hi.level - lo.level || 1;
+  return mixToward(lo.rgb, hi.rgb, (clamped - lo.level) / span);
+};
+
+export interface LevelRingPalette {
+  ring: string; // arc stroke + badge base
+  badgeTop: string; // lighter badge-gradient stop
+  glow: string; // soft drop shadow
+  text: string; // badge number color
+}
+
+export const getLevelRingPalette = (level: number): LevelRingPalette => {
+  const rgb = rampRgb(level);
+  return {
+    ring: toHex(rgb),
+    badgeTop: toHex(mixToward(rgb, [255, 255, 255], 0.35)),
+    glow: `0 0 16px ${toHex(rgb)}66`,
+    text: "#0a0f1a",
+  };
+};
+
 export interface ZoneProgressData {
   zoneId: number;
   themeId?: number;

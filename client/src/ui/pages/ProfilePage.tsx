@@ -15,17 +15,14 @@ import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
 import { useProgress } from "@/contexts/progress";
 import { useNavigationStore } from "@/stores/navigationStore";
-import LevelRing from "@/ui/components/shared/LevelRing";
 import StatsTab from "@/ui/components/profile/StatsTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
+import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
 import ProgressBar from "@/ui/components/shared/ProgressBar";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
-import StarBalance from "@/ui/components/shared/StarBalance";
-import WalletChip from "@/ui/components/shared/WalletChip";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { staggerContainer, staggerItem } from "@/ui/motion";
-import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 const TABS = ["Stats", "Zones"] as const;
 
@@ -48,7 +45,6 @@ const ProfilePage: React.FC = () => {
   const nextLevelXp = LEVEL_THRESHOLDS[level] ?? levelStartXp;
   const isMaxLevel = level >= LEVEL_THRESHOLDS.length;
   const title = getTitleForLevel(level);
-  const nextTitle = getTitleForLevel(Math.min(level + 1, 100));
 
   const [tab, setTab] = useState<(typeof TABS)[number]>("Stats");
   const [labelInput, setLabelInput] = useState("");
@@ -86,8 +82,8 @@ const ProfilePage: React.FC = () => {
             variants={staggerItem}
             className="rounded-3xl border border-white/[0.16] bg-white/[0.12] p-4 shadow-lg shadow-black/20 backdrop-blur-2xl"
           >
-            <div className="mb-3 flex items-center gap-3">
-              <LevelRing
+            <div className="mb-3">
+              <PlayerIdentityHeader
                 level={level}
                 progress={
                   isMaxLevel
@@ -95,51 +91,18 @@ const ProfilePage: React.FC = () => {
                     : (xp - levelStartXp) /
                       Math.max(nextLevelXp - levelStartXp, 1)
                 }
-                colors={colors}
-                size={60}
-              />
-
-              <div className="min-w-0 flex-1">
-                <p
-                  className="truncate font-sans text-lg font-extrabold"
-                  style={{ color: colors.text }}
-                >
-                  {playerLabel.label?.displayName ?? title}
-                </p>
-                <WalletChip
-                  address={address}
-                  onClick={() => navigate("settings")}
-                  title={address || undefined}
-                  ariaLabel={
-                    address
-                      ? `Connected wallet ${address}`
-                      : "Wallet disconnected"
-                  }
-                  label={
-                    address
-                      ? `${playerLabel.label ? `${title} · ` : ""}${truncatePublicKey(address)}`
-                      : "Not connected"
-                  }
-                  className="mt-1"
-                />
-              </div>
-
-              <StarBalance
-                value={starBalance}
-                size="lg"
-                align="right"
-                labelColor={colors.textMuted}
+                displayName={playerLabel.label?.displayName}
+                title={title}
+                address={address}
+                starBalance={starBalance}
+                ringSize={60}
+                starSize="lg"
+                onEditIdentity={() => navigate("settings")}
               />
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between">
-                <p
-                  className="font-sans text-xs font-semibold"
-                  style={{ color: colors.textMuted }}
-                >
-                  Level {level}
-                </p>
+              <div className="mb-1 flex items-center justify-end">
                 <p
                   className="font-sans text-xs font-extrabold"
                   style={{ color: colors.accent }}
@@ -161,8 +124,8 @@ const ProfilePage: React.FC = () => {
                 style={{ color: colors.textMuted }}
               >
                 {isMaxLevel
-                  ? `Maximum level · "${title}"`
-                  : `${Math.max(0, nextLevelXp - xp).toLocaleString()} XP to Level ${level + 1} · "${nextTitle}"`}
+                  ? "Maximum level"
+                  : `${Math.max(0, nextLevelXp - xp).toLocaleString()} XP to Level ${level + 1}`}
               </p>
             </div>
           </motion.section>

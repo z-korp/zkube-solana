@@ -18,6 +18,7 @@ import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { useCountdown } from "@/hooks/useNowTick";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
+import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useZStarBalance } from "@/hooks/useZStarBalance";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -27,9 +28,7 @@ import CtaGuardian from "@/ui/components/CtaGuardian";
 import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
-import LevelRing from "@/ui/components/shared/LevelRing";
-import StarBalance from "@/ui/components/shared/StarBalance";
-import WalletChip from "@/ui/components/shared/WalletChip";
+import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
 import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatCountdown } from "@/utils/time";
 
@@ -74,6 +73,7 @@ const HomePage: React.FC = () => {
   const [unlockZone, setUnlockZone] = useState<ZoneProgressData | null>(null);
 
   const { playerMeta } = usePlayerMeta(address);
+  const playerLabel = usePlayerLabelController();
   const playerLevel = getLevelFromXp(playerMeta?.lifetimeXp ?? 0);
   const playerTitle = getTitleForLevel(playerLevel);
   const playerXp = playerMeta?.lifetimeXp ?? 0;
@@ -215,27 +215,17 @@ const HomePage: React.FC = () => {
             <>
           <motion.div
             variants={itemVariants}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-2 backdrop-blur-xl"
+            className="rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-2 backdrop-blur-xl"
           >
-            <div className="flex min-w-0 items-center gap-3">
-              <LevelRing
-                level={playerLevel}
-                progress={levelProgress}
-                colors={colors}
-                size={52}
-              />
-              <div className="min-w-0">
-                <p className="truncate font-sans text-[16px] font-extrabold text-white">
-                  {playerTitle}
-                </p>
-                <WalletChip address={address} title={address} className="mt-0.5" />
-              </div>
-            </div>
-            <StarBalance
-              value={zStarBalance}
-              size="md"
-              align="right"
-              className="shrink-0"
+            <PlayerIdentityHeader
+              level={playerLevel}
+              progress={levelProgress}
+              displayName={playerLabel.label?.displayName}
+              title={playerTitle}
+              address={address}
+              starBalance={zStarBalance}
+              ringSize={52}
+              starSize="md"
             />
           </motion.div>
 
