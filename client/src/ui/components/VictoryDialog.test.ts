@@ -1,11 +1,22 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Game } from "@/game/model";
 import VictoryDialog from "./VictoryDialog";
 
+vi.mock("@/ui/elements/theme-provider/hooks", async () =>
+  (await import("@/test/mocks/theme")).themeHooksMock(),
+);
+
 describe("VictoryDialog", () => {
+  beforeAll(() => {
+    vi.stubGlobal("React", React);
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("shows the confirmed boss-level XP delta", () => {
     const game = {
       zoneId: 2,

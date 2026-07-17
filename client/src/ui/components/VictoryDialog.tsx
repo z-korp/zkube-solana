@@ -1,9 +1,10 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "motion/react";
+
+import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import type { ThemeColors } from "@/config/themes";
 import { Game } from "@/game/model";
-import { Dialog, DialogContent, DialogTitle } from "../elements/dialog";
-import React, { useMemo, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Flame, Gem, Star, Trophy } from "lucide-react";
-import CubeIcon from "@/ui/components/CubeIcon";
+import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
 interface VictoryDialogProps {
   isOpen: boolean;
@@ -13,8 +14,18 @@ interface VictoryDialogProps {
   game: Game;
   finalCampaignMapId: number;
   xpAwarded: number;
+  colors?: ThemeColors;
 }
 
+const PORTRAIT_MASK =
+  "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)";
+
+/**
+ * Guardian-trial victory card — the boss counterpart to LevelCompleteDialog,
+ * sharing its full-height portrait + bottom-panel language (no off-theme
+ * trophy). Shows the run totals, the guardian's respect line, and the
+ * confirmed XP, with a Share action and Continue.
+ */
 const VictoryDialog: React.FC<VictoryDialogProps> = ({
   isOpen,
   onClose,
@@ -22,220 +33,172 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   game,
   finalCampaignMapId,
   xpAwarded,
+  colors,
 }) => {
-  const [animationPhase, setAnimationPhase] = useState(0);
+  const [phase, setPhase] = useState(0);
+  const guardian = getZoneGuardian(game.zoneId);
+  const campaignComplete = game.zoneId === finalCampaignMapId;
 
-  // Reset and start animation when dialog opens
   useEffect(() => {
-    if (isOpen) {
-      setAnimationPhase(0);
-      const timer1 = setTimeout(() => setAnimationPhase(1), 300);
-      const timer2 = setTimeout(() => setAnimationPhase(2), 800);
-      const timer3 = setTimeout(() => setAnimationPhase(3), 1300);
-      return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-        clearTimeout(timer3);
-      };
-    }
+    if (!isOpen) return;
+    setPhase(0);
+    const t1 = window.setTimeout(() => setPhase(1), 180);
+    const t2 = window.setTimeout(() => setPhase(2), 700);
+    const t3 = window.setTimeout(() => setPhase(3), 1100);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
   }, [isOpen]);
 
-  const handleClose = () => {
-    if (closeDisabled) return;
-    onClose();
-  };
-
-  // Generate tweet URL for victory
   const tweetUrl = useMemo(() => {
-    const campaignComplete = game.zoneId === finalCampaignMapId;
-    const tweetMsg = `🏆 ${campaignComplete ? "I completed the zKube campaign!" : `I defeated the Map ${game.zoneId} guardian in zKube!`}
+    const msg = `🏆 ${
+      campaignComplete
+        ? "I completed the zKube campaign!"
+        : `I defeated ${guardian.name}, the ${guardian.title}, in zKube!`
+    }
 🧱 ${game.totalCubes} lines cleared
 💎 ${game.totalScore.toLocaleString()} total points
 🔥 ${game.maxComboRun} max combo
 Can you clear the guardian trial? 😎
 Play now: app.zkube.xyz
 @zkorp_ @zkube_game`;
-    return `https://x.com/intent/tweet?text=${encodeURIComponent(tweetMsg)}&url=app.zkube.xyz`;
-  }, [finalCampaignMapId, game.maxComboRun, game.totalCubes, game.totalScore, game.zoneId]);
+    return `https://x.com/intent/tweet?text=${encodeURIComponent(msg)}&url=app.zkube.xyz`;
+  }, [
+    campaignComplete,
+    guardian.name,
+    guardian.title,
+    game.maxComboRun,
+    game.totalCubes,
+    game.totalScore,
+  ]);
 
-  const campaignComplete = game.zoneId === finalCampaignMapId;
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        aria-describedby={undefined}
-        className="sm:max-w-[450px] w-[95%] flex flex-col mx-auto justify-start rounded-lg px-6 py-8 bg-gradient-to-b from-yellow-900/30 to-slate-900 border-2 border-yellow-500/50"
+    <motion.div
+      className="absolute inset-0 z-40 flex flex-col bg-black/70"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={phase >= 3 && !closeDisabled ? onClose : undefined}
+    >
+      {/* Full-height guardian portrait */}
+      <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden">
+        <motion.div
+          className="relative h-[60%] max-h-[360px]"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
+        >
+          <img
+            src={getGuardianPortrait(game.zoneId)}
+            alt={guardian.name}
+            className="h-full w-auto object-contain"
+            style={{
+              maskImage: PORTRAIT_MASK,
+              WebkitMaskImage: PORTRAIT_MASK,
+              maskComposite: "intersect",
+              WebkitMaskComposite: "source-in",
+            }}
+            draggable={false}
+          />
+        </motion.div>
+      </div>
+
+      {/* Victory panel */}
+      <motion.div
+        className="shrink-0"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 25 }}
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Animated Trophy */}
-        <motion.div
-          className="flex justify-center mb-2"
-          initial={{ scale: 0, rotate: -180 }}
-          animate={animationPhase >= 1 ? { scale: 1, rotate: 0 } : {}}
-          transition={{ type: "spring", stiffness: 200, damping: 15 }}
+        <div
+          className="mx-2 mb-3 rounded-2xl border-2 px-4 pb-4 pt-3"
+          style={{
+            background: colors
+              ? `linear-gradient(180deg, ${colors.backgroundGradientStart ?? "#0a1628"}F5, ${colors.background ?? "#050a12"}FA)`
+              : "linear-gradient(180deg, rgba(15,23,42,0.95), rgba(10,15,30,0.98))",
+            borderColor: "rgba(250,204,21,0.35)",
+            boxShadow: "0 -4px 32px rgba(0,0,0,0.5)",
+          }}
         >
-          <div className="relative">
-            <Trophy
-              size={72}
-              className="text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.5)]"
-            />
-            {/* Sparkles around trophy */}
-            <AnimatePresence>
-              {animationPhase >= 1 && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{
-                      opacity: [0, 1, 0],
-                      scale: [0.5, 1, 0.5],
-                      x: [-30, -40],
-                      y: [-10, -20],
-                    }}
-                    transition={{ duration: 1, repeat: 3, repeatDelay: 0.5 }}
-                    className="absolute top-0 left-0"
-                  >
-                    <Star size={20} className="text-yellow-300" />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{
-                      opacity: [0, 1, 0],
-                      scale: [0.5, 1, 0.5],
-                      x: [30, 40],
-                      y: [-5, -15],
-                    }}
-                    transition={{ duration: 1, repeat: 3, repeatDelay: 0.7 }}
-                    className="absolute top-0 right-0"
-                  >
-                    <Star size={20} className="text-yellow-300" />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{
-                      opacity: [0, 1, 0],
-                      scale: [0.5, 1, 0.5],
-                      y: [20, 30],
-                    }}
-                    transition={{ duration: 1, repeat: 3, repeatDelay: 0.9 }}
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2"
-                  >
-                    <Star size={20} className="text-yellow-300" />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-
-        {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={animationPhase >= 1 ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <DialogTitle className="text-4xl text-center mb-2 text-yellow-400 font-bold">
-            VICTORY!
-          </DialogTitle>
-          <p className="text-center text-lg text-yellow-200/80 mb-4">
-            {campaignComplete
-              ? "You completed the campaign!"
-              : `You defeated the Map ${game.zoneId} guardian!`}
+          {/* Title */}
+          <p className="font-display text-xl font-black text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.35)]">
+            {campaignComplete ? "Campaign Complete!" : "Trial Passed!"}
           </p>
-        </motion.div>
 
-        <div className="flex flex-col gap-5">
-          {/* Level display */}
+          {/* Guardian respect line */}
+          <p className="mt-1 font-sans text-[14px] leading-relaxed text-white/85">
+            &quot;{guardian.respectLine}&quot;
+          </p>
+
+          {/* Run totals */}
           <motion.div
-            className="text-center"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={animationPhase >= 2 ? { opacity: 1, scale: 1 } : {}}
-            transition={{ type: "spring", stiffness: 200, damping: 15 }}
-          >
-            <div className="text-6xl font-bold text-white mb-1">
-              {game.zoneId}
-            </div>
-            <div className="text-lg text-yellow-400 flex items-center justify-center gap-2">
-              <Trophy size={16} className="text-yellow-400" />
-              {campaignComplete ? "Campaign Complete" : "Map Complete"}
-            </div>
-          </motion.div>
-
-          {/* Stats row */}
-          <motion.div
-            className="flex gap-4 justify-center items-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={animationPhase >= 2 ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.4, delay: 0.2 }}
-          >
-            {/* Total cubes */}
-            <div className="flex flex-col items-center gap-1 bg-yellow-900/30 px-4 py-3 rounded-lg flex-1 border border-yellow-500/30">
-              <div className="text-3xl flex gap-2 items-center text-yellow-400">
-                {game.totalCubes}
-                <CubeIcon size="xs" />
-              </div>
-              <div className="text-xs text-yellow-400/80">Cubes</div>
-            </div>
-
-            {/* Total Score */}
-            <div className="flex flex-col items-center gap-1 bg-cyan-900/30 px-4 py-3 rounded-lg flex-1 border border-cyan-500/30">
-              <div className="text-3xl flex gap-2 items-center text-cyan-400">
-                {game.totalScore.toLocaleString()}
-                <Gem size={16} />
-              </div>
-              <div className="text-xs text-cyan-400/80">Score</div>
-            </div>
-
-            {/* Max Combo */}
-            <div className="flex flex-col items-center gap-1 bg-orange-900/30 px-4 py-3 rounded-lg flex-1 border border-orange-500/30">
-              <div className="text-3xl flex gap-2 items-center text-orange-500">
-                {game.maxComboRun}
-                <Flame size={16} />
-              </div>
-              <div className="text-xs text-orange-400/80">Best Combo</div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            className="rounded-lg border border-cyan-400/30 bg-cyan-900/25 px-4 py-3 text-center"
+            className="mt-3 flex gap-2"
             initial={{ opacity: 0, y: 10 }}
-            animate={animationPhase >= 2 ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.3, delay: 0.3 }}
-          >
-            <div className="text-2xl font-bold text-cyan-300">
-              +{xpAwarded} XP
-            </div>
-            <div className="text-xs text-cyan-100/65">
-              Campaign level progress
-            </div>
-          </motion.div>
-
-          {/* Share on X button */}
-          <motion.a
-            href={tweetUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white rounded-lg px-4 py-3 transition-colors font-semibold"
-            initial={{ opacity: 0, y: 10 }}
-            animate={animationPhase >= 3 ? { opacity: 1, y: 0 } : {}}
+            animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}
           >
-            <span className="font-bold text-lg">🏆</span>
-            <span>Share Victory on X</span>
-          </motion.a>
+            <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
+              <p className="font-sans text-sm font-bold text-yellow-300">
+                {game.totalCubes}
+              </p>
+              <p className="font-sans text-[9px] text-white/40">Lines</p>
+            </div>
+            <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
+              <p className="font-sans text-sm font-bold text-cyan-300">
+                {game.totalScore.toLocaleString()}
+              </p>
+              <p className="font-sans text-[9px] text-white/40">Score</p>
+            </div>
+            <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
+              <p className="font-sans text-sm font-bold text-orange-300">
+                {game.maxComboRun}
+              </p>
+              <p className="font-sans text-[9px] text-white/40">Best Combo</p>
+            </div>
+          </motion.div>
 
-          {/* Return home button */}
-          <motion.button
-            onClick={handleClose}
-            disabled={closeDisabled}
-            className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-4 py-2 transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-55"
+          {/* Confirmed progression reward */}
+          <motion.div
+            className="mt-2 rounded-xl bg-white/[0.05] px-3 py-2 text-center"
             initial={{ opacity: 0 }}
-            animate={animationPhase >= 3 ? { opacity: 1 } : {}}
-            transition={{ duration: 0.3, delay: 0.1 }}
+            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.3 }}
           >
-            {closeDisabled ? "Settling…" : "Continue"}
-          </motion.button>
+            <p className="font-sans text-sm font-bold text-cyan-300">
+              +{xpAwarded} XP
+            </p>
+            <p className="font-sans text-[9px] text-white/40">
+              Campaign level progress
+            </p>
+          </motion.div>
+
+          {/* Actions */}
+          <motion.div
+            className="mt-3 flex flex-col gap-2"
+            initial={{ opacity: 0 }}
+            animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <a
+              href={tweetUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-sans text-sm font-bold text-white/80 transition-colors hover:bg-white/[0.1]"
+            >
+              🏆 Share on X
+            </a>
+            <ArcadeButton onClick={onClose} disabled={closeDisabled}>
+              {closeDisabled ? "Settling…" : "Continue"}
+            </ArcadeButton>
+          </motion.div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </motion.div>
+    </motion.div>
   );
 };
 

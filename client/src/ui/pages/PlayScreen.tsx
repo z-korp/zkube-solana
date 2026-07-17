@@ -56,7 +56,6 @@ export default function PlayScreen() {
   const activeRunId = activeRun?.runId;
   const activeRunLevel = activeRun?.level;
   const activeRunBossId = activeRun?.rules.bossId;
-  const activeRunLifecycle = activeRun?.lifecycle;
   const authoritativeGrid = useGrid({
     gameId: activeRunId,
     shouldLog: false,
@@ -72,32 +71,31 @@ export default function PlayScreen() {
     if (nextTheme !== themeTemplate) setThemeTemplate(nextTheme);
   }, [activeRun, setThemeTemplate, themeTemplate]);
 
+  // Start the in-game track once the run is live, then keep it running through
+  // the entire clear presentation (win/lose card + background settlement).
+  // Tying the mood to the lifecycle used to flip it to the menu the instant a
+  // level cleared; now only leaving PlayScreen restores the menu rotation.
+  const setMusicMoodRef = useRef(setMusicMood);
+  setMusicMoodRef.current = setMusicMood;
+  const inGameMusicStartedRef = useRef(false);
   useEffect(() => {
     if (
+      inGameMusicStartedRef.current ||
       activeRunId === undefined ||
       activeRunLevel === undefined ||
       activeRunBossId === undefined ||
-      activeRunLifecycle === undefined ||
-      activeRunLifecycle === "levelComplete" ||
-      activeRunLifecycle === "finished" ||
       run.phase !== "delegated"
     ) {
       return;
     }
+    inGameMusicStartedRef.current = true;
     const boss = activeRunLevel === 10 || activeRunBossId > 0;
     setMusicMood(boss ? "boss" : "level");
     if (boss) playSfx("boss-intro");
-    // Restore the full menu rotation, not a bare main track.
-    return () => setMusicMood("menu");
-  }, [
-    activeRunBossId,
-    activeRunId,
-    activeRunLevel,
-    activeRunLifecycle,
-    playSfx,
-    run.phase,
-    setMusicMood,
-  ]);
+  }, [activeRunBossId, activeRunId, activeRunLevel, playSfx, run.phase, setMusicMood]);
+
+  // Restore the full menu rotation only when leaving the play surface.
+  useEffect(() => () => setMusicMoodRef.current("menu"), []);
 
   useEffect(() => {
     setActiveBonus(BonusType.None);
@@ -549,6 +547,9 @@ export default function PlayScreen() {
           isOpen
           onClose={controller.closeOutcome}
           closeDisabled={controller.settlementStatus !== "complete"}
+          settlementFailed={controller.settlementStatus === "failed"}
+          settlementError={run.error}
+          onRetrySettlement={controller.retrySettlement}
           game={game}
         />
       )}
@@ -560,6 +561,7 @@ export default function PlayScreen() {
           game={game}
           finalCampaignMapId={controller.finalCampaignMapId}
           xpAwarded={controller.terminalSnapshot?.xpAwarded ?? 0}
+          colors={getThemeColors(themeTemplate as ThemeId)}
         />
       )}
       {controller.showLevelCard && controller.terminalSnapshot && (
