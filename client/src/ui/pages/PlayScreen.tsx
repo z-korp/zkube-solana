@@ -42,7 +42,7 @@ export default function PlayScreen() {
   const navigate = useNavigationStore((state) => state.navigate);
   const recoveryRunId = useNavigationStore((state) => state.recoveryRunId);
   const { themeTemplate, setThemeTemplate } = useTheme();
-  const { setMusicContext, playSfx } = useMusicPlayer();
+  const { setMusicMood, playSfx } = useMusicPlayer();
   const images = ImageAssets(themeTemplate);
   const [activeBonus, setActiveBonus] = useState(BonusType.None);
   const [recoveringRun, setRecoveringRun] = useState(false);
@@ -85,9 +85,10 @@ export default function PlayScreen() {
       return;
     }
     const boss = activeRunLevel === 10 || activeRunBossId > 0;
-    setMusicContext(boss ? "boss" : "level");
+    setMusicMood(boss ? "boss" : "level");
     if (boss) playSfx("boss-intro");
-    return () => setMusicContext("main");
+    // Restore the full menu rotation, not a bare main track.
+    return () => setMusicMood("menu");
   }, [
     activeRunBossId,
     activeRunId,
@@ -95,7 +96,7 @@ export default function PlayScreen() {
     activeRunLifecycle,
     playSfx,
     run.phase,
-    setMusicContext,
+    setMusicMood,
   ]);
 
   useEffect(() => {

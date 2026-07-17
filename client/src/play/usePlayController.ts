@@ -147,7 +147,7 @@ export function usePlayController() {
   const campaign = useCampaign();
   const progress = useProgress();
   const daily = useDaily();
-  const { playSfx } = useMusicPlayer();
+  const { playSfx, duck, unduck } = useMusicPlayer();
   const navigate = useNavigationStore((state) => state.navigate);
   const setRecoveryRunId = useNavigationStore(
     (state) => state.setRecoveryRunId,
@@ -309,6 +309,31 @@ export function usePlayController() {
         : "levelup",
     );
   }, [finalCampaignMapId, playSfx, presentationPhase, terminalSnapshot]);
+
+  // Duck the music while the outcome show + card own the foreground, so the
+  // stings and detonation land clearly. Ref-paired so duck/unduck always
+  // balance, including on unmount mid-presentation.
+  const duckedRef = useRef(false);
+  useEffect(() => {
+    const showing =
+      presentationPhase === "outcome" || presentationPhase === "card";
+    if (showing && !duckedRef.current) {
+      duckedRef.current = true;
+      duck();
+    } else if (!showing && duckedRef.current) {
+      duckedRef.current = false;
+      unduck();
+    }
+  }, [duck, presentationPhase, unduck]);
+
+  useEffect(() => {
+    return () => {
+      if (duckedRef.current) {
+        duckedRef.current = false;
+        unduck();
+      }
+    };
+  }, [unduck]);
 
   useEffect(() => {
     const activeRun = run.activeRun;

@@ -97,7 +97,7 @@ function guardianConstraints(
 
 const BossRevealPage: React.FC = () => {
   const { setThemeTemplate } = useTheme();
-  const { playSfx } = useMusicPlayer();
+  const { playSfx, warmMusic } = useMusicPlayer();
   const campaign = useCampaign();
   const gameId = useNavigationStore((state) => state.gameId);
   const navigate = useNavigationStore((state) => state.navigate);
@@ -129,7 +129,9 @@ const BossRevealPage: React.FC = () => {
   useEffect(() => {
     setThemeTemplate(themeId);
     playSfx("boss-intro");
-  }, [playSfx, setThemeTemplate, themeId]);
+    // Fetch the boss track now so the fight's crossfade starts instantly.
+    warmMusic(["boss"]);
+  }, [playSfx, setThemeTemplate, themeId, warmMusic]);
 
   const faceGuardian = () => {
     if (activeStoryRun?.zoneId === mapZoneId && activeStoryRun.level === 10) {

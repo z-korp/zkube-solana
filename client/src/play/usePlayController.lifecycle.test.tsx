@@ -34,7 +34,11 @@ vi.mock("@/contexts/daily", () => ({
   useDaily: () => ({ refresh: fixtures.dailyRefresh }),
 }));
 vi.mock("@/contexts/hooks", () => ({
-  useMusicPlayer: () => ({ playSfx: fixtures.playSfx }),
+  useMusicPlayer: () => ({
+    playSfx: fixtures.playSfx,
+    duck: vi.fn(),
+    unduck: vi.fn(),
+  }),
 }));
 vi.mock("@/stores/navigationStore", () => ({
   useNavigationStore: (selector: (state: Record<string, unknown>) => unknown) =>

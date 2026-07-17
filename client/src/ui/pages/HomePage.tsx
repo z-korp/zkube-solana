@@ -76,7 +76,7 @@ const HomePage: React.FC = () => {
     player.publicKey !== null &&
     player.sessionStatus === "ready";
   const { themeTemplate } = useTheme();
-  const { setMusicPlaylist } = useMusicPlayer();
+  const { setMusicMood } = useMusicPlayer();
   const runtime = useDevnetRuntimeStatus();
   const navigate = useNavigationStore((state) => state.navigate);
   const mapZoneId = useNavigationStore((state) => state.mapZoneId);
@@ -139,8 +139,8 @@ const HomePage: React.FC = () => {
   }, [address, dailyEntries]);
 
   useEffect(() => {
-    setMusicPlaylist(["main", "level"]);
-  }, [setMusicPlaylist]);
+    setMusicMood("menu");
+  }, [setMusicMood]);
 
   useEffect(() => {
     if (runtime.phase === "checking" || runtime.phase === "ready") return;

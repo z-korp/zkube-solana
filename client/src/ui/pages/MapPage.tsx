@@ -103,7 +103,7 @@ const MapPage: React.FC = () => {
   const greetedZones = useNavigationStore((state) => state.greetedZones);
   const markZoneGreeted = useNavigationStore((state) => state.markZoneGreeted);
   const { setThemeTemplate } = useTheme();
-  const { setMusicPlaylist } = useMusicPlayer();
+  const { setMusicMood } = useMusicPlayer();
 
   const map = resolveCampaignMap(
     campaign.campaign?.maps ?? null,
@@ -144,8 +144,8 @@ const MapPage: React.FC = () => {
   }, [mapZoneId, rawMapZoneId, setMapZoneId]);
 
   useEffect(() => {
-    setMusicPlaylist(["main", "level"]);
-  }, [setMusicPlaylist]);
+    setMusicMood("menu");
+  }, [setMusicMood]);
 
   const themeId = getThemeId(map?.themeId ?? mapZoneId);
   useEffect(() => {

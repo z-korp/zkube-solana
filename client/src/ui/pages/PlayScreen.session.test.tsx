@@ -136,7 +136,7 @@ vi.mock("@/stores/navigationStore", () => ({
 }));
 vi.mock("@/contexts/hooks", () => ({
   useMusicPlayer: () => ({
-    setMusicContext: fixtures.setMusicContext,
+    setMusicMood: fixtures.setMusicContext,
     playSfx: fixtures.playSfx,
   }),
 }));

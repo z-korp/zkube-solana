@@ -6,18 +6,31 @@ import {
   type SfxName,
   type ThemeId,
   loadAudioSettings,
-  saveAudioSettings,
 } from "@/config/themes";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import noop from "@/utils/noop";
+
+/**
+ * Music is mood-driven: pages declare a mood, and the engine only transitions
+ * (with crossfades) when the mood or theme actually changes — navigating
+ * between same-mood pages never touches the track.
+ */
+export type MusicMood = "menu" | "level" | "boss";
+
+/** The menu mood rotates the theme's main and level tracks. */
+const MENU_PLAYLIST: MusicContext[] = ["main", "level"];
 
 export interface MusicPlayerContextValue {
   musicVolume: number;
   effectsVolume: number;
   setMusicVolume: (volume: number) => void;
   setEffectsVolume: (volume: number) => void;
+  setMusicMood: (mood: MusicMood) => void;
   setMusicContext: (context: MusicContext) => void;
   setMusicPlaylist: (contexts: MusicContext[]) => void;
+  warmMusic: (contexts: MusicContext[]) => void;
+  duck: () => void;
+  unduck: () => void;
   currentContext: MusicContext;
   isPlaying: boolean;
   playSfx: (name: SfxName) => void;
@@ -34,8 +47,12 @@ export const MusicPlayerContext = createContext<MusicPlayerContextValue>({
   effectsVolume: 0.5,
   setMusicVolume: noop,
   setEffectsVolume: noop,
+  setMusicMood: noop,
   setMusicContext: noop,
   setMusicPlaylist: noop,
+  warmMusic: noop,
+  duck: noop,
+  unduck: noop,
   currentContext: DEFAULT_MUSIC_CONTEXT,
   isPlaying: false,
   playSfx: noop,
@@ -66,7 +83,8 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   // Web Audio autoplay policy: browsers block Howl.play() until a user gesture.
-  // Re-trigger playMusic on first interaction so the track actually starts.
+  // Re-trigger playMusic on first interaction so the track actually starts,
+  // then warm the active theme so the first mood change crossfades instantly.
   useEffect(() => {
     const unlock = () => {
       if (audioUnlockedRef.current) return;
@@ -77,6 +95,7 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       } else {
         audioManager.playMusic(themeId, currentContext);
       }
+      audioManager.warm(themeId, ["main", "level"]);
       setIsPlaying(audioManager.isPlaying);
 
       document.removeEventListener("click", unlock, true);
@@ -95,6 +114,8 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
     };
   }, [themeId, currentContext, playlistContexts]);
 
+  // Theme/mood reconcile — the engine crossfades every actual change and
+  // no-ops identical targets, so this is safe to re-run.
   useEffect(() => {
     if (audioManager.isPlaying) {
       if (playlistContexts.length > 0) {
@@ -102,9 +123,25 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       } else {
         audioManager.playMusic(themeId, currentContext);
       }
+      audioManager.warm(themeId, ["main", "level"]);
       setIsPlaying(audioManager.isPlaying);
     }
   }, [themeId, currentContext, playlistContexts]);
+
+  // Backgrounding the PWA silences music; returning resumes mid-track.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) {
+        audioManager.pauseAll();
+      } else {
+        audioManager.resumeAll();
+      }
+      setIsPlaying(audioManager.isPlaying);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -113,43 +150,26 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
-  const setMusicVolume = useCallback(
-    (volume: number) => {
-      const nextVolume = clampVolume(volume);
-      audioManager.setMusicVolume(nextVolume);
-      saveAudioSettings({
-        musicVolume: nextVolume,
-        effectsVolume,
-      });
-      setMusicVolumeState(nextVolume);
-    },
-    [effectsVolume],
-  );
+  const setMusicVolume = useCallback((volume: number) => {
+    const nextVolume = clampVolume(volume);
+    audioManager.setMusicVolume(nextVolume);
+    setMusicVolumeState(nextVolume);
+  }, []);
 
-  const setEffectsVolume = useCallback(
-    (volume: number) => {
-      const nextVolume = clampVolume(volume);
-      audioManager.setEffectsVolume(nextVolume);
-      saveAudioSettings({
-        musicVolume,
-        effectsVolume: nextVolume,
-      });
-      setEffectsVolumeState(nextVolume);
-    },
-    [musicVolume],
-  );
+  const setEffectsVolume = useCallback((volume: number) => {
+    const nextVolume = clampVolume(volume);
+    audioManager.setEffectsVolume(nextVolume);
+    setEffectsVolumeState(nextVolume);
+  }, []);
 
   const setMusicContext = useCallback(
     (context: MusicContext) => {
-      if (audioManager.currentThemeId === themeId && audioManager.currentContext === context && audioManager.isPlaying && playlistContexts.length === 0) {
-        return;
-      }
       setPlaylistContextsState([]);
       setCurrentContextState(context);
       audioManager.playMusic(themeId, context);
       setIsPlaying(audioManager.isPlaying);
     },
-    [themeId, playlistContexts.length],
+    [themeId],
   );
 
   const setMusicPlaylist = useCallback(
@@ -162,13 +182,43 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
     [themeId],
   );
 
+  const setMusicMood = useCallback(
+    (mood: MusicMood) => {
+      if (mood === "menu") {
+        setMusicPlaylist(MENU_PLAYLIST);
+      } else {
+        setMusicContext(mood);
+      }
+    },
+    [setMusicContext, setMusicPlaylist],
+  );
+
+  const warmMusic = useCallback(
+    (contexts: MusicContext[]) => {
+      audioManager.warm(themeId, contexts);
+    },
+    [themeId],
+  );
+
+  const duck = useCallback(() => {
+    audioManager.duck();
+  }, []);
+
+  const unduck = useCallback(() => {
+    audioManager.unduck();
+  }, []);
+
+  // Mute toggle: pause in place / resume mid-track (never restart from 0).
   const playTheme = useCallback(() => {
-    audioManager.playMusic(themeId, currentContext);
+    audioManager.unmuteMusic();
+    if (!audioManager.isPlaying) {
+      audioManager.playMusic(themeId, currentContext);
+    }
     setIsPlaying(audioManager.isPlaying);
   }, [themeId, currentContext]);
 
   const stopTheme = useCallback(() => {
-    audioManager.stopMusic();
+    audioManager.muteMusic();
     setIsPlaying(audioManager.isPlaying);
   }, []);
 
@@ -190,8 +240,12 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       effectsVolume,
       setMusicVolume,
       setEffectsVolume,
+      setMusicMood,
       setMusicContext,
       setMusicPlaylist,
+      warmMusic,
+      duck,
+      unduck,
       currentContext,
       isPlaying,
       playSfx,
@@ -205,8 +259,12 @@ export function MusicPlayerProvider({ children }: { children: React.ReactNode })
       effectsVolume,
       setMusicVolume,
       setEffectsVolume,
+      setMusicMood,
       setMusicContext,
       setMusicPlaylist,
+      warmMusic,
+      duck,
+      unduck,
       currentContext,
       isPlaying,
       playSfx,
