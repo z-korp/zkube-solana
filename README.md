@@ -83,14 +83,17 @@ is consumed into progression and closed atomically on Solana.
 
 Star purchases are owner-signed native-SOL transfers. The UI shows the exact
 price and 10% team / 10% reward / 80% treasury split before opening the wallet.
+Pack sizes and prices are governed together; every accepted ladder must have
+strictly increasing quantities and prices, and each larger pack must cost no
+more per Star than the preceding pack. The pending Devnet release defaults are:
 
 | Stars | Price |
 | ---: | ---: |
-| 10 | 0.01 SOL |
-| 50 | 0.0475 SOL |
-| 100 | 0.09 SOL |
-| 500 | 0.425 SOL |
-| 1,000 | 0.8 SOL |
+| 10 | 0.02 SOL |
+| 50 | 0.09 SOL |
+| 200 | 0.3 SOL |
+| 500 | 0.7 SOL |
+| 1,000 | 1.25 SOL |
 
 The live Devnet `ProtocolConfig` pins these native-SOL destinations:
 
@@ -109,7 +112,25 @@ Daily entry burns 10 Stars per attempt; it does not directly transfer SOL or
 open the owner wallet. Campaign clears award 10 XP for each improvement to a
 level's lifetime best rating: 1/2/3 stars are worth 10/20/30 XP total for that
 map-level, and equal or worse replays award nothing. The separate one-time
-perfect-map reward remains 20 Stars and 1,000 XP.
+perfect-map reward is 20 Stars and 300 XP. Standard four-tier achievements pay
+100/400/1,500/4,000 XP; Explorer pays 200/800/2,400/6,800 XP. This preserves
+the existing 40,200-XP achievement pool and every player's accumulated XP
+while moving more of the reward toward long-tail accomplishments. Level
+milestones at levels 10 through 100 pay their level in Stars, for a 550-Star
+lifetime total. Players who claimed the previous flat rewards receive only the
+aggregate difference, so the transition cannot double-credit them.
+
+The wallet address remains the authoritative player identity. A player may
+also register one globally unique public username for profile and Daily/Weekly
+leaderboard display. Names are 3–16 ASCII letters, digits, or underscores,
+must start with a letter, and are unique case-insensitively while preserving
+display case. Registration has no Star fee and the owner pays refundable
+account rent. The first rename is free; later renames cost 100 Stars and have a
+30-day cooldown. Authority moderation blocks the old name as a tombstone and
+allows one free replacement without weakening wallet ownership. Leaderboard
+accounts continue to store wallets and scores only; clients resolve validated
+username PDAs in batches and fall back to the wallet when metadata is missing
+or invalid. There is deliberately no XP leaderboard in this release.
 
 Daily rank is determined only by total Daily score descending, qualifying
 Daily bonus-condition triggers descending, then terminal action timestamp
@@ -190,6 +211,14 @@ The v3 program is live on Devnet at
 The Cairo scoring-parity upgrade is confirmed at slot `476858563`, the bounded
 keeper is write-enabled, and the Git-driven production client at
 `https://zkube-solana.vercel.app/` targets this v3 program.
+
+The tenth-row boundary correction is committed separately as `a0e233f`; its
+program upgrade still requires a fingerprint-bound Devnet approval. The
+governed pack rebalance, progression rebalance, milestone reconciliation, and
+public-username release described above are implemented and tested in source
+but are likewise not live until their exact program upgrade and pricing update
+operations are approved and verified. No source revision or simulation is
+treated as evidence of deployed state.
 
 The v3 custody preflight is satisfied and the protocol foundation was
 initialized at slot `476755019`. `ProtocolConfig` and `RewardVault` are owned
@@ -331,6 +360,34 @@ lamport maximum net deployer spend. Its approval evidence SHA-256 is
 `c2322fa6004163a12eb16462a7c73d742a41bcc521511aa589a492b051c153de`
 (`c2322fa6004163a1`). These fingerprints are deployment candidates, not
 authorization to sign or write Devnet.
+
+The progression, governed-pack, and public-username release is also validated
+but not deployed. Its selected `opt-level = "s"` ELF is 1,319,656 bytes with
+SHA-256 `f24b7c44e336cdfb67ca7ec5903ee4eb3b63a907f2fa0a851031efbf302c8354`
+and a 9,186,009,840-lamport ProgramData rent estimate. The speed profile is
+1,568,864 bytes with SHA-256
+`87afcc2e6433a9228633cd7a2b19be1de9a2aa773e163a706ceea3be77baf250`
+and a 10,920,497,520-lamport estimate. Neither build emits an SBF stack
+warning; the selected build passes all 13 real SBF tests, with content
+activation at 213,018 compute units, a complete opening callback at 128,197,
+funded prepare at 59,181, paid username rename at 36,910, registration at
+28,045, milestone reconciliation at 18,155, pack governance at 13,483, and
+moderation at 13,399.
+
+The 1,210,912-byte live ProgramData account would need a 108,744-byte
+extension costing exactly 756,858,240 rent lamports. The extension candidate
+has padded postimage
+`fab24713e34c051bf71c44c7573ad7d9091f873a44bba2185639971b73634603`
+and fingerprint `9173f9be2bffad18`; the subsequent upgrade binds a
+9,185,954,160-lamport temporary buffer and fingerprint `f8116c8b0f48ed13`
+(full evidence SHA-256
+`f8116c8b0f48ed13c2b5227832c816b02da18e769314e46c044c8ee69e263d22`).
+The deployer currently holds 8,432,332,841 lamports, below the conservative
+9,997,812,400-lamport sequential extension-plus-upgrade floor by
+1,565,479,559 lamports. The feature bundle therefore remains blocked on an
+explicitly approved funding source; no transaction was signed or sent. The
+pricing update is a separate authority-signed operation after the program
+upgrade and cannot reuse either deployment fingerprint.
 
 The remaining release work is real-wallet desktop and Seeker acceptance, the
 deferred Campaign balance review, and the signed TWA APK only after browser

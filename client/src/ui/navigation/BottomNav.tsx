@@ -27,6 +27,15 @@ const BottomNav = () => {
       milestoneClaimables++;
     }
   }
+  const milestoneEntitlement = Array.from({ length: 10 }, (_, index) =>
+    milestoneBitmap & (1 << index) ? (index + 1) * 10 : 0,
+  ).reduce((sum, stars) => sum + stars, 0);
+  if (
+    milestoneEntitlement >
+    Number(progress?.levelMilestones?.totalStarsClaimed ?? 0n)
+  ) {
+    milestoneClaimables++;
+  }
   const claimableCount =
     (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
     (progress?.quests.filter((entry) => entry.claimable).length ?? 0) +

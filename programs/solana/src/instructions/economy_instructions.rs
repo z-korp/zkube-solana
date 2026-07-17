@@ -92,11 +92,19 @@ pub struct UpdateRegularPricesArgs {
     pub enabled: [bool; STAR_PACK_COUNT],
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct UpdateStarPacksArgs {
+    pub stars: [u64; STAR_PACK_COUNT],
+    pub prices: [u64; STAR_PACK_COUNT],
+    pub enabled: [bool; STAR_PACK_COUNT],
+}
+
 #[derive(Accounts)]
 pub struct ManageEconomyPricing<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = protocol.pricing_operator == pricing_operator.key() @ ErrorCode::Unauthorized
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -130,6 +138,34 @@ pub fn handler_update_regular_prices(
     ctx.accounts.economy_config.validate()?;
     emit!(EconomyPricesUpdated {
         revision: ctx.accounts.economy_config.revision,
+        prices: args.prices,
+        enabled: args.enabled,
+    });
+    Ok(())
+}
+
+pub fn handler_update_star_packs(
+    ctx: Context<ManageEconomyPricing>,
+    args: UpdateStarPacksArgs,
+) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let sale_is_active =
+        ctx.accounts.economy_config.sale_enabled && now < ctx.accounts.economy_config.sale_ends_at;
+    require!(!sale_is_active, ErrorCode::InvalidState);
+    validate_star_packs(args.stars, args.prices, args.enabled)?;
+    ctx.accounts.economy_config.star_pack_stars = args.stars;
+    ctx.accounts.economy_config.star_pack_prices = args.prices;
+    ctx.accounts.economy_config.star_pack_enabled = args.enabled;
+    ctx.accounts.economy_config.revision = ctx
+        .accounts
+        .economy_config
+        .revision
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.economy_config.validate()?;
+    emit!(EconomyStarPacksUpdated {
+        revision: ctx.accounts.economy_config.revision,
+        stars: args.stars,
         prices: args.prices,
         enabled: args.enabled,
     });
@@ -529,27 +565,43 @@ pub fn handler_claim_level_milestone(
     let index = usize::from(milestone_index);
     require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
     let mask = 1u16 << index;
-    require!(
-        ctx.accounts.player_state.milestone_claimed & mask == 0,
-        ErrorCode::RewardAlreadyClaimed
-    );
     let required_level = (milestone_index + 1) * 10;
     let current_level = player_level(ctx.accounts.player_state.lifetime_xp);
     require!(current_level >= required_level, ErrorCode::RewardNotEarned);
     ctx.accounts.player_state.milestone_claimed |= mask;
-    ctx.accounts.player_state.milestone_stars_claimed = ctx
-        .accounts
-        .player_state
-        .milestone_stars_claimed
-        .checked_add(10)
+    let entitlement = milestone_star_entitlement(ctx.accounts.player_state.milestone_claimed)?;
+    let already_claimed = ctx.accounts.player_state.milestone_stars_claimed;
+    require!(
+        entitlement >= already_claimed,
+        ErrorCode::AccountingInvariant
+    );
+    let stars = entitlement
+        .checked_sub(already_claimed)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    ctx.accounts.player_state.credit_stars(10)?;
+    require!(stars > 0, ErrorCode::RewardAlreadyClaimed);
+    ctx.accounts.player_state.milestone_stars_claimed = entitlement;
+    ctx.accounts.player_state.credit_stars(stars)?;
     emit!(LevelMilestoneClaimed {
         owner: ctx.accounts.owner_authority.key(),
         level: required_level,
-        stars: 10,
+        stars,
     });
     Ok(())
+}
+
+fn milestone_star_entitlement(claimed: u16) -> Result<u64> {
+    (0..LEVEL_MILESTONE_COUNT).try_fold(0u64, |total, index| {
+        if claimed & (1u16 << index) == 0 {
+            return Ok(total);
+        }
+        let milestone_level = u64::try_from(index + 1)
+            .map_err(|_| ErrorCode::ArithmeticOverflow)?
+            .checked_mul(10)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        total
+            .checked_add(milestone_level)
+            .ok_or_else(|| ErrorCode::ArithmeticOverflow.into())
+    })
 }
 
 #[derive(Accounts)]
@@ -2208,6 +2260,14 @@ pub struct EconomyPricesUpdated {
 }
 
 #[event]
+pub struct EconomyStarPacksUpdated {
+    pub revision: u64,
+    pub stars: [u64; STAR_PACK_COUNT],
+    pub prices: [u64; STAR_PACK_COUNT],
+    pub enabled: [bool; STAR_PACK_COUNT],
+}
+
+#[event]
 pub struct EconomySaleScheduled {
     pub revision: u64,
     pub starts_at: i64,
@@ -2365,6 +2425,17 @@ pub struct WeeklyChallengeClosed {
 mod tests {
     use super::*;
     use anchor_lang::ToAccountMetas;
+
+    #[test]
+    fn milestone_entitlement_scales_with_level_and_reconciles_legacy_totals() {
+        assert_eq!(milestone_star_entitlement(0).unwrap(), 0);
+        assert_eq!(milestone_star_entitlement(0b1).unwrap(), 10);
+        assert_eq!(milestone_star_entitlement(0b11).unwrap(), 30);
+        assert_eq!(milestone_star_entitlement(0b111).unwrap(), 60);
+        assert_eq!(milestone_star_entitlement(0x03ff).unwrap(), 550);
+        // A player paid the old flat 10-Star reward at levels 10 and 20.
+        assert_eq!(milestone_star_entitlement(0b11).unwrap() - 20, 10);
+    }
 
     #[test]
     fn level_milestone_claim_has_no_payer_or_system_account() {

@@ -102,4 +102,10 @@ pub enum ErrorCode {
     InvalidSession,
     #[msg("The scoped player session has expired")]
     SessionExpired,
+    #[msg("The username is invalid")]
+    InvalidUsername,
+    #[msg("The username has been blocked by protocol moderation")]
+    UsernameBlocked,
+    #[msg("The username rename cooldown has not elapsed")]
+    UsernameRenameCooldown,
 }

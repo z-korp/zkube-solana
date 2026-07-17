@@ -8,6 +8,7 @@
 pub mod content_instructions;
 pub mod economy_instructions;
 pub mod governance_instructions;
+pub mod identity_instructions;
 pub mod player_authorization;
 pub mod player_funding_instructions;
 pub mod progress_instructions;
@@ -16,6 +17,7 @@ pub mod run_lifecycle;
 pub use content_instructions::*;
 pub use economy_instructions::*;
 pub use governance_instructions::*;
+pub use identity_instructions::*;
 pub use player_authorization::*;
 pub use player_funding_instructions::*;
 pub use progress_instructions::*;

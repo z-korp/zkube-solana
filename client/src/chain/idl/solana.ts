@@ -3097,6 +3097,109 @@ export type Solana = {
       ]
     },
     {
+      "name": "moderateUsername",
+      "discriminator": [
+        130,
+        150,
+        110,
+        77,
+        190,
+        82,
+        3,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerIdentity",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_identity.owner",
+                "account": "playerIdentity"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "moderateUsernameArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "openDailyChallenge",
       "discriminator": [
         109,
@@ -4050,6 +4153,434 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "registerUsername",
+      "discriminator": [
+        134,
+        54,
+        123,
+        181,
+        28,
+        151,
+        36,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerIdentity",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "usernameArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "renameUsername",
+      "discriminator": [
+        73,
+        36,
+        141,
+        70,
+        62,
+        117,
+        240,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerIdentity",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "oldUsernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.old_normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "newUsernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "renameUsernameArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "replaceModeratedUsername",
+      "discriminator": [
+        173,
+        14,
+        170,
+        131,
+        113,
+        211,
+        237,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerIdentity",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "blockedUsernameClaim",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.old_normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "newUsernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "renameUsernameArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "requestRowVrf",
       "discriminator": [
         9,
@@ -4128,6 +4659,105 @@ export type Solana = {
               32
             ]
           }
+        }
+      ]
+    },
+    {
+      "name": "restoreUsername",
+      "discriminator": [
+        219,
+        231,
+        40,
+        253,
+        72,
+        241,
+        222,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerIdentity",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_identity.owner",
+                "account": "playerIdentity"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usernameClaim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "normalized"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "normalized",
+          "type": "string"
         }
       ]
     },
@@ -4736,6 +5366,75 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "updateStarPacks",
+      "discriminator": [
+        65,
+        79,
+        251,
+        6,
+        218,
+        246,
+        12,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "economyConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  99,
+                  111,
+                  110,
+                  111,
+                  109,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pricingOperator",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "updateStarPacksArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "withdrawPlayerFunding",
       "discriminator": [
         186,
@@ -4934,6 +5633,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "playerIdentity",
+      "discriminator": [
+        85,
+        172,
+        40,
+        166,
+        220,
+        193,
+        194,
+        235
+      ]
+    },
+    {
       "name": "playerState",
       "discriminator": [
         56,
@@ -4983,6 +5695,19 @@ export type Solana = {
         23,
         184,
         221
+      ]
+    },
+    {
+      "name": "usernameClaim",
+      "discriminator": [
+        83,
+        191,
+        129,
+        214,
+        239,
+        228,
+        224,
+        240
       ]
     },
     {
@@ -5235,6 +5960,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "economyStarPacksUpdated",
+      "discriminator": [
+        139,
+        114,
+        53,
+        207,
+        165,
+        118,
+        3,
+        2
+      ]
+    },
+    {
       "name": "levelMilestoneClaimed",
       "discriminator": [
         238,
@@ -5336,6 +6074,45 @@ export type Solana = {
         245,
         78,
         252
+      ]
+    },
+    {
+      "name": "usernameModerated",
+      "discriminator": [
+        79,
+        97,
+        199,
+        107,
+        59,
+        48,
+        186,
+        75
+      ]
+    },
+    {
+      "name": "usernameRegistered",
+      "discriminator": [
+        241,
+        79,
+        103,
+        207,
+        185,
+        19,
+        151,
+        5
+      ]
+    },
+    {
+      "name": "usernameRenamed",
+      "discriminator": [
+        40,
+        213,
+        115,
+        38,
+        195,
+        47,
+        239,
+        112
       ]
     },
     {
@@ -5684,6 +6461,21 @@ export type Solana = {
       "code": 6042,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
+    },
+    {
+      "code": 6043,
+      "name": "invalidUsername",
+      "msg": "The username is invalid"
+    },
+    {
+      "code": 6044,
+      "name": "usernameBlocked",
+      "msg": "The username has been blocked by protocol moderation"
+    },
+    {
+      "code": 6045,
+      "name": "usernameRenameCooldown",
+      "msg": "The username rename cooldown has not elapsed"
     }
   ],
   "types": [
@@ -7016,6 +7808,45 @@ export type Solana = {
       }
     },
     {
+      "name": "economyStarPacksUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "revision",
+            "type": "u64"
+          },
+          {
+            "name": "stars",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "prices",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "enabled",
+            "type": {
+              "array": [
+                "bool",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "initializeEconomyArgs",
       "type": {
         "kind": "struct",
@@ -7248,6 +8079,84 @@ export type Solana = {
           {
             "name": "xp",
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "moderateUsernameArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "normalized",
+            "type": "string"
+          },
+          {
+            "name": "reasonCode",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "playerIdentity",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "displayName",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "normalizedName",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "nameLen",
+            "type": "u8"
+          },
+          {
+            "name": "renameCount",
+            "type": "u16"
+          },
+          {
+            "name": "registeredAt",
+            "type": "i64"
+          },
+          {
+            "name": "lastRenamedAt",
+            "type": "i64"
+          },
+          {
+            "name": "moderated",
+            "type": "bool"
+          },
+          {
+            "name": "moderationReason",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -7621,6 +8530,26 @@ export type Solana = {
       }
     },
     {
+      "name": "renameUsernameArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oldNormalized",
+            "type": "string"
+          },
+          {
+            "name": "display",
+            "type": "string"
+          },
+          {
+            "name": "normalized",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
       "name": "revenueDestinationsChanged",
       "type": {
         "kind": "struct",
@@ -7866,6 +8795,174 @@ export type Solana = {
                 5
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "updateStarPacksArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stars",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "prices",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "enabled",
+            "type": {
+              "array": [
+                "bool",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "usernameArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "display",
+            "type": "string"
+          },
+          {
+            "name": "normalized",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "usernameClaim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "playerIdentity",
+            "type": "pubkey"
+          },
+          {
+            "name": "normalizedName",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "nameLen",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "usernameModerated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "playerIdentity",
+            "type": "pubkey"
+          },
+          {
+            "name": "normalized",
+            "type": "string"
+          },
+          {
+            "name": "reasonCode",
+            "type": "u8"
+          },
+          {
+            "name": "blocked",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "usernameRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "playerIdentity",
+            "type": "pubkey"
+          },
+          {
+            "name": "normalized",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "usernameRenamed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "playerIdentity",
+            "type": "pubkey"
+          },
+          {
+            "name": "normalized",
+            "type": "string"
+          },
+          {
+            "name": "starsCharged",
+            "type": "u64"
+          },
+          {
+            "name": "moderatedReplacement",
+            "type": "bool"
           }
         ]
       }

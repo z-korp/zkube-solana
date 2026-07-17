@@ -44,9 +44,11 @@ import {
   type RawDailyScoringRule,
 } from "./dailyRules.js";
 import type { WalletLike } from "./sessionWallet.js";
+import { fetchPlayerIdentities } from "./identityClient.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
+  playerName: string | null;
   runId: bigint;
   dailyScore: number;
   dailyBonusTriggers: number;
@@ -80,10 +82,11 @@ export function dailyLeaderboardRank(
 ): number {
   const target = entries[index];
   if (!target) return 0;
-  const firstTie = entries.findIndex((entry) =>
-    entry.dailyScore === target.dailyScore
-    && entry.dailyBonusTriggers === target.dailyBonusTriggers
-    && entry.submittedAt === target.submittedAt
+  const firstTie = entries.findIndex(
+    (entry) =>
+      entry.dailyScore === target.dailyScore &&
+      entry.dailyBonusTriggers === target.dailyBonusTriggers &&
+      entry.submittedAt === target.submittedAt,
   );
   return firstTie + 1;
 }
@@ -263,6 +266,27 @@ export async function fetchDailyView(args: {
       deriveDailyLeaderboardPda(address),
     ),
   ]);
+  const leaderboardEntries = (leaderboard?.entries ?? []).map((entry) => ({
+    player: entry.player,
+    runId: asBigInt(entry.runId),
+    dailyScore: Number(entry.dailyScore),
+    dailyBonusTriggers: Number(entry.dailyBonusTriggers),
+    engineScore: Number(entry.engineScore),
+    moves: Number(entry.moves),
+    score: Number(entry.dailyScore),
+    submittedAt: Number(entry.submittedAt),
+  }));
+  const identities = await fetchPlayerIdentities({
+    connection: args.connection,
+    wallet: args.wallet,
+    owners: leaderboardEntries.map((entry) => entry.player),
+  }).catch(() => []);
+  const identityNames = new Map(
+    identities.map((identity) => [
+      identity.owner.toBase58(),
+      identity.displayName,
+    ]),
+  );
   return {
     economyVersion: 2,
     address,
@@ -305,15 +329,9 @@ export async function fetchDailyView(args: {
           weeklyRolledUp: Boolean(player.weeklyRolledUp),
         }
       : null,
-    leaderboard: (leaderboard?.entries ?? []).map((entry) => ({
-      player: entry.player,
-      runId: asBigInt(entry.runId),
-      dailyScore: Number(entry.dailyScore),
-      dailyBonusTriggers: Number(entry.dailyBonusTriggers),
-      engineScore: Number(entry.engineScore),
-      moves: Number(entry.moves),
-      score: Number(entry.dailyScore),
-      submittedAt: Number(entry.submittedAt),
+    leaderboard: leaderboardEntries.map((entry) => ({
+      ...entry,
+      playerName: identityNames.get(entry.player.toBase58()) ?? null,
     })),
   };
 }

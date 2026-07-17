@@ -20,7 +20,10 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
   if (controller.loading && !weekly) {
     return (
       <div className="flex justify-center py-12">
-        <Loader2 className="h-7 w-7 animate-spin" style={{ color: colors.accent }} />
+        <Loader2
+          className="h-7 w-7 animate-spin"
+          style={{ color: colors.accent }}
+        />
       </div>
     );
   }
@@ -37,12 +40,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
     : -1;
   const isSolWinner = rank >= 0 && rank < weekly.solWinnerCount;
   const isStarWinner =
-    rank >= 0 &&
-    rank < weekly.solWinnerCount + weekly.starWinnerCount;
+    rank >= 0 && rank < weekly.solWinnerCount + weekly.starWinnerCount;
   const canClaimSol =
-    weekly.status === "claimable" &&
-    isSolWinner &&
-    !weekly.player?.solClaimed;
+    weekly.status === "claimable" && isSolWinner && !weekly.player?.solClaimed;
   const canClaimStars =
     weekly.status === "claimable" &&
     isStarWinner &&
@@ -68,7 +68,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
       <section className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-display text-xl font-black text-white">{weekLabel}</p>
+            <p className="font-display text-xl font-black text-white">
+              {weekLabel}
+            </p>
             <p className="mt-1 text-xs font-semibold text-white/55">
               {timingLine} · best 5 Daily results count
             </p>
@@ -103,8 +105,8 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
           </p>
           <InfoSheet title="How Weekly payouts work">
             <p>
-              Your best five Daily results add up to your Weekly score; days
-              you skip count as zero.
+              Your best five Daily results add up to your Weekly score; days you
+              skip count as zero.
             </p>
             <div>
               <InfoRow
@@ -131,7 +133,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
                 disabled={controller.action !== null}
                 onClick={() => void controller.claimStars()}
               >
-                {controller.action === "claim:stars" ? "Claiming..." : "Claim Weekly Stars"}
+                {controller.action === "claim:stars"
+                  ? "Claiming..."
+                  : "Claim Weekly Stars"}
               </ArcadeButton>
             )}
             {canClaimSol && (
@@ -139,7 +143,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
                 disabled={controller.action !== null}
                 onClick={() => void controller.claimSol()}
               >
-                {controller.action === "claim:sol" ? "Claiming..." : "Claim Weekly SOL"}
+                {controller.action === "claim:sol"
+                  ? "Claiming..."
+                  : "Claim Weekly SOL"}
               </ArcadeButton>
             )}
           </div>
@@ -157,10 +163,13 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
             </span>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/75">
               {owner && entry.player.equals(owner)
-                ? `You · ${truncatePublicKey(entry.player.toBase58())}`
-                : truncatePublicKey(entry.player.toBase58())}
+                ? `You · ${entry.playerName ?? truncatePublicKey(entry.player.toBase58())}`
+                : (entry.playerName ??
+                  truncatePublicKey(entry.player.toBase58()))}
             </span>
-            <span className="font-sans text-sm font-black text-white">{entry.score} pts</span>
+            <span className="font-sans text-sm font-black text-white">
+              {entry.score} pts
+            </span>
           </div>
         ))}
         {weekly.leaderboard.length === 0 && (
@@ -172,7 +181,9 @@ export default function WeeklyTab({ colors }: { colors: ThemeColors }) {
           />
         )}
       </section>
-      {controller.error && <p className="text-center text-xs text-red-300">{controller.error}</p>}
+      {controller.error && (
+        <p className="text-center text-xs text-red-300">{controller.error}</p>
+      )}
     </div>
   );
 }

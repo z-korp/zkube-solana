@@ -172,8 +172,8 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
               />
               <p className="mt-1 font-sans text-[9px] font-semibold text-white/45">
                 {zone.perfectionClaimed
-                  ? "Perfect reward earned: +20★ + 1,000 XP"
-                  : "Perfect all 10 levels: +20★ + 1,000 XP"}
+                  ? "Perfect reward earned: +20★ + 300 XP"
+                  : "Perfect all 10 levels: +20★ + 300 XP"}
               </p>
             </div>
           )}

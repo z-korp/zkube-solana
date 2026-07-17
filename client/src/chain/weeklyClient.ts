@@ -1,4 +1,9 @@
-import { SystemProgram, Transaction, type Connection, type PublicKey } from "@solana/web3.js";
+import {
+  SystemProgram,
+  Transaction,
+  type Connection,
+  type PublicKey,
+} from "@solana/web3.js";
 
 import { ZKUBE_PROGRAM_ID } from "./constants.js";
 import { fetchEconomyRuntime } from "./economyClient.js";
@@ -17,11 +22,13 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 import type { DailyView } from "./dailyClient.js";
+import { fetchPlayerIdentities } from "./identityClient.js";
 
 export type WeeklyStatus = "open" | "claimable" | "closed" | "unknown";
 
 export interface WeeklyLeaderboardEntryView {
   player: PublicKey;
+  playerName: string | null;
   score: number;
 }
 
@@ -50,7 +57,9 @@ export interface WeeklyView {
   leaderboard: WeeklyLeaderboardEntryView[];
 }
 
-export function currentWeeklyId(nowUnix = Math.floor(Date.now() / 1_000)): number {
+export function currentWeeklyId(
+  nowUnix = Math.floor(Date.now() / 1_000),
+): number {
   return Math.max(0, Math.floor((nowUnix + 259_200) / 604_800));
 }
 
@@ -63,7 +72,8 @@ export async function fetchWeeklyView(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
   const address = deriveWeeklyChallengePda(weekId);
-  const challenge = await program.account.weeklyChallenge.fetchNullable(address);
+  const challenge =
+    await program.account.weeklyChallenge.fetchNullable(address);
   if (!challenge) return null;
   const [player, leaderboard] = await Promise.all([
     program.account.weeklyPlayer.fetchNullable(
@@ -73,6 +83,21 @@ export async function fetchWeeklyView(args: {
       deriveWeeklyLeaderboardPda(address),
     ),
   ]);
+  const leaderboardEntries = (leaderboard?.entries ?? []).map((entry) => ({
+    player: entry.player,
+    score: Number(entry.score),
+  }));
+  const identities = await fetchPlayerIdentities({
+    connection: args.connection,
+    wallet: args.wallet,
+    owners: leaderboardEntries.map((entry) => entry.player),
+  }).catch(() => []);
+  const identityNames = new Map(
+    identities.map((identity) => [
+      identity.owner.toBase58(),
+      identity.displayName,
+    ]),
+  );
   return {
     address,
     weekId: Number(challenge.weekId),
@@ -97,9 +122,9 @@ export async function fetchWeeklyView(args: {
           starsClaimed: Boolean(player.starsClaimed),
         }
       : null,
-    leaderboard: (leaderboard?.entries ?? []).map((entry) => ({
-      player: entry.player,
-      score: Number(entry.score),
+    leaderboard: leaderboardEntries.map((entry) => ({
+      ...entry,
+      playerName: identityNames.get(entry.player.toBase58()) ?? null,
     })),
   };
 }
@@ -114,8 +139,8 @@ export async function buildOpenWeeklyPlan(args: {
   if (!runtime) throw new Error("Economy is not active");
   const caller = args.wallet.publicKey;
   const challenge = deriveWeeklyChallengePda(args.weekId);
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .openWeeklyChallenge(args.weekId)
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.openWeeklyChallenge(args.weekId)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
@@ -127,7 +152,12 @@ export async function buildOpenWeeklyPlan(args: {
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return plan("Open Weekly challenge", args.connection, args.payer ?? caller, instruction);
+  return plan(
+    "Open Weekly challenge",
+    args.connection,
+    args.payer ?? caller,
+    instruction,
+  );
 }
 
 export async function buildRollupDailyPlan(args: {
@@ -137,13 +167,16 @@ export async function buildRollupDailyPlan(args: {
   weekly: WeeklyView;
   playerOwner?: PublicKey;
 }): Promise<TransactionPlan> {
-  if (args.daily.economyVersion !== 2 || args.daily.weekId !== args.weekly.weekId) {
+  if (
+    args.daily.economyVersion !== 2 ||
+    args.daily.weekId !== args.weekly.weekId
+  ) {
     throw new Error("Daily and Weekly cadence do not match");
   }
   const owner = args.playerOwner ?? args.wallet.publicKey;
   const caller = args.wallet.publicKey;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .fundedRollupDailyToWeekly()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.fundedRollupDailyToWeekly()
     .accountsPartial({
       dailyChallenge: args.daily.address,
       dailyLeaderboard: deriveDailyLeaderboardPda(args.daily.address),
@@ -158,7 +191,12 @@ export async function buildRollupDailyPlan(args: {
       zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
-  return plan("Roll Daily result into Weekly", args.connection, caller, instruction);
+  return plan(
+    "Roll Daily result into Weekly",
+    args.connection,
+    caller,
+    instruction,
+  );
 }
 
 export async function fetchPendingDailyRollupOwners(args: {
@@ -166,7 +204,8 @@ export async function fetchPendingDailyRollupOwners(args: {
   wallet: WalletLike;
   daily: DailyView;
 }): Promise<PublicKey[]> {
-  if (args.daily.economyVersion !== 2 || args.daily.status !== "claimable") return [];
+  if (args.daily.economyVersion !== 2 || args.daily.status !== "claimable")
+    return [];
   const program = zkubeProgram(args.connection, args.wallet);
   const matches = await program.account.dailyPlayer.all([
     { memcmp: { offset: 9, bytes: args.daily.address.toBase58() } },
@@ -183,7 +222,9 @@ export async function fetchPendingDailyRollupOwners(args: {
     if (
       Number(player.version) !== 1 ||
       !player.challenge.equals(args.daily.address) ||
-      !match.publicKey.equals(deriveDailyPlayerPda(args.daily.address, player.player))
+      !match.publicKey.equals(
+        deriveDailyPlayerPda(args.daily.address, player.player),
+      )
     ) {
       throw new Error("Daily rollup player relationship is invalid");
     }
@@ -204,10 +245,12 @@ export async function buildFinalizeWeeklyPlan(args: {
   const caller = args.wallet.publicKey;
   const startDay = args.weekly.weekId * 7 - 3;
   if (!Number.isSafeInteger(startDay) || startDay < 0) {
-    throw new Error("Weekly cadence cannot be finalized before the first full week");
+    throw new Error(
+      "Weekly cadence cannot be finalized before the first full week",
+    );
   }
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .finalizeWeeklyChallenge()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.finalizeWeeklyChallenge()
     .accountsPartial({
       weeklyChallenge: args.weekly.address,
       leaderboard: deriveWeeklyLeaderboardPda(args.weekly.address),
@@ -221,7 +264,12 @@ export async function buildFinalizeWeeklyPlan(args: {
       })),
     )
     .instruction();
-  return plan("Finalize Weekly challenge", args.connection, caller, instruction);
+  return plan(
+    "Finalize Weekly challenge",
+    args.connection,
+    caller,
+    instruction,
+  );
 }
 
 export async function buildClaimWeeklyStarsPlan(args: {
@@ -232,8 +280,8 @@ export async function buildClaimWeeklyStarsPlan(args: {
   weekly: WeeklyView;
 }): Promise<TransactionPlan> {
   const owner = args.ownerAuthority;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimWeeklyStars()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimWeeklyStars()
     .accountsPartial({
       weeklyChallenge: args.weekly.address,
       leaderboard: deriveWeeklyLeaderboardPda(args.weekly.address),
@@ -244,7 +292,12 @@ export async function buildClaimWeeklyStarsPlan(args: {
       actor: args.wallet.publicKey,
     })
     .instruction();
-  return plan("Claim Weekly Stars", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Claim Weekly Stars",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 export async function buildClaimWeeklySolPlan(args: {
@@ -255,8 +308,8 @@ export async function buildClaimWeeklySolPlan(args: {
   weekly: WeeklyView;
 }): Promise<TransactionPlan> {
   const owner = args.ownerAuthority;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .claimWeeklySol()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimWeeklySol()
     .accountsPartial({
       weeklyChallenge: args.weekly.address,
       leaderboard: deriveWeeklyLeaderboardPda(args.weekly.address),
@@ -266,7 +319,12 @@ export async function buildClaimWeeklySolPlan(args: {
       actor: args.wallet.publicKey,
     })
     .instruction();
-  return plan("Claim Weekly SOL", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Claim Weekly SOL",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 export async function buildForfeitWeeklySolPlan(args: {
@@ -277,8 +335,8 @@ export async function buildForfeitWeeklySolPlan(args: {
   const runtime = await fetchEconomyRuntime(args);
   if (!runtime) throw new Error("Economy is not active");
   const caller = args.wallet.publicKey;
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .forfeitWeeklySol()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.forfeitWeeklySol()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       weeklyChallenge: args.weekly.address,
@@ -322,7 +380,9 @@ export async function fetchWeeklyPlayerRecords(args: {
       if (
         Number(player.version) !== 1 ||
         !player.challenge.equals(args.weekly.address) ||
-        !match.publicKey.equals(deriveWeeklyPlayerPda(args.weekly.address, player.player))
+        !match.publicKey.equals(
+          deriveWeeklyPlayerPda(args.weekly.address, player.player),
+        )
       ) {
         throw new Error("Weekly cleanup player relationship is invalid");
       }
@@ -333,7 +393,9 @@ export async function fetchWeeklyPlayerRecords(args: {
         starsClaimed: Boolean(player.starsClaimed),
       };
     })
-    .sort((left, right) => left.owner.toBuffer().compare(right.owner.toBuffer()));
+    .sort((left, right) =>
+      left.owner.toBuffer().compare(right.owner.toBuffer()),
+    );
 }
 
 export async function fetchWeeklyChallengeIds(args: {
@@ -344,7 +406,10 @@ export async function fetchWeeklyChallengeIds(args: {
   const matches = await program.account.weeklyChallenge.all();
   return matches
     .map((match) => {
-      const challenge = match.account as unknown as { version: number; weekId: number };
+      const challenge = match.account as unknown as {
+        version: number;
+        weekId: number;
+      };
       const weekId = Number(challenge.weekId);
       if (
         Number(challenge.version) !== 1 ||
@@ -384,12 +449,18 @@ export async function fetchOwnerClaimableWeeklyIds(args: {
       !player.player.equals(owner) ||
       !match.publicKey.equals(deriveWeeklyPlayerPda(player.challenge, owner))
     ) {
-      throw new Error("Owner Weekly claim scan returned an invalid player account");
+      throw new Error(
+        "Owner Weekly claim scan returned an invalid player account",
+      );
     }
     if (player.solClaimed && player.starsClaimed) continue;
-    const challenge = await program.account.weeklyChallenge.fetchNullable(player.challenge);
+    const challenge = await program.account.weeklyChallenge.fetchNullable(
+      player.challenge,
+    );
     if (!challenge || Number(challenge.version) !== 1) {
-      throw new Error("Owner Weekly claim scan returned an invalid challenge account");
+      throw new Error(
+        "Owner Weekly claim scan returned an invalid challenge account",
+      );
     }
     const weekId = Number(challenge.weekId);
     if (
@@ -415,8 +486,8 @@ export async function buildCloseWeeklyPlayerPlan(args: {
   weekly: WeeklyView;
   owner: PublicKey;
 }): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .closeWeeklyPlayer()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.closeWeeklyPlayer()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       weeklyChallenge: args.weekly.address,
@@ -427,7 +498,12 @@ export async function buildCloseWeeklyPlayerPlan(args: {
       caller: args.wallet.publicKey,
     })
     .instruction();
-  return plan("Close settled Weekly player record", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Close settled Weekly player record",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 export async function buildCloseWeeklyChallengePlan(args: {
@@ -437,10 +513,12 @@ export async function buildCloseWeeklyChallengePlan(args: {
 }): Promise<TransactionPlan> {
   const startDay = args.weekly.weekId * 7 - 3;
   if (!Number.isSafeInteger(startDay) || startDay < 0) {
-    throw new Error("Weekly cadence cannot be closed before the first full week");
+    throw new Error(
+      "Weekly cadence cannot be closed before the first full week",
+    );
   }
-  const instruction = await zkubeProgram(args.connection, args.wallet).methods
-    .closeWeeklyChallenge()
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.closeWeeklyChallenge()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       rentRecipient: args.weekly.rentRecipient,
@@ -456,11 +534,17 @@ export async function buildCloseWeeklyChallengePlan(args: {
       })),
     )
     .instruction();
-  return plan("Close settled Weekly challenge", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Close settled Weekly challenge",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 function parseWeeklyStatus(value: unknown): WeeklyStatus {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "unknown";
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return "unknown";
   const status = Object.keys(value)[0];
   return status === "open" || status === "claimable" || status === "closed"
     ? status

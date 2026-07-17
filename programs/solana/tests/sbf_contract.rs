@@ -11,6 +11,7 @@ use solana_account::Account;
 use solana as zkube;
 use zkube::game::{row_from_vrf, BlockWeights, Grid};
 use zkube::state::economy::*;
+use zkube::state::identity::*;
 use zkube::state::protocol::*;
 
 const PROGRAM_NAME: &str = "solana";
@@ -245,6 +246,313 @@ fn player_fixture(owner: Pubkey) -> (Pubkey, PlayerState) {
     (address, PlayerState::initialize(owner, bump))
 }
 
+fn identity_fixture(owner: Pubkey, display: &str, rename_count: u16) -> (Pubkey, PlayerIdentity) {
+    let (address, bump) =
+        Pubkey::find_program_address(&[PLAYER_IDENTITY_SEED, owner.as_ref()], &zkube::ID);
+    let normalized = display.to_ascii_lowercase();
+    let mut display_name = [0u8; USERNAME_MAX_LEN];
+    display_name[..display.len()].copy_from_slice(display.as_bytes());
+    let mut normalized_name = [0u8; USERNAME_MAX_LEN];
+    normalized_name[..normalized.len()].copy_from_slice(normalized.as_bytes());
+    (
+        address,
+        PlayerIdentity {
+            version: IDENTITY_ACCOUNT_VERSION,
+            owner,
+            display_name,
+            normalized_name,
+            name_len: display.len() as u8,
+            rename_count,
+            registered_at: 1,
+            last_renamed_at: 1,
+            moderated: false,
+            moderation_reason: 0,
+            bump,
+        },
+    )
+}
+
+fn username_claim_fixture(
+    owner: Pubkey,
+    player_identity: Pubkey,
+    normalized: &str,
+    status: u8,
+) -> (Pubkey, UsernameClaim) {
+    let (address, bump) =
+        Pubkey::find_program_address(&[USERNAME_CLAIM_SEED, normalized.as_bytes()], &zkube::ID);
+    let mut normalized_name = [0u8; USERNAME_MAX_LEN];
+    normalized_name[..normalized.len()].copy_from_slice(normalized.as_bytes());
+    (
+        address,
+        UsernameClaim {
+            version: IDENTITY_ACCOUNT_VERSION,
+            owner,
+            player_identity,
+            normalized_name,
+            name_len: normalized.len() as u8,
+            status,
+            bump,
+        },
+    )
+}
+
+#[test]
+fn sbf_username_registration_is_owner_paid_and_globally_unique() {
+    let authority = Pubkey::new_unique();
+    let owner = Pubkey::new_unique();
+    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
+    let (protocol, protocol_state) = protocol_fixture(
+        authority,
+        Pubkey::new_unique(),
+        Pubkey::new_unique(),
+        reward_vault,
+        false,
+    );
+    let (player, player_state) = player_fixture(owner);
+    let (player_identity, _) =
+        Pubkey::find_program_address(&[PLAYER_IDENTITY_SEED, owner.as_ref()], &zkube::ID);
+    let normalized = "wave_rider7";
+    let (username_claim, _) =
+        Pubkey::find_program_address(&[USERNAME_CLAIM_SEED, normalized.as_bytes()], &zkube::ID);
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::RegisterUsername {
+            protocol,
+            player_state: player,
+            player_identity,
+            username_claim,
+            owner,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::RegisterUsername {
+            args: zkube::UsernameArgs {
+                display: "Wave_Rider7".to_string(),
+                normalized: normalized.to_string(),
+            },
+        }
+        .data(),
+    };
+    let owner_lamports = 100_000_000;
+    let accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (player_identity, system_account(0)),
+        (username_claim, system_account(0)),
+        (owner, system_account(owner_lamports)),
+        (anchor_lang::system_program::ID, system_program_account()),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    eprintln!(
+        "SBF_COMPUTE register_username={}",
+        result.compute_units_consumed
+    );
+    let identity: PlayerIdentity = decode(resulting_account(&result, &player_identity));
+    let claim: UsernameClaim = decode(resulting_account(&result, &username_claim));
+    assert_eq!(identity.owner, owner);
+    assert_eq!(identity.normalized(), Some(normalized.as_bytes()));
+    assert_eq!(claim.owner, owner);
+    assert_eq!(claim.status, USERNAME_STATUS_ACTIVE);
+    assert_eq!(
+        resulting_account(&result, &owner).lamports
+            + resulting_account(&result, &player_identity).lamports
+            + resulting_account(&result, &username_claim).lamports,
+        owner_lamports
+    );
+
+    let second_owner = Pubkey::new_unique();
+    let (second_player, second_player_state) = player_fixture(second_owner);
+    let (second_identity, _) =
+        Pubkey::find_program_address(&[PLAYER_IDENTITY_SEED, second_owner.as_ref()], &zkube::ID);
+    let duplicate_accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            second_player,
+            program_account(&second_player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (second_identity, system_account(0)),
+        (
+            username_claim,
+            resulting_account(&result, &username_claim).clone(),
+        ),
+        (second_owner, system_account(owner_lamports)),
+        (anchor_lang::system_program::ID, system_program_account()),
+    ];
+    let duplicate_instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::RegisterUsername {
+            protocol,
+            player_state: second_player,
+            player_identity: second_identity,
+            username_claim,
+            owner: second_owner,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: instruction.data,
+    };
+    assert!(mollusk()
+        .process_instruction(&duplicate_instruction, &duplicate_accounts)
+        .program_result
+        .is_err());
+}
+
+#[test]
+fn sbf_username_rename_charges_only_after_free_correction_and_moderation_is_constrained() {
+    let authority = Pubkey::new_unique();
+    let owner = Pubkey::new_unique();
+    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
+    let (protocol, protocol_state) = protocol_fixture(
+        authority,
+        Pubkey::new_unique(),
+        Pubkey::new_unique(),
+        reward_vault,
+        false,
+    );
+    let (player, mut player_state) = player_fixture(owner);
+    player_state.credit_stars(150).unwrap();
+    let (player_identity, mut identity_state) = identity_fixture(owner, "Wave_Rider7", 1);
+    identity_state.last_renamed_at = 1;
+    let (old_claim, old_claim_state) = username_claim_fixture(
+        owner,
+        player_identity,
+        "wave_rider7",
+        USERNAME_STATUS_ACTIVE,
+    );
+    let (new_claim, _) =
+        Pubkey::find_program_address(&[USERNAME_CLAIM_SEED, b"ocean_tiki"], &zkube::ID);
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::RenameUsername {
+            protocol,
+            player_state: player,
+            player_identity,
+            old_username_claim: old_claim,
+            new_username_claim: new_claim,
+            owner,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::RenameUsername {
+            args: zkube::RenameUsernameArgs {
+                old_normalized: "wave_rider7".to_string(),
+                display: "Ocean_Tiki".to_string(),
+                normalized: "ocean_tiki".to_string(),
+            },
+        }
+        .data(),
+    };
+    let accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (
+            player_identity,
+            program_account(&identity_state, 8 + PlayerIdentity::INIT_SPACE),
+        ),
+        (
+            old_claim,
+            program_account(&old_claim_state, 8 + UsernameClaim::INIT_SPACE),
+        ),
+        (new_claim, system_account(0)),
+        (owner, system_account(100_000_000)),
+        (anchor_lang::system_program::ID, system_program_account()),
+    ];
+    let mut runtime = mollusk();
+    runtime.sysvars.clock.unix_timestamp = 1 + USERNAME_RENAME_COOLDOWN_SECONDS;
+    let result = runtime.process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    eprintln!(
+        "SBF_COMPUTE rename_username={}",
+        result.compute_units_consumed
+    );
+    let updated_player: PlayerState = decode(resulting_account(&result, &player));
+    assert_eq!(updated_player.stars_balance, 50);
+    let updated_identity: PlayerIdentity = decode(resulting_account(&result, &player_identity));
+    assert_eq!(
+        updated_identity.normalized(),
+        Some(b"ocean_tiki".as_slice())
+    );
+    assert_eq!(updated_identity.rename_count, 2);
+
+    let moderation = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ModerateUsername {
+            protocol,
+            player_identity,
+            username_claim: new_claim,
+            authority,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ModerateUsername {
+            args: zkube::ModerateUsernameArgs {
+                normalized: "ocean_tiki".to_string(),
+                reason_code: 7,
+            },
+        }
+        .data(),
+    };
+    let moderation_accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            player_identity,
+            resulting_account(&result, &player_identity).clone(),
+        ),
+        (new_claim, resulting_account(&result, &new_claim).clone()),
+        (authority, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let moderated = mollusk().process_instruction(&moderation, &moderation_accounts);
+    assert!(
+        moderated.program_result.is_ok(),
+        "{:?}",
+        moderated.program_result
+    );
+    let identity: PlayerIdentity = decode(resulting_account(&moderated, &player_identity));
+    let claim: UsernameClaim = decode(resulting_account(&moderated, &new_claim));
+    assert!(identity.moderated);
+    assert_eq!(identity.moderation_reason, 7);
+    assert_eq!(claim.status, USERNAME_STATUS_BLOCKED);
+
+    let wrong_authority = Pubkey::new_unique();
+    let wrong = anchor_lang::solana_program::instruction::Instruction {
+        accounts: zkube::accounts::ModerateUsername {
+            authority: wrong_authority,
+            ..zkube::accounts::ModerateUsername {
+                protocol,
+                player_identity,
+                username_claim: new_claim,
+                authority,
+            }
+        }
+        .to_account_metas(None),
+        ..moderation
+    };
+    let mut wrong_accounts = moderation_accounts;
+    wrong_accounts.push((wrong_authority, system_account(ACCOUNT_LAMPORTS)));
+    assert!(mollusk()
+        .process_instruction(&wrong, &wrong_accounts)
+        .program_result
+        .is_err());
+}
+
 #[test]
 fn sbf_revenue_destinations_are_nonzero_distinct_and_authority_signed() {
     let authority = Pubkey::new_unique();
@@ -379,6 +687,37 @@ fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
     );
     assert_eq!(direct_player.stars_balance, 10);
     assert_eq!(direct_player.milestone_stars_claimed, 10);
+
+    let (_, mut legacy_player) = player_fixture(owner);
+    legacy_player.lifetime_xp = LEVEL_100_XP;
+    legacy_player.stars_balance = 20;
+    legacy_player.lifetime_stars_earned = 20;
+    legacy_player.milestone_claimed = 0b11;
+    legacy_player.milestone_stars_claimed = 20;
+    let legacy_accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            economy,
+            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
+        ),
+        (
+            player,
+            program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
+        ),
+        (owner, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let legacy_result = mollusk().process_instruction(&direct, &legacy_accounts);
+    assert!(
+        legacy_result.program_result.is_ok(),
+        "{:?}",
+        legacy_result.program_result
+    );
+    let reconciled: PlayerState = decode(resulting_account(&legacy_result, &player));
+    assert_eq!(reconciled.stars_balance, 30);
+    assert_eq!(reconciled.milestone_stars_claimed, 30);
 
     let valid_token = session_token_address(owner, actor);
     let valid_session = SessionTokenV2 {
@@ -1242,6 +1581,80 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
     unsigned.accounts[7].is_signer = false;
     assert!(mollusk()
         .process_instruction(&unsigned, &accounts)
+        .program_result
+        .is_err());
+}
+
+#[test]
+fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
+    let pricing_operator = Pubkey::new_unique();
+    let wrong_operator = Pubkey::new_unique();
+    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
+    let (protocol, protocol_state) = protocol_fixture(
+        pricing_operator,
+        Pubkey::new_unique(),
+        Pubkey::new_unique(),
+        reward_vault,
+        false,
+    );
+    let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
+    let mut economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
+    economy_state.star_pack_stars = [10, 50, 100, 500, 1_000];
+    economy_state.star_pack_prices = [10_000_000, 47_500_000, 90_000_000, 425_000_000, 800_000_000];
+
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ManageEconomyPricing {
+            protocol,
+            economy_config: economy,
+            pricing_operator,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::UpdateStarPacks {
+            args: zkube::UpdateStarPacksArgs {
+                stars: STAR_PACK_STARS,
+                prices: STAR_PACK_PRICES,
+                enabled: [true; STAR_PACK_COUNT],
+            },
+        }
+        .data(),
+    };
+    let accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            economy,
+            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
+        ),
+        (pricing_operator, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    let updated: EconomyConfig = decode(resulting_account(&result, &economy));
+    eprintln!(
+        "SBF_COMPUTE update_star_packs={}",
+        result.compute_units_consumed
+    );
+    assert_eq!(updated.star_pack_stars, STAR_PACK_STARS);
+    assert_eq!(updated.star_pack_prices, STAR_PACK_PRICES);
+    assert_eq!(updated.revision, economy_state.revision + 1);
+
+    let unauthorized = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ManageEconomyPricing {
+            protocol,
+            economy_config: economy,
+            pricing_operator: wrong_operator,
+        }
+        .to_account_metas(None),
+        data: instruction.data,
+    };
+    let mut unauthorized_accounts = accounts;
+    unauthorized_accounts.push((wrong_operator, system_account(ACCOUNT_LAMPORTS)));
+    assert!(mollusk()
+        .process_instruction(&unauthorized, &unauthorized_accounts)
         .program_result
         .is_err());
 }

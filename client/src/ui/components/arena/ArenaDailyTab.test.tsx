@@ -13,7 +13,6 @@ import {
 import { getThemeColors } from "@/config/themes";
 import ArenaDailyTab from "./ArenaDailyTab";
 
-
 const fixtures = vi.hoisted(() => ({
   accountAddress: "ABCD12345678WXYZ",
   daily: {
@@ -49,7 +48,7 @@ const fixtures = vi.hoisted(() => ({
     {
       rank: 1,
       player: "abcd12345678WXYZ",
-      playerName: "abcd…WXYZ",
+      playerName: "Wave_Rider7",
       runId: 4n,
       score: 900,
       submittedAt: 100,
@@ -137,7 +136,7 @@ describe("ArenaDailyTab", () => {
   it("shows the board with exact identity matches and the entry CTA", () => {
     const { container } = render(<ArenaDailyTab colors={colors} />);
 
-    expect(screen.getByText("abcd…WXYZ")).toBeInTheDocument();
+    expect(screen.getByText("Wave_Rider7")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("900 daily")).toBeInTheDocument();
     expect(screen.getByText("750 daily")).toBeInTheDocument();
@@ -169,4 +168,3 @@ describe("ArenaDailyTab", () => {
     fixtures.daily.daily.playerStars = 10n;
   });
 });
-

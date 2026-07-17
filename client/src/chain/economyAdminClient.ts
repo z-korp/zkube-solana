@@ -146,6 +146,34 @@ export async function buildUpdateRegularPricesPlan(args: {
   );
 }
 
+export async function buildUpdateStarPacksPlan(args: {
+  connection: Connection;
+  pricingOperator: WalletLike;
+  stars: readonly [bigint, bigint, bigint, bigint, bigint];
+  prices: readonly [bigint, bigint, bigint, bigint, bigint];
+  enabled: readonly [boolean, boolean, boolean, boolean, boolean];
+}): Promise<TransactionPlan> {
+  assertStarPacks(args.stars, args.prices, args.enabled);
+  const instruction = await zkubeProgram(args.connection, args.pricingOperator)
+    .methods.updateStarPacks({
+      stars: args.stars.map(toBN),
+      prices: args.prices.map(toBN),
+      enabled: [...args.enabled],
+    })
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      economyConfig: deriveEconomyConfigPda(),
+      pricingOperator: args.pricingOperator.publicKey,
+    })
+    .instruction();
+  return plan(
+    "Update governed Star packs",
+    args.connection,
+    args.pricingOperator.publicKey,
+    instruction,
+  );
+}
+
 export async function buildScheduleSalePlan(args: {
   connection: Connection;
   pricingOperator: WalletLike;
@@ -209,6 +237,32 @@ function assertPrices(prices: readonly bigint[]): void {
     prices.some((price) => price <= 0n || price > 0xffff_ffff_ffff_ffffn)
   ) {
     throw new Error("prices must contain five positive u64 values");
+  }
+}
+
+function assertStarPacks(
+  stars: readonly bigint[],
+  prices: readonly bigint[],
+  enabled: readonly boolean[],
+): void {
+  assertPrices(stars);
+  assertPrices(prices);
+  if (enabled.length !== 5 || !enabled.some(Boolean)) {
+    throw new Error(
+      "enabled must contain five flags with at least one active pack",
+    );
+  }
+  for (let index = 1; index < 5; index += 1) {
+    const previous = index - 1;
+    if (
+      stars[previous]! >= stars[index]! ||
+      prices[previous]! >= prices[index]! ||
+      prices[index]! * stars[previous]! > prices[previous]! * stars[index]!
+    ) {
+      throw new Error(
+        "Star packs must be increasing with non-increasing unit price",
+      );
+    }
   }
 }
 

@@ -112,15 +112,24 @@ describe("progress projections", () => {
 
   it("keeps score order and case-sensitive base58 identity", () => {
     const player = Keypair.generate().publicKey;
-    const receipt = Keypair.generate().publicKey;
     const [entry] = projectDailyLeaderboard([
-      { player, receipt, runId: 9n, score: 77, submittedAt: 123 },
+      {
+        player,
+        playerName: "Wave_Rider7",
+        runId: 9n,
+        dailyScore: 77,
+        dailyBonusTriggers: 2,
+        engineScore: 70,
+        moves: 12,
+        score: 77,
+        submittedAt: 123,
+      },
     ]);
     expect(entry).toMatchObject({
       rank: 1,
       player: player.toBase58(),
       score: 77,
-      playerName: `${player.toBase58().slice(0, 4)}…${player.toBase58().slice(-4)}`,
+      playerName: "Wave_Rider7",
     });
   });
 });

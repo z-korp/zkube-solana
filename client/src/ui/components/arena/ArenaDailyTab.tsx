@@ -121,7 +121,7 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
       dailyEntries.slice(0, 30).map((entry) => ({
         id: `daily-${entry.rank}`,
         rank: entry.rank,
-        name: truncatePublicKey(entry.player),
+        name: entry.playerName,
         score: entry.dailyScore ?? entry.score,
         dailyBonusTriggers: entry.dailyBonusTriggers ?? 0,
         engineScore: entry.engineScore ?? entry.score,
@@ -206,7 +206,9 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
           className="mb-4 h-8 w-8 animate-spin"
           style={{ color: colors.accent }}
         />
-        <p className="font-sans text-sm font-medium">Loading today&apos;s arena...</p>
+        <p className="font-sans text-sm font-medium">
+          Loading today&apos;s arena...
+        </p>
       </div>
     );
   }
@@ -316,7 +318,9 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
           {/* ── Enter / resume ── */}
           {hasActiveDailyRun ? (
             <ArcadeButton onClick={openRun} accentOverride={zoneColors.accent}>
-              {activeDailyRun?.settled ? "Finish previous Daily" : "Resume Daily"}
+              {activeDailyRun?.settled
+                ? "Finish previous Daily"
+                : "Resume Daily"}
             </ArcadeButton>
           ) : (
             daily.daily &&
@@ -349,7 +353,8 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
                     </button>
                   ) : (
                     <p className="text-center font-sans text-[11px] font-semibold text-white/50">
-                      Unlimited retries · best score counts · +100 XP first finish
+                      Unlimited retries · best score counts · +100 XP first
+                      finish
                     </p>
                   )}
                   <InfoSheet title="How Daily scoring works">
@@ -382,7 +387,9 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
                 className="mb-3 h-7 w-7 animate-spin"
                 style={{ color: colors.accent }}
               />
-              <p className="font-sans text-sm font-medium">Loading rankings...</p>
+              <p className="font-sans text-sm font-medium">
+                Loading rankings...
+              </p>
             </div>
           ) : rankRows.length === 0 ? (
             <EmptyState
@@ -393,7 +400,11 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
               hintColor={colors.textMuted}
             />
           ) : (
-            <motion.div initial="hidden" animate="visible" className="space-y-2">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              className="space-y-2"
+            >
               {rankRows.map((entry, index) => {
                 const baseBg =
                   entry.rank === 1
@@ -411,7 +422,8 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
                       : entry.rank === 3
                         ? "rgba(205,127,50,0.28)"
                         : `${colors.accent}40`;
-                const pulseBase = entry.rank <= 3 ? baseBg : `${colors.accent}20`;
+                const pulseBase =
+                  entry.rank <= 3 ? baseBg : `${colors.accent}20`;
 
                 return (
                   <motion.div
@@ -477,8 +489,9 @@ const ArenaDailyTab: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
                           0,
                           entry.score - entry.engineScore,
                         ).toLocaleString()}{" "}
-                        challenge · {entry.engineScore.toLocaleString()} engine ·{" "}
-                        {entry.dailyBonusTriggers} bonus triggers · {entry.moves} moves
+                        challenge · {entry.engineScore.toLocaleString()} engine
+                        · {entry.dailyBonusTriggers} bonus triggers ·{" "}
+                        {entry.moves} moves
                       </span>
                       <Eye size={15} style={{ color: colors.textMuted }} />
                     </div>

@@ -36,6 +36,32 @@ pub mod solana {
         instructions::content_instructions::handler_initialize_player(ctx)
     }
 
+    pub fn register_username(ctx: Context<RegisterUsername>, args: UsernameArgs) -> Result<()> {
+        instructions::identity_instructions::handler_register_username(ctx, args)
+    }
+
+    pub fn rename_username(ctx: Context<RenameUsername>, args: RenameUsernameArgs) -> Result<()> {
+        instructions::identity_instructions::handler_rename_username(ctx, args)
+    }
+
+    pub fn replace_moderated_username(
+        ctx: Context<ReplaceModeratedUsername>,
+        args: RenameUsernameArgs,
+    ) -> Result<()> {
+        instructions::identity_instructions::handler_replace_moderated_username(ctx, args)
+    }
+
+    pub fn moderate_username(
+        ctx: Context<ModerateUsername>,
+        args: ModerateUsernameArgs,
+    ) -> Result<()> {
+        instructions::identity_instructions::handler_moderate_username(ctx, args)
+    }
+
+    pub fn restore_username(ctx: Context<RestoreUsername>, normalized: String) -> Result<()> {
+        instructions::identity_instructions::handler_restore_username(ctx, normalized)
+    }
+
     pub fn withdraw_player_funding(
         ctx: Context<WithdrawPlayerFunding>,
         lamports: u64,
@@ -80,6 +106,13 @@ pub mod solana {
         args: UpdateRegularPricesArgs,
     ) -> Result<()> {
         instructions::economy_instructions::handler_update_regular_prices(ctx, args)
+    }
+
+    pub fn update_star_packs(
+        ctx: Context<ManageEconomyPricing>,
+        args: UpdateStarPacksArgs,
+    ) -> Result<()> {
+        instructions::economy_instructions::handler_update_star_packs(ctx, args)
     }
 
     pub fn schedule_sale(ctx: Context<ManageEconomyPricing>, args: ScheduleSaleArgs) -> Result<()> {

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInitializeEconomyPlan,
   buildPublishDailyRulesPlan,
+  buildUpdateStarPacksPlan,
 } from "./economyAdminClient";
 import {
   deriveDailyRulesCatalogPda,
@@ -59,5 +60,41 @@ describe("economy authority builders", () => {
         deriveDailyRulesCatalogPda(1),
       ),
     ).toBe(true);
+  });
+
+  it("builds only ordered Star pack ladders with improving bulk value", async () => {
+    const pricingOperator = new SessionWallet(Keypair.generate());
+    const plan = await buildUpdateStarPacksPlan({
+      connection: {} as Connection,
+      pricingOperator,
+      stars: [10n, 50n, 200n, 500n, 1_000n],
+      prices: [
+        20_000_000n,
+        90_000_000n,
+        300_000_000n,
+        700_000_000n,
+        1_250_000_000n,
+      ],
+      enabled: [true, true, true, true, true],
+    });
+
+    expect(plan.label).toBe("Update governed Star packs");
+    expect(plan.transaction.instructions).toHaveLength(1);
+
+    await expect(
+      buildUpdateStarPacksPlan({
+        connection: {} as Connection,
+        pricingOperator,
+        stars: [10n, 50n, 200n, 500n, 1_000n],
+        prices: [
+          20_000_000n,
+          90_000_000n,
+          300_000_000n,
+          800_000_000n,
+          1_250_000_000n,
+        ],
+        enabled: [true, true, true, true, true],
+      }),
+    ).rejects.toThrow("non-increasing unit price");
   });
 });

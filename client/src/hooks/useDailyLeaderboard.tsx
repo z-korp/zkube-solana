@@ -28,7 +28,7 @@ export function projectDailyLeaderboard(
     return {
       rank: dailyLeaderboardRank(entries, index),
       player,
-      playerName: truncatePublicKey(player),
+      playerName: entry.playerName ?? truncatePublicKey(player),
       runId: entry.runId,
       score: entry.score,
       dailyScore: entry.dailyScore ?? entry.score,

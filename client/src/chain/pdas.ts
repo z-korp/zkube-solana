@@ -5,15 +5,21 @@ export interface RunAddresses {
   activeRun: PublicKey;
 }
 
-export function deriveProtocolConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
+export function deriveProtocolConfigPda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
   return derive([Buffer.from("protocol")], programId);
 }
 
-export function deriveEconomyConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
+export function deriveEconomyConfigPda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
   return derive([Buffer.from("economy")], programId);
 }
 
-export function deriveStarSalesLedgerPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
+export function deriveStarSalesLedgerPda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
   return derive([Buffer.from("star_sales")], programId);
 }
 
@@ -25,8 +31,31 @@ export function deriveDailyRulesCatalogPda(
   return derive([Buffer.from("daily_rules"), u32le(rulesVersion)], programId);
 }
 
-export function derivePlayerStatePda(owner: PublicKey, programId = ZKUBE_PROGRAM_ID): PublicKey {
+export function derivePlayerStatePda(
+  owner: PublicKey,
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
   return derive([Buffer.from("player"), owner.toBuffer()], programId);
+}
+
+export function derivePlayerIdentityPda(
+  owner: PublicKey,
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive([Buffer.from("identity"), owner.toBuffer()], programId);
+}
+
+export function deriveUsernameClaimPda(
+  normalized: string,
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  if (!/^[a-z][a-z0-9_]{2,15}$/.test(normalized)) {
+    throw new Error(
+      "normalized username must be 3-16 lowercase ASCII characters",
+    );
+  }
+  const bytes = Buffer.from(normalized, "ascii");
+  return derive([Buffer.from("username"), bytes], programId);
 }
 
 export function derivePlayerFundingPda(
@@ -121,7 +150,12 @@ export function deriveRunAddresses(
   const encodedRunId = u64le(runId);
   return {
     activeRun: derive(
-      [Buffer.from("run"), Buffer.from("active"), owner.toBuffer(), encodedRunId],
+      [
+        Buffer.from("run"),
+        Buffer.from("active"),
+        owner.toBuffer(),
+        encodedRunId,
+      ],
       programId,
     ),
   };
@@ -146,7 +180,12 @@ function u64le(value: bigint): Buffer {
   return output;
 }
 
-function assertInteger(value: number, min: number, max: number, label: string): void {
+function assertInteger(
+  value: number,
+  min: number,
+  max: number,
+  label: string,
+): void {
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new Error(`${label} is out of range`);
   }

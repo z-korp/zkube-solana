@@ -57,9 +57,7 @@ const ShopPage: React.FC = () => {
         ? saleState.saleStartsAt
         : null;
     if (boundary === null) return;
-    const milliseconds = Number(
-      (boundary - now) * 1_000n + 250n,
-    );
+    const milliseconds = Number((boundary - now) * 1_000n + 250n);
     const timer = window.setTimeout(
       () => void refreshShop(),
       Math.min(Math.max(milliseconds, 250), 2_147_000_000),
@@ -74,7 +72,9 @@ const ShopPage: React.FC = () => {
   ]);
 
   const selectedPack =
-    selectedIndex === null ? null : controller.shop?.packs[selectedIndex] ?? null;
+    selectedIndex === null
+      ? null
+      : (controller.shop?.packs[selectedIndex] ?? null);
   // The smallest enabled pack sets the reference star rate; every other
   // pack's badge shows what buying bigger saves (live sales included, since
   // rates compare current prices).
@@ -269,8 +269,8 @@ const ShopPage: React.FC = () => {
                 the exact amount shown; a zKube session can never spend SOL.
               </p>
               <p>
-                Every payment settles atomically on-chain: 10% team, 10%
-                rewards reserve, 80% plus rounding dust to treasury. Prices are
+                Every payment settles atomically on-chain: 10% team, 10% rewards
+                reserve, 80% plus rounding dust to treasury. Prices are
                 re-checked against the live on-chain quote right before you
                 sign.
               </p>
@@ -284,7 +284,11 @@ const ShopPage: React.FC = () => {
           pack={selectedPack}
           shop={controller.shop}
           savingsPct={bulkSavingsPercent(selectedPack, basePack)}
-          solBalance={player.balanceLamports === null ? null : BigInt(player.balanceLamports)}
+          solBalance={
+            player.balanceLamports === null
+              ? null
+              : BigInt(player.balanceLamports)
+          }
           busy={controller.purchasingPack === selectedPack.index}
           onClose={() => setSelectedIndex(null)}
           onFund={openWallet}
@@ -312,11 +316,12 @@ function PackCard({
   accent: string;
   onSelect: () => void;
 }) {
-  const badge = pack.stars === 100n
-    ? "Popular"
-    : pack.stars === 1_000n
-      ? "Best value"
-      : null;
+  const badge =
+    pack.stars === 200n
+      ? "Popular"
+      : pack.stars === 1_000n
+        ? "Best value"
+        : null;
   const blocked = !pack.enabled
     ? "Unavailable"
     : paused
@@ -466,9 +471,7 @@ function PurchaseConfirmation({
         )}
 
         {insufficient ? (
-          <ArcadeButton onClick={onFund}>
-            Add SOL to your wallet
-          </ArcadeButton>
+          <ArcadeButton onClick={onFund}>Add SOL to your wallet</ArcadeButton>
         ) : (
           <ArcadeButton
             onClick={onConfirm}

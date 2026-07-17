@@ -60,6 +60,7 @@ describe("Daily projection", () => {
     const playerTwo = key();
     const entries = [playerOne, playerTwo].map((player, index) => ({
       player,
+      playerName: null,
       runId: BigInt(index + 1),
       dailyScore: 100,
       dailyBonusTriggers: 4,

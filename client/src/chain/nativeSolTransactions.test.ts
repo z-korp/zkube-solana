@@ -55,7 +55,7 @@ describe("native SOL transaction boundaries", () => {
       instruction.keys.at(-1)?.pubkey.equals(SystemProgram.programId),
     ).toBe(true);
     expect(instruction.data.readBigUInt64LE(9)).toBe(10n);
-    expect(instruction.data.readBigUInt64LE(17)).toBe(10_000_000n);
+    expect(instruction.data.readBigUInt64LE(17)).toBe(20_000_000n);
     expect(splitStarPurchase(10_000_001n)).toEqual({
       team: 1_000_000n,
       rewards: 1_000_000n,
@@ -329,29 +329,29 @@ function shopView(): StarShopView {
     saleStartsAt: 0n,
     saleEndsAt: 0n,
     saleLive: false,
-    packs: [10n, 50n, 100n, 500n, 1_000n].map((stars, index) => ({
+    packs: [10n, 50n, 200n, 500n, 1_000n].map((stars, index) => ({
       index,
       stars,
       regularPrice: [
-        10_000_000n,
-        47_500_000n,
+        20_000_000n,
         90_000_000n,
-        425_000_000n,
-        800_000_000n,
+        300_000_000n,
+        700_000_000n,
+        1_250_000_000n,
       ][index]!,
       currentPrice: [
-        10_000_000n,
-        47_500_000n,
+        20_000_000n,
         90_000_000n,
-        425_000_000n,
-        800_000_000n,
+        300_000_000n,
+        700_000_000n,
+        1_250_000_000n,
       ][index]!,
       salePrice: [
-        10_000_000n,
-        47_500_000n,
+        20_000_000n,
         90_000_000n,
-        425_000_000n,
-        800_000_000n,
+        300_000_000n,
+        700_000_000n,
+        1_250_000_000n,
       ][index]!,
       enabled: true,
       onSale: false,

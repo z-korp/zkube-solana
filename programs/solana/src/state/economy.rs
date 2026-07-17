@@ -43,7 +43,7 @@ pub const WEEKLY_STIPEND_STARS: u64 = 30;
 /// all of its clears, independent of the one-time perfect-map reward.
 pub const CAMPAIGN_LEVEL_XP_PER_STAR: u32 = 10;
 pub const PERFECT_MAP_STARS: u64 = 20;
-pub const PERFECT_MAP_XP: u32 = 1_000;
+pub const PERFECT_MAP_XP: u32 = 300;
 pub const SOL_WINNER_STARS: u64 = 30;
 pub const WEEKLY_MIN_SOL_POOL: u64 = 100_000_000;
 pub const WEEKLY_MAX_SOL_POOL: u64 = 1_000_000_000;
@@ -54,9 +54,14 @@ pub const DAILY_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 30 * 60;
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const SECONDS_PER_WEEK: i64 = 604_800;
 
-pub const STAR_PACK_STARS: [u64; STAR_PACK_COUNT] = [10, 50, 100, 500, 1_000];
-pub const STAR_PACK_PRICES: [u64; STAR_PACK_COUNT] =
-    [10_000_000, 47_500_000, 90_000_000, 425_000_000, 800_000_000];
+pub const STAR_PACK_STARS: [u64; STAR_PACK_COUNT] = [10, 50, 200, 500, 1_000];
+pub const STAR_PACK_PRICES: [u64; STAR_PACK_COUNT] = [
+    20_000_000,
+    90_000_000,
+    300_000_000,
+    700_000_000,
+    1_250_000_000,
+];
 pub const TEAM_SALE_BPS: u16 = 1_000;
 pub const REWARD_SALE_BPS: u16 = 1_000;
 pub const TREASURY_SALE_BPS: u16 = 8_000;
@@ -138,17 +143,11 @@ impl EconomyConfig {
         require!(self.daily_rules_version > 0, ErrorCode::InvalidState);
         require!(self.daily_entry_stars > 0, ErrorCode::InvalidState);
         require!(self.zone_unlock_stars > 0, ErrorCode::InvalidState);
-        require!(
-            self.star_pack_stars == STAR_PACK_STARS,
-            ErrorCode::InvalidState
-        );
-        require!(
-            self.star_pack_prices
-                .iter()
-                .zip(self.star_pack_enabled)
-                .all(|(price, enabled)| !enabled || *price > 0),
-            ErrorCode::InvalidPack
-        );
+        validate_star_packs(
+            self.star_pack_stars,
+            self.star_pack_prices,
+            self.star_pack_enabled,
+        )?;
         require!(
             self.weekly_min_sol_pool <= self.weekly_max_sol_pool,
             ErrorCode::InvalidState
@@ -202,6 +201,34 @@ impl EconomyConfig {
         );
         Ok((team, reward, treasury))
     }
+}
+
+/// Pack definitions are governed state, but their ordering and unit economics
+/// remain protocol invariants. Cross-multiplication avoids rounding when
+/// proving that every larger enabled pack is no worse per Star.
+pub fn validate_star_packs(
+    stars: [u64; STAR_PACK_COUNT],
+    prices: [u64; STAR_PACK_COUNT],
+    enabled: [bool; STAR_PACK_COUNT],
+) -> Result<()> {
+    require!(enabled.iter().any(|value| *value), ErrorCode::InvalidPack);
+    for index in 0..STAR_PACK_COUNT {
+        require!(stars[index] > 0, ErrorCode::InvalidPack);
+        require!(prices[index] > 0, ErrorCode::InvalidPack);
+        if index == 0 {
+            continue;
+        }
+        require!(stars[index - 1] < stars[index], ErrorCode::InvalidPack);
+        require!(prices[index - 1] < prices[index], ErrorCode::InvalidPack);
+        let previous_unit = u128::from(prices[index - 1])
+            .checked_mul(u128::from(stars[index]))
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let current_unit = u128::from(prices[index])
+            .checked_mul(u128::from(stars[index - 1]))
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        require!(current_unit <= previous_unit, ErrorCode::InvalidPack);
+    }
+    Ok(())
 }
 
 #[account]
@@ -1012,6 +1039,27 @@ mod tests {
     }
 
     #[test]
+    fn governed_star_packs_are_ordered_with_monotonic_bulk_value() {
+        validate_star_packs(STAR_PACK_STARS, STAR_PACK_PRICES, [true; 5]).unwrap();
+        assert!(validate_star_packs(
+            [10, 50, 200, 500, 1_000],
+            [
+                20_000_000,
+                90_000_000,
+                300_000_000,
+                800_000_000,
+                1_250_000_000
+            ],
+            [true; 5],
+        )
+        .is_err());
+        assert!(
+            validate_star_packs([10, 50, 50, 500, 1_000], STAR_PACK_PRICES, [true; 5],).is_err()
+        );
+        assert!(validate_star_packs(STAR_PACK_STARS, STAR_PACK_PRICES, [false; 5]).is_err());
+    }
+
+    #[test]
     fn canonical_daily_catalog_has_fifteen_unique_weighted_rules() {
         let catalog = daily_catalog();
         catalog.validate().unwrap();
@@ -1035,10 +1083,10 @@ mod tests {
         config.sale_ends_at = 200;
         config.sale_prices = [9_000_000, 40_000_000, 80_000_000, 400_000_000, 750_000_000];
 
-        assert_eq!(config.quote(0, 99).unwrap(), (10, 10_000_000));
+        assert_eq!(config.quote(0, 99).unwrap(), (10, 20_000_000));
         assert_eq!(config.quote(0, 100).unwrap(), (10, 9_000_000));
         assert_eq!(config.quote(0, 199).unwrap(), (10, 9_000_000));
-        assert_eq!(config.quote(0, 200).unwrap(), (10, 10_000_000));
+        assert_eq!(config.quote(0, 200).unwrap(), (10, 20_000_000));
 
         config.star_pack_enabled[0] = false;
         assert!(config.quote(0, 150).is_err());

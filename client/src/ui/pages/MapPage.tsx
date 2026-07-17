@@ -291,7 +291,7 @@ const MapPage: React.FC = () => {
               >
                 {map?.perfected
                   ? "Perfect reward earned"
-                  : "Clear all 30 stars: +20★ + 1,000 XP"}
+                  : "Clear all 30 stars: +20★ + 300 XP"}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

@@ -99,7 +99,9 @@ describe("ShopPage", () => {
   it("renders five packs with merchandising badges", () => {
     render(<ShopPage />);
 
-    expect(screen.getAllByRole("button", { name: /Stars for/ })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: /Stars for/ })).toHaveLength(
+      5,
+    );
     expect(screen.getByText("Popular")).toBeInTheDocument();
     expect(screen.getByText("Best value")).toBeInTheDocument();
   });
@@ -107,20 +109,20 @@ describe("ShopPage", () => {
   it("shows the exact confirmation and refreshes all balances after purchase", async () => {
     render(<ShopPage />);
     fireEvent.click(
-      screen.getByRole("button", { name: "100 Stars for 0.09 SOL" }),
+      screen.getByRole("button", { name: "200 Stars for 0.3 SOL" }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("+100★")).toBeInTheDocument();
-    expect(screen.getByText("★ 125")).toBeInTheDocument();
+    expect(screen.getByText("+200★")).toBeInTheDocument();
+    expect(screen.getByText("★ 225")).toBeInTheDocument();
     expect(screen.getByText(/Daily Arena entries/)).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Buy 100★ for 0.09 SOL" }),
+      screen.getByRole("button", { name: "Buy 200★ for 0.3 SOL" }),
     );
     await waitFor(() =>
       expect(fixtures.controller.purchase).toHaveBeenCalledWith(
-        expect.objectContaining({ index: 2, stars: 100n }),
+        expect.objectContaining({ index: 2, stars: 200n }),
       ),
     );
     await waitFor(() => {
@@ -129,7 +131,9 @@ describe("ShopPage", () => {
       expect(fixtures.dailyRefresh).toHaveBeenCalledOnce();
       expect(fixtures.identity.refreshBalance).toHaveBeenCalledOnce();
     });
-    expect(screen.getByRole("button", { name: "Return to Arena" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Return to Arena" }),
+    ).toBeEnabled();
   });
 
   it("routes an underfunded pack directly to wallet settings", () => {
@@ -137,7 +141,7 @@ describe("ShopPage", () => {
     render(<ShopPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "10 Stars for 0.01 SOL" }),
+      screen.getByRole("button", { name: "10 Stars for 0.02 SOL" }),
     );
     expect(fixtures.navigation.openWalletSettings).toHaveBeenCalledWith("shop");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -151,33 +155,41 @@ describe("ShopPage", () => {
     sale.saleEndsAt = BigInt(Math.floor(Date.now() / 1_000) + 3_600);
     sale.packs[0] = {
       ...sale.packs[0],
-      currentPrice: 9_000_000n,
-      salePrice: 9_000_000n,
+      currentPrice: 18_000_000n,
+      salePrice: 18_000_000n,
       onSale: true,
     };
     fixtures.controller.shop = sale;
     render(<ShopPage />);
 
     expect(screen.getByText("Star sale live")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "10 Stars for 0.009 SOL" })).toHaveTextContent(
-      "0.01",
-    );
+    expect(
+      screen.getByRole("button", { name: "10 Stars for 0.018 SOL" }),
+    ).toHaveTextContent("0.02");
     expect(screen.getByText("\u221210%")).toBeInTheDocument();
   });
 });
 
 function shopView(): StarShopView {
-  const prices = [10_000_000n, 47_500_000n, 90_000_000n, 425_000_000n, 800_000_000n];
-  const stars = [10n, 50n, 100n, 500n, 1_000n];
-  const packs = stars.map((value, index): StarPackQuote => ({
-    index,
-    stars: value,
-    regularPrice: prices[index],
-    currentPrice: prices[index],
-    salePrice: prices[index],
-    enabled: true,
-    onSale: false,
-  }));
+  const prices = [
+    20_000_000n,
+    90_000_000n,
+    300_000_000n,
+    700_000_000n,
+    1_250_000_000n,
+  ];
+  const stars = [10n, 50n, 200n, 500n, 1_000n];
+  const packs = stars.map(
+    (value, index): StarPackQuote => ({
+      index,
+      stars: value,
+      regularPrice: prices[index],
+      currentPrice: prices[index],
+      salePrice: prices[index],
+      enabled: true,
+      onSale: false,
+    }),
+  );
   return {
     economyVersion: 2,
     revision: 1n,
