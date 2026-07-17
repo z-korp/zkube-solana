@@ -10,7 +10,11 @@
  * only to the player's canonical System-owned funding PDA.
  */
 import { randomUUID } from "node:crypto";
-import { Connection, Keypair, type VersionedTransaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  type VersionedTransaction,
+} from "@solana/web3.js";
 
 import {
   buildCloseDailyChallengePlan,
@@ -25,7 +29,10 @@ import {
   type DailyView,
 } from "../../client/src/chain/dailyClient.js";
 import { fetchEconomyRuntime } from "../../client/src/chain/economyClient.js";
-import { deriveDailyChallengePda } from "../../client/src/chain/pdas.js";
+import {
+  deriveDailyChallengePda,
+  deriveDailyRulesCatalogPda,
+} from "../../client/src/chain/pdas.js";
 import {
   buildConsumeRunRecoveryPlan,
   compileWalletTransactionPlan,
@@ -36,7 +43,10 @@ import {
   buildRevokeExpiredSessionPlan,
   fetchExpiredZkubeSessions,
 } from "../../client/src/chain/sessionCleanup.js";
-import { SessionWallet, type WalletLike } from "../../client/src/chain/sessionWallet.js";
+import {
+  SessionWallet,
+  type WalletLike,
+} from "../../client/src/chain/sessionWallet.js";
 import {
   buildCloseWeeklyChallengePlan,
   buildCloseWeeklyPlayerPlan,
@@ -131,7 +141,8 @@ export function keeperKeypairFromEnv(
     !Array.isArray(parsed) ||
     parsed.length !== 64 ||
     !parsed.every(
-      (byte) => Number.isInteger(byte) && Number(byte) >= 0 && Number(byte) <= 255,
+      (byte) =>
+        Number.isInteger(byte) && Number(byte) >= 0 && Number(byte) <= 255,
     )
   ) {
     throw new Error("KEEPER_SECRET_KEY must be a 64-byte JSON array");
@@ -144,7 +155,9 @@ export function keeperKeypairFromEnv(
   return keypair;
 }
 
-export async function runKeeperPass(dependencies: KeeperDependencies): Promise<KeeperPassResult> {
+export async function runKeeperPass(
+  dependencies: KeeperDependencies,
+): Promise<KeeperPassResult> {
   const startedAt = Date.now();
   const now = Math.floor((dependencies.now?.() ?? Date.now()) / 1_000);
   const maxWrites = Math.min(
@@ -155,7 +168,10 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     dependencies.minimumBalanceLamports ?? DEFAULT_MIN_KEEPER_LAMPORTS;
   const maximumSpendLamports = Math.min(
     DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-    Math.max(1, dependencies.maximumSpendLamports ?? DEFAULT_MAX_KEEPER_SPEND_LAMPORTS),
+    Math.max(
+      1,
+      dependencies.maximumSpendLamports ?? DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
+    ),
   );
   const traceId = randomUUID();
   const log = dependencies.log ?? (() => undefined);
@@ -179,8 +195,12 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
       `keeper fee reserve ${balanceLamports} is below floor ${minimumBalanceLamports}`,
     );
   }
-  const runtime = await fetchEconomyRuntime({ connection: dependencies.connection, wallet });
-  if (!runtime) throw new Error("lean economy accounts are not active on this deployment");
+  const runtime = await fetchEconomyRuntime({
+    connection: dependencies.connection,
+    wallet,
+  });
+  if (!runtime)
+    throw new Error("lean economy accounts are not active on this deployment");
 
   let writes = 0;
   let plannedWrites = 0;
@@ -224,6 +244,9 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
         keeper: dependencies.keeper.publicKey,
         connection: dependencies.connection,
         nowUnix: now,
+        dailyRulesCatalog: deriveDailyRulesCatalogPda(
+          runtime.dailyRulesVersion,
+        ),
       });
       const remainingSpendLamports = maximumSpendLamports - spentLamports;
       const submitted = await simulateAndSubmitKeeperPlan({
@@ -449,19 +472,29 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
       wallet,
       dayId: candidateDay,
     });
-    if (!daily || (daily.status !== "claimable" && daily.status !== "cancelled")) continue;
+    if (
+      !daily ||
+      (daily.status !== "claimable" && daily.status !== "cancelled")
+    )
+      continue;
     const weekly = await fetchWeeklyView({
       connection: dependencies.connection,
       wallet,
       weekId: daily.weekId,
     });
-    if (!weekly || (weekly.status !== "claimable" && weekly.status !== "closed")) continue;
+    if (
+      !weekly ||
+      (weekly.status !== "claimable" && weekly.status !== "closed")
+    )
+      continue;
     const players = await fetchDailyPlayerRecords({
       connection: dependencies.connection,
       wallet,
       daily,
     });
-    for (const player of players.filter((record) => dailyPlayerCanClose(daily!, record))) {
+    for (const player of players.filter((record) =>
+      dailyPlayerCanClose(daily!, record),
+    )) {
       await execute(
         "close_daily_player",
         await buildCloseDailyPlayerPlan({
@@ -500,13 +533,19 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
       wallet,
       weekId: candidateWeek,
     });
-    if (!weekly || (weekly.status !== "claimable" && weekly.status !== "closed")) continue;
+    if (
+      !weekly ||
+      (weekly.status !== "claimable" && weekly.status !== "closed")
+    )
+      continue;
     const players = await fetchWeeklyPlayerRecords({
       connection: dependencies.connection,
       wallet,
       weekly,
     });
-    for (const player of players.filter((record) => weeklyPlayerCanClose(weekly!, record))) {
+    for (const player of players.filter((record) =>
+      weeklyPlayerCanClose(weekly!, record),
+    )) {
       await execute(
         "close_weekly_player",
         await buildCloseWeeklyPlayerPlan({
@@ -526,7 +565,10 @@ export async function runKeeperPass(dependencies: KeeperDependencies): Promise<K
     if (
       weekly?.status === "closed" &&
       weekly.closedPlayers === weekly.participants &&
-      (await weeklyDailiesClosed({ connection: dependencies.connection, weekId: candidateWeek }))
+      (await weeklyDailiesClosed({
+        connection: dependencies.connection,
+        weekId: candidateWeek,
+      }))
     ) {
       await execute(
         "close_weekly_challenge",
@@ -607,7 +649,10 @@ async function simulateAndSubmitKeeperPlan(args: {
   predictedSpendLamports: number;
   spentLamports: number;
 }> {
-  const balanceBefore = await args.plan.connection.getBalance(args.keeper, "confirmed");
+  const balanceBefore = await args.plan.connection.getBalance(
+    args.keeper,
+    "confirmed",
+  );
   const transaction = await compileWalletTransactionPlan({
     transactionPlan: args.plan,
     wallet: args.wallet,
@@ -618,7 +663,9 @@ async function simulateAndSubmitKeeperPlan(args: {
     args.keeper,
     balanceBefore,
   );
-  if (!keeperSpendWithinLimit(predictedSpendLamports, args.remainingSpendLamports)) {
+  if (
+    !keeperSpendWithinLimit(predictedSpendLamports, args.remainingSpendLamports)
+  ) {
     throw new KeeperSpendLimitError(
       `keeper policy blocks predicted spend ${predictedSpendLamports} above remaining cap ${args.remainingSpendLamports}`,
     );
@@ -628,7 +675,10 @@ async function simulateAndSubmitKeeperPlan(args: {
     { maxRetries: 5, skipPreflight: false },
   );
   await args.plan.connection.confirmTransaction(signature, "confirmed");
-  const balanceAfter = await args.plan.connection.getBalance(args.keeper, "confirmed");
+  const balanceAfter = await args.plan.connection.getBalance(
+    args.keeper,
+    "confirmed",
+  );
   const spentLamports = Math.max(0, balanceBefore - balanceAfter);
   if (!keeperSpendWithinLimit(spentLamports, args.remainingSpendLamports)) {
     throw new KeeperSpendLimitError(
@@ -656,11 +706,15 @@ async function simulateKeeperSpend(
     connection.getFeeForMessage(transaction.message, "confirmed"),
   ]);
   if (simulation.value.err) {
-    throw new Error(`keeper spend simulation failed: ${JSON.stringify(simulation.value.err)}`);
+    throw new Error(
+      `keeper spend simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
   }
   const simulatedKeeper = simulation.value.accounts?.[0];
   if (!simulatedKeeper || fee.value === null) {
-    throw new Error("keeper spend simulation did not return payer balance and fee");
+    throw new Error(
+      "keeper spend simulation did not return payer balance and fee",
+    );
   }
   // Simulation may omit the transaction fee from the returned payer balance.
   // Adding it unconditionally is conservative by at most one base fee.
@@ -690,11 +744,13 @@ export function keeperSpendWithinLimit(
   spendLamports: number,
   remainingSpendLamports: number,
 ): boolean {
-  return Number.isSafeInteger(spendLamports)
-    && Number.isSafeInteger(remainingSpendLamports)
-    && spendLamports >= 0
-    && remainingSpendLamports >= 0
-    && spendLamports <= remainingSpendLamports;
+  return (
+    Number.isSafeInteger(spendLamports) &&
+    Number.isSafeInteger(remainingSpendLamports) &&
+    spendLamports >= 0 &&
+    remainingSpendLamports >= 0 &&
+    spendLamports <= remainingSpendLamports
+  );
 }
 
 export function expiredSessionCleanupAllowance(
@@ -707,29 +763,43 @@ export function expiredSessionCleanupAllowance(
   );
 }
 
-export function dailyShouldFinalize(daily: DailyView, nowUnix: number): boolean {
+export function dailyShouldFinalize(
+  daily: DailyView,
+  nowUnix: number,
+): boolean {
   return (
     daily.status === "open" &&
     nowUnix >= daily.runsCloseAt &&
-    (daily.attemptsStarted === daily.runsFinalized || nowUnix >= daily.settlementGraceCloseAt)
+    (daily.attemptsStarted === daily.runsFinalized ||
+      nowUnix >= daily.settlementGraceCloseAt)
   );
 }
 
-export function dailyPlayerCanClose(daily: DailyView, player: DailyPlayerRecord): boolean {
+export function dailyPlayerCanClose(
+  daily: DailyView,
+  player: DailyPlayerRecord,
+): boolean {
   if (player.attempts !== player.finalizedAttempts) return false;
   if (daily.status === "cancelled") return player.starRefunded;
   if (daily.status !== "claimable") return false;
   return player.bestRunId === 0n || player.weeklyRolledUp;
 }
 
-export function weeklyPlayerCanClose(weekly: WeeklyView, player: WeeklyPlayerRecord): boolean {
+export function weeklyPlayerCanClose(
+  weekly: WeeklyView,
+  player: WeeklyPlayerRecord,
+): boolean {
   if (weekly.status === "closed") return true;
   if (weekly.status !== "claimable") return false;
-  const rank = weekly.leaderboard.findIndex((entry) => entry.player.equals(player.owner));
+  const rank = weekly.leaderboard.findIndex((entry) =>
+    entry.player.equals(player.owner),
+  );
   const solWinner = rank >= 0 && rank < weekly.solWinnerCount;
   const starWinner =
     rank >= 0 && rank < weekly.solWinnerCount + weekly.starWinnerCount;
-  return (!solWinner || player.solClaimed) && (!starWinner || player.starsClaimed);
+  return (
+    (!solWinner || player.solClaimed) && (!starWinner || player.starsClaimed)
+  );
 }
 
 async function weeklyDailiesComplete(args: {
@@ -751,7 +821,8 @@ async function weeklyDailiesComplete(args: {
     (daily) =>
       !daily ||
       (daily.status === "cancelled" && daily.weeklyRollups === 0) ||
-      (daily.status === "claimable" && daily.weeklyRollups === daily.weeklyEligiblePlayers),
+      (daily.status === "claimable" &&
+        daily.weeklyRollups === daily.weeklyEligiblePlayers),
   );
 }
 
@@ -761,7 +832,9 @@ async function weeklyDailiesClosed(args: {
 }): Promise<boolean> {
   const startDay = args.weekId * 7 - 3;
   const infos = await args.connection.getMultipleAccountsInfo(
-    Array.from({ length: 7 }, (_, offset) => deriveDailyChallengePda(startDay + offset)),
+    Array.from({ length: 7 }, (_, offset) =>
+      deriveDailyChallengePda(startDay + offset),
+    ),
     "confirmed",
   );
   return infos.every((info) => info === null);
