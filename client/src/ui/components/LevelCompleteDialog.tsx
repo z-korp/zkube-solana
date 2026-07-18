@@ -182,7 +182,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
             </p>
 
             {/* Guardian quote */}
-            <p className="mt-1 font-sans text-[14px] leading-relaxed text-white/85">
+            <p className="mt-1 font-sans text-[14px] italic leading-relaxed text-white/85">
               &quot;{guardianLine}&quot;
             </p>
 
