@@ -51,7 +51,7 @@ const BottomNav = () => {
   }[] = [
     { id: "home", icon: Home, label: "Home" },
     { id: "ranks", icon: Trophy, label: "Arena" },
-    { id: "rewards", icon: ScrollText, label: "Quests", badge: claimableCount },
+    { id: "quests", icon: ScrollText, label: "Quests", badge: claimableCount },
     { id: "shop", icon: ShoppingBag, label: "Shop" },
     { id: "profile", icon: User, label: "Profile" },
   ];

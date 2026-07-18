@@ -6,9 +6,9 @@ import { useProgress } from "@/contexts/progress";
 import { getLevelFromXp } from "@/config/profileData";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import AchievementsTab from "@/ui/components/rewards/AchievementsTab";
-import MilestonesTab from "@/ui/components/rewards/MilestonesTab";
-import QuestsTab from "@/ui/components/rewards/QuestsTab";
+import AchievementsTab from "@/ui/components/quests/AchievementsTab";
+import MilestonesTab from "@/ui/components/quests/MilestonesTab";
+import QuestsTab from "@/ui/components/quests/QuestsTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 
@@ -16,9 +16,10 @@ const TABS = ["Quests", "Feats", "Ranks"] as const;
 
 /**
  * Everything claimable, in one place: rotating quests, achievements (feats),
- * and the level-milestone ladder. Competition status lives in the Arena.
+ * and the level-milestone ladder (ranks). Competition status lives in the
+ * Arena.
  */
-const RewardsPage: React.FC = () => {
+const QuestsPage: React.FC = () => {
   const claimableCounts = useClaimableCounts();
   const progress = useProgress();
   const player = useConnectedPlayer();
@@ -49,7 +50,7 @@ const RewardsPage: React.FC = () => {
           tabs={TABS}
           active={activeTab}
           onChange={setActiveTab}
-          layoutId="rewards-tab-indicator"
+          layoutId="quests-tab-indicator"
           badges={{
             Quests: claimableCounts.daily + claimableCounts.weekly,
             Feats: claimableCounts.achievements,
@@ -70,4 +71,4 @@ const RewardsPage: React.FC = () => {
   );
 };
 
-export default RewardsPage;
+export default QuestsPage;

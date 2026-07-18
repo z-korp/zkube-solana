@@ -11,7 +11,7 @@ import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
-import RewardsPage from "@/ui/pages/RewardsPage";
+import QuestsPage from "@/ui/pages/QuestsPage";
 import SettingsPage from "@/ui/pages/SettingsPage";
 import ShopPage from "@/ui/pages/ShopPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
@@ -46,7 +46,7 @@ if (spectatePlayer || spectatePda) {
 
 const pageComponents: Record<PageId, ReactNode> = {
   home: <HomePage />,
-  rewards: <RewardsPage />,
+  quests: <QuestsPage />,
   profile: <ProfilePage />,
   ranks: <ArenaPage />,
   shop: <ShopPage />,

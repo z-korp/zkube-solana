@@ -3,7 +3,7 @@ import type { GameLevelData } from "@/hooks/useGameLevel";
 
 type TabId =
   | "home"
-  | "rewards"
+  | "quests"
   | "ranks"
   | "shop"
   | "profile"
