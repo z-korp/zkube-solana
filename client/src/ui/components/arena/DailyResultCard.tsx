@@ -3,7 +3,6 @@ import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
-import { dailyScoringRuleName } from "@/chain/dailyRules";
 import { ZONE_NAMES } from "@/config/profileData";
 import {
   getThemeColors,
@@ -77,33 +76,27 @@ const DailyResultCard: React.FC<{
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/50" />
       <div className="relative z-10 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p
               className="font-sans text-[10px] font-bold uppercase tracking-[0.14em]"
               style={{ color: zoneColors.accent }}
             >
               {label} · {formatDailyDate(daily.opensAt)}
             </p>
-            <p className="mt-1 font-sans text-sm font-bold text-white">
+            <p className="mt-0.5 font-sans text-[11px] font-semibold text-white/55">
               {zoneName} · {guardian.name}
             </p>
             {position ? (
-              <>
-                <p className="font-sans text-[11px] text-white/60">
-                  #{position.rank} · {position.score.toLocaleString()} daily
-                </p>
-                <p className="font-sans text-[10px] text-white/40">
-                  +
-                  {Math.max(
-                    0,
-                    position.score - position.engineScore,
-                  ).toLocaleString()}{" "}
-                  challenge · {position.engineScore.toLocaleString()} engine ·{" "}
-                  {position.dailyBonusTriggers} bonus triggers · {position.moves} moves
-                </p>
-              </>
+              <p className="mt-1 font-display text-lg font-black text-white">
+                <span style={{ color: zoneColors.accent2 }}>
+                  #{position.rank}
+                </span>{" "}
+                · {position.score.toLocaleString()}{" "}
+                <span className="text-sm font-bold text-white/45">pts</span>
+              </p>
             ) : (
-              <p className="font-sans text-[11px] text-white/60">
+              <p className="mt-1 font-sans text-[11px] text-white/50">
+                No entry ·{" "}
                 {daily.attemptsStarted.toString()} run
                 {daily.attemptsStarted === 1n ? "" : "s"} started
               </p>
@@ -117,10 +110,6 @@ const DailyResultCard: React.FC<{
             onRefund={onRefund}
           />
         </div>
-
-        <p className="mt-2 font-sans text-[10px] font-semibold text-cyan-200/75">
-          {dailyScoringRuleName(daily.scoringRule)}
-        </p>
       </div>
     </motion.section>
   );

@@ -23,6 +23,7 @@ import DailyResultCard, {
 } from "@/ui/components/arena/DailyResultCard";
 import { getPlayerPosition } from "@/ui/components/arena/dailyPosition";
 import { DailyScoringRules } from "@/ui/components/arena/dailyRulesCopy";
+import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
@@ -30,12 +31,6 @@ import InfoSheet from "@/ui/components/shared/InfoSheet";
 import LoadingState from "@/ui/components/shared/LoadingState";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
-
-const TROPHY_IMAGES: Record<number, string> = {
-  1: "/assets/common/trophies/gold.png",
-  2: "/assets/common/trophies/silver.png",
-  3: "/assets/common/trophies/bronze.png",
-};
 
 const rowVariants = {
   hidden: { opacity: 0, x: -20 },

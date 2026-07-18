@@ -3,6 +3,7 @@ import { Trophy } from "lucide-react";
 import { useWeekly } from "@/contexts/weekly";
 import { currentWeeklyId } from "@/chain/weeklyClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
@@ -151,37 +152,100 @@ export default function WeeklyTab() {
         )}
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        {weekly.leaderboard.map((entry, index) => (
-          <div
-            key={entry.player.toBase58()}
-            className="flex items-center gap-3 border-b border-white/10 px-4 py-3 last:border-b-0"
-          >
-            <span className="w-7 text-center font-sans text-sm font-black text-white/60">
-              {index + 1}
-            </span>
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/75">
-              {owner && entry.player.equals(owner)
-                ? `You · ${playerLabelWithWallet(entry.playerName, entry.player.toBase58())}`
-                : playerLabelWithWallet(
-                    entry.playerName,
-                    entry.player.toBase58(),
-                  )}
-            </span>
-            <span className="font-sans text-sm font-black text-white">
-              {entry.score} pts
-            </span>
+      {weekly.leaderboard.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<Trophy className="h-8 w-8" />}
+          title="No Daily rollups yet"
+          hint="Finish a Daily run and it rolls into this week's score."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between px-1 pt-1">
+            <p
+              className="font-sans text-[11px] font-black uppercase tracking-[0.18em]"
+              style={{ color: colors.textMuted }}
+            >
+              Standings
+            </p>
+            <p
+              className="font-sans text-[11px] font-bold"
+              style={{ color: colors.textMuted }}
+            >
+              {weekly.leaderboard.length} player
+              {weekly.leaderboard.length !== 1 ? "s" : ""}
+            </p>
           </div>
-        ))}
-        {weekly.leaderboard.length === 0 && (
-          <EmptyState
-            compact
-            icon={<Trophy className="h-8 w-8" />}
-            title="No Daily rollups yet"
-            hint="Finish a Daily run and it rolls into this week's score."
-          />
-        )}
-      </section>
+          <div className="space-y-2">
+            {weekly.leaderboard.map((entry, index) => {
+              const rank = index + 1;
+              const isYou = Boolean(owner && entry.player.equals(owner));
+              const medalBg =
+                rank === 1
+                  ? "rgba(255,215,0,0.2)"
+                  : rank === 2
+                    ? "rgba(192,192,192,0.18)"
+                    : rank === 3
+                      ? "rgba(205,127,50,0.18)"
+                      : "rgba(255,255,255,0.06)";
+              return (
+                <div
+                  key={entry.player.toBase58()}
+                  className={`flex items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl ${isYou ? "leaderboard-pulse" : ""}`}
+                  style={{
+                    ...(isYou
+                      ? ({
+                          "--pulse-base": `${colors.accent}20`,
+                          "--pulse-bright": `${colors.accent}40`,
+                        } as React.CSSProperties)
+                      : { backgroundColor: medalBg }),
+                    borderColor: isYou
+                      ? `${colors.accent}AA`
+                      : rank <= 3
+                        ? "rgba(255,255,255,0.28)"
+                        : "rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <div
+                    className="flex w-7 shrink-0 items-center justify-center font-sans text-base font-black"
+                    style={{
+                      color: rank <= 3 ? colors.accent2 : colors.textMuted,
+                    }}
+                  >
+                    {rank <= 3 ? (
+                      <img
+                        src={TROPHY_IMAGES[rank]}
+                        alt={`Rank ${rank}`}
+                        className="h-6 w-6"
+                        draggable={false}
+                      />
+                    ) : (
+                      rank
+                    )}
+                  </div>
+                  <span
+                    className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
+                    style={{ color: isYou ? colors.accent : colors.text }}
+                  >
+                    {isYou
+                      ? `You · ${playerLabelWithWallet(entry.playerName, entry.player.toBase58())}`
+                      : playerLabelWithWallet(
+                          entry.playerName,
+                          entry.player.toBase58(),
+                        )}
+                  </span>
+                  <span
+                    className="shrink-0 font-sans text-[17px] font-black tracking-wide tabular-nums"
+                    style={{ color: colors.text }}
+                  >
+                    {entry.score}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {controller.error && (
         <p className="text-center text-xs text-red-300">{controller.error}</p>
       )}
