@@ -44,15 +44,15 @@ beforeEach(() => {
 });
 
 describe("BottomNav", () => {
-  it("places Shop between Arena and Profile", () => {
+  it("renders the tabs in order with Arena ahead of Quests", () => {
     fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent)).toEqual([
       "Home",
-      "Rewards",
       "Arena",
+      "Quests",
       "Shop",
       "Profile",
     ]);

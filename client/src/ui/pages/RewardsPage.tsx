@@ -12,7 +12,7 @@ import QuestsTab from "@/ui/components/rewards/QuestsTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 
-const TABS = ["Quests", "Feats", "Milestones"] as const;
+const TABS = ["Quests", "Feats", "Ranks"] as const;
 
 /**
  * Everything claimable, in one place: rotating quests, achievements (feats),
@@ -43,7 +43,7 @@ const RewardsPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 24 }}
         >
-          <PageHeader title="Rewards" />
+          <PageHeader title="Quests" />
         </motion.div>
         <SegmentedTabs
           tabs={TABS}
@@ -53,7 +53,7 @@ const RewardsPage: React.FC = () => {
           badges={{
             Quests: claimableCounts.daily + claimableCounts.weekly,
             Feats: claimableCounts.achievements,
-            Milestones: claimableMilestones,
+            Ranks: claimableMilestones,
           }}
           className="mx-6 mt-2"
         />
@@ -63,7 +63,7 @@ const RewardsPage: React.FC = () => {
         <div className="mx-auto max-w-[640px]">
           {activeTab === "Quests" && <QuestsTab />}
           {activeTab === "Feats" && <AchievementsTab />}
-          {activeTab === "Milestones" && <MilestonesTab />}
+          {activeTab === "Ranks" && <MilestonesTab />}
         </div>
       </div>
     </div>

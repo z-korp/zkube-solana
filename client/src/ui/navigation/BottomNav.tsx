@@ -1,4 +1,4 @@
-import { Home, ShoppingBag, Star, Trophy, User } from "lucide-react";
+import { Home, ScrollText, ShoppingBag, Trophy, User } from "lucide-react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
@@ -15,7 +15,7 @@ const BottomNav = () => {
   const { progress } = useProgress();
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;
-  // Everything this badge counts is claimable ON the Rewards page:
+  // Everything this badge counts is claimable ON the Quests page:
   // quests + feats (achievements) + level milestones.
   const level = getLevelFromXp(Number(progress?.lifetimeXp ?? 0n));
   const milestoneBitmap = progress?.levelMilestones?.claimed ?? 0;
@@ -50,8 +50,8 @@ const BottomNav = () => {
     badge?: number;
   }[] = [
     { id: "home", icon: Home, label: "Home" },
-    { id: "rewards", icon: Star, label: "Rewards", badge: claimableCount },
     { id: "ranks", icon: Trophy, label: "Arena" },
+    { id: "rewards", icon: ScrollText, label: "Quests", badge: claimableCount },
     { id: "shop", icon: ShoppingBag, label: "Shop" },
     { id: "profile", icon: User, label: "Profile" },
   ];
