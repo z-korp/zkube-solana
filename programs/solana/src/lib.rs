@@ -18,7 +18,7 @@ use ephemeral_rollups_sdk::anchor::ephemeral;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR");
+declare_id!("Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd");
 
 #[ephemeral]
 #[program]
@@ -78,141 +78,227 @@ pub mod solana {
         instructions::player_funding_instructions::handler_funded_delegate_active_run(ctx)
     }
 
-    pub fn funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_enter_daily(ctx, run_id)
+    #[cfg(any())]
+    mod superseded_cube_weekly_interface {
+        use super::*;
+
+        pub fn funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
+            instructions::player_funding_instructions::handler_funded_enter_daily(ctx, run_id)
+        }
+
+        pub fn funded_rollup_daily_to_weekly(
+            ctx: Context<FundedRollupDailyToWeekly>,
+        ) -> Result<()> {
+            instructions::player_funding_instructions::handler_funded_rollup_daily_to_weekly(ctx)
+        }
+
+        pub fn initialize_economy(
+            ctx: Context<InitializeEconomy>,
+            args: InitializeEconomyArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_initialize_economy(ctx, args)
+        }
+
+        pub fn update_regular_prices(
+            ctx: Context<ManageEconomyPricing>,
+            args: UpdateRegularPricesArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_update_regular_prices(ctx, args)
+        }
+
+        pub fn update_cube_packs(
+            ctx: Context<ManageEconomyPricing>,
+            args: UpdateCubePacksArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_update_cube_packs(ctx, args)
+        }
+
+        pub fn schedule_revenue_split(
+            ctx: Context<ManageEconomyPricing>,
+            args: ScheduleRevenueSplitArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_schedule_revenue_split(ctx, args)
+        }
+
+        pub fn schedule_sale(
+            ctx: Context<ManageEconomyPricing>,
+            args: ScheduleSaleArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_schedule_sale(ctx, args)
+        }
+
+        pub fn cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
+            instructions::economy_instructions::handler_cancel_sale(ctx)
+        }
+
+        pub fn publish_daily_rules(
+            ctx: Context<PublishDailyRules>,
+            args: PublishDailyRulesArgs,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_publish_daily_rules(ctx, args)
+        }
+
+        pub fn purchase_cubes<'info>(
+            ctx: Context<'info, PurchaseCubes<'info>>,
+            pack_index: u8,
+            expected_cubes: u64,
+            expected_lamports: u64,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_purchase_cubes(
+                ctx,
+                pack_index,
+                expected_cubes,
+                expected_lamports,
+            )
+        }
+
+        pub fn open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u32) -> Result<()> {
+            instructions::economy_instructions::handler_open_daily_challenge(ctx, day_id)
+        }
+
+        pub fn enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> {
+            instructions::economy_instructions::handler_enter_daily(ctx, run_id)
+        }
+
+        pub fn commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
+            instructions::economy_instructions::handler_commit_daily_run(ctx)
+        }
+
+        pub fn consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
+            instructions::economy_instructions::handler_consume_daily_run(ctx)
+        }
+
+        pub fn finalize_daily_challenge(ctx: Context<FinalizeDailyChallenge>) -> Result<()> {
+            instructions::economy_instructions::handler_finalize_daily_challenge(ctx)
+        }
+
+        pub fn cancel_daily_challenge(ctx: Context<CancelDailyChallenge>) -> Result<()> {
+            instructions::economy_instructions::handler_cancel_daily_challenge(ctx)
+        }
+
+        pub fn refund_daily_cubes(ctx: Context<RefundDailyCubes>) -> Result<()> {
+            instructions::economy_instructions::handler_refund_daily_cubes(ctx)
+        }
+
+        pub fn close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> {
+            instructions::economy_instructions::handler_close_daily_player(ctx)
+        }
+
+        pub fn close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Result<()> {
+            instructions::economy_instructions::handler_close_daily_challenge(ctx)
+        }
+
+        pub fn open_weekly_challenge(
+            ctx: Context<OpenWeeklyChallenge>,
+            weekly_id: u32,
+        ) -> Result<()> {
+            instructions::economy_instructions::handler_open_weekly_challenge(ctx, weekly_id)
+        }
+
+        pub fn fund_weekly(ctx: Context<FundWeekly>, lamports: u64) -> Result<()> {
+            instructions::economy_instructions::handler_fund_weekly(ctx, lamports)
+        }
+
+        pub fn rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Result<()> {
+            instructions::economy_instructions::handler_rollup_daily_to_weekly(ctx)
+        }
+
+        pub fn finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) -> Result<()> {
+            instructions::economy_instructions::handler_finalize_weekly_challenge(ctx)
+        }
+
+        pub fn claim_weekly_cubes(ctx: Context<ClaimWeeklyCubes>) -> Result<()> {
+            instructions::economy_instructions::handler_claim_weekly_cubes(ctx)
+        }
+
+        pub fn claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
+            instructions::economy_instructions::handler_claim_weekly_sol(ctx)
+        }
+
+        pub fn forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> {
+            instructions::economy_instructions::handler_forfeit_weekly_sol(ctx)
+        }
+
+        pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
+            instructions::economy_instructions::handler_close_weekly_player(ctx)
+        }
+
+        pub fn close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Result<()> {
+            instructions::economy_instructions::handler_close_weekly_challenge(ctx)
+        }
     }
 
-    pub fn funded_rollup_daily_to_weekly(ctx: Context<FundedRollupDailyToWeekly>) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_rollup_daily_to_weekly(ctx)
+    pub fn initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
+        instructions::arcade_instructions::handler_initialize_arcade(ctx)
     }
 
-    pub fn initialize_economy(
-        ctx: Context<InitializeEconomy>,
-        args: InitializeEconomyArgs,
+    pub fn publish_arena_rules(
+        ctx: Context<PublishArenaRules>,
+        args: PublishArenaRulesArgs,
     ) -> Result<()> {
-        instructions::economy_instructions::handler_initialize_economy(ctx, args)
+        instructions::arcade_instructions::handler_publish_arena_rules(ctx, args)
     }
 
-    pub fn update_regular_prices(
-        ctx: Context<ManageEconomyPricing>,
-        args: UpdateRegularPricesArgs,
+    pub fn schedule_arcade_terms(
+        ctx: Context<ScheduleArcadeTerms>,
+        args: ScheduleArcadeTermsArgs,
     ) -> Result<()> {
-        instructions::economy_instructions::handler_update_regular_prices(ctx, args)
+        instructions::arcade_instructions::handler_schedule_arcade_terms(ctx, args)
     }
 
-    pub fn update_star_packs(
-        ctx: Context<ManageEconomyPricing>,
-        args: UpdateStarPacksArgs,
+    pub fn open_weekly_jackpot(ctx: Context<OpenWeeklyJackpot>, week_id: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_open_weekly_jackpot(ctx, week_id)
+    }
+
+    pub fn open_arena_daily(ctx: Context<OpenArenaDaily>, day_id: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_open_arena_daily(ctx, day_id)
+    }
+
+    pub fn enter_arena_v1(
+        ctx: Context<EnterArenaV1>,
+        run_id: u64,
+        expected_entry_lamports: u64,
     ) -> Result<()> {
-        instructions::economy_instructions::handler_update_star_packs(ctx, args)
-    }
-
-    pub fn schedule_sale(ctx: Context<ManageEconomyPricing>, args: ScheduleSaleArgs) -> Result<()> {
-        instructions::economy_instructions::handler_schedule_sale(ctx, args)
-    }
-
-    pub fn cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
-        instructions::economy_instructions::handler_cancel_sale(ctx)
-    }
-
-    pub fn publish_daily_rules(
-        ctx: Context<PublishDailyRules>,
-        args: PublishDailyRulesArgs,
-    ) -> Result<()> {
-        instructions::economy_instructions::handler_publish_daily_rules(ctx, args)
-    }
-
-    pub fn purchase_stars<'info>(
-        ctx: Context<'info, PurchaseStars<'info>>,
-        pack_index: u8,
-        expected_stars: u64,
-        expected_lamports: u64,
-    ) -> Result<()> {
-        instructions::economy_instructions::handler_purchase_stars(
+        instructions::arcade_instructions::handler_enter_arena_v1(
             ctx,
-            pack_index,
-            expected_stars,
-            expected_lamports,
+            run_id,
+            expected_entry_lamports,
         )
     }
 
-    pub fn unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
-        instructions::economy_instructions::handler_unlock_zone(ctx)
+    pub fn prepare_practice_run_v1(ctx: Context<PreparePracticeRunV1>, run_id: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_practice_run_v1(ctx, run_id)
     }
 
-    pub fn claim_level_milestone(
-        ctx: Context<ClaimLevelMilestone>,
-        milestone_index: u8,
+    pub fn consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
+        instructions::arcade_instructions::handler_consume_arena_run(ctx)
+    }
+
+    pub fn consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<()> {
+        instructions::arcade_instructions::handler_consume_practice_run(ctx)
+    }
+
+    pub fn refund_stuck_arena_entry(ctx: Context<RefundStuckArenaEntry>) -> Result<()> {
+        instructions::arcade_instructions::handler_refund_stuck_arena_entry(ctx)
+    }
+
+    pub fn rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Result<()> {
+        instructions::arcade_instructions::handler_rollup_arena_to_weekly(ctx)
+    }
+
+    pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
+    }
+
+    pub fn finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> Result<()> {
+        instructions::arcade_instructions::handler_finalize_weekly_jackpot(ctx)
+    }
+
+    pub fn withdraw_operator_revenue(
+        ctx: Context<WithdrawOperatorRevenue>,
+        lamports: u64,
     ) -> Result<()> {
-        instructions::economy_instructions::handler_claim_level_milestone(ctx, milestone_index)
-    }
-
-    pub fn open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u32) -> Result<()> {
-        instructions::economy_instructions::handler_open_daily_challenge(ctx, day_id)
-    }
-
-    pub fn enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> {
-        instructions::economy_instructions::handler_enter_daily(ctx, run_id)
-    }
-
-    pub fn commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
-        instructions::economy_instructions::handler_commit_daily_run(ctx)
-    }
-
-    pub fn consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
-        instructions::economy_instructions::handler_consume_daily_run(ctx)
-    }
-
-    pub fn finalize_daily_challenge(ctx: Context<FinalizeDailyChallenge>) -> Result<()> {
-        instructions::economy_instructions::handler_finalize_daily_challenge(ctx)
-    }
-
-    pub fn cancel_daily_challenge(ctx: Context<CancelDailyChallenge>) -> Result<()> {
-        instructions::economy_instructions::handler_cancel_daily_challenge(ctx)
-    }
-
-    pub fn refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> {
-        instructions::economy_instructions::handler_refund_daily_stars(ctx)
-    }
-
-    pub fn close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> {
-        instructions::economy_instructions::handler_close_daily_player(ctx)
-    }
-
-    pub fn close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Result<()> {
-        instructions::economy_instructions::handler_close_daily_challenge(ctx)
-    }
-
-    pub fn open_weekly_challenge(ctx: Context<OpenWeeklyChallenge>, week_id: u32) -> Result<()> {
-        instructions::economy_instructions::handler_open_weekly_challenge(ctx, week_id)
-    }
-
-    pub fn rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Result<()> {
-        instructions::economy_instructions::handler_rollup_daily_to_weekly(ctx)
-    }
-
-    pub fn finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) -> Result<()> {
-        instructions::economy_instructions::handler_finalize_weekly_challenge(ctx)
-    }
-
-    pub fn claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> {
-        instructions::economy_instructions::handler_claim_weekly_stars(ctx)
-    }
-
-    pub fn claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
-        instructions::economy_instructions::handler_claim_weekly_sol(ctx)
-    }
-
-    pub fn forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> {
-        instructions::economy_instructions::handler_forfeit_weekly_sol(ctx)
-    }
-
-    pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
-        instructions::economy_instructions::handler_close_weekly_player(ctx)
-    }
-
-    pub fn close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Result<()> {
-        instructions::economy_instructions::handler_close_weekly_challenge(ctx)
+        instructions::arcade_instructions::handler_withdraw_operator_revenue(ctx, lamports)
     }
 
     pub fn set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) -> Result<()> {

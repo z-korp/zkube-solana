@@ -44,8 +44,8 @@ pub enum ErrorCode {
     // ── Domain and accounting ────────────────────────────────────────────────
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
-    #[msg("Insufficient Stars")]
-    InsufficientStars,
+    #[msg("Insufficient Cubes")]
+    InsufficientCubes,
     #[msg("Invalid map")]
     InvalidMap,
     #[msg("Invalid level")]
@@ -94,9 +94,9 @@ pub enum ErrorCode {
     QuestNotActive,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
-    #[msg("The selected Star pack does not exist")]
+    #[msg("The selected Cube pack does not exist")]
     InvalidPack,
-    #[msg("The Star pack price changed; refresh the exact quote")]
+    #[msg("The Cube pack price changed; refresh the exact quote")]
     PriceChanged,
     #[msg("The scoped player session is invalid")]
     InvalidSession,

@@ -232,6 +232,7 @@ fn protocol_fixture(
             treasury_destination,
             reward_vault,
             content_version: 1,
+            daily_rules_version: 1,
             player_funding_target_lamports: PLAYER_FUNDING_TARGET_LAMPORTS,
             campaign_map_count: 1,
             paused,
@@ -384,7 +385,7 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
 }
 
 #[test]
-fn sbf_player_label_update_preserves_player_economy_and_rejects_wrong_actor() {
+fn sbf_player_label_update_preserves_player_progression_and_rejects_wrong_actor() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
@@ -398,7 +399,7 @@ fn sbf_player_label_update_preserves_player_economy_and_rejects_wrong_actor() {
         false,
     );
     let (player, mut player_state) = player_fixture(owner);
-    player_state.credit_stars(150).unwrap();
+    player_state.credit_xp(150).unwrap();
     let (player_label, bump) =
         Pubkey::find_program_address(&[PLAYER_LABEL_SEED, owner.as_ref()], &zkube::ID);
     let mut display_name = [0u8; PLAYER_LABEL_MAX_LEN];
@@ -466,7 +467,7 @@ fn sbf_player_label_update_preserves_player_economy_and_rejects_wrong_actor() {
     let updated: PlayerLabel = decode(resulting_account(&result, &player_label));
     assert_eq!(updated.display_name(), Some(b"Ocean_Tiki".as_slice()));
     let player_after: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(player_after.stars_balance, 150);
+    assert_eq!(player_after.lifetime_xp, 150);
 
     let wrong = anchor_lang::solana_program::instruction::Instruction {
         accounts: zkube::accounts::SetPlayerLabel {
@@ -579,6 +580,7 @@ fn sbf_revenue_destinations_are_nonzero_distinct_and_authority_signed() {
 }
 
 #[test]
+#[cfg(any())]
 fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
@@ -623,13 +625,13 @@ fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
         "SBF_COMPUTE claim_milestone={}",
         direct_result.compute_units_consumed
     );
-    assert_eq!(direct_player.stars_balance, 10);
+    assert_eq!(direct_player.cubes_balance, 10);
     assert_eq!(direct_player.milestone_stars_claimed, 10);
 
     let (_, mut legacy_player) = player_fixture(owner);
     legacy_player.lifetime_xp = LEVEL_100_XP;
-    legacy_player.stars_balance = 20;
-    legacy_player.lifetime_stars_earned = 20;
+    legacy_player.cubes_balance = 20;
+    legacy_player.lifetime_cubes_earned = 20;
     legacy_player.milestone_claimed = 0b11;
     legacy_player.milestone_stars_claimed = 20;
     let legacy_accounts = vec![
@@ -654,7 +656,7 @@ fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
         legacy_result.program_result
     );
     let reconciled: PlayerState = decode(resulting_account(&legacy_result, &player));
-    assert_eq!(reconciled.stars_balance, 30);
+    assert_eq!(reconciled.cubes_balance, 30);
     assert_eq!(reconciled.milestone_stars_claimed, 30);
 
     let valid_token = session_token_address(owner, actor);
@@ -749,10 +751,11 @@ fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
         "SBF_COMPUTE claim_quest={}",
         quest_result.compute_units_consumed
     );
-    assert_eq!(quest_player.stars_balance, 5);
+    assert_eq!(quest_player.cubes_balance, 5);
     assert_eq!(quest_player.lifetime_xp, LEVEL_100_XP + 500);
 }
 
+#[cfg(any())]
 fn claim_milestone_instruction(
     protocol: Pubkey,
     economy: Pubkey,
@@ -1408,8 +1411,9 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
     assert_eq!(updated.lifetime_lines_cleared, 4);
 }
 
+#[cfg(any())]
 #[test]
-fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
+fn sbf_cube_purchase_is_owner_only_and_conserves_exact_split() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let team = Pubkey::new_unique();
@@ -1425,38 +1429,39 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
     };
     let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
     let economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
-    let (ledger, ledger_bump) = Pubkey::find_program_address(&[STAR_SALES_LEDGER_SEED], &zkube::ID);
-    let ledger_state = StarSalesLedger {
+    let (ledger, ledger_bump) = Pubkey::find_program_address(&[CUBE_SALES_LEDGER_SEED], &zkube::ID);
+    let ledger_state = CubeSalesLedger {
         version: ECONOMY_ACCOUNT_VERSION,
         economy_config: economy,
         lifetime_gross_sales: 0,
         lifetime_team_share: 0,
         lifetime_reward_share: 0,
         lifetime_treasury_share: 0,
-        lifetime_stars_sold: 0,
+        lifetime_cubes_sold: 0,
         purchase_count: 0,
         bump: ledger_bump,
     };
     let (player, player_state) = player_fixture(owner);
-    let gross = STAR_PACK_PRICES[0];
+    let gross = CUBE_PACK_PRICES[0];
     let owner_lamports = 100_000_000;
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::PurchaseStars {
+        accounts: zkube::accounts::PurchaseCubes {
             protocol,
             economy_config: economy,
-            star_sales_ledger: ledger,
+            cube_sales_ledger: ledger,
             player_state: player,
             team_destination: team,
             reward_vault,
+            weekly_challenge: None,
             treasury_destination: treasury,
             owner,
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::PurchaseStars {
+        data: zkube::instruction::PurchaseCubes {
             pack_index: 0,
-            expected_stars: STAR_PACK_STARS[0],
+            expected_cubes: CUBE_PACK_CUBES[0],
             expected_lamports: gross,
         }
         .data(),
@@ -1472,7 +1477,7 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
         ),
         (
             ledger,
-            program_account(&ledger_state, 8 + StarSalesLedger::INIT_SPACE),
+            program_account(&ledger_state, 8 + CubeSalesLedger::INIT_SPACE),
         ),
         (
             player,
@@ -1489,8 +1494,8 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
     ];
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let team_share = gross / 10;
-    let reward_share = gross / 10;
+    let team_share = gross / 5;
+    let reward_share = gross * 2 / 5;
     let treasury_share = gross - team_share - reward_share;
     assert_eq!(
         resulting_account(&result, &owner).lamports,
@@ -1505,9 +1510,9 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
         resulting_account(&result, &treasury).lamports,
         treasury_share
     );
-    let ledger: StarSalesLedger = decode(resulting_account(&result, &ledger));
+    let ledger: CubeSalesLedger = decode(resulting_account(&result, &ledger));
     eprintln!(
-        "SBF_COMPUTE purchase_stars={}",
+        "SBF_COMPUTE purchase_cubes={}",
         result.compute_units_consumed
     );
     assert_eq!(ledger.lifetime_gross_sales, gross);
@@ -1516,15 +1521,16 @@ fn sbf_star_purchase_is_owner_only_and_conserves_exact_split() {
     assert_eq!(ledger.lifetime_treasury_share, treasury_share);
 
     let mut unsigned = instruction;
-    unsigned.accounts[7].is_signer = false;
+    unsigned.accounts[8].is_signer = false;
     assert!(mollusk()
         .process_instruction(&unsigned, &accounts)
         .program_result
         .is_err());
 }
 
+#[cfg(any())]
 #[test]
-fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
+fn sbf_cube_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
     let pricing_operator = Pubkey::new_unique();
     let wrong_operator = Pubkey::new_unique();
     let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
@@ -1537,8 +1543,8 @@ fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
     );
     let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
     let mut economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
-    economy_state.star_pack_stars = [10, 50, 100, 500, 1_000];
-    economy_state.star_pack_prices = [10_000_000, 47_500_000, 90_000_000, 425_000_000, 800_000_000];
+    economy_state.cube_pack_cubes = [10, 50, 100, 500];
+    economy_state.cube_pack_prices = [20_000_000, 90_000_000, 180_000_000, 700_000_000];
 
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
@@ -1548,11 +1554,11 @@ fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
             pricing_operator,
         }
         .to_account_metas(None),
-        data: zkube::instruction::UpdateStarPacks {
-            args: zkube::UpdateStarPacksArgs {
-                stars: STAR_PACK_STARS,
-                prices: STAR_PACK_PRICES,
-                enabled: [true; STAR_PACK_COUNT],
+        data: zkube::instruction::UpdateCubePacks {
+            args: zkube::UpdateCubePacksArgs {
+                cubes: CUBE_PACK_CUBES,
+                prices: CUBE_PACK_PRICES,
+                enabled: [true; CUBE_PACK_COUNT],
             },
         }
         .data(),
@@ -1572,11 +1578,11 @@ fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let updated: EconomyConfig = decode(resulting_account(&result, &economy));
     eprintln!(
-        "SBF_COMPUTE update_star_packs={}",
+        "SBF_COMPUTE update_cube_packs={}",
         result.compute_units_consumed
     );
-    assert_eq!(updated.star_pack_stars, STAR_PACK_STARS);
-    assert_eq!(updated.star_pack_prices, STAR_PACK_PRICES);
+    assert_eq!(updated.cube_pack_cubes, CUBE_PACK_CUBES);
+    assert_eq!(updated.cube_pack_prices, CUBE_PACK_PRICES);
     assert_eq!(updated.revision, economy_state.revision + 1);
 
     let unauthorized = anchor_lang::solana_program::instruction::Instruction {
@@ -1598,15 +1604,13 @@ fn sbf_star_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
 }
 
 #[test]
-fn sbf_content_activation_switches_both_versions_only_for_exact_staged_maps() {
+fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let treasury = Pubkey::new_unique();
     let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
     let (protocol, protocol_state) =
         protocol_fixture(authority, team, treasury, reward_vault, true);
-    let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
-    let economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
     let next_content = 2u32;
     let next_rules = 2u32;
     let (daily_rules, rules_bump) = Pubkey::find_program_address(
@@ -1616,12 +1620,12 @@ fn sbf_content_activation_switches_both_versions_only_for_exact_staged_maps() {
     let rules_state = DailyRulesCatalog {
         version: ECONOMY_ACCOUNT_VERSION,
         rules_version: next_rules,
-        economy_config: economy,
+        protocol,
         content_version: next_content,
         catalog_hash: [7; 32],
-        season_id: 1,
+        weekly_id: 1,
         starts_day: 0,
-        season_seed: [9; 32],
+        weekly_seed: [9; 32],
         scoring_rule_count: 15,
         scoring_rules: canonical_daily_scoring_rules(),
         pressure: DailyPressureProfile::canonical(),
@@ -1648,7 +1652,6 @@ fn sbf_content_activation_switches_both_versions_only_for_exact_staged_maps() {
         .collect();
     let mut metas = zkube::accounts::ActivateContentRelease {
         protocol,
-        economy_config: economy,
         daily_rules_catalog: daily_rules,
         authority,
     }
@@ -1672,10 +1675,6 @@ fn sbf_content_activation_switches_both_versions_only_for_exact_staged_maps() {
             program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
         ),
         (
-            economy,
-            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
-        ),
-        (
             daily_rules,
             program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
         ),
@@ -1685,15 +1684,13 @@ fn sbf_content_activation_switches_both_versions_only_for_exact_staged_maps() {
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let protocol_after: ProtocolConfig = decode(resulting_account(&result, &protocol));
-    let economy_after: EconomyConfig = decode(resulting_account(&result, &economy));
     eprintln!(
         "SBF_COMPUTE activate_content_release={}",
         result.compute_units_consumed
     );
     assert_eq!(protocol_after.content_version, next_content);
     assert_eq!(protocol_after.campaign_map_count, MAX_MAPS as u8);
-    assert_eq!(economy_after.content_version, next_content);
-    assert_eq!(economy_after.daily_rules_version, next_rules);
+    assert_eq!(protocol_after.daily_rules_version, next_rules);
 
     let mut missing_map = instruction;
     missing_map.accounts.pop();

@@ -259,6 +259,7 @@ pub fn handler_funded_prepare_campaign_run(
     )
 }
 
+#[cfg(any())]
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
 pub struct FundedEnterDaily<'info> {
@@ -291,6 +292,7 @@ pub struct FundedEnterDaily<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
+#[cfg(any())]
 pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
     let accounts = crate::accounts::EnterDaily {
         protocol: ctx.accounts.protocol.key(),
@@ -333,6 +335,7 @@ pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -
     )
 }
 
+#[cfg(any())]
 #[derive(Accounts)]
 pub struct FundedRollupDailyToWeekly<'info> {
     /// CHECK: Mutated and fully constrained by the inner instruction.
@@ -365,6 +368,7 @@ pub struct FundedRollupDailyToWeekly<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
+#[cfg(any())]
 pub fn handler_funded_rollup_daily_to_weekly(
     ctx: Context<FundedRollupDailyToWeekly>,
 ) -> Result<()> {

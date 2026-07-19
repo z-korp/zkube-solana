@@ -14,15 +14,14 @@ pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 pub const PLAYER_FUNDING_SEED: &[u8] = b"player_funding";
 pub const REWARD_VAULT_SEED: &[u8] = b"reward_vault";
 
-pub const ACCOUNT_VERSION: u8 = 1;
+pub const ACCOUNT_VERSION: u8 = 3;
 pub const MAX_MAPS: usize = 32;
 pub const LEVELS_PER_MAP: usize = 10;
-pub const MAX_QUEST_COUNTERS: usize = 16;
+pub const MAX_QUEST_COUNTERS: usize = 21;
 pub const MAX_ACHIEVEMENTS: usize = 24;
-pub const MAX_QUESTS: usize = 12;
+pub const MAX_QUESTS: usize = 21;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
-pub const DAILY_FINISHER_INDEX: usize = 9;
-pub const BLOCK_QUEST_COUNTERS: [usize; 4] = [7, 12, 13, 14];
+pub const DAILY_FINISHER_INDEX: usize = 8;
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 pub const INITIAL_RUN_ID: u64 = 1;
 /// Reusable owner-funded float: current maximum run/delegation rent plus a
@@ -40,6 +39,7 @@ pub struct ProtocolConfig {
     pub treasury_destination: Pubkey,
     pub reward_vault: Pubkey,
     pub content_version: u32,
+    pub daily_rules_version: u32,
     pub player_funding_target_lamports: u64,
     /// Number of contiguous, authority-activated Campaign maps.
     pub campaign_map_count: u8,
@@ -47,7 +47,7 @@ pub struct ProtocolConfig {
     pub bump: u8,
 }
 
-/// Program-owned native-SOL reserve used only for bounded Weekly prizes.
+/// Program-owned native-SOL reserve used only for pre-funded Weekly prizes.
 #[account]
 #[derive(InitSpace)]
 pub struct RewardVault {
@@ -61,9 +61,6 @@ pub struct RewardVault {
 pub struct PlayerState {
     pub version: u8,
     pub owner: Pubkey,
-    pub stars_balance: u64,
-    pub lifetime_stars_earned: u64,
-    pub lifetime_stars_spent: u64,
     pub next_run_id: u64,
     /// Zero when idle; otherwise the only run that may exist for this owner.
     /// This durable pointer makes resume deterministic across devices and
@@ -88,22 +85,22 @@ pub struct PlayerState {
     pub last_daily_challenge_day: u32,
     /// Bit `map_id - 1`; Map 1 is unlocked on initialization.
     pub unlocked_maps: u32,
-    pub purchased_maps: u32,
     pub cleared_maps: u32,
     pub perfected_maps: u32,
     /// Two bits per Campaign level across all maps.
     pub level_stars: [u8; 80],
     pub daily_claim_cadence_id: u32,
     pub weekly_claim_cadence_id: u32,
-    pub daily_claimed: u16,
-    pub weekly_claimed: u16,
-    /// Bits 0..9 represent levels 10, 20, ... 100.
-    pub milestone_claimed: u16,
-    pub milestone_stars_claimed: u64,
-    pub stipend_week_id: u32,
-    pub stipend_recurring_xp: u32,
-    pub stipend_stars_awarded: bool,
-    pub lifetime_stipend_stars_awarded: u64,
+    pub daily_claimed: u32,
+    pub weekly_claimed: u32,
+    pub best_daily_finish: u16,
+    pub best_weekly_finish: u16,
+    pub crest_streak: u16,
+    pub last_crest_week: u32,
+    /// One bit per weekday with a free Practice or paid Arena completion.
+    pub weekly_attendance_mask: u8,
+    /// Reserved for the deferred five-run credit schema. It has no v1 meaning.
+    pub reserved: [u8; 32],
     pub bump: u8,
 }
 
@@ -112,9 +109,6 @@ impl PlayerState {
         Self {
             version: ACCOUNT_VERSION,
             owner,
-            stars_balance: 0,
-            lifetime_stars_earned: 0,
-            lifetime_stars_spent: 0,
             next_run_id: INITIAL_RUN_ID,
             active_run_id: 0,
             daily_eligible: false,
@@ -132,7 +126,6 @@ impl PlayerState {
             lifetime_max_combo: 0,
             last_daily_challenge_day: u32::MAX,
             unlocked_maps: 1,
-            purchased_maps: 0,
             cleared_maps: 0,
             perfected_maps: 0,
             level_stars: [0; 80],
@@ -140,12 +133,12 @@ impl PlayerState {
             weekly_claim_cadence_id: 0,
             daily_claimed: 0,
             weekly_claimed: 0,
-            milestone_claimed: 0,
-            milestone_stars_claimed: 0,
-            stipend_week_id: 0,
-            stipend_recurring_xp: 0,
-            stipend_stars_awarded: false,
-            lifetime_stipend_stars_awarded: 0,
+            best_daily_finish: 0,
+            best_weekly_finish: 0,
+            crest_streak: 0,
+            last_crest_week: u32::MAX,
+            weekly_attendance_mask: 0,
+            reserved: [0; 32],
             bump,
         }
     }
@@ -170,50 +163,10 @@ impl PlayerState {
         Ok(())
     }
 
-    pub fn credit_stars(&mut self, amount: u64) -> Result<()> {
-        self.stars_balance = self
-            .stars_balance
-            .checked_add(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        self.lifetime_stars_earned = self
-            .lifetime_stars_earned
-            .checked_add(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(())
-    }
-
-    pub fn credit_progression_rewards(&mut self, stars: u64, xp: u32) -> Result<()> {
-        if stars > 0 {
-            self.credit_stars(stars)?;
-        }
+    pub fn credit_xp(&mut self, xp: u32) -> Result<()> {
         self.lifetime_xp = self
             .lifetime_xp
             .checked_add(u64::from(xp))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(())
-    }
-
-    pub fn spend_stars(&mut self, amount: u64) -> Result<()> {
-        require!(self.stars_balance >= amount, ErrorCode::InsufficientStars);
-        self.stars_balance = self
-            .stars_balance
-            .checked_sub(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        self.lifetime_stars_spent = self
-            .lifetime_stars_spent
-            .checked_add(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(())
-    }
-
-    pub fn refund_stars(&mut self, amount: u64) -> Result<()> {
-        self.stars_balance = self
-            .stars_balance
-            .checked_add(amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        self.lifetime_stars_spent = self
-            .lifetime_stars_spent
-            .checked_sub(amount)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
     }
@@ -223,12 +176,12 @@ impl PlayerState {
         let week = cadence_week(now);
         if self.quest_cadence_day != day {
             self.quest_cadence_day = day;
-            self.quest_counters[..10].fill(0);
-            self.quest_counters[12..15].fill(0);
+            self.quest_counters[..9].fill(0);
         }
         if self.quest_cadence_week != week {
             self.quest_cadence_week = week;
-            self.quest_counters[10..12].fill(0);
+            self.quest_counters[9..].fill(0);
+            self.weekly_attendance_mask = 0;
         }
     }
 
@@ -244,7 +197,6 @@ impl PlayerState {
             self.last_daily_challenge_day = day_id;
             self.lifetime_daily_challenges = checked_add_u64(self.lifetime_daily_challenges, 1)?;
             self.quest_counters[4] = checked_add_u32(self.quest_counters[4], 1)?;
-            self.quest_counters[11] = checked_add_u32(self.quest_counters[11], 1)?;
         }
         Ok(())
     }
@@ -258,35 +210,59 @@ impl PlayerState {
         self.lifetime_bonus_uses =
             checked_add_u64(self.lifetime_bonus_uses, u64::from(metrics.bonus_uses))?;
         self.lifetime_max_combo = self.lifetime_max_combo.max(metrics.max_combo);
-        self.quest_counters[0] =
-            checked_add_u32(self.quest_counters[0], u32::from(metrics.lines_cleared))?;
-        self.quest_counters[1] =
-            checked_add_u32(self.quest_counters[1], u32::from(metrics.bonus_uses))?;
-        self.quest_counters[2] =
-            checked_add_u32(self.quest_counters[2], u32::from(metrics.high_combo_hits))?;
-        self.quest_counters[3] =
-            checked_add_u32(self.quest_counters[3], u32::from(metrics.combo3_hits))?;
-        self.quest_counters[6] =
-            checked_add_u32(self.quest_counters[6], u32::from(metrics.combo4_hits))?;
-        self.quest_counters[8] =
-            checked_add_u32(self.quest_counters[8], u32::from(metrics.combo2_hits))?;
-        for (counter, destroyed) in BLOCK_QUEST_COUNTERS
-            .into_iter()
-            .zip(metrics.blocks_destroyed_by_size)
-        {
-            self.quest_counters[counter] =
-                checked_add_u32(self.quest_counters[counter], u32::from(destroyed))?;
+        if metrics.arena_or_practice {
+            self.quest_counters[0] = checked_add_u32(self.quest_counters[0], 1)?;
+            self.quest_counters[14] = checked_add_u32(self.quest_counters[14], 1)?;
         }
+        self.quest_counters[1] =
+            checked_add_u32(self.quest_counters[1], u32::from(metrics.lines_cleared))?;
+        self.quest_counters[2] =
+            checked_add_u32(self.quest_counters[2], u32::from(metrics.bonus_uses))?;
+        self.quest_counters[3] = checked_add_u32(
+            self.quest_counters[3],
+            u32::from(metrics.pressure_tier >= 4),
+        )?;
+        self.quest_counters[6] =
+            checked_add_u32(self.quest_counters[6], u32::from(metrics.combo3_hits))?;
+        self.quest_counters[7] = checked_add_u32(
+            self.quest_counters[7],
+            u32::from(metrics.beat_yesterday_score),
+        )?;
         self.quest_counters[10] =
             checked_add_u32(self.quest_counters[10], u32::from(metrics.lines_cleared))?;
+        self.quest_counters[13] =
+            checked_add_u32(self.quest_counters[13], u32::from(metrics.bonus_uses))?;
+        self.quest_counters[16] =
+            checked_add_u32(self.quest_counters[16], u32::from(metrics.combo3_hits))?;
+        self.quest_counters[17] = self.quest_counters[17].max(u32::from(metrics.pressure_tier));
+        self.quest_counters[19] =
+            checked_add_u32(self.quest_counters[19], u32::from(metrics.practice_top_25))?;
+        self.quest_counters[20] =
+            checked_add_u32(self.quest_counters[20], u32::from(metrics.perfect_clears))?;
+        // Quest 16 is satisfied by either one four-line clear or five
+        // three-line clears. The high bit records the former while the low
+        // bits retain the latter's count.
+        if metrics.combo4_hits > 0 {
+            self.quest_counters[16] |= 1 << 31;
+        }
         if metrics.campaign_level_completed {
+            self.quest_counters[4] = checked_add_u32(self.quest_counters[4], 1)?;
+        }
+        if metrics.rating_improved {
             self.quest_counters[5] = checked_add_u32(self.quest_counters[5], 1)?;
+            self.quest_counters[12] = checked_add_u32(self.quest_counters[12], 1)?;
         }
         if metrics.new_perfect_level {
             self.lifetime_perfect_levels = checked_add_u64(self.lifetime_perfect_levels, 1)?;
         }
         if metrics.boss_cleared {
             self.lifetime_bosses_cleared = checked_add_u64(self.lifetime_bosses_cleared, 1)?;
+            self.quest_counters[18] = checked_add_u32(self.quest_counters[18], 1)?;
+        }
+        if metrics.arena_or_practice {
+            let weekday = cadence_day(now).saturating_add(3) % 7;
+            self.weekly_attendance_mask |= 1u8 << weekday;
+            self.quest_counters[9] = self.weekly_attendance_mask.count_ones();
         }
         Ok(())
     }
@@ -309,12 +285,9 @@ impl PlayerState {
         map_bit(map_id).is_some_and(|bit| self.unlocked_maps & bit != 0)
     }
 
-    pub fn unlock_map(&mut self, map_id: u8, purchased: bool) -> Result<()> {
+    pub fn unlock_map(&mut self, map_id: u8) -> Result<()> {
         let bit = map_bit(map_id).ok_or(ErrorCode::InvalidMap)?;
         self.unlocked_maps |= bit;
-        if purchased {
-            self.purchased_maps |= bit;
-        }
         Ok(())
     }
 
@@ -349,6 +322,7 @@ impl PlayerState {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RunProgressMetrics {
+    pub arena_or_practice: bool,
     pub lines_cleared: u16,
     pub bonus_uses: u16,
     pub combo2_hits: u16,
@@ -358,6 +332,11 @@ pub struct RunProgressMetrics {
     pub blocks_destroyed_by_size: [u16; 4],
     pub max_combo: u8,
     pub campaign_level_completed: bool,
+    pub rating_improved: bool,
+    pub pressure_tier: u8,
+    pub beat_yesterday_score: bool,
+    pub practice_top_25: bool,
+    pub perfect_clears: u16,
     pub new_perfect_level: bool,
     pub boss_cleared: bool,
 }
@@ -485,7 +464,7 @@ pub struct ActiveRun {
     pub next_row: [u8; 8],
     pub has_next_row: bool,
     pub score: u32,
-    /// Daily leaderboard score: engine score plus pressure-scaled challenge bonus.
+    /// Arena leaderboard score: engine score plus pressure-scaled challenge bonus.
     pub daily_score: u32,
     /// Number of actions that earned nonzero Daily challenge bonus credit.
     pub daily_bonus_triggers: u16,
@@ -510,10 +489,14 @@ pub struct ActiveRun {
     pub bonus_charges: u8,
     /// Perfect-clear trigger may award at most once between player moves.
     pub perfect_trigger_available: bool,
+    /// Number of actual empty-board clears produced during this run.
+    pub perfect_clears: u16,
     pub starting_height_target: u8,
     pub current_difficulty: u8,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
+    /// Domain-separated rolling commitment over rules, VRF rows, and actions.
+    pub replay_hash: [u8; 32],
     pub finished_at: i64,
     pub bump: u8,
 }
@@ -557,10 +540,12 @@ impl Default for ActiveRun {
             bonus_type: 0,
             bonus_charges: 0,
             perfect_trigger_available: false,
+            perfect_clears: 0,
             starting_height_target: 0,
             current_difficulty: 0,
             vrf_request_counter: 0,
             pending_vrf_counter: 0,
+            replay_hash: [0; 32],
             finished_at: 0,
             bump: 0,
         }
@@ -574,6 +559,7 @@ pub enum RunMode {
     #[default]
     Campaign,
     Daily,
+    Practice,
 }
 
 #[derive(
@@ -686,8 +672,8 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 355);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 449);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 367);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 483);
     }
 
     #[test]
@@ -696,12 +682,10 @@ mod tests {
         let mut progress = PlayerState::initialize(owner, 7);
         assert!(progress.is_map_unlocked(1));
         assert!(!progress.is_map_unlocked(2));
-        progress.unlock_map(2, true).unwrap();
+        progress.unlock_map(2).unwrap();
         assert!(progress.is_map_unlocked(2));
-        assert_eq!(progress.purchased_maps, 0b10);
-        progress.unlock_map(32, true).unwrap();
+        progress.unlock_map(32).unwrap();
         assert!(progress.is_map_unlocked(32));
-        assert_eq!(progress.purchased_maps, 0x8000_0002);
         assert_eq!(progress.record_level_stars(32, 10, 3).unwrap(), 3);
         assert_eq!(progress.best_stars(32, 10).unwrap(), 3);
     }
@@ -752,70 +736,22 @@ mod tests {
     }
 
     #[test]
-    fn stars_are_delta_only_and_accounted() {
+    fn campaign_ratings_are_delta_only() {
         let owner = Pubkey::new_unique();
         let mut progress = PlayerState::initialize(owner, 1);
         assert_eq!(progress.record_level_stars(1, 1, 2).unwrap(), 2);
         assert_eq!(progress.record_level_stars(1, 1, 1).unwrap(), 0);
         assert_eq!(progress.record_level_stars(1, 1, 3).unwrap(), 1);
         assert_eq!(progress.best_stars(1, 1).unwrap(), 3);
-
-        let mut player = PlayerState::initialize(owner, 1);
-        player.credit_stars(3).unwrap();
-        player.spend_stars(2).unwrap();
-        assert_eq!(player.stars_balance, 1);
-        assert_eq!(player.lifetime_stars_earned, 3);
-        assert_eq!(player.lifetime_stars_spent, 2);
     }
 
     #[test]
     fn lifetime_xp_is_non_spendable_and_does_not_inflate_stars() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        player.credit_progression_rewards(0, 50).unwrap();
+        player.credit_xp(50).unwrap();
         assert_eq!(player.lifetime_xp, 50);
-        assert_eq!(player.stars_balance, 0);
-        assert_eq!(player.lifetime_stars_earned, 0);
-
-        player.credit_progression_rewards(2, 150).unwrap();
+        player.credit_xp(150).unwrap();
         assert_eq!(player.lifetime_xp, 200);
-        assert_eq!(player.stars_balance, 2);
-        assert_eq!(player.lifetime_stars_earned, 2);
-    }
-
-    #[test]
-    fn stars_conserve_across_defined_issuance_burn_and_refund_events() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerState::initialize(owner, 1);
-        for reward in [3, 25, 7] {
-            player.credit_stars(reward).unwrap();
-        }
-        player.spend_stars(20).unwrap();
-        player.spend_stars(10).unwrap();
-        player.refund_stars(10).unwrap();
-
-        assert_eq!(player.lifetime_stars_earned, 35);
-        assert_eq!(player.lifetime_stars_spent, 20);
-        assert_eq!(player.stars_balance, 15);
-        assert_eq!(
-            player.lifetime_stars_earned - player.lifetime_stars_spent,
-            player.stars_balance,
-        );
-        assert!(player.spend_stars(16).is_err());
-        assert_eq!(player.stars_balance, 15);
-    }
-
-    #[test]
-    fn star_refund_reverses_spend_without_minting_lifetime_earnings() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerState::initialize(owner, 1);
-        player.stars_balance = 5;
-        player.lifetime_stars_earned = 10;
-        player.lifetime_stars_spent = 5;
-        player.daily_eligible = true;
-        player.refund_stars(5).unwrap();
-        assert_eq!(player.stars_balance, 10);
-        assert_eq!(player.lifetime_stars_earned, 10);
-        assert_eq!(player.lifetime_stars_spent, 0);
     }
 
     #[test]
@@ -827,6 +763,7 @@ mod tests {
         player
             .record_run_metrics(
                 RunProgressMetrics {
+                    arena_or_practice: true,
                     lines_cleared: 20,
                     bonus_uses: 3,
                     combo2_hits: 5,
@@ -836,6 +773,11 @@ mod tests {
                     blocks_destroyed_by_size: [6, 10, 8, 5],
                     max_combo: 10,
                     campaign_level_completed: true,
+                    rating_improved: true,
+                    pressure_tier: 6,
+                    beat_yesterday_score: false,
+                    practice_top_25: true,
+                    perfect_clears: 2,
                     new_perfect_level: true,
                     boss_cleared: true,
                 },
@@ -848,21 +790,27 @@ mod tests {
         assert_eq!(player.lifetime_max_combo, 10);
         assert_eq!(player.lifetime_perfect_levels, 1);
         assert_eq!(player.lifetime_bosses_cleared, 1);
-        assert_eq!(player.quest_counters[0], 20);
+        assert_eq!(player.quest_counters[0], 1);
+        assert_eq!(player.quest_counters[1], 20);
         assert_eq!(player.quest_counters[5], 1);
-        assert_eq!(player.quest_counters[7], 6);
-        assert_eq!(player.quest_counters[12], 10);
-        assert_eq!(player.quest_counters[13], 8);
-        assert_eq!(player.quest_counters[14], 5);
+        assert_eq!(player.quest_counters[9], 1);
         assert_eq!(player.quest_counters[10], 20);
+        assert_eq!(player.quest_counters[12], 1);
+        assert_eq!(player.quest_counters[13], 3);
+        assert_eq!(player.quest_counters[14], 1);
+        assert!(player.quest_counters[16] & (1 << 31) != 0);
+        assert_eq!(player.quest_counters[17], 6);
+        assert_eq!(player.quest_counters[18], 1);
+        assert_eq!(player.quest_counters[19], 1);
+        assert_eq!(player.quest_counters[20], 2);
 
         player.roll_quest_cadences(day_one + 86_400);
         assert_eq!(player.quest_counters[0], 0);
         assert_eq!(player.quest_counters[7], 0);
-        assert_eq!(player.quest_counters[12], 0);
-        assert_eq!(player.quest_counters[13], 0);
-        assert_eq!(player.quest_counters[14], 0);
+        assert_eq!(player.quest_counters[12], 1);
+        assert_eq!(player.quest_counters[13], 3);
         assert_eq!(player.quest_counters[10], 20);
+        assert_eq!(player.quest_counters[14], 1);
     }
 
     #[test]

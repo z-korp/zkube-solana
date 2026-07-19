@@ -47,22 +47,15 @@ const fn achievement(metric: u8, threshold: u64, xp: u32) -> AchievementDefiniti
     }
 }
 
-const QUEST_THRESHOLDS: [u32; MAX_QUESTS] = [20, 3, 1, 2, 1, 2, 1, 10, 5, 3, 150, 3];
-const DAILY_QUEST_POOL_SIZE: usize = 9;
+const QUEST_THRESHOLDS: [u32; MAX_QUESTS] = [
+    1, 40, 3, 1, 1, 1, 1, 1, 3, // Daily pool + finisher.
+    5, 300, 0, 3, 25, 15, 3, 1, 6, 2, 2, 2,
+];
+const WEEKLY_ATTENDANCE_INDEX: u8 = 9;
+const WEEKLY_OPTIONAL_POOL: [u8; 10] = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const DAILY_QUEST_POOL_SIZE: usize = 8;
 const DAILY_QUEST_SELECTION_SIZE: usize = DAILY_ACTIVE_QUESTS;
 const DAILY_QUEST_MIX_SEED: u32 = 0x9e37_79b9;
-const BLOCK_QUEST_VARIANT_SEED: u32 = 0xb10c_5eed;
-const BLOCK_QUEST_VARIANTS: [(u8, u32); 8] = [
-    (1, 6),
-    (2, 8),
-    (3, 6),
-    (4, 5),
-    (1, 8),
-    (2, 10),
-    (3, 8),
-    (4, 6),
-];
-const COMBO_QUESTS: [u8; 4] = [2, 3, 6, 8];
 
 #[derive(Clone, Copy)]
 struct QuestDefinition {
@@ -70,32 +63,21 @@ struct QuestDefinition {
     cadence: u8,
     threshold: u32,
     xp_reward: u32,
-    star_reward: u64,
 }
 
-fn quest_definition(index: usize, day: u32) -> Result<QuestDefinition> {
+fn quest_definition(index: usize) -> Result<QuestDefinition> {
     require!(index < MAX_QUESTS, ErrorCode::InvalidProgressRule);
-    let (cadence, xp_reward, star_reward) = match index {
-        0..=8 => (0, 100, 0),
-        DAILY_FINISHER_INDEX => (0, 200, 2),
-        10..=11 => (1, 500, 5),
+    let (cadence, xp_reward) = match index {
+        0..=7 => (0, 100),
+        DAILY_FINISHER_INDEX => (0, 350),
+        9 | 10 | 12..=20 => (1, 500),
         _ => return err!(ErrorCode::InvalidProgressRule),
     };
-    let (metric, threshold) = if index == 7 {
-        let (block_size, target) = block_quest_variant(day);
-        (
-            BLOCK_QUEST_COUNTERS[usize::from(block_size - 1)] as u8,
-            target,
-        )
-    } else {
-        (index as u8, QUEST_THRESHOLDS[index])
-    };
     Ok(QuestDefinition {
-        metric,
+        metric: index as u8,
         cadence,
-        threshold,
+        threshold: QUEST_THRESHOLDS[index],
         xp_reward,
-        star_reward,
     })
 }
 
@@ -107,16 +89,15 @@ fn seeded_xorshift(seed: u32) -> u32 {
     state
 }
 
-pub(crate) fn block_quest_variant(day: u32) -> (u8, u32) {
-    let mixed = seeded_xorshift(day ^ BLOCK_QUEST_VARIANT_SEED);
-    BLOCK_QUEST_VARIANTS[mixed as usize % BLOCK_QUEST_VARIANTS.len()]
-}
-
-pub(crate) fn daily_quest_indices(day: u32) -> [u8; DAILY_QUEST_SELECTION_SIZE] {
-    // Compact deterministic v1 Fisher-Yates schedule; the client mirrors these
-    // exact u32 xorshift operations and shared parity vectors pin the result.
-    let mut shuffled = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-    let mut state = day ^ DAILY_QUEST_MIX_SEED;
+pub(crate) fn daily_quest_indices(
+    day: u32,
+    owner: Pubkey,
+    all_campaign_perfect: bool,
+    entered_yesterday: bool,
+) -> [u8; DAILY_QUEST_SELECTION_SIZE] {
+    let mut shuffled = [0, 1, 2, 3, 4, 5, 6, 7];
+    let owner_mix = u32::from_le_bytes(owner.to_bytes()[..4].try_into().unwrap());
+    let mut state = day ^ owner_mix ^ DAILY_QUEST_MIX_SEED;
     for upper in (1..DAILY_QUEST_POOL_SIZE).rev() {
         state = seeded_xorshift(state);
         let selected = state as usize % (upper + 1);
@@ -125,20 +106,59 @@ pub(crate) fn daily_quest_indices(day: u32) -> [u8; DAILY_QUEST_SELECTION_SIZE] 
 
     let mut selected = [0u8; DAILY_QUEST_SELECTION_SIZE];
     let mut selected_count = 0usize;
-    let mut combo_count = 0usize;
     for index in shuffled {
-        let is_combo = COMBO_QUESTS.contains(&index);
-        if is_combo && combo_count == 2 {
+        if (index == 5 && all_campaign_perfect) || (index == 7 && !entered_yesterday) {
             continue;
         }
         selected[selected_count] = index;
         selected_count += 1;
-        combo_count += usize::from(is_combo);
         if selected_count == DAILY_QUEST_SELECTION_SIZE {
             break;
         }
     }
     selected
+}
+
+pub(crate) fn weekly_quest_indices(
+    week: u32,
+    owner: Pubkey,
+    all_campaign_perfect: bool,
+) -> [u8; 3] {
+    let mut pool = WEEKLY_OPTIONAL_POOL;
+    let owner_mix = u32::from_le_bytes(owner.to_bytes()[4..8].try_into().unwrap());
+    let mut state = seeded_xorshift(week ^ owner_mix ^ DAILY_QUEST_MIX_SEED);
+    for upper in (1..pool.len()).rev() {
+        state = seeded_xorshift(state);
+        let selected = state as usize % (upper + 1);
+        pool.swap(upper, selected);
+    }
+    let mut result = [WEEKLY_ATTENDANCE_INDEX, 0, 0];
+    let mut count = 1usize;
+    for index in pool {
+        if index == 12 && all_campaign_perfect {
+            continue;
+        }
+        result[count] = index;
+        count += 1;
+        if count == result.len() {
+            break;
+        }
+    }
+    result
+}
+
+fn all_campaign_perfect(player: &PlayerState, campaign_map_count: u8) -> Result<bool> {
+    if campaign_map_count == 0 {
+        return Ok(false);
+    }
+    for map_id in 1..=campaign_map_count {
+        for level in 1..=LEVELS_PER_MAP as u8 {
+            if player.best_stars(map_id, level)? < 3 {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 #[derive(Accounts)]
@@ -188,9 +208,7 @@ pub fn handler_claim_achievement(
         progress,
         definition,
     )?;
-    ctx.accounts
-        .player_state
-        .credit_progression_rewards(0, definition.xp)?;
+    ctx.accounts.player_state.credit_xp(definition.xp)?;
     emit!(AchievementClaimed {
         owner: ctx.accounts.owner_authority.key(),
         achievement_index,
@@ -232,33 +250,74 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     let now = Clock::get()?.unix_timestamp;
     let day = cadence_day(now);
     let week = cadence_week(now);
-    let definition = quest_definition(index, day)?;
+    let definition = quest_definition(index)?;
     ctx.accounts.player_state.roll_quest_cadences(now);
 
     ctx.accounts.player_state.roll_claims(day, week);
 
-    let progress = ctx.accounts.player_state.quest_counters[usize::from(definition.metric)];
+    let perfect = all_campaign_perfect(
+        &ctx.accounts.player_state,
+        ctx.accounts.protocol.campaign_map_count,
+    )?;
+    let daily_active = daily_quest_indices(
+        day,
+        ctx.accounts.owner_authority.key(),
+        perfect,
+        ctx.accounts
+            .player_state
+            .last_daily_challenge_day
+            .checked_add(1)
+            == Some(day),
+    );
+    let weekly_active = weekly_quest_indices(week, ctx.accounts.owner_authority.key(), perfect);
+    let progress = if index == DAILY_FINISHER_INDEX {
+        u32::from(
+            daily_active
+                .iter()
+                .filter(|quest| ctx.accounts.player_state.daily_claimed & (1u32 << **quest) != 0)
+                .count() as u8,
+        )
+    } else if index == 16 {
+        let packed = ctx.accounts.player_state.quest_counters[16];
+        u32::from(packed & (1 << 31) != 0 || packed & !(1 << 31) >= 5)
+    } else {
+        ctx.accounts.player_state.quest_counters[usize::from(definition.metric)]
+    };
     let claimed = if definition.cadence == 0 {
         &mut ctx.accounts.player_state.daily_claimed
     } else {
         &mut ctx.accounts.player_state.weekly_claimed
     };
-    claim_quest_once(claimed, index, day, progress, definition)?;
+    claim_quest_once(
+        claimed,
+        index,
+        progress,
+        definition,
+        &daily_active,
+        &weekly_active,
+    )?;
 
-    if definition.cadence == 0 && index < DAILY_QUEST_POOL_SIZE {
-        ctx.accounts.player_state.quest_counters[9] = ctx.accounts.player_state.quest_counters[9]
+    if index == DAILY_FINISHER_INDEX {
+        ctx.accounts.player_state.quest_counters[15] = ctx.accounts.player_state.quest_counters[15]
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
 
     let owner = ctx.accounts.owner_authority.key();
-    roll_stipend(&mut ctx.accounts.player_state, week);
-    ctx.accounts
-        .player_state
-        .credit_progression_rewards(definition.star_reward, definition.xp_reward)?;
-    if definition.xp_reward > 0 {
-        record_stipend_xp(&mut ctx.accounts.player_state, week, definition.xp_reward)?;
-        emit_stipend_if_awarded(&mut ctx.accounts.player_state)?;
+    ctx.accounts.player_state.credit_xp(definition.xp_reward)?;
+    if definition.cadence == 1
+        && weekly_active
+            .iter()
+            .all(|quest| ctx.accounts.player_state.weekly_claimed & (1u32 << *quest) != 0)
+        && ctx.accounts.player_state.last_crest_week != week
+    {
+        let previous = ctx.accounts.player_state.last_crest_week;
+        ctx.accounts.player_state.crest_streak = if previous.checked_add(1) == Some(week) {
+            ctx.accounts.player_state.crest_streak.saturating_add(1)
+        } else {
+            1
+        };
+        ctx.accounts.player_state.last_crest_week = week;
     }
     if definition.cadence == 0 {
         emit!(DailyQuestXpClaimed {
@@ -266,53 +325,13 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
             quest_index,
             cadence_id: day,
             xp_reward: definition.xp_reward,
-            stars: definition.star_reward,
         });
     } else {
-        emit!(WeeklyQuestStarsClaimed {
+        emit!(WeeklyQuestXpClaimed {
             owner,
             quest_index,
             cadence_id: week,
             xp_reward: definition.xp_reward,
-            stars: definition.star_reward,
-        });
-    }
-    Ok(())
-}
-
-pub(crate) fn roll_stipend(player: &mut PlayerState, week: u32) {
-    if player.stipend_week_id != week {
-        player.stipend_week_id = week;
-        player.stipend_recurring_xp = 0;
-        player.stipend_stars_awarded = false;
-    }
-}
-
-pub(crate) fn record_stipend_xp(player: &mut PlayerState, week: u32, amount: u32) -> Result<()> {
-    roll_stipend(player, week);
-    player.stipend_recurring_xp = player
-        .stipend_recurring_xp
-        .checked_add(amount)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok(())
-}
-
-pub(crate) fn emit_stipend_if_awarded(player: &mut PlayerState) -> Result<()> {
-    if !player.stipend_stars_awarded
-        && player.stipend_recurring_xp >= WEEKLY_STIPEND_XP
-        && player.lifetime_xp >= LEVEL_100_XP
-    {
-        player.credit_stars(WEEKLY_STIPEND_STARS)?;
-        player.stipend_stars_awarded = true;
-        player.lifetime_stipend_stars_awarded = player
-            .lifetime_stipend_stars_awarded
-            .checked_add(WEEKLY_STIPEND_STARS)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        emit!(WeeklyStipendAwarded {
-            owner: player.owner,
-            week_id: player.stipend_week_id,
-            recurring_xp: player.stipend_recurring_xp,
-            stars: WEEKLY_STIPEND_STARS,
         });
     }
     Ok(())
@@ -333,19 +352,20 @@ fn claim_achievement_once(
 }
 
 fn claim_quest_once(
-    claimed: &mut u16,
+    claimed: &mut u32,
     index: usize,
-    day: u32,
     progress: u32,
     definition: QuestDefinition,
+    daily_active: &[u8; 3],
+    weekly_active: &[u8; 3],
 ) -> Result<()> {
-    if definition.cadence == 0 && index < DAILY_QUEST_POOL_SIZE {
-        require!(
-            daily_quest_indices(day).contains(&(index as u8)),
-            ErrorCode::QuestNotActive
-        );
-    }
-    let mask = 1u16 << index;
+    let active = if definition.cadence == 0 {
+        index == DAILY_FINISHER_INDEX || daily_active.contains(&(index as u8))
+    } else {
+        weekly_active.contains(&(index as u8))
+    };
+    require!(active, ErrorCode::QuestNotActive);
+    let mask = 1u32 << index;
     require!(*claimed & mask == 0, ErrorCode::RewardAlreadyClaimed);
     require!(progress >= definition.threshold, ErrorCode::RewardNotEarned);
     *claimed |= mask;
@@ -365,24 +385,14 @@ pub struct DailyQuestXpClaimed {
     pub quest_index: u8,
     pub cadence_id: u32,
     pub xp_reward: u32,
-    pub stars: u64,
 }
 
 #[event]
-pub struct WeeklyQuestStarsClaimed {
+pub struct WeeklyQuestXpClaimed {
     pub owner: Pubkey,
     pub quest_index: u8,
     pub cadence_id: u32,
     pub xp_reward: u32,
-    pub stars: u64,
-}
-
-#[event]
-pub struct WeeklyStipendAwarded {
-    pub owner: Pubkey,
-    pub week_id: u32,
-    pub recurring_xp: u32,
-    pub stars: u64,
 }
 
 #[cfg(test)]
@@ -419,22 +429,11 @@ mod tests {
     }
 
     #[test]
-    fn daily_selection_is_deterministic_distinct_and_combo_bounded() {
-        let parity_vectors = [
-            (0, [0, 8, 4]),
-            (1, [6, 2, 1]),
-            (2, [2, 6, 5]),
-            (3, [3, 1, 7]),
-            (10, [6, 3, 0]),
-            (100, [5, 7, 3]),
-            (20_000, [1, 5, 0]),
-        ];
-        for (day, expected) in parity_vectors {
-            assert_eq!(daily_quest_indices(day), expected);
-        }
+    fn daily_selection_is_player_stable_distinct_and_eligibility_filtered() {
+        let owner = Pubkey::new_unique();
         for day in 0..1_000 {
-            let selected = daily_quest_indices(day);
-            assert_eq!(selected, daily_quest_indices(day));
+            let selected = daily_quest_indices(day, owner, false, true);
+            assert_eq!(selected, daily_quest_indices(day, owner, false, true));
             assert_eq!(
                 selected
                     .iter()
@@ -442,61 +441,48 @@ mod tests {
                     .len(),
                 3
             );
-            assert!(
-                selected
-                    .iter()
-                    .filter(|index| COMBO_QUESTS.contains(index))
-                    .count()
-                    <= 2
-            );
+            assert!(!daily_quest_indices(day, owner, true, false).contains(&5));
+            assert!(!daily_quest_indices(day, owner, true, false).contains(&7));
         }
     }
 
     #[test]
-    fn block_quest_variants_are_deterministic_and_cover_every_size() {
-        let parity_vectors = [
-            (0, (2, 10)),
-            (1, (1, 8)),
-            (2, (4, 6)),
-            (3, (3, 8)),
-            (10, (4, 6)),
-            (100, (4, 6)),
-            (20_000, (4, 6)),
-        ];
-        for (day, expected) in parity_vectors {
-            assert_eq!(block_quest_variant(day), expected);
+    fn weekly_selection_always_includes_attendance_and_filters_rating() {
+        let owner = Pubkey::new_unique();
+        let mut observed = std::collections::BTreeSet::new();
+        for week in 0..1_000 {
+            let selected = weekly_quest_indices(week, owner, false);
+            assert_eq!(selected[0], WEEKLY_ATTENDANCE_INDEX);
+            assert_ne!(selected[1], selected[2]);
+            assert!(WEEKLY_OPTIONAL_POOL.contains(&selected[1]));
+            assert!(WEEKLY_OPTIONAL_POOL.contains(&selected[2]));
+            observed.extend(selected[1..].iter().copied());
+            let perfect = weekly_quest_indices(week, owner, true);
+            assert_eq!(perfect[0], WEEKLY_ATTENDANCE_INDEX);
+            assert!(!perfect.contains(&12));
         }
-
-        let mut seen_sizes = [false; 4];
-        for day in 0..1_000 {
-            let (block_size, target) = block_quest_variant(day);
-            seen_sizes[usize::from(block_size - 1)] = true;
-            assert!((5..=10).contains(&target));
-            let definition = quest_definition(7, day).unwrap();
-            assert_eq!(
-                definition.metric,
-                BLOCK_QUEST_COUNTERS[usize::from(block_size - 1)] as u8
-            );
-            assert_eq!(definition.threshold, target);
-        }
-        assert!(seen_sizes.into_iter().all(|seen| seen));
+        assert_eq!(
+            observed,
+            WEEKLY_OPTIONAL_POOL.into_iter().collect(),
+            "every explicitly frozen optional candidate must be reachable"
+        );
     }
 
     #[test]
-    fn canonical_quests_keep_dual_daily_and_weekly_rewards() {
-        for index in 0..9 {
-            let quest = quest_definition(index, 0).unwrap();
+    fn canonical_quests_are_xp_only_with_strict_finishers() {
+        for index in 0..8 {
+            let quest = quest_definition(index).unwrap();
             assert_eq!(quest.cadence, 0);
             assert_eq!(quest.xp_reward, 100);
-            assert_eq!(quest.star_reward, 0);
         }
-        assert_eq!(quest_definition(9, 0).unwrap().xp_reward, 200);
-        assert_eq!(quest_definition(9, 0).unwrap().star_reward, 2);
-        for index in 10..12 {
-            let quest = quest_definition(index, 0).unwrap();
+        assert_eq!(
+            quest_definition(DAILY_FINISHER_INDEX).unwrap().xp_reward,
+            350
+        );
+        for index in [9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20] {
+            let quest = quest_definition(index).unwrap();
             assert_eq!(quest.cadence, 1);
             assert_eq!(quest.xp_reward, 500);
-            assert_eq!(quest.star_reward, 5);
         }
     }
 }

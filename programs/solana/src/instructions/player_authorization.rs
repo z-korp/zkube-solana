@@ -224,61 +224,23 @@ mod tests {
     }
 
     #[test]
-    fn generated_account_metas_preserve_the_common_authorization_shape() {
+    fn generated_arena_entry_metas_keep_sol_spending_owner_signed() {
         let owner = Pubkey::new_unique();
-        let actor = Pubkey::new_unique();
-        let session = token_address(owner, actor);
-        let safe = crate::accounts::UnlockZone {
+        let entry = crate::accounts::EnterArenaV1 {
             protocol: Pubkey::new_unique(),
-            economy_config: Pubkey::new_unique(),
+            arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),
-            map_catalog: Pubkey::new_unique(),
-            owner_authority: owner,
-            session_token: Some(session),
-            actor,
-        }
-        .to_account_metas(None);
-        assert_eq!(safe.len(), 7);
-        assert_eq!(safe[4].pubkey, owner);
-        assert!(!safe[4].is_signer);
-        assert_eq!(safe[5].pubkey, session);
-        assert!(!safe[5].is_signer);
-        assert_eq!(safe[6].pubkey, actor);
-        assert!(safe[6].is_signer);
-
-        let direct = crate::accounts::UnlockZone {
-            protocol: Pubkey::new_unique(),
-            economy_config: Pubkey::new_unique(),
-            player_state: Pubkey::new_unique(),
-            map_catalog: Pubkey::new_unique(),
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-        }
-        .to_account_metas(None);
-        assert_eq!(direct[4].pubkey, owner);
-        assert_eq!(direct[5].pubkey, crate::ID);
-        assert_eq!(direct[6].pubkey, owner);
-        assert!(direct[6].is_signer);
-    }
-
-    #[test]
-    fn generated_purchase_metas_keep_sol_spending_owner_signed() {
-        let owner = Pubkey::new_unique();
-        let purchase = crate::accounts::PurchaseStars {
-            protocol: Pubkey::new_unique(),
-            economy_config: Pubkey::new_unique(),
-            star_sales_ledger: Pubkey::new_unique(),
-            player_state: Pubkey::new_unique(),
-            team_destination: Pubkey::new_unique(),
-            reward_vault: Pubkey::new_unique(),
-            treasury_destination: Pubkey::new_unique(),
+            arena_daily: Pubkey::new_unique(),
+            arena_player: Pubkey::new_unique(),
+            weekly_jackpot: Pubkey::new_unique(),
+            operator_revenue_vault: Pubkey::new_unique(),
+            active_run: Pubkey::new_unique(),
             owner,
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(purchase.len(), 9);
-        assert_eq!(purchase[7].pubkey, owner);
-        assert!(purchase[7].is_signer);
+        assert_eq!(entry.len(), 10);
+        assert_eq!(entry[8].pubkey, owner);
+        assert!(entry[8].is_signer);
     }
 }

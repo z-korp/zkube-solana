@@ -26,7 +26,7 @@ use crate::instructions::player_authorization::{
 use crate::state::economy::{
     DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
     DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
-    DAILY_SCORE_SURVIVAL, PERFECT_MAP_STARS, PERFECT_MAP_XP,
+    DAILY_SCORE_SURVIVAL, PERFECT_MAP_XP,
 };
 use crate::state::protocol::*;
 
@@ -286,6 +286,11 @@ pub fn handler_fulfill_row_vrf(
         },
         opening,
     )?;
+    fold_replay_hash(
+        active,
+        b"vrf-row-v1",
+        &[&request_counter.to_le_bytes(), &randomness],
+    );
     write_engine(active, &engine);
     active.pending_vrf_counter = 0;
     active.lifecycle = lifecycle_from_phase(engine.phase);
@@ -297,7 +302,7 @@ pub fn handler_fulfill_row_vrf(
 /// threshold-crossing action immediately affects the next unseen row. Campaign
 /// runs keep their authored level snapshot for their full lifetime.
 fn generation_weights(active: &ActiveRun) -> [u16; 5] {
-    if active.mode == RunMode::Daily {
+    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
         active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
     } else {
         active.rules.block_weights
@@ -401,6 +406,15 @@ pub fn handler_play_move(
     let mut report = engine
         .play_move(expected_move, row, start, destination, level, mutator)
         .map_err(map_run_error)?;
+    fold_replay_hash(
+        active,
+        b"move-v1",
+        &[
+            &expected_action.to_le_bytes(),
+            &expected_move.to_le_bytes(),
+            &[row, start, destination],
+        ],
+    );
     report.difficulty_at_action = difficulty_at_action;
     let terminal_at = terminal_action_timestamp(engine.phase)?;
     record_action_accounting(
@@ -500,6 +514,11 @@ pub fn handler_apply_bonus(
     let mut report = engine
         .apply_bonus(row, column, level, mutator)
         .map_err(map_run_error)?;
+    fold_replay_hash(
+        active,
+        b"bonus-v1",
+        &[&expected_action.to_le_bytes(), &[row, column]],
+    );
     report.difficulty_at_action = difficulty_at_action;
     let terminal_at = terminal_action_timestamp(engine.phase)?;
     record_action_accounting(
@@ -537,7 +556,7 @@ enum ActionKind {
 
 fn action_mutator(active: &ActiveRun) -> Result<(MutatorRules, u16)> {
     let mut mutator = mutator_rules(&active.rules);
-    if active.mode != RunMode::Daily {
+    if !matches!(active.mode, RunMode::Daily | RunMode::Practice) {
         return Ok((mutator, 100));
     }
     let pressure_multiplier_x100 =
@@ -593,6 +612,12 @@ fn record_action_accounting(
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
+    if report.perfect_clear {
+        active.perfect_clears = active
+            .perfect_clears
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
     if combo_before < 10 && report.combo_counter >= 10 {
         active.high_combo_hits = active
             .high_combo_hits
@@ -605,7 +630,7 @@ fn record_action_accounting(
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
-    if active.mode == RunMode::Daily {
+    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
         let (weighted_raw_bonus, awarded_bonus) =
             daily_challenge_bonus(active.daily_scoring_rule, report, pressure_multiplier_x100)?;
         active.pressure_score = active
@@ -650,6 +675,15 @@ fn record_action_accounting(
         active.finished_at = terminal_at;
     }
     Ok(())
+}
+
+fn fold_replay_hash(active: &mut ActiveRun, domain: &[u8], payload: &[&[u8]]) {
+    let mut parts = Vec::with_capacity(payload.len() + 3);
+    parts.push(b"zkube-replay-fold-v1".as_slice());
+    parts.push(active.replay_hash.as_slice());
+    parts.push(domain);
+    parts.extend_from_slice(payload);
+    active.replay_hash = sha256v(&parts);
 }
 
 #[derive(Accounts, Session)]
@@ -841,15 +875,15 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
     };
     let consumed_at = Clock::get()?.unix_timestamp;
 
-    let newly_perfect = completed
-        && stars == 3
-        && ctx
-            .accounts
-            .player_state
-            .best_stars(active.map_id, active.level)?
-            < 3;
+    let previous_rating = ctx
+        .accounts
+        .player_state
+        .best_stars(active.map_id, active.level)?;
+    let rating_improved = completed && stars > previous_rating;
+    let newly_perfect = completed && stars == 3 && previous_rating < 3;
     ctx.accounts.player_state.record_run_metrics(
         RunProgressMetrics {
+            arena_or_practice: false,
             lines_cleared: active.total_lines_cleared,
             bonus_uses: active.bonus_uses,
             combo2_hits: active.combo2_hits,
@@ -859,6 +893,11 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
             blocks_destroyed_by_size: active.blocks_destroyed_by_size,
             max_combo: active.max_combo,
             campaign_level_completed: completed,
+            rating_improved,
+            pressure_tier: 0,
+            beat_yesterday_score: false,
+            practice_top_25: false,
+            perfect_clears: active.perfect_clears,
             new_perfect_level: newly_perfect,
             boss_cleared: completed && active.level == LEVELS_PER_MAP as u8,
         },
@@ -910,7 +949,7 @@ fn award_campaign_level_progression(
     let xp = u32::from(stars)
         .checked_mul(CAMPAIGN_LEVEL_XP_PER_STAR)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    player.credit_progression_rewards(u64::from(stars), xp)?;
+    player.credit_xp(xp)?;
     Ok(CampaignLevelReward { stars, xp })
 }
 
@@ -935,6 +974,9 @@ fn update_campaign_unlocks(
     }
     let bit = 1u32 << (map_id - 1);
     player.cleared_maps |= bit;
+    if map_id < MAX_MAPS as u8 {
+        player.unlock_map(map_id + 1)?;
+    }
     if map_id == 1 {
         player.daily_eligible = true;
     }
@@ -954,11 +996,11 @@ fn award_map_perfection(player: &mut PlayerState, map_id: u8) -> Result<bool> {
         return Ok(false);
     }
     player.perfected_maps |= bit;
-    player.credit_progression_rewards(PERFECT_MAP_STARS, PERFECT_MAP_XP)?;
+    player.credit_xp(PERFECT_MAP_XP)?;
     emit!(MapPerfected {
         owner: player.owner,
         map_id,
-        stars: PERFECT_MAP_STARS,
+        cubes: 0,
         xp: PERFECT_MAP_XP,
     });
     Ok(true)
@@ -979,7 +1021,7 @@ pub struct CampaignLevelRewarded {
 pub struct MapPerfected {
     pub owner: Pubkey,
     pub map_id: u8,
-    pub stars: u64,
+    pub cubes: u64,
     pub xp: u32,
 }
 
@@ -2148,7 +2190,7 @@ mod tests {
     }
 
     #[test]
-    fn final_non_boss_rating_awards_map_perfection_once_without_unlocking_next_map() {
+    fn final_rating_awards_xp_only_perfection_and_keeps_guardian_unlock() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
@@ -2162,13 +2204,11 @@ mod tests {
         player.record_level_stars(1, 4, 3).unwrap();
         assert!(award_map_perfection(&mut player, 1).unwrap());
         assert!(player.daily_eligible);
-        assert!(!player.is_map_unlocked(2));
+        assert!(player.is_map_unlocked(2));
         assert_eq!(player.cleared_maps, 1);
         assert_eq!(player.perfected_maps, 1);
-        assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
         assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
         assert!(!award_map_perfection(&mut player, 1).unwrap());
-        assert_eq!(player.stars_balance, PERFECT_MAP_STARS);
         assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
     }
 
@@ -2193,13 +2233,11 @@ mod tests {
         assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 20 });
         assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 30 });
         assert_eq!(player.best_stars(1, 1).unwrap(), 3);
-        assert_eq!(player.stars_balance, 8);
-        assert_eq!(player.lifetime_stars_earned, 8);
         assert_eq!(player.lifetime_xp, 80);
     }
 
     #[test]
-    fn ordinary_boss_clear_enables_daily_without_unlocking_the_next_map() {
+    fn ordinary_guardian_clear_enables_daily_and_unlocks_the_next_map() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
@@ -2207,7 +2245,7 @@ mod tests {
         }
         update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
         assert!(player.daily_eligible);
-        assert!(!player.is_map_unlocked(2));
+        assert!(player.is_map_unlocked(2));
         assert_eq!(player.cleared_maps, 1);
         assert_eq!(player.perfected_maps, 0);
     }

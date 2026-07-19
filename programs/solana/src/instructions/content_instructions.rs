@@ -10,8 +10,8 @@ use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
 use crate::state::economy::{
-    DailyPressureProfile, DailyRulesCatalog, DailyScoringRule, EconomyConfig,
-    DAILY_RULES_CATALOG_SEED, ECONOMY_ACCOUNT_VERSION, ECONOMY_CONFIG_SEED,
+    DailyPressureProfile, DailyRulesCatalog, DailyScoringRule, DAILY_RULES_CATALOG_SEED,
+    ECONOMY_ACCOUNT_VERSION,
 };
 use crate::state::protocol::*;
 
@@ -77,6 +77,7 @@ pub fn handler_initialize_protocol(
     protocol.treasury_destination = args.treasury_destination;
     protocol.reward_vault = ctx.accounts.reward_vault.key();
     protocol.content_version = args.content_version;
+    protocol.daily_rules_version = 0;
     protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
     protocol.paused = false;
@@ -387,20 +388,11 @@ pub struct ActivateContentRelease<'info> {
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
-        mut,
-        seeds = [ECONOMY_CONFIG_SEED],
-        bump = economy_config.bump,
-        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub economy_config: Box<Account<'info, EconomyConfig>>,
-    #[account(
         seeds = [DAILY_RULES_CATALOG_SEED, daily_rules_version.to_le_bytes().as_ref()],
         bump = daily_rules_catalog.bump,
         constraint = daily_rules_catalog.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = daily_rules_catalog.rules_version == daily_rules_version @ ErrorCode::ContentVersionMismatch,
-        constraint = daily_rules_catalog.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
         constraint = daily_rules_catalog.content_version == content_version @ ErrorCode::ContentVersionMismatch
     )]
     pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
@@ -415,7 +407,7 @@ pub fn handler_activate_content_release(
 ) -> Result<()> {
     validate_content_release_transition(
         ctx.accounts.protocol.content_version,
-        ctx.accounts.economy_config.daily_rules_version,
+        ctx.accounts.protocol.daily_rules_version,
         content_version,
         daily_rules_version,
         campaign_map_count,
@@ -428,15 +420,7 @@ pub fn handler_activate_content_release(
 
     ctx.accounts.protocol.content_version = content_version;
     ctx.accounts.protocol.campaign_map_count = campaign_map_count;
-    ctx.accounts.economy_config.content_version = content_version;
-    ctx.accounts.economy_config.daily_rules_version = daily_rules_version;
-    ctx.accounts.economy_config.revision = ctx
-        .accounts
-        .economy_config
-        .revision
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    ctx.accounts.economy_config.validate()?;
+    ctx.accounts.protocol.daily_rules_version = daily_rules_version;
     emit!(ContentReleaseActivated {
         content_version,
         daily_rules_version,

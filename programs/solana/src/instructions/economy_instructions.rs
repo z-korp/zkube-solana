@@ -1,9 +1,9 @@
-//! Star sales, Campaign unlocks, Daily/Weekly contests, and reward settlement.
+//! Cube sales, free Campaign progression, Daily/Weekly contests, and settlement.
 //!
-//! Stars are non-transferable counters. A Star purchase is always owner-signed
-//! and transfers native SOL atomically before crediting Stars: 10% team, 10%
-//! reward reserve, and every remaining lamport to
-//! treasury. Session authorization never reaches this custody boundary.
+//! Cubes are non-transferable counters. A Cube purchase is always owner-signed
+//! and transfers native SOL atomically before crediting Cubes: 20% team, 40%
+//! active-weekly pot, and 40% treasury. Session authorization never reaches
+//! this custody boundary.
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{self, Transfer};
@@ -44,11 +44,11 @@ pub struct InitializeEconomy<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8 + StarSalesLedger::INIT_SPACE,
-        seeds = [STAR_SALES_LEDGER_SEED],
+        space = 8 + CubeSalesLedger::INIT_SPACE,
+        seeds = [CUBE_SALES_LEDGER_SEED],
         bump
     )]
-    pub star_sales_ledger: Box<Account<'info, StarSalesLedger>>,
+    pub cube_sales_ledger: Box<Account<'info, CubeSalesLedger>>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -67,16 +67,16 @@ pub fn handler_initialize_economy(
     );
     config.validate()?;
     ctx.accounts.economy_config.set_inner(config);
-    ctx.accounts.star_sales_ledger.set_inner(StarSalesLedger {
+    ctx.accounts.cube_sales_ledger.set_inner(CubeSalesLedger {
         version: ECONOMY_ACCOUNT_VERSION,
         economy_config: ctx.accounts.economy_config.key(),
         lifetime_gross_sales: 0,
         lifetime_team_share: 0,
         lifetime_reward_share: 0,
         lifetime_treasury_share: 0,
-        lifetime_stars_sold: 0,
+        lifetime_cubes_sold: 0,
         purchase_count: 0,
-        bump: ctx.bumps.star_sales_ledger,
+        bump: ctx.bumps.cube_sales_ledger,
     });
     emit!(EconomyConfigured {
         economy_config: ctx.accounts.economy_config.key(),
@@ -88,15 +88,23 @@ pub fn handler_initialize_economy(
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct UpdateRegularPricesArgs {
-    pub prices: [u64; STAR_PACK_COUNT],
-    pub enabled: [bool; STAR_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
+    pub enabled: [bool; CUBE_PACK_COUNT],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct UpdateStarPacksArgs {
-    pub stars: [u64; STAR_PACK_COUNT],
-    pub prices: [u64; STAR_PACK_COUNT],
-    pub enabled: [bool; STAR_PACK_COUNT],
+pub struct UpdateCubePacksArgs {
+    pub cubes: [u64; CUBE_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
+    pub enabled: [bool; CUBE_PACK_COUNT],
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct ScheduleRevenueSplitArgs {
+    pub team_bps: u16,
+    pub pot_bps: u16,
+    pub treasury_bps: u16,
+    pub activates_weekly: u32,
 }
 
 #[derive(Accounts)]
@@ -127,8 +135,8 @@ pub fn handler_update_regular_prices(
     let sale_is_active =
         ctx.accounts.economy_config.sale_enabled && now < ctx.accounts.economy_config.sale_ends_at;
     require!(!sale_is_active, ErrorCode::InvalidState);
-    ctx.accounts.economy_config.star_pack_prices = args.prices;
-    ctx.accounts.economy_config.star_pack_enabled = args.enabled;
+    ctx.accounts.economy_config.cube_pack_prices = args.prices;
+    ctx.accounts.economy_config.cube_pack_enabled = args.enabled;
     ctx.accounts.economy_config.revision = ctx
         .accounts
         .economy_config
@@ -144,18 +152,18 @@ pub fn handler_update_regular_prices(
     Ok(())
 }
 
-pub fn handler_update_star_packs(
+pub fn handler_update_cube_packs(
     ctx: Context<ManageEconomyPricing>,
-    args: UpdateStarPacksArgs,
+    args: UpdateCubePacksArgs,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let sale_is_active =
         ctx.accounts.economy_config.sale_enabled && now < ctx.accounts.economy_config.sale_ends_at;
     require!(!sale_is_active, ErrorCode::InvalidState);
-    validate_star_packs(args.stars, args.prices, args.enabled)?;
-    ctx.accounts.economy_config.star_pack_stars = args.stars;
-    ctx.accounts.economy_config.star_pack_prices = args.prices;
-    ctx.accounts.economy_config.star_pack_enabled = args.enabled;
+    validate_cube_packs(args.cubes, args.prices, args.enabled)?;
+    ctx.accounts.economy_config.cube_pack_cubes = args.cubes;
+    ctx.accounts.economy_config.cube_pack_prices = args.prices;
+    ctx.accounts.economy_config.cube_pack_enabled = args.enabled;
     ctx.accounts.economy_config.revision = ctx
         .accounts
         .economy_config
@@ -163,11 +171,48 @@ pub fn handler_update_star_packs(
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     ctx.accounts.economy_config.validate()?;
-    emit!(EconomyStarPacksUpdated {
+    emit!(EconomyCubePacksUpdated {
         revision: ctx.accounts.economy_config.revision,
-        stars: args.stars,
+        cubes: args.cubes,
         prices: args.prices,
         enabled: args.enabled,
+    });
+    Ok(())
+}
+
+pub fn handler_schedule_revenue_split(
+    ctx: Context<ManageEconomyPricing>,
+    args: ScheduleRevenueSplitArgs,
+) -> Result<()> {
+    validate_sale_split(args.team_bps, args.pot_bps, args.treasury_bps)?;
+    let current_weekly = weekly_id_for_day(cadence_day(Clock::get()?.unix_timestamp));
+    require!(
+        args.activates_weekly >= current_weekly.saturating_add(1),
+        ErrorCode::InvalidState
+    );
+    let current = ctx
+        .accounts
+        .economy_config
+        .sale_bps_for_weekly(current_weekly);
+    let config = &mut ctx.accounts.economy_config;
+    config.team_sale_bps = current.0;
+    config.pot_sale_bps = current.1;
+    config.treasury_sale_bps = current.2;
+    config.pending_team_sale_bps = args.team_bps;
+    config.pending_pot_sale_bps = args.pot_bps;
+    config.pending_treasury_sale_bps = args.treasury_bps;
+    config.split_activates_weekly = args.activates_weekly;
+    config.revision = config
+        .revision
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    config.validate()?;
+    emit!(RevenueSplitScheduled {
+        revision: config.revision,
+        activates_weekly: args.activates_weekly,
+        team_bps: args.team_bps,
+        pot_bps: args.pot_bps,
+        treasury_bps: args.treasury_bps,
     });
     Ok(())
 }
@@ -176,7 +221,7 @@ pub fn handler_update_star_packs(
 pub struct ScheduleSaleArgs {
     pub starts_at: i64,
     pub ends_at: i64,
-    pub prices: [u64; STAR_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
 }
 
 pub fn handler_schedule_sale(
@@ -221,7 +266,7 @@ pub fn handler_cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
     ctx.accounts.economy_config.sale_enabled = false;
     ctx.accounts.economy_config.sale_starts_at = 0;
     ctx.accounts.economy_config.sale_ends_at = 0;
-    ctx.accounts.economy_config.sale_prices = [0; STAR_PACK_COUNT];
+    ctx.accounts.economy_config.sale_prices = [0; CUBE_PACK_COUNT];
     ctx.accounts.economy_config.revision = ctx
         .accounts
         .economy_config
@@ -238,9 +283,9 @@ pub fn handler_cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
 pub struct PublishDailyRulesArgs {
     pub content_version: u32,
     pub rules_version: u32,
-    pub season_id: u32,
+    pub weekly_id: u32,
     pub starts_day: u32,
-    pub season_seed: [u8; 32],
+    pub weekly_seed: [u8; 32],
     pub scoring_rule_count: u8,
     pub scoring_rules: [DailyScoringRule; DAILY_SCORE_RULE_CAPACITY],
     pub pressure: DailyPressureProfile,
@@ -300,9 +345,9 @@ pub fn handler_publish_daily_rules(
             economy_config: ctx.accounts.economy_config.key(),
             content_version: args.content_version,
             catalog_hash,
-            season_id: args.season_id,
+            weekly_id: args.weekly_id,
             starts_day: args.starts_day,
-            season_seed: args.season_seed,
+            weekly_seed: args.weekly_seed,
             scoring_rule_count: args.scoring_rule_count,
             scoring_rules: args.scoring_rules,
             pressure: args.pressure,
@@ -317,7 +362,7 @@ pub fn handler_publish_daily_rules(
 }
 
 #[derive(Accounts)]
-pub struct PurchaseStars<'info> {
+pub struct PurchaseCubes<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
         bump = protocol.bump,
@@ -335,12 +380,12 @@ pub struct PurchaseStars<'info> {
     pub economy_config: Box<Account<'info, EconomyConfig>>,
     #[account(
         mut,
-        seeds = [STAR_SALES_LEDGER_SEED],
-        bump = star_sales_ledger.bump,
-        constraint = star_sales_ledger.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
-        constraint = star_sales_ledger.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        seeds = [CUBE_SALES_LEDGER_SEED],
+        bump = cube_sales_ledger.bump,
+        constraint = cube_sales_ledger.economy_config == economy_config.key() @ ErrorCode::InvalidOwner,
+        constraint = cube_sales_ledger.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
-    pub star_sales_ledger: Box<Account<'info, StarSalesLedger>>,
+    pub cube_sales_ledger: Box<Account<'info, CubeSalesLedger>>,
     #[account(
         mut,
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
@@ -361,6 +406,8 @@ pub struct PurchaseStars<'info> {
         constraint = reward_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub reward_vault: Box<Account<'info, RewardVault>>,
+    #[account(mut)]
+    pub weekly_challenge: Option<Box<Account<'info, WeeklyChallenge>>>,
     /// CHECK: Native-SOL destination pinned by protocol state.
     #[account(mut, address = protocol.treasury_destination)]
     pub treasury_destination: UncheckedAccount<'info>,
@@ -369,35 +416,61 @@ pub struct PurchaseStars<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_purchase_stars<'info>(
-    ctx: Context<'info, PurchaseStars<'info>>,
+pub fn handler_purchase_cubes<'info>(
+    ctx: Context<'info, PurchaseCubes<'info>>,
     pack_index: u8,
-    expected_stars: u64,
+    expected_cubes: u64,
     expected_lamports: u64,
 ) -> Result<()> {
-    let (stars, gross) = ctx
-        .accounts
-        .economy_config
-        .quote(pack_index, Clock::get()?.unix_timestamp)?;
-    require!(stars == expected_stars, ErrorCode::InvalidPack);
+    let now = Clock::get()?.unix_timestamp;
+    let (cubes, gross) = ctx.accounts.economy_config.quote(pack_index, now)?;
+    require!(cubes == expected_cubes, ErrorCode::InvalidPack);
     require!(gross == expected_lamports, ErrorCode::PriceChanged);
-    let (team, reward, treasury) = ctx.accounts.economy_config.split_sale(gross)?;
+    let weekly_id = weekly_id_for_day(cadence_day(now));
+    let (team, reward, treasury) = ctx.accounts.economy_config.split_sale(gross, weekly_id)?;
     transfer_from_player(&ctx, ctx.accounts.team_destination.to_account_info(), team)?;
-    transfer_from_player(&ctx, ctx.accounts.reward_vault.to_account_info(), reward)?;
+    if let Some(weekly) = ctx.accounts.weekly_challenge.as_ref() {
+        let (expected, _) = Pubkey::find_program_address(
+            &[SEASON_CHALLENGE_SEED, &weekly_id.to_le_bytes()],
+            &crate::ID,
+        );
+        require_keys_eq!(weekly.key(), expected, ErrorCode::InvalidOwner);
+        require!(
+            weekly.version == ECONOMY_ACCOUNT_VERSION
+                && weekly.weekly_id == weekly_id
+                && weekly.status == WeeklyStatus::Open
+                && now >= weekly.opens_at
+                && now < weekly.closes_at,
+            ErrorCode::InvalidState
+        );
+        transfer_from_player(&ctx, weekly.to_account_info(), reward)?;
+    } else {
+        transfer_from_player(&ctx, ctx.accounts.reward_vault.to_account_info(), reward)?;
+    }
     transfer_from_player(
         &ctx,
         ctx.accounts.treasury_destination.to_account_info(),
         treasury,
     )?;
     ctx.accounts
-        .star_sales_ledger
-        .record_sale(gross, team, reward, treasury, stars)?;
-    ctx.accounts.player_state.credit_stars(stars)?;
-    emit!(StarsPurchased {
+        .cube_sales_ledger
+        .record_sale(gross, team, reward, treasury, cubes)?;
+    if let Some(weekly) = ctx.accounts.weekly_challenge.as_mut() {
+        weekly.purchase_funded_sol = weekly
+            .purchase_funded_sol
+            .checked_add(reward)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        weekly.committed_sol_pool = weekly
+            .committed_sol_pool
+            .checked_add(reward)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
+    ctx.accounts.player_state.credit_cubes(cubes)?;
+    emit!(CubesPurchased {
         owner: ctx.accounts.owner.key(),
         pack_index,
         config_revision: ctx.accounts.economy_config.revision,
-        stars,
+        cubes,
         gross,
         team,
         reward,
@@ -407,7 +480,7 @@ pub fn handler_purchase_stars<'info>(
 }
 
 fn transfer_from_player<'info>(
-    ctx: &Context<'info, PurchaseStars<'info>>,
+    ctx: &Context<'info, PurchaseCubes<'info>>,
     destination: AccountInfo<'info>,
     amount: u64,
 ) -> Result<()> {
@@ -455,153 +528,6 @@ fn move_program_lamports(
     **source.try_borrow_mut_lamports()? = source_after;
     **destination.try_borrow_mut_lamports()? = destination_after;
     Ok(())
-}
-
-#[derive(Accounts)]
-pub struct UnlockZone<'info> {
-    #[account(
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [ECONOMY_CONFIG_SEED],
-        bump = economy_config.bump,
-        constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub economy_config: Box<Account<'info, EconomyConfig>>,
-    #[account(
-        mut,
-        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
-        bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub player_state: Box<Account<'info, PlayerState>>,
-    #[account(
-        seeds = [MAP_CATALOG_SEED, protocol.content_version.to_le_bytes().as_ref(), &[map_catalog.map_id]],
-        bump = map_catalog.bump,
-        constraint = map_catalog.enabled @ ErrorCode::MapDisabled,
-        constraint = map_catalog.content_version == economy_config.content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub map_catalog: Box<Account<'info, MapCatalog>>,
-    /// CHECK: Immutable durable player identity, constrained above.
-    pub owner_authority: UncheckedAccount<'info>,
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    pub actor: Signer<'info>,
-}
-
-pub fn handler_unlock_zone(ctx: Context<UnlockZone>) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
-    let map_id = ctx.accounts.map_catalog.map_id;
-    require!(
-        (2..=ctx.accounts.protocol.campaign_map_count).contains(&map_id),
-        ErrorCode::InvalidMap
-    );
-    require!(
-        !ctx.accounts.player_state.is_map_unlocked(map_id),
-        ErrorCode::MapAlreadyUnlocked
-    );
-    ctx.accounts
-        .player_state
-        .spend_stars(ctx.accounts.economy_config.zone_unlock_stars)?;
-    ctx.accounts.player_state.unlock_map(map_id, true)?;
-    emit!(ZoneUnlocked {
-        owner: ctx.accounts.owner_authority.key(),
-        map_id,
-        stars_spent: ctx.accounts.economy_config.zone_unlock_stars,
-    });
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct ClaimLevelMilestone<'info> {
-    #[account(
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [ECONOMY_CONFIG_SEED],
-        bump = economy_config.bump,
-        constraint = economy_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = economy_config.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = economy_config.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub economy_config: Box<Account<'info, EconomyConfig>>,
-    #[account(
-        mut,
-        seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
-        bump = player_state.bump,
-        constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: Immutable durable player identity, constrained above.
-    pub owner_authority: UncheckedAccount<'info>,
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    pub actor: Signer<'info>,
-}
-
-pub fn handler_claim_level_milestone(
-    ctx: Context<ClaimLevelMilestone>,
-    milestone_index: u8,
-) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
-    let index = usize::from(milestone_index);
-    require!(index < LEVEL_MILESTONE_COUNT, ErrorCode::InvalidLevel);
-    let mask = 1u16 << index;
-    let required_level = (milestone_index + 1) * 10;
-    let current_level = player_level(ctx.accounts.player_state.lifetime_xp);
-    require!(current_level >= required_level, ErrorCode::RewardNotEarned);
-    ctx.accounts.player_state.milestone_claimed |= mask;
-    let entitlement = milestone_star_entitlement(ctx.accounts.player_state.milestone_claimed)?;
-    let already_claimed = ctx.accounts.player_state.milestone_stars_claimed;
-    require!(
-        entitlement >= already_claimed,
-        ErrorCode::AccountingInvariant
-    );
-    let stars = entitlement
-        .checked_sub(already_claimed)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    require!(stars > 0, ErrorCode::RewardAlreadyClaimed);
-    ctx.accounts.player_state.milestone_stars_claimed = entitlement;
-    ctx.accounts.player_state.credit_stars(stars)?;
-    emit!(LevelMilestoneClaimed {
-        owner: ctx.accounts.owner_authority.key(),
-        level: required_level,
-        stars,
-    });
-    Ok(())
-}
-
-fn milestone_star_entitlement(claimed: u16) -> Result<u64> {
-    (0..LEVEL_MILESTONE_COUNT).try_fold(0u64, |total, index| {
-        if claimed & (1u16 << index) == 0 {
-            return Ok(total);
-        }
-        let milestone_level = u64::try_from(index + 1)
-            .map_err(|_| ErrorCode::ArithmeticOverflow)?
-            .checked_mul(10)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        total
-            .checked_add(milestone_level)
-            .ok_or_else(|| ErrorCode::ArithmeticOverflow.into())
-    })
 }
 
 #[derive(Accounts)]
@@ -677,7 +603,7 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
     ctx.accounts.daily_challenge.set_inner(DailyChallenge {
         version: ECONOMY_ACCOUNT_VERSION,
         day_id,
-        week_id: weekly_id_for_day(day_id),
+        weekly_id: weekly_id_for_day(day_id),
         economy_config: ctx.accounts.economy_config.key(),
         rent_recipient: ctx.accounts.payer.key(),
         rules_version: catalog.rules_version,
@@ -685,7 +611,7 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
         content_version: catalog.content_version,
         catalog_hash: catalog.catalog_hash,
         rules_hash,
-        season_id: catalog.season_id,
+        rules_weekly_id: catalog.weekly_id,
         map_id,
         scoring_rule,
         rules,
@@ -695,7 +621,8 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
         runs_close_at,
         settlement_grace_close_at,
         finalized_at: 0,
-        entry_stars: ctx.accounts.economy_config.daily_entry_stars,
+        retry_cubes: ctx.accounts.economy_config.daily_retry_cubes,
+        max_paid_retries: ctx.accounts.economy_config.max_paid_daily_retries,
         unique_players: 0,
         closed_players: 0,
         weekly_eligible_players: 0,
@@ -713,8 +640,8 @@ pub fn handler_open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u3
     emit!(DailyOpened {
         challenge: challenge_key,
         day_id,
-        week_id: weekly_id_for_day(day_id),
-        season_id: catalog.season_id,
+        weekly_id: weekly_id_for_day(day_id),
+        rules_weekly_id: catalog.weekly_id,
         map_id,
         scoring_rule,
         rules_hash,
@@ -815,20 +742,16 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         ErrorCode::ActiveRunExists
     );
     require!(
-        ctx.accounts.daily_challenge.entry_stars == ctx.accounts.economy_config.daily_entry_stars,
+        ctx.accounts.daily_challenge.retry_cubes == ctx.accounts.economy_config.daily_retry_cubes,
         ErrorCode::AccountingInvariant
     );
-    crate::instructions::progress_instructions::roll_stipend(
-        &mut ctx.accounts.player_state,
-        cadence_week(now),
-    );
-
     let daily_player = &mut ctx.accounts.daily_player;
     if daily_player.version == 0 {
         daily_player.version = ECONOMY_ACCOUNT_VERSION;
         daily_player.challenge = ctx.accounts.daily_challenge.key();
         daily_player.player = ctx.accounts.owner_authority.key();
         daily_player.attempts = 0;
+        daily_player.paid_attempts = 0;
         daily_player.finalized_attempts = 0;
         daily_player.best_run_id = 0;
         daily_player.best_daily_score = 0;
@@ -839,7 +762,7 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         daily_player.daily_xp_awarded = false;
         daily_player.pressure_mastery_xp_awarded = false;
         daily_player.weekly_rolled_up = false;
-        daily_player.star_refunded = false;
+        daily_player.cube_refunded = false;
         daily_player.bump = ctx.bumps.daily_player;
         ctx.accounts.daily_challenge.unique_players = ctx
             .accounts
@@ -863,9 +786,22 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
             ErrorCode::Unauthorized
         );
     }
-    ctx.accounts
-        .player_state
-        .spend_stars(ctx.accounts.daily_challenge.entry_stars)?;
+    let cubes_spent = if daily_player.attempts == 0 {
+        0
+    } else {
+        require!(
+            daily_player.paid_attempts < ctx.accounts.daily_challenge.max_paid_retries,
+            ErrorCode::ChallengeEnded
+        );
+        ctx.accounts
+            .player_state
+            .spend_cubes(ctx.accounts.daily_challenge.retry_cubes)?;
+        daily_player.paid_attempts = daily_player
+            .paid_attempts
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        ctx.accounts.daily_challenge.retry_cubes
+    };
     daily_player.attempts = daily_player
         .attempts
         .checked_add(1)
@@ -893,7 +829,7 @@ pub fn handler_enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> 
         owner: ctx.accounts.owner_authority.key(),
         run_id,
         attempt: daily_player.attempts,
-        stars_spent: ctx.accounts.daily_challenge.entry_stars,
+        cubes_spent,
     });
     Ok(())
 }
@@ -1097,15 +1033,6 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         ctx.accounts
             .player_state
             .credit_progression_rewards(0, xp_awarded)?;
-        let week = cadence_week(consumed_at);
-        crate::instructions::progress_instructions::record_stipend_xp(
-            &mut ctx.accounts.player_state,
-            week,
-            xp_awarded,
-        )?;
-        crate::instructions::progress_instructions::emit_stipend_if_awarded(
-            &mut ctx.accounts.player_state,
-        )?;
     }
     if pressure_mastery_awarded {
         emit!(DailyPressureMasteryAwarded {
@@ -1130,6 +1057,7 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         daily_bonus_triggers: active.daily_bonus_triggers,
         engine_score: active.score,
         moves: active.moves,
+        finalized_attempts: player.finalized_attempts,
         submitted_at: active.finished_at,
     };
     let current = DailyLeaderboardEntry {
@@ -1139,6 +1067,7 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         daily_bonus_triggers: player.best_daily_bonus_triggers,
         engine_score: player.best_engine_score,
         moves: player.best_moves,
+        finalized_attempts: player.finalized_attempts,
         submitted_at: player.best_submitted_at,
     };
     let improves = player.best_run_id == 0 || daily_entry_is_better(&candidate, &current);
@@ -1157,7 +1086,18 @@ pub fn handler_consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
         player.best_engine_score = active.score;
         player.best_moves = active.moves;
         player.best_submitted_at = active.finished_at;
-        ctx.accounts.leaderboard.record_best(candidate);
+    }
+    if eligible {
+        ctx.accounts.leaderboard.record_best(DailyLeaderboardEntry {
+            player: active.owner,
+            run_id: player.best_run_id,
+            daily_score: player.best_daily_score,
+            daily_bonus_triggers: player.best_daily_bonus_triggers,
+            engine_score: player.best_engine_score,
+            moves: player.best_moves,
+            finalized_attempts: player.finalized_attempts,
+            submitted_at: player.best_submitted_at,
+        });
     }
     ctx.accounts.player_state.release_run(active.run_id)?;
     Ok(())
@@ -1242,7 +1182,7 @@ pub fn handler_cancel_daily_challenge(ctx: Context<CancelDailyChallenge>) -> Res
 }
 
 #[derive(Accounts)]
-pub struct RefundDailyStars<'info> {
+pub struct RefundDailyCubes<'info> {
     #[account(
         seeds = [DAILY_CHALLENGE_SEED, daily_challenge.day_id.to_le_bytes().as_ref()],
         bump = daily_challenge.bump,
@@ -1270,22 +1210,22 @@ pub struct RefundDailyStars<'info> {
     pub actor: Signer<'info>,
 }
 
-pub fn handler_refund_daily_stars(ctx: Context<RefundDailyStars>) -> Result<()> {
+pub fn handler_refund_daily_cubes(ctx: Context<RefundDailyCubes>) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
     require!(
-        !ctx.accounts.daily_player.star_refunded,
+        !ctx.accounts.daily_player.cube_refunded,
         ErrorCode::RefundAlreadyClaimed
     );
-    let refund = u64::from(ctx.accounts.daily_player.attempts)
-        .checked_mul(ctx.accounts.daily_challenge.entry_stars)
+    let refund = u64::from(ctx.accounts.daily_player.paid_attempts)
+        .checked_mul(ctx.accounts.daily_challenge.retry_cubes)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     require!(refund > 0, ErrorCode::InsufficientFunds);
-    ctx.accounts.player_state.refund_stars(refund)?;
-    ctx.accounts.daily_player.star_refunded = true;
+    ctx.accounts.player_state.refund_cubes(refund)?;
+    ctx.accounts.daily_player.cube_refunded = true;
     Ok(())
 }
 
@@ -1305,9 +1245,9 @@ pub struct CloseDailyPlayer<'info> {
     )]
     pub daily_challenge: Box<Account<'info, DailyChallenge>>,
     #[account(
-        seeds = [WEEKLY_CHALLENGE_SEED, daily_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, daily_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
-        constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState
+        constraint = weekly_challenge.weekly_id == daily_challenge.weekly_id @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     /// CHECK: Identity pinned by DailyPlayer and its PDA seeds.
@@ -1348,7 +1288,7 @@ pub fn handler_close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> 
             ctx.accounts.daily_player.finalized_attempts,
             ctx.accounts.daily_player.best_run_id,
             ctx.accounts.daily_player.weekly_rolled_up,
-            ctx.accounts.daily_player.star_refunded,
+            ctx.accounts.daily_player.cube_refunded,
         ),
         ErrorCode::InvalidState
     );
@@ -1375,14 +1315,14 @@ fn daily_player_close_allowed(
     finalized_attempts: u32,
     best_run_id: u64,
     weekly_rolled_up: bool,
-    star_refunded: bool,
+    cube_refunded: bool,
 ) -> bool {
     if attempts != finalized_attempts {
         return false;
     }
     match status {
         DailyStatus::Claimable => best_run_id == 0 || weekly_rolled_up,
-        DailyStatus::Cancelled => star_refunded,
+        DailyStatus::Cancelled => cube_refunded,
         _ => false,
     }
 }
@@ -1396,9 +1336,9 @@ pub struct CloseDailyChallenge<'info> {
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
-        seeds = [WEEKLY_CHALLENGE_SEED, daily_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, daily_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
-        constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState
+        constraint = weekly_challenge.weekly_id == daily_challenge.weekly_id @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
@@ -1446,7 +1386,7 @@ pub fn handler_close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Resul
 }
 
 #[derive(Accounts)]
-#[instruction(week_id: u32)]
+#[instruction(weekly_id: u32)]
 pub struct OpenWeeklyChallenge<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -1467,7 +1407,7 @@ pub struct OpenWeeklyChallenge<'info> {
         init,
         payer = payer,
         space = 8 + WeeklyChallenge::INIT_SPACE,
-        seeds = [WEEKLY_CHALLENGE_SEED, week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_id.to_le_bytes().as_ref()],
         bump
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
@@ -1475,7 +1415,7 @@ pub struct OpenWeeklyChallenge<'info> {
         init,
         payer = payer,
         space = 8 + WeeklyLeaderboard::INIT_SPACE,
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
@@ -1495,21 +1435,20 @@ pub struct OpenWeeklyChallenge<'info> {
 
 pub fn handler_open_weekly_challenge(
     ctx: Context<OpenWeeklyChallenge>,
-    week_id: u32,
+    weekly_id: u32,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    require!(cadence_week(now) == week_id, ErrorCode::ChallengeNotStarted);
-    let (opens_at, closes_at, finalizes_at) = weekly_window(week_id)?;
+    require!(
+        weekly_id_for_day(cadence_day(now)) == weekly_id,
+        ErrorCode::ChallengeNotStarted
+    );
+    let (opens_at, closes_at, finalizes_at) = weekly_window(weekly_id)?;
     require!(
         now >= opens_at && now < closes_at,
         ErrorCode::ChallengeEnded
     );
     let available = spendable_lamports(&ctx.accounts.reward_vault.to_account_info())?;
-    let pool = if available < ctx.accounts.economy_config.weekly_min_sol_pool {
-        0
-    } else {
-        available.min(ctx.accounts.economy_config.weekly_max_sol_pool)
-    };
+    let pool = available;
     if pool > 0 {
         move_program_lamports(
             &ctx.accounts.reward_vault.to_account_info(),
@@ -1520,7 +1459,7 @@ pub fn handler_open_weekly_challenge(
     let challenge_key = ctx.accounts.weekly_challenge.key();
     ctx.accounts.weekly_challenge.set_inner(WeeklyChallenge {
         version: ECONOMY_ACCOUNT_VERSION,
-        week_id,
+        weekly_id,
         economy_config: ctx.accounts.economy_config.key(),
         rent_recipient: ctx.accounts.payer.key(),
         status: WeeklyStatus::Open,
@@ -1530,12 +1469,15 @@ pub fn handler_open_weekly_challenge(
         finalized_at: 0,
         claims_close_at: 0,
         committed_sol_pool: pool,
+        purchase_funded_sol: 0,
+        founder_seeded_sol: 0,
+        rolled_over_sol: pool,
         sol_claimed: 0,
         sol_forfeited: 0,
         participants: 0,
         closed_players: 0,
         sol_winner_count: 0,
-        star_winner_count: 0,
+        cube_winner_count: 0,
         bump: ctx.bumps.weekly_challenge,
     });
     ctx.accounts.leaderboard.set_inner(WeeklyLeaderboard {
@@ -1546,8 +1488,57 @@ pub fn handler_open_weekly_challenge(
     });
     emit!(WeeklyOpened {
         challenge: challenge_key,
-        week_id,
+        weekly_id,
         sol_pool: pool,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct FundWeekly<'info> {
+    #[account(
+        mut,
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
+        bump = weekly_challenge.bump,
+        constraint = weekly_challenge.status == WeeklyStatus::Open @ ErrorCode::InvalidState
+    )]
+    pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
+    #[account(mut)]
+    pub funder: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_fund_weekly(ctx: Context<FundWeekly>, lamports: u64) -> Result<()> {
+    require!(lamports > 0, ErrorCode::InsufficientFunds);
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        now >= ctx.accounts.weekly_challenge.opens_at
+            && now < ctx.accounts.weekly_challenge.closes_at,
+        ErrorCode::ChallengeEnded
+    );
+    system_program::transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.key(),
+            Transfer {
+                from: ctx.accounts.funder.to_account_info(),
+                to: ctx.accounts.weekly_challenge.to_account_info(),
+            },
+        ),
+        lamports,
+    )?;
+    let challenge = &mut ctx.accounts.weekly_challenge;
+    challenge.founder_seeded_sol = challenge
+        .founder_seeded_sol
+        .checked_add(lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    challenge.committed_sol_pool = challenge
+        .committed_sol_pool
+        .checked_add(lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    emit!(WeeklyFunded {
+        challenge: challenge.key(),
+        funder: ctx.accounts.funder.key(),
+        lamports,
     });
     Ok(())
 }
@@ -1577,9 +1568,9 @@ pub struct RollupDailyToWeekly<'info> {
     pub daily_player: Box<Account<'info, DailyPlayer>>,
     #[account(
         mut,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
-        constraint = weekly_challenge.week_id == daily_challenge.week_id @ ErrorCode::InvalidState,
+        constraint = weekly_challenge.weekly_id == daily_challenge.weekly_id @ ErrorCode::InvalidState,
         constraint = weekly_challenge.status == WeeklyStatus::Open @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
@@ -1587,13 +1578,13 @@ pub struct RollupDailyToWeekly<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + WeeklyPlayer::INIT_SPACE,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [SEASON_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
         bump
     )]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
     #[account(
         mut,
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = weekly_leaderboard.bump,
         constraint = weekly_leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
@@ -1629,11 +1620,11 @@ pub fn handler_rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Resu
         weekly_player.version = ECONOMY_ACCOUNT_VERSION;
         weekly_player.challenge = ctx.accounts.weekly_challenge.key();
         weekly_player.player = ctx.accounts.owner.key();
-        weekly_player.results = [WeeklyDailyResult::default(); WEEKLY_DAILY_RESULTS];
+        weekly_player.results = [WeeklyDailyResult::default(); SEASON_DAILY_RESULTS];
         weekly_player.result_count = 0;
         weekly_player.score = 0;
         weekly_player.sol_claimed = false;
-        weekly_player.stars_claimed = false;
+        weekly_player.cubes_claimed = false;
         weekly_player.bump = ctx.bumps.weekly_player;
         ctx.accounts.weekly_challenge.participants = ctx
             .accounts
@@ -1685,7 +1676,7 @@ pub fn handler_rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Resu
     emit!(DailyRolledUp {
         owner: ctx.accounts.owner.key(),
         day_id: ctx.accounts.daily_challenge.day_id,
-        week_id: ctx.accounts.weekly_challenge.week_id,
+        weekly_id: ctx.accounts.weekly_challenge.weekly_id,
         points,
         weekly_score: weekly_player.score,
     });
@@ -1694,25 +1685,35 @@ pub fn handler_rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Resu
 
 #[derive(Accounts)]
 pub struct FinalizeWeeklyChallenge<'info> {
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump)]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = leaderboard.bump,
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
+    #[account(
+        mut,
+        address = protocol.reward_vault,
+        seeds = [REWARD_VAULT_SEED],
+        bump = reward_vault.bump,
+        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
+    )]
+    pub reward_vault: Box<Account<'info, RewardVault>>,
     pub caller: Signer<'info>,
 }
 
 pub fn handler_finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     validate_weekly_rollups(
-        ctx.accounts.weekly_challenge.week_id,
+        ctx.accounts.weekly_challenge.weekly_id,
         ctx.remaining_accounts,
     )?;
     let challenge = &mut ctx.accounts.weekly_challenge;
@@ -1721,30 +1722,52 @@ pub fn handler_finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) 
         ErrorCode::InvalidState
     );
     require!(now >= challenge.finalizes_at, ErrorCode::ChallengeNotEnded);
-    let (sol_winner_count, star_winner_count) =
+    if challenge.participants == 0 {
+        let amount = spendable_lamports(&challenge.to_account_info())?;
+        if amount > 0 {
+            move_program_lamports(
+                &challenge.to_account_info(),
+                &ctx.accounts.reward_vault.to_account_info(),
+                amount,
+            )?;
+        }
+        challenge.sol_forfeited = amount;
+        challenge.finalized_at = now;
+        challenge.status = WeeklyStatus::Closed;
+        emit!(WeeklyFinalized {
+            challenge: challenge.key(),
+            weekly_id: challenge.weekly_id,
+            participants: 0,
+            sol_winner_count: 0,
+            cube_winner_count: 0,
+            sol_pool: challenge.committed_sol_pool,
+        });
+        return Ok(());
+    }
+    let (sol_winner_count, cube_winner_count) =
         weekly_winner_counts(challenge.participants, challenge.committed_sol_pool > 0);
     challenge.sol_winner_count = sol_winner_count;
-    challenge.star_winner_count = star_winner_count;
+    challenge.cube_winner_count = cube_winner_count;
     challenge.finalized_at = now;
     challenge.claims_close_at = now
-        .checked_add(WEEKLY_CLAIM_WINDOW_SECONDS)
+        .checked_add(SEASON_CLAIM_WINDOW_SECONDS)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     challenge.status = WeeklyStatus::Claimable;
     emit!(WeeklyFinalized {
         challenge: challenge.key(),
-        week_id: challenge.week_id,
+        weekly_id: challenge.weekly_id,
         participants: challenge.participants,
         sol_winner_count,
-        star_winner_count,
+        cube_winner_count,
         sol_pool: challenge.committed_sol_pool,
     });
     Ok(())
 }
 
-fn validate_weekly_rollups(week_id: u32, daily_accounts: &[AccountInfo<'_>]) -> Result<()> {
-    require!(daily_accounts.len() == 7, ErrorCode::InvalidState);
-    let start_day = week_id
-        .checked_mul(7)
+fn validate_weekly_rollups(weekly_id: u32, daily_accounts: &[AccountInfo<'_>]) -> Result<()> {
+    require!(daily_accounts.len() == 14, ErrorCode::InvalidState);
+    let start_day = weekly_id
+        .checked_mul(14)
         .and_then(|day| day.checked_sub(3))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     for (offset, account) in daily_accounts.iter().enumerate() {
@@ -1773,7 +1796,7 @@ fn validate_weekly_rollups(week_id: u32, daily_accounts: &[AccountInfo<'_>]) -> 
             ErrorCode::InvalidVersion
         );
         require!(daily.day_id == day_id, ErrorCode::InvalidRunId);
-        require!(daily.week_id == week_id, ErrorCode::InvalidState);
+        require!(daily.weekly_id == weekly_id, ErrorCode::InvalidState);
         require!(
             daily_rollups_complete(
                 &daily.status,
@@ -1795,22 +1818,22 @@ fn daily_rollups_complete(status: &DailyStatus, eligible: u32, rolled_up: u32) -
 }
 
 #[derive(Accounts)]
-pub struct ClaimWeeklyStars<'info> {
+pub struct ClaimWeeklyCubes<'info> {
     #[account(
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
         constraint = weekly_challenge.status == WeeklyStatus::Claimable @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = leaderboard.bump,
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
     #[account(
         mut,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
+        seeds = [SEASON_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump = weekly_player.bump,
         constraint = weekly_player.player == owner_authority.key() @ ErrorCode::Unauthorized
     )]
@@ -1828,7 +1851,7 @@ pub struct ClaimWeeklyStars<'info> {
     pub actor: Signer<'info>,
 }
 
-pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> {
+pub fn handler_claim_weekly_cubes(ctx: Context<ClaimWeeklyCubes>) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
@@ -1839,7 +1862,7 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
         ErrorCode::ChallengeEnded
     );
     require!(
-        !ctx.accounts.weekly_player.stars_claimed,
+        !ctx.accounts.weekly_player.cubes_claimed,
         ErrorCode::PrizeAlreadyClaimed
     );
     let rank = ctx
@@ -1847,18 +1870,18 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
         .leaderboard
         .rank_of(ctx.accounts.owner_authority.key())
         .ok_or(ErrorCode::NoPrize)?;
-    let stars = weekly_star_reward_for_rank(
+    let cubes = weekly_cube_reward_for_rank(
         rank,
         ctx.accounts.weekly_challenge.sol_winner_count,
-        ctx.accounts.weekly_challenge.star_winner_count,
+        ctx.accounts.weekly_challenge.cube_winner_count,
     )?;
-    ctx.accounts.player_state.credit_stars(stars)?;
-    ctx.accounts.weekly_player.stars_claimed = true;
-    emit!(WeeklyStarsClaimed {
+    ctx.accounts.player_state.credit_cubes(cubes)?;
+    ctx.accounts.weekly_player.cubes_claimed = true;
+    emit!(WeeklyCubesClaimed {
         owner: ctx.accounts.owner_authority.key(),
-        week_id: ctx.accounts.weekly_challenge.week_id,
+        weekly_id: ctx.accounts.weekly_challenge.weekly_id,
         rank: (rank + 1) as u8,
-        stars,
+        cubes,
     });
     Ok(())
 }
@@ -1867,20 +1890,20 @@ pub fn handler_claim_weekly_stars(ctx: Context<ClaimWeeklyStars>) -> Result<()> 
 pub struct ClaimWeeklySol<'info> {
     #[account(
         mut,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
         constraint = weekly_challenge.status == WeeklyStatus::Claimable @ ErrorCode::InvalidState
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = leaderboard.bump,
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
     pub leaderboard: Box<Account<'info, WeeklyLeaderboard>>,
     #[account(
         mut,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
+        seeds = [SEASON_PLAYER_SEED, weekly_challenge.key().as_ref(), owner_authority.key().as_ref()],
         bump = weekly_player.bump,
         constraint = weekly_player.player == owner_authority.key() @ ErrorCode::Unauthorized
     )]
@@ -1935,7 +1958,7 @@ pub fn handler_claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
     ctx.accounts.weekly_player.sol_claimed = true;
     emit!(WeeklySolClaimed {
         owner: ctx.accounts.owner_authority.key(),
-        week_id: ctx.accounts.weekly_challenge.week_id,
+        weekly_id: ctx.accounts.weekly_challenge.weekly_id,
         rank: (rank + 1) as u8,
         amount,
     });
@@ -1951,7 +1974,7 @@ pub struct ForfeitWeeklySol<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump,
         constraint = weekly_challenge.status == WeeklyStatus::Claimable @ ErrorCode::InvalidState
     )]
@@ -1991,7 +2014,7 @@ pub fn handler_forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> 
     );
     ctx.accounts.weekly_challenge.status = WeeklyStatus::Closed;
     emit!(WeeklySolForfeited {
-        week_id: ctx.accounts.weekly_challenge.week_id,
+        weekly_id: ctx.accounts.weekly_challenge.weekly_id,
         amount,
     });
     Ok(())
@@ -2007,12 +2030,12 @@ pub struct CloseWeeklyPlayer<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
         mut,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = leaderboard.bump,
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
@@ -2022,7 +2045,7 @@ pub struct CloseWeeklyPlayer<'info> {
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
+        seeds = [SEASON_PLAYER_SEED, weekly_challenge.key().as_ref(), owner.key().as_ref()],
         bump = weekly_player.bump,
         constraint = weekly_player.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId,
         constraint = weekly_player.player == owner.key() @ ErrorCode::Unauthorized
@@ -2047,9 +2070,9 @@ pub fn handler_close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()
             ctx.accounts.weekly_challenge.status,
             rank,
             ctx.accounts.weekly_challenge.sol_winner_count,
-            ctx.accounts.weekly_challenge.star_winner_count,
+            ctx.accounts.weekly_challenge.cube_winner_count,
             ctx.accounts.weekly_player.sol_claimed,
-            ctx.accounts.weekly_player.stars_claimed,
+            ctx.accounts.weekly_player.cubes_claimed,
         ),
         ErrorCode::InvalidState
     );
@@ -2074,9 +2097,9 @@ fn weekly_player_close_allowed(
     status: WeeklyStatus,
     rank: Option<usize>,
     sol_winner_count: u8,
-    star_winner_count: u8,
+    cube_winner_count: u8,
     sol_claimed: bool,
-    stars_claimed: bool,
+    cubes_claimed: bool,
 ) -> bool {
     if status == WeeklyStatus::Closed {
         return true;
@@ -2085,9 +2108,10 @@ fn weekly_player_close_allowed(
         return false;
     }
     let sol_winner = rank.is_some_and(|rank| rank < usize::from(sol_winner_count));
-    let star_limit = usize::from(sol_winner_count) + usize::from(star_winner_count);
-    let star_winner = rank.is_some_and(|rank| rank < star_limit);
-    (!sol_winner || sol_claimed) && (!star_winner || stars_claimed)
+    let cube_start = SEASON_SOL_WEIGHTS.len();
+    let cube_limit = cube_start + usize::from(cube_winner_count);
+    let cube_winner = rank.is_some_and(|rank| rank >= cube_start && rank < cube_limit);
+    (!sol_winner || sol_claimed) && (!cube_winner || cubes_claimed)
 }
 
 #[derive(Accounts)]
@@ -2101,14 +2125,14 @@ pub struct CloseWeeklyChallenge<'info> {
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [WEEKLY_CHALLENGE_SEED, weekly_challenge.week_id.to_le_bytes().as_ref()],
+        seeds = [SEASON_CHALLENGE_SEED, weekly_challenge.weekly_id.to_le_bytes().as_ref()],
         bump = weekly_challenge.bump
     )]
     pub weekly_challenge: Box<Account<'info, WeeklyChallenge>>,
     #[account(
         mut,
         close = rent_recipient,
-        seeds = [WEEKLY_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
+        seeds = [SEASON_LEADERBOARD_SEED, weekly_challenge.key().as_ref()],
         bump = leaderboard.bump,
         constraint = leaderboard.challenge == weekly_challenge.key() @ ErrorCode::InvalidRunId
     )]
@@ -2134,24 +2158,27 @@ pub fn handler_close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Res
         ErrorCode::AccountingInvariant
     );
     validate_closed_weekly_dailies(
-        ctx.accounts.weekly_challenge.week_id,
+        ctx.accounts.weekly_challenge.weekly_id,
         ctx.remaining_accounts,
     )?;
 
     emit!(WeeklyChallengeClosed {
         challenge: ctx.accounts.weekly_challenge.key(),
-        week_id: ctx.accounts.weekly_challenge.week_id,
+        weekly_id: ctx.accounts.weekly_challenge.weekly_id,
     });
     Ok(())
 }
 
-fn validate_closed_weekly_dailies(week_id: u32, daily_accounts: &[AccountInfo<'_>]) -> Result<()> {
+fn validate_closed_weekly_dailies(
+    weekly_id: u32,
+    daily_accounts: &[AccountInfo<'_>],
+) -> Result<()> {
     require!(
-        daily_accounts.len() == WEEKLY_DAILY_RESULTS,
+        daily_accounts.len() == SEASON_DAILY_RESULTS,
         ErrorCode::InvalidState
     );
-    let start_day = week_id
-        .checked_mul(7)
+    let start_day = weekly_id
+        .checked_mul(SEASON_DAILY_RESULTS as u32)
         .and_then(|day| day.checked_sub(3))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     for (offset, account) in daily_accounts.iter().enumerate() {
@@ -2173,8 +2200,8 @@ fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
     require!(
         args.content_version > 0
             && args.rules_version > 0
-            && args.season_id > 0
-            && args.season_seed != [0; 32]
+            && args.weekly_id > 0
+            && args.weekly_seed != [0; 32]
             && usize::from(args.scoring_rule_count) >= DAILY_SCORE_FAMILY_COUNT
             && usize::from(args.scoring_rule_count) <= DAILY_SCORE_RULE_CAPACITY,
         ErrorCode::InvalidState
@@ -2185,9 +2212,9 @@ fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
         economy_config: Pubkey::default(),
         content_version: args.content_version,
         catalog_hash: [0; 32],
-        season_id: args.season_id,
+        weekly_id: args.weekly_id,
         starts_day: args.starts_day,
-        season_seed: args.season_seed,
+        weekly_seed: args.weekly_seed,
         scoring_rule_count: args.scoring_rule_count,
         scoring_rules: args.scoring_rules,
         pressure: args.pressure,
@@ -2199,7 +2226,7 @@ fn validate_daily_rules(args: &PublishDailyRulesArgs) -> Result<()> {
 fn hash_daily_rules(args: &PublishDailyRulesArgs) -> Result<[u8; 32]> {
     let mut serialized = Vec::new();
     args.serialize(&mut serialized)?;
-    Ok(sha256v(&[b"zkube-daily-season-v1", &serialized]))
+    Ok(sha256v(&[b"zkube-daily-weekly-v1", &serialized]))
 }
 
 fn neutral_daily_rules(pressure: DailyPressureProfile) -> LevelRuleSnapshot {
@@ -2255,16 +2282,16 @@ pub struct EconomyConfigured {
 #[event]
 pub struct EconomyPricesUpdated {
     pub revision: u64,
-    pub prices: [u64; STAR_PACK_COUNT],
-    pub enabled: [bool; STAR_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
+    pub enabled: [bool; CUBE_PACK_COUNT],
 }
 
 #[event]
-pub struct EconomyStarPacksUpdated {
+pub struct EconomyCubePacksUpdated {
     pub revision: u64,
-    pub stars: [u64; STAR_PACK_COUNT],
-    pub prices: [u64; STAR_PACK_COUNT],
-    pub enabled: [bool; STAR_PACK_COUNT],
+    pub cubes: [u64; CUBE_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
+    pub enabled: [bool; CUBE_PACK_COUNT],
 }
 
 #[event]
@@ -2272,12 +2299,21 @@ pub struct EconomySaleScheduled {
     pub revision: u64,
     pub starts_at: i64,
     pub ends_at: i64,
-    pub prices: [u64; STAR_PACK_COUNT],
+    pub prices: [u64; CUBE_PACK_COUNT],
 }
 
 #[event]
 pub struct EconomySaleCancelled {
     pub revision: u64,
+}
+
+#[event]
+pub struct RevenueSplitScheduled {
+    pub revision: u64,
+    pub activates_weekly: u32,
+    pub team_bps: u16,
+    pub pot_bps: u16,
+    pub treasury_bps: u16,
 }
 
 #[event]
@@ -2288,11 +2324,11 @@ pub struct DailyRulesPublished {
 }
 
 #[event]
-pub struct StarsPurchased {
+pub struct CubesPurchased {
     pub owner: Pubkey,
     pub pack_index: u8,
     pub config_revision: u64,
-    pub stars: u64,
+    pub cubes: u64,
     pub gross: u64,
     pub team: u64,
     pub reward: u64,
@@ -2300,25 +2336,11 @@ pub struct StarsPurchased {
 }
 
 #[event]
-pub struct ZoneUnlocked {
-    pub owner: Pubkey,
-    pub map_id: u8,
-    pub stars_spent: u64,
-}
-
-#[event]
-pub struct LevelMilestoneClaimed {
-    pub owner: Pubkey,
-    pub level: u8,
-    pub stars: u64,
-}
-
-#[event]
 pub struct DailyOpened {
     pub challenge: Pubkey,
     pub day_id: u32,
-    pub week_id: u32,
-    pub season_id: u32,
+    pub rules_weekly_id: u32,
+    pub weekly_id: u32,
     pub map_id: u8,
     pub scoring_rule: DailyScoringRule,
     pub rules_hash: [u8; 32],
@@ -2330,7 +2352,7 @@ pub struct DailyEntered {
     pub owner: Pubkey,
     pub run_id: u64,
     pub attempt: u32,
-    pub stars_spent: u64,
+    pub cubes_spent: u64,
 }
 
 #[event]
@@ -2364,15 +2386,22 @@ pub struct DailyChallengeClosed {
 #[event]
 pub struct WeeklyOpened {
     pub challenge: Pubkey,
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub sol_pool: u64,
+}
+
+#[event]
+pub struct WeeklyFunded {
+    pub challenge: Pubkey,
+    pub funder: Pubkey,
+    pub lamports: u64,
 }
 
 #[event]
 pub struct DailyRolledUp {
     pub owner: Pubkey,
     pub day_id: u32,
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub points: u16,
     pub weekly_score: u16,
 }
@@ -2380,32 +2409,32 @@ pub struct DailyRolledUp {
 #[event]
 pub struct WeeklyFinalized {
     pub challenge: Pubkey,
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub participants: u32,
     pub sol_winner_count: u8,
-    pub star_winner_count: u8,
+    pub cube_winner_count: u8,
     pub sol_pool: u64,
 }
 
 #[event]
-pub struct WeeklyStarsClaimed {
+pub struct WeeklyCubesClaimed {
     pub owner: Pubkey,
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub rank: u8,
-    pub stars: u64,
+    pub cubes: u64,
 }
 
 #[event]
 pub struct WeeklySolClaimed {
     pub owner: Pubkey,
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub rank: u8,
     pub amount: u64,
 }
 
 #[event]
 pub struct WeeklySolForfeited {
-    pub week_id: u32,
+    pub weekly_id: u32,
     pub amount: u64,
 }
 
@@ -2418,42 +2447,13 @@ pub struct WeeklyPlayerClosed {
 #[event]
 pub struct WeeklyChallengeClosed {
     pub challenge: Pubkey,
-    pub week_id: u32,
+    pub weekly_id: u32,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use anchor_lang::ToAccountMetas;
-
-    #[test]
-    fn milestone_entitlement_scales_with_level_and_reconciles_legacy_totals() {
-        assert_eq!(milestone_star_entitlement(0).unwrap(), 0);
-        assert_eq!(milestone_star_entitlement(0b1).unwrap(), 10);
-        assert_eq!(milestone_star_entitlement(0b11).unwrap(), 30);
-        assert_eq!(milestone_star_entitlement(0b111).unwrap(), 60);
-        assert_eq!(milestone_star_entitlement(0x03ff).unwrap(), 550);
-        // A player paid the old flat 10-Star reward at levels 10 and 20.
-        assert_eq!(milestone_star_entitlement(0b11).unwrap() - 20, 10);
-    }
-
-    #[test]
-    fn level_milestone_claim_has_no_payer_or_system_account() {
-        let actor = Pubkey::new_unique();
-        let metas = crate::accounts::ClaimLevelMilestone {
-            protocol: Pubkey::new_unique(),
-            economy_config: Pubkey::new_unique(),
-            player_state: Pubkey::new_unique(),
-            owner_authority: Pubkey::new_unique(),
-            session_token: Some(Pubkey::new_unique()),
-            actor,
-        }
-        .to_account_metas(None);
-
-        assert_eq!(metas.len(), 6);
-        assert_eq!(metas[5].pubkey, actor);
-        assert_eq!(metas.iter().filter(|meta| meta.is_signer).count(), 1);
-    }
 
     #[test]
     fn daily_consumer_is_permissionless_and_has_no_action_escrow() {
@@ -2480,6 +2480,7 @@ mod tests {
             challenge: Pubkey::new_unique(),
             player: Pubkey::new_unique(),
             attempts: 1,
+            paid_attempts: 0,
             finalized_attempts: 0,
             best_run_id: 0,
             best_daily_score: 0,
@@ -2490,7 +2491,7 @@ mod tests {
             daily_xp_awarded: false,
             pressure_mastery_xp_awarded: false,
             weekly_rolled_up: false,
-            star_refunded: false,
+            cube_refunded: false,
             bump: 1,
         }
     }
@@ -2599,7 +2600,7 @@ mod tests {
             false,
             true,
         ));
-        assert!(!weekly_player_close_allowed(
+        assert!(weekly_player_close_allowed(
             WeeklyStatus::Claimable,
             Some(0),
             3,
