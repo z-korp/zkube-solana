@@ -406,7 +406,11 @@ pub fn handler_funded_prepare_practice_run_v1(
 
 #[derive(Accounts)]
 pub struct FundedRollupArenaToWeekly<'info> {
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    /// CHECK: Fully constrained and mutated by the inner instruction. Keeping
+    /// this unchecked avoids an outer typed-account serializer overwriting the
+    /// inner CPI's weekly rollup counter update.
+    #[account(mut)]
+    pub arena_daily: UncheckedAccount<'info>,
     /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
     pub arena_player: UncheckedAccount<'info>,

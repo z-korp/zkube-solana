@@ -19,7 +19,6 @@ export type KeeperOperation =
   | "open_weekly_jackpot"
   | "open_arena_daily"
   | "consume_terminal_run"
-  | "refund_stuck_arena_entry"
   | "expire_stuck_arena_entry"
   | "finalize_arena_daily"
   | "rollup_arena_to_weekly"
@@ -34,6 +33,14 @@ export type KeeperOperation =
 export interface KeeperInstructionPlan {
   operation: KeeperOperation;
   instruction: TransactionInstruction;
+  context?: {
+    dayId?: number;
+    weekId?: number;
+    owner?: PublicKey;
+    runId?: bigint;
+    receiptRentRecipient?: PublicKey;
+    sessionSigner?: PublicKey;
+  };
 }
 
 export function currentDayId(nowUnix: number): number {
@@ -64,6 +71,21 @@ export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
 export const weeklyJackpotPda = (weekId: number) =>
   derivePda("weekly_jackpot", u32(weekId));
+export const playerStatePda = (owner: PublicKey) =>
+  derivePda("player", owner.toBytes());
+export const playerFundingPda = (owner: PublicKey) =>
+  derivePda("player_funding", owner.toBytes());
+export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
+  derivePda("arena_player", daily.toBytes(), owner.toBytes());
+export const weeklyPlayerPda = (weekly: PublicKey, owner: PublicKey) =>
+  derivePda("weekly_player", weekly.toBytes(), owner.toBytes());
+export const activeRunPda = (owner: PublicKey, runId: bigint) =>
+  derivePda("run", Buffer.from("active"), owner.toBytes(), u64(runId));
+export const runResolutionPda = (
+  daily: PublicKey,
+  owner: PublicKey,
+  runId: bigint,
+) => derivePda("run_resolution", daily.toBytes(), owner.toBytes(), u64(runId));
 
 export async function discoverOpeningPlans(args: {
   connection: Connection;
@@ -144,6 +166,10 @@ export function instructionData(name: string, args: Uint8Array = new Uint8Array(
   return Buffer.concat([discriminator, Buffer.from(args)]);
 }
 
+export function accountDiscriminator(name: string): Buffer {
+  return createHash("sha256").update(`account:${name}`).digest().subarray(0, 8);
+}
+
 function metas(
   rows: Array<[PublicKey, boolean, boolean]>,
 ): AccountMeta[] {
@@ -154,11 +180,20 @@ function metas(
   }));
 }
 
-function u32(value: number): Buffer {
+export function u32(value: number): Buffer {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
     throw new Error("cadence id is outside u32");
   }
   const bytes = Buffer.alloc(4);
   bytes.writeUInt32LE(value);
+  return bytes;
+}
+
+export function u64(value: bigint): Buffer {
+  if (value < 0n || value > 0xffff_ffff_ffff_ffffn) {
+    throw new Error("run id is outside u64");
+  }
+  const bytes = Buffer.alloc(8);
+  bytes.writeBigUInt64LE(value);
   return bytes;
 }

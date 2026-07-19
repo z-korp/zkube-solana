@@ -136,15 +136,19 @@ public profiles.
 
 ## Keeper safety model
 
-The rewritten keeper is deliberately staged. Its executable discovery currently
-covers only current Weekly and Daily opening, one instruction per transaction.
-It already enforces the v4 program/account boundary, simulation-derived spend
-checks, pass limits, and reserve floor. The remaining release work is to add
-bounded discovery and exact account layouts, in this order: terminal run
-recovery, unresolved-entry refund/expiry, Daily settlement, Daily-to-Weekly
-rollup, Weekly settlement, profile synchronization, accumulator cleanup, and
-expired session cleanup. None of those operations is admitted by the current
-policy allowlist yet.
+The v4 keeper reconciles terminal Campaign, Arena, and Practice runs; expires
+unresolved paid entries after the incident window; push-settles Daily pots;
+funds and records Daily-to-Weekly rollups; push-settles the weekly jackpot;
+opens current cadence accounts; synchronizes public finishes; recycles resolved
+run, ArenaPlayer, and WeeklyPlayer rent; and revokes at most two expired zKube
+SessionTokenV2 accounts per pass. Every scanned account is owner-, size-,
+version-, discriminator-, relationship-, and PDA-checked before planning.
+
+Incident declaration and the operator-funded refund are governance operations,
+not recurring keeper operations. An incident pauses ordinary expiry for that
+Daily; its exact affected entries must be separately enumerated and approved.
+The recurring signer can never declare an incident, refund an entry, withdraw
+team revenue, change terms, publish content, or invoke an arbitrary program.
 
 A write-enabled release is pinned to Devnet genesis, the exact deployed
 ProgramData hash, keeper signer, current/recent cadence PDAs, instruction
@@ -153,9 +157,19 @@ eight writes, at most two expired-session closures, 0.05 SOL simulated spend,
 and preserves a 0.1 SOL keeper balance. Governance, funding, withdrawals,
 incident declaration, deployment, and mainnet are outside the recurring grant.
 
+The release binding in `services/src/keeperRelease.ts` deterministically commits
+to the Devnet genesis, deployed ProgramData SHA-256, v4 and Session Keys program
+IDs, exact keeper, keeper image digest, active rules version, complete
+instruction allowlist and denylist, eight-write and
+two-session limits, 0.05 SOL spend ceiling, and 0.1 SOL reserve floor. After a
+deployment, build the service and run `NO_DNA=1 pnpm release:fingerprint --
+<deployed-programdata-sha256> <keeper-image-sha256:digest> <rules-version>` from
+`services/`; the resulting full fingerprint
+is the approval identifier. Placeholders never enable writes.
+
 v4 is not currently deployed. Keeper writes therefore remain fail-closed until
 a deployment and separately fingerprinted keeper release are explicitly
-approved.
+approved. Read-only planning is safe before that point; signing is not.
 
 ### Devnet release order
 
@@ -166,6 +180,15 @@ deploy the fully reconciliating keeper in read-only mode, and only then bundle
 protocol unpause with initial keeper write enablement. Opening paid Arena play
 before terminal recovery, refund/expiry, settlement, and rollup discovery are
 present in the keeper is prohibited.
+
+Before presenting an executable release bundle, all of these must be frozen:
+the final SBF and IDL hashes; program, ProgramData, deployer, governance,
+pricing-operator, team and keeper public keys; every bootstrap instruction and
+PDA; the 1 SOL operator reserve plus rent/fee maximums; keeper image digest; and
+the keeper release fingerprint above. Simulations must use those same accounts
+and stop on any drift. Deployment, bootstrap funding, content publication,
+unpause, and initial keeper write enablement remain distinct explicitly
+enumerated operations even when approved together as one bundle.
 
 ## Development and validation
 

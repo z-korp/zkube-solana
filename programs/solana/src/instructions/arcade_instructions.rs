@@ -993,7 +993,7 @@ pub fn handler_cleanup_resolved_run(_ctx: Context<CleanupResolvedRun>) -> Result
 
 #[derive(Accounts)]
 pub struct RollupArenaToWeekly<'info> {
-    #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
         constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,

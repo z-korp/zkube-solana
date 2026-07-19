@@ -8,7 +8,9 @@ describe("keeper read-only planning", () => {
     const log = vi.fn();
     const connection = {
       getBalance: vi.fn().mockResolvedValue(0),
-      getMultipleAccountsInfo: vi.fn().mockResolvedValue([null, null]),
+      getProgramAccounts: vi.fn().mockResolvedValue([]),
+      getMultipleAccountsInfo: vi.fn().mockImplementation(async (addresses: unknown[]) =>
+        addresses.length === 2 ? [null, null] : []),
     } as never;
     const result = await runKeeperPass({ connection, keeper: Keypair.generate(), writeEnabled: false, now: () => (20_651 * 86_400 + 10) * 1_000, log });
     expect(result).toMatchObject({ writes: 0, plannedWrites: 2, reserveLow: true, operationFailures: 0 });

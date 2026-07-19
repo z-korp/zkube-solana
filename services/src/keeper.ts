@@ -7,6 +7,8 @@ import {
 } from "@solana/web3.js";
 
 import { discoverOpeningPlans } from "./arcadeChain.js";
+import { discoverReconciliationPlans } from "./arcadeReconciliation.js";
+import { discoverExpiredSessionPlans } from "./sessionCleanup.js";
 import { assertKeeperPlanPolicy } from "./keeperPolicy.js";
 
 export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
@@ -74,17 +76,35 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     throw new Error(`keeper fee reserve ${balanceLamports} is below floor ${minimumBalanceLamports}`);
   }
 
-  const plans = await discoverOpeningPlans({
+  const [reconciliationPlans, openingPlans, expiredSessionPlans] = await Promise.all([
+    discoverReconciliationPlans({
+      connection: input.connection,
+      keeper: input.keeper.publicKey,
+      nowUnix,
+    }),
+    discoverOpeningPlans({
     connection: input.connection,
     keeper: input.keeper.publicKey,
     nowUnix,
     rulesVersion: input.rulesVersion ?? 1,
-  });
+    }),
+    discoverExpiredSessionPlans({
+      connection: input.connection,
+      keeper: input.keeper.publicKey,
+      nowUnix,
+    }),
+  ]);
+  // Money safety and late settlement come before cadence creation. Cleanup and
+  // profile synchronization trail both so they cannot starve a closing pot.
+  const plans = [...reconciliationPlans, ...openingPlans, ...expiredSessionPlans].sort(
+    (left, right) => operationPriority(left.operation) - operationPriority(right.operation),
+  );
   let writes = 0;
   let plannedWrites = 0;
   let failures = 0;
   let spentLamports = 0;
-  for (const plan of plans.slice(0, maxWrites)) {
+  const selectedPlans = selectBoundedPlans(plans, maxWrites);
+  for (const plan of selectedPlans) {
     assertKeeperPlanPolicy({ plan, keeper: input.keeper.publicKey, connection: input.connection, nowUnix, rulesVersion: input.rulesVersion ?? 1 });
     if (!writeEnabled) {
       plannedWrites += 1;
@@ -110,6 +130,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       if (fee.value === null) throw new Error("RPC omitted transaction fee");
       const predicted = predictedKeeperSpendLamports(before, simulatedPayer.lamports, fee.value);
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) throw new Error("keeper spend ceiling reached");
+      if (before - predicted < minimumBalanceLamports) throw new Error("keeper simulation crosses the reserve floor");
       const signature = await input.connection.sendRawTransaction(transaction.serialize(), { maxRetries: 5, skipPreflight: false });
       await input.connection.confirmTransaction({ ...latest, signature }, "confirmed");
       const after = await input.connection.getBalance(input.keeper.publicKey, "confirmed");
@@ -151,3 +172,34 @@ export function keeperSpendWithinLimit(spend: number, remaining: number): boolea
 export function expiredSessionCleanupAllowance(writes: number, maxWrites: number): number { return Math.min(MAX_EXPIRED_SESSION_REVOKES, Math.max(0, maxWrites - writes)); }
 export function boundedKeeperInteger(value: string | undefined, fallback: number, maximum: number): number { const parsed = value ? Number(value) : fallback; return Number.isSafeInteger(parsed) && parsed >= 1 ? Math.min(parsed, maximum) : fallback; }
 function safeError(error: unknown): string { return (error instanceof Error ? error.message : String(error)).slice(0, 240); }
+function operationPriority(operation: string): number {
+  const priority: Record<string, number> = {
+    consume_terminal_run: 0,
+    expire_stuck_arena_entry: 1,
+    finalize_arena_daily: 2,
+    rollup_arena_to_weekly: 3,
+    finalize_weekly_jackpot: 4,
+    open_weekly_jackpot: 5,
+    open_arena_daily: 6,
+    sync_daily_finish: 7,
+    sync_weekly_finish: 8,
+    cleanup_resolved_run: 9,
+    close_arena_player: 10,
+    close_weekly_player: 11,
+    revoke_expired_session: 12,
+  };
+  return priority[operation] ?? Number.MAX_SAFE_INTEGER;
+}
+function selectBoundedPlans<T extends { operation: string }>(plans: T[], maximum: number): T[] {
+  let sessionRevokes = 0;
+  const selected: T[] = [];
+  for (const plan of plans) {
+    if (selected.length >= maximum) break;
+    if (plan.operation === "revoke_expired_session") {
+      if (sessionRevokes >= MAX_EXPIRED_SESSION_REVOKES) continue;
+      sessionRevokes += 1;
+    }
+    selected.push(plan);
+  }
+  return selected;
+}

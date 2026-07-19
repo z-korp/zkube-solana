@@ -1003,7 +1003,6 @@ fn award_map_perfection(player: &mut PlayerState, map_id: u8) -> Result<bool> {
     emit!(MapPerfected {
         owner: player.owner,
         map_id,
-        cubes: 0,
         xp: PERFECT_MAP_XP,
     });
     Ok(true)
@@ -1024,7 +1023,6 @@ pub struct CampaignLevelRewarded {
 pub struct MapPerfected {
     pub owner: Pubkey,
     pub map_id: u8,
-    pub cubes: u64,
     pub xp: u32,
 }
 
