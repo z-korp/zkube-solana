@@ -22,10 +22,10 @@ const MAX_MAX_WRITES = 16;
 
 /** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
-  "2f345f3b1cfef82fdb32c7e8e913783cd33af555c9f8afcddc3fc1baf0d90e0d";
+  "UNDEPLOYED_V4";
 /** Operator-facing release binding derived from the full deployed fingerprint. */
 export const KEEPER_WRITE_RELEASE_FINGERPRINT =
-  KEEPER_EXPECTED_DEPLOYED_SBF_SHA256.slice(0, 16);
+  "UNRELEASED_V4";
 
 /**
  * Writes stay disabled unless Fly injects both the case-sensitive opt-in and
@@ -35,7 +35,8 @@ export const KEEPER_WRITE_RELEASE_FINGERPRINT =
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
 ): boolean {
-  return env.KEEPER_WRITE_ENABLED === "true"
+  return KEEPER_EXPECTED_DEPLOYED_SBF_SHA256.length === 64
+    && env.KEEPER_WRITE_ENABLED === "true"
     && env.KEEPER_APPROVED_RELEASE_FINGERPRINT === KEEPER_WRITE_RELEASE_FINGERPRINT;
 }
 
@@ -144,6 +145,7 @@ async function runConfiguredKeeperPass(
       DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
       DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
     ),
+    rulesVersion: boundedKeeperInteger(env.ZKUBE_RULES_VERSION, 1, 0xffff_ffff),
     log,
   });
 }

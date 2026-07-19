@@ -27,9 +27,7 @@ describe("keeper worker scheduling", () => {
     expect(keeperWriteEnabledFromEnv({
       KEEPER_WRITE_ENABLED: "true",
       KEEPER_APPROVED_RELEASE_FINGERPRINT: KEEPER_WRITE_RELEASE_FINGERPRINT,
-    })).toBe(
-      true,
-    );
+    })).toBe(false);
   });
 
   it("stays inert while disabled without loading either signer", async () => {

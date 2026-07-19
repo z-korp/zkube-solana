@@ -20,8 +20,10 @@ pub struct InitializeArcade<'info> {
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(
-        constraint = daily_rules_catalog.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner
+        constraint = daily_rules_catalog.version == RULES_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_rules_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch,
+        constraint = protocol.daily_rules_version == 0 || daily_rules_catalog.rules_version == protocol.daily_rules_version @ ErrorCode::InvalidVersion
     )]
     pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(init, payer = authority, space = 8 + ArcadeConfig::INIT_SPACE, seeds = [ARCADE_CONFIG_SEED], bump)]
@@ -74,14 +76,14 @@ pub fn handler_publish_arena_rules(
     args.serialize(&mut serialized)?;
     let catalog_hash = sha256v(&[b"zkube-arena-catalog-v1", &serialized]);
     let catalog = DailyRulesCatalog {
-        version: ECONOMY_ACCOUNT_VERSION,
+        version: RULES_ACCOUNT_VERSION,
         rules_version: args.rules_version,
         protocol: ctx.accounts.protocol.key(),
         content_version: args.content_version,
         catalog_hash,
-        weekly_id: args.rotation_id,
+        rotation_id: args.rotation_id,
         starts_day: args.starts_day,
-        weekly_seed: args.rotation_seed,
+        rotation_seed: args.rotation_seed,
         scoring_rule_count: args.scoring_rule_count,
         scoring_rules: args.scoring_rules,
         pressure: args.pressure,
@@ -89,6 +91,33 @@ pub fn handler_publish_arena_rules(
     };
     catalog.validate()?;
     ctx.accounts.daily_rules_catalog.set_inner(catalog);
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ActivateArenaRules<'info> {
+    #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.paused @ ErrorCode::ProtocolPaused)]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(mut, seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = daily_rules_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch)]
+    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
+    pub authority: Signer<'info>,
+}
+
+pub fn handler_activate_arena_rules(ctx: Context<ActivateArenaRules>) -> Result<()> {
+    ctx.accounts.daily_rules_catalog.validate()?;
+    require!(
+        ctx.accounts.daily_rules_catalog.rules_version > ctx.accounts.protocol.daily_rules_version,
+        ErrorCode::InvalidVersion
+    );
+    ctx.accounts.protocol.daily_rules_version = ctx.accounts.daily_rules_catalog.rules_version;
+    ctx.accounts.arcade_config.rules_catalog = ctx.accounts.daily_rules_catalog.key();
     Ok(())
 }
 
@@ -108,9 +137,16 @@ pub fn handler_initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
             protocol: ctx.accounts.protocol.key(),
             gross_operator_share: 0,
             stuck_run_refunds: 0,
+            outstanding_refund_liability_lamports: 0,
             withdrawn: 0,
             bump: ctx.bumps.operator_revenue_vault,
         });
+    transfer_from_owner(
+        &ctx.accounts.authority,
+        &ctx.accounts.operator_revenue_vault.to_account_info(),
+        &ctx.accounts.system_program,
+        OPERATOR_WITHDRAW_RESERVE_LAMPORTS,
+    )?;
     Ok(())
 }
 
@@ -159,6 +195,13 @@ pub fn handler_schedule_arcade_terms(
         args.weekly_jackpot_bps,
     )?;
     let config = &mut ctx.accounts.arcade_config;
+    // Promote already-active pending terms before replacing the schedule. This
+    // prevents a second governance update from reverting to launch defaults.
+    let effective = config.terms_for(today, this_week)?;
+    config.entry_lamports = effective.entry_lamports;
+    config.daily_pot_bps = effective.daily_pot_bps;
+    config.operator_bps = effective.operator_bps;
+    config.weekly_jackpot_bps = effective.weekly_jackpot_bps;
     config.pending_entry_lamports = args.entry_lamports;
     config.entry_activates_day = args.entry_activates_day;
     config.pending_daily_pot_bps = args.daily_pot_bps;
@@ -176,9 +219,6 @@ pub struct OpenWeeklyJackpot<'info> {
     #[account(init, payer = payer, space = 8 + WeeklyJackpot::INIT_SPACE,
         seeds = [WEEKLY_JACKPOT_SEED, week_id.to_le_bytes().as_ref()], bump)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
-    #[account(init, payer = payer, space = 8 + WeeklyBoard::INIT_SPACE,
-        seeds = [WEEKLY_BOARD_SEED, weekly_jackpot.key().as_ref()], bump)]
-    pub weekly_board: Box<Account<'info, WeeklyBoard>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub caller: Signer<'info>,
@@ -196,25 +236,18 @@ pub fn handler_open_weekly_jackpot(ctx: Context<OpenWeeklyJackpot>, week_id: u32
         now >= opens_at && now < closes_at,
         ErrorCode::ChallengeEnded
     );
-    let key = ctx.accounts.weekly_jackpot.key();
     ctx.accounts.weekly_jackpot.set_inner(WeeklyJackpot {
         version: ARCADE_ACCOUNT_VERSION,
         week_id,
         arcade_config: ctx.accounts.arcade_config.key(),
-        rent_recipient: ctx.accounts.payer.key(),
         status: WeeklyStatus::Open,
         opens_at,
         closes_at,
         finalized_at: 0,
         pot_lamports: 0,
         participants: 0,
-        bump: ctx.bumps.weekly_jackpot,
-    });
-    ctx.accounts.weekly_board.set_inner(WeeklyBoard {
-        version: ARCADE_ACCOUNT_VERSION,
-        jackpot: key,
         entries: Vec::new(),
-        bump: ctx.bumps.weekly_board,
+        bump: ctx.bumps.weekly_jackpot,
     });
     Ok(())
 }
@@ -234,9 +267,6 @@ pub struct OpenArenaDaily<'info> {
     #[account(init, payer = payer, space = 8 + ArenaDaily::INIT_SPACE,
         seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(init, payer = payer, space = 8 + ArenaBoard::INIT_SPACE,
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref()], bump)]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub caller: Signer<'info>,
@@ -270,15 +300,13 @@ pub fn handler_open_arena_daily(ctx: Context<OpenArenaDaily>, day_id: u32) -> Re
     ]);
     let week_id = week_id_for_day(day_id);
     let terms = ctx.accounts.arcade_config.terms_for(day_id, week_id)?;
-    let key = ctx.accounts.arena_daily.key();
     ctx.accounts.arena_daily.set_inner(ArenaDaily {
         version: ARCADE_ACCOUNT_VERSION,
         day_id,
         week_id,
         arcade_config: ctx.accounts.arcade_config.key(),
-        rent_recipient: ctx.accounts.payer.key(),
         rules_version: catalog.rules_version,
-        status: DailyStatus::Open,
+        status: ArenaDailyStatus::Open,
         content_version: catalog.content_version,
         catalog_hash: catalog.catalog_hash,
         rules_hash,
@@ -298,16 +326,14 @@ pub fn handler_open_arena_daily(ctx: Context<OpenArenaDaily>, day_id: u32) -> Re
         entries_paid: 0,
         runs_finalized: 0,
         entries_refunded: 0,
+        entries_expired: 0,
+        incident_declared: false,
+        incident_max_refunds: 0,
         unique_players: 0,
         weekly_eligible_players: 0,
         weekly_rollups: 0,
-        bump: ctx.bumps.arena_daily,
-    });
-    ctx.accounts.arena_board.set_inner(ArenaBoard {
-        version: ARCADE_ACCOUNT_VERSION,
-        challenge: key,
         entries: Vec::new(),
-        bump: ctx.bumps.arena_board,
+        bump: ctx.bumps.arena_daily,
     });
     Ok(())
 }
@@ -328,7 +354,7 @@ pub struct EnterArenaV1<'info> {
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(init_if_needed, payer = owner, space = 8 + ArenaPlayer::INIT_SPACE,
+    #[account(init_if_needed, payer = payer, space = 8 + ArenaPlayer::INIT_SPACE,
         seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
@@ -336,9 +362,11 @@ pub struct EnterArenaV1<'info> {
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
-    #[account(init, payer = owner, space = 8 + ActiveRun::INIT_SPACE,
+    #[account(init, payer = payer, space = 8 + ActiveRun::INIT_SPACE,
         seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()], bump)]
     pub active_run: Box<Account<'info, ActiveRun>>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     #[account(mut)]
     pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -349,10 +377,17 @@ pub fn handler_enter_arena_v1(
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
+    require_player_rent_payer(
+        ctx.accounts.owner.key(),
+        ctx.accounts.owner.key(),
+        ctx.accounts.payer.key(),
+    )?;
     let now = Clock::get()?.unix_timestamp;
     let daily = &mut ctx.accounts.arena_daily;
     require!(
-        daily.status == DailyStatus::Open && now >= daily.opens_at && now < daily.entries_close_at,
+        daily.status == ArenaDailyStatus::Open
+            && now >= daily.opens_at
+            && now < daily.entries_close_at,
         ErrorCode::ChallengeEnded
     );
     require!(
@@ -372,6 +407,7 @@ pub fn handler_enter_arena_v1(
             paid_entries: 0,
             finalized_entries: 0,
             refunded_entries: 0,
+            expired_entries: 0,
             active_paid_run_id: 0,
             best_run_id: 0,
             best_score: 0,
@@ -393,6 +429,20 @@ pub fn handler_enter_arena_v1(
     );
     require!(player.active_paid_run_id == 0, ErrorCode::ActiveRunExists);
     let (daily_share, operator_share, weekly_share) = daily.terms.split()?;
+    let new_liability = checked_add_u64(
+        ctx.accounts
+            .operator_revenue_vault
+            .outstanding_refund_liability_lamports,
+        daily.terms.entry_lamports,
+    )?;
+    let available_after_entry = checked_add_u64(
+        spendable_lamports(&ctx.accounts.operator_revenue_vault.to_account_info())?,
+        operator_share,
+    )?;
+    require!(
+        available_after_entry >= new_liability,
+        ErrorCode::InsufficientFunds
+    );
     transfer_from_owner(
         &ctx.accounts.owner,
         &daily.to_account_info(),
@@ -419,6 +469,9 @@ pub fn handler_enter_arena_v1(
         ctx.accounts.operator_revenue_vault.gross_operator_share,
         operator_share,
     )?;
+    ctx.accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports = new_liability;
     player.paid_entries = checked_add_u32(player.paid_entries, 1)?;
     player.active_paid_run_id = run_id;
     let daily_key = daily.key();
@@ -549,8 +602,8 @@ pub struct ConsumeArenaRun<'info> {
     #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()], bump = arena_player.bump,
         constraint = arena_player.player == active_run.owner @ ErrorCode::Unauthorized)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref()], bump = arena_board.bump)]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
     #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump)]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Canonical zero-data player funding PDA.
@@ -584,6 +637,14 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
     player.active_paid_run_id = 0;
     ctx.accounts.arena_daily.runs_finalized =
         checked_add_u64(ctx.accounts.arena_daily.runs_finalized, 1)?;
+    ctx.accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports = ctx
+        .accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports
+        .checked_sub(ctx.accounts.arena_daily.terms.entry_lamports)
+        .ok_or(ErrorCode::AccountingInvariant)?;
     let candidate = ArenaBoardEntry {
         player: active.owner,
         run_id: active.run_id,
@@ -591,7 +652,7 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         bonus_triggers: active.daily_bonus_triggers,
         engine_score: active.score,
         moves: active.moves,
-        attempts: player.finalized_entries,
+        attempts: player.paid_entries,
         submitted_at: active.finished_at,
         replay_hash: active.replay_hash,
     };
@@ -610,14 +671,14 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         player.best_replay_hash = candidate.replay_hash;
     }
     if eligible {
-        ctx.accounts.arena_board.record_best(ArenaBoardEntry {
+        ctx.accounts.arena_daily.record_best(ArenaBoardEntry {
             player: active.owner,
             run_id: player.best_run_id,
             score: player.best_score,
             bonus_triggers: player.best_bonus_triggers,
             engine_score: player.best_engine_score,
             moves: player.best_moves,
-            attempts: player.finalized_entries,
+            attempts: player.paid_entries,
             submitted_at: player.best_submitted_at,
             replay_hash: player.best_replay_hash,
         });
@@ -631,12 +692,6 @@ pub struct ConsumePracticeRun<'info> {
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(address = active_run.daily_challenge @ ErrorCode::InvalidOwner)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref()],
-        bump = arena_board.bump,
-        constraint = arena_board.challenge == arena_daily.key() @ ErrorCode::InvalidOwner
-    )]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
     #[account(
         seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()],
         bump = arena_player.bump,
@@ -663,11 +718,11 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
         ErrorCode::InvalidRunId
     );
     let mut metrics = run_metrics(active);
-    metrics.beat_yesterday_score = ctx
-        .accounts
-        .arena_player
-        .as_ref()
-        .is_some_and(|player| player.best_run_id > 0 && active.daily_score > player.best_score);
+    metrics.beat_yesterday_score =
+        ctx.accounts.arena_daily.status == ArenaDailyStatus::Finalized
+            && ctx.accounts.arena_player.as_ref().is_some_and(|player| {
+                player.best_run_id > 0 && active.daily_score > player.best_score
+            });
     let practice_entry = ArenaBoardEntry {
         player: active.owner,
         run_id: active.run_id,
@@ -679,8 +734,9 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
         submitted_at: active.finished_at,
         replay_hash: active.replay_hash,
     };
-    metrics.practice_top_25 = !ctx.accounts.arena_board.entries.is_empty()
-        && ctx.accounts.arena_board.hypothetical_rank(&practice_entry) <= 25;
+    metrics.practice_top_25 = ctx.accounts.arena_daily.status == ArenaDailyStatus::Finalized
+        && !ctx.accounts.arena_daily.entries.is_empty()
+        && ctx.accounts.arena_daily.hypothetical_rank(&practice_entry) <= 25;
     ctx.accounts
         .player_state
         .record_run_metrics(metrics, Clock::get()?.unix_timestamp)?;
@@ -699,18 +755,27 @@ pub struct RefundStuckArenaEntry<'info> {
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump)]
     pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: System wallet that signed and paid the entry.
-    #[account(mut, owner = system_program::ID @ ErrorCode::InvalidOwner)]
+    /// CHECK: Exact entry owner pinned by the player PDAs. Any account may receive
+    /// lamports directly, so a later owner reassignment cannot strand a refund.
+    #[account(mut)]
     pub owner: UncheckedAccount<'info>,
     /// CHECK: PDA identity only; it may still be delegated and is deliberately not closed here.
     pub active_run: UncheckedAccount<'info>,
+    #[account(init, payer = authority, space = 8 + RunResolutionReceipt::INIT_SPACE,
+        seeds = [RUN_RESOLUTION_SEED, arena_daily.key().as_ref(), owner.key().as_ref(), arena_player.active_paid_run_id.to_le_bytes().as_ref()], bump)]
+    pub resolution_receipt: Box<Account<'info, RunResolutionReceipt>>,
+    pub system_program: Program<'info, System>,
+    #[account(mut)]
     pub authority: Signer<'info>,
 }
 
 pub fn handler_refund_stuck_arena_entry(ctx: Context<RefundStuckArenaEntry>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     require!(
-        now >= ctx.accounts.arena_daily.recovery_deadline_at,
+        ctx.accounts.arena_daily.incident_declared
+            && now >= ctx.accounts.arena_daily.recovery_deadline_at
+            && ctx.accounts.arena_daily.entries_refunded
+                < ctx.accounts.arena_daily.incident_max_refunds,
         ErrorCode::ChallengeNotEnded
     );
     let run_id = ctx.accounts.arena_player.active_paid_run_id;
@@ -747,22 +812,159 @@ pub fn handler_refund_stuck_arena_entry(ctx: Context<RefundStuckArenaEntry>) -> 
         ctx.accounts.operator_revenue_vault.stuck_run_refunds,
         amount,
     )?;
+    ctx.accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports = ctx
+        .accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports
+        .checked_sub(amount)
+        .ok_or(ErrorCode::AccountingInvariant)?;
     ctx.accounts.arena_player.refunded_entries =
         checked_add_u32(ctx.accounts.arena_player.refunded_entries, 1)?;
     ctx.accounts.arena_player.active_paid_run_id = 0;
     ctx.accounts.arena_daily.entries_refunded =
         checked_add_u64(ctx.accounts.arena_daily.entries_refunded, 1)?;
     ctx.accounts.player_state.active_run_id = 0;
+    ctx.accounts
+        .resolution_receipt
+        .set_inner(RunResolutionReceipt {
+            version: ARCADE_ACCOUNT_VERSION,
+            daily: ctx.accounts.arena_daily.key(),
+            player: ctx.accounts.owner.key(),
+            run_id,
+            refunded: true,
+            rent_recipient: ctx.accounts.authority.key(),
+            bump: ctx.bumps.resolution_receipt,
+        });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct DeclareArenaIncident<'info> {
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump, has_one = authority @ ErrorCode::Unauthorized)]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    pub authority: Signer<'info>,
+}
+
+pub fn handler_declare_arena_incident(ctx: Context<DeclareArenaIncident>) -> Result<()> {
+    let daily = &mut ctx.accounts.arena_daily;
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        daily.status == ArenaDailyStatus::Open
+            && now >= daily.recovery_deadline_at
+            && now < daily.recovery_deadline_at + INCIDENT_DECLARATION_GRACE_SECONDS
+            && !daily.incident_declared,
+        ErrorCode::InvalidState
+    );
+    let resolved = daily
+        .runs_finalized
+        .checked_add(daily.entries_refunded)
+        .and_then(|value| value.checked_add(daily.entries_expired))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let unresolved = daily
+        .entries_paid
+        .checked_sub(resolved)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    require!(unresolved > 0, ErrorCode::InvalidState);
+    daily.incident_declared = true;
+    daily.incident_max_refunds = unresolved;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ExpireStuckArenaEntry<'info> {
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump)]
+    pub arena_player: Box<Account<'info, ArenaPlayer>>,
+    #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump)]
+    pub player_state: Box<Account<'info, PlayerState>>,
+    /// CHECK: Player identity pinned by both state accounts.
+    pub owner: UncheckedAccount<'info>,
+    #[account(init, payer = caller, space = 8 + RunResolutionReceipt::INIT_SPACE,
+        seeds = [RUN_RESOLUTION_SEED, arena_daily.key().as_ref(), owner.key().as_ref(), arena_player.active_paid_run_id.to_le_bytes().as_ref()], bump)]
+    pub resolution_receipt: Box<Account<'info, RunResolutionReceipt>>,
+    pub system_program: Program<'info, System>,
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_expire_stuck_arena_entry(ctx: Context<ExpireStuckArenaEntry>) -> Result<()> {
+    let daily = &mut ctx.accounts.arena_daily;
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        !daily.incident_declared
+            && now >= daily.recovery_deadline_at + INCIDENT_DECLARATION_GRACE_SECONDS,
+        ErrorCode::ChallengeNotEnded
+    );
+    let run_id = ctx.accounts.arena_player.active_paid_run_id;
+    require!(
+        run_id > 0 && ctx.accounts.player_state.active_run_id == run_id,
+        ErrorCode::InvalidRunId
+    );
+    let amount = daily.terms.entry_lamports;
+    ctx.accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports = ctx
+        .accounts
+        .operator_revenue_vault
+        .outstanding_refund_liability_lamports
+        .checked_sub(amount)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    ctx.accounts.arena_player.expired_entries =
+        checked_add_u32(ctx.accounts.arena_player.expired_entries, 1)?;
+    ctx.accounts.arena_player.active_paid_run_id = 0;
+    daily.entries_expired = checked_add_u64(daily.entries_expired, 1)?;
+    ctx.accounts.player_state.active_run_id = 0;
+    ctx.accounts
+        .resolution_receipt
+        .set_inner(RunResolutionReceipt {
+            version: ARCADE_ACCOUNT_VERSION,
+            daily: daily.key(),
+            player: ctx.accounts.owner.key(),
+            run_id,
+            refunded: false,
+            rent_recipient: ctx.accounts.caller.key(),
+            bump: ctx.bumps.resolution_receipt,
+        });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct CleanupResolvedRun<'info> {
+    #[account(mut, close = rent_recipient,
+        seeds = [ACTIVE_RUN_SEED, b"active", resolution_receipt.player.as_ref(), resolution_receipt.run_id.to_le_bytes().as_ref()], bump = active_run.bump,
+        constraint = active_run.owner == resolution_receipt.player @ ErrorCode::InvalidOwner,
+        constraint = active_run.run_id == resolution_receipt.run_id @ ErrorCode::InvalidRunId)]
+    pub active_run: Box<Account<'info, ActiveRun>>,
+    #[account(mut, close = receipt_rent_recipient,
+        seeds = [RUN_RESOLUTION_SEED, resolution_receipt.daily.as_ref(), resolution_receipt.player.as_ref(), resolution_receipt.run_id.to_le_bytes().as_ref()], bump = resolution_receipt.bump)]
+    pub resolution_receipt: Box<Account<'info, RunResolutionReceipt>>,
+    /// CHECK: Canonical funding PDA receives ActiveRun rent.
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, resolution_receipt.player.as_ref()], bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    /// CHECK: Exact receipt payer stored at resolution.
+    #[account(mut, address = resolution_receipt.rent_recipient)]
+    pub receipt_rent_recipient: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_cleanup_resolved_run(_ctx: Context<CleanupResolvedRun>) -> Result<()> {
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct RollupArenaToWeekly<'info> {
     #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
-        constraint = arena_daily.status == DailyStatus::Claimable @ ErrorCode::InvalidState)]
+        constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref()], bump = arena_board.bump)]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
     #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
@@ -770,8 +972,6 @@ pub struct RollupArenaToWeekly<'info> {
     #[account(init_if_needed, payer = payer, space = 8 + WeeklyPlayer::INIT_SPACE,
         seeds = [WEEKLY_PLAYER_SEED, weekly_jackpot.key().as_ref(), owner.key().as_ref()], bump)]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
-    #[account(mut, seeds = [WEEKLY_BOARD_SEED, weekly_jackpot.key().as_ref()], bump = weekly_board.bump)]
-    pub weekly_board: Box<Account<'info, WeeklyBoard>>,
     /// CHECK: Player identity pinned by ArenaPlayer.
     pub owner: UncheckedAccount<'info>,
     #[account(mut)]
@@ -781,6 +981,22 @@ pub struct RollupArenaToWeekly<'info> {
 }
 
 pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Result<()> {
+    let expected_funding = Pubkey::find_program_address(
+        &[PLAYER_FUNDING_SEED, ctx.accounts.owner.key().as_ref()],
+        &crate::ID,
+    )
+    .0;
+    require_keys_eq!(
+        ctx.accounts.payer.key(),
+        expected_funding,
+        ErrorCode::InvalidOwner
+    );
+    require_keys_eq!(
+        *ctx.accounts.payer.owner,
+        system_program::ID,
+        ErrorCode::InvalidOwner
+    );
+    require!(ctx.accounts.payer.data_is_empty(), ErrorCode::InvalidOwner);
     require!(
         !ctx.accounts.arena_player.weekly_rolled_up && ctx.accounts.arena_player.best_run_id > 0,
         ErrorCode::AlreadySubmitted
@@ -795,7 +1011,7 @@ pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Resu
             result_count: 0,
             score: 0,
             total_bonus_triggers: 0,
-            earliest_final_submission: 0,
+            final_submission_at: 0,
             bump: ctx.bumps.weekly_player,
         });
         ctx.accounts.weekly_jackpot.participants =
@@ -803,22 +1019,22 @@ pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Resu
     }
     let rank = ctx
         .accounts
-        .arena_board
+        .arena_daily
         .entries
         .iter()
         .position(|entry| entry.player == ctx.accounts.owner.key());
     player.record_daily(
         ctx.accounts.arena_daily.day_id,
         rank,
-        ctx.accounts.arena_daily.unique_players,
+        ctx.accounts.arena_daily.weekly_eligible_players,
         ctx.accounts.arena_player.best_bonus_triggers,
         ctx.accounts.arena_player.best_submitted_at,
     )?;
-    ctx.accounts.weekly_board.record(WeeklyBoardEntry {
+    ctx.accounts.weekly_jackpot.record(WeeklyBoardEntry {
         player: player.player,
         score: player.score,
         total_bonus_triggers: player.total_bonus_triggers,
-        earliest_final_submission: player.earliest_final_submission,
+        final_submission_at: player.final_submission_at,
     });
     ctx.accounts.arena_player.weekly_rolled_up = true;
     ctx.accounts.arena_daily.weekly_rollups =
@@ -830,8 +1046,6 @@ pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Resu
 pub struct FinalizeArenaDaily<'info> {
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref()], bump = arena_board.bump)]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     pub caller: Signer<'info>,
@@ -841,19 +1055,18 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
     let now = Clock::get()?.unix_timestamp;
     let daily = &mut ctx.accounts.arena_daily;
     require!(
-        daily.status == DailyStatus::Open && now >= daily.runs_close_at,
+        daily.status == ArenaDailyStatus::Open && now >= daily.runs_close_at,
         ErrorCode::ChallengeNotEnded
     );
     require!(
-        daily.runs_finalized.checked_add(daily.entries_refunded) == Some(daily.entries_paid),
+        daily
+            .runs_finalized
+            .checked_add(daily.entries_refunded)
+            .and_then(|resolved| resolved.checked_add(daily.entries_expired))
+            == Some(daily.entries_paid),
         ErrorCode::InvalidState
     );
-    let winners = ctx
-        .accounts
-        .arena_board
-        .entries
-        .len()
-        .min(DAILY_PRIZE_WEIGHTS.len());
+    let winners = daily.entries.len().min(DAILY_PRIZE_WEIGHTS.len());
     if winners == 0 {
         move_program_lamports(
             &daily.to_account_info(),
@@ -864,12 +1077,10 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
             checked_add_u64(ctx.accounts.weekly_jackpot.pot_lamports, daily.pot_lamports)?;
     } else {
         require!(
-            ctx.remaining_accounts.len() == winners * 2,
+            ctx.remaining_accounts.len() == winners,
             ErrorCode::InvalidState
         );
-        for (rank, (entry, amount)) in ctx
-            .accounts
-            .arena_board
+        for (rank, (entry, amount)) in daily
             .entries
             .iter()
             .take(winners)
@@ -880,15 +1091,13 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
             )?)
             .enumerate()
         {
-            let destination = &ctx.remaining_accounts[rank * 2];
-            let player_state = &ctx.remaining_accounts[rank * 2 + 1];
+            let destination = &ctx.remaining_accounts[rank];
             validate_wallet(destination, entry.player)?;
             move_program_lamports(&daily.to_account_info(), destination, amount)?;
-            update_best_finish(player_state, entry.player, rank + 1, false)?;
         }
     }
     daily.pot_lamports = 0;
-    daily.status = DailyStatus::Claimable;
+    daily.status = ArenaDailyStatus::Finalized;
     daily.finalized_at = now;
     Ok(())
 }
@@ -897,14 +1106,19 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
 pub struct FinalizeWeeklyJackpot<'info> {
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
-    #[account(seeds = [WEEKLY_BOARD_SEED, weekly_jackpot.key().as_ref()], bump = weekly_board.bump)]
-    pub weekly_board: Box<Account<'info, WeeklyBoard>>,
+    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, next_weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = next_weekly_jackpot.bump,
+        constraint = next_weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
+    pub next_weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     pub caller: Signer<'info>,
 }
 
 pub fn handler_finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let jackpot = &mut ctx.accounts.weekly_jackpot;
+    require!(
+        jackpot.week_id.checked_add(1) == Some(ctx.accounts.next_weekly_jackpot.week_id),
+        ErrorCode::InvalidState
+    );
     require!(
         jackpot.status == WeeklyStatus::Open && now >= jackpot.closes_at,
         ErrorCode::ChallengeNotEnded
@@ -913,19 +1127,23 @@ pub fn handler_finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> R
         jackpot.week_id,
         &ctx.remaining_accounts[..ctx.remaining_accounts.len().min(7)],
     )?;
-    let winners = ctx
-        .accounts
-        .weekly_board
-        .entries
-        .len()
-        .min(WEEKLY_PRIZE_WEIGHTS.len());
+    let winners = jackpot.entries.len().min(WEEKLY_PRIZE_WEIGHTS.len());
     require!(
-        winners > 0 && ctx.remaining_accounts.len() == 7 + winners * 2,
+        ctx.remaining_accounts.len() == 7 + winners,
         ErrorCode::InvalidState
     );
-    for (rank, (entry, amount)) in ctx
-        .accounts
-        .weekly_board
+    if winners == 0 {
+        move_program_lamports(
+            &jackpot.to_account_info(),
+            &ctx.accounts.next_weekly_jackpot.to_account_info(),
+            jackpot.pot_lamports,
+        )?;
+        ctx.accounts.next_weekly_jackpot.pot_lamports = checked_add_u64(
+            ctx.accounts.next_weekly_jackpot.pot_lamports,
+            jackpot.pot_lamports,
+        )?;
+    }
+    for (rank, (entry, amount)) in jackpot
         .entries
         .iter()
         .take(winners)
@@ -936,11 +1154,9 @@ pub fn handler_finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> R
         )?)
         .enumerate()
     {
-        let destination = &ctx.remaining_accounts[7 + rank * 2];
-        let player_state = &ctx.remaining_accounts[7 + rank * 2 + 1];
+        let destination = &ctx.remaining_accounts[7 + rank];
         validate_wallet(destination, entry.player)?;
         move_program_lamports(&jackpot.to_account_info(), destination, amount)?;
-        update_best_finish(player_state, entry.player, rank + 1, true)?;
     }
     jackpot.pot_lamports = 0;
     jackpot.status = WeeklyStatus::Finalized;
@@ -972,7 +1188,7 @@ fn validate_weekly_dailies(week_id: u32, accounts: &[AccountInfo<'_>]) -> Result
             ErrorCode::InvalidVersion
         );
         require!(
-            daily.status == DailyStatus::Claimable,
+            daily.status == ArenaDailyStatus::Finalized,
             ErrorCode::InvalidState
         );
         require!(
@@ -1015,6 +1231,102 @@ fn update_best_finish(
 }
 
 #[derive(Accounts)]
+pub struct SyncDailyFinish<'info> {
+    #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut, seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()], bump = player_state.bump)]
+    pub player_state: Box<Account<'info, PlayerState>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_sync_daily_finish(ctx: Context<SyncDailyFinish>) -> Result<()> {
+    let owner = ctx.accounts.player_state.owner;
+    let rank = ctx
+        .accounts
+        .arena_daily
+        .entries
+        .iter()
+        .position(|entry| entry.player == owner)
+        .ok_or(ErrorCode::NoPrize)?;
+    update_best_finish(
+        &ctx.accounts.player_state.to_account_info(),
+        owner,
+        rank + 1,
+        false,
+    )
+}
+
+#[derive(Accounts)]
+pub struct SyncWeeklyFinish<'info> {
+    #[account(seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.status == WeeklyStatus::Finalized @ ErrorCode::InvalidState)]
+    pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
+    #[account(mut, seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()], bump = player_state.bump)]
+    pub player_state: Box<Account<'info, PlayerState>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_sync_weekly_finish(ctx: Context<SyncWeeklyFinish>) -> Result<()> {
+    let owner = ctx.accounts.player_state.owner;
+    let rank = ctx
+        .accounts
+        .weekly_jackpot
+        .entries
+        .iter()
+        .position(|entry| entry.player == owner)
+        .ok_or(ErrorCode::NoPrize)?;
+    update_best_finish(
+        &ctx.accounts.player_state.to_account_info(),
+        owner,
+        rank + 1,
+        true,
+    )
+}
+
+#[derive(Accounts)]
+pub struct CloseArenaPlayer<'info> {
+    #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut, close = rent_recipient,
+        seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
+        constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
+        constraint = arena_player.best_run_id == 0 || arena_player.weekly_rolled_up @ ErrorCode::InvalidState)]
+    pub arena_player: Box<Account<'info, ArenaPlayer>>,
+    /// CHECK: Canonical player funding PDA receives recycled rent.
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, arena_player.player.as_ref()], bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_arena_player(_ctx: Context<CloseArenaPlayer>) -> Result<()> {
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct CloseWeeklyPlayer<'info> {
+    #[account(seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.status == WeeklyStatus::Finalized @ ErrorCode::InvalidState)]
+    pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
+    #[account(mut, close = rent_recipient,
+        seeds = [WEEKLY_PLAYER_SEED, weekly_jackpot.key().as_ref(), weekly_player.player.as_ref()], bump = weekly_player.bump)]
+    pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
+    /// CHECK: Canonical player funding PDA receives recycled rent.
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, weekly_player.player.as_ref()], bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    pub rent_recipient: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_weekly_player(_ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
+    Ok(())
+}
+
+#[derive(Accounts)]
 pub struct WithdrawOperatorRevenue<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump, has_one = authority @ ErrorCode::Unauthorized)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -1033,13 +1345,16 @@ pub fn handler_withdraw_operator_revenue(
     lamports: u64,
 ) -> Result<()> {
     let spendable = spendable_lamports(&ctx.accounts.operator_revenue_vault.to_account_info())?;
+    let protected = checked_add_u64(
+        ctx.accounts
+            .arcade_config
+            .operator_withdraw_reserve_lamports,
+        ctx.accounts
+            .operator_revenue_vault
+            .outstanding_refund_liability_lamports,
+    )?;
     require!(
-        lamports > 0
-            && spendable.saturating_sub(lamports)
-                >= ctx
-                    .accounts
-                    .arcade_config
-                    .operator_withdraw_reserve_lamports,
+        lamports > 0 && spendable.saturating_sub(lamports) >= protected,
         ErrorCode::InsufficientFunds
     );
     move_program_lamports(
@@ -1125,10 +1440,7 @@ fn spendable_lamports(account: &AccountInfo<'_>) -> Result<u64> {
 
 fn validate_wallet(account: &AccountInfo<'_>, expected: Pubkey) -> Result<()> {
     require_keys_eq!(account.key(), expected, ErrorCode::InvalidOwner);
-    require!(
-        account.is_writable && account.data_is_empty() && *account.owner == system_program::ID,
-        ErrorCode::InvalidOwner
-    );
+    require!(account.is_writable, ErrorCode::InvalidOwner);
     Ok(())
 }
 

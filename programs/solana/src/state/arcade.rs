@@ -3,19 +3,18 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::economy::{daily_points_for_rank, DailyPressureProfile, DailyScoringRule};
-use crate::state::protocol::{DailyStatus, LevelRuleSnapshot};
+use crate::state::arena_rules::{daily_points_for_rank, DailyPressureProfile, DailyScoringRule};
+use crate::state::protocol::LevelRuleSnapshot;
 
-pub const ARCADE_ACCOUNT_VERSION: u8 = 3;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 1;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
 pub const OPERATOR_REVENUE_VAULT_SEED: &[u8] = b"operator_revenue";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
 pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
-pub const ARENA_BOARD_SEED: &[u8] = b"arena_board";
 pub const WEEKLY_JACKPOT_SEED: &[u8] = b"weekly_jackpot";
 pub const WEEKLY_PLAYER_SEED: &[u8] = b"weekly_player";
-pub const WEEKLY_BOARD_SEED: &[u8] = b"weekly_board";
 pub const BOUNTY_RESERVATION_SEED: &[u8] = b"bounty";
+pub const RUN_RESOLUTION_SEED: &[u8] = b"run_resolution";
 
 pub const ARENA_ENTRY_LAMPORTS: u64 = 20_000_000;
 pub const DAILY_POT_BPS: u16 = 7_500;
@@ -30,6 +29,7 @@ pub const WEEKLY_RESULT_CAPACITY: usize = 7;
 pub const ARENA_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60;
 pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 30 * 60;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = 6 * 60 * 60;
+pub const INCIDENT_DECLARATION_GRACE_SECONDS: i64 = 6 * 60 * 60;
 pub const ARCADE_SECONDS_PER_DAY: i64 = 86_400;
 
 #[account]
@@ -141,6 +141,8 @@ pub struct OperatorRevenueVault {
     pub protocol: Pubkey,
     pub gross_operator_share: u64,
     pub stuck_run_refunds: u64,
+    /// Full entry-price exposure for paid runs that have not yet resolved.
+    pub outstanding_refund_liability_lamports: u64,
     pub withdrawn: u64,
     pub bump: u8,
 }
@@ -152,9 +154,8 @@ pub struct ArenaDaily {
     pub day_id: u32,
     pub week_id: u32,
     pub arcade_config: Pubkey,
-    pub rent_recipient: Pubkey,
     pub rules_version: u32,
-    pub status: DailyStatus,
+    pub status: ArenaDailyStatus,
     pub content_version: u32,
     pub catalog_hash: [u8; 32],
     pub rules_hash: [u8; 32],
@@ -172,10 +173,42 @@ pub struct ArenaDaily {
     pub entries_paid: u64,
     pub runs_finalized: u64,
     pub entries_refunded: u64,
+    pub entries_expired: u64,
+    pub incident_declared: bool,
+    pub incident_max_refunds: u64,
     pub unique_players: u32,
     pub weekly_eligible_players: u32,
     pub weekly_rollups: u32,
+    #[max_len(ARENA_BOARD_CAPACITY)]
+    pub entries: Vec<ArenaBoardEntry>,
     pub bump: u8,
+}
+
+impl ArenaDaily {
+    pub fn record_best(&mut self, entry: ArenaBoardEntry) {
+        self.entries
+            .retain(|current| current.player != entry.player);
+        self.entries.push(entry);
+        self.entries.sort_by(compare_arena_entries);
+        self.entries.truncate(ARENA_BOARD_CAPACITY);
+    }
+
+    pub fn hypothetical_rank(&self, entry: &ArenaBoardEntry) -> usize {
+        1 + self
+            .entries
+            .iter()
+            .filter(|current| compare_arena_entries(current, entry).is_lt())
+            .count()
+    }
+}
+
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub enum ArenaDailyStatus {
+    #[default]
+    Open,
+    Finalized,
 }
 
 #[account]
@@ -187,6 +220,7 @@ pub struct ArenaPlayer {
     pub paid_entries: u32,
     pub finalized_entries: u32,
     pub refunded_entries: u32,
+    pub expired_entries: u32,
     pub active_paid_run_id: u64,
     pub best_run_id: u64,
     pub best_score: u32,
@@ -201,11 +235,13 @@ pub struct ArenaPlayer {
 
 #[account]
 #[derive(InitSpace)]
-pub struct ArenaBoard {
+pub struct RunResolutionReceipt {
     pub version: u8,
-    pub challenge: Pubkey,
-    #[max_len(ARENA_BOARD_CAPACITY)]
-    pub entries: Vec<ArenaBoardEntry>,
+    pub daily: Pubkey,
+    pub player: Pubkey,
+    pub run_id: u64,
+    pub refunded: bool,
+    pub rent_recipient: Pubkey,
     pub bump: u8,
 }
 
@@ -224,28 +260,6 @@ pub struct ArenaBoardEntry {
     pub replay_hash: [u8; 32],
 }
 
-impl ArenaBoard {
-    pub fn record_best(&mut self, entry: ArenaBoardEntry) {
-        self.entries
-            .retain(|current| current.player != entry.player);
-        self.entries.push(entry);
-        // Stable driftsort avoids the large stack scratch buffer that
-        // `sort_unstable_by` would instantiate for replay-hash-sized rows in SBF.
-        self.entries.sort_by(compare_arena_entries);
-        self.entries.truncate(ARENA_BOARD_CAPACITY);
-    }
-
-    /// One-based rank under the exact canonical Daily comparator, without
-    /// mutating yesterday's settled board.
-    pub fn hypothetical_rank(&self, entry: &ArenaBoardEntry) -> usize {
-        1 + self
-            .entries
-            .iter()
-            .filter(|current| compare_arena_entries(current, entry).is_lt())
-            .count()
-    }
-}
-
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
@@ -261,14 +275,25 @@ pub struct WeeklyJackpot {
     pub version: u8,
     pub week_id: u32,
     pub arcade_config: Pubkey,
-    pub rent_recipient: Pubkey,
     pub status: WeeklyStatus,
     pub opens_at: i64,
     pub closes_at: i64,
     pub finalized_at: i64,
     pub pot_lamports: u64,
     pub participants: u32,
+    #[max_len(WEEKLY_BOARD_CAPACITY)]
+    pub entries: Vec<WeeklyBoardEntry>,
     pub bump: u8,
+}
+
+impl WeeklyJackpot {
+    pub fn record(&mut self, entry: WeeklyBoardEntry) {
+        self.entries
+            .retain(|current| current.player != entry.player);
+        self.entries.push(entry);
+        self.entries.sort_by(compare_weekly_entries);
+        self.entries.truncate(WEEKLY_BOARD_CAPACITY);
+    }
 }
 
 #[derive(
@@ -289,7 +314,7 @@ pub struct WeeklyPlayer {
     pub result_count: u8,
     pub score: u16,
     pub total_bonus_triggers: u32,
-    pub earliest_final_submission: i64,
+    pub final_submission_at: i64,
     pub bump: u8,
 }
 
@@ -326,21 +351,9 @@ impl WeeklyPlayer {
             .total_bonus_triggers
             .checked_add(u32::from(bonus_triggers))
             .ok_or(ErrorCode::ArithmeticOverflow)?;
-        if self.earliest_final_submission == 0 {
-            self.earliest_final_submission = submitted_at;
-        }
+        self.final_submission_at = self.final_submission_at.max(submitted_at);
         Ok(())
     }
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct WeeklyBoard {
-    pub version: u8,
-    pub jackpot: Pubkey,
-    #[max_len(WEEKLY_BOARD_CAPACITY)]
-    pub entries: Vec<WeeklyBoardEntry>,
-    pub bump: u8,
 }
 
 #[derive(
@@ -350,17 +363,7 @@ pub struct WeeklyBoardEntry {
     pub player: Pubkey,
     pub score: u16,
     pub total_bonus_triggers: u32,
-    pub earliest_final_submission: i64,
-}
-
-impl WeeklyBoard {
-    pub fn record(&mut self, entry: WeeklyBoardEntry) {
-        self.entries
-            .retain(|current| current.player != entry.player);
-        self.entries.push(entry);
-        self.entries.sort_by(compare_weekly_entries);
-        self.entries.truncate(WEEKLY_BOARD_CAPACITY);
-    }
+    pub final_submission_at: i64,
 }
 
 pub fn week_id_for_day(day_id: u32) -> u32 {
@@ -455,10 +458,7 @@ fn compare_weekly_entries(
         .score
         .cmp(&left.score)
         .then_with(|| right.total_bonus_triggers.cmp(&left.total_bonus_triggers))
-        .then_with(|| {
-            left.earliest_final_submission
-                .cmp(&right.earliest_final_submission)
-        })
+        .then_with(|| left.final_submission_at.cmp(&right.final_submission_at))
         .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
 }
 
@@ -499,14 +499,9 @@ mod tests {
 
     #[test]
     fn hypothetical_rank_uses_the_canonical_tie_breakers() {
-        let mut board = ArenaBoard {
-            version: ARCADE_ACCOUNT_VERSION,
-            challenge: Pubkey::new_unique(),
-            entries: Vec::new(),
-            bump: 1,
-        };
+        let mut entries = Vec::new();
         let player = Pubkey::new_unique();
-        board.record_best(ArenaBoardEntry {
+        entries.push(ArenaBoardEntry {
             player,
             score: 100,
             bonus_triggers: 2,
@@ -533,13 +528,53 @@ mod tests {
             submitted_at: 1,
             ..ArenaBoardEntry::default()
         };
-        assert_eq!(board.hypothetical_rank(&better), 1);
-        assert_eq!(board.hypothetical_rank(&worse), 2);
+        entries.sort_by(compare_arena_entries);
+        let rank = |entry: &ArenaBoardEntry| {
+            1 + entries
+                .iter()
+                .filter(|current| compare_arena_entries(current, entry).is_lt())
+                .count()
+        };
+        assert_eq!(rank(&better), 1);
+        assert_eq!(rank(&worse), 2);
     }
 
     #[test]
     fn monday_week_is_seven_days() {
         let (open, close) = week_window(2_950).unwrap();
         assert_eq!(close - open, 7 * ARCADE_SECONDS_PER_DAY);
+    }
+
+    #[test]
+    fn weekly_tie_timestamp_tracks_completion_of_the_final_score() {
+        let mut player = WeeklyPlayer {
+            version: ARCADE_ACCOUNT_VERSION,
+            jackpot: Pubkey::new_unique(),
+            player: Pubkey::new_unique(),
+            results: [WeeklyResult::default(); WEEKLY_RESULT_CAPACITY],
+            result_count: 0,
+            score: 0,
+            total_bonus_triggers: 0,
+            final_submission_at: 0,
+            bump: 1,
+        };
+        player.record_daily(1, Some(0), 10, 2, 100).unwrap();
+        player.record_daily(2, Some(1), 10, 3, 250).unwrap();
+        assert_eq!(player.final_submission_at, 250);
+    }
+
+    #[test]
+    fn arcade_accounts_fit_the_normal_account_limit() {
+        for size in [
+            ArcadeConfig::INIT_SPACE,
+            OperatorRevenueVault::INIT_SPACE,
+            ArenaDaily::INIT_SPACE,
+            ArenaPlayer::INIT_SPACE,
+            RunResolutionReceipt::INIT_SPACE,
+            WeeklyJackpot::INIT_SPACE,
+            WeeklyPlayer::INIT_SPACE,
+        ] {
+            assert!(8 + size < 10_240, "account allocation is too large: {size}");
+        }
     }
 }

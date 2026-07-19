@@ -5,21 +5,20 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::economy::{DailyPressureProfile, DailyScoringRule};
+use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
 pub const MAP_CATALOG_SEED: &[u8] = b"map";
 pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 pub const PLAYER_FUNDING_SEED: &[u8] = b"player_funding";
-pub const REWARD_VAULT_SEED: &[u8] = b"reward_vault";
 
-pub const ACCOUNT_VERSION: u8 = 3;
+pub const ACCOUNT_VERSION: u8 = 1;
 pub const MAX_MAPS: usize = 32;
 pub const LEVELS_PER_MAP: usize = 10;
-pub const MAX_QUEST_COUNTERS: usize = 21;
+pub const MAX_QUEST_COUNTERS: usize = 20;
 pub const MAX_ACHIEVEMENTS: usize = 24;
-pub const MAX_QUESTS: usize = 21;
+pub const MAX_QUESTS: usize = 20;
 pub const DAILY_ACTIVE_QUESTS: usize = 3;
 pub const DAILY_FINISHER_INDEX: usize = 8;
 /// Run identifiers are per-player and begin at one on every fresh deployment.
@@ -36,23 +35,12 @@ pub struct ProtocolConfig {
     pub pending_authority: Pubkey,
     pub pricing_operator: Pubkey,
     pub team_destination: Pubkey,
-    pub treasury_destination: Pubkey,
-    pub reward_vault: Pubkey,
     pub content_version: u32,
     pub daily_rules_version: u32,
     pub player_funding_target_lamports: u64,
     /// Number of contiguous, authority-activated Campaign maps.
     pub campaign_map_count: u8,
     pub paused: bool,
-    pub bump: u8,
-}
-
-/// Program-owned native-SOL reserve used only for pre-funded Weekly prizes.
-#[account]
-#[derive(InitSpace)]
-pub struct RewardVault {
-    pub version: u8,
-    pub protocol: Pubkey,
     pub bump: u8,
 }
 
@@ -212,7 +200,7 @@ impl PlayerState {
         self.lifetime_max_combo = self.lifetime_max_combo.max(metrics.max_combo);
         if metrics.arena_or_practice {
             self.quest_counters[0] = checked_add_u32(self.quest_counters[0], 1)?;
-            self.quest_counters[14] = checked_add_u32(self.quest_counters[14], 1)?;
+            self.quest_counters[13] = checked_add_u32(self.quest_counters[13], 1)?;
         }
         self.quest_counters[1] =
             checked_add_u32(self.quest_counters[1], u32::from(metrics.lines_cleared))?;
@@ -230,34 +218,34 @@ impl PlayerState {
         )?;
         self.quest_counters[10] =
             checked_add_u32(self.quest_counters[10], u32::from(metrics.lines_cleared))?;
-        self.quest_counters[13] =
-            checked_add_u32(self.quest_counters[13], u32::from(metrics.bonus_uses))?;
-        self.quest_counters[16] =
-            checked_add_u32(self.quest_counters[16], u32::from(metrics.combo3_hits))?;
-        self.quest_counters[17] = self.quest_counters[17].max(u32::from(metrics.pressure_tier));
+        self.quest_counters[12] =
+            checked_add_u32(self.quest_counters[12], u32::from(metrics.bonus_uses))?;
+        self.quest_counters[15] =
+            checked_add_u32(self.quest_counters[15], u32::from(metrics.combo3_hits))?;
+        self.quest_counters[16] = self.quest_counters[16].max(u32::from(metrics.pressure_tier));
+        self.quest_counters[18] =
+            checked_add_u32(self.quest_counters[18], u32::from(metrics.practice_top_25))?;
         self.quest_counters[19] =
-            checked_add_u32(self.quest_counters[19], u32::from(metrics.practice_top_25))?;
-        self.quest_counters[20] =
-            checked_add_u32(self.quest_counters[20], u32::from(metrics.perfect_clears))?;
+            checked_add_u32(self.quest_counters[19], u32::from(metrics.perfect_clears))?;
         // Quest 16 is satisfied by either one four-line clear or five
         // three-line clears. The high bit records the former while the low
         // bits retain the latter's count.
         if metrics.combo4_hits > 0 {
-            self.quest_counters[16] |= 1 << 31;
+            self.quest_counters[15] |= 1 << 31;
         }
         if metrics.campaign_level_completed {
             self.quest_counters[4] = checked_add_u32(self.quest_counters[4], 1)?;
         }
         if metrics.rating_improved {
             self.quest_counters[5] = checked_add_u32(self.quest_counters[5], 1)?;
-            self.quest_counters[12] = checked_add_u32(self.quest_counters[12], 1)?;
+            self.quest_counters[11] = checked_add_u32(self.quest_counters[11], 1)?;
         }
         if metrics.new_perfect_level {
             self.lifetime_perfect_levels = checked_add_u64(self.lifetime_perfect_levels, 1)?;
         }
         if metrics.boss_cleared {
             self.lifetime_bosses_cleared = checked_add_u64(self.lifetime_bosses_cleared, 1)?;
-            self.quest_counters[18] = checked_add_u32(self.quest_counters[18], 1)?;
+            self.quest_counters[17] = checked_add_u32(self.quest_counters[17], 1)?;
         }
         if metrics.arena_or_practice {
             let weekday = cadence_day(now).saturating_add(3) % 7;
@@ -575,20 +563,6 @@ pub enum RunLifecycle {
     Finished,
 }
 
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub enum DailyStatus {
-    #[default]
-    Draft,
-    Open,
-    EntriesClosed,
-    Finalizing,
-    Claimable,
-    Cancelled,
-    Closed,
-}
-
 fn map_bit(map_id: u8) -> Option<u32> {
     (1..=MAX_MAPS as u8)
         .contains(&map_id)
@@ -672,7 +646,7 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 367);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 363);
         assert_eq!(8 + ActiveRun::INIT_SPACE, 483);
     }
 
@@ -795,22 +769,22 @@ mod tests {
         assert_eq!(player.quest_counters[5], 1);
         assert_eq!(player.quest_counters[9], 1);
         assert_eq!(player.quest_counters[10], 20);
-        assert_eq!(player.quest_counters[12], 1);
-        assert_eq!(player.quest_counters[13], 3);
-        assert_eq!(player.quest_counters[14], 1);
-        assert!(player.quest_counters[16] & (1 << 31) != 0);
-        assert_eq!(player.quest_counters[17], 6);
+        assert_eq!(player.quest_counters[11], 1);
+        assert_eq!(player.quest_counters[12], 3);
+        assert_eq!(player.quest_counters[13], 1);
+        assert!(player.quest_counters[15] & (1 << 31) != 0);
+        assert_eq!(player.quest_counters[16], 6);
+        assert_eq!(player.quest_counters[17], 1);
         assert_eq!(player.quest_counters[18], 1);
-        assert_eq!(player.quest_counters[19], 1);
-        assert_eq!(player.quest_counters[20], 2);
+        assert_eq!(player.quest_counters[19], 2);
 
         player.roll_quest_cadences(day_one + 86_400);
         assert_eq!(player.quest_counters[0], 0);
         assert_eq!(player.quest_counters[7], 0);
-        assert_eq!(player.quest_counters[12], 1);
-        assert_eq!(player.quest_counters[13], 3);
+        assert_eq!(player.quest_counters[11], 1);
+        assert_eq!(player.quest_counters[12], 3);
         assert_eq!(player.quest_counters[10], 20);
-        assert_eq!(player.quest_counters[14], 1);
+        assert_eq!(player.quest_counters[13], 1);
     }
 
     #[test]

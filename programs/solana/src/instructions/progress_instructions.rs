@@ -49,10 +49,10 @@ const fn achievement(metric: u8, threshold: u64, xp: u32) -> AchievementDefiniti
 
 const QUEST_THRESHOLDS: [u32; MAX_QUESTS] = [
     1, 40, 3, 1, 1, 1, 1, 1, 3, // Daily pool + finisher.
-    5, 300, 0, 3, 25, 15, 3, 1, 6, 2, 2, 2,
+    5, 300, 3, 25, 15, 3, 1, 6, 2, 2, 2,
 ];
 const WEEKLY_ATTENDANCE_INDEX: u8 = 9;
-const WEEKLY_OPTIONAL_POOL: [u8; 10] = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const WEEKLY_OPTIONAL_POOL: [u8; 10] = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
 const DAILY_QUEST_POOL_SIZE: usize = 8;
 const DAILY_QUEST_SELECTION_SIZE: usize = DAILY_ACTIVE_QUESTS;
 const DAILY_QUEST_MIX_SEED: u32 = 0x9e37_79b9;
@@ -70,7 +70,7 @@ fn quest_definition(index: usize) -> Result<QuestDefinition> {
     let (cadence, xp_reward) = match index {
         0..=7 => (0, 100),
         DAILY_FINISHER_INDEX => (0, 350),
-        9 | 10 | 12..=20 => (1, 500),
+        9..=19 => (1, 500),
         _ => return err!(ErrorCode::InvalidProgressRule),
     };
     Ok(QuestDefinition {
@@ -135,7 +135,7 @@ pub(crate) fn weekly_quest_indices(
     let mut result = [WEEKLY_ATTENDANCE_INDEX, 0, 0];
     let mut count = 1usize;
     for index in pool {
-        if index == 12 && all_campaign_perfect {
+        if index == 11 && all_campaign_perfect {
             continue;
         }
         result[count] = index;
@@ -277,8 +277,8 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
                 .filter(|quest| ctx.accounts.player_state.daily_claimed & (1u32 << **quest) != 0)
                 .count() as u8,
         )
-    } else if index == 16 {
-        let packed = ctx.accounts.player_state.quest_counters[16];
+    } else if index == 15 {
+        let packed = ctx.accounts.player_state.quest_counters[15];
         u32::from(packed & (1 << 31) != 0 || packed & !(1 << 31) >= 5)
     } else {
         ctx.accounts.player_state.quest_counters[usize::from(definition.metric)]
@@ -298,7 +298,7 @@ pub fn handler_claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<
     )?;
 
     if index == DAILY_FINISHER_INDEX {
-        ctx.accounts.player_state.quest_counters[15] = ctx.accounts.player_state.quest_counters[15]
+        ctx.accounts.player_state.quest_counters[14] = ctx.accounts.player_state.quest_counters[14]
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
@@ -459,7 +459,7 @@ mod tests {
             observed.extend(selected[1..].iter().copied());
             let perfect = weekly_quest_indices(week, owner, true);
             assert_eq!(perfect[0], WEEKLY_ATTENDANCE_INDEX);
-            assert!(!perfect.contains(&12));
+            assert!(!perfect.contains(&11));
         }
         assert_eq!(
             observed,
@@ -479,7 +479,7 @@ mod tests {
             quest_definition(DAILY_FINISHER_INDEX).unwrap().xp_reward,
             350
         );
-        for index in [9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20] {
+        for index in 9..20 {
             let quest = quest_definition(index).unwrap();
             assert_eq!(quest.cadence, 1);
             assert_eq!(quest.xp_reward, 500);

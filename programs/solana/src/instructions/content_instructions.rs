@@ -9,9 +9,9 @@ use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::economy::{
+use crate::state::arena_rules::{
     DailyPressureProfile, DailyRulesCatalog, DailyScoringRule, DAILY_RULES_CATALOG_SEED,
-    ECONOMY_ACCOUNT_VERSION,
+    RULES_ACCOUNT_VERSION,
 };
 use crate::state::protocol::*;
 
@@ -19,7 +19,6 @@ use crate::state::protocol::*;
 pub struct InitializeProtocolArgs {
     pub pricing_operator: Pubkey,
     pub team_destination: Pubkey,
-    pub treasury_destination: Pubkey,
     pub content_version: u32,
 }
 
@@ -34,20 +33,9 @@ pub struct InitializeProtocol<'info> {
         bump
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        init,
-        payer = authority,
-        space = 8 + RewardVault::INIT_SPACE,
-        seeds = [REWARD_VAULT_SEED],
-        bump
-    )]
-    pub reward_vault: Box<Account<'info, RewardVault>>,
-    /// CHECK: Immutable native-SOL revenue recipient validated against args.
+    /// CHECK: Native-SOL team recipient pinned in protocol state.
     #[account(address = args.team_destination)]
     pub team_destination: UncheckedAccount<'info>,
-    /// CHECK: Immutable native-SOL revenue recipient validated against args.
-    #[account(address = args.treasury_destination)]
-    pub treasury_destination: UncheckedAccount<'info>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -58,11 +46,7 @@ pub fn handler_initialize_protocol(
     args: InitializeProtocolArgs,
 ) -> Result<()> {
     require!(args.content_version > 0, ErrorCode::ContentVersionMismatch);
-    validate_revenue_destinations([
-        args.team_destination,
-        args.treasury_destination,
-        ctx.accounts.reward_vault.key(),
-    ])?;
+    validate_team_destination(args.team_destination)?;
     require_keys_neq!(
         args.pricing_operator,
         Pubkey::default(),
@@ -74,30 +58,17 @@ pub fn handler_initialize_protocol(
     protocol.pending_authority = Pubkey::default();
     protocol.pricing_operator = args.pricing_operator;
     protocol.team_destination = args.team_destination;
-    protocol.treasury_destination = args.treasury_destination;
-    protocol.reward_vault = ctx.accounts.reward_vault.key();
     protocol.content_version = args.content_version;
     protocol.daily_rules_version = 0;
     protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
     protocol.paused = false;
     protocol.bump = ctx.bumps.protocol;
-    ctx.accounts.reward_vault.set_inner(RewardVault {
-        version: ACCOUNT_VERSION,
-        protocol: protocol.key(),
-        bump: ctx.bumps.reward_vault,
-    });
     Ok(())
 }
 
-pub(crate) fn validate_revenue_destinations(vaults: [Pubkey; 3]) -> Result<()> {
-    for (index, vault) in vaults.iter().enumerate() {
-        require_keys_neq!(*vault, Pubkey::default(), ErrorCode::InvalidOwner);
-        require!(
-            vaults[..index].iter().all(|previous| previous != vault),
-            ErrorCode::InvalidOwner
-        );
-    }
+pub(crate) fn validate_team_destination(destination: Pubkey) -> Result<()> {
+    require_keys_neq!(destination, Pubkey::default(), ErrorCode::InvalidOwner);
     Ok(())
 }
 
@@ -390,7 +361,7 @@ pub struct ActivateContentRelease<'info> {
     #[account(
         seeds = [DAILY_RULES_CATALOG_SEED, daily_rules_version.to_le_bytes().as_ref()],
         bump = daily_rules_catalog.bump,
-        constraint = daily_rules_catalog.version == ECONOMY_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = daily_rules_catalog.version == RULES_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = daily_rules_catalog.rules_version == daily_rules_version @ ErrorCode::ContentVersionMismatch,
         constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
         constraint = daily_rules_catalog.content_version == content_version @ ErrorCode::ContentVersionMismatch
@@ -659,20 +630,9 @@ mod tests {
     }
 
     #[test]
-    fn protocol_vaults_must_be_nonzero_and_pairwise_distinct() {
-        let vaults: [Pubkey; 3] = std::array::from_fn(|_| Pubkey::new_unique());
-        assert!(validate_revenue_destinations(vaults).is_ok());
-
-        let duplicate = Pubkey::new_unique();
-        assert!(
-            validate_revenue_destinations([duplicate, Pubkey::new_unique(), duplicate,]).is_err()
-        );
-        assert!(validate_revenue_destinations([
-            Pubkey::default(),
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-        ])
-        .is_err());
+    fn team_destination_must_be_nonzero() {
+        assert!(validate_team_destination(Pubkey::new_unique()).is_ok());
+        assert!(validate_team_destination(Pubkey::default()).is_err());
     }
 
     #[test]

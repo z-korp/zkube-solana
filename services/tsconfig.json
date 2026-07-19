@@ -5,7 +5,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
-    "rootDir": "..",
+    "rootDir": "src",
     "baseUrl": ".",
     "paths": {
       "@anchor-lang/core": ["node_modules/@anchor-lang/core"],
@@ -22,6 +22,6 @@
     "noUnusedParameters": true,
     "sourceMap": true
   },
-  "include": ["src/keeperWorker.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "node_modules", "dist"]
 }

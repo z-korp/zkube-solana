@@ -7,7 +7,7 @@ kill_timeout = "240s"
   dockerfile = "Dockerfile"
 
 [processes]
-  worker = "node services/dist/services/src/keeperWorker.js"
+  worker = "node services/dist/keeperWorker.js"
 
 [env]
   NODE_ENV = "production"

@@ -1,10 +1,8 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::instructions::content_instructions::validate_revenue_destinations;
-use crate::state::protocol::{
-    ProtocolConfig, RewardVault, ACCOUNT_VERSION, PROTOCOL_CONFIG_SEED, REWARD_VAULT_SEED,
-};
+use crate::instructions::content_instructions::validate_team_destination;
+use crate::state::protocol::{ProtocolConfig, ACCOUNT_VERSION, PROTOCOL_CONFIG_SEED};
 
 #[derive(Accounts)]
 pub struct SetProtocolPause<'info> {
@@ -120,7 +118,7 @@ pub fn handler_set_pricing_operator(
 }
 
 #[derive(Accounts)]
-pub struct UpdateRevenueDestinations<'info> {
+pub struct UpdateTeamDestination<'info> {
     #[account(
         mut,
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -130,38 +128,19 @@ pub struct UpdateRevenueDestinations<'info> {
         constraint = protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    /// CHECK: Native-SOL destination; address is written into protocol state.
+    /// CHECK: Native-SOL destination validated before writing protocol state.
     pub team_destination: UncheckedAccount<'info>,
-    /// CHECK: Native-SOL destination; address is written into protocol state.
-    pub treasury_destination: UncheckedAccount<'info>,
-    #[account(
-        address = protocol.reward_vault,
-        seeds = [REWARD_VAULT_SEED],
-        bump = reward_vault.bump,
-        constraint = reward_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = reward_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub reward_vault: Box<Account<'info, RewardVault>>,
     pub authority: Signer<'info>,
 }
 
-pub fn handler_update_revenue_destinations(ctx: Context<UpdateRevenueDestinations>) -> Result<()> {
+pub fn handler_update_team_destination(ctx: Context<UpdateTeamDestination>) -> Result<()> {
     let team_destination = ctx.accounts.team_destination.key();
-    let treasury_destination = ctx.accounts.treasury_destination.key();
-    validate_revenue_destinations([
-        team_destination,
-        treasury_destination,
-        ctx.accounts.protocol.reward_vault,
-    ])?;
+    validate_team_destination(team_destination)?;
     let previous_team_destination = ctx.accounts.protocol.team_destination;
-    let previous_treasury_destination = ctx.accounts.protocol.treasury_destination;
     ctx.accounts.protocol.team_destination = team_destination;
-    ctx.accounts.protocol.treasury_destination = treasury_destination;
-    emit!(RevenueDestinationsChanged {
+    emit!(TeamDestinationChanged {
         previous_team_destination,
-        previous_treasury_destination,
         team_destination,
-        treasury_destination,
     });
     Ok(())
 }
@@ -191,9 +170,7 @@ pub struct PricingOperatorChanged {
 }
 
 #[event]
-pub struct RevenueDestinationsChanged {
+pub struct TeamDestinationChanged {
     pub previous_team_destination: Pubkey,
-    pub previous_treasury_destination: Pubkey,
     pub team_destination: Pubkey,
-    pub treasury_destination: Pubkey,
 }

@@ -10,7 +10,7 @@ use solana_account::Account;
 
 use solana as zkube;
 use zkube::game::{row_from_vrf, BlockWeights, Grid};
-use zkube::state::economy::*;
+use zkube::state::arena_rules::*;
 use zkube::state::player_label::*;
 use zkube::state::protocol::*;
 
@@ -216,8 +216,6 @@ fn process_play_move(
 fn protocol_fixture(
     authority: Pubkey,
     team_destination: Pubkey,
-    treasury_destination: Pubkey,
-    reward_vault: Pubkey,
     paused: bool,
 ) -> (Pubkey, ProtocolConfig) {
     let (address, bump) = Pubkey::find_program_address(&[PROTOCOL_CONFIG_SEED], &zkube::ID);
@@ -229,8 +227,6 @@ fn protocol_fixture(
             pending_authority: Pubkey::default(),
             pricing_operator: authority,
             team_destination,
-            treasury_destination,
-            reward_vault,
             content_version: 1,
             daily_rules_version: 1,
             player_funding_target_lamports: PLAYER_FUNDING_TARGET_LAMPORTS,
@@ -252,14 +248,7 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) = protocol_fixture(
-        authority,
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        reward_vault,
-        false,
-    );
+    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (player, player_state) = player_fixture(owner);
     let (player_label, _) =
         Pubkey::find_program_address(&[PLAYER_LABEL_SEED, owner.as_ref()], &zkube::ID);
@@ -390,14 +379,7 @@ fn sbf_player_label_update_preserves_player_progression_and_rejects_wrong_actor(
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
     let wrong_actor = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) = protocol_fixture(
-        authority,
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        reward_vault,
-        false,
-    );
+    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (player, mut player_state) = player_fixture(owner);
     player_state.credit_xp(150).unwrap();
     let (player_label, bump) =
@@ -490,293 +472,6 @@ fn sbf_player_label_update_preserves_player_progression_and_rejects_wrong_actor(
         .process_instruction(&wrong, &wrong_accounts)
         .program_result
         .is_err());
-}
-
-#[test]
-fn sbf_revenue_destinations_are_nonzero_distinct_and_authority_signed() {
-    let authority = Pubkey::new_unique();
-    let team = Pubkey::new_unique();
-    let treasury = Pubkey::new_unique();
-    let (reward_vault, reward_bump) =
-        Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) =
-        protocol_fixture(authority, team, treasury, reward_vault, true);
-    let reward_state = RewardVault {
-        version: ACCOUNT_VERSION,
-        protocol,
-        bump: reward_bump,
-    };
-    let next_team = Pubkey::new_unique();
-    let next_treasury = Pubkey::new_unique();
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::UpdateRevenueDestinations {
-            protocol,
-            team_destination: next_team,
-            treasury_destination: next_treasury,
-            reward_vault,
-            authority,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::UpdateRevenueDestinations {}.data(),
-    };
-    let accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (next_team, system_account(0)),
-        (next_treasury, system_account(0)),
-        (
-            reward_vault,
-            program_account(&reward_state, 8 + RewardVault::INIT_SPACE),
-        ),
-        (authority, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let result = mollusk().process_instruction(&instruction, &accounts);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let updated: ProtocolConfig = decode(resulting_account(&result, &protocol));
-    eprintln!(
-        "SBF_COMPUTE update_revenue={}",
-        result.compute_units_consumed
-    );
-    assert_eq!(updated.team_destination, next_team);
-    assert_eq!(updated.treasury_destination, next_treasury);
-
-    let duplicate = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::UpdateRevenueDestinations {
-            protocol,
-            team_destination: reward_vault,
-            treasury_destination: next_treasury,
-            reward_vault,
-            authority,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::UpdateRevenueDestinations {}.data(),
-    };
-    let duplicate_result = mollusk().process_instruction(&duplicate, &accounts);
-    assert!(duplicate_result.program_result.is_err());
-
-    let wrong_authority = Pubkey::new_unique();
-    let unauthorized = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::UpdateRevenueDestinations {
-            protocol,
-            team_destination: next_team,
-            treasury_destination: next_treasury,
-            reward_vault,
-            authority: wrong_authority,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::UpdateRevenueDestinations {}.data(),
-    };
-    let mut unauthorized_accounts = accounts;
-    unauthorized_accounts.push((wrong_authority, system_account(ACCOUNT_LAMPORTS)));
-    assert!(mollusk()
-        .process_instruction(&unauthorized, &unauthorized_accounts)
-        .program_result
-        .is_err());
-}
-
-#[test]
-#[cfg(any())]
-fn sbf_direct_and_scoped_session_claims_enforce_every_relationship() {
-    let authority = Pubkey::new_unique();
-    let owner = Pubkey::new_unique();
-    let actor = Pubkey::new_unique();
-    let team = Pubkey::new_unique();
-    let treasury = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) =
-        protocol_fixture(authority, team, treasury, reward_vault, false);
-    let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
-    let economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
-    let (player, mut player_state) = player_fixture(owner);
-    player_state.lifetime_xp = LEVEL_100_XP;
-    player_state.quest_counters[10] = 150;
-
-    let base_accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            economy,
-            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
-        ),
-        (
-            player,
-            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-        (actor, system_account(ACCOUNT_LAMPORTS)),
-    ];
-
-    let direct = claim_milestone_instruction(protocol, economy, player, owner, None, owner);
-    let direct_result = mollusk().process_instruction(&direct, &base_accounts);
-    assert!(
-        direct_result.program_result.is_ok(),
-        "{:?}",
-        direct_result.program_result
-    );
-    let direct_player: PlayerState = decode(resulting_account(&direct_result, &player));
-    eprintln!(
-        "SBF_COMPUTE claim_milestone={}",
-        direct_result.compute_units_consumed
-    );
-    assert_eq!(direct_player.cubes_balance, 10);
-    assert_eq!(direct_player.milestone_stars_claimed, 10);
-
-    let (_, mut legacy_player) = player_fixture(owner);
-    legacy_player.lifetime_xp = LEVEL_100_XP;
-    legacy_player.cubes_balance = 20;
-    legacy_player.lifetime_cubes_earned = 20;
-    legacy_player.milestone_claimed = 0b11;
-    legacy_player.milestone_stars_claimed = 20;
-    let legacy_accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            economy,
-            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
-        ),
-        (
-            player,
-            program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let legacy_result = mollusk().process_instruction(&direct, &legacy_accounts);
-    assert!(
-        legacy_result.program_result.is_ok(),
-        "{:?}",
-        legacy_result.program_result
-    );
-    let reconciled: PlayerState = decode(resulting_account(&legacy_result, &player));
-    assert_eq!(reconciled.cubes_balance, 30);
-    assert_eq!(reconciled.milestone_stars_claimed, 30);
-
-    let valid_token = session_token_address(owner, actor);
-    let valid_session = SessionTokenV2 {
-        authority: owner,
-        target_program: zkube::ID,
-        session_signer: actor,
-        fee_payer: owner,
-        valid_until: 100,
-    };
-    let mut session_accounts = base_accounts.clone();
-    session_accounts.push((
-        valid_token,
-        serialized_account(
-            &valid_session,
-            SessionTokenV2::LEN,
-            session_keys::ID,
-            ACCOUNT_LAMPORTS,
-        ),
-    ));
-    let scoped =
-        claim_milestone_instruction(protocol, economy, player, owner, Some(valid_token), actor);
-    assert!(mollusk()
-        .process_instruction(&scoped, &session_accounts)
-        .program_result
-        .is_ok());
-
-    let missing = claim_milestone_instruction(protocol, economy, player, owner, None, actor);
-    assert!(mollusk()
-        .process_instruction(&missing, &base_accounts)
-        .program_result
-        .is_err());
-
-    for invalid in [
-        SessionTokenV2 {
-            authority,
-            ..valid_session
-        },
-        SessionTokenV2 {
-            session_signer: authority,
-            ..valid_session
-        },
-        SessionTokenV2 {
-            target_program: authority,
-            ..valid_session
-        },
-        SessionTokenV2 {
-            fee_payer: authority,
-            ..valid_session
-        },
-        SessionTokenV2 {
-            valid_until: 0,
-            ..valid_session
-        },
-    ] {
-        let mut invalid_accounts = base_accounts.clone();
-        invalid_accounts.push((
-            valid_token,
-            serialized_account(
-                &invalid,
-                SessionTokenV2::LEN,
-                session_keys::ID,
-                ACCOUNT_LAMPORTS,
-            ),
-        ));
-        assert!(mollusk()
-            .process_instruction(&scoped, &invalid_accounts)
-            .program_result
-            .is_err());
-    }
-
-    let quest = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ClaimQuest {
-            protocol,
-            player_state: player,
-            owner_authority: owner,
-            session_token: Some(valid_token),
-            actor,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ClaimQuest { quest_index: 10 }.data(),
-    };
-    let quest_result = mollusk().process_instruction(&quest, &session_accounts);
-    assert!(
-        quest_result.program_result.is_ok(),
-        "{:?}",
-        quest_result.program_result
-    );
-    let quest_player: PlayerState = decode(resulting_account(&quest_result, &player));
-    eprintln!(
-        "SBF_COMPUTE claim_quest={}",
-        quest_result.compute_units_consumed
-    );
-    assert_eq!(quest_player.cubes_balance, 5);
-    assert_eq!(quest_player.lifetime_xp, LEVEL_100_XP + 500);
-}
-
-#[cfg(any())]
-fn claim_milestone_instruction(
-    protocol: Pubkey,
-    economy: Pubkey,
-    player: Pubkey,
-    owner: Pubkey,
-    session_token: Option<Pubkey>,
-    actor: Pubkey,
-) -> anchor_lang::solana_program::instruction::Instruction {
-    anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ClaimLevelMilestone {
-            protocol,
-            economy_config: economy,
-            player_state: player,
-            owner_authority: owner,
-            session_token,
-            actor,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ClaimLevelMilestone { milestone_index: 0 }.data(),
-    }
 }
 
 fn session_token_address(owner: Pubkey, actor: Pubkey) -> Pubkey {
@@ -999,10 +694,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
     let team = Pubkey::new_unique();
-    let treasury = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) =
-        protocol_fixture(authority, team, treasury, reward_vault, false);
+    let (protocol, protocol_state) = protocol_fixture(authority, team, false);
     let (player, player_state) = player_fixture(owner);
     let content_version = 1u32;
     let map_id = 1u8;
@@ -1411,206 +1103,11 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
     assert_eq!(updated.lifetime_lines_cleared, 4);
 }
 
-#[cfg(any())]
-#[test]
-fn sbf_cube_purchase_is_owner_only_and_conserves_exact_split() {
-    let authority = Pubkey::new_unique();
-    let owner = Pubkey::new_unique();
-    let team = Pubkey::new_unique();
-    let treasury = Pubkey::new_unique();
-    let (reward_vault, reward_bump) =
-        Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) =
-        protocol_fixture(authority, team, treasury, reward_vault, false);
-    let reward_state = RewardVault {
-        version: ACCOUNT_VERSION,
-        protocol,
-        bump: reward_bump,
-    };
-    let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
-    let economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
-    let (ledger, ledger_bump) = Pubkey::find_program_address(&[CUBE_SALES_LEDGER_SEED], &zkube::ID);
-    let ledger_state = CubeSalesLedger {
-        version: ECONOMY_ACCOUNT_VERSION,
-        economy_config: economy,
-        lifetime_gross_sales: 0,
-        lifetime_team_share: 0,
-        lifetime_reward_share: 0,
-        lifetime_treasury_share: 0,
-        lifetime_cubes_sold: 0,
-        purchase_count: 0,
-        bump: ledger_bump,
-    };
-    let (player, player_state) = player_fixture(owner);
-    let gross = CUBE_PACK_PRICES[0];
-    let owner_lamports = 100_000_000;
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::PurchaseCubes {
-            protocol,
-            economy_config: economy,
-            cube_sales_ledger: ledger,
-            player_state: player,
-            team_destination: team,
-            reward_vault,
-            weekly_challenge: None,
-            treasury_destination: treasury,
-            owner,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::PurchaseCubes {
-            pack_index: 0,
-            expected_cubes: CUBE_PACK_CUBES[0],
-            expected_lamports: gross,
-        }
-        .data(),
-    };
-    let accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            economy,
-            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
-        ),
-        (
-            ledger,
-            program_account(&ledger_state, 8 + CubeSalesLedger::INIT_SPACE),
-        ),
-        (
-            player,
-            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-        ),
-        (team, system_account(0)),
-        (
-            reward_vault,
-            program_account(&reward_state, 8 + RewardVault::INIT_SPACE),
-        ),
-        (treasury, system_account(0)),
-        (owner, system_account(owner_lamports)),
-        (anchor_lang::system_program::ID, system_program_account()),
-    ];
-    let result = mollusk().process_instruction(&instruction, &accounts);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let team_share = gross / 5;
-    let reward_share = gross * 2 / 5;
-    let treasury_share = gross - team_share - reward_share;
-    assert_eq!(
-        resulting_account(&result, &owner).lamports,
-        owner_lamports - gross
-    );
-    assert_eq!(resulting_account(&result, &team).lamports, team_share);
-    assert_eq!(
-        resulting_account(&result, &reward_vault).lamports,
-        ACCOUNT_LAMPORTS + reward_share
-    );
-    assert_eq!(
-        resulting_account(&result, &treasury).lamports,
-        treasury_share
-    );
-    let ledger: CubeSalesLedger = decode(resulting_account(&result, &ledger));
-    eprintln!(
-        "SBF_COMPUTE purchase_cubes={}",
-        result.compute_units_consumed
-    );
-    assert_eq!(ledger.lifetime_gross_sales, gross);
-    assert_eq!(ledger.lifetime_team_share, team_share);
-    assert_eq!(ledger.lifetime_reward_share, reward_share);
-    assert_eq!(ledger.lifetime_treasury_share, treasury_share);
-
-    let mut unsigned = instruction;
-    unsigned.accounts[8].is_signer = false;
-    assert!(mollusk()
-        .process_instruction(&unsigned, &accounts)
-        .program_result
-        .is_err());
-}
-
-#[cfg(any())]
-#[test]
-fn sbf_cube_pack_governance_updates_exact_ladder_and_rejects_wrong_operator() {
-    let pricing_operator = Pubkey::new_unique();
-    let wrong_operator = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) = protocol_fixture(
-        pricing_operator,
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        reward_vault,
-        false,
-    );
-    let (economy, economy_bump) = Pubkey::find_program_address(&[ECONOMY_CONFIG_SEED], &zkube::ID);
-    let mut economy_state = EconomyConfig::canonical(protocol, 1, 1, economy_bump);
-    economy_state.cube_pack_cubes = [10, 50, 100, 500];
-    economy_state.cube_pack_prices = [20_000_000, 90_000_000, 180_000_000, 700_000_000];
-
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ManageEconomyPricing {
-            protocol,
-            economy_config: economy,
-            pricing_operator,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::UpdateCubePacks {
-            args: zkube::UpdateCubePacksArgs {
-                cubes: CUBE_PACK_CUBES,
-                prices: CUBE_PACK_PRICES,
-                enabled: [true; CUBE_PACK_COUNT],
-            },
-        }
-        .data(),
-    };
-    let accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            economy,
-            program_account(&economy_state, 8 + EconomyConfig::INIT_SPACE),
-        ),
-        (pricing_operator, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let result = mollusk().process_instruction(&instruction, &accounts);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let updated: EconomyConfig = decode(resulting_account(&result, &economy));
-    eprintln!(
-        "SBF_COMPUTE update_cube_packs={}",
-        result.compute_units_consumed
-    );
-    assert_eq!(updated.cube_pack_cubes, CUBE_PACK_CUBES);
-    assert_eq!(updated.cube_pack_prices, CUBE_PACK_PRICES);
-    assert_eq!(updated.revision, economy_state.revision + 1);
-
-    let unauthorized = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ManageEconomyPricing {
-            protocol,
-            economy_config: economy,
-            pricing_operator: wrong_operator,
-        }
-        .to_account_metas(None),
-        data: instruction.data,
-    };
-    let mut unauthorized_accounts = accounts;
-    unauthorized_accounts.push((wrong_operator, system_account(ACCOUNT_LAMPORTS)));
-    assert!(mollusk()
-        .process_instruction(&unauthorized, &unauthorized_accounts)
-        .program_result
-        .is_err());
-}
-
 #[test]
 fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
-    let treasury = Pubkey::new_unique();
-    let (reward_vault, _) = Pubkey::find_program_address(&[REWARD_VAULT_SEED], &zkube::ID);
-    let (protocol, protocol_state) =
-        protocol_fixture(authority, team, treasury, reward_vault, true);
+    let (protocol, protocol_state) = protocol_fixture(authority, team, true);
     let next_content = 2u32;
     let next_rules = 2u32;
     let (daily_rules, rules_bump) = Pubkey::find_program_address(
@@ -1618,14 +1115,14 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
         &zkube::ID,
     );
     let rules_state = DailyRulesCatalog {
-        version: ECONOMY_ACCOUNT_VERSION,
+        version: RULES_ACCOUNT_VERSION,
         rules_version: next_rules,
         protocol,
         content_version: next_content,
         catalog_hash: [7; 32],
-        weekly_id: 1,
+        rotation_id: 1,
         starts_day: 0,
-        weekly_seed: [9; 32],
+        rotation_seed: [9; 32],
         scoring_rule_count: 15,
         scoring_rules: canonical_daily_scoring_rules(),
         pressure: DailyPressureProfile::canonical(),

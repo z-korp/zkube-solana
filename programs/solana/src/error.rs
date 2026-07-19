@@ -44,8 +44,6 @@ pub enum ErrorCode {
     // ── Domain and accounting ────────────────────────────────────────────────
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
-    #[msg("Insufficient Cubes")]
-    InsufficientCubes,
     #[msg("Invalid map")]
     InvalidMap,
     #[msg("Invalid level")]
@@ -78,12 +76,6 @@ pub enum ErrorCode {
     VrfRequestMismatch,
     #[msg("The player has no Daily prize")]
     NoPrize,
-    #[msg("The Daily prize has already been claimed")]
-    PrizeAlreadyClaimed,
-    #[msg("The Daily prize claim window is still open")]
-    PrizeClaimWindowOpen,
-    #[msg("The refund has already been claimed")]
-    RefundAlreadyClaimed,
     #[msg("The progression rule is invalid")]
     InvalidProgressRule,
     #[msg("This progress reward has already been claimed")]
@@ -94,9 +86,7 @@ pub enum ErrorCode {
     QuestNotActive,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
-    #[msg("The selected Cube pack does not exist")]
-    InvalidPack,
-    #[msg("The Cube pack price changed; refresh the exact quote")]
+    #[msg("The Arena entry price changed; refresh the exact quote")]
     PriceChanged,
     #[msg("The scoped player session is invalid")]
     InvalidSession,

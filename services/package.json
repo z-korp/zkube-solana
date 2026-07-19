@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start:keeper": "node dist/services/src/keeperWorker.js"
+    "test": "vitest run",
+    "start:keeper": "node dist/keeperWorker.js"
   },
   "dependencies": {
     "@anchor-lang/core": "1.0.2",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/bn.js": "5.2.0",
     "@types/node": "^22.15.0",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
   }
 }

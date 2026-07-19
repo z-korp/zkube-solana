@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import {
-  SOLANA_DEVNET_GENESIS_HASH,
-  ZKUBE_PROGRAM_ID,
-} from "../../client/src/chain/constants.js";
+import { ZKUBE_PROGRAM_ID } from "./arcadeChain.js";
+
+const SOLANA_DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",

@@ -78,156 +78,6 @@ pub mod solana {
         instructions::player_funding_instructions::handler_funded_delegate_active_run(ctx)
     }
 
-    #[cfg(any())]
-    mod superseded_cube_weekly_interface {
-        use super::*;
-
-        pub fn funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
-            instructions::player_funding_instructions::handler_funded_enter_daily(ctx, run_id)
-        }
-
-        pub fn funded_rollup_daily_to_weekly(
-            ctx: Context<FundedRollupDailyToWeekly>,
-        ) -> Result<()> {
-            instructions::player_funding_instructions::handler_funded_rollup_daily_to_weekly(ctx)
-        }
-
-        pub fn initialize_economy(
-            ctx: Context<InitializeEconomy>,
-            args: InitializeEconomyArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_initialize_economy(ctx, args)
-        }
-
-        pub fn update_regular_prices(
-            ctx: Context<ManageEconomyPricing>,
-            args: UpdateRegularPricesArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_update_regular_prices(ctx, args)
-        }
-
-        pub fn update_cube_packs(
-            ctx: Context<ManageEconomyPricing>,
-            args: UpdateCubePacksArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_update_cube_packs(ctx, args)
-        }
-
-        pub fn schedule_revenue_split(
-            ctx: Context<ManageEconomyPricing>,
-            args: ScheduleRevenueSplitArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_schedule_revenue_split(ctx, args)
-        }
-
-        pub fn schedule_sale(
-            ctx: Context<ManageEconomyPricing>,
-            args: ScheduleSaleArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_schedule_sale(ctx, args)
-        }
-
-        pub fn cancel_sale(ctx: Context<ManageEconomyPricing>) -> Result<()> {
-            instructions::economy_instructions::handler_cancel_sale(ctx)
-        }
-
-        pub fn publish_daily_rules(
-            ctx: Context<PublishDailyRules>,
-            args: PublishDailyRulesArgs,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_publish_daily_rules(ctx, args)
-        }
-
-        pub fn purchase_cubes<'info>(
-            ctx: Context<'info, PurchaseCubes<'info>>,
-            pack_index: u8,
-            expected_cubes: u64,
-            expected_lamports: u64,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_purchase_cubes(
-                ctx,
-                pack_index,
-                expected_cubes,
-                expected_lamports,
-            )
-        }
-
-        pub fn open_daily_challenge(ctx: Context<OpenDailyChallenge>, day_id: u32) -> Result<()> {
-            instructions::economy_instructions::handler_open_daily_challenge(ctx, day_id)
-        }
-
-        pub fn enter_daily(ctx: Context<EnterDaily>, run_id: u64) -> Result<()> {
-            instructions::economy_instructions::handler_enter_daily(ctx, run_id)
-        }
-
-        pub fn commit_daily_run(ctx: Context<CommitDailyRun>) -> Result<()> {
-            instructions::economy_instructions::handler_commit_daily_run(ctx)
-        }
-
-        pub fn consume_daily_run(ctx: Context<ConsumeDailyRun>) -> Result<()> {
-            instructions::economy_instructions::handler_consume_daily_run(ctx)
-        }
-
-        pub fn finalize_daily_challenge(ctx: Context<FinalizeDailyChallenge>) -> Result<()> {
-            instructions::economy_instructions::handler_finalize_daily_challenge(ctx)
-        }
-
-        pub fn cancel_daily_challenge(ctx: Context<CancelDailyChallenge>) -> Result<()> {
-            instructions::economy_instructions::handler_cancel_daily_challenge(ctx)
-        }
-
-        pub fn refund_daily_cubes(ctx: Context<RefundDailyCubes>) -> Result<()> {
-            instructions::economy_instructions::handler_refund_daily_cubes(ctx)
-        }
-
-        pub fn close_daily_player(ctx: Context<CloseDailyPlayer>) -> Result<()> {
-            instructions::economy_instructions::handler_close_daily_player(ctx)
-        }
-
-        pub fn close_daily_challenge(ctx: Context<CloseDailyChallenge>) -> Result<()> {
-            instructions::economy_instructions::handler_close_daily_challenge(ctx)
-        }
-
-        pub fn open_weekly_challenge(
-            ctx: Context<OpenWeeklyChallenge>,
-            weekly_id: u32,
-        ) -> Result<()> {
-            instructions::economy_instructions::handler_open_weekly_challenge(ctx, weekly_id)
-        }
-
-        pub fn fund_weekly(ctx: Context<FundWeekly>, lamports: u64) -> Result<()> {
-            instructions::economy_instructions::handler_fund_weekly(ctx, lamports)
-        }
-
-        pub fn rollup_daily_to_weekly(ctx: Context<RollupDailyToWeekly>) -> Result<()> {
-            instructions::economy_instructions::handler_rollup_daily_to_weekly(ctx)
-        }
-
-        pub fn finalize_weekly_challenge(ctx: Context<FinalizeWeeklyChallenge>) -> Result<()> {
-            instructions::economy_instructions::handler_finalize_weekly_challenge(ctx)
-        }
-
-        pub fn claim_weekly_cubes(ctx: Context<ClaimWeeklyCubes>) -> Result<()> {
-            instructions::economy_instructions::handler_claim_weekly_cubes(ctx)
-        }
-
-        pub fn claim_weekly_sol(ctx: Context<ClaimWeeklySol>) -> Result<()> {
-            instructions::economy_instructions::handler_claim_weekly_sol(ctx)
-        }
-
-        pub fn forfeit_weekly_sol(ctx: Context<ForfeitWeeklySol>) -> Result<()> {
-            instructions::economy_instructions::handler_forfeit_weekly_sol(ctx)
-        }
-
-        pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
-            instructions::economy_instructions::handler_close_weekly_player(ctx)
-        }
-
-        pub fn close_weekly_challenge(ctx: Context<CloseWeeklyChallenge>) -> Result<()> {
-            instructions::economy_instructions::handler_close_weekly_challenge(ctx)
-        }
-    }
-
     pub fn initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
         instructions::arcade_instructions::handler_initialize_arcade(ctx)
     }
@@ -237,6 +87,10 @@ pub mod solana {
         args: PublishArenaRulesArgs,
     ) -> Result<()> {
         instructions::arcade_instructions::handler_publish_arena_rules(ctx, args)
+    }
+
+    pub fn activate_arena_rules(ctx: Context<ActivateArenaRules>) -> Result<()> {
+        instructions::arcade_instructions::handler_activate_arena_rules(ctx)
     }
 
     pub fn schedule_arcade_terms(
@@ -266,8 +120,29 @@ pub mod solana {
         )
     }
 
+    pub fn funded_enter_arena_v1(
+        ctx: Context<FundedEnterArenaV1>,
+        run_id: u64,
+        expected_entry_lamports: u64,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_enter_arena_v1(
+            ctx,
+            run_id,
+            expected_entry_lamports,
+        )
+    }
+
     pub fn prepare_practice_run_v1(ctx: Context<PreparePracticeRunV1>, run_id: u64) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_practice_run_v1(ctx, run_id)
+    }
+
+    pub fn funded_prepare_practice_run_v1(
+        ctx: Context<FundedPreparePracticeRunV1>,
+        run_id: u64,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_prepare_practice_run_v1(
+            ctx, run_id,
+        )
     }
 
     pub fn consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
@@ -282,8 +157,24 @@ pub mod solana {
         instructions::arcade_instructions::handler_refund_stuck_arena_entry(ctx)
     }
 
+    pub fn declare_arena_incident(ctx: Context<DeclareArenaIncident>) -> Result<()> {
+        instructions::arcade_instructions::handler_declare_arena_incident(ctx)
+    }
+
+    pub fn expire_stuck_arena_entry(ctx: Context<ExpireStuckArenaEntry>) -> Result<()> {
+        instructions::arcade_instructions::handler_expire_stuck_arena_entry(ctx)
+    }
+
+    pub fn cleanup_resolved_run(ctx: Context<CleanupResolvedRun>) -> Result<()> {
+        instructions::arcade_instructions::handler_cleanup_resolved_run(ctx)
+    }
+
     pub fn rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Result<()> {
         instructions::arcade_instructions::handler_rollup_arena_to_weekly(ctx)
+    }
+
+    pub fn funded_rollup_arena_to_weekly(ctx: Context<FundedRollupArenaToWeekly>) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_rollup_arena_to_weekly(ctx)
     }
 
     pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
@@ -292,6 +183,22 @@ pub mod solana {
 
     pub fn finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> Result<()> {
         instructions::arcade_instructions::handler_finalize_weekly_jackpot(ctx)
+    }
+
+    pub fn sync_daily_finish(ctx: Context<SyncDailyFinish>) -> Result<()> {
+        instructions::arcade_instructions::handler_sync_daily_finish(ctx)
+    }
+
+    pub fn sync_weekly_finish(ctx: Context<SyncWeeklyFinish>) -> Result<()> {
+        instructions::arcade_instructions::handler_sync_weekly_finish(ctx)
+    }
+
+    pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_arena_player(ctx)
+    }
+
+    pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_weekly_player(ctx)
     }
 
     pub fn withdraw_operator_revenue(
@@ -326,8 +233,8 @@ pub mod solana {
         instructions::governance_instructions::handler_set_pricing_operator(ctx, pricing_operator)
     }
 
-    pub fn update_revenue_destinations(ctx: Context<UpdateRevenueDestinations>) -> Result<()> {
-        instructions::governance_instructions::handler_update_revenue_destinations(ctx)
+    pub fn update_team_destination(ctx: Context<UpdateTeamDestination>) -> Result<()> {
+        instructions::governance_instructions::handler_update_team_destination(ctx)
     }
 
     pub fn claim_achievement(ctx: Context<ClaimAchievement>, achievement_index: u8) -> Result<()> {

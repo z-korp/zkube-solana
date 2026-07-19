@@ -259,32 +259,103 @@ pub fn handler_funded_prepare_campaign_run(
     )
 }
 
-#[cfg(any())]
 #[derive(Accounts)]
-#[instruction(run_id: u64)]
-pub struct FundedEnterDaily<'info> {
+#[instruction(run_id: u64, expected_entry_lamports: u64)]
+pub struct FundedEnterArenaV1<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    pub economy_config: Box<Account<'info, EconomyConfig>>,
-    /// CHECK: Mutated and fully constrained by the inner instruction.
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
     pub player_state: UncheckedAccount<'info>,
-    /// CHECK: Mutated and fully constrained by the inner instruction.
+    /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
-    pub daily_challenge: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
+    pub arena_daily: UncheckedAccount<'info>,
+    /// CHECK: Initialized or mutated by the inner instruction.
     #[account(mut)]
-    pub daily_player: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and vacancy are checked by the inner instruction.
+    pub arena_player: UncheckedAccount<'info>,
+    /// CHECK: Fully constrained by the inner instruction.
+    #[account(mut)]
+    pub weekly_jackpot: UncheckedAccount<'info>,
+    /// CHECK: Fully constrained by the inner instruction.
+    #[account(mut)]
+    pub operator_revenue_vault: UncheckedAccount<'info>,
+    /// CHECK: Initialized by the inner instruction.
     #[account(mut)]
     pub active_run: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
-    #[account(
-        mut,
-        seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()],
-        bump
-    )]
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()], bump)]
     pub player_funding: UncheckedAccount<'info>,
-    /// CHECK: Immutable wallet identity checked by the inner instruction.
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub zkube_program: Program<'info, crate::program::Solana>,
+}
+
+pub fn handler_funded_enter_arena_v1(
+    ctx: Context<FundedEnterArenaV1>,
+    run_id: u64,
+    expected_entry_lamports: u64,
+) -> Result<()> {
+    let accounts = crate::accounts::EnterArenaV1 {
+        protocol: ctx.accounts.protocol.key(),
+        arcade_config: ctx.accounts.arcade_config.key(),
+        player_state: ctx.accounts.player_state.key(),
+        arena_daily: ctx.accounts.arena_daily.key(),
+        arena_player: ctx.accounts.arena_player.key(),
+        weekly_jackpot: ctx.accounts.weekly_jackpot.key(),
+        operator_revenue_vault: ctx.accounts.operator_revenue_vault.key(),
+        active_run: ctx.accounts.active_run.key(),
+        payer: ctx.accounts.player_funding.key(),
+        owner: ctx.accounts.owner.key(),
+        system_program: ctx.accounts.system_program.key(),
+    };
+    let instruction = Instruction {
+        program_id: crate::ID,
+        accounts: accounts.to_account_metas(None),
+        data: crate::instruction::EnterArenaV1 {
+            run_id,
+            expected_entry_lamports,
+        }
+        .data(),
+    };
+    let infos = [
+        ctx.accounts.protocol.to_account_info(),
+        ctx.accounts.arcade_config.to_account_info(),
+        ctx.accounts.player_state.to_account_info(),
+        ctx.accounts.arena_daily.to_account_info(),
+        ctx.accounts.arena_player.to_account_info(),
+        ctx.accounts.weekly_jackpot.to_account_info(),
+        ctx.accounts.operator_revenue_vault.to_account_info(),
+        ctx.accounts.active_run.to_account_info(),
+        ctx.accounts.player_funding.to_account_info(),
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.zkube_program.to_account_info(),
+    ];
+    invoke_with_player_funding(
+        ctx.accounts.owner.key(),
+        &ctx.accounts.player_funding.to_account_info(),
+        ctx.bumps.player_funding,
+        instruction,
+        &infos,
+    )
+}
+
+#[derive(Accounts)]
+#[instruction(run_id: u64)]
+pub struct FundedPreparePracticeRunV1<'info> {
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    /// CHECK: Fully constrained by the inner instruction.
+    #[account(mut)]
+    pub player_state: UncheckedAccount<'info>,
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    /// CHECK: Initialized by the inner instruction.
+    #[account(mut)]
+    pub active_run: UncheckedAccount<'info>,
+    /// CHECK: Canonical zero-data System PDA validated before self-CPI.
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()], bump)]
+    pub player_funding: UncheckedAccount<'info>,
+    /// CHECK: Durable wallet identity checked by the inner instruction.
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Account<'info, SessionTokenV2>,
     pub actor: Signer<'info>,
@@ -292,14 +363,14 @@ pub struct FundedEnterDaily<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-#[cfg(any())]
-pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -> Result<()> {
-    let accounts = crate::accounts::EnterDaily {
+pub fn handler_funded_prepare_practice_run_v1(
+    ctx: Context<FundedPreparePracticeRunV1>,
+    run_id: u64,
+) -> Result<()> {
+    let accounts = crate::accounts::PreparePracticeRunV1 {
         protocol: ctx.accounts.protocol.key(),
-        economy_config: ctx.accounts.economy_config.key(),
         player_state: ctx.accounts.player_state.key(),
-        daily_challenge: ctx.accounts.daily_challenge.key(),
-        daily_player: ctx.accounts.daily_player.key(),
+        arena_daily: ctx.accounts.arena_daily.key(),
         active_run: ctx.accounts.active_run.key(),
         payer: ctx.accounts.player_funding.key(),
         owner_authority: ctx.accounts.owner_authority.key(),
@@ -310,14 +381,12 @@ pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -
     let instruction = Instruction {
         program_id: crate::ID,
         accounts: accounts.to_account_metas(None),
-        data: crate::instruction::EnterDaily { run_id }.data(),
+        data: crate::instruction::PreparePracticeRunV1 { run_id }.data(),
     };
     let infos = [
         ctx.accounts.protocol.to_account_info(),
-        ctx.accounts.economy_config.to_account_info(),
         ctx.accounts.player_state.to_account_info(),
-        ctx.accounts.daily_challenge.to_account_info(),
-        ctx.accounts.daily_player.to_account_info(),
+        ctx.accounts.arena_daily.to_account_info(),
         ctx.accounts.active_run.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),
@@ -335,50 +404,36 @@ pub fn handler_funded_enter_daily(ctx: Context<FundedEnterDaily>, run_id: u64) -
     )
 }
 
-#[cfg(any())]
 #[derive(Accounts)]
-pub struct FundedRollupDailyToWeekly<'info> {
-    /// CHECK: Mutated and fully constrained by the inner instruction.
+pub struct FundedRollupArenaToWeekly<'info> {
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
-    pub daily_challenge: UncheckedAccount<'info>,
-    pub daily_leaderboard: Box<Account<'info, DailyLeaderboard>>,
-    /// CHECK: Mutated and fully constrained by the inner instruction.
+    pub arena_player: UncheckedAccount<'info>,
+    /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
-    pub daily_player: UncheckedAccount<'info>,
-    /// CHECK: Mutated and fully constrained by the inner instruction.
-    #[account(mut)]
-    pub weekly_challenge: UncheckedAccount<'info>,
-    /// CHECK: Canonical PDA and initialization are checked by the inner instruction.
+    pub weekly_jackpot: UncheckedAccount<'info>,
+    /// CHECK: Initialized or mutated by the inner instruction.
     #[account(mut)]
     pub weekly_player: UncheckedAccount<'info>,
-    /// CHECK: Mutated and fully constrained by the inner instruction.
-    #[account(mut)]
-    pub weekly_leaderboard: UncheckedAccount<'info>,
-    /// CHECK: Immutable owner pinned by the inner instruction.
+    /// CHECK: Immutable player identity pinned by the inner instruction.
     pub owner: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
-    #[account(
-        mut,
-        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
-        bump
-    )]
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()], bump)]
     pub player_funding: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
     pub system_program: Program<'info, System>,
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-#[cfg(any())]
-pub fn handler_funded_rollup_daily_to_weekly(
-    ctx: Context<FundedRollupDailyToWeekly>,
+pub fn handler_funded_rollup_arena_to_weekly(
+    ctx: Context<FundedRollupArenaToWeekly>,
 ) -> Result<()> {
-    let accounts = crate::accounts::RollupDailyToWeekly {
-        daily_challenge: ctx.accounts.daily_challenge.key(),
-        daily_leaderboard: ctx.accounts.daily_leaderboard.key(),
-        daily_player: ctx.accounts.daily_player.key(),
-        weekly_challenge: ctx.accounts.weekly_challenge.key(),
+    let accounts = crate::accounts::RollupArenaToWeekly {
+        arena_daily: ctx.accounts.arena_daily.key(),
+        arena_player: ctx.accounts.arena_player.key(),
+        weekly_jackpot: ctx.accounts.weekly_jackpot.key(),
         weekly_player: ctx.accounts.weekly_player.key(),
-        weekly_leaderboard: ctx.accounts.weekly_leaderboard.key(),
         owner: ctx.accounts.owner.key(),
         payer: ctx.accounts.player_funding.key(),
         caller: ctx.accounts.caller.key(),
@@ -387,15 +442,13 @@ pub fn handler_funded_rollup_daily_to_weekly(
     let instruction = Instruction {
         program_id: crate::ID,
         accounts: accounts.to_account_metas(None),
-        data: crate::instruction::RollupDailyToWeekly {}.data(),
+        data: crate::instruction::RollupArenaToWeekly {}.data(),
     };
     let infos = [
-        ctx.accounts.daily_challenge.to_account_info(),
-        ctx.accounts.daily_leaderboard.to_account_info(),
-        ctx.accounts.daily_player.to_account_info(),
-        ctx.accounts.weekly_challenge.to_account_info(),
+        ctx.accounts.arena_daily.to_account_info(),
+        ctx.accounts.arena_player.to_account_info(),
+        ctx.accounts.weekly_jackpot.to_account_info(),
         ctx.accounts.weekly_player.to_account_info(),
-        ctx.accounts.weekly_leaderboard.to_account_info(),
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.caller.to_account_info(),

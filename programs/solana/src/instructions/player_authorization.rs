@@ -235,12 +235,13 @@ mod tests {
             weekly_jackpot: Pubkey::new_unique(),
             operator_revenue_vault: Pubkey::new_unique(),
             active_run: Pubkey::new_unique(),
+            payer: owner,
             owner,
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(entry.len(), 10);
-        assert_eq!(entry[8].pubkey, owner);
-        assert!(entry[8].is_signer);
+        assert_eq!(entry.len(), 11);
+        assert_eq!(entry[9].pubkey, owner);
+        assert!(entry[9].is_signer);
     }
 }

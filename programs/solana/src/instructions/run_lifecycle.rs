@@ -23,7 +23,7 @@ use crate::game::{
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::economy::{
+use crate::state::arena_rules::{
     DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
     DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
     DAILY_SCORE_SURVIVAL, PERFECT_MAP_XP,
@@ -789,7 +789,10 @@ pub struct CommitRun<'info> {
 
 pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     require!(
-        ctx.accounts.active_run.mode == RunMode::Campaign,
+        matches!(
+            ctx.accounts.active_run.mode,
+            RunMode::Campaign | RunMode::Daily | RunMode::Practice
+        ),
         ErrorCode::InvalidState
     );
     require!(
@@ -1189,7 +1192,7 @@ fn map_run_error(error: RunError) -> anchor_lang::error::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::economy::{
+    use crate::state::arena_rules::{
         canonical_daily_scoring_rules, DailyPressureProfile, DAILY_MAX_MOVES,
     };
     use anchor_lang::{InstructionData, ToAccountMetas};
