@@ -129,6 +129,10 @@ pub struct UpdateTeamDestination<'info> {
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     /// CHECK: Native-SOL destination validated before writing protocol state.
+    #[account(
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = team_destination.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
     pub team_destination: UncheckedAccount<'info>,
     pub authority: Signer<'info>,
 }

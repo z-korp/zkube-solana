@@ -214,7 +214,8 @@ pub fn handler_schedule_arcade_terms(
 #[derive(Accounts)]
 #[instruction(week_id: u32)]
 pub struct OpenWeeklyJackpot<'info> {
-    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump)]
+    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(init, payer = payer, space = 8 + WeeklyJackpot::INIT_SPACE,
         seeds = [WEEKLY_JACKPOT_SEED, week_id.to_le_bytes().as_ref()], bump)]
@@ -260,6 +261,7 @@ pub struct OpenArenaDaily<'info> {
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(address = arcade_config.rules_catalog)]
@@ -345,22 +347,29 @@ pub struct EnterArenaV1<'info> {
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump)]
+    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump,
         constraint = player_state.owner == owner.key() @ ErrorCode::Unauthorized,
         constraint = player_state.daily_eligible @ ErrorCode::MapLocked)]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(init_if_needed, payer = payer, space = 8 + ArenaPlayer::INIT_SPACE,
         seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
-    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump,
+        constraint = operator_revenue_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = operator_revenue_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
     #[account(init, payer = payer, space = 8 + ActiveRun::INIT_SPACE,
         seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), run_id.to_le_bytes().as_ref()], bump)]
@@ -422,6 +431,10 @@ pub fn handler_enter_arena_v1(
         daily.unique_players = checked_add_u32(daily.unique_players, 1)?;
     }
     require_keys_eq!(player.challenge, daily.key(), ErrorCode::InvalidOwner);
+    require!(
+        player.version == ARCADE_ACCOUNT_VERSION,
+        ErrorCode::InvalidVersion
+    );
     require_keys_eq!(
         player.player,
         ctx.accounts.owner.key(),
@@ -597,12 +610,16 @@ pub struct ConsumeArenaRun<'info> {
         constraint = player_state.owner == active_run.owner @ ErrorCode::Unauthorized)]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.key() == active_run.daily_challenge @ ErrorCode::InvalidOwner)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()], bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
         constraint = arena_player.player == active_run.owner @ ErrorCode::Unauthorized)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump,
+        constraint = operator_revenue_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
     #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump)]
     pub active_run: Box<Account<'info, ActiveRun>>,
@@ -695,6 +712,8 @@ pub struct ConsumePracticeRun<'info> {
     #[account(
         seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()],
         bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
         constraint = arena_player.player == active_run.owner @ ErrorCode::Unauthorized
     )]
     pub arena_player: Option<Box<Account<'info, ArenaPlayer>>>,
@@ -747,11 +766,17 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
 pub struct RefundStuckArenaEntry<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump, has_one = authority @ ErrorCode::Unauthorized)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump,
+        constraint = operator_revenue_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = operator_revenue_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump)]
+    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
+        constraint = arena_player.player == owner.key() @ ErrorCode::Unauthorized)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump)]
     pub player_state: Box<Account<'info, PlayerState>>,
@@ -844,7 +869,8 @@ pub fn handler_refund_stuck_arena_entry(ctx: Context<RefundStuckArenaEntry>) -> 
 pub struct DeclareArenaIncident<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump, has_one = authority @ ErrorCode::Unauthorized)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     pub authority: Signer<'info>,
 }
@@ -876,11 +902,16 @@ pub fn handler_declare_arena_incident(ctx: Context<DeclareArenaIncident>) -> Res
 
 #[derive(Accounts)]
 pub struct ExpireStuckArenaEntry<'info> {
-    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump,
+        constraint = operator_revenue_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump)]
+    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
+        constraint = arena_player.player == owner.key() @ ErrorCode::Unauthorized)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump)]
     pub player_state: Box<Account<'info, PlayerState>>,
@@ -963,11 +994,18 @@ pub fn handler_cleanup_resolved_run(_ctx: Context<CleanupResolvedRun>) -> Result
 #[derive(Accounts)]
 pub struct RollupArenaToWeekly<'info> {
     #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump)]
+    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
+        constraint = arena_player.player == owner.key() @ ErrorCode::Unauthorized)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
+    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arena_daily.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     #[account(init_if_needed, payer = payer, space = 8 + WeeklyPlayer::INIT_SPACE,
         seeds = [WEEKLY_PLAYER_SEED, weekly_jackpot.key().as_ref(), owner.key().as_ref()], bump)]
@@ -1017,6 +1055,20 @@ pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Resu
         ctx.accounts.weekly_jackpot.participants =
             checked_add_u32(ctx.accounts.weekly_jackpot.participants, 1)?;
     }
+    require!(
+        player.version == ARCADE_ACCOUNT_VERSION,
+        ErrorCode::InvalidVersion
+    );
+    require_keys_eq!(
+        player.jackpot,
+        ctx.accounts.weekly_jackpot.key(),
+        ErrorCode::InvalidOwner
+    );
+    require_keys_eq!(
+        player.player,
+        ctx.accounts.owner.key(),
+        ErrorCode::Unauthorized
+    );
     let rank = ctx
         .accounts
         .arena_daily
@@ -1044,9 +1096,13 @@ pub fn handler_rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Resu
 
 #[derive(Accounts)]
 pub struct FinalizeArenaDaily<'info> {
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
+    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, arena_daily.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arena_daily.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     pub caller: Signer<'info>,
 }
@@ -1104,9 +1160,13 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
 
 #[derive(Accounts)]
 pub struct FinalizeWeeklyJackpot<'info> {
-    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
+    #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, next_weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = next_weekly_jackpot.bump,
+        constraint = next_weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = next_weekly_jackpot.arcade_config == weekly_jackpot.arcade_config @ ErrorCode::InvalidOwner,
         constraint = next_weekly_jackpot.status == WeeklyStatus::Open @ ErrorCode::InvalidState)]
     pub next_weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     pub caller: Signer<'info>,
@@ -1233,6 +1293,7 @@ fn update_best_finish(
 #[derive(Accounts)]
 pub struct SyncDailyFinish<'info> {
     #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()], bump = player_state.bump)]
@@ -1260,6 +1321,7 @@ pub fn handler_sync_daily_finish(ctx: Context<SyncDailyFinish>) -> Result<()> {
 #[derive(Accounts)]
 pub struct SyncWeeklyFinish<'info> {
     #[account(seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = weekly_jackpot.status == WeeklyStatus::Finalized @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()], bump = player_state.bump)]
@@ -1287,10 +1349,13 @@ pub fn handler_sync_weekly_finish(ctx: Context<SyncWeeklyFinish>) -> Result<()> 
 #[derive(Accounts)]
 pub struct CloseArenaPlayer<'info> {
     #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == ArenaDailyStatus::Finalized @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, close = rent_recipient,
         seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
+        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.challenge == arena_daily.key() @ ErrorCode::InvalidOwner,
         constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
         constraint = arena_player.best_run_id == 0 || arena_player.weekly_rolled_up @ ErrorCode::InvalidState)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
@@ -1309,10 +1374,13 @@ pub fn handler_close_arena_player(_ctx: Context<CloseArenaPlayer>) -> Result<()>
 #[derive(Accounts)]
 pub struct CloseWeeklyPlayer<'info> {
     #[account(seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = weekly_jackpot.status == WeeklyStatus::Finalized @ ErrorCode::InvalidState)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
     #[account(mut, close = rent_recipient,
-        seeds = [WEEKLY_PLAYER_SEED, weekly_jackpot.key().as_ref(), weekly_player.player.as_ref()], bump = weekly_player.bump)]
+        seeds = [WEEKLY_PLAYER_SEED, weekly_jackpot.key().as_ref(), weekly_player.player.as_ref()], bump = weekly_player.bump,
+        constraint = weekly_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_player.jackpot == weekly_jackpot.key() @ ErrorCode::InvalidOwner)]
     pub weekly_player: Box<Account<'info, WeeklyPlayer>>,
     /// CHECK: Canonical player funding PDA receives recycled rent.
     #[account(mut, seeds = [PLAYER_FUNDING_SEED, weekly_player.player.as_ref()], bump,
@@ -1330,9 +1398,13 @@ pub fn handler_close_weekly_player(_ctx: Context<CloseWeeklyPlayer>) -> Result<(
 pub struct WithdrawOperatorRevenue<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump, has_one = authority @ ErrorCode::Unauthorized)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump)]
+    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
-    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump)]
+    #[account(mut, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump = operator_revenue_vault.bump,
+        constraint = operator_revenue_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = operator_revenue_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub operator_revenue_vault: Box<Account<'info, OperatorRevenueVault>>,
     /// CHECK: Protocol-pinned System wallet.
     #[account(mut, address = protocol.team_destination, owner = system_program::ID @ ErrorCode::InvalidOwner)]

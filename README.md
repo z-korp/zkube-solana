@@ -157,6 +157,16 @@ v4 is not currently deployed. Keeper writes therefore remain fail-closed until
 a deployment and separately fingerprinted keeper release are explicitly
 approved.
 
+### Devnet release order
+
+A fresh protocol initializes paused. The release must then deploy and verify
+the exact SBF, publish the initial rules and Campaign maps, initialize Arcade
+and its 1 SOL operator reserve, verify every PDA and relationship read-only,
+deploy the fully reconciliating keeper in read-only mode, and only then bundle
+protocol unpause with initial keeper write enablement. Opening paid Arena play
+before terminal recovery, refund/expiry, settlement, and rollup discovery are
+present in the keeper is prohibited.
+
 ## Development and validation
 
 ```bash

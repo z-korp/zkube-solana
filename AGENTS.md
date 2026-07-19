@@ -31,6 +31,9 @@ add approval prompts to the shipped product.
   static PWA/TWA code with no server signer.
 - v4 is Devnet-first and presently undeployed. Mainnet requires counsel,
   economic, and distribution review.
+- Fresh protocol initialization is paused. Do not unpause or open paid Arena
+  play until the full recovery/settlement keeper is deployed, fingerprinted,
+  read-only verified, and included in an exact approval bundle.
 
 Architecture and operations documentation belongs in code comments and
 `README.md`; do not add new Markdown documents.

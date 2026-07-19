@@ -34,7 +34,11 @@ pub struct InitializeProtocol<'info> {
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     /// CHECK: Native-SOL team recipient pinned in protocol state.
-    #[account(address = args.team_destination)]
+    #[account(
+        address = args.team_destination,
+        owner = anchor_system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = team_destination.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
     pub team_destination: UncheckedAccount<'info>,
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -62,7 +66,9 @@ pub fn handler_initialize_protocol(
     protocol.daily_rules_version = 0;
     protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
-    protocol.paused = false;
+    // A fresh deployment must remain inert until content, Arena rules, funding,
+    // keeper policy, and clients have all been verified as one release.
+    protocol.paused = true;
     protocol.bump = ctx.bumps.protocol;
     Ok(())
 }
