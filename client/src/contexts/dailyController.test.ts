@@ -27,7 +27,7 @@ vi.mock("@/chain/connectionContext", () => ({
 }));
 
 vi.mock("@/chain/dailyClient", () => ({
-  buildRefundDailyEntryPlan: vi.fn(),
+  currentDailyDayId: () => 20,
   fetchDailyView: fixtures.fetchDailyView,
 }));
 
@@ -56,12 +56,13 @@ describe("useDailyController run sharing", () => {
     const { result } = renderHook(() => useDailyController());
 
     await waitFor(() =>
-      expect(fixtures.fetchDailyView).toHaveBeenCalledTimes(1),
+      expect(fixtures.fetchDailyView).toHaveBeenCalledTimes(2),
     );
 
     expect(fixtures.useRun).toHaveBeenCalled();
     expect(fixtures.directRunHook).not.toHaveBeenCalled();
     expect(result.current.run).toBe(fixtures.run);
-    expect(result.current.error).toBe("run controller error");
+    expect(result.current.error).toBeNull();
+    expect(result.current.run.error).toBe("run controller error");
   });
 });

@@ -1,58 +1,182 @@
-import { createHash } from "node:crypto";
-
-import {
-  PublicKey,
-  SystemProgram,
-  TransactionInstruction,
-  type AccountMeta,
-  type Connection,
-} from "@solana/web3.js";
+import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const V4_ACCOUNT_VERSION = 1;
+export const PROTOCOL_ACCOUNT_VERSION = 1;
+export const ARCADE_ACCOUNT_VERSION = 2;
 export const SECONDS_PER_DAY = 86_400;
+export const DAYS_PER_WEEK = 7;
+export const DAYS_PER_SEASON = 28;
 export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60;
+export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
+export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
+export const DAILY_RECOVERY_DEADLINE_OFFSET =
+  DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
+export const PERIOD_SETTLEMENT_DELAY_SECONDS =
+  DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS - SECONDS_PER_DAY;
+/** Recurring authority covers at most the trailing three 28-day Seasons. */
+export const KEEPER_RECENT_DAILY_CADENCES = 84;
+export const KEEPER_RECENT_WEEKLY_CADENCES = 12;
+export const KEEPER_RECENT_SEASON_CADENCES = 3;
+export const ARENA_ENTRY_LAMPORTS = 20_000_000n;
+export const SOL_PAYOUT_UNIT_LAMPORTS = 1_000_000n;
+export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
+  followingDaily: 12_000_000n,
+  followingWeekly: 4_000_000n,
+  followingSeason: 2_000_000n,
+  operator: 2_000_000n,
+});
 
 export type KeeperOperation =
-  | "open_weekly_jackpot"
-  | "open_arena_daily"
-  | "consume_terminal_run"
-  | "expire_stuck_arena_entry"
+  | "prepare_arena_daily"
+  | "prepare_weekly_jackpot"
+  | "prepare_season"
+  | "activate_arena_daily"
+  | "activate_weekly_jackpot"
+  | "activate_season"
+  | "force_finish_deadline"
+  | "commit_run"
+  | "consume_campaign_run"
+  | "consume_arena_run"
+  | "consume_practice_run"
+  | "expire_unresolved_arena_run"
+  | "cleanup_orphan_active_run"
+  | "initialize_season_player"
+  | "rollup_arena_to_season"
+  | "seal_arena_season_rollups"
   | "finalize_arena_daily"
-  | "rollup_arena_to_weekly"
   | "finalize_weekly_jackpot"
-  | "sync_daily_finish"
-  | "sync_weekly_finish"
-  | "close_arena_player"
-  | "close_weekly_player"
-  | "cleanup_resolved_run"
+  | "finalize_season"
   | "revoke_expired_session";
 
+export type CompetitionKind = "daily" | "weekly" | "season";
+export type RunMode = "campaign" | "ranked" | "practice";
+export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
+
+export interface KeeperPlanContext {
+  dayId?: number;
+  challengeDayId?: number;
+  deadlineDayId?: number;
+  followingDayId?: number;
+  finalDayId?: number;
+  weekId?: number;
+  followingWeekId?: number;
+  seasonId?: number;
+  followingSeasonId?: number;
+  competition?: CompetitionKind;
+  rulesCatalog?: PublicKey;
+  launchCadenceId?: number;
+  owner?: PublicKey;
+  owners?: readonly PublicKey[];
+  runId?: bigint;
+  runMode?: RunMode;
+  runLocation?: RunLocation;
+  includeArenaPlayer?: boolean;
+  predecessorRolloverApplied?: boolean;
+  recoveryActivation?: boolean;
+  sealedDailies?: number;
+  deadlineAt?: number;
+  recoveryDeadlineAt?: number;
+  potLamports?: bigint;
+  payoutLamports?: readonly bigint[];
+  payoutTotalLamports?: bigint;
+  rolloverLamports?: bigint;
+  sessionSigner?: PublicKey;
+  sessionAddress?: PublicKey;
+  sessionValidUntil?: number;
+}
+
+/**
+ * Discovery produces relationship-checked semantic plans. Instruction bytes
+ * and account metas are attached only by the exact checked-in Anchor-IDL
+ * materializer, after keeper policy validation.
+ */
 export interface KeeperInstructionPlan {
   operation: KeeperOperation;
-  instruction: TransactionInstruction;
-  context?: {
-    dayId?: number;
-    weekId?: number;
-    owner?: PublicKey;
-    runId?: bigint;
-    receiptRentRecipient?: PublicKey;
-    sessionSigner?: PublicKey;
-  };
+  execution: "validation_only" | "instruction";
+  connection?: "base" | "ephemeral-rollup";
+  context?: KeeperPlanContext;
+  instruction?: TransactionInstruction;
+  instructions?: readonly TransactionInstruction[];
+}
+
+export function validationOnlyPlan(
+  operation: KeeperOperation,
+  context: KeeperPlanContext,
+): KeeperInstructionPlan {
+  return { operation, execution: "validation_only", context };
 }
 
 export function currentDayId(nowUnix: number): number {
-  return Math.max(0, Math.floor(nowUnix / SECONDS_PER_DAY));
+  assertSafeTimestamp(nowUnix);
+  return Math.floor(nowUnix / SECONDS_PER_DAY);
 }
 
+/** Monday-aligned week 0 starts on 1970-01-05. */
 export function weekIdForDay(dayId: number): number {
-  return Math.max(0, Math.floor((dayId + 3) / 7));
+  assertCadenceId(dayId, "day id");
+  if (dayId < 4) throw new Error("week cadence predates Monday epoch");
+  return Math.floor((dayId - 4) / DAYS_PER_WEEK);
 }
 
 export function weekStartDay(weekId: number): number {
-  return weekId * 7 - 3;
+  assertCadenceId(weekId, "week id");
+  return checkedCadenceProduct(weekId, DAYS_PER_WEEK, 4, "week start day");
+}
+
+/** Monday-aligned 28-day Season 0 starts on 1970-01-05. */
+export function seasonIdForDay(dayId: number): number {
+  assertCadenceId(dayId, "day id");
+  if (dayId < 4) throw new Error("Season cadence predates Monday epoch");
+  return Math.floor((dayId - 4) / DAYS_PER_SEASON);
+}
+
+export function seasonStartDay(seasonId: number): number {
+  assertCadenceId(seasonId, "season id");
+  return checkedCadenceProduct(seasonId, DAYS_PER_SEASON, 4, "Season start day");
+}
+
+export function fundingPeriodsForDay(dayId: number) {
+  assertCadenceId(dayId, "day id");
+  const weekId = weekIdForDay(dayId);
+  const seasonId = seasonIdForDay(dayId);
+  if (dayId === 0xffff_ffff || weekId === 0xffff_ffff || seasonId === 0xffff_ffff) {
+    throw new Error("following cadence overflows u32");
+  }
+  return Object.freeze({
+    qualificationDayId: dayId,
+    qualificationWeekId: weekId,
+    qualificationSeasonId: seasonId,
+    dailyFundingDayId: dayId + 1,
+    weeklyFundingWeekId: weekId + 1,
+    seasonFundingSeasonId: seasonId + 1,
+  });
+}
+
+export function assertCadenceId(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new Error(`${label} is outside u32`);
+  }
+}
+
+export function assertSafeTimestamp(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("timestamp must be a non-negative safe integer");
+  }
+}
+
+export function assertLamports(value: bigint, label: string): void {
+  if (value < 0n || value > 0xffff_ffff_ffff_ffffn) {
+    throw new Error(`${label} is outside u64`);
+  }
+}
+
+export function assertPayoutLamports(value: bigint, label: string): void {
+  assertLamports(value, label);
+  if (value % SOL_PAYOUT_UNIT_LAMPORTS !== 0n) {
+    throw new Error(`${label} is not floored to 0.001 SOL`);
+  }
 }
 
 export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
@@ -71,129 +195,42 @@ export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
 export const weeklyJackpotPda = (weekId: number) =>
   derivePda("weekly_jackpot", u32(weekId));
+export const seasonPda = (seasonId: number) =>
+  derivePda("season", u32(seasonId));
 export const playerStatePda = (owner: PublicKey) =>
   derivePda("player", owner.toBytes());
 export const playerFundingPda = (owner: PublicKey) =>
   derivePda("player_funding", owner.toBytes());
 export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
   derivePda("arena_player", daily.toBytes(), owner.toBytes());
-export const weeklyPlayerPda = (weekly: PublicKey, owner: PublicKey) =>
-  derivePda("weekly_player", weekly.toBytes(), owner.toBytes());
+export const seasonPlayerPda = (season: PublicKey, owner: PublicKey) =>
+  derivePda("season_player", season.toBytes(), owner.toBytes());
 export const activeRunPda = (owner: PublicKey, runId: bigint) =>
   derivePda("run", Buffer.from("active"), owner.toBytes(), u64(runId));
-export const runResolutionPda = (
-  daily: PublicKey,
-  owner: PublicKey,
-  runId: bigint,
-) => derivePda("run_resolution", daily.toBytes(), owner.toBytes(), u64(runId));
-
-export async function discoverOpeningPlans(args: {
-  connection: Connection;
-  keeper: PublicKey;
-  nowUnix: number;
-  rulesVersion: number;
-}): Promise<KeeperInstructionPlan[]> {
-  const dayId = currentDayId(args.nowUnix);
-  const weekId = weekIdForDay(dayId);
-  const daily = arenaDailyPda(dayId);
-  const weekly = weeklyJackpotPda(weekId);
-  const [weeklyInfo, dailyInfo] = await args.connection.getMultipleAccountsInfo(
-    [weekly, daily],
-    "confirmed",
-  );
-  validateOptionalProgramAccount(weeklyInfo, weekly);
-  validateOptionalProgramAccount(dailyInfo, daily);
-
-  const plans: KeeperInstructionPlan[] = [];
-  if (!weeklyInfo) {
-    plans.push({
-      operation: "open_weekly_jackpot",
-      instruction: new TransactionInstruction({
-        programId: ZKUBE_PROGRAM_ID,
-        keys: metas([
-          [arcadeConfigPda(), false, false],
-          [weekly, true, false],
-          [args.keeper, true, true],
-          [args.keeper, false, true],
-          [SystemProgram.programId, false, false],
-        ]),
-        data: instructionData("open_weekly_jackpot", u32(weekId)),
-      }),
-    });
-  }
-  if (!dailyInfo && args.nowUnix % SECONDS_PER_DAY < DAILY_ENTRY_CLOSE_OFFSET) {
-    plans.push({
-      operation: "open_arena_daily",
-      instruction: new TransactionInstruction({
-        programId: ZKUBE_PROGRAM_ID,
-        keys: metas([
-          [protocolPda(), false, false],
-          [arcadeConfigPda(), false, false],
-          [rulesCatalogPda(args.rulesVersion), false, false],
-          [daily, true, false],
-          [args.keeper, true, true],
-          [args.keeper, false, true],
-          [SystemProgram.programId, false, false],
-        ]),
-        data: instructionData("open_arena_daily", u32(dayId)),
-      }),
-    });
-  }
-  return plans;
-}
-
-export function validateOptionalProgramAccount(
-  info: Awaited<ReturnType<Connection["getAccountInfo"]>>,
-  address: PublicKey,
-): void {
-  if (!info) return;
-  if (!info.owner.equals(ZKUBE_PROGRAM_ID)) {
-    throw new Error(`keeper rejects foreign owner for ${address.toBase58()}`);
-  }
-  if (info.executable || info.data.length < 9 || info.data.length > 10_240) {
-    throw new Error(`keeper rejects invalid account size for ${address.toBase58()}`);
-  }
-  if (info.data[8] !== V4_ACCOUNT_VERSION) {
-    throw new Error(`keeper rejects account version for ${address.toBase58()}`);
-  }
-}
-
-export function instructionData(name: string, args: Uint8Array = new Uint8Array()): Buffer {
-  const discriminator = createHash("sha256")
-    .update(`global:${name}`)
-    .digest()
-    .subarray(0, 8);
-  return Buffer.concat([discriminator, Buffer.from(args)]);
-}
-
-export function accountDiscriminator(name: string): Buffer {
-  return createHash("sha256").update(`account:${name}`).digest().subarray(0, 8);
-}
-
-function metas(
-  rows: Array<[PublicKey, boolean, boolean]>,
-): AccountMeta[] {
-  return rows.map(([pubkey, isWritable, isSigner]) => ({
-    pubkey,
-    isWritable,
-    isSigner,
-  }));
-}
 
 export function u32(value: number): Buffer {
-  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
-    throw new Error("cadence id is outside u32");
-  }
+  assertCadenceId(value, "cadence id");
   const bytes = Buffer.alloc(4);
   bytes.writeUInt32LE(value);
   return bytes;
 }
 
 export function u64(value: bigint): Buffer {
-  if (value < 0n || value > 0xffff_ffff_ffff_ffffn) {
-    throw new Error("run id is outside u64");
-  }
+  assertLamports(value, "u64 value");
   const bytes = Buffer.alloc(8);
   bytes.writeBigUInt64LE(value);
   return bytes;
+}
+
+function checkedCadenceProduct(
+  id: number,
+  multiplier: number,
+  offset: number,
+  label: string,
+): number {
+  const value = id * multiplier + offset;
+  if (!Number.isSafeInteger(value) || value > 0xffff_ffff) {
+    throw new Error(`${label} is outside u32`);
+  }
+  return value;
 }

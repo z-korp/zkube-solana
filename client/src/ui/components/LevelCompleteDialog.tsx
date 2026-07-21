@@ -25,7 +25,6 @@ interface LevelCompleteDialogProps {
   zoneId?: number;
   colors?: ThemeColors;
   isIncomplete?: boolean;
-  xpAwarded: number;
 }
 
 const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
@@ -40,7 +39,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   zoneId = 1,
   colors,
   isIncomplete = false,
-  xpAwarded,
 }) => {
   const [animationPhase, setAnimationPhase] = useState(0);
   const { playSfx } = useMusicPlayer();
@@ -225,7 +223,8 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                   })}
                 </div>
 
-                {/* Score + moves + confirmed progression reward */}
+                {/* Campaign score and completion only. Arcade progression is
+                    deliberately absent from this surface. */}
                 <motion.div
                   className="flex gap-2"
                   initial={{ opacity: 0 }}
@@ -245,14 +244,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                       {levelMoves}/{maxMoves}
                     </p>
                     <p className="font-sans text-[9px] text-white/40">Moves</p>
-                  </div>
-                  <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
-                    <p className="font-sans text-sm font-bold text-cyan-300">
-                      +{xpAwarded} XP
-                    </p>
-                    <p className="font-sans text-[9px] text-white/40">
-                      Progress
-                    </p>
                   </div>
                 </motion.div>
               </motion.div>

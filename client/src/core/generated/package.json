@@ -1,0 +1,17 @@
+{
+  "name": "zkube-core-wasm",
+  "type": "module",
+  "description": "WASM boundary for deterministic zKube protocol primitives",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "files": [
+    "zkube_core_bg.wasm",
+    "zkube_core.js",
+    "zkube_core.d.ts"
+  ],
+  "main": "zkube_core.js",
+  "types": "zkube_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "domain": "zkube-empty-continuation-v1",
+  "request_counter": 29,
+  "vrf_output_hex": "2a3825988b00f83f2f372bec8fd894505d68fb77ec7576e9d090ce69b91c1236",
+  "rules_hash_hex": "5077ffb6a3c93cc037f9a5d006fd15fa928abe6e7ff0f357bb53d5e250e995e7",
+  "weights": [16, 20, 22, 24, 18],
+  "seed_row": [1, 0, 4, 4, 4, 4, 2, 2],
+  "preview_row": [1, 2, 2, 0, 4, 4, 4, 4],
+  "hash_blocks": 2
+}

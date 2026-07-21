@@ -2,17 +2,22 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/chain/campaignClient";
 import type {
   AchievementProgressView,
   QuestProgressView,
 } from "@/chain/progressClient";
 import { projectAchievements } from "./useAchievements";
 import { projectDailyLeaderboard } from "./useDailyLeaderboard";
-import { campaignBestLevel } from "./usePlayerMeta";
 import { projectQuests } from "./useQuests";
 
 describe("progress projections", () => {
+  it("exposes only the 16 Arcade achievement slots", () => {
+    expect(projectAchievements(null)).toHaveLength(16);
+    expect(projectAchievements(null).map(({ index }) => index)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20, 21, 22, 23,
+    ]);
+  });
+
   it("uses authoritative achievement thresholds and XP", () => {
     const entries: AchievementProgressView[] = Array.from(
       { length: 12 },
@@ -22,8 +27,8 @@ describe("progress projections", () => {
         progress: index === 8 ? 3n : 0n,
         threshold: index === 8 ? 3n : 1n,
         xpReward: index === 8 ? 333 : 1,
-        claimed: false,
-        claimable: index === 8,
+        completed: index === 8,
+        active: true,
       }),
     );
     expect(projectAchievements(entries)[8]).toMatchObject({
@@ -31,7 +36,6 @@ describe("progress projections", () => {
       xp: 333,
       progress: 3,
       completed: true,
-      claimable: true,
     });
   });
 
@@ -44,15 +48,12 @@ describe("progress projections", () => {
       progress: 6,
       threshold: 7,
       xpReward: 200,
-      cubeReward: 2n,
       active: true,
-      claimed: false,
-      claimable: false,
+      completed: false,
     };
     expect(projectQuests([entry], 86_400)[0]).toMatchObject({
       target: 7,
       xpReward: 200,
-      cubeReward: 2,
       progress: 6,
       active: true,
     });
@@ -62,53 +63,18 @@ describe("progress projections", () => {
       index: 10,
       cadence: "weekly" as const,
       xpReward: 500,
-      cubeReward: 5n,
     };
     const entries = Array.from({ length: 11 }, (_, index) =>
       index === 10 ? weekly : { ...entry, index },
     );
     expect(projectQuests(entries, 86_400)[10]).toMatchObject({
       xpReward: 500,
-      cubeReward: 5,
     });
 
-    const blockEntries = Array.from({ length: 8 }, (_, index) => ({
-      ...entry,
-      index,
-      metric: index === 7 ? 14 : entry.metric,
-      blockSize: index === 7 ? 4 : null,
-      threshold: index === 7 ? 6 : entry.threshold,
-    }));
-    expect(projectQuests(blockEntries, 2 * 86_400)[7]).toMatchObject({
-      blockSize: 4,
-      target: 6,
-      description: "Destroy 6 size-4 blocks",
+    expect(projectQuests(entries, 2 * 86_400)[15]).toMatchObject({
+      name: "Single-turn Power",
+      target: 1,
     });
-  });
-
-  it("derives the highest global campaign level from map and level", () => {
-    const map = (
-      mapId: number,
-      stars: number[],
-      cleared = false,
-    ): CampaignMapView => ({
-      mapId,
-      themeId: mapId,
-      enabled: true,
-      unlocked: true,
-      purchased: false,
-      cleared,
-      perfected: false,
-      starCost: 0n,
-      levelStars: stars,
-      levels: [],
-    });
-    expect(
-      campaignBestLevel([
-        map(1, [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], true),
-        map(3, [2, 1, 0, 0, 0, 0, 0, 0, 0, 0]),
-      ]),
-    ).toBe(22);
   });
 
   it("keeps score order and case-sensitive base58 identity", () => {

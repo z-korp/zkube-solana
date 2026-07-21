@@ -3,30 +3,36 @@ import {
   SystemProgram,
   Transaction,
   type Connection,
+  type TransactionInstruction,
 } from "@solana/web3.js";
 
 import {
   deriveArcadeConfigPda,
-  deriveArenaBoardPda,
   deriveArenaDailyPda,
-  deriveArenaPlayerPda,
-  deriveWeeklyBoardPda,
+  deriveProtocolConfigPda,
   deriveWeeklyJackpotPda,
-  deriveWeeklyPlayerPdaV1,
 } from "./pdas.js";
+import { availablePoolLamports } from "./dailyClient.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
-import type { DailyView } from "./dailyClient.js";
+import {
+  coreWeeklyMetricLabels,
+  initializeZkubeCore,
+  WEEKLY_METRIC_LABELS,
+} from "../core/zkubeCore.js";
 
-export type WeeklyStatus = "open" | "finalized" | "unknown";
+export type WeeklyStatus = "funding" | "open" | "finalized" | "unknown";
 
 export interface WeeklyLeaderboardEntryView {
   player: PublicKey;
   playerName: string | null;
+  daily: PublicKey;
+  runId: bigint;
+  value: bigint;
   score: number;
-  totalBonusTriggers: number;
-  earliestFinalSubmission: number;
+  finalizedAt: number;
+  replayHash: Uint8Array;
 }
 
 export interface WeeklyView {
@@ -35,22 +41,31 @@ export interface WeeklyView {
   status: WeeklyStatus;
   opensAt: number;
   closesAt: number;
-  finalizesAt: number;
   finalizedAt: number;
-  claimsCloseAt: number;
-  committedSolPool: bigint;
-  solClaimed: bigint;
+  activePotLamports: bigint;
+  followingWeeklyLamports: bigint | null;
   participants: number;
-  closedPlayers: number;
-  solWinnerCount: number;
-  cubeWinnerCount: number;
-  rentRecipient: PublicKey;
-  player: { score: number; resultCount: number; solClaimed: boolean; cubesClaimed: boolean } | null;
+  rulesHash: Uint8Array;
+  metricLabels: readonly [string, string, string];
+  boards: readonly [
+    WeeklyLeaderboardEntryView[],
+    WeeklyLeaderboardEntryView[],
+    WeeklyLeaderboardEntryView[],
+  ];
+  /** Compatibility projection for the current full-run board. */
   leaderboard: WeeklyLeaderboardEntryView[];
 }
 
 export function currentWeeklyId(nowUnix = Math.floor(Date.now() / 1_000)): number {
-  return Math.max(0, Math.floor((nowUnix + 259_200) / 604_800));
+  const dayId = Math.max(0, Math.floor(nowUnix / 86_400));
+  return Math.max(0, Math.floor((dayId - 4) / 7));
+}
+
+export function weekStartDay(weeklyId: number): number {
+  if (!Number.isInteger(weeklyId) || weeklyId < 0) {
+    throw new Error("weeklyId is out of range");
+  }
+  return 4 + weeklyId * 7;
 }
 
 export async function fetchWeeklyView(args: {
@@ -61,38 +76,81 @@ export async function fetchWeeklyView(args: {
   const weeklyId = args.weeklyId ?? currentWeeklyId();
   const program = zkubeProgram(args.connection, args.wallet);
   const address = deriveWeeklyJackpotPda(weeklyId);
-  const challenge = await program.account.weeklyJackpot.fetchNullable(address);
-  if (!challenge) return null;
-  const [player, board] = await Promise.all([
-    program.account.weeklyPlayer.fetchNullable(deriveWeeklyPlayerPdaV1(address, args.wallet.publicKey)),
-    program.account.weeklyBoard.fetch(deriveWeeklyBoardPda(address)),
+  const [challenge, following] = await Promise.all([
+    program.account.weeklyJackpot.fetchNullable(address),
+    program.account.weeklyJackpot.fetchNullable(
+      deriveWeeklyJackpotPda(weeklyId + 1),
+    ),
   ]);
-  const rows = board.entries.map((entry) => ({
-    player: entry.player,
-    score: Number(entry.score),
-    totalBonusTriggers: Number(entry.totalBonusTriggers),
-    earliestFinalSubmission: Number(entry.earliestFinalSubmission),
-  }));
-  const labels = await fetchPlayerLabels({ connection: args.connection, wallet: args.wallet, owners: rows.map((row) => row.player) }).catch(() => []);
-  const names = new Map(labels.map((label) => [label.owner.toBase58(), label.displayName]));
+  if (!challenge) return null;
+
+  const decodedBoards = [
+    challenge.comboEntries,
+    challenge.actionEntries,
+    challenge.runEntries,
+  ] as const;
+  const owners = new Map<string, PublicKey>();
+  for (const board of decodedBoards) {
+    for (const entry of board) owners.set(entry.player.toBase58(), entry.player);
+  }
+  const labels = await fetchPlayerLabels({
+    connection: args.connection,
+    wallet: args.wallet,
+    owners: [...owners.values()],
+  }).catch(() => []);
+  const names = new Map(
+    labels.map((label) => [label.owner.toBase58(), label.displayName]),
+  );
+  const mapBoard = (board: (typeof decodedBoards)[number]) =>
+    board.map((entry) => {
+      const value = BigInt(entry.value.toString());
+      return {
+        player: entry.player,
+        playerName: names.get(entry.player.toBase58()) ?? null,
+        daily: entry.daily,
+        runId: BigInt(entry.runId.toString()),
+        value,
+        score: Number(value),
+        finalizedAt: Number(entry.finalizedAt),
+        replayHash: Uint8Array.from(entry.replayHash),
+      };
+    });
+  const boards: WeeklyView["boards"] = [
+    mapBoard(decodedBoards[0]),
+    mapBoard(decodedBoards[1]),
+    mapBoard(decodedBoards[2]),
+  ];
+  const rulesHash = Uint8Array.from(challenge.rulesHash);
+  const decodedMetricLabels = challenge.metrics.map((metric) => {
+    const tag = weeklyMetricTag(metric);
+    return WEEKLY_METRIC_LABELS[tag];
+  }) as [string, string, string];
+  await initializeZkubeCore();
+  const canonicalMetricLabels = coreWeeklyMetricLabels(weeklyId, rulesHash);
+  if (
+    canonicalMetricLabels.some(
+      (label, index) => label !== decodedMetricLabels[index],
+    )
+  ) {
+    throw new Error("Weekly metric selection does not match zkube-core");
+  }
+
   return {
     address,
     weeklyId: Number(challenge.weekId),
     status: parseWeeklyStatus(challenge.status),
     opensAt: Number(challenge.opensAt),
     closesAt: Number(challenge.closesAt),
-    finalizesAt: Number(challenge.closesAt),
     finalizedAt: Number(challenge.finalizedAt),
-    claimsCloseAt: 0,
-    committedSolPool: BigInt(challenge.potLamports.toString()),
-    solClaimed: 0n,
-    participants: Number(challenge.participants),
-    closedPlayers: 0,
-    solWinnerCount: Math.min(3, rows.length),
-    cubeWinnerCount: 0,
-    rentRecipient: challenge.rentRecipient,
-    player: player ? { score: Number(player.score), resultCount: Number(player.resultCount), solClaimed: false, cubesClaimed: true } : null,
-    leaderboard: rows.map((row) => ({ ...row, playerName: names.get(row.player.toBase58()) ?? null })),
+    activePotLamports: availablePoolLamports(challenge.ledger),
+    followingWeeklyLamports: following
+      ? availablePoolLamports(following.ledger)
+      : null,
+    participants: owners.size,
+    rulesHash,
+    metricLabels: canonicalMetricLabels,
+    boards,
+    leaderboard: boards[2],
   };
 }
 
@@ -102,45 +160,49 @@ export async function buildOpenWeeklyPlan(args: {
   weeklyId: number;
   payer?: PublicKey;
 }): Promise<TransactionPlan> {
-  const jackpot = deriveWeeklyJackpotPda(args.weeklyId);
-  const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.openWeeklyJackpot(args.weeklyId)
+  const program = zkubeProgram(args.connection, args.wallet);
+  const config = await program.account.arcadeConfig.fetch(
+    deriveArcadeConfigPda(),
+  );
+  const instruction = await program.methods
+    .prepareWeeklyJackpot(args.weeklyId)
     .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
-      weeklyJackpot: jackpot,
-      weeklyBoard: deriveWeeklyBoardPda(jackpot),
+      dailyRulesCatalog: config.rulesCatalog,
+      weeklyJackpot: deriveWeeklyJackpotPda(args.weeklyId),
       payer: args.payer ?? args.wallet.publicKey,
       caller: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return plan("Open Weekly jackpot", args.connection, args.payer ?? args.wallet.publicKey, instruction);
+  return plan(
+    "Prepare Weekly jackpot",
+    args.connection,
+    args.payer ?? args.wallet.publicKey,
+    instruction,
+  );
 }
 
-export async function buildRollupDailyPlan(args: {
+export async function buildActivateWeeklyPlan(args: {
   connection: Connection;
   wallet: WalletLike;
-  daily: DailyView;
   weekly: WeeklyView;
-  playerOwner?: PublicKey;
 }): Promise<TransactionPlan> {
-  const owner = args.playerOwner ?? args.wallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.rollupArenaToWeekly()
+    .methods.activateWeeklyJackpot()
     .accountsPartial({
-      arenaDaily: args.daily.address,
-      arenaBoard: deriveArenaBoardPda(args.daily.address),
-      arenaPlayer: deriveArenaPlayerPda(args.daily.address, owner),
+      protocol: deriveProtocolConfigPda(),
       weeklyJackpot: args.weekly.address,
-      weeklyPlayer: deriveWeeklyPlayerPdaV1(args.weekly.address, owner),
-      weeklyBoard: deriveWeeklyBoardPda(args.weekly.address),
-      owner,
-      payer: args.wallet.publicKey,
       caller: args.wallet.publicKey,
-      systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return plan("Roll Arena result into Weekly", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Activate Weekly jackpot",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
 export async function buildFinalizeWeeklyPlan(args: {
@@ -148,39 +210,76 @@ export async function buildFinalizeWeeklyPlan(args: {
   wallet: WalletLike;
   weekly: WeeklyView;
 }): Promise<TransactionPlan> {
-  const startDay = args.weekly.weeklyId * 7 - 3;
-  const remaining = [
-    ...Array.from({ length: 7 }, (_, offset) => ({ pubkey: deriveArenaDailyPda(startDay + offset), isSigner: false, isWritable: false })),
-    ...args.weekly.leaderboard.slice(0, 3).map((entry) => ({ pubkey: entry.player, isSigner: false, isWritable: true })),
-  ];
+  const recipients = new Map<string, PublicKey>();
+  for (const board of args.weekly.boards) {
+    for (const entry of board.slice(0, 3).filter((entry) => entry.value > 0n)) {
+      recipients.set(entry.player.toBase58(), entry.player);
+    }
+  }
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.finalizeWeeklyJackpot()
     .accountsPartial({
       weeklyJackpot: args.weekly.address,
-      weeklyBoard: deriveWeeklyBoardPda(args.weekly.address),
+      finalDaily: deriveArenaDailyPda(weekStartDay(args.weekly.weeklyId) + 6),
+      followingWeekly: deriveWeeklyJackpotPda(args.weekly.weeklyId + 1),
       caller: args.wallet.publicKey,
     })
-    .remainingAccounts(remaining)
+    .remainingAccounts(
+      [...recipients.values()].map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: true,
+      })),
+    )
     .instruction();
-  return plan("Push Weekly jackpot", args.connection, args.wallet.publicKey, instruction);
+  return plan(
+    "Push Weekly jackpot",
+    args.connection,
+    args.wallet.publicKey,
+    instruction,
+  );
 }
 
-export async function fetchPendingDailyRollupOwners(): Promise<PublicKey[]> { return []; }
-export async function fetchOwnerClaimableWeeklyIds(): Promise<number[]> { return []; }
-export async function buildClaimWeeklyCubesPlan(): Promise<TransactionPlan> { throw new Error("Weekly prizes are pushed automatically"); }
-export async function buildClaimWeeklySolPlan(): Promise<TransactionPlan> { throw new Error("Weekly prizes are pushed automatically"); }
-export async function buildForfeitWeeklySolPlan(): Promise<TransactionPlan> { throw new Error("Weekly prizes never expire or forfeit"); }
-export async function fetchWeeklyPlayerRecords(): Promise<[]> { return []; }
-export async function fetchWeeklyChallengeIds(): Promise<number[]> { return []; }
-export async function buildCloseWeeklyPlayerPlan(): Promise<TransactionPlan> { throw new Error("Weekly records are durable"); }
-export async function buildCloseWeeklyChallengePlan(): Promise<TransactionPlan> { throw new Error("Weekly jackpots are durable"); }
+function weeklyMetricTag(metric: object): number {
+  const name = Object.keys(metric)[0];
+  const names = [
+    "highestCombo",
+    "comboScoringActions",
+    "comboDerivedScore",
+    "highestActionScore",
+    "mostLinesSingleAction",
+    "mostBlocksSingleAction",
+    "totalLines",
+    "totalBlocks",
+    "perfectClears",
+  ];
+  const tag = names.indexOf(name ?? "");
+  if (tag < 0) throw new Error("Weekly contains an unknown metric");
+  return tag;
+}
 
 function parseWeeklyStatus(value: unknown): WeeklyStatus {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "unknown";
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "unknown";
+  }
   const status = Object.keys(value)[0];
-  return status === "open" || status === "finalized" ? status : "unknown";
+  return status === "funding" || status === "open" || status === "finalized"
+    ? status
+    : "unknown";
 }
 
-function plan(label: string, connection: Connection, feePayer: PublicKey, instruction: import("@solana/web3.js").TransactionInstruction): TransactionPlan {
-  return { layer: "solana-base", label, connection, transaction: new Transaction().add(instruction), feePayer, signers: [] };
+function plan(
+  label: string,
+  connection: Connection,
+  feePayer: PublicKey,
+  instruction: TransactionInstruction,
+): TransactionPlan {
+  return {
+    layer: "solana-base",
+    label,
+    connection,
+    transaction: new Transaction().add(instruction),
+    feePayer,
+    signers: [],
+  };
 }

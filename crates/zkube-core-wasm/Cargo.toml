@@ -1,0 +1,27 @@
+[package]
+name = "zkube-core-wasm"
+version = "0.1.0"
+description = "WASM boundary for deterministic zKube protocol primitives"
+edition = "2024"
+rust-version = "1.89"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+wasm-bindgen = ["dep:wasm-bindgen"]
+
+[dependencies]
+zkube-core = { path = "../zkube-core" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "=0.2.118", optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"

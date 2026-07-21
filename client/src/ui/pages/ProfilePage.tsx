@@ -10,7 +10,6 @@ import {
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
-import { useCubeBalance } from "@/hooks/useCubeBalance";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
 import { useProgress } from "@/contexts/progress";
@@ -24,7 +23,7 @@ import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { staggerContainer, staggerItem } from "@/ui/motion";
 
-const TABS = ["Stats", "Zones"] as const;
+const TABS = ["Arcade", "Campaign"] as const;
 
 const containerVariants = staggerContainer(0.06);
 
@@ -33,7 +32,6 @@ const ProfilePage: React.FC = () => {
   const player = useConnectedPlayer();
   const address = player.publicKey?.toBase58() ?? "";
   const { playerMeta } = usePlayerMeta(address);
-  const { balance: cubeBalance } = useCubeBalance(address);
   const { zones, totalStars } = useZoneProgress(address);
   const playerStats = usePlayerStats(address);
   const progress = useProgress();
@@ -46,7 +44,7 @@ const ProfilePage: React.FC = () => {
   const isMaxLevel = level >= LEVEL_THRESHOLDS.length;
   const title = getTitleForLevel(level);
 
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Stats");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("Arcade");
   const [labelInput, setLabelInput] = useState("");
   const navigate = useNavigationStore((state) => state.navigate);
 
@@ -94,9 +92,7 @@ const ProfilePage: React.FC = () => {
                 displayName={playerLabel.label?.displayName}
                 title={title}
                 address={address}
-                cubeBalance={cubeBalance}
                 ringSize={60}
-                cubeSize="lg"
                 onEditIdentity={() => navigate("settings")}
               />
             </div>
@@ -199,26 +195,18 @@ const ProfilePage: React.FC = () => {
           </motion.div>
 
           <motion.div variants={staggerItem} className="px-0.5">
-            {tab === "Stats" && (
+            {tab === "Arcade" && (
               <StatsTab
                 totalGames={playerMeta?.totalRuns ?? 0}
                 totalLines={playerStats.totalLines}
                 maxCombo={playerStats.maxCombo}
-                totalBosses={playerStats.totalBosses}
                 dailiesPlayed={Number(
                   progress.progress?.lifetime.dailyChallenges ?? 0n,
                 )}
-                perfectLevels={Number(
-                  progress.progress?.lifetime.perfectLevels ?? 0n,
-                )}
-                cubesEarned={Number(
-                  progress.progress?.lifetimeCubesEarned ?? 0n,
-                )}
-                cubesSpent={Number(progress.progress?.lifetimeCubesSpent ?? 0n)}
               />
             )}
 
-            {tab === "Zones" && (
+            {tab === "Campaign" && (
               <ZoneProgressTab zones={zones} totalStars={totalStars} />
             )}
           </motion.div>

@@ -31,40 +31,10 @@ import {
   type TransactionPlan,
 } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
-import { buildCubePurchasePlan, type CubeShopView } from "./shopClient";
-import { splitStarPurchase } from "../utils/currency";
 import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 describe("native SOL transaction boundaries", () => {
-  it("keeps Star spending owner-signed and encodes the exact quoted lamports", async () => {
-    const owner = new SessionWallet(Keypair.generate());
-    const shop = shopView();
-    const plan = await buildCubePurchasePlan({
-      connection: {} as Connection,
-      wallet: owner,
-      shop,
-      packIndex: 0,
-    });
-    const instruction = plan.transaction.instructions.at(-1)!;
-    const ownerMeta = instruction.keys.find((key) =>
-      key.pubkey.equals(owner.publicKey),
-    );
-
-    expect(plan.feePayer.equals(owner.publicKey)).toBe(true);
-    expect(ownerMeta?.isSigner).toBe(true);
-    expect(
-      instruction.keys.at(-1)?.pubkey.equals(SystemProgram.programId),
-    ).toBe(true);
-    expect(instruction.data.readBigUInt64LE(9)).toBe(10n);
-    expect(instruction.data.readBigUInt64LE(17)).toBe(20_000_000n);
-    expect(splitStarPurchase(10_000_001n)).toEqual({
-      team: 1_000_000n,
-      rewards: 1_000_000n,
-      treasury: 8_000_001n,
-    });
-  });
-
   it("exposes no generic vault signer: funded prepare is pinned to owner PDAs", async () => {
     const owner = Keypair.generate().publicKey;
     const actor = new SessionWallet(Keypair.generate());
@@ -117,12 +87,11 @@ describe("native SOL transaction boundaries", () => {
   });
 
   it("pins every funded self-CPI wrapper to the executable zKube program", () => {
-    const fundedInstructions = [
-      "funded_delegate_active_run",
-      "funded_enter_daily",
-      "funded_prepare_campaign_run",
-      "funded_rollup_daily_to_weekly",
-    ];
+    const fundedInstructions = IDL.instructions
+      .map((instruction) => instruction.name as string)
+      .filter((name) => name.startsWith("funded_"));
+
+    expect(fundedInstructions.length).toBeGreaterThan(0);
 
     for (const name of fundedInstructions) {
       const instruction = IDL.instructions.find(
@@ -356,49 +325,3 @@ describe("run transaction funding preflight", () => {
     expect(simulation).not.toHaveBeenCalled();
   });
 });
-
-function shopView(): CubeShopView {
-  const destination = () => Keypair.generate().publicKey;
-  return {
-    economyVersion: 2,
-    revision: 1n,
-    playerInitialized: true,
-    cubesBalance: 0n,
-    dailyRetryCubes: 10n,
-    maxPaidDailyRetries: 5,
-    protocolPaused: false,
-    teamDestination: destination(),
-    rewardVault: destination(),
-    treasuryDestination: destination(),
-    saleEnabled: false,
-    saleStartsAt: 0n,
-    saleEndsAt: 0n,
-    saleLive: false,
-    weeklyChallenge: null,
-    packs: [10n, 50n, 200n, 500n].map((cubes, index) => ({
-      index,
-      cubes,
-      regularPrice: [
-        20_000_000n,
-        90_000_000n,
-        300_000_000n,
-        700_000_000n,
-      ][index]!,
-      currentPrice: [
-        20_000_000n,
-        90_000_000n,
-        300_000_000n,
-        700_000_000n,
-      ][index]!,
-      salePrice: [
-        20_000_000n,
-        90_000_000n,
-        300_000_000n,
-        700_000_000n,
-        1_250_000_000n,
-      ][index]!,
-      enabled: true,
-      onSale: false,
-    })),
-  };
-}

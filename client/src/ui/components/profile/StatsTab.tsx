@@ -11,22 +11,14 @@ interface StatsTabProps {
   totalGames: number;
   totalLines: number;
   maxCombo: number;
-  totalBosses: number;
   dailiesPlayed: number;
-  perfectLevels: number;
-  cubesEarned: number;
-  cubesSpent: number;
 }
 
 const StatsTab: React.FC<StatsTabProps> = ({
   totalGames,
   totalLines,
   maxCombo,
-  totalBosses,
   dailiesPlayed,
-  perfectLevels,
-  cubesEarned,
-  cubesSpent,
 }) => {
   const colors = useThemeColors();
   const stats: Array<{ label: string; value: string; color?: string }> = [
@@ -37,23 +29,9 @@ const StatsTab: React.FC<StatsTabProps> = ({
       value: totalLines > 0 ? totalLines.toLocaleString() : "--",
     },
     {
-      label: "Guardians",
-      value: totalBosses > 0 ? totalBosses.toLocaleString() : "--",
-    },
-    {
       label: "Dailies played",
       value: dailiesPlayed > 0 ? dailiesPlayed.toLocaleString() : "--",
     },
-    {
-      label: "Perfect levels",
-      value: perfectLevels > 0 ? perfectLevels.toLocaleString() : "--",
-    },
-    {
-      label: "Lifetime Cubes earned",
-      value: cubesEarned.toLocaleString(),
-      color: "#fde68a",
-    },
-    { label: "Lifetime Cubes spent", value: cubesSpent.toLocaleString() },
   ];
 
   return (

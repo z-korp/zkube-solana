@@ -78,12 +78,6 @@ pub enum ErrorCode {
     NoPrize,
     #[msg("The progression rule is invalid")]
     InvalidProgressRule,
-    #[msg("This progress reward has already been claimed")]
-    RewardAlreadyClaimed,
-    #[msg("The progress requirement has not been met")]
-    RewardNotEarned,
-    #[msg("This quest is not active in the current cadence")]
-    QuestNotActive,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
     #[msg("The Arena entry price changed; refresh the exact quote")]
@@ -94,4 +88,8 @@ pub enum ErrorCode {
     SessionExpired,
     #[msg("The player label is invalid")]
     InvalidPlayerLabel,
+    #[msg("The provided period is not the canonical current or successor period")]
+    InvalidPeriod,
+    #[msg("The first Daily, Weekly, and Season pools were already seeded")]
+    AlreadySeeded,
 }

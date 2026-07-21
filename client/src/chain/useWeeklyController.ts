@@ -11,7 +11,6 @@ export function useWeeklyController() {
   const wallet = player.readOnlyWallet;
   const [weekly, setWeekly] = useState<WeeklyView | null>(null);
   const [loading, setLoading] = useState(false);
-  const [action] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -35,17 +34,10 @@ export function useWeeklyController() {
     return () => globalThis.clearInterval(timer);
   }, [refresh]);
 
-  const pushed = async (): Promise<never> => {
-    throw new Error("SOL prizes are pushed automatically at settlement");
-  };
-
   return {
     weekly,
     loading,
-    action,
     error,
     refresh,
-    claimCubes: pushed,
-    claimSol: pushed,
   };
 }

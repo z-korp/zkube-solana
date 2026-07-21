@@ -1,24 +1,16 @@
-import { Home, ScrollText, ShoppingBag, Trophy, User } from "lucide-react";
+import { Gamepad2, Map, ScrollText, Trophy, User } from "lucide-react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { motion } from "motion/react";
-import { useProgress } from "@/contexts/progress";
 
 const BottomNav = () => {
   const currentPage = useNavigationStore((s) => s.currentPage);
   const navigate = useNavigationStore((s) => s.navigate);
-  const openShop = useNavigationStore((s) => s.openShop);
   const colors = useThemeColors();
-  const { progress } = useProgress();
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;
-  // Everything this badge counts is claimable ON the Quests page:
-  // quests + feats (achievements).
-  const claimableCount =
-    (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
-    (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;
@@ -30,10 +22,10 @@ const BottomNav = () => {
     label: string;
     badge?: number;
   }[] = [
-    { id: "home", icon: Home, label: "Home" },
-    { id: "ranks", icon: Trophy, label: "Arena" },
-    { id: "quests", icon: ScrollText, label: "Quests", badge: claimableCount },
-    { id: "shop", icon: ShoppingBag, label: "Shop" },
+    { id: "arcade", icon: Gamepad2, label: "Arcade" },
+    { id: "campaign", icon: Map, label: "Campaign" },
+    { id: "quests", icon: ScrollText, label: "Quests" },
+    { id: "ranks", icon: Trophy, label: "Ranks" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 
@@ -46,9 +38,7 @@ const BottomNav = () => {
           <button
             key={tab.id}
             disabled={!connected}
-            onClick={() =>
-              tab.id === "shop" ? openShop(null) : navigate(tab.id)
-            }
+            onClick={() => navigate(tab.id)}
             className="relative flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors disabled:opacity-40"
             style={{
               color: isActive ? colors.accent : "rgba(255, 255, 255, 0.4)",

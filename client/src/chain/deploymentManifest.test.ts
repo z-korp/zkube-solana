@@ -1,7 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   DELEGATION_PROGRAM_ID,
@@ -14,16 +13,12 @@ import {
   deploymentManifestFromEnv,
   deploymentManifestMismatches,
   formatDeploymentManifestValidation,
-  isZkubeDeploymentManifest,
   validateDeploymentBinding,
   validateDeploymentManifest,
   type ZkubeDeploymentManifest,
 } from "./deploymentManifest";
 import { VRF_QUEUE } from "./runPlan";
-
-const LEGACY_V3_PROGRAM_ID = new PublicKey(
-  "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
-);
+import { deriveOperatorRevenueVaultPda } from "./pdas";
 
 describe("zKube deployment manifest", () => {
   it("validates a sanitized Router-based devnet candidate", () => {
@@ -76,7 +71,7 @@ describe("zKube deployment manifest", () => {
     expect(validation.valid).toBe(true);
   });
 
-  it("rejects mainnet, substituted infrastructure, non-SOL payment, and aliased custody", () => {
+  it("rejects mainnet, substituted infrastructure, non-SOL payment, and noncanonical custody", () => {
     const base = candidate();
     const cases: unknown[] = [
       { ...base, cluster: "mainnet-beta" },
@@ -87,9 +82,9 @@ describe("zKube deployment manifest", () => {
       },
       {
         ...base,
-        destinations: {
-          ...base.destinations,
-          reward: base.destinations.treasury,
+        protocol: {
+          ...base.protocol,
+          operatorRevenueVault: Keypair.generate().publicKey.toBase58(),
         },
       },
     ];
@@ -137,44 +132,14 @@ describe("zKube deployment manifest", () => {
     }).approvalSatisfied).toBe(false);
   });
 
-  it("preserves the exact approved v3 release as a historical manifest", () => {
-    const config = json(new URL("../../vercel.json", import.meta.url));
-    expect(config).toMatchObject({ buildCommand: "pnpm run deploy:build" });
-
-    const source = json(new URL("../../deployment/devnet-v3.json", import.meta.url));
-    expect(isZkubeDeploymentManifest(source, LEGACY_V3_PROGRAM_ID)).toBe(true);
-    if (!isZkubeDeploymentManifest(source, LEGACY_V3_PROGRAM_ID)) {
-      throw new Error("invalid release manifest");
-    }
-
-    expect(validateDeploymentBinding({
-      manifest: source,
-      artifactSha256: source.program.artifactSha256,
-      expectedProgramId: LEGACY_V3_PROGRAM_ID,
-    }).valid).toBe(true);
-    const production = validateDeploymentBinding({
-      manifest: source,
-      artifactSha256: source.program.artifactSha256,
-      requireApproved: true,
-      expectedProgramId: LEGACY_V3_PROGRAM_ID,
-    });
-    expect(production.approvalSatisfied).toBe(true);
-    expect(production.valid).toBe(true);
-  });
 });
 
-function json(url: URL): unknown {
-  return JSON.parse(readFileSync(url, "utf8")) as unknown;
-}
-
 function candidate(): ZkubeDeploymentManifest {
-  const destinations = Array.from(
-    { length: 3 },
-    () => Keypair.generate().publicKey.toBase58(),
-  );
+  const authority = Keypair.generate().publicKey.toBase58();
+  const teamDestination = Keypair.generate().publicKey.toBase58();
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 3,
+    schemaVersion: 4,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -195,14 +160,10 @@ function candidate(): ZkubeDeploymentManifest {
       vrfQueue: VRF_QUEUE.toBase58(),
     },
     payment: { asset: "native-sol", decimals: 9 },
-    destinations: {
-      team: destinations[0]!,
-      treasury: destinations[1]!,
-      reward: destinations[2]!,
-    },
     protocol: {
-      authority: Keypair.generate().publicKey.toBase58(),
-      pricingOperator: Keypair.generate().publicKey.toBase58(),
+      authority,
+      teamDestination,
+      operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     versions: { content: 1, dailyRules: 1 },
   };
@@ -221,11 +182,9 @@ function environment(manifest: ZkubeDeploymentManifest): Record<string, string> 
     VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC: manifest.rpc.magicRouter,
     VITE_PUBLIC_SOLANA_VRF_QUEUE: manifest.magic.vrfQueue,
     ZKUBE_PROGRAM_ARTIFACT_SHA256: manifest.program.artifactSha256,
-    ZKUBE_TEAM_DESTINATION: manifest.destinations.team,
-    ZKUBE_TREASURY_DESTINATION: manifest.destinations.treasury,
-    ZKUBE_REWARD_VAULT: manifest.destinations.reward,
     ZKUBE_PROTOCOL_AUTHORITY: manifest.protocol.authority,
-    ZKUBE_PRICING_OPERATOR: manifest.protocol.pricingOperator,
+    ZKUBE_TEAM_DESTINATION: manifest.protocol.teamDestination,
+    ZKUBE_OPERATOR_REVENUE_VAULT: manifest.protocol.operatorRevenueVault,
     ZKUBE_CONTENT_VERSION: String(manifest.versions.content),
     ZKUBE_DAILY_RULES_VERSION: String(manifest.versions.dailyRules),
   };

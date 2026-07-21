@@ -13,7 +13,6 @@ interface VictoryDialogProps {
   closeDisabled?: boolean;
   game: Game;
   finalCampaignMapId: number;
-  xpAwarded: number;
   colors?: ThemeColors;
 }
 
@@ -24,7 +23,7 @@ const PORTRAIT_MASK =
  * Guardian-trial victory card — the boss counterpart to LevelCompleteDialog,
  * sharing its full-height portrait + bottom-panel language (no off-theme
  * trophy). Shows the run totals, the guardian's respect line, and the
- * confirmed XP, with a Share action and Continue.
+ * Campaign completion, with a Share action and Continue.
  */
 const VictoryDialog: React.FC<VictoryDialogProps> = ({
   isOpen,
@@ -32,7 +31,6 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   closeDisabled = false,
   game,
   finalCampaignMapId,
-  xpAwarded,
   colors,
 }) => {
   const [phase, setPhase] = useState(0);
@@ -58,7 +56,7 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
         ? "I completed the zKube campaign!"
         : `I defeated ${guardian.name}, the ${guardian.title}, in zKube!`
     }
-🧱 ${game.totalCubes} lines cleared
+🧱 ${game.totalLinesCleared} lines cleared
 💎 ${game.totalScore.toLocaleString()} total points
 🔥 ${game.maxComboRun} max combo
 Can you clear the guardian trial? 😎
@@ -70,7 +68,7 @@ Play now: app.zkube.xyz
     guardian.name,
     guardian.title,
     game.maxComboRun,
-    game.totalCubes,
+    game.totalLinesCleared,
     game.totalScore,
   ]);
 
@@ -144,7 +142,7 @@ Play now: app.zkube.xyz
           >
             <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
               <p className="font-sans text-sm font-bold text-yellow-300">
-                {game.totalCubes}
+                {game.totalLinesCleared}
               </p>
               <p className="font-sans text-[9px] text-white/40">Lines</p>
             </div>
@@ -160,21 +158,6 @@ Play now: app.zkube.xyz
               </p>
               <p className="font-sans text-[9px] text-white/40">Best Combo</p>
             </div>
-          </motion.div>
-
-          {/* Confirmed progression reward */}
-          <motion.div
-            className="mt-2 rounded-xl bg-white/[0.05] px-3 py-2 text-center"
-            initial={{ opacity: 0 }}
-            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <p className="font-sans text-sm font-bold text-cyan-300">
-              +{xpAwarded} XP
-            </p>
-            <p className="font-sans text-[9px] text-white/40">
-              Campaign level progress
-            </p>
           </motion.div>
 
           {/* Actions */}

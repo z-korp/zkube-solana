@@ -4,6 +4,8 @@ import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import { deriveRunAddresses } from "./pdas";
 import {
+  canSubmitRunMove,
+  needsLegacyRowRecovery,
   requireNoAttachedRunSession,
   validateBaseRunRecovery,
 } from "./useRunController";
@@ -128,5 +130,84 @@ describe("base-run recovery validation", () => {
         settleable: { runId: 12n },
       }),
     ).toThrow(/local run 12.*recovering run 7/i);
+  });
+});
+
+describe("decoded move readiness", () => {
+  it("allows moves only from Playing with an owned preview row", () => {
+    expect(
+      canSubmitRunMove({
+        lifecycle: "playing",
+        nextRow: [1, 1, 2, 2],
+        pendingVrfCounter: 0,
+      }),
+    ).toBe(true);
+    expect(
+      canSubmitRunMove({
+        lifecycle: "playing",
+        nextRow: null,
+        pendingVrfCounter: 0,
+      }),
+    ).toBe(false);
+    expect(
+      canSubmitRunMove(
+        {
+          lifecycle: "playing",
+          nextRow: [1, 1, 2, 2],
+          pendingVrfCounter: 0,
+          mode: "practice",
+          deadlineAt: 100,
+        },
+        99,
+      ),
+    ).toBe(true);
+    expect(
+      canSubmitRunMove(
+        {
+          lifecycle: "playing",
+          nextRow: [1, 1, 2, 2],
+          pendingVrfCounter: 0,
+          mode: "practice",
+          deadlineAt: 100,
+        },
+        100,
+      ),
+    ).toBe(false);
+    expect(
+      canSubmitRunMove({
+        lifecycle: "awaitingVrf",
+        nextRow: [1, 1, 2, 2],
+        pendingVrfCounter: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("recovers only legacy AwaitingVrf without an outstanding request", () => {
+    expect(
+      needsLegacyRowRecovery({
+        lifecycle: "awaitingVrf",
+        nextRow: null,
+        pendingVrfCounter: 0,
+      }),
+    ).toBe(true);
+    expect(
+      needsLegacyRowRecovery(
+        {
+          lifecycle: "awaitingVrf",
+          nextRow: null,
+          pendingVrfCounter: 0,
+          mode: "daily",
+          deadlineAt: 100,
+        },
+        100,
+      ),
+    ).toBe(false);
+    expect(
+      needsLegacyRowRecovery({
+        lifecycle: "awaitingVrf",
+        nextRow: null,
+        pendingVrfCounter: 9,
+      }),
+    ).toBe(false);
   });
 });

@@ -9,31 +9,36 @@ add approval prompts to the shipped product.
 - The connected Solana address is the player identity. There are no embedded
   wallets, recovery codes, deposits, soft currencies, shops, passes, or prize
   claims.
-- Campaign and yesterday's unranked Practice are free. Map 1 unlocks Arena.
+- Campaign and yesterday's unranked Practice are free. Arcade is immediately
+  available; Campaign never gates paid play.
 - Every ranked Arena run requires a separate owner-signed exact 0.02 SOL entry.
   Device sessions can never authorize that transfer.
-- Entries split 75% to the Daily pot, 15% to operator revenue, and 10% to the
-  seven-day Weekly jackpot. Daily pays 45/25/15/10/5 and Weekly pays 60/25/15.
+- Entries split 60% to the following Daily, 20% to the following Weekly, 10%
+  to the following Monday-aligned 28-day Season, and 10% to operator revenue.
+  Daily and Season pay 45/25/15/10/5; each of three Weekly skill boards pays
+  60/25/15. All transfers floor to 0.001 SOL and dust rolls forward.
 - Settlement is push-only, may be late, and is never cancelled. Empty pots roll
   forward; profile synchronization never gates money.
-- Failed entries are refunded only after a bounded authority-declared Daily
-  incident and always from operator collateral, never a prize pot. Ordinary
-  unresolved entries expire after the recovery and declaration windows.
-- XP, quests, achievements, titles, ratings, emblems, and stats never grant
-  SOL, entries, prize eligibility, or mint odds.
+- Paid entries are scored or expired and are never refunded. At 23:30 UTC a
+  run with an accepted action scores its last committed state; an untouched or
+  unrecoverable run expires and can never score late.
+- Campaign changes only map, level, and guardian completion. Arcade owns XP,
+  quests, achievements, titles, ratings, crests, and competitive stats; none
+  grant SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
   recyclable device fee allowance. Funding PDAs sign only narrow self-CPI rent
   paths; there is no Kora or generic paymaster.
 - One durable `active_run_id` prevents overlapping runs and supports
   cross-device recovery. Base, Router, and resolved ER connections remain
   separate; resolve ER placement with `getDelegationStatus`.
-- Fly runs only the independently funded Daily/Weekly keeper. The web client is
-  static PWA/TWA code with no server signer.
+- Fly runs only the independently funded Daily/Weekly/Season keeper. The web
+  client is static PWA/TWA code with no server signer.
 - v4 is Devnet-first and presently undeployed. Mainnet requires counsel,
   economic, and distribution review.
-- Fresh protocol initialization is paused. Do not unpause or open paid Arena
-  play until the full recovery/settlement keeper is deployed, fingerprinted,
-  read-only verified, and included in an exact approval bundle.
+- Fresh protocol initialization is paused. Initialization may seed only the
+  first Daily, Weekly, and Season. Do not unpause or open paid Arcade until the
+  full recovery/settlement keeper is deployed, fingerprinted, read-only
+  verified, and included in an exact approval bundle.
 
 Architecture and operations documentation belongs in code comments and
 `README.md`; do not add new Markdown documents.
@@ -53,9 +58,10 @@ Architecture and operations documentation belongs in code comments and
   current/recent cadence PDAs, canonical instruction allowlist, at most eight
   writes and two expired-session closures, 0.05 SOL simulated spend per pass,
   and a 0.1 SOL reserve floor.
-- Governance, incident declaration, terms/rules changes, funding, withdrawals,
-  deployment, initial keeper enablement, and all mainnet actions remain outside
-  recurring authority and require exact approval.
+- Governance, initial competition seeding, manual reimbursement, terms/rules
+  changes, funding, withdrawals, deployment, initial keeper enablement, and all
+  mainnet actions remain outside recurring authority and require exact
+  approval.
 - Automated verification is offline. Prefix every Solana, Anchor, and pnpm
   chain command with `NO_DNA=1`.
 - Never expose signer bytes, seed phrases, `.env` contents, keeper secrets,
@@ -71,8 +77,8 @@ Architecture and operations documentation belongs in code comments and
 - A player funding PDA may never gain a generic transfer or arbitrary
   instruction-forwarding path.
 - Preserve `ActiveRun` until copied-back terminal state is consumed, or until a
-  deterministic refund/expiry resolution prevents late scoring and permits
-  safe cleanup.
+  deterministic expiry resolution and orphan reservation prevent late scoring
+  and permit safe cleanup.
 - Production Vercel publishing is Git-driven only from
   `z-korp/zkube-solana:main` to project
   `prj_5kqIxlxgXHXGhldje8unic9h3qYA` under `z-labs`. Never deploy zKube under
@@ -88,6 +94,7 @@ NO_DNA=1 pnpm run build
 NO_DNA=1 pnpm test
 cd ../client
 NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm core:wasm:check
 NO_DNA=1 pnpm exec tsc -b --pretty false
 NO_DNA=1 pnpm lint
 NO_DNA=1 pnpm exec vitest run

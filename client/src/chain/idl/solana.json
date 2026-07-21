@@ -80,6 +80,141 @@
       "args": []
     },
     {
+      "name": "activate_arena_daily",
+      "discriminator": [
+        119,
+        214,
+        15,
+        122,
+        237,
+        1,
+        96,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "activate_arena_rules",
+      "discriminator": [
+        209,
+        23,
+        60,
+        135,
+        59,
+        141,
+        138,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_rules_catalog"
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "activate_campaign_map",
       "discriminator": [
         241,
@@ -194,6 +329,142 @@
       ]
     },
     {
+      "name": "activate_season",
+      "discriminator": [
+        65,
+        12,
+        62,
+        60,
+        29,
+        166,
+        239,
+        206
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "activate_weekly_jackpot",
+      "discriminator": [
+        108,
+        174,
+        2,
+        71,
+        207,
+        49,
+        205,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "apply_bonus",
       "discriminator": [
         50,
@@ -288,34 +559,51 @@
       ]
     },
     {
-      "name": "claim_achievement",
+      "name": "cleanup_orphan_active_run",
       "discriminator": [
-        107,
         181,
-        102,
-        247,
-        207,
-        212,
-        251,
-        24
+        40,
+        52,
+        240,
+        230,
+        27,
+        96,
+        63
       ],
       "accounts": [
         {
-          "name": "protocol",
+          "name": "active_run",
+          "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
                   114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
+                  117,
+                  110
                 ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  99,
+                  116,
+                  105,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.owner",
+                "account": "ActiveRun"
+              },
+              {
+                "kind": "account",
+                "path": "active_run.run_id",
+                "account": "ActiveRun"
               }
             ]
           }
@@ -338,65 +626,128 @@
               },
               {
                 "kind": "account",
-                "path": "owner_authority"
+                "path": "active_run.owner",
+                "account": "ActiveRun"
               }
             ]
           }
         },
         {
-          "name": "owner_authority"
+          "name": "rent_recipient",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.owner",
+                "account": "ActiveRun"
+              }
+            ]
+          }
         },
         {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
+          "name": "caller",
           "signer": true
         }
       ],
-      "args": [
-        {
-          "name": "achievement_index",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
-      "name": "claim_quest",
+      "name": "close_arena_player",
       "discriminator": [
-        38,
-        197,
-        33,
-        123,
-        0,
-        108,
-        206,
-        161
+        202,
+        241,
+        245,
+        122,
+        192,
+        220,
+        159,
+        49
       ],
       "accounts": [
         {
-          "name": "protocol",
+          "name": "arena_daily",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
+                  97,
                   114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
               }
             ]
           }
         },
         {
-          "name": "player_state",
+          "name": "arena_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily"
+              },
+              {
+                "kind": "account",
+                "path": "arena_player.player",
+                "account": "ArenaPlayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
           "writable": true,
           "pda": {
             "seeds": [
@@ -408,34 +759,141 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
                 ]
               },
               {
                 "kind": "account",
-                "path": "owner_authority"
+                "path": "arena_player.player",
+                "account": "ArenaPlayer"
               }
             ]
           }
         },
         {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
+          "name": "caller",
           "signer": true
         }
       ],
-      "args": [
+      "args": []
+    },
+    {
+      "name": "close_season_player",
+      "discriminator": [
+        91,
+        117,
+        194,
+        75,
+        230,
+        222,
+        243,
+        145
+      ],
+      "accounts": [
         {
-          "name": "quest_index",
-          "type": "u8"
+          "name": "season",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "season_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season"
+              },
+              {
+                "kind": "account",
+                "path": "season_player.player",
+                "account": "SeasonPlayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_recipient",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season_player.player",
+                "account": "SeasonPlayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
         }
-      ]
+      ],
+      "args": []
     },
     {
       "name": "commit_run",
@@ -572,29 +1030,33 @@
           }
         },
         {
-          "name": "arena_board",
+          "name": "weekly_jackpot",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
-                  114,
+                  119,
                   101,
-                  110,
-                  97,
+                  101,
+                  107,
+                  108,
+                  121,
                   95,
-                  98,
-                  111,
+                  106,
                   97,
-                  114,
-                  100
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
               }
             ]
           }
@@ -1219,16 +1681,16 @@
       "args": []
     },
     {
-      "name": "enter_arena_v1",
+      "name": "enter_arena_v2",
       "discriminator": [
-        235,
-        201,
-        188,
-        225,
-        15,
+        140,
+        111,
         95,
-        4,
-        92
+        231,
+        103,
+        164,
+        68,
+        12
       ],
       "accounts": [
         {
@@ -1293,7 +1755,7 @@
           }
         },
         {
-          "name": "arena_daily",
+          "name": "current_daily",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1315,7 +1777,7 @@
               },
               {
                 "kind": "account",
-                "path": "arena_daily.day_id",
+                "path": "current_daily.day_id",
                 "account": "ArenaDaily"
               }
             ]
@@ -1345,7 +1807,7 @@
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "current_daily"
               },
               {
                 "kind": "account",
@@ -1355,7 +1817,90 @@
           }
         },
         {
-          "name": "weekly_jackpot",
+          "name": "current_weekly",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "current_weekly.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "current_season",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "current_season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "following_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "following_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "following_weekly",
           "writable": true,
           "pda": {
             "seeds": [
@@ -1380,8 +1925,32 @@
               },
               {
                 "kind": "account",
-                "path": "arena_daily.week_id",
-                "account": "ArenaDaily"
+                "path": "following_weekly.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "following_season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "following_season.season_id",
+                "account": "Season"
               }
             ]
           }
@@ -1451,6 +2020,11 @@
           }
         },
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "owner",
           "writable": true,
           "signer": true
@@ -1467,6 +2041,120 @@
         },
         {
           "name": "expected_entry_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "expire_unresolved_arena_run",
+      "discriminator": [
+        39,
+        183,
+        178,
+        83,
+        131,
+        219,
+        138,
+        63
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_player",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
           "type": "u64"
         }
       ]
@@ -1514,7 +2202,8 @@
           }
         },
         {
-          "name": "arena_board",
+          "name": "following_daily",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1526,48 +2215,85 @@
                   110,
                   97,
                   95,
-                  98,
-                  111,
+                  100,
                   97,
-                  114,
-                  100
+                  105,
+                  108,
+                  121
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "following_daily.day_id",
+                "account": "ArenaDaily"
               }
             ]
           }
         },
         {
-          "name": "weekly_jackpot",
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_season",
+      "discriminator": [
+        183,
+        221,
+        183,
+        7,
+        73,
+        215,
+        158,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "season",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
+                  115,
                   101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  106,
                   97,
-                  99,
-                  107,
-                  112,
+                  115,
                   111,
-                  116
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily.week_id",
-                "account": "ArenaDaily"
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "following_season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "following_season.season_id",
+                "account": "Season"
               }
             ]
           }
@@ -1625,7 +2351,36 @@
           }
         },
         {
-          "name": "weekly_board",
+          "name": "final_daily",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "final_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "following_weekly",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1638,19 +2393,46 @@
                   108,
                   121,
                   95,
-                  98,
-                  111,
+                  106,
                   97,
-                  114,
-                  100
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
                 ]
               },
               {
                 "kind": "account",
-                "path": "weekly_jackpot"
+                "path": "following_weekly.week_id",
+                "account": "WeeklyJackpot"
               }
             ]
           }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "force_finish_deadline",
+      "discriminator": [
+        127,
+        24,
+        175,
+        82,
+        140,
+        88,
+        108,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "active_run",
+          "writable": true
         },
         {
           "name": "caller",
@@ -1878,6 +2660,120 @@
       "args": []
     },
     {
+      "name": "funded_enter_arena_v2",
+      "discriminator": [
+        194,
+        172,
+        195,
+        228,
+        42,
+        24,
+        133,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcade_config"
+        },
+        {
+          "name": "player_state",
+          "writable": true
+        },
+        {
+          "name": "current_daily",
+          "writable": true
+        },
+        {
+          "name": "arena_player",
+          "writable": true
+        },
+        {
+          "name": "current_weekly",
+          "writable": true
+        },
+        {
+          "name": "current_season"
+        },
+        {
+          "name": "following_daily",
+          "writable": true
+        },
+        {
+          "name": "following_weekly",
+          "writable": true
+        },
+        {
+          "name": "following_season",
+          "writable": true
+        },
+        {
+          "name": "operator_revenue_vault",
+          "writable": true
+        },
+        {
+          "name": "active_run",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_entry_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "funded_prepare_campaign_run",
       "discriminator": [
         100,
@@ -1970,6 +2866,90 @@
         {
           "name": "level",
           "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "funded_prepare_practice_run_v2",
+      "discriminator": [
+        154,
+        73,
+        19,
+        31,
+        182,
+        127,
+        97,
+        207
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "player_state",
+          "writable": true
+        },
+        {
+          "name": "arena_daily"
+        },
+        {
+          "name": "active_run",
+          "writable": true
+        },
+        {
+          "name": "player_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token"
+        },
+        {
+          "name": "actor",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
+          "type": "u64"
         }
       ]
     },
@@ -2200,35 +3180,7 @@
           }
         },
         {
-          "name": "reward_vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  119,
-                  97,
-                  114,
-                  100,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "team_destination"
-        },
-        {
-          "name": "treasury_destination"
         },
         {
           "name": "authority",
@@ -2252,114 +3204,77 @@
       ]
     },
     {
-      "name": "open_arena_daily",
+      "name": "initialize_season_player",
       "discriminator": [
-        126,
-        235,
-        216,
-        49,
-        255,
-        202,
-        213,
-        196
+        28,
+        233,
+        132,
+        108,
+        88,
+        155,
+        158,
+        50
       ],
       "accounts": [
         {
-          "name": "protocol",
+          "name": "season",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "daily_rules_catalog"
-        },
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
+                  115,
                   101,
-                  110,
                   97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "day_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
+                  115,
                   111,
-                  97,
-                  114,
-                  100
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "season.season_id",
+                "account": "Season"
               }
             ]
           }
+        },
+        {
+          "name": "season_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player"
         },
         {
           "name": "payer",
@@ -2367,132 +3282,11 @@
           "signer": true
         },
         {
-          "name": "caller",
-          "signer": true
-        },
-        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "day_id",
-          "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "open_weekly_jackpot",
-      "discriminator": [
-        39,
-        219,
-        229,
-        84,
-        121,
-        50,
-        60,
-        75
-      ],
-      "accounts": [
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "weekly_jackpot",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  106,
-                  97,
-                  99,
-                  107,
-                  112,
-                  111,
-                  116
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "week_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "weekly_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "weekly_jackpot"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "caller",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "week_id",
-          "type": "u32"
-        }
-      ]
+      "args": []
     },
     {
       "name": "play_move",
@@ -2593,6 +3387,109 @@
               32
             ]
           }
+        }
+      ]
+    },
+    {
+      "name": "prepare_arena_daily",
+      "discriminator": [
+        124,
+        44,
+        107,
+        255,
+        253,
+        131,
+        119,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_rules_catalog"
+        },
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "day_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "day_id",
+          "type": "u32"
         }
       ]
     },
@@ -2710,16 +3607,16 @@
       ]
     },
     {
-      "name": "prepare_practice_run_v1",
+      "name": "prepare_practice_run_v2",
       "discriminator": [
-        208,
-        70,
-        215,
-        3,
-        3,
-        38,
-        237,
-        220
+        48,
+        225,
+        138,
+        18,
+        62,
+        160,
+        218,
+        18
       ],
       "accounts": [
         {
@@ -2853,6 +3750,207 @@
         {
           "name": "run_id",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "prepare_season",
+      "discriminator": [
+        249,
+        178,
+        94,
+        255,
+        244,
+        195,
+        145,
+        136
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "season_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "season_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "prepare_weekly_jackpot",
+      "discriminator": [
+        196,
+        22,
+        10,
+        124,
+        230,
+        144,
+        241,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_rules_catalog"
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "week_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "week_id",
+          "type": "u32"
         }
       ]
     },
@@ -3028,170 +4126,6 @@
       ]
     },
     {
-      "name": "refund_stuck_arena_entry",
-      "discriminator": [
-        135,
-        4,
-        164,
-        2,
-        240,
-        197,
-        184,
-        41
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "operator_revenue_vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  95,
-                  114,
-                  101,
-                  118,
-                  101,
-                  110,
-                  117,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_player",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily"
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true
-        },
-        {
-          "name": "active_run"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "request_row_vrf",
       "discriminator": [
         9,
@@ -3274,20 +4208,21 @@
       ]
     },
     {
-      "name": "rollup_arena_to_weekly",
+      "name": "rollup_arena_to_season",
       "discriminator": [
-        54,
-        250,
-        200,
-        246,
-        132,
-        112,
-        116,
-        115
+        191,
+        197,
+        76,
+        149,
+        224,
+        230,
+        0,
+        20
       ],
       "accounts": [
         {
           "name": "arena_daily",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -3315,28 +4250,60 @@
           }
         },
         {
-          "name": "arena_board",
+          "name": "season",
+          "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
-                  114,
+                  115,
                   101,
-                  110,
                   97,
-                  95,
-                  98,
+                  115,
                   111,
-                  97,
-                  114,
-                  100
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "season_player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season"
+              },
+              {
+                "kind": "account",
+                "path": "season_player.player",
+                "account": "SeasonPlayer"
               }
             ]
           }
@@ -3369,136 +4336,103 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "season_player.player",
+                "account": "SeasonPlayer"
               }
             ]
           }
         },
         {
-          "name": "weekly_jackpot",
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "seal_arena_season_rollups",
+      "discriminator": [
+        43,
+        144,
+        238,
+        8,
+        244,
+        39,
+        93,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "arena_daily",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  106,
                   97,
-                  99,
-                  107,
-                  112,
-                  111,
-                  116
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
                 ]
               },
               {
                 "kind": "account",
-                "path": "arena_daily.week_id",
+                "path": "arena_daily.day_id",
                 "account": "ArenaDaily"
               }
             ]
           }
         },
         {
-          "name": "weekly_player",
+          "name": "season",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
+                  115,
                   101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  112,
-                  108,
                   97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "weekly_jackpot"
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "weekly_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  101,
-                  101,
-                  107,
-                  108,
-                  121,
-                  95,
-                  98,
+                  115,
                   111,
-                  97,
-                  114,
-                  100
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "weekly_jackpot"
+                "path": "season.season_id",
+                "account": "Season"
               }
             ]
           }
-        },
-        {
-          "name": "owner"
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
         },
         {
           "name": "caller",
           "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
-      "name": "schedule_arcade_terms",
+      "name": "seed_launch_pools",
       "discriminator": [
-        70,
-        199,
-        10,
-        4,
-        247,
-        48,
-        46,
-        223
+        0,
+        171,
+        164,
+        86,
+        246,
+        236,
+        150,
+        59
       ],
       "accounts": [
         {
@@ -3541,18 +4475,115 @@
           }
         },
         {
-          "name": "pricing_operator",
-          "signer": true
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "ScheduleArcadeTermsArgs"
-            }
-          }
+          "name": "daily_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "weekly_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "season_lamports",
+          "type": "u64"
         }
       ]
     },
@@ -3657,55 +4688,6 @@
       ]
     },
     {
-      "name": "set_pricing_operator",
-      "discriminator": [
-        18,
-        46,
-        110,
-        140,
-        137,
-        198,
-        215,
-        186
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "pricing_operator",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "set_protocol_pause",
       "discriminator": [
         19,
@@ -3755,16 +4737,16 @@
       ]
     },
     {
-      "name": "update_revenue_destinations",
+      "name": "update_team_destination",
       "discriminator": [
-        18,
-        11,
-        92,
-        195,
-        90,
-        37,
-        172,
-        36
+        16,
+        114,
+        229,
+        63,
+        229,
+        123,
+        12,
+        250
       ],
       "accounts": [
         {
@@ -3790,33 +4772,6 @@
         },
         {
           "name": "team_destination"
-        },
-        {
-          "name": "treasury_destination"
-        },
-        {
-          "name": "reward_vault",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  101,
-                  119,
-                  97,
-                  114,
-                  100,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              }
-            ]
-          }
         },
         {
           "name": "authority",
@@ -3856,24 +4811,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -4061,19 +4998,6 @@
       ]
     },
     {
-      "name": "ArenaBoard",
-      "discriminator": [
-        28,
-        3,
-        209,
-        26,
-        146,
-        215,
-        216,
-        105
-      ]
-    },
-    {
       "name": "ArenaDaily",
       "discriminator": [
         228,
@@ -4178,29 +5102,29 @@
       ]
     },
     {
-      "name": "RewardVault",
+      "name": "Season",
       "discriminator": [
-        201,
-        22,
-        221,
-        167,
-        208,
-        16,
-        210,
-        33
+        76,
+        67,
+        93,
+        156,
+        180,
+        157,
+        248,
+        47
       ]
     },
     {
-      "name": "WeeklyBoard",
+      "name": "SeasonPlayer",
       "discriminator": [
-        10,
-        113,
-        115,
-        26,
-        243,
-        61,
-        74,
-        163
+        160,
+        86,
+        46,
+        121,
+        218,
+        224,
+        3,
+        218
       ]
     },
     {
@@ -4215,35 +5139,9 @@
         231,
         217
       ]
-    },
-    {
-      "name": "WeeklyPlayer",
-      "discriminator": [
-        100,
-        131,
-        37,
-        75,
-        219,
-        152,
-        210,
-        240
-      ]
     }
   ],
   "events": [
-    {
-      "name": "AchievementClaimed",
-      "discriminator": [
-        14,
-        49,
-        71,
-        199,
-        214,
-        248,
-        116,
-        232
-      ]
-    },
     {
       "name": "CampaignLevelRewarded",
       "discriminator": [
@@ -4271,19 +5169,6 @@
       ]
     },
     {
-      "name": "DailyQuestXpClaimed",
-      "discriminator": [
-        115,
-        183,
-        136,
-        7,
-        170,
-        204,
-        92,
-        25
-      ]
-    },
-    {
       "name": "MapPerfected",
       "discriminator": [
         49,
@@ -4307,19 +5192,6 @@
         254,
         51,
         31
-      ]
-    },
-    {
-      "name": "PricingOperatorChanged",
-      "discriminator": [
-        67,
-        56,
-        124,
-        168,
-        106,
-        70,
-        21,
-        191
       ]
     },
     {
@@ -4362,29 +5234,16 @@
       ]
     },
     {
-      "name": "RevenueDestinationsChanged",
+      "name": "TeamDestinationChanged",
       "discriminator": [
-        116,
-        165,
-        4,
-        121,
-        143,
-        242,
-        48,
-        173
-      ]
-    },
-    {
-      "name": "WeeklyQuestXpClaimed",
-      "discriminator": [
-        116,
-        94,
-        123,
-        6,
-        201,
-        161,
-        211,
-        104
+        25,
+        40,
+        202,
+        69,
+        125,
+        154,
+        54,
+        205
       ]
     }
   ],
@@ -4461,176 +5320,126 @@
     },
     {
       "code": 6014,
-      "name": "InsufficientCubes",
-      "msg": "Insufficient Cubes"
-    },
-    {
-      "code": 6015,
       "name": "InvalidMap",
       "msg": "Invalid map"
     },
     {
-      "code": 6016,
+      "code": 6015,
       "name": "InvalidLevel",
       "msg": "Invalid level"
     },
     {
-      "code": 6017,
+      "code": 6016,
       "name": "InvalidStars",
       "msg": "Invalid star rating"
     },
     {
-      "code": 6018,
+      "code": 6017,
       "name": "ProtocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6019,
+      "code": 6018,
       "name": "InvalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6020,
+      "code": 6019,
       "name": "InvalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6021,
+      "code": 6020,
       "name": "ActiveRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6022,
+      "code": 6021,
       "name": "MapLocked",
       "msg": "Map is locked"
     },
     {
-      "code": 6023,
+      "code": 6022,
       "name": "MapDisabled",
       "msg": "Map is disabled"
     },
     {
-      "code": 6024,
+      "code": 6023,
       "name": "MapAlreadyUnlocked",
       "msg": "Map is already unlocked"
     },
     {
-      "code": 6025,
+      "code": 6024,
       "name": "ContentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6026,
+      "code": 6025,
       "name": "InvalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6027,
+      "code": 6026,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6028,
+      "code": 6027,
       "name": "NoVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6029,
+      "code": 6028,
       "name": "VrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6030,
+      "code": 6029,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6031,
-      "name": "PrizeAlreadyClaimed",
-      "msg": "The Daily prize has already been claimed"
-    },
-    {
-      "code": 6032,
-      "name": "PrizeClaimWindowOpen",
-      "msg": "The Daily prize claim window is still open"
-    },
-    {
-      "code": 6033,
-      "name": "RefundAlreadyClaimed",
-      "msg": "The refund has already been claimed"
-    },
-    {
-      "code": 6034,
+      "code": 6030,
       "name": "InvalidProgressRule",
       "msg": "The progression rule is invalid"
     },
     {
-      "code": 6035,
-      "name": "RewardAlreadyClaimed",
-      "msg": "This progress reward has already been claimed"
-    },
-    {
-      "code": 6036,
-      "name": "RewardNotEarned",
-      "msg": "The progress requirement has not been met"
-    },
-    {
-      "code": 6037,
-      "name": "QuestNotActive",
-      "msg": "This quest is not active in the current cadence"
-    },
-    {
-      "code": 6038,
+      "code": 6031,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6039,
-      "name": "InvalidPack",
-      "msg": "The selected Cube pack does not exist"
-    },
-    {
-      "code": 6040,
+      "code": 6032,
       "name": "PriceChanged",
-      "msg": "The Cube pack price changed; refresh the exact quote"
+      "msg": "The Arena entry price changed; refresh the exact quote"
     },
     {
-      "code": 6041,
+      "code": 6033,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6042,
+      "code": 6034,
       "name": "SessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6043,
+      "code": 6035,
       "name": "InvalidPlayerLabel",
       "msg": "The player label is invalid"
+    },
+    {
+      "code": 6036,
+      "name": "InvalidPeriod",
+      "msg": "The provided period is not the canonical current or successor period"
+    },
+    {
+      "code": 6037,
+      "name": "AlreadySeeded",
+      "msg": "The first Daily, Weekly, and Season pools were already seeded"
     }
   ],
   "types": [
-    {
-      "name": "AchievementClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "achievement_index",
-            "type": "u8"
-          },
-          {
-            "name": "xp_reward",
-            "type": "u32"
-          }
-        ]
-      }
-    },
     {
       "name": "ActiveRun",
       "type": {
@@ -4676,6 +5485,14 @@
                 32
               ]
             }
+          },
+          {
+            "name": "deadline_at",
+            "docs": [
+              "Ranked and Practice actions and VRF callbacks are rejected at this",
+              "immutable cutoff. Campaign runs use zero (no cadence deadline)."
+            ],
+            "type": "i64"
           },
           {
             "name": "map_id",
@@ -4770,6 +5587,17 @@
             "type": "u8"
           },
           {
+            "name": "arcade_metrics",
+            "docs": [
+              "Canonical, full-width metrics used by the three Weekly boards."
+            ],
+            "type": {
+              "defined": {
+                "name": "RunMetrics"
+              }
+            }
+          },
+          {
             "name": "primary_progress",
             "type": "u8"
           },
@@ -4828,6 +5656,13 @@
               "Perfect-clear trigger may award at most once between player moves."
             ],
             "type": "bool"
+          },
+          {
+            "name": "perfect_clears",
+            "docs": [
+              "Number of actual empty-board clears produced during this run."
+            ],
+            "type": "u16"
           },
           {
             "name": "starting_height_target",
@@ -4890,86 +5725,28 @@
             "type": "u64"
           },
           {
-            "name": "daily_pot_bps",
-            "type": "u16"
-          },
-          {
-            "name": "operator_bps",
-            "type": "u16"
-          },
-          {
-            "name": "weekly_jackpot_bps",
-            "type": "u16"
-          },
-          {
-            "name": "pending_entry_lamports",
+            "name": "daily_lamports",
             "type": "u64"
           },
           {
-            "name": "entry_activates_day",
-            "type": "u32"
-          },
-          {
-            "name": "pending_daily_pot_bps",
-            "type": "u16"
-          },
-          {
-            "name": "pending_operator_bps",
-            "type": "u16"
-          },
-          {
-            "name": "pending_weekly_jackpot_bps",
-            "type": "u16"
-          },
-          {
-            "name": "split_activates_week",
-            "type": "u32"
-          },
-          {
-            "name": "operator_withdraw_reserve_lamports",
+            "name": "weekly_lamports",
             "type": "u64"
           },
           {
-            "name": "reserved",
-            "docs": [
-              "Reserved for the deferred credit instruction version and bounty schema."
-            ],
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
+            "name": "season_lamports",
+            "type": "u64"
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ArenaBoard",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
+            "name": "operator_lamports",
+            "type": "u64"
           },
           {
-            "name": "challenge",
-            "type": "pubkey"
+            "name": "launch_seeded",
+            "type": "bool"
           },
           {
-            "name": "entries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "ArenaBoardEntry"
-                }
-              }
-            }
+            "name": "launch_day_id",
+            "type": "u32"
           },
           {
             "name": "bump",
@@ -4996,23 +5773,11 @@
             "type": "u32"
           },
           {
-            "name": "bonus_triggers",
-            "type": "u16"
-          },
-          {
-            "name": "engine_score",
-            "type": "u32"
-          },
-          {
-            "name": "moves",
-            "type": "u16"
-          },
-          {
             "name": "attempts",
             "type": "u32"
           },
           {
-            "name": "submitted_at",
+            "name": "finalized_at",
             "type": "i64"
           },
           {
@@ -5022,6 +5787,14 @@
                 "u8",
                 32
               ]
+            }
+          },
+          {
+            "name": "metrics",
+            "type": {
+              "defined": {
+                "name": "RunMetrics"
+              }
             }
           }
         ]
@@ -5045,11 +5818,11 @@
             "type": "u32"
           },
           {
-            "name": "arcade_config",
-            "type": "pubkey"
+            "name": "season_id",
+            "type": "u32"
           },
           {
-            "name": "rent_recipient",
+            "name": "arcade_config",
             "type": "pubkey"
           },
           {
@@ -5060,9 +5833,13 @@
             "name": "status",
             "type": {
               "defined": {
-                "name": "DailyStatus"
+                "name": "PeriodStatus"
               }
             }
+          },
+          {
+            "name": "predecessor_rollover_applied",
+            "type": "bool"
           },
           {
             "name": "content_version",
@@ -5135,27 +5912,23 @@
             "type": "i64"
           },
           {
-            "name": "terms",
+            "name": "ledger",
             "type": {
               "defined": {
-                "name": "ArenaTerms"
+                "name": "PoolLedger"
               }
             }
-          },
-          {
-            "name": "pot_lamports",
-            "type": "u64"
           },
           {
             "name": "entries_paid",
             "type": "u64"
           },
           {
-            "name": "runs_finalized",
+            "name": "entries_scored",
             "type": "u64"
           },
           {
-            "name": "entries_refunded",
+            "name": "entries_expired",
             "type": "u64"
           },
           {
@@ -5163,12 +5936,26 @@
             "type": "u32"
           },
           {
-            "name": "weekly_eligible_players",
+            "name": "season_eligible_players",
             "type": "u32"
           },
           {
-            "name": "weekly_rollups",
+            "name": "season_rollups",
             "type": "u32"
+          },
+          {
+            "name": "season_rollup_sealed",
+            "type": "bool"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "ArenaBoardEntry"
+                }
+              }
+            }
           },
           {
             "name": "bump",
@@ -5199,11 +5986,7 @@
             "type": "u32"
           },
           {
-            "name": "finalized_entries",
-            "type": "u32"
-          },
-          {
-            "name": "refunded_entries",
+            "name": "resolved_entries",
             "type": "u32"
           },
           {
@@ -5211,69 +5994,24 @@
             "type": "u64"
           },
           {
-            "name": "best_run_id",
-            "type": "u64"
+            "name": "has_best",
+            "type": "bool"
           },
           {
-            "name": "best_score",
-            "type": "u32"
-          },
-          {
-            "name": "best_bonus_triggers",
-            "type": "u16"
-          },
-          {
-            "name": "best_engine_score",
-            "type": "u32"
-          },
-          {
-            "name": "best_moves",
-            "type": "u16"
-          },
-          {
-            "name": "best_submitted_at",
-            "type": "i64"
-          },
-          {
-            "name": "best_replay_hash",
+            "name": "best_entry",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "defined": {
+                "name": "ArenaBoardEntry"
+              }
             }
           },
           {
-            "name": "weekly_rolled_up",
+            "name": "season_rolled_up",
             "type": "bool"
           },
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ArenaTerms",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "entry_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "daily_pot_bps",
-            "type": "u16"
-          },
-          {
-            "name": "operator_bps",
-            "type": "u16"
-          },
-          {
-            "name": "weekly_jackpot_bps",
-            "type": "u16"
           }
         ]
       }
@@ -5512,30 +6250,6 @@
       }
     },
     {
-      "name": "DailyQuestXpClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "quest_index",
-            "type": "u8"
-          },
-          {
-            "name": "cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "xp_reward",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
       "name": "DailyRulesCatalog",
       "type": {
         "kind": "struct",
@@ -5566,7 +6280,7 @@
             }
           },
           {
-            "name": "weekly_id",
+            "name": "rotation_id",
             "type": "u32"
           },
           {
@@ -5574,7 +6288,7 @@
             "type": "u32"
           },
           {
-            "name": "weekly_seed",
+            "name": "rotation_seed",
             "type": {
               "array": [
                 "u8",
@@ -5646,30 +6360,25 @@
       }
     },
     {
-      "name": "DailyStatus",
+      "name": "DailySeasonResult",
       "type": {
-        "kind": "enum",
-        "variants": [
+        "kind": "struct",
+        "fields": [
           {
-            "name": "Draft"
+            "name": "day_id",
+            "type": "u32"
           },
           {
-            "name": "Open"
+            "name": "points",
+            "type": "u16"
           },
           {
-            "name": "EntriesClosed"
+            "name": "rank",
+            "type": "u16"
           },
           {
-            "name": "Finalizing"
-          },
-          {
-            "name": "Claimable"
-          },
-          {
-            "name": "Cancelled"
-          },
-          {
-            "name": "Closed"
+            "name": "recorded_at",
+            "type": "i64"
           }
         ]
       }
@@ -5680,20 +6389,21 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "pricing_operator",
-            "type": "pubkey"
-          },
-          {
             "name": "team_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "treasury_destination",
             "type": "pubkey"
           },
           {
             "name": "content_version",
             "type": "u32"
+          },
+          {
+            "name": "replay_domain",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -5869,12 +6579,45 @@
             "type": "u8"
           },
           {
-            "name": "cubes",
+            "name": "xp",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MetricBoardEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily",
+            "type": "pubkey"
+          },
+          {
+            "name": "run_id",
             "type": "u64"
           },
           {
-            "name": "xp",
-            "type": "u32"
+            "name": "value",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_at",
+            "type": "i64"
+          },
+          {
+            "name": "replay_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -5897,16 +6640,29 @@
             "type": "u64"
           },
           {
-            "name": "stuck_run_refunds",
-            "type": "u64"
-          },
-          {
             "name": "withdrawn",
             "type": "u64"
           },
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PeriodStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Funding"
+          },
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Finalized"
           }
         ]
       }
@@ -6007,8 +6763,32 @@
             "type": "u64"
           },
           {
-            "name": "daily_eligible",
-            "type": "bool"
+            "name": "active_run_daily",
+            "docs": [
+              "Base-layer reservation remains authoritative while the run PDA is",
+              "delegated to an ephemeral rollup."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "active_run_mode",
+            "type": {
+              "defined": {
+                "name": "RunMode"
+              }
+            }
+          },
+          {
+            "name": "active_run_deadline_at",
+            "type": "i64"
+          },
+          {
+            "name": "orphan_run_id",
+            "docs": [
+              "A deterministically expired run remains reserved until its delayed ER",
+              "copy is committed and the orphan account is closed."
+            ],
+            "type": "u64"
           },
           {
             "name": "achievement_flags",
@@ -6038,7 +6818,7 @@
             "type": {
               "array": [
                 "u32",
-                16
+                20
               ]
             }
           },
@@ -6102,20 +6882,20 @@
             }
           },
           {
-            "name": "daily_claim_cadence_id",
+            "name": "daily_completion_cadence_id",
             "type": "u32"
           },
           {
-            "name": "weekly_claim_cadence_id",
+            "name": "weekly_completion_cadence_id",
             "type": "u32"
           },
           {
-            "name": "daily_claimed",
-            "type": "u16"
+            "name": "daily_completed",
+            "type": "u32"
           },
           {
-            "name": "weekly_claimed",
-            "type": "u16"
+            "name": "weekly_completed",
+            "type": "u32"
           },
           {
             "name": "best_daily_finish",
@@ -6160,17 +6940,29 @@
       }
     },
     {
-      "name": "PricingOperatorChanged",
+      "name": "PoolLedger",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "previous_operator",
-            "type": "pubkey"
+            "name": "seeded_lamports",
+            "type": "u64"
           },
           {
-            "name": "pricing_operator",
-            "type": "pubkey"
+            "name": "entry_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "rollover_in_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "payout_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "rollover_out_lamports",
+            "type": "u64"
           }
         ]
       }
@@ -6225,20 +7017,20 @@
             "type": "pubkey"
           },
           {
-            "name": "pricing_operator",
-            "type": "pubkey"
-          },
-          {
             "name": "team_destination",
             "type": "pubkey"
           },
           {
-            "name": "treasury_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "reward_vault",
-            "type": "pubkey"
+            "name": "replay_domain",
+            "docs": [
+              "Chain/deployment-specific replay domain used by canonical replay v2."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "content_version",
@@ -6345,53 +7137,6 @@
       }
     },
     {
-      "name": "RevenueDestinationsChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "previous_team_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "previous_treasury_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "team_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "treasury_destination",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "RewardVault",
-      "docs": [
-        "Program-owned native-SOL reserve used only for pre-funded Weekly prizes."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "RunLifecycle",
       "type": {
         "kind": "enum",
@@ -6418,6 +7163,50 @@
       }
     },
     {
+      "name": "RunMetrics",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "max_combo",
+            "type": "u32"
+          },
+          {
+            "name": "combo_scoring_actions",
+            "type": "u32"
+          },
+          {
+            "name": "combo_derived_score",
+            "type": "u64"
+          },
+          {
+            "name": "highest_action_score",
+            "type": "u64"
+          },
+          {
+            "name": "most_lines_single_action",
+            "type": "u32"
+          },
+          {
+            "name": "most_blocks_single_action",
+            "type": "u32"
+          },
+          {
+            "name": "total_lines",
+            "type": "u64"
+          },
+          {
+            "name": "total_blocks",
+            "type": "u64"
+          },
+          {
+            "name": "perfect_clears",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "RunMode",
       "type": {
         "kind": "enum",
@@ -6435,33 +7224,140 @@
       }
     },
     {
-      "name": "ScheduleArcadeTermsArgs",
+      "name": "Season",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "entry_lamports",
-            "type": "u64"
+            "name": "version",
+            "type": "u8"
           },
           {
-            "name": "entry_activates_day",
+            "name": "season_id",
             "type": "u32"
           },
           {
-            "name": "daily_pot_bps",
+            "name": "arcade_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "PeriodStatus"
+              }
+            }
+          },
+          {
+            "name": "predecessor_rollover_applied",
+            "type": "bool"
+          },
+          {
+            "name": "opens_at",
+            "type": "i64"
+          },
+          {
+            "name": "closes_at",
+            "type": "i64"
+          },
+          {
+            "name": "finalized_at",
+            "type": "i64"
+          },
+          {
+            "name": "ledger",
+            "type": {
+              "defined": {
+                "name": "PoolLedger"
+              }
+            }
+          },
+          {
+            "name": "sealed_dailies",
+            "type": "u8"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "SeasonBoardEntry"
+                }
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeasonBoardEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "points",
             "type": "u16"
           },
           {
-            "name": "operator_bps",
+            "name": "finalized_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeasonPlayer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "season",
+            "type": "pubkey"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "results",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "DailySeasonResult"
+                  }
+                },
+                20
+              ]
+            }
+          },
+          {
+            "name": "result_count",
+            "type": "u8"
+          },
+          {
+            "name": "points",
             "type": "u16"
           },
           {
-            "name": "weekly_jackpot_bps",
-            "type": "u16"
+            "name": "final_counted_at",
+            "type": "i64"
           },
           {
-            "name": "split_activates_week",
-            "type": "u32"
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -6495,55 +7391,17 @@
       }
     },
     {
-      "name": "WeeklyBoard",
+      "name": "TeamDestinationChanged",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "jackpot",
+            "name": "previous_team_destination",
             "type": "pubkey"
           },
           {
-            "name": "entries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "WeeklyBoardEntry"
-                }
-              }
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyBoardEntry",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "player",
+            "name": "team_destination",
             "type": "pubkey"
-          },
-          {
-            "name": "score",
-            "type": "u16"
-          },
-          {
-            "name": "total_bonus_triggers",
-            "type": "u32"
-          },
-          {
-            "name": "earliest_final_submission",
-            "type": "i64"
           }
         ]
       }
@@ -6566,15 +7424,37 @@
             "type": "pubkey"
           },
           {
-            "name": "rent_recipient",
-            "type": "pubkey"
-          },
-          {
             "name": "status",
             "type": {
               "defined": {
-                "name": "WeeklyStatus"
+                "name": "PeriodStatus"
               }
+            }
+          },
+          {
+            "name": "predecessor_rollover_applied",
+            "type": "bool"
+          },
+          {
+            "name": "metrics",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "WeeklyMetric"
+                  }
+                },
+                3
+              ]
+            }
+          },
+          {
+            "name": "rules_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -6590,65 +7470,42 @@
             "type": "i64"
           },
           {
-            "name": "pot_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "participants",
-            "type": "u32"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyPlayer",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "jackpot",
-            "type": "pubkey"
-          },
-          {
-            "name": "player",
-            "type": "pubkey"
-          },
-          {
-            "name": "results",
+            "name": "ledger",
             "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "WeeklyResult"
-                  }
-                },
-                7
-              ]
+              "defined": {
+                "name": "PoolLedger"
+              }
             }
           },
           {
-            "name": "result_count",
-            "type": "u8"
+            "name": "combo_entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MetricBoardEntry"
+                }
+              }
+            }
           },
           {
-            "name": "score",
-            "type": "u16"
+            "name": "action_entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MetricBoardEntry"
+                }
+              }
+            }
           },
           {
-            "name": "total_bonus_triggers",
-            "type": "u32"
-          },
-          {
-            "name": "earliest_final_submission",
-            "type": "i64"
+            "name": "run_entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MetricBoardEntry"
+                }
+              }
+            }
           },
           {
             "name": "bump",
@@ -6658,55 +7515,36 @@
       }
     },
     {
-      "name": "WeeklyQuestXpClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "quest_index",
-            "type": "u8"
-          },
-          {
-            "name": "cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "xp_reward",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyResult",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "day_id",
-            "type": "u32"
-          },
-          {
-            "name": "points",
-            "type": "u16"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WeeklyStatus",
+      "name": "WeeklyMetric",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Open"
+            "name": "HighestCombo"
           },
           {
-            "name": "Finalized"
+            "name": "ComboScoringActions"
+          },
+          {
+            "name": "ComboDerivedScore"
+          },
+          {
+            "name": "HighestActionScore"
+          },
+          {
+            "name": "MostLinesSingleAction"
+          },
+          {
+            "name": "MostBlocksSingleAction"
+          },
+          {
+            "name": "TotalLines"
+          },
+          {
+            "name": "TotalBlocks"
+          },
+          {
+            "name": "PerfectClears"
           }
         ]
       }

@@ -72,20 +72,12 @@ import {
   buildDeviceSessionRefillInstructions,
   buildDeviceSignerReclaimInstruction,
 } from "./deviceSessionLifecycle";
-import {
-  buildLegacyV3FundingReclaimInstruction,
-  legacyV3PlayerFundingPda,
-} from "./legacyV3";
 import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
 const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
-const LEGACY_PLAYER_FUNDING_BYTES = 42;
-const LEGACY_PLAYER_FUNDING_DISCRIMINATOR = Uint8Array.from([
-  61, 237, 220, 223, 77, 198, 8, 22,
-]);
 
 interface ConnectedWalletState {
   connector: WalletConnector;
@@ -291,9 +283,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           );
         }
         if (!isNormalizedPlayerFunding(fundingInfo)) {
-          // A live legacy session cannot use the new rent wrappers. Keep the
-          // old local record only until the immediately-following Enable flow
-          // replaces it with a migrated, freshly authorized session.
           setSession(null);
           setSessionStatus("missing");
           return "missing";
@@ -545,14 +534,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     const program = zkubeProgram(connection, current.wallet);
     const playerState = derivePlayerStatePda(current.publicKey);
     const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const [protocol, profileInfo, fundingInfo, legacyV3FundingInfo] = await Promise.all([
+    const [protocol, profileInfo, fundingInfo] = await Promise.all([
       program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
       connection.getAccountInfo(playerState, "confirmed"),
       connection.getAccountInfo(playerFunding, "confirmed"),
-      connection.getAccountInfo(
-        legacyV3PlayerFundingPda(current.publicKey),
-        "confirmed",
-      ),
     ]);
     if (profileInfo) {
       if (
@@ -569,8 +554,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     }
     if (
       fundingInfo &&
-      !isNormalizedPlayerFunding(fundingInfo) &&
-      !isLegacyPlayerFunding(fundingInfo, current.publicKey)
+      !isNormalizedPlayerFunding(fundingInfo)
     ) {
       throw new Error(
         "Player funding PDA has an invalid owner or account layout",
@@ -591,13 +575,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       configuredFundingTarget - (fundingInfo?.lamports ?? 0),
     );
     const instructions: TransactionInstruction[] = [];
-    if (legacyV3FundingInfo) {
-      const legacyReclaim = buildLegacyV3FundingReclaimInstruction({
-        owner: current.publicKey,
-        fundingInfo: legacyV3FundingInfo,
-      });
-      if (legacyReclaim) instructions.push(legacyReclaim);
-    }
     if (revokeInstruction) instructions.push(revokeInstruction);
     if (previousSession) {
       const reclaim = buildDeviceSignerReclaimInstruction({
@@ -874,27 +851,4 @@ function isNormalizedPlayerFunding(info: AccountInfo<Buffer> | null): boolean {
     info.owner.equals(SystemProgram.programId) &&
     info.data.length === 0,
   );
-}
-
-function isLegacyPlayerFunding(
-  info: AccountInfo<Buffer>,
-  owner: PublicKey,
-): boolean {
-  if (
-    info.executable ||
-    !info.owner.equals(ZKUBE_PROGRAM_ID) ||
-    info.data.length !== LEGACY_PLAYER_FUNDING_BYTES ||
-    !LEGACY_PLAYER_FUNDING_DISCRIMINATOR.every(
-      (byte, index) => info.data[index] === byte,
-    ) ||
-    info.data[8] !== 1 ||
-    !new PublicKey(info.data.subarray(9, 41)).equals(owner)
-  ) {
-    return false;
-  }
-  const [, bump] = PublicKey.findProgramAddressSync(
-    [Buffer.from("player_funding"), owner.toBuffer()],
-    ZKUBE_PROGRAM_ID,
-  );
-  return info.data[41] === bump;
 }

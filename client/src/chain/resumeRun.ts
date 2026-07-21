@@ -65,7 +65,6 @@ export interface RunResultView {
   finalPressureTier: number;
   moves: number;
   levelStars: number;
-  campaignXpAwarded: number;
   completed: boolean;
   consumed: boolean;
 }
@@ -275,12 +274,14 @@ async function discoverActiveRunMarker(args: {
   ) {
     throw new Error("The discovered ActiveRun does not match its owner and run id");
   }
-  const mode = activeRun.mode === "daily" ? "daily" : "campaign";
+  const mode =
+    activeRun.mode === "daily" || activeRun.mode === "practice"
+      ? activeRun.mode
+      : "campaign";
   return {
     owner: args.owner,
     runId,
     mode,
-    dailyVersion: mode === "daily" ? 2 : undefined,
     session: args.deviceSession.signer,
     sessionToken: args.deviceSession.sessionToken,
     addresses,

@@ -14,25 +14,23 @@ export interface AchievementStatus extends AchievementDef {
   index: number;
   progress: number;
   completed: boolean;
-  claimed: boolean;
-  claimable: boolean;
 }
 
 export function projectAchievements(
   entries: readonly AchievementProgressView[] | null,
 ): AchievementStatus[] {
-  return ACHIEVEMENT_DEFS.map((definition, index) => {
+  return ACHIEVEMENT_DEFS.flatMap((definition, index) => {
     const value = entries?.[index];
-    return {
+    const staticallyArcade = index <= 11 || index >= 20;
+    if (!(value?.active ?? staticallyArcade)) return [];
+    return [{
       ...definition,
       index,
       target: value ? bigintToSafeNumber(value.threshold) : definition.target,
       xp: value?.xpReward ?? definition.xp,
       progress: bigintToSafeNumber(value?.progress ?? 0n),
-      completed: Boolean(value?.claimable || value?.claimed),
-      claimed: value?.claimed ?? false,
-      claimable: value?.claimable ?? false,
-    };
+      completed: value?.completed ?? false,
+    }];
   });
 }
 
@@ -48,9 +46,7 @@ export const useAchievements = (playerAddress?: string) => {
   return {
     achievements,
     isLoading: isCurrentPlayer && controller.loading,
-    claiming: controller.claiming,
     error: controller.error,
-    claimAchievement: controller.claimAchievement,
   };
 };
 
@@ -58,7 +54,5 @@ export const ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
   "Grinder",
   "Sweeper",
   "Combo Master",
-  "Guardian Slayer",
-  "Explorer",
   "Challenger",
 ];

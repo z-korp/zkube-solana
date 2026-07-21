@@ -16,14 +16,3 @@ export function formatSolLamports(value: bigint): string {
     .replace(/0+$/, "");
   return `${sign}${fraction ? `${whole}.${fraction}` : whole.toString()}`;
 }
-
-export function splitStarPurchase(amount: bigint): {
-  team: bigint;
-  rewards: bigint;
-  treasury: bigint;
-} {
-  if (amount < 0n) throw new Error("Purchase amount cannot be negative");
-  const team = amount / 10n;
-  const rewards = amount / 10n;
-  return { team, rewards, treasury: amount - team - rewards };
-}

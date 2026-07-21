@@ -6,10 +6,6 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { useProgress } from "@/contexts/progress";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
-import {
-  calculateCampaignXpAwarded,
-  calculateLevelStars,
-} from "@/game/level";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/chain/runPlan";
 import type { RunResultView } from "@/chain/resumeRun";
@@ -30,7 +26,6 @@ export interface TerminalRunSnapshot {
   isBoss: boolean;
   isDaily: boolean;
   completed: boolean;
-  xpAwarded: number;
 }
 
 type PlayOutcome = "victory" | "daily" | null;
@@ -72,7 +67,6 @@ export function projectRunResult(activeRun: ActiveRunView): ReceiptProjection {
 
 export function pendingCompletionFromRun(
   activeRun: ActiveRunView,
-  previousBestStars = 0,
 ): PendingLevelCompletion {
   const gameLevel = rulesToGameLevelData(
     activeRun.rules,
@@ -80,22 +74,12 @@ export function pendingCompletionFromRun(
     activeRun.runId,
   );
   const isIncomplete = activeRun.lifecycle === "finished";
-  const achievedStars = calculateLevelStars({
-    movesUsed: activeRun.moves,
-    star3UsedCap: gameLevel.star3Threshold,
-    star2UsedCap: gameLevel.star2Threshold,
-    isIncomplete,
-  });
   return {
     level: activeRun.level,
     levelMoves: activeRun.moves,
     prevTotalScore: 0,
     totalScore: activeRun.score,
     gameLevel,
-    xpAwarded:
-      activeRun.mode === "daily"
-        ? 0
-        : calculateCampaignXpAwarded(previousBestStars, achievedStars),
     isIncomplete,
   };
 }
@@ -125,8 +109,7 @@ function snapshotRun(
   activeRun: ActiveRunView,
   levelStars: readonly number[],
 ): TerminalRunSnapshot {
-  const previousBestStars = levelStars[activeRun.level - 1] ?? 0;
-  const pending = pendingCompletionFromRun(activeRun, previousBestStars);
+  void levelStars;
   return {
     activeRun,
     game: new Game(activeRun, levelStars),
@@ -136,9 +119,8 @@ function snapshotRun(
       activeRun.runId,
     ),
     isBoss: activeRun.level === 10 || activeRun.rules.bossId > 0,
-    isDaily: activeRun.mode === "daily",
+    isDaily: activeRun.mode !== "campaign",
     completed: activeRun.lifecycle === "levelComplete",
-    xpAwarded: pending.xpAwarded,
   };
 }
 
@@ -188,7 +170,7 @@ export function usePlayController() {
   const rememberTerminal = useCallback(
     (activeRun: ActiveRunView) => {
       const levelStars =
-        activeRun.mode === "daily"
+        activeRun.mode !== "campaign"
           ? []
           : (campaign.campaign?.maps.find(
               (map) => map.mapId === activeRun.mapId,
@@ -387,7 +369,7 @@ export function usePlayController() {
       // Start commit/copyback as soon as terminal state is observed. The
       // display-only progression refresh runs concurrently and never delays
       // the settlement boundary or waits for the local cascade animation.
-      const refreshBeforeConsumption = terminalRun.mode === "daily"
+      const refreshBeforeConsumption = terminalRun.mode !== "campaign"
         ? Promise.resolve(null)
         : campaignRefresh().catch(() => null);
       const settlement = settle().then(
@@ -396,20 +378,20 @@ export function usePlayController() {
       );
       const refreshedCampaign = await refreshBeforeConsumption;
       const levelStars =
-        terminalRun.mode === "daily"
+        terminalRun.mode !== "campaign"
           ? []
           : ((refreshedCampaign ?? campaign.campaign)?.maps.find(
               (map) => map.mapId === terminalRun.mapId,
             )?.levelStars ?? []);
       // Refresh the already-open presentation in place: same terminal run,
-      // now with confirmed lifetime stars driving the XP figure.
+      // now with confirmed Campaign stars for presentation only.
       setTerminalSnapshot(snapshotRun(terminalRun, levelStars));
 
       const settlementFailure = await settlement;
       if (settlementFailure) throw settlementFailure;
       await Promise.all([
         campaignRefresh(),
-        progressRefresh(),
+        terminalRun.mode === "campaign" ? Promise.resolve(null) : progressRefresh(),
         dailyRefresh(),
       ]);
       // Presentation is user-driven from here: the card/dialog Continue
@@ -455,7 +437,7 @@ export function usePlayController() {
     if (!settledReceipt) return;
 
     if (
-      settledReceipt.mode !== "daily" &&
+      settledReceipt.mode === "campaign" &&
       !(settledReceipt.completed && settledReceipt.level === 10)
     ) {
       const rules = campaign.campaign?.maps.find(
@@ -473,14 +455,13 @@ export function usePlayController() {
               settledReceipt.runId,
             )
           : null,
-        xpAwarded: settledReceipt.campaignXpAwarded,
         isIncomplete: !settledReceipt.completed,
       });
     }
 
     setSettledReceiptSnapshot(null);
     setSettledCleanupStatus("idle");
-    navigate(settledReceipt.mode === "daily" ? "ranks" : "map");
+    navigate(settledReceipt.mode === "campaign" ? "map" : "ranks");
   }, [
     campaign.campaign?.maps,
     navigate,
@@ -525,7 +506,7 @@ export function usePlayController() {
   const activeGame = useMemo(() => {
     if (!run.activeRun) return null;
     const stars =
-      run.activeRun.mode === "daily"
+      run.activeRun.mode !== "campaign"
         ? []
         : (campaign.campaign?.maps.find(
             (map) => map.mapId === run.activeRun?.mapId,

@@ -7,6 +7,7 @@ import { DailyProvider } from "./contexts/daily";
 import { MusicPlayerProvider } from "./contexts/music";
 import { ProgressProvider } from "./contexts/progress";
 import { RunProvider } from "./contexts/run";
+import { SeasonProvider } from "./contexts/season";
 import { WeeklyProvider } from "./contexts/weekly";
 import { SolanaProvider } from "./chain/provider";
 import { ThemeProvider } from "./ui/elements/theme-provider";
@@ -28,7 +29,9 @@ createRoot(document.getElementById("root")!).render(
               <ProgressProvider>
                 <DailyProvider>
                   <WeeklyProvider>
-                    <App />
+                    <SeasonProvider>
+                      <App />
+                    </SeasonProvider>
                   </WeeklyProvider>
                 </DailyProvider>
               </ProgressProvider>

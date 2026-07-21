@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { PublicKey } from "@solana/web3.js";
 
 import { useRun } from "@/contexts/run";
 import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import { useConnectedPlayer } from "./connectedPlayerContext";
-import { fetchDailyView, type DailyView } from "./dailyClient";
-import { deriveArenaBoardPda } from "./pdas";
+import {
+  currentDailyDayId,
+  fetchDailyView,
+  isPracticeEntryWindowOpen,
+  type DailyView,
+} from "./dailyClient";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();
@@ -14,15 +17,24 @@ export function useDailyController() {
   const wallet = player.readOnlyWallet;
   const run = useRun();
   const [daily, setDaily] = useState<DailyView | null>(null);
+  const [practiceDaily, setPracticeDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1_000));
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const value = await fetchDailyView({ connection, wallet });
+      const dayId = currentDailyDayId();
+      const [value, yesterday] = await Promise.all([
+        fetchDailyView({ connection, wallet, dayId }),
+        dayId > 0
+          ? fetchDailyView({ connection, wallet, dayId: dayId - 1 })
+          : Promise.resolve(null),
+      ]);
       setDaily(value);
+      setPracticeDaily(yesterday?.status === "finalized" ? yesterday : null);
       setError(null);
       return value;
     } catch (cause) {
@@ -35,22 +47,31 @@ export function useDailyController() {
 
   useEffect(() => {
     void refresh();
+    const refreshTimer = globalThis.setInterval(() => void refresh(), 60_000);
+    return () => globalThis.clearInterval(refreshTimer);
   }, [refresh]);
+
+  useEffect(() => {
+    const clock = globalThis.setInterval(
+      () => setNowUnix(Math.floor(Date.now() / 1_000)),
+      1_000,
+    );
+    return () => globalThis.clearInterval(clock);
+  }, []);
 
   const dailyAddress = daily?.address.toBase58() ?? null;
   useEffect(() => {
     if (!dailyAddress) return;
     const subscription = connection.onAccountChange(
-      deriveArenaBoardPda(new PublicKey(dailyAddress)),
+      daily!.address,
       () => void refresh(),
       "confirmed",
     );
     return () => { void connection.removeAccountChangeListener(subscription); };
-  }, [connection, dailyAddress, refresh]);
+  }, [connection, daily, dailyAddress, refresh]);
 
   const enter = useCallback(async () => {
     if (!daily) throw new Error("Today's Arena is not available");
-    if (!daily.playerEligible) throw new Error("Clear Campaign Map 1 to unlock Arena");
     if (run.phase !== "none" && run.phase !== "missing") throw new Error("Finish the active run first");
     setAction("enter:sol");
     try {
@@ -65,9 +86,45 @@ export function useDailyController() {
     }
   }, [daily, refresh, run]);
 
-  const refund = useCallback(async () => {
-    throw new Error("Only provably stuck paid runs are refunded by protocol recovery");
-  }, []);
+  const practice = useCallback(async () => {
+    if (!practiceDaily) {
+      throw new Error("Yesterday's finalized Arena is not available for Practice");
+    }
+    if (!isPracticeEntryWindowOpen()) {
+      throw new Error("Practice entry is closed after 23:30 UTC");
+    }
+    if (run.phase !== "none" && run.phase !== "missing") {
+      throw new Error("Finish the active run first");
+    }
+    setAction("practice");
+    try {
+      const active = await run.startPracticeRun(practiceDaily);
+      await refresh();
+      return active;
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      setAction(null);
+    }
+  }, [practiceDaily, refresh, run]);
 
-  return { daily, loading, action, error, refresh, maintain: refresh, enter, refund };
+  const practiceAvailable =
+    practiceDaily !== null &&
+    practiceDaily.dayId + 1 === currentDailyDayId(nowUnix) &&
+    isPracticeEntryWindowOpen(nowUnix);
+
+  return {
+    daily,
+    practiceDaily,
+    practiceAvailable,
+    loading,
+    action,
+    error,
+    refresh,
+    maintain: refresh,
+    enter,
+    practice,
+    run,
+  };
 }

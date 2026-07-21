@@ -69,6 +69,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   const daily = useDaily();
   const owner = useConnectedPlayer().publicKey;
   const guardian = getZoneGuardian(game.zoneId);
+  const isPractice = game.runMode === "practice";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,13 +85,20 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   // Rank is read from the current standing; it firms up once the just-finished
   // run settles and the board refreshes.
   const rank = useMemo(() => {
-    const board = daily.daily?.leaderboard ?? [];
+    const board = isPractice
+      ? (daily.practiceDaily?.leaderboard ?? [])
+      : (daily.daily?.leaderboard ?? []);
+    if (isPractice) {
+      return 1 + board.filter((entry) => entry.dailyScore >= game.totalScore).length;
+    }
     if (!owner) return null;
     const index = board.findIndex((entry) => entry.player.equals(owner));
     return index >= 0 ? dailyLeaderboardRank(board, index) : null;
-  }, [daily.daily?.leaderboard, owner]);
+  }, [daily.daily?.leaderboard, daily.practiceDaily?.leaderboard, game.totalScore, isPractice, owner]);
 
-  const previousBest = daily.daily?.player?.bestDailyScore ?? 0;
+  const previousBest = isPractice
+    ? (daily.practiceDaily?.player?.bestDailyScore ?? 0)
+    : (daily.daily?.player?.bestDailyScore ?? 0);
   const isNewBest = game.totalScore > previousBest;
   const guardianLine = isNewBest ? guardian.threeStar : guardian.dailyGreeting;
 
@@ -172,7 +180,11 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
                 color: isNewBest ? "#fde047" : "rgba(255,255,255,0.45)",
               }}
             >
-              {isNewBest ? "New Daily Best" : "Daily Score"}
+              {isPractice
+                ? "Practice Score"
+                : isNewBest
+                  ? "New Daily Best"
+                  : "Daily Score"}
             </p>
             <p
               className="font-display text-6xl font-black leading-none"
@@ -204,7 +216,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
                   />
                 )}
                 <span className="font-sans text-sm font-black text-white">
-                  Rank #{rank}
+                  {isPractice ? `Would have ranked #${rank}` : `Rank #${rank}`}
                 </span>
               </div>
             )}
@@ -212,14 +224,10 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
 
           {/* Weekly stakes — the reason the daily matters */}
           <p className="mt-3 text-center font-sans text-[11px] font-semibold text-white/50">
-            Feeds your Weekly best 10 · SOL &amp; Cube rewards
+            {isPractice
+              ? "Free Practice · yesterday's rules · no leaderboard or prize changes"
+              : "Paid ranked result · SOL payouts are pushed automatically"}
           </p>
-
-          {game.currentDifficulty === 7 && (
-            <p className="mt-1.5 text-center font-sans text-[11px] font-bold text-amber-300">
-              First Tier 7 today · +50 XP
-            </p>
-          )}
 
           {/* Settlement error */}
           {settlementFailed && (

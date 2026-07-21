@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { Keypair, type Connection } from "@solana/web3.js";
+import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   buildActivateCampaignMapPlan,
@@ -16,49 +16,42 @@ import {
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveRewardVaultPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 
 describe("authority publication client", () => {
-  it("initializes the lean protocol with segregated native SOL destinations", async () => {
+  it("initializes the lean protocol with its team destination", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const keys = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
     const plan = await buildInitializeProtocolPlan({
       connection: {} as Connection,
       authority,
       config: {
-        pricingOperator: keys[1],
         teamDestination: keys[2],
-        treasuryDestination: keys[3],
         contentVersion: 1,
+        replayDomain: new Uint8Array(32).fill(9),
       },
     });
     const accounts = plan.transaction.instructions[0].keys;
 
     expect(accounts[0].pubkey.equals(deriveProtocolConfigPda())).toBe(true);
-    expect(accounts[1].pubkey.equals(deriveRewardVaultPda())).toBe(true);
-    expect(accounts[2].pubkey.equals(keys[2])).toBe(true);
-    expect(accounts[3].pubkey.equals(keys[3])).toBe(true);
-    expect(accounts[4].pubkey.equals(authority.publicKey)).toBe(true);
+    expect(accounts[1].pubkey.equals(keys[2])).toBe(true);
+    expect(accounts[2].pubkey.equals(authority.publicKey)).toBe(true);
   });
 
-  it("rejects aliased custody vaults before protocol initialization", async () => {
+  it("rejects a zero team destination before protocol initialization", async () => {
     const authority = new SessionWallet(Keypair.generate());
-    const duplicate = Keypair.generate().publicKey;
-    const keys = Array.from({ length: 5 }, () => Keypair.generate().publicKey);
     await expect(
       buildInitializeProtocolPlan({
         connection: {} as Connection,
         authority,
         config: {
-          pricingOperator: keys[1],
-          teamDestination: duplicate,
-          treasuryDestination: duplicate,
+          teamDestination: PublicKey.default,
           contentVersion: 1,
+          replayDomain: new Uint8Array(32).fill(9),
         },
       }),
-    ).rejects.toThrow("pairwise distinct");
+    ).rejects.toThrow("nonzero");
   });
 
   it("publishes all ten maps from the authored canonical catalog", async () => {

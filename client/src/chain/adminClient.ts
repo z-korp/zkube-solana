@@ -7,12 +7,10 @@ import {
 } from "@solana/web3.js";
 import {
   deriveDailyRulesCatalogPda,
-  deriveEconomyConfigPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveRewardVaultPda,
 } from "./pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
@@ -23,10 +21,9 @@ import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 
 export interface ProtocolInitialization {
-  pricingOperator: PublicKey;
   teamDestination: PublicKey;
-  treasuryDestination: PublicKey;
   contentVersion: number;
+  replayDomain: Uint8Array;
 }
 
 export async function buildInitializeProtocolPlan(args: {
@@ -35,11 +32,13 @@ export async function buildInitializeProtocolPlan(args: {
   config: ProtocolInitialization;
 }): Promise<TransactionPlan> {
   assertPositiveInteger(args.config.contentVersion, "contentVersion");
-  const destinations = [
-    args.config.teamDestination,
-    args.config.treasuryDestination,
-    deriveRewardVaultPda(),
-  ];
+  if (
+    args.config.replayDomain.length !== 32 ||
+    args.config.replayDomain.every((byte) => byte === 0)
+  ) {
+    throw new Error("replayDomain must contain 32 nonzero-domain bytes");
+  }
+  const destinations = [args.config.teamDestination];
   if (
     destinations.some((destination) => destination.equals(PublicKey.default)) ||
     new Set(destinations.map((destination) => destination.toBase58())).size !==
@@ -48,21 +47,15 @@ export async function buildInitializeProtocolPlan(args: {
     throw new Error(
       "protocol destinations must be nonzero and pairwise distinct",
     );
-  if (args.config.pricingOperator.equals(PublicKey.default)) {
-    throw new Error("pricingOperator cannot be zero");
-  }
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.initializeProtocol({
-      pricingOperator: args.config.pricingOperator,
       teamDestination: args.config.teamDestination,
-      treasuryDestination: args.config.treasuryDestination,
       contentVersion: args.config.contentVersion,
+      replayDomain: [...args.config.replayDomain],
     })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       teamDestination: args.config.teamDestination,
-      treasuryDestination: args.config.treasuryDestination,
-      rewardVault: deriveRewardVaultPda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })
@@ -193,7 +186,6 @@ export async function buildActivateContentReleasePlan(args: {
     )
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
       dailyRulesCatalog: deriveDailyRulesCatalogPda(args.dailyRulesVersion),
       authority: args.authority.publicKey,
     })

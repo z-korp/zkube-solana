@@ -4,9 +4,8 @@ import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 import {
   deriveMapCatalogPda,
   deriveDailyRulesCatalogPda,
-  deriveEconomyConfigPda,
+  deriveArcadeConfigPda,
   deriveProtocolConfigPda,
-  deriveCubeSalesLedgerPda,
 } from "./pdas";
 type DevnetRuntimePhase =
   | "checking"
@@ -45,8 +44,7 @@ async function probeDevnetRuntime(
 ): Promise<DevnetRuntimeStatus> {
   try {
     const catalogAddresses = [
-      deriveEconomyConfigPda(),
-      deriveCubeSalesLedgerPda(),
+      deriveArcadeConfigPda(),
       deriveDailyRulesCatalogPda(1),
       ...Array.from({ length: 10 }, (_, index) =>
         deriveMapCatalogPda(1, index + 1),

@@ -1,464 +1,210 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { motion, type Variants } from "motion/react";
+import { useMemo } from "react";
+import { ChevronRight, Gamepad2, ShieldCheck, Sparkles } from "lucide-react";
+import { motion } from "motion/react";
 
+import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
+import { useDaily } from "@/contexts/daily";
+import { useRun } from "@/contexts/run";
+import useAccount from "@/hooks/useAccount";
+import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
+import { usePlayerMeta } from "@/hooks/usePlayerMeta";
+import { useNavigationStore } from "@/stores/navigationStore";
+import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import PageHeader from "@/ui/components/shared/PageHeader";
+import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
+import { formatSolLamports } from "@/utils/currency";
 import {
   LEVEL_THRESHOLDS,
-  ZONE_NAMES,
   getLevelFromXp,
   getTitleForLevel,
 } from "@/config/profileData";
-import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
-import { useMusicPlayer } from "@/contexts/hooks";
-import useAccount from "@/hooks/useAccount";
-import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
-import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
-import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
-import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
-import { useCountdown } from "@/hooks/useNowTick";
-import { usePlayerEntry } from "@/hooks/usePlayerEntry";
-import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
-import { useZoneProgress } from "@/hooks/useZoneProgress";
-import { useCubeBalance } from "@/hooks/useCubeBalance";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { useDevnetRuntimeStatus } from "@/chain/useDevnetRuntimeStatus";
-import { useNavigationStore } from "@/stores/navigationStore";
-import CtaGuardian from "@/ui/components/CtaGuardian";
-import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-import ConnectCta from "@/ui/components/shared/ConnectCta";
-import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
-import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
-import { formatCountdown } from "@/utils/time";
 
-const useDailyCountdown = (endTime: number | undefined) => {
-  const remaining = useCountdown(endTime);
-  if (!endTime || remaining <= 0) return null;
-  return formatCountdown(remaining);
-};
-
-const containerVariants: Variants = {
-  hidden: { opacity: 1 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.06,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 1, y: 0 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 24 },
-  },
-};
-
+/** Arcade-first landing surface. Campaign deliberately lives on its own tab. */
 const HomePage: React.FC = () => {
+  const navigate = useNavigationStore((state) => state.navigate);
   const { address } = useAccount();
   const player = useConnectedPlayer();
-  const playerReady =
-    player.connectionStatus === "connected" &&
-    player.publicKey !== null &&
-    player.sessionStatus === "ready";
-  const { themeTemplate } = useTheme();
-  const { setMusicMood } = useMusicPlayer();
-  const runtime = useDevnetRuntimeStatus();
-  const navigate = useNavigationStore((state) => state.navigate);
-  const mapZoneId = useNavigationStore((state) => state.mapZoneId);
-  const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-
+  const daily = useDaily();
+  const run = useRun();
+  const activeDaily = useActiveDailyAttempt();
   const { playerMeta } = usePlayerMeta(address);
-  const playerLabel = usePlayerLabelController();
-  const playerLevel = getLevelFromXp(playerMeta?.lifetimeXp ?? 0);
-  const playerTitle = getTitleForLevel(playerLevel);
-  const playerXp = playerMeta?.lifetimeXp ?? 0;
-  const levelStartXp = LEVEL_THRESHOLDS[Math.max(playerLevel - 1, 0)] ?? 0;
-  const nextLevelXp = LEVEL_THRESHOLDS[playerLevel] ?? levelStartXp;
-  const levelProgress =
-    playerLevel >= LEVEL_THRESHOLDS.length
+  const label = usePlayerLabelController();
+
+  const xp = playerMeta?.lifetimeXp ?? 0;
+  const level = getLevelFromXp(xp);
+  const startXp = LEVEL_THRESHOLDS[Math.max(0, level - 1)] ?? 0;
+  const nextXp = LEVEL_THRESHOLDS[level] ?? startXp;
+  const progress =
+    level >= LEVEL_THRESHOLDS.length
       ? 1
-      : (playerXp - levelStartXp) / Math.max(nextLevelXp - levelStartXp, 1);
-  const { balance: cubeBalance } = useCubeBalance(address);
-  const { zones: rawZones, isLoading: zonesLoading } = useZoneProgress(address);
-  const zones = useMemo(
-    () =>
-      [...rawZones].sort((left, right) => {
-        if (left.unlocked !== right.unlocked) return left.unlocked ? -1 : 1;
-        return left.zoneId - right.zoneId;
-      }),
-    [rawZones],
+      : (xp - startXp) / Math.max(1, nextXp - startXp);
+  const zoneId = daily.daily?.mapId ?? 1;
+  const colors = getThemeColors(getThemeId(zoneId));
+  const images = getThemeImages(getThemeId(zoneId));
+  const now = Math.floor(Date.now() / 1_000);
+  const entriesOpen = Boolean(
+    daily.daily?.status === "open" &&
+      daily.daily.opensAt <= now &&
+      daily.daily.entriesCloseAt > now,
   );
-  const activeZone = useMemo(() => {
-    const index = zones.findIndex((zone) => zone.zoneId === mapZoneId);
-    return index >= 0 ? index : 0;
-  }, [zones, mapZoneId]);
-  const setActiveZone = useCallback(
-    (index: number) => {
-      const zone = zones[index];
-      if (zone) setMapZoneId(zone.zoneId);
-    },
-    [zones, setMapZoneId],
+  const entrySol = daily.daily
+    ? `${formatSolLamports(daily.daily.entryLamports)} SOL`
+    : "0.02 SOL";
+  const canEnter =
+    entriesOpen && (run.phase === "none" || run.phase === "missing");
+  const activePot = daily.daily
+    ? `${formatSolLamports(daily.daily.dailyPotLamports)} SOL`
+    : "—";
+  const followingPot = daily.daily?.followingDailyLamports;
+  const attempts = useMemo(
+    () => daily.daily?.player?.finalizedAttempts ?? 0,
+    [daily.daily?.player?.finalizedAttempts],
   );
 
-  const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
-  const { isRegistered: hasPlayedDaily } = usePlayerEntry(
-    challenge?.challenge_id,
-    address,
-  );
-  const { entries: dailyEntries } = useDailyLeaderboard(
-    challenge?.challenge_id,
-  );
-  const dailyCountdown = useDailyCountdown(challenge?.end_time);
-  // Daily's map is read directly from the on-chain challenge snapshot.
-  const dailyZoneId = challenge?.zone_id ?? 1;
-  const dailyZoneName = ZONE_NAMES[dailyZoneId] ?? null;
-  const dailyColors = getThemeColors(getThemeId(dailyZoneId));
-  const dailyMyRank = useMemo(() => {
-    const found = dailyEntries.find(
-      (entry) => entry.player === address,
-    );
-    return found?.rank ?? null;
-  }, [address, dailyEntries]);
-
-  useEffect(() => {
-    setMusicMood("menu");
-  }, [setMusicMood]);
-
-  useEffect(() => {
-    if (runtime.phase === "checking" || runtime.phase === "ready") return;
-    console.warn("[zKube runtime]", runtime.phase, runtime.message);
-  }, [runtime.message, runtime.phase]);
-
-  const activeStoryRun = useActiveStoryAttempt();
-  const activeStoryAttemptId = activeStoryRun?.gameId ?? null;
-  const activeDailyRun = useActiveDailyAttempt();
-  const zone = zones[activeZone] ?? zones[0];
-  const colors = useThemeColors();
-
-  // Arrow pagination through the story zone strip. Each click scrolls the
-  // container by its own visible width; past an edge, pagination wraps.
-  const zoneScrollRef = useRef<HTMLDivElement | null>(null);
-
-  const pageZones = useCallback((direction: 1 | -1) => {
-    const element = zoneScrollRef.current;
-    if (!element) return;
-    const { scrollLeft, clientWidth, scrollWidth } = element;
-    const maxScroll = scrollWidth - clientWidth;
-    let next: number;
-    if (direction === 1) {
-      next =
-        scrollLeft >= maxScroll - 2
-          ? 0
-          : Math.min(scrollLeft + clientWidth, maxScroll);
-    } else {
-      next =
-        scrollLeft <= 2 ? maxScroll : Math.max(scrollLeft - clientWidth, 0);
-    }
-    element.scrollTo({ left: next, behavior: "smooth" });
-  }, []);
-
-  const hasActiveStoryRun = activeStoryAttemptId !== null;
-  const hasActiveDailyRun = Boolean(activeDailyRun);
-  const selectedZonePlayable = !!zone?.unlocked;
-
-  const handlePrimaryAction = useCallback(() => {
-    // A Daily run holds the one active-run slot — resume it before Story.
-    if (activeDailyRun) {
-      navigate("play", activeDailyRun.gameId);
+  const enterRanked = async () => {
+    if (activeDaily) {
+      navigate("play", activeDaily.gameId);
       return;
     }
+    const active = await daily.enter();
+    navigate("play", active.runId);
+  };
 
-    if (activeStoryAttemptId !== null && activeStoryRun) {
-      setMapZoneId(activeStoryRun.zoneId);
-      navigate("play", activeStoryAttemptId);
+  const enterPractice = async () => {
+    if (activeDaily) {
+      navigate("play", activeDaily.gameId);
       return;
     }
-
-    if (!zone) return;
-    setMapZoneId(zone.zoneId);
-    navigate("map");
-  }, [
-    activeDailyRun,
-    activeStoryAttemptId,
-    activeStoryRun,
-    navigate,
-    setMapZoneId,
-    zone,
-  ]);
+    const active = await daily.practice();
+    navigate("play", active.runId);
+  };
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-10">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,18,0.12)_0%,rgba(5,10,18,0.05)_45%,rgba(5,10,18,0.56)_100%)]" />
+      <img
+        src={images.background}
+        alt=""
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,18,0.55),rgba(2,5,13,0.96))]" />
 
-      <div className="relative z-10 mb-1 text-center">
-        <motion.img
-          animate={{ y: [0, -3, 0] }}
-          transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
-          src={getThemeImages(themeTemplate).logo}
-          alt="zKube"
-          className="mx-auto h-32 drop-shadow-[0_0_28px_rgba(255,255,255,0.42)] md:h-44"
-          draggable={false}
-        />
+      <div className="relative z-10">
+        <PageHeader title="Arcade" />
       </div>
-
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4">
-        <motion.div
-          key="home-container"
-          variants={containerVariants}
-          initial={false}
-          animate="show"
-          className="flex flex-1 flex-col space-y-3 overflow-y-auto pb-3"
+      <div className="relative z-10 mx-4 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 hide-scrollbar">
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-white/[0.14] bg-black/35 p-4 backdrop-blur-xl"
         >
-          {!playerReady ? (
-            <CtaGuardian />
-          ) : (
-            <>
-          <motion.div
-            variants={itemVariants}
-            className="rounded-2xl border border-white/[0.16] bg-white/[0.08] px-3 py-2 backdrop-blur-xl"
-          >
-            <PlayerIdentityHeader
-              level={playerLevel}
-              progress={levelProgress}
-              displayName={playerLabel.label?.displayName}
-              title={playerTitle}
-              address={address}
-              cubeBalance={cubeBalance}
-              ringSize={52}
-              cubeSize="md"
-            />
-          </motion.div>
+          <PlayerIdentityHeader
+            level={level}
+            progress={progress}
+            displayName={label.label?.displayName}
+            title={getTitleForLevel(level)}
+            address={address}
+          />
+        </motion.section>
 
-          <motion.div
-            variants={itemVariants}
-            className="my-1 flex items-center gap-2"
-          >
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.04 }}
+          className="overflow-hidden rounded-3xl border bg-black/45 backdrop-blur-xl"
+          style={{ borderColor: `${colors.accent}55` }}
+        >
+          <div className="flex items-start gap-3 p-4">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: `${colors.accent}22`, color: colors.accent }}
+            >
+              <Gamepad2 />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-xl font-black text-white">Daily Arena</p>
+              <p className="mt-1 text-xs font-semibold text-white/55">
+                Every ranked run is a separate owner-signed {entrySol} entry.
+              </p>
+            </div>
             <button
               type="button"
-              aria-label="Previous zones"
-              onClick={() => pageZones(-1)}
-              className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-colors hover:bg-black/60 hover:text-white md:flex"
+              onClick={() => navigate("ranks")}
+              className="rounded-xl border border-white/15 bg-white/[0.06] p-2 text-white/65"
+              aria-label="Open rankings"
             >
-              <ChevronLeft size={14} />
+              <ChevronRight size={18} />
             </button>
-            <div className="flex-1 border-t border-white/[0.06]" />
-            <span className="font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
-              Story
-            </span>
-            <div className="flex-1 border-t border-white/[0.06]" />
-            <button
-              type="button"
-              aria-label="Next zones"
-              onClick={() => pageZones(1)}
-              className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-colors hover:bg-black/60 hover:text-white md:flex"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </motion.div>
+          </div>
 
-          <motion.div variants={itemVariants} className="space-y-2">
-            {zonesLoading || zones.length === 0 ? (
-              <div className="rounded-2xl border border-white/[0.14] bg-white/[0.12] p-4 text-center font-sans text-sm font-semibold text-white/80 backdrop-blur-xl">
-                Loading zones...
-              </div>
-            ) : (
-              <div
-                ref={zoneScrollRef}
-                className="hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2"
-              >
-                {zones.map((candidate, index) => {
-                  const isSelectable = candidate.unlocked;
-                  const isSelected = index === activeZone && isSelectable;
-                  const statusText = candidate.unlocked
-                    ? `${candidate.stars}/${candidate.maxStars} ★`
-                    : "Clear previous guardian";
+          <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+            <FundingTile label="Active guaranteed pot" value={activePot} />
+            <FundingTile label="Following Daily funding" value={followingPot === null || followingPot === undefined ? "Being prepared" : `${formatSolLamports(followingPot)} SOL`} />
+          </div>
+          <div className="border-t border-white/10 px-4 py-3 text-xs font-semibold text-white/55">
+            {attempts} finalized attempt{attempts === 1 ? "" : "s"} today · prizes are pushed automatically
+          </div>
+        </motion.section>
 
-                  return (
-                    <motion.button
-                      whileTap={{ scale: 0.98 }}
-                      key={candidate.settingsId}
-                      type="button"
-                      onClick={() => {
-                        if (isSelectable) {
-                          if (isSelected) {
-                            // Second tap on the selected zone enters its map.
-                            navigate("map");
-                          } else {
-                            setActiveZone(index);
-                          }
-                        }
-                      }}
-                      className="relative flex h-[clamp(8rem,22vw,11rem)] w-[clamp(6.5rem,17vw,9rem)] shrink-0 snap-center flex-col items-start justify-end overflow-hidden rounded-2xl p-2 text-left"
-                      style={{
-                        border: isSelected
-                          ? `2px solid ${colors.accent}`
-                          : "1px solid rgba(255,255,255,0.18)",
-                        opacity: isSelectable ? 1 : 0.58,
-                        boxShadow: isSelected
-                          ? `0 0 16px ${colors.accent}66, 0 0 4px ${colors.accent}44`
-                          : "0 10px 18px -8px rgba(0,0,0,0.6)",
-                      }}
-                    >
-                      <img
-                        src={
-                          getThemeImages(
-                            getThemeId(candidate.themeId ?? candidate.zoneId),
-                          ).themeIcon
-                        }
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                      <div className="relative z-10 w-full">
-                        <span
-                          className="mb-1 inline-flex rounded-full px-2 py-0.5 font-sans text-[9px] font-extrabold uppercase tracking-[0.12em]"
-                          style={{
-                            color: "#0a1628",
-                            backgroundColor: colors.accent,
-                          }}
-                        >
-                          Story
-                        </span>
-                        <p className="font-sans text-base font-extrabold leading-tight text-white drop-shadow-md">
-                          {candidate.name}
-                        </p>
-                        <div className="mt-1 flex items-center justify-between">
-                          <p
-                            className="font-sans text-[11px] font-bold"
-                            style={{ color: "#FACC15" }}
-                          >
-                            {statusText}
-                          </p>
-                          {!isSelectable && <span className="text-sm">🔒</span>}
-                        </div>
-                        {candidate.unlocked && candidate.maxStars > 0 && (
-                          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                            <div
-                              className="h-full rounded-full transition-all duration-300"
-                              style={{
-                                width: `${(candidate.stars / candidate.maxStars) * 100}%`,
-                                backgroundColor: colors.accent,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-
-          <motion.div
-            variants={itemVariants}
-            className="my-1 flex items-center gap-2"
+        <section className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            disabled={!daily.practiceAvailable || daily.action !== null || !player.wallet}
+            onClick={() => void enterPractice().catch(() => undefined)}
+            className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.08] p-4 text-left"
           >
-            <div className="flex-1 border-t border-white/[0.06]" />
-            <span className="font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
-              Daily Arena
-            </span>
-            <div className="flex-1 border-t border-white/[0.06]" />
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <button
-              type="button"
-              onClick={() => {
-                // Daily lives in the Arena: rules, board, and the enter
-                // button on one screen.
-                navigate("ranks");
-              }}
-              className="relative w-full overflow-hidden rounded-2xl border border-white/[0.16] text-left transition-all active:scale-[0.99]"
-            >
-              <img
-                src={getThemeImages(getThemeId(dailyZoneId)).background}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/50" />
-              <div className="relative z-10 px-4 py-3">
-                <p
-                  className="font-sans text-[10px] font-bold uppercase tracking-[0.14em]"
-                  style={{ color: dailyColors.accent }}
-                >
-                  Daily Challenge
-                </p>
-                <div className="mt-1 flex items-center justify-between">
-                  <div>
-                    <p className="font-sans text-sm font-bold text-white">
-                      {dailyZoneName ?? "Daily Challenge"}
-                    </p>
-                    <p className="font-sans text-[11px] text-white/60">
-                      {challengeLoading
-                        ? "Loading..."
-                        : !challenge
-                          ? "Not published yet — check back soon!"
-                          : hasPlayedDaily && dailyMyRank
-                            ? `#${dailyMyRank} · Daily standing`
-                            : `${challenge.total_attempts.toString()} attempt${challenge.total_attempts === 1n ? "" : "s"}`}
-                    </p>
-                  </div>
-                  <span className="flex items-center gap-1.5">
-                    {dailyCountdown ? (
-                      <span
-                        className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
-                        style={{ background: dailyColors.accent }}
-                      >
-                        {dailyCountdown}
-                      </span>
-                    ) : challenge ? (
-                      <span className="rounded-full bg-red-500 px-3 py-1.5 font-sans text-xs font-bold text-white">
-                        ENDED
-                      </span>
-                    ) : null}
-                    <ChevronRight size={16} className="text-white/50" />
-                  </span>
-                </div>
-              </div>
-            </button>
-          </motion.div>
-            </>
-          )}
-        </motion.div>
-      </div>
-
-      <div className="relative z-20 mt-auto flex flex-col gap-2.5 px-4 pb-3">
-        {!playerReady ? (
-          <ConnectCta label="PLAY NOW" />
-        ) : (
-          <ArcadeButton
-            disabled={
-              !selectedZonePlayable && !hasActiveStoryRun && !hasActiveDailyRun
-            }
-            onClick={handlePrimaryAction}
-            accentOverride={
-              hasActiveDailyRun
-                ? undefined
-                : hasActiveStoryRun && activeStoryRun
-                  ? getThemeColors(getThemeId(activeStoryRun.zoneId)).accent
-                  : zone
-                    ? getThemeColors(getThemeId(zone.themeId ?? zone.zoneId))
-                        .accent
-                    : undefined
-            }
+            <Sparkles className="mb-3 text-cyan-200" size={22} />
+            <p className="font-sans text-sm font-black text-white">Yesterday Practice</p>
+            <p className="mt-1 text-[11px] font-semibold text-white/50">{daily.action === "practice" ? "Preparing…" : daily.practiceAvailable ? "Free · fresh VRF · unranked · enter before 23:30 UTC" : daily.practiceDaily ? "Entry closed · returns after UTC reset" : "Available after Daily finalization"}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("ranks")}
+            className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.08] p-4 text-left"
           >
-            {hasActiveDailyRun
-              ? "Resume Daily"
-              : activeStoryRun?.settled
-                ? "Finish Story"
-                : hasActiveStoryRun
-                  ? "Resume Story"
-                  : "Play Story"}
-          </ArcadeButton>
+            <ShieldCheck className="mb-3 text-violet-200" size={22} />
+            <p className="font-sans text-sm font-black text-white">World-verifiable</p>
+            <p className="mt-1 text-[11px] font-semibold text-white/50">Replay-bound scores · no claims</p>
+          </button>
+        </section>
+
+        {daily.error && (
+          <p role="alert" className="text-center text-xs font-semibold text-red-300">
+            {daily.error}
+          </p>
         )}
       </div>
 
+      <div className="relative z-20 px-4 pb-3">
+        <ArcadeButton
+          disabled={!activeDaily && (!canEnter || daily.action !== null || !player.wallet)}
+          onClick={() => void enterRanked().catch(() => undefined)}
+          accentOverride={colors.accent}
+        >
+          {activeDaily
+            ? "Resume ranked run"
+            : daily.action
+              ? "Preparing owner signature…"
+              : `Enter ranked · ${entrySol}`}
+        </ArcadeButton>
+        {!activeDaily && (
+          <p className="mt-1.5 text-center font-sans text-[10px] font-semibold text-white/45">
+            Your wallet will review the exact SOL transfer before signing.
+          </p>
+        )}
+      </div>
     </div>
   );
 };
+
+function FundingTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5">
+      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/40">{label}</p>
+      <p className="mt-1 font-sans text-sm font-black text-white">{value}</p>
+    </div>
+  );
+}
 
 export default HomePage;

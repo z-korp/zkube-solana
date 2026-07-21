@@ -67,7 +67,6 @@ describe("play controller projections", () => {
       levelMoves: 8,
       totalScore: 110,
       isIncomplete: false,
-      xpAwarded: 30,
       gameLevel: {
         gameId: 5n,
         pointsRequired: 100,
@@ -77,19 +76,11 @@ describe("play controller projections", () => {
     });
   });
 
-  it("shows only the lifetime star improvement after settlement", () => {
-    expect(pendingCompletionFromRun(activeRun(), 1).xpAwarded).toBe(20);
-    expect(pendingCompletionFromRun(activeRun(), 3).xpAwarded).toBe(0);
+  it("does not project Arcade progression from Campaign completion", () => {
+    expect(pendingCompletionFromRun(activeRun())).not.toHaveProperty("xpAwarded");
     expect(
-      pendingCompletionFromRun(
-        { ...activeRun(), lifecycle: "finished" },
-        0,
-      ).xpAwarded,
-    ).toBe(0);
-    expect(
-      pendingCompletionFromRun({ ...activeRun(), mode: "daily" }, 0)
-        .xpAwarded,
-    ).toBe(0);
+      pendingCompletionFromRun({ ...activeRun(), mode: "daily" }),
+    ).not.toHaveProperty("xpAwarded");
   });
 
   it("exposes each auto-settlement stage", () => {

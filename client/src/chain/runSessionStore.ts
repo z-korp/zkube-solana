@@ -13,8 +13,7 @@ interface StoredRunSession {
   version: 2;
   owner: string;
   runId: string;
-  mode: "campaign" | "daily";
-  dailyVersion?: 1 | 2 | 3;
+  mode: RunSessionMode;
   sessionSecretKey: number[];
   sessionToken: string;
   activeRun: string;
@@ -25,14 +24,15 @@ interface StoredRunSession {
 export interface RunSessionMarker {
   owner: PublicKey;
   runId: bigint;
-  mode: "campaign" | "daily";
-  dailyVersion?: 1 | 2 | 3;
+  mode: RunSessionMode;
   session: Keypair;
   sessionToken: PublicKey;
   addresses: RunAddresses;
   validUntil: number;
   createdAt: number;
 }
+
+export type RunSessionMode = "campaign" | "daily" | "practice";
 
 export function saveRunSession(
   marker: RunSessionMarker,
@@ -45,7 +45,6 @@ export function saveRunSession(
     owner: marker.owner.toBase58(),
     runId: marker.runId.toString(),
     mode: marker.mode,
-    dailyVersion: marker.dailyVersion,
     sessionSecretKey: Array.from(marker.session.secretKey),
     sessionToken: marker.sessionToken.toBase58(),
     activeRun: marker.addresses.activeRun.toBase58(),
@@ -125,7 +124,6 @@ function restoreStoredRunSession(
       owner,
       runId,
       mode: stored.mode,
-      dailyVersion: stored.dailyVersion === 2 ? 2 : 1,
       session,
       sessionToken: expectedSessionToken,
       addresses,
@@ -161,8 +159,9 @@ function isStoredRunSession(value: unknown): value is StoredRunSession {
     value.version === 2 &&
     typeof value.owner === "string" &&
     typeof value.runId === "string" &&
-    (value.mode === "campaign" || value.mode === "daily") &&
-    (value.dailyVersion === undefined || value.dailyVersion === 1 || value.dailyVersion === 2 || value.dailyVersion === 3) &&
+    (value.mode === "campaign" ||
+      value.mode === "daily" ||
+      value.mode === "practice") &&
     validSecretKey(value.sessionSecretKey) &&
     typeof value.sessionToken === "string" &&
     typeof value.activeRun === "string" &&

@@ -1,9 +1,37 @@
 import { keeperReleaseRecord } from "./keeperRelease.js";
 
-const hash = process.argv[2];
-const image = process.argv[3];
-const rulesVersion = Number(process.argv[4]);
-if (!hash || !image || !Number.isSafeInteger(rulesVersion)) {
-  throw new Error("usage: keeperReleaseCli <deployed-programdata-sha256> <keeper-image-sha256:digest> <rules-version>");
+const [
+  programId,
+  keeperPublicKey,
+  deployedProgramDataSha256,
+  keeperImageDigest,
+  replayDomainHex,
+  rulesHash,
+  schemaHash,
+  idlHash,
+  rawRulesVersion,
+] = process.argv.slice(2);
+const rulesVersion = Number(rawRulesVersion);
+
+if (!programId || !keeperPublicKey || !deployedProgramDataSha256 ||
+    !keeperImageDigest || !replayDomainHex || !rulesHash || !schemaHash ||
+    !idlHash || !Number.isSafeInteger(rulesVersion)) {
+  throw new Error(
+    "usage: keeperReleaseCli <program-id> <keeper-public-key> " +
+      "<deployed-programdata-sha256> <keeper-image-sha256:digest> " +
+      "<replay-domain-hex> <rules-hash> <schema-hash> <idl-hash> " +
+      "<rules-version>",
+  );
 }
-process.stdout.write(`${JSON.stringify(keeperReleaseRecord(hash, image, rulesVersion), null, 2)}\n`);
+
+process.stdout.write(`${JSON.stringify(keeperReleaseRecord({
+  programId,
+  keeperPublicKey,
+  deployedProgramDataSha256,
+  keeperImageDigest,
+  replayDomainHex,
+  rulesHash,
+  schemaHash,
+  idlHash,
+  rulesVersion,
+}), null, 2)}\n`);

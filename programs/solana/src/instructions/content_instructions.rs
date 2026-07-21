@@ -17,9 +17,9 @@ use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeProtocolArgs {
-    pub pricing_operator: Pubkey,
     pub team_destination: Pubkey,
     pub content_version: u32,
+    pub replay_domain: [u8; 32],
 }
 
 #[derive(Accounts)]
@@ -50,18 +50,14 @@ pub fn handler_initialize_protocol(
     args: InitializeProtocolArgs,
 ) -> Result<()> {
     require!(args.content_version > 0, ErrorCode::ContentVersionMismatch);
+    require!(args.replay_domain != [0; 32], ErrorCode::InvalidState);
     validate_team_destination(args.team_destination)?;
-    require_keys_neq!(
-        args.pricing_operator,
-        Pubkey::default(),
-        ErrorCode::InvalidOwner
-    );
     let protocol = &mut ctx.accounts.protocol;
     protocol.version = ACCOUNT_VERSION;
     protocol.authority = ctx.accounts.authority.key();
     protocol.pending_authority = Pubkey::default();
-    protocol.pricing_operator = args.pricing_operator;
     protocol.team_destination = args.team_destination;
+    protocol.replay_domain = args.replay_domain;
     protocol.content_version = args.content_version;
     protocol.daily_rules_version = 0;
     protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
@@ -553,7 +549,6 @@ pub fn handler_prepare_campaign_run(
 
     let rules = ctx.accounts.map_catalog.expanded_level(level)?;
     let rules_hash = hash_rules(ctx.accounts.protocol.content_version, map_id, &rules)?;
-    let now = Clock::get()?.unix_timestamp;
     let owner = ctx.accounts.owner_authority.key();
 
     let active = &mut ctx.accounts.active_run;
@@ -600,7 +595,6 @@ pub fn handler_prepare_campaign_run(
     active.finished_at = 0;
     active.bump = ctx.bumps.active_run;
 
-    ctx.accounts.player_state.record_run_started(now)?;
     ctx.accounts.player_state.reserve_run(run_id)?;
     Ok(())
 }

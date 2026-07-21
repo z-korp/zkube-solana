@@ -23,10 +23,10 @@ use crate::game::{
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
+use crate::state::arcade::SolanaSha256;
 use crate::state::arena_rules::{
-    DailyScoringRule, CAMPAIGN_LEVEL_XP_PER_STAR, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC,
-    DAILY_SCORE_CLEAN, DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES,
-    DAILY_SCORE_SURVIVAL, PERFECT_MAP_XP,
+    DailyScoringRule, DAILY_SCORE_BLOCKS, DAILY_SCORE_CLASSIC, DAILY_SCORE_CLEAN,
+    DAILY_SCORE_CLUTCH, DAILY_SCORE_COMBO, DAILY_SCORE_EXACT_LINES, DAILY_SCORE_SURVIVAL,
 };
 use crate::state::protocol::*;
 
@@ -228,6 +228,7 @@ pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
+    require_before_arcade_deadline(&ctx.accounts.active_run, Clock::get()?.unix_timestamp)?;
     let validator =
         delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
     let active_key = ctx.accounts.active_run.key();
@@ -266,6 +267,7 @@ pub fn handler_fulfill_row_vrf(
     expected_request_counter: u32,
 ) -> Result<()> {
     let active = &mut ctx.accounts.active_run;
+    require_before_arcade_deadline(active, Clock::get()?.unix_timestamp)?;
     require!(
         vrf_fulfillment_lifecycle_is_allowed(active.lifecycle),
         ErrorCode::InvalidState
@@ -286,10 +288,12 @@ pub fn handler_fulfill_row_vrf(
         },
         opening,
     )?;
-    fold_replay_hash(
+    fold_replay_event(
         active,
-        b"vrf-row-v1",
-        &[&request_counter.to_le_bytes(), &randomness],
+        zkube_core::ReplayEvent::Vrf {
+            request_counter,
+            output: randomness,
+        },
     );
     write_engine(active, &engine);
     active.pending_vrf_counter = 0;
@@ -326,6 +330,24 @@ fn provide_verified_vrf_rows(
         engine.starting_height_target = 0;
         engine.phase = RunPhase::Playing;
         return Ok(height.saturating_add(1));
+    }
+
+    // Clearing the board consumes the old preview as the action's inserted
+    // row. One subsequent VRF must therefore provide both a new seed row and
+    // an independent visible preview, or the run would remain AwaitingVrf
+    // with no pending request. The shared core fixes the derivation schedule.
+    if engine.grid == Grid::EMPTY {
+        let layout = zkube_core::continuation_from_vrf_with::<SolanaSha256>(
+            randomness,
+            request_counter,
+            rules_hash,
+            weights,
+        )
+        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
+        engine.grid = layout.grid;
+        engine.next_row = Some(layout.preview);
+        engine.phase = RunPhase::Playing;
+        return Ok(2);
     }
 
     let row = row_from_vrf(randomness, request_counter, weights)
@@ -394,6 +416,7 @@ pub fn handler_play_move(
         ErrorCode::InvalidState
     );
     let active = &mut ctx.accounts.active_run;
+    require_before_arcade_deadline(active, Clock::get()?.unix_timestamp)?;
     require!(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
@@ -406,14 +429,15 @@ pub fn handler_play_move(
     let mut report = engine
         .play_move(expected_move, row, start, destination, level, mutator)
         .map_err(map_run_error)?;
-    fold_replay_hash(
+    fold_replay_event(
         active,
-        b"move-v1",
-        &[
-            &expected_action.to_le_bytes(),
-            &expected_move.to_le_bytes(),
-            &[row, start, destination],
-        ],
+        zkube_core::ReplayEvent::Move {
+            action: expected_action,
+            expected_move,
+            row,
+            start,
+            destination,
+        },
     );
     report.difficulty_at_action = difficulty_at_action;
     let terminal_at = terminal_action_timestamp(engine.phase)?;
@@ -502,6 +526,7 @@ pub fn handler_apply_bonus(
         ErrorCode::InvalidState
     );
     let active = &mut ctx.accounts.active_run;
+    require_before_arcade_deadline(active, Clock::get()?.unix_timestamp)?;
     require!(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
@@ -514,10 +539,13 @@ pub fn handler_apply_bonus(
     let mut report = engine
         .apply_bonus(row, column, level, mutator)
         .map_err(map_run_error)?;
-    fold_replay_hash(
+    fold_replay_event(
         active,
-        b"bonus-v1",
-        &[&expected_action.to_le_bytes(), &[row, column]],
+        zkube_core::ReplayEvent::Bonus {
+            action: expected_action,
+            row,
+            column,
+        },
     );
     report.difficulty_at_action = difficulty_at_action;
     let terminal_at = terminal_action_timestamp(engine.phase)?;
@@ -594,6 +622,51 @@ fn record_action_accounting(
         .checked_add(u16::from(report.lines_cleared))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
+    let blocks_destroyed =
+        report
+            .blocks_destroyed_by_size
+            .into_iter()
+            .try_fold(0u32, |sum, amount| {
+                sum.checked_add(u32::from(amount))
+                    .ok_or(ErrorCode::ArithmeticOverflow)
+            })?;
+    let combo_derived_score = if report.combo_counter > combo_before {
+        u64::from(report.points_earned)
+    } else {
+        0
+    };
+    let mut canonical = zkube_core::RunMetrics {
+        maximum_combo: active.arcade_metrics.max_combo,
+        combo_scoring_actions: active.arcade_metrics.combo_scoring_actions,
+        total_combo_derived_score: active.arcade_metrics.combo_derived_score,
+        highest_action_score: active.arcade_metrics.highest_action_score,
+        most_lines_in_action: active.arcade_metrics.most_lines_single_action,
+        most_blocks_destroyed_in_action: active.arcade_metrics.most_blocks_single_action,
+        total_lines: active.arcade_metrics.total_lines,
+        total_blocks_destroyed: active.arcade_metrics.total_blocks,
+        perfect_clears: active.arcade_metrics.perfect_clears,
+    };
+    canonical
+        .record_action(zkube_core::ActionMetrics {
+            score: u64::from(report.points_earned),
+            lines: u32::from(report.lines_cleared),
+            blocks_destroyed,
+            combo: u32::from(report.combo_counter),
+            combo_derived_score,
+            perfect_clear: report.perfect_clear,
+        })
+        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))?;
+    active.arcade_metrics = crate::state::arcade::RunMetrics {
+        max_combo: canonical.maximum_combo,
+        combo_scoring_actions: canonical.combo_scoring_actions,
+        combo_derived_score: canonical.total_combo_derived_score,
+        highest_action_score: canonical.highest_action_score,
+        most_lines_single_action: canonical.most_lines_in_action,
+        most_blocks_single_action: canonical.most_blocks_destroyed_in_action,
+        total_lines: canonical.total_lines,
+        total_blocks: canonical.total_blocks_destroyed,
+        perfect_clears: canonical.perfect_clears,
+    };
     if report.lines_cleared >= 2 {
         active.combo2_hits = active
             .combo2_hits
@@ -677,13 +750,29 @@ fn record_action_accounting(
     Ok(())
 }
 
-fn fold_replay_hash(active: &mut ActiveRun, domain: &[u8], payload: &[&[u8]]) {
-    let mut parts = Vec::with_capacity(payload.len() + 3);
-    parts.push(b"zkube-replay-fold-v1".as_slice());
-    parts.push(active.replay_hash.as_slice());
-    parts.push(domain);
-    parts.extend_from_slice(payload);
-    active.replay_hash = sha256v(&parts);
+fn fold_replay_event(active: &mut ActiveRun, event: zkube_core::ReplayEvent) {
+    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+        active.replay_hash = zkube_core::ReplayCommitment(active.replay_hash)
+            .fold_with::<SolanaSha256>(event)
+            .to_bytes();
+    } else {
+        let encoded = event.canonical_bytes();
+        active.replay_hash = sha256v(&[
+            b"zkube-campaign-replay-fold-v1",
+            &active.replay_hash,
+            encoded.as_slice(),
+        ]);
+    }
+}
+
+fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
+    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+        require!(
+            active.deadline_at > 0 && now < active.deadline_at,
+            ErrorCode::ChallengeEnded
+        );
+    }
+    Ok(())
 }
 
 #[derive(Accounts, Session)]
@@ -729,6 +818,55 @@ pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
     if active.finished_at == 0 {
         active.finished_at = Clock::get()?.unix_timestamp;
     }
+    let action = active.action_counter;
+    fold_replay_event(active, zkube_core::ReplayEvent::PlayerAbandon { action });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ForceFinishDeadline<'info> {
+    #[account(
+        mut,
+        owner = crate::ID,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub active_run: Account<'info, ActiveRun>,
+    pub caller: Signer<'info>,
+}
+
+/// Permissionless ER-side cutoff. It freezes the last fully accepted state,
+/// clears any pending VRF request, and makes the normal commit/consume path the
+/// only possible resolution. Zero-action ranked runs are expired by consume.
+pub fn handler_force_finish_deadline(ctx: Context<ForceFinishDeadline>) -> Result<()> {
+    let active = &mut ctx.accounts.active_run;
+    require!(
+        matches!(active.mode, RunMode::Daily | RunMode::Practice),
+        ErrorCode::InvalidState
+    );
+    require!(
+        Clock::get()?.unix_timestamp >= active.deadline_at,
+        ErrorCode::ChallengeNotEnded
+    );
+    if active.lifecycle == RunLifecycle::Finished
+        && active.finished_at == active.deadline_at
+        && active.pending_vrf_counter == 0
+        && !active.has_next_row
+    {
+        return Ok(());
+    }
+    require!(
+        matches!(
+            active.lifecycle,
+            RunLifecycle::Delegated | RunLifecycle::AwaitingVrf | RunLifecycle::Playing
+        ),
+        ErrorCode::InvalidState
+    );
+    active.pending_vrf_counter = 0;
+    active.has_next_row = false;
+    active.lifecycle = RunLifecycle::Finished;
+    active.finished_at = active.deadline_at;
+    let action = active.action_counter;
+    fold_replay_event(active, zkube_core::ReplayEvent::DailyDeadline { action });
     Ok(())
 }
 
@@ -876,37 +1014,6 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
     } else {
         0
     };
-    let consumed_at = Clock::get()?.unix_timestamp;
-
-    let previous_rating = ctx
-        .accounts
-        .player_state
-        .best_stars(active.map_id, active.level)?;
-    let rating_improved = completed && stars > previous_rating;
-    let newly_perfect = completed && stars == 3 && previous_rating < 3;
-    ctx.accounts.player_state.record_run_metrics(
-        RunProgressMetrics {
-            arena_or_practice: false,
-            lines_cleared: active.total_lines_cleared,
-            bonus_uses: active.bonus_uses,
-            combo2_hits: active.combo2_hits,
-            combo3_hits: active.combo3_hits,
-            combo4_hits: active.combo4_hits,
-            high_combo_hits: active.high_combo_hits,
-            blocks_destroyed_by_size: active.blocks_destroyed_by_size,
-            max_combo: active.max_combo,
-            campaign_level_completed: completed,
-            rating_improved,
-            pressure_tier: 0,
-            beat_yesterday_score: false,
-            practice_top_25: false,
-            perfect_clears: active.perfect_clears,
-            new_perfect_level: newly_perfect,
-            boss_cleared: completed && active.level == LEVELS_PER_MAP as u8,
-        },
-        consumed_at,
-    )?;
-
     let reward = award_campaign_level_progression(
         &mut ctx.accounts.player_state,
         active.map_id,
@@ -949,11 +1056,7 @@ fn award_campaign_level_progression(
     achieved_stars: u8,
 ) -> Result<CampaignLevelReward> {
     let stars = player.record_level_stars(map_id, level, achieved_stars)?;
-    let xp = u32::from(stars)
-        .checked_mul(CAMPAIGN_LEVEL_XP_PER_STAR)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    player.credit_xp(xp)?;
-    Ok(CampaignLevelReward { stars, xp })
+    Ok(CampaignLevelReward { stars, xp: 0 })
 }
 
 #[inline(never)]
@@ -980,9 +1083,6 @@ fn update_campaign_unlocks(
     if map_id < MAX_MAPS as u8 {
         player.unlock_map(map_id + 1)?;
     }
-    if map_id == 1 {
-        player.daily_eligible = true;
-    }
     Ok(())
 }
 
@@ -999,11 +1099,10 @@ fn award_map_perfection(player: &mut PlayerState, map_id: u8) -> Result<bool> {
         return Ok(false);
     }
     player.perfected_maps |= bit;
-    player.credit_xp(PERFECT_MAP_XP)?;
     emit!(MapPerfected {
         owner: player.owner,
         map_id,
-        xp: PERFECT_MAP_XP,
+        xp: 0,
     });
     Ok(true)
 }
@@ -1637,6 +1736,60 @@ mod tests {
         assert!(engine.next_row.is_some());
     }
 
+    #[test]
+    fn perfect_clear_callback_reseeds_board_and_preview_from_one_vrf() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../fixtures/replays/golden-perfect-clear-continuation-v1.json"
+        ))
+        .unwrap();
+        let bytes32 = |field: &str| {
+            let value = fixture[field].as_str().unwrap();
+            assert_eq!(value.len(), 64);
+            std::array::from_fn(|index| {
+                u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
+            })
+        };
+        let randomness = bytes32("vrf_output_hex");
+        let rules_hash = bytes32("rules_hash_hex");
+        let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
+        let weights = BlockWeights {
+            values: std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16),
+        };
+        let seed_row: [u8; 8] =
+            std::array::from_fn(|index| fixture["seed_row"][index].as_u64().unwrap() as u8);
+        let preview_row: [u8; 8] =
+            std::array::from_fn(|index| fixture["preview_row"][index].as_u64().unwrap() as u8);
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            grid: Grid::EMPTY,
+            ..RunEngine::default()
+        };
+        let expected = zkube_core::continuation_from_vrf_with::<SolanaSha256>(
+            randomness,
+            request_counter,
+            rules_hash,
+            weights,
+        )
+        .unwrap();
+
+        let rows = provide_verified_vrf_rows(
+            &mut engine,
+            randomness,
+            request_counter,
+            rules_hash,
+            weights,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(rows, 2);
+        assert_eq!(engine.phase, RunPhase::Playing);
+        assert_eq!(engine.grid, expected.grid);
+        assert_eq!(engine.next_row, Some(expected.preview));
+        assert_eq!(&engine.grid.cells()[..8], seed_row);
+        assert_eq!(engine.next_row, Some(preview_row));
+    }
+
     fn campaign_v2_fixture() -> Value {
         serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json")).unwrap()
     }
@@ -2191,7 +2344,7 @@ mod tests {
     }
 
     #[test]
-    fn final_rating_awards_xp_only_perfection_and_keeps_guardian_unlock() {
+    fn campaign_perfection_keeps_guardian_unlock_without_arcade_xp() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
@@ -2204,22 +2357,21 @@ mod tests {
         assert!(!award_map_perfection(&mut player, 1).unwrap());
         player.record_level_stars(1, 4, 3).unwrap();
         assert!(award_map_perfection(&mut player, 1).unwrap());
-        assert!(player.daily_eligible);
         assert!(player.is_map_unlocked(2));
         assert_eq!(player.cleared_maps, 1);
         assert_eq!(player.perfected_maps, 1);
-        assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
+        assert_eq!(player.lifetime_xp, 0);
         assert!(!award_map_perfection(&mut player, 1).unwrap());
-        assert_eq!(player.lifetime_xp, u64::from(PERFECT_MAP_XP));
+        assert_eq!(player.lifetime_xp, 0);
     }
 
     #[test]
-    fn campaign_level_xp_tracks_only_lifetime_star_improvements() {
+    fn campaign_levels_track_stars_without_arcade_xp() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
 
         let one_star = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
-        assert_eq!(one_star, CampaignLevelReward { stars: 1, xp: 10 });
+        assert_eq!(one_star, CampaignLevelReward { stars: 1, xp: 0 });
 
         let equal_replay = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
         let worse_replay = award_campaign_level_progression(&mut player, 1, 1, 0).unwrap();
@@ -2227,14 +2379,14 @@ mod tests {
         assert_eq!(worse_replay, CampaignLevelReward { stars: 0, xp: 0 });
 
         let improved_to_three = award_campaign_level_progression(&mut player, 1, 1, 3).unwrap();
-        assert_eq!(improved_to_three, CampaignLevelReward { stars: 2, xp: 20 });
+        assert_eq!(improved_to_three, CampaignLevelReward { stars: 2, xp: 0 });
 
         let fresh_two_star = award_campaign_level_progression(&mut player, 1, 2, 2).unwrap();
         let fresh_three_star = award_campaign_level_progression(&mut player, 1, 3, 3).unwrap();
-        assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 20 });
-        assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 30 });
+        assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 0 });
+        assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 0 });
         assert_eq!(player.best_stars(1, 1).unwrap(), 3);
-        assert_eq!(player.lifetime_xp, 80);
+        assert_eq!(player.lifetime_xp, 0);
     }
 
     #[test]
@@ -2245,7 +2397,6 @@ mod tests {
             player.record_level_stars(1, level, 2).unwrap();
         }
         update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
-        assert!(player.daily_eligible);
         assert!(player.is_map_unlocked(2));
         assert_eq!(player.cleared_maps, 1);
         assert_eq!(player.perfected_maps, 0);

@@ -45,13 +45,13 @@ import {
 import { saveRunSession } from "./runSessionStore.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
-  deriveArenaBoardPda,
   deriveArenaPlayerPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
+  deriveWeeklyJackpotPda,
   type RunAddresses,
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
@@ -123,6 +123,8 @@ export interface ActiveRunView extends EndlessRulesView {
   level: number;
   rules: ActiveRunRulesView;
   lifecycle: string;
+  /** Authoritative chain deadline for Daily/Practice; Campaign uses zero. */
+  deadlineAt?: number;
   score: number;
   dailyScore: number;
   dailyBonusTriggers: number;
@@ -646,9 +648,8 @@ export async function buildFinalizeRunPlan(args: {
   sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily";
+  mode: "campaign" | "daily" | "practice";
   dailyChallenge?: PublicKey | null;
-  dailyVersion?: 1 | 2 | 3;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
   connection?: Connection;
@@ -685,7 +686,7 @@ export async function buildConsumeRunRecoveryPlan(args: {
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily";
+  mode: "campaign" | "daily" | "practice";
   dailyChallenge?: PublicKey | null;
   connection: Connection;
 }): Promise<TransactionPlan> {
@@ -706,7 +707,7 @@ async function buildConsumeRunInstruction(
   args: {
     owner: PublicKey;
     addresses: RunAddresses;
-    mode: "campaign" | "daily";
+    mode: "campaign" | "daily" | "practice";
     dailyChallenge?: PublicKey | null;
   },
 ): Promise<TransactionInstruction> {
@@ -715,6 +716,7 @@ async function buildConsumeRunInstruction(
     if (!dailyChallenge) {
       throw new Error("Daily settlement requires the challenge address");
     }
+    const daily = await program.account.arenaDaily.fetch(dailyChallenge);
     return program.methods
       .consumeArenaRun()
       .accountsPartial({
@@ -722,7 +724,29 @@ async function buildConsumeRunInstruction(
         playerState: derivePlayerStatePda(args.owner),
         arenaDaily: dailyChallenge,
         arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
-        arenaBoard: deriveArenaBoardPda(dailyChallenge),
+        weeklyJackpot: deriveWeeklyJackpotPda(Number(daily.weekId)),
+        rentRecipient: derivePlayerFundingPda(args.owner),
+      })
+      .instruction();
+  }
+  if (args.mode === "practice") {
+    const dailyChallenge = args.dailyChallenge;
+    if (!dailyChallenge) {
+      throw new Error("Practice settlement requires yesterday's Arena address");
+    }
+    const arenaPlayerInfo = await program.provider.connection.getAccountInfo(
+      deriveArenaPlayerPda(dailyChallenge, args.owner),
+      "confirmed",
+    );
+    return program.methods
+      .consumePracticeRun()
+      .accountsPartial({
+        activeRun: args.addresses.activeRun,
+        playerState: derivePlayerStatePda(args.owner),
+        arenaDaily: dailyChallenge,
+        arenaPlayer: arenaPlayerInfo
+          ? deriveArenaPlayerPda(dailyChallenge, args.owner)
+          : null,
         rentRecipient: derivePlayerFundingPda(args.owner),
       })
       .instruction();
@@ -793,6 +817,7 @@ function mapActiveRunAccount(
     level: Number(account.level),
     rules: mapLevelRuleSnapshot(account.rules),
     lifecycle,
+    deadlineAt: Number(account.deadlineAt),
     score: Number(account.score),
     dailyScore: Number(account.dailyScore),
     dailyBonusTriggers: Number(account.dailyBonusTriggers),
@@ -904,8 +929,7 @@ export async function submitPreparedRunPlan(args: {
   owner: PublicKey;
   wallet: WalletLike;
   sessionSigner: Keypair;
-  mode?: "campaign" | "daily";
-  dailyVersion?: 1 | 2 | 3;
+  mode?: "campaign" | "daily" | "practice";
 }): Promise<string> {
   const signature = await submitVersionedTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,
@@ -919,7 +943,6 @@ export async function submitPreparedRunPlan(args: {
     owner: args.owner,
     runId: args.preparedRun.runId,
     mode: args.mode ?? "campaign",
-    dailyVersion: args.dailyVersion ?? 1,
     session: args.sessionSigner,
     sessionToken: args.preparedRun.sessionToken,
     addresses: args.preparedRun.addresses,

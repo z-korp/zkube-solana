@@ -35,25 +35,24 @@ afterAll(() => {
 
 beforeEach(() => {
   useNavigationStore.setState({
-    currentPage: "home",
+    currentPage: "arcade",
     previousPage: null,
     isTransitioning: false,
     transitionDirection: null,
-    shopOrigin: null,
   });
 });
 
 describe("BottomNav", () => {
-  it("renders the tabs in order with Arena ahead of Quests", () => {
+  it("renders the combined-product tabs with Arcade first", () => {
     fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent)).toEqual([
-      "Home",
-      "Arena",
+      "Arcade",
+      "Campaign",
       "Quests",
-      "Shop",
+      "Ranks",
       "Profile",
     ]);
     expect(buttons.every((button) => !button.hasAttribute("disabled"))).toBe(

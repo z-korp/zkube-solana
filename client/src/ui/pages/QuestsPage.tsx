@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
 
-import { useClaimableCounts } from "@/hooks/useClaimableCount";
 import AchievementsTab from "@/ui/components/quests/AchievementsTab";
 import QuestsTab from "@/ui/components/quests/QuestsTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
@@ -10,11 +9,10 @@ import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 const TABS = ["Quests", "Feats"] as const;
 
 /**
- * Everything claimable, in one place: rotating quests, achievements (feats),
- * and achievements (feats). Competition status lives in the Arena.
+ * Automatic, non-monetary Arcade progression. Competition status lives in
+ * Ranks and no quest or feat requires a claim transaction.
  */
 const QuestsPage: React.FC = () => {
-  const claimableCounts = useClaimableCounts();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Quests");
 
   return (
@@ -32,10 +30,6 @@ const QuestsPage: React.FC = () => {
           active={activeTab}
           onChange={setActiveTab}
           layoutId="quests-tab-indicator"
-          badges={{
-            Quests: claimableCounts.daily + claimableCounts.weekly,
-            Feats: claimableCounts.achievements,
-          }}
           className="mx-6 mt-2"
         />
       </div>

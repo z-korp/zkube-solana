@@ -6,12 +6,11 @@ describe("navigation recovery intent", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     useNavigationStore.setState({
-      currentPage: "home",
+      currentPage: "arcade",
       previousPage: null,
       isTransitioning: false,
       transitionDirection: null,
       recoveryRunId: null,
-      shopOrigin: null,
       settingsFocus: null,
       settingsReturnPage: null,
     });
@@ -50,36 +49,20 @@ describe("navigation recovery intent", () => {
     });
   });
 
-  it("preserves Daily origin through wallet settings and returns through Shop", () => {
-    useNavigationStore.getState().openShop("daily");
-    expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "shop",
-      shopOrigin: "daily",
-    });
-    vi.advanceTimersByTime(300);
-
-    useNavigationStore.getState().openWalletSettings("shop");
+  it("returns to the originating tab after wallet settings", () => {
+    useNavigationStore.getState().openWalletSettings("campaign");
     expect(useNavigationStore.getState()).toMatchObject({
       currentPage: "settings",
       settingsFocus: "wallet",
-      settingsReturnPage: "shop",
-      shopOrigin: "daily",
+      settingsReturnPage: "campaign",
     });
     vi.advanceTimersByTime(300);
 
     useNavigationStore.getState().goBack();
     expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "shop",
+      currentPage: "campaign",
       settingsFocus: null,
       settingsReturnPage: null,
-      shopOrigin: "daily",
-    });
-    vi.advanceTimersByTime(300);
-
-    useNavigationStore.getState().goBack();
-    expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "daily",
-      shopOrigin: null,
     });
   });
 

@@ -1,5 +1,4 @@
 import { currentDailyDayId } from "@/chain/dailyClient";
-import { currentWeeklyId } from "@/chain/weeklyClient";
 
 /**
  * Ticking countdown: "HH:MM:SS", or "Xd HHh" once at least a day remains.
@@ -37,13 +36,6 @@ export function nextDailyResetUnix(
   nowUnix = Math.floor(Date.now() / 1_000),
 ): number {
   return (currentDailyDayId(nowUnix) + 1) * 86_400;
-}
-
-/** Unix time (seconds) when the current Weekly window finalizes. */
-export function nextWeeklyResetUnix(
-  nowUnix = Math.floor(Date.now() / 1_000),
-): number {
-  return (currentWeeklyId(nowUnix) + 1) * 1_209_600 - 259_200;
 }
 
 /** Unix time (seconds) when Monday's weekly quest cadence resets. */

@@ -93,54 +93,77 @@ pub mod solana {
         instructions::arcade_instructions::handler_activate_arena_rules(ctx)
     }
 
-    pub fn schedule_arcade_terms(
-        ctx: Context<ScheduleArcadeTerms>,
-        args: ScheduleArcadeTermsArgs,
+    pub fn prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
+    }
+
+    pub fn prepare_weekly_jackpot(ctx: Context<PrepareWeeklyJackpot>, week_id: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_weekly_jackpot(ctx, week_id)
+    }
+
+    pub fn prepare_season(ctx: Context<PrepareSeason>, season_id: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_season(ctx, season_id)
+    }
+
+    pub fn activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_activate_arena_daily(ctx)
+    }
+
+    pub fn activate_weekly_jackpot(ctx: Context<ActivateWeeklyJackpot>) -> Result<()> {
+        instructions::arcade_instructions::handler_activate_weekly_jackpot(ctx)
+    }
+
+    pub fn activate_season(ctx: Context<ActivateSeason>) -> Result<()> {
+        instructions::arcade_instructions::handler_activate_season(ctx)
+    }
+
+    pub fn seed_launch_pools(
+        ctx: Context<SeedLaunchPools>,
+        daily_lamports: u64,
+        weekly_lamports: u64,
+        season_lamports: u64,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_schedule_arcade_terms(ctx, args)
+        instructions::arcade_instructions::handler_seed_launch_pools(
+            ctx,
+            daily_lamports,
+            weekly_lamports,
+            season_lamports,
+        )
     }
 
-    pub fn open_weekly_jackpot(ctx: Context<OpenWeeklyJackpot>, week_id: u32) -> Result<()> {
-        instructions::arcade_instructions::handler_open_weekly_jackpot(ctx, week_id)
-    }
-
-    pub fn open_arena_daily(ctx: Context<OpenArenaDaily>, day_id: u32) -> Result<()> {
-        instructions::arcade_instructions::handler_open_arena_daily(ctx, day_id)
-    }
-
-    pub fn enter_arena_v1(
-        ctx: Context<EnterArenaV1>,
+    pub fn enter_arena_v2(
+        ctx: Context<EnterArenaV2>,
         run_id: u64,
         expected_entry_lamports: u64,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_enter_arena_v1(
+        instructions::arcade_instructions::handler_enter_arena_v2(
             ctx,
             run_id,
             expected_entry_lamports,
         )
     }
 
-    pub fn funded_enter_arena_v1(
-        ctx: Context<FundedEnterArenaV1>,
+    pub fn funded_enter_arena_v2(
+        ctx: Context<FundedEnterArenaV2>,
         run_id: u64,
         expected_entry_lamports: u64,
     ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_enter_arena_v1(
+        instructions::player_funding_instructions::handler_funded_enter_arena_v2(
             ctx,
             run_id,
             expected_entry_lamports,
         )
     }
 
-    pub fn prepare_practice_run_v1(ctx: Context<PreparePracticeRunV1>, run_id: u64) -> Result<()> {
-        instructions::arcade_instructions::handler_prepare_practice_run_v1(ctx, run_id)
+    pub fn prepare_practice_run_v2(ctx: Context<PreparePracticeRunV2>, run_id: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_practice_run_v2(ctx, run_id)
     }
 
-    pub fn funded_prepare_practice_run_v1(
-        ctx: Context<FundedPreparePracticeRunV1>,
+    pub fn funded_prepare_practice_run_v2(
+        ctx: Context<FundedPreparePracticeRunV2>,
         run_id: u64,
     ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_prepare_practice_run_v1(
+        instructions::player_funding_instructions::handler_funded_prepare_practice_run_v2(
             ctx, run_id,
         )
     }
@@ -153,52 +176,51 @@ pub mod solana {
         instructions::arcade_instructions::handler_consume_practice_run(ctx)
     }
 
-    pub fn refund_stuck_arena_entry(ctx: Context<RefundStuckArenaEntry>) -> Result<()> {
-        instructions::arcade_instructions::handler_refund_stuck_arena_entry(ctx)
+    pub fn expire_unresolved_arena_run(
+        ctx: Context<ExpireUnresolvedArenaRun>,
+        run_id: u64,
+    ) -> Result<()> {
+        instructions::arcade_instructions::handler_expire_unresolved_arena_run(ctx, run_id)
     }
 
-    pub fn declare_arena_incident(ctx: Context<DeclareArenaIncident>) -> Result<()> {
-        instructions::arcade_instructions::handler_declare_arena_incident(ctx)
+    pub fn cleanup_orphan_active_run(ctx: Context<CleanupOrphanActiveRun>) -> Result<()> {
+        instructions::arcade_instructions::handler_cleanup_orphan_active_run(ctx)
     }
 
-    pub fn expire_stuck_arena_entry(ctx: Context<ExpireStuckArenaEntry>) -> Result<()> {
-        instructions::arcade_instructions::handler_expire_stuck_arena_entry(ctx)
+    pub fn initialize_season_player(ctx: Context<InitializeSeasonPlayer>) -> Result<()> {
+        instructions::arcade_instructions::handler_initialize_season_player(ctx)
     }
 
-    pub fn cleanup_resolved_run(ctx: Context<CleanupResolvedRun>) -> Result<()> {
-        instructions::arcade_instructions::handler_cleanup_resolved_run(ctx)
+    pub fn rollup_arena_to_season(ctx: Context<RollupArenaToSeason>) -> Result<()> {
+        instructions::arcade_instructions::handler_rollup_arena_to_season(ctx)
     }
 
-    pub fn rollup_arena_to_weekly(ctx: Context<RollupArenaToWeekly>) -> Result<()> {
-        instructions::arcade_instructions::handler_rollup_arena_to_weekly(ctx)
+    pub fn seal_arena_season_rollups(ctx: Context<SealArenaSeasonRollups>) -> Result<()> {
+        instructions::arcade_instructions::handler_seal_arena_season_rollups(ctx)
     }
 
-    pub fn funded_rollup_arena_to_weekly(ctx: Context<FundedRollupArenaToWeekly>) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_rollup_arena_to_weekly(ctx)
-    }
-
-    pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
+    pub fn finalize_arena_daily<'info>(
+        ctx: Context<'info, FinalizeArenaDaily<'info>>,
+    ) -> Result<()> {
         instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
     }
 
-    pub fn finalize_weekly_jackpot(ctx: Context<FinalizeWeeklyJackpot>) -> Result<()> {
+    pub fn finalize_weekly_jackpot<'info>(
+        ctx: Context<'info, FinalizeWeeklyJackpot<'info>>,
+    ) -> Result<()> {
         instructions::arcade_instructions::handler_finalize_weekly_jackpot(ctx)
     }
 
-    pub fn sync_daily_finish(ctx: Context<SyncDailyFinish>) -> Result<()> {
-        instructions::arcade_instructions::handler_sync_daily_finish(ctx)
-    }
-
-    pub fn sync_weekly_finish(ctx: Context<SyncWeeklyFinish>) -> Result<()> {
-        instructions::arcade_instructions::handler_sync_weekly_finish(ctx)
+    pub fn finalize_season<'info>(ctx: Context<'info, FinalizeSeason<'info>>) -> Result<()> {
+        instructions::arcade_instructions::handler_finalize_season(ctx)
     }
 
     pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {
         instructions::arcade_instructions::handler_close_arena_player(ctx)
     }
 
-    pub fn close_weekly_player(ctx: Context<CloseWeeklyPlayer>) -> Result<()> {
-        instructions::arcade_instructions::handler_close_weekly_player(ctx)
+    pub fn close_season_player(ctx: Context<CloseSeasonPlayer>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_season_player(ctx)
     }
 
     pub fn withdraw_operator_revenue(
@@ -226,23 +248,8 @@ pub mod solana {
         instructions::governance_instructions::handler_accept_protocol_authority(ctx)
     }
 
-    pub fn set_pricing_operator(
-        ctx: Context<SetPricingOperator>,
-        pricing_operator: Pubkey,
-    ) -> Result<()> {
-        instructions::governance_instructions::handler_set_pricing_operator(ctx, pricing_operator)
-    }
-
     pub fn update_team_destination(ctx: Context<UpdateTeamDestination>) -> Result<()> {
         instructions::governance_instructions::handler_update_team_destination(ctx)
-    }
-
-    pub fn claim_achievement(ctx: Context<ClaimAchievement>, achievement_index: u8) -> Result<()> {
-        instructions::progress_instructions::handler_claim_achievement(ctx, achievement_index)
-    }
-
-    pub fn claim_quest(ctx: Context<ClaimQuest>, quest_index: u8) -> Result<()> {
-        instructions::progress_instructions::handler_claim_quest(ctx, quest_index)
     }
 
     pub fn write_map_catalog(
@@ -337,6 +344,10 @@ pub mod solana {
 
     pub fn abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
         instructions::run_lifecycle::handler_abandon_run(ctx)
+    }
+
+    pub fn force_finish_deadline(ctx: Context<ForceFinishDeadline>) -> Result<()> {
+        instructions::run_lifecycle::handler_force_finish_deadline(ctx)
     }
 
     pub fn commit_run(ctx: Context<CommitRun>) -> Result<()> {

@@ -5,11 +5,23 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { ZKUBE_PROGRAM_ID } from "../../client/src/chain/constants";
-import { checkChainReadiness } from "../src/serviceReadiness";
+import {
+  checkChainReadiness,
+  expectedGenesisHashFromEnv,
+} from "../src/serviceReadiness";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 
 describe("keeper chain readiness", () => {
+  it("cannot redirect this release away from Devnet genesis", () => {
+    expect(expectedGenesisHashFromEnv({})).toBe(
+      "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    );
+    expect(() => expectedGenesisHashFromEnv({
+      SOLANA_EXPECTED_GENESIS_HASH: Keypair.generate().publicKey.toBase58(),
+    })).toThrow("Devnet genesis");
+  });
+
   it("binds writes to the exact padded ProgramData fingerprint", async () => {
     const genesis = Keypair.generate().publicKey.toBase58();
     const programDataAddress = Keypair.generate().publicKey;

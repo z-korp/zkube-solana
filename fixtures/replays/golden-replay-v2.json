@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "chain_domain_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "challenge_id_hex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "rules_hash_hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+  "raw_account_hex": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+  "run_id": "72623859790382856",
+  "mode": "ranked",
+  "player_id_hex": "59a56525a9e39520c967365336479264c21a8f15d4bb072dcd99d8a0464b4595",
+  "initial_commitment_hex": "5dfd2845c904e42c9ae7ec7c332df86689195741b4d3a138a4d1b46bfba411a0",
+  "events": [
+    {
+      "canonical_hex": "0101000000a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "commitment_hex": "2e89e334ad8c684a5aa14b591aa4c7f4f42321f7eda36fbb8bf691247849b018"
+    },
+    {
+      "canonical_hex": "02000000000102070205",
+      "commitment_hex": "b91e1666123b7bb0626bde02362110ebe78e5bbdc0a011fffe1b9a15b09ddde9"
+    },
+    {
+      "canonical_hex": "03010000000306",
+      "commitment_hex": "13c87d597ed5c5836f52d81500c85b59838af29d05bf3fd103e08728e5d1e98b"
+    },
+    {
+      "canonical_hex": "0502000000",
+      "commitment_hex": "4ab008954e30c93f1837f0d7107efca33f20ba9de0641b97ac4dba422e1fdc3f"
+    }
+  ],
+  "final_commitment_hex": "4ab008954e30c93f1837f0d7107efca33f20ba9de0641b97ac4dba422e1fdc3f"
+}

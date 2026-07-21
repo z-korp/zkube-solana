@@ -202,7 +202,7 @@ describe("PlayScreen prepared-run recovery", () => {
 
     expect(fixtures.abandonRun).toHaveBeenCalledOnce();
     expect(fixtures.dismissRun).not.toHaveBeenCalled();
-    expect(fixtures.navigate).not.toHaveBeenCalledWith("home");
+    expect(fixtures.navigate).not.toHaveBeenCalledWith("arcade");
     expect(screen.getByText("Run ready")).toBeInTheDocument();
   });
 });
@@ -236,7 +236,7 @@ describe("PlayScreen expired-session escape", () => {
       );
 
       expect(fixtures.dismissRun).toHaveBeenCalledOnce();
-      expect(fixtures.navigate).toHaveBeenCalledWith("home");
+      expect(fixtures.navigate).toHaveBeenCalledWith("arcade");
     },
   );
 

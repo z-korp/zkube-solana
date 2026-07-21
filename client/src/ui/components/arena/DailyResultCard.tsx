@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
@@ -11,15 +11,12 @@ import type { PlayerPosition } from "@/ui/components/arena/dailyPosition";
 
 /**
  * A finished (or finishing) daily as a compact result strip: zone art,
- * guardian, your best line, and the lifecycle pill — including the refund
- * action for cancelled dailies.
+ * guardian, your best line, and the lifecycle pill for the immutable result.
  */
 const DailyResultCard: React.FC<{
   daily: DailyView;
   position: PlayerPosition | null;
   label: string;
-  action: string | null;
-  onRefund: () => void;
   /** When set, the card becomes a toggle that reveals `children` below. */
   onToggle?: () => void;
   expanded?: boolean;
@@ -28,8 +25,6 @@ const DailyResultCard: React.FC<{
   daily,
   position,
   label,
-  action,
-  onRefund,
   onToggle,
   expanded = false,
   children,
@@ -40,8 +35,6 @@ const DailyResultCard: React.FC<{
   const zoneColors = getThemeColors(zoneThemeId);
   const zoneImages = getThemeImages(zoneThemeId);
   const guardian = getZoneGuardian(zoneId);
-  const canRefund = daily.status === "cancelled" && hasPendingRefund(daily);
-  const isBusy = action === "refund";
 
   const header = (
     <div className="relative z-10 flex items-start justify-between gap-3 px-4 py-3">
@@ -71,10 +64,6 @@ const DailyResultCard: React.FC<{
       <div className="flex shrink-0 items-center gap-2">
         <StatusAction
           daily={daily}
-          canRefund={canRefund}
-          isBusy={isBusy}
-          action={action}
-          onRefund={onRefund}
         />
         {onToggle && (
           <ChevronDown
@@ -123,36 +112,9 @@ const DailyResultCard: React.FC<{
 
 function StatusAction({
   daily,
-  canRefund,
-  isBusy,
-  action,
-  onRefund,
 }: {
   daily: DailyView;
-  canRefund: boolean;
-  isBusy: boolean;
-  action: string | null;
-  onRefund: () => void;
 }) {
-  if (canRefund) {
-    return (
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        type="button"
-        onClick={onRefund}
-        disabled={isBusy}
-        className="shrink-0 rounded-full bg-yellow-500 px-3 py-1.5 font-sans text-xs font-bold text-black disabled:opacity-50"
-      >
-        {action === "refund" ? (
-          <span className="flex items-center gap-1.5">
-            <Loader2 className="h-3 w-3 animate-spin" /> Refunding…
-          </span>
-        ) : (
-          "Claim refund"
-        )}
-      </motion.button>
-    );
-  }
   if (daily.status === "open") {
     return (
       <Countdown
@@ -163,38 +125,25 @@ function StatusAction({
       />
     );
   }
-  if (daily.status === "entriesClosed" || daily.status === "finalizing") {
+  if (daily.status === "funding") {
     return (
       <span className="shrink-0 rounded-full bg-yellow-500/80 px-3 py-1.5 font-sans text-xs font-bold text-black">
-        FINALIZING
+        FUNDING
       </span>
     );
   }
-  if (daily.status === "claimable") {
+  if (daily.status === "finalized") {
     return (
       <span className="shrink-0 rounded-full bg-white/60 px-3 py-1.5 font-sans text-xs font-bold text-black">
-        {daily.player?.weeklyRolledUp ? "WEEKLY ✓" : "ROLLING UP"}
-      </span>
-    );
-  }
-  if (daily.status === "cancelled") {
-    return (
-      <span className="shrink-0 rounded-full bg-white/60 px-3 py-1.5 font-sans text-xs font-bold text-black">
-        Refunded
+        PAYOUTS PUSHED
       </span>
     );
   }
   return (
     <span className="shrink-0 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 font-sans text-xs font-bold text-white/65">
-      {daily.status === "closed" ? "CLOSED" : daily.status.toUpperCase()}
+      {daily.status.toUpperCase()}
     </span>
   );
-}
-
-function hasPendingRefund(daily: DailyView): boolean {
-  const player = daily.player;
-  if (!player) return false;
-  return player.attempts > 0 && !player.cubeRefunded;
 }
 
 function formatDailyDate(timestamp: number): string {

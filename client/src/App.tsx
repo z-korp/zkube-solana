@@ -7,13 +7,13 @@ import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
 import HomePage from "@/ui/pages/HomePage";
+import CampaignPage from "@/ui/pages/CampaignPage";
 import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
 import QuestsPage from "@/ui/pages/QuestsPage";
 import SettingsPage from "@/ui/pages/SettingsPage";
-import ShopPage from "@/ui/pages/ShopPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -45,11 +45,11 @@ if (spectatePlayer || spectatePda) {
 }
 
 const pageComponents: Record<PageId, ReactNode> = {
-  home: <HomePage />,
+  arcade: <HomePage />,
+  campaign: <CampaignPage />,
   quests: <QuestsPage />,
   profile: <ProfilePage />,
   ranks: <ArenaPage />,
-  shop: <ShopPage />,
   settings: <SettingsPage />,
   play: <PlayScreen />,
   map: <MapPage />,
@@ -60,7 +60,8 @@ export default function App() {
   const player = useConnectedPlayer();
   const currentPage = useNavigationStore((state) => state.currentPage);
   const { campaign, error, loaded } = useCampaign();
-  // One PlayerState watch keeps every Cube/XP display in agreement.
+  // One PlayerState watch keeps Arcade progression and Campaign completion in
+  // agreement without mixing their presentation surfaces.
   usePlayerStateSync();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app

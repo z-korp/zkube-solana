@@ -20,5 +20,4 @@ pub use governance_instructions::*;
 pub use player_authorization::*;
 pub use player_funding_instructions::*;
 pub use player_label_instructions::*;
-pub use progress_instructions::*;
 pub use run_lifecycle::*;

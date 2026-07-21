@@ -1,14 +1,13 @@
 import React from "react";
 
 import LevelRing from "@/ui/components/shared/LevelRing";
-import CubeBalance from "@/ui/components/shared/CubeBalance";
 import WalletChip from "@/ui/components/shared/WalletChip";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
 /**
  * The shared identity row for Home and Profile: level ring (its color is the
  * rank), the player's display name over their wallet pill, and the Star
- * balance. The rank title is intentionally not text — it lives in the ring's
+ * wallet identity. The rank title is intentionally not text — it lives in the ring's
  * color and hover tooltip — so the header stays uncluttered. Profile renders
  * its XP bar separately below this row.
  */
@@ -20,9 +19,7 @@ const PlayerIdentityHeader: React.FC<{
   /** Cosmetic rank title — used as the name fallback and the ring tooltip. */
   title: string;
   address: string;
-  cubeBalance: string | number;
   ringSize?: number;
-  cubeSize?: "md" | "lg";
   /** Makes the wallet pill a button (Profile links it to Settings). */
   onEditIdentity?: () => void;
 }> = ({
@@ -31,9 +28,7 @@ const PlayerIdentityHeader: React.FC<{
   displayName,
   title,
   address,
-  cubeBalance,
   ringSize = 52,
-  cubeSize = "md",
   onEditIdentity,
 }) => {
   const colors = useThemeColors();
@@ -63,12 +58,6 @@ const PlayerIdentityHeader: React.FC<{
           className="mt-0.5"
         />
       </div>
-      <CubeBalance
-        value={cubeBalance}
-        size={cubeSize}
-        align="right"
-        className="shrink-0"
-      />
     </div>
   );
 };

@@ -3,8 +3,7 @@ import React from "react";
 import { InfoRow } from "@/ui/components/shared/InfoSheet";
 
 /**
- * Full Daily scoring/reward rules, shared by the Daily Challenge page and the
- * Rewards Daily tab so the on-screen copy stays a single plain-language line.
+ * Full Daily scoring/reward rules shared by every Arena disclosure.
  */
 export function DailyScoringRules({
   objectiveWeight,
@@ -25,16 +24,16 @@ export function DailyScoringRules({
           value="Daily score · bonus triggers · earlier completion"
         />
         <InfoRow
-          label="Retries"
-          value="First attempt free · up to 5 paid retries at 10 Cubes"
+          label="Every ranked run"
+          value="0.02 SOL · separate owner signature"
         />
         <InfoRow label="First finish today" value="+100 XP" />
         <InfoRow label="First Tier 7 today" value="+50 XP" />
       </div>
       <p>
         Every finalized attempt appears in the attempt count, while only your
-        best Daily score counts. A Weekly keeps your best 10 of 14 Daily scores;
-        the top 5 earn SOL and ranks 6–20 earn Cubes.
+        best Daily score counts. Weekly skill bounties use three fixed metrics;
+        Daily, Weekly, and Season SOL prizes are pushed automatically.
       </p>
     </>
   );

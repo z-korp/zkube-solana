@@ -1,0 +1,20 @@
+[package]
+name = "zkube-codegen"
+version = "0.1.0"
+description = "Deterministic zKube content and protocol generator"
+edition = "2024"
+rust-version = "1.89"
+license = "UNLICENSED"
+
+[dependencies]
+clap = { version = "=4.5.48", features = ["derive"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+zkube-core = { path = "../zkube-core" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"

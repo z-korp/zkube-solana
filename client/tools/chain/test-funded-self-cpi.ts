@@ -52,7 +52,6 @@ async function main(): Promise<void> {
   const owner = Keypair.generate();
   const actor = Keypair.generate();
   const team = Keypair.generate();
-  const treasury = Keypair.generate();
   const validUntil = Math.floor(Date.now() / 1_000) + 86_400;
   const sessionToken = deriveSessionTokenV2Pda({
     authority: owner.publicKey,
@@ -84,7 +83,7 @@ async function main(): Promise<void> {
     const connection = new Connection(rpcEndpoint, "confirmed");
     await waitForValidator(connection, validator);
     await Promise.all(
-      [authority, owner, actor, team, treasury].map((keypair) =>
+      [authority, owner, actor, team].map((keypair) =>
         airdrop(connection, keypair.publicKey, 5 * LAMPORTS_PER_SOL),
       ),
     );
@@ -97,10 +96,9 @@ async function main(): Promise<void> {
         connection,
         authority: authorityWallet,
         config: {
-          pricingOperator: authority.publicKey,
           teamDestination: team.publicKey,
-          treasuryDestination: treasury.publicKey,
           contentVersion: 1,
+          replayDomain: new Uint8Array(32).fill(9),
         },
       }),
       authorityWallet,

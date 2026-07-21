@@ -1,12 +1,8 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import AchievementsTab from "./AchievementsTab";
-
-const { claimAchievement } = vi.hoisted(() => ({
-  claimAchievement: vi.fn<() => Promise<string>>(),
-}));
 
 vi.mock("@/hooks/useAchievements", () => ({
   ACHIEVEMENT_CATEGORIES: [
@@ -33,14 +29,10 @@ vi.mock("@/hooks/useAchievements", () => ({
         index: 0,
         progress: 1,
         completed: true,
-        claimed: false,
-        claimable: true,
       },
     ],
     isLoading: false,
-    claiming: null,
     error: null,
-    claimAchievement,
   }),
 }));
 
@@ -49,16 +41,10 @@ vi.mock("@/ui/components/shared/ProgressBar", () => ({
 }));
 
 describe("AchievementsTab", () => {
-  beforeEach(() => {
-    claimAchievement.mockReset();
-    claimAchievement.mockResolvedValue("signature");
-  });
-
-  it("claims the on-chain achievement by catalog index", () => {
+  it("shows completed achievement XP without a claim action", () => {
     render(<AchievementsTab />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Claim +50 XP" }));
-
-    expect(claimAchievement).toHaveBeenCalledWith(0);
+    expect(screen.getByText("All tiers complete")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /claim/i })).toBeNull();
   });
 });

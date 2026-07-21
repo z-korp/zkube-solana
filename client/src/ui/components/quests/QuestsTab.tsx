@@ -18,11 +18,10 @@ const containerVariants = staggerContainer(0.05);
 
 const QuestsTab: React.FC = () => {
   const colors = useThemeColors();
-  const { quests, isLoading, claiming, error, claimQuest } = useQuests();
+  const { quests, isLoading, error } = useQuests();
   const { daily, weekly, finisher } = groupQuests(quests);
 
-  const keepVisible = (quest: QuestStatus) =>
-    quest.active || (quest.completed && !quest.claimed);
+  const keepVisible = (quest: QuestStatus) => quest.active;
 
   const activeDaily = daily.filter(keepVisible);
   const activeWeekly = weekly.filter(keepVisible);
@@ -54,8 +53,6 @@ const QuestsTab: React.FC = () => {
         )}`}
         quests={combinedDaily}
         getQuestColor={getQuestColor}
-        onClaim={(quest) => void claimQuest(quest.index).catch(() => undefined)}
-        claiming={claiming}
         showFinisherDivider={activeFinisher.length > 0}
       />
       <QuestSection
@@ -67,8 +64,6 @@ const QuestsTab: React.FC = () => {
         )}`}
         quests={activeWeekly}
         getQuestColor={getQuestColor}
-        onClaim={(quest) => void claimQuest(quest.index).catch(() => undefined)}
-        claiming={claiming}
       />
       {isLoading && (
         <motion.p
@@ -99,8 +94,6 @@ interface QuestSectionProps {
   quests: QuestStatus[];
   getQuestColor: (quest: QuestStatus) => string;
   resetHint: string;
-  onClaim: (quest: QuestStatus) => void;
-  claiming: string | null;
   showFinisherDivider?: boolean;
 }
 
@@ -111,13 +104,11 @@ const QuestSection: React.FC<QuestSectionProps> = ({
   quests,
   getQuestColor,
   resetHint,
-  onClaim,
-  claiming,
   showFinisherDivider = false,
 }) => {
   const sortedQuests = [...quests].sort((left, right) => {
-    const leftRank = left.claimed ? 2 : left.completed ? 0 : 1;
-    const rightRank = right.claimed ? 2 : right.completed ? 0 : 1;
+    const leftRank = left.completed ? 1 : 0;
+    const rightRank = right.completed ? 1 : 0;
     return leftRank - rightRank;
   });
 
@@ -174,8 +165,6 @@ const QuestSection: React.FC<QuestSectionProps> = ({
                 colors={colors}
                 quest={quest}
                 color={getQuestColor(quest)}
-                onClaim={onClaim}
-                claiming={claiming}
               />
             </div>
           ))}
@@ -189,31 +178,23 @@ interface QuestCardProps {
   colors: ThemeColors;
   quest: QuestStatus;
   color: string;
-  onClaim: (quest: QuestStatus) => void;
-  claiming: string | null;
 }
 
 const QuestCard: React.FC<QuestCardProps> = ({
   colors,
   quest,
   color,
-  onClaim,
-  claiming,
 }) => {
-  const isClaiming = claiming === `quest:${quest.index}`;
   const progressValue = Math.min(quest.progress, quest.target);
 
   return (
     <div
       className="rounded-2xl border px-3 py-3 backdrop-blur-xl"
       style={{
-        background: quest.claimed
-          ? "rgba(255,255,255,0.06)"
-          : quest.completed
+        background: quest.completed
             ? `${color}18`
             : "rgba(255,255,255,0.11)",
         borderColor: quest.completed ? `${color}4D` : "rgba(255,255,255,0.16)",
-        opacity: quest.claimed ? 0.7 : 1,
       }}
     >
       <div className="flex items-start gap-3">
@@ -223,7 +204,6 @@ const QuestCard: React.FC<QuestCardProps> = ({
         >
           <span
             className="text-lg"
-            style={{ filter: quest.claimed ? "grayscale(1)" : "none" }}
           >
             {quest.icon}
           </span>
@@ -238,7 +218,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
               {quest.name}
             </p>
 
-            {quest.claimed ? (
+            {quest.completed ? (
               <span
                 className="rounded-full px-2 py-1 font-sans text-[10px] font-extrabold uppercase"
                 style={{
@@ -246,28 +226,8 @@ const QuestCard: React.FC<QuestCardProps> = ({
                   background: "rgba(255,255,255,0.12)",
                 }}
               >
-                Claimed
+                Complete · XP applied
               </span>
-            ) : quest.claimable ? (
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                type="button"
-                onClick={() => onClaim(quest)}
-                disabled={claiming !== null}
-                className="rounded-full px-3 py-1.5 font-sans text-[10px] font-extrabold uppercase text-[#0a1628] disabled:opacity-50"
-                style={{
-                  background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`,
-                  boxShadow: `0 0 12px ${colors.accent}55`,
-                }}
-              >
-                {isClaiming ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Claiming
-                  </span>
-                ) : (
-                  `Claim +${questRewardLabel(quest)}`
-                )}
-              </motion.button>
             ) : (
               <span
                 className="font-sans text-[12px] font-extrabold"
@@ -285,7 +245,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
             {quest.description}
           </p>
 
-          {!quest.claimed && (
+          {!quest.completed && (
             <div className="mt-2">
               <ProgressBar
                 value={progressValue}
@@ -302,7 +262,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
                   {progressValue}/{quest.target}
                 </span>
                 <span>
-                  {quest.claimable ? "Ready to claim" : "In progress"}
+                  In progress
                 </span>
               </div>
             </div>
@@ -314,12 +274,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
 };
 
 function questRewardLabel(quest: QuestStatus): string {
-  return [
-    quest.xpReward > 0 ? `${quest.xpReward} XP` : null,
-    quest.cubeReward > 0 ? `${quest.cubeReward}★` : null,
-  ]
-    .filter(Boolean)
-    .join(" + ");
+  return quest.xpReward > 0 ? `${quest.xpReward} XP` : "Complete";
 }
 
 export default QuestsTab;

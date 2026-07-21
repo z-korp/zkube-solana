@@ -11,7 +11,6 @@ interface PlayerEntryView {
   bestScore: number;
   rank: number;
   finalizedAttempts: number;
-  cubeRefunded: boolean;
 }
 
 export function usePlayerEntry(
@@ -43,7 +42,6 @@ export function usePlayerEntry(
         bestScore: player.bestDailyScore ?? player.bestScore,
         rank,
         finalizedAttempts: player.finalizedAttempts,
-        cubeRefunded: player.cubeRefunded,
       }
     : null;
   return { entry, isRegistered: entry !== null };

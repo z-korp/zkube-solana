@@ -90,34 +90,6 @@ pub fn handler_accept_protocol_authority(ctx: Context<AcceptProtocolAuthority>) 
 }
 
 #[derive(Accounts)]
-pub struct SetPricingOperator<'info> {
-    #[account(
-        mut,
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    pub authority: Signer<'info>,
-}
-
-pub fn handler_set_pricing_operator(
-    ctx: Context<SetPricingOperator>,
-    pricing_operator: Pubkey,
-) -> Result<()> {
-    require_keys_neq!(pricing_operator, Pubkey::default(), ErrorCode::InvalidOwner);
-    let previous_operator = ctx.accounts.protocol.pricing_operator;
-    require_keys_neq!(pricing_operator, previous_operator, ErrorCode::InvalidOwner);
-    ctx.accounts.protocol.pricing_operator = pricing_operator;
-    emit!(PricingOperatorChanged {
-        previous_operator,
-        pricing_operator,
-    });
-    Ok(())
-}
-
-#[derive(Accounts)]
 pub struct UpdateTeamDestination<'info> {
     #[account(
         mut,
@@ -165,12 +137,6 @@ pub struct ProtocolAuthorityProposed {
 pub struct ProtocolAuthorityAccepted {
     pub previous_authority: Pubkey,
     pub authority: Pubkey,
-}
-
-#[event]
-pub struct PricingOperatorChanged {
-    pub previous_operator: Pubkey,
-    pub pricing_operator: Pubkey,
 }
 
 #[event]

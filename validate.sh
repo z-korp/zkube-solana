@@ -73,6 +73,7 @@ validate_frontend() {
   cd "$root/client"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check
+  NO_DNA=1 pnpm run core:wasm:check
   NO_DNA=1 pnpm run typecheck:chain
   NO_DNA=1 pnpm run build
   NO_DNA=1 pnpm exec vitest run

@@ -3,10 +3,11 @@ import { motion } from "motion/react";
 
 import ArenaDailyTab from "@/ui/components/arena/ArenaDailyTab";
 import WeeklyTab from "@/ui/components/arena/WeeklyTab";
+import SeasonTab from "@/ui/components/arena/SeasonTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 
-const TABS = ["Daily", "Weekly"] as const;
+const TABS = ["Daily", "Weekly", "Season"] as const;
 
 /**
  * The competition hub: today's rules + board + entry on the Daily tab, weekly
@@ -42,6 +43,7 @@ const ArenaPage: React.FC = () => {
             <WeeklyTab />
           </div>
         )}
+        {activeTab === "Season" && <SeasonTab />}
       </div>
     </div>
   );

@@ -30,9 +30,7 @@ export interface CampaignMapView {
 }
 
 export interface CampaignView {
-  economyVersion: 3;
   contentVersion: number;
-  cubesBalance: bigint;
   maps: CampaignMapView[];
 }
 
@@ -160,9 +158,7 @@ export async function fetchCampaignView(args: {
     };
   });
   return {
-    economyVersion: 3,
     contentVersion,
-    cubesBalance: 0n,
     maps,
   };
 }

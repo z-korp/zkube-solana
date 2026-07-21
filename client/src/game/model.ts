@@ -83,7 +83,7 @@ export class Game {
     return this.view.pressureScore ?? this.view.score;
   }
 
-  public get totalCubes(): number {
+  public get totalLinesCleared(): number {
     return this.view.totalLinesCleared;
   }
 
@@ -133,7 +133,11 @@ export class Game {
 
   /** 0 = story/campaign, 1 = endless (Daily Arena). */
   public get mode(): number {
-    return this.view.mode === "daily" ? 1 : 0;
+    return this.view.mode === "daily" || this.view.mode === "practice" ? 1 : 0;
+  }
+
+  public get runMode(): string {
+    return this.view.mode;
   }
 
   public get score(): number {

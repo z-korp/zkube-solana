@@ -5,6 +5,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
+use crate::state::arcade::RunMetrics as ArcadeRunMetrics;
 use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
@@ -33,8 +34,9 @@ pub struct ProtocolConfig {
     pub version: u8,
     pub authority: Pubkey,
     pub pending_authority: Pubkey,
-    pub pricing_operator: Pubkey,
     pub team_destination: Pubkey,
+    /// Chain/deployment-specific replay domain used by canonical replay v2.
+    pub replay_domain: [u8; 32],
     pub content_version: u32,
     pub daily_rules_version: u32,
     pub player_funding_target_lamports: u64,
@@ -54,7 +56,14 @@ pub struct PlayerState {
     /// This durable pointer makes resume deterministic across devices and
     /// prevents two valid device sessions from opening concurrent runs.
     pub active_run_id: u64,
-    pub daily_eligible: bool,
+    /// Base-layer reservation remains authoritative while the run PDA is
+    /// delegated to an ephemeral rollup.
+    pub active_run_daily: Pubkey,
+    pub active_run_mode: RunMode,
+    pub active_run_deadline_at: i64,
+    /// A deterministically expired run remains reserved until its delayed ER
+    /// copy is committed and the orphan account is closed.
+    pub orphan_run_id: u64,
     /// Bit per canonical achievement; the catalog is bounded to 24 entries.
     pub achievement_flags: u32,
     /// All progression XP, regardless of whether it came from achievements,
@@ -77,10 +86,10 @@ pub struct PlayerState {
     pub perfected_maps: u32,
     /// Two bits per Campaign level across all maps.
     pub level_stars: [u8; 80],
-    pub daily_claim_cadence_id: u32,
-    pub weekly_claim_cadence_id: u32,
-    pub daily_claimed: u32,
-    pub weekly_claimed: u32,
+    pub daily_completion_cadence_id: u32,
+    pub weekly_completion_cadence_id: u32,
+    pub daily_completed: u32,
+    pub weekly_completed: u32,
     pub best_daily_finish: u16,
     pub best_weekly_finish: u16,
     pub crest_streak: u16,
@@ -99,7 +108,10 @@ impl PlayerState {
             owner,
             next_run_id: INITIAL_RUN_ID,
             active_run_id: 0,
-            daily_eligible: false,
+            active_run_daily: Pubkey::default(),
+            active_run_mode: RunMode::Campaign,
+            active_run_deadline_at: 0,
+            orphan_run_id: 0,
             achievement_flags: 0,
             lifetime_xp: 0,
             quest_cadence_day: 0,
@@ -117,10 +129,10 @@ impl PlayerState {
             cleared_maps: 0,
             perfected_maps: 0,
             level_stars: [0; 80],
-            daily_claim_cadence_id: 0,
-            weekly_claim_cadence_id: 0,
-            daily_claimed: 0,
-            weekly_claimed: 0,
+            daily_completion_cadence_id: 0,
+            weekly_completion_cadence_id: 0,
+            daily_completed: 0,
+            weekly_completed: 0,
             best_daily_finish: 0,
             best_weekly_finish: 0,
             crest_streak: 0,
@@ -134,7 +146,10 @@ impl PlayerState {
     /// Atomically reserves the next monotonic run id for this owner.
     pub fn reserve_run(&mut self, run_id: u64) -> Result<()> {
         require!(self.next_run_id == run_id, ErrorCode::InvalidRunId);
-        require!(self.active_run_id == 0, ErrorCode::ActiveRunExists);
+        require!(
+            self.active_run_id == 0 && self.orphan_run_id == 0,
+            ErrorCode::ActiveRunExists
+        );
         self.next_run_id = self
             .next_run_id
             .checked_add(1)
@@ -143,19 +158,68 @@ impl PlayerState {
         Ok(())
     }
 
+    pub fn reserve_arcade_run(
+        &mut self,
+        run_id: u64,
+        daily: Pubkey,
+        mode: RunMode,
+        deadline_at: i64,
+    ) -> Result<()> {
+        require!(
+            matches!(mode, RunMode::Daily | RunMode::Practice)
+                && daily != Pubkey::default()
+                && deadline_at > 0,
+            ErrorCode::InvalidState
+        );
+        self.reserve_run(run_id)?;
+        self.active_run_daily = daily;
+        self.active_run_mode = mode;
+        self.active_run_deadline_at = deadline_at;
+        Ok(())
+    }
+
+    pub fn arcade_reservation_matches(
+        &self,
+        run_id: u64,
+        daily: Pubkey,
+        mode: RunMode,
+        deadline_at: i64,
+    ) -> bool {
+        self.active_run_id == run_id
+            && self.active_run_daily == daily
+            && self.active_run_mode == mode
+            && self.active_run_deadline_at == deadline_at
+    }
+
     /// Releases only the exact run pinned in durable state while its terminal
     /// ActiveRun is atomically consumed and closed on the base layer.
     pub fn release_run(&mut self, run_id: u64) -> Result<()> {
         require!(self.active_run_id == run_id, ErrorCode::InvalidRunId);
         self.active_run_id = 0;
+        self.active_run_daily = Pubkey::default();
+        self.active_run_mode = RunMode::Campaign;
+        self.active_run_deadline_at = 0;
+        Ok(())
+    }
+
+    pub fn expire_arcade_run(&mut self, run_id: u64) -> Result<()> {
+        require!(self.orphan_run_id == 0, ErrorCode::ActiveRunExists);
+        self.release_run(run_id)?;
+        self.orphan_run_id = run_id;
+        Ok(())
+    }
+
+    pub fn release_orphan(&mut self, run_id: u64) -> Result<()> {
+        require!(self.orphan_run_id == run_id, ErrorCode::InvalidRunId);
+        self.orphan_run_id = 0;
         Ok(())
     }
 
     pub fn credit_xp(&mut self, xp: u32) -> Result<()> {
-        self.lifetime_xp = self
-            .lifetime_xp
-            .checked_add(u64::from(xp))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        // Profile progression is intentionally lossy at the numeric ceiling:
+        // it must never make a paid-run resolution fail and strand prize-pool
+        // accounting. Monetary ledgers continue to use checked arithmetic.
+        self.lifetime_xp = self.lifetime_xp.saturating_add(u64::from(xp));
         Ok(())
     }
 
@@ -175,7 +239,7 @@ impl PlayerState {
 
     pub fn record_run_started(&mut self, now: i64) -> Result<()> {
         self.roll_quest_cadences(now);
-        self.lifetime_runs_started = checked_add_u64(self.lifetime_runs_started, 1)?;
+        self.lifetime_runs_started = self.lifetime_runs_started.saturating_add(1);
         Ok(())
     }
 
@@ -183,69 +247,51 @@ impl PlayerState {
         self.roll_quest_cadences(now);
         if self.last_daily_challenge_day != day_id {
             self.last_daily_challenge_day = day_id;
-            self.lifetime_daily_challenges = checked_add_u64(self.lifetime_daily_challenges, 1)?;
-            self.quest_counters[4] = checked_add_u32(self.quest_counters[4], 1)?;
+            self.lifetime_daily_challenges = self.lifetime_daily_challenges.saturating_add(1);
+            self.quest_counters[4] = self.quest_counters[4].saturating_add(1);
         }
         Ok(())
     }
 
     pub fn record_run_metrics(&mut self, metrics: RunProgressMetrics, now: i64) -> Result<()> {
         self.roll_quest_cadences(now);
-        self.lifetime_lines_cleared = checked_add_u64(
-            self.lifetime_lines_cleared,
-            u64::from(metrics.lines_cleared),
-        )?;
-        self.lifetime_bonus_uses =
-            checked_add_u64(self.lifetime_bonus_uses, u64::from(metrics.bonus_uses))?;
+        self.lifetime_lines_cleared = self
+            .lifetime_lines_cleared
+            .saturating_add(u64::from(metrics.lines_cleared));
+        self.lifetime_bonus_uses = self
+            .lifetime_bonus_uses
+            .saturating_add(u64::from(metrics.bonus_uses));
         self.lifetime_max_combo = self.lifetime_max_combo.max(metrics.max_combo);
         if metrics.arena_or_practice {
-            self.quest_counters[0] = checked_add_u32(self.quest_counters[0], 1)?;
-            self.quest_counters[13] = checked_add_u32(self.quest_counters[13], 1)?;
+            self.quest_counters[0] = self.quest_counters[0].saturating_add(1);
+            self.quest_counters[13] = self.quest_counters[13].saturating_add(1);
         }
         self.quest_counters[1] =
-            checked_add_u32(self.quest_counters[1], u32::from(metrics.lines_cleared))?;
+            self.quest_counters[1].saturating_add(u32::from(metrics.lines_cleared));
         self.quest_counters[2] =
-            checked_add_u32(self.quest_counters[2], u32::from(metrics.bonus_uses))?;
-        self.quest_counters[3] = checked_add_u32(
-            self.quest_counters[3],
-            u32::from(metrics.pressure_tier >= 4),
-        )?;
+            self.quest_counters[2].saturating_add(u32::from(metrics.bonus_uses));
+        self.quest_counters[3] =
+            self.quest_counters[3].saturating_add(u32::from(metrics.pressure_tier >= 4));
         self.quest_counters[6] =
-            checked_add_u32(self.quest_counters[6], u32::from(metrics.combo3_hits))?;
-        self.quest_counters[7] = checked_add_u32(
-            self.quest_counters[7],
-            u32::from(metrics.beat_yesterday_score),
-        )?;
+            self.quest_counters[6].saturating_add(u32::from(metrics.combo3_hits));
+        self.quest_counters[7] =
+            self.quest_counters[7].saturating_add(u32::from(metrics.beat_yesterday_score));
         self.quest_counters[10] =
-            checked_add_u32(self.quest_counters[10], u32::from(metrics.lines_cleared))?;
+            self.quest_counters[10].saturating_add(u32::from(metrics.lines_cleared));
         self.quest_counters[12] =
-            checked_add_u32(self.quest_counters[12], u32::from(metrics.bonus_uses))?;
+            self.quest_counters[12].saturating_add(u32::from(metrics.bonus_uses));
         self.quest_counters[15] =
-            checked_add_u32(self.quest_counters[15], u32::from(metrics.combo3_hits))?;
+            self.quest_counters[15].saturating_add(u32::from(metrics.combo3_hits));
         self.quest_counters[16] = self.quest_counters[16].max(u32::from(metrics.pressure_tier));
         self.quest_counters[18] =
-            checked_add_u32(self.quest_counters[18], u32::from(metrics.practice_top_25))?;
+            self.quest_counters[18].saturating_add(u32::from(metrics.practice_top_25));
         self.quest_counters[19] =
-            checked_add_u32(self.quest_counters[19], u32::from(metrics.perfect_clears))?;
+            self.quest_counters[19].saturating_add(u32::from(metrics.perfect_clears));
         // Quest 16 is satisfied by either one four-line clear or five
         // three-line clears. The high bit records the former while the low
         // bits retain the latter's count.
         if metrics.combo4_hits > 0 {
             self.quest_counters[15] |= 1 << 31;
-        }
-        if metrics.campaign_level_completed {
-            self.quest_counters[4] = checked_add_u32(self.quest_counters[4], 1)?;
-        }
-        if metrics.rating_improved {
-            self.quest_counters[5] = checked_add_u32(self.quest_counters[5], 1)?;
-            self.quest_counters[11] = checked_add_u32(self.quest_counters[11], 1)?;
-        }
-        if metrics.new_perfect_level {
-            self.lifetime_perfect_levels = checked_add_u64(self.lifetime_perfect_levels, 1)?;
-        }
-        if metrics.boss_cleared {
-            self.lifetime_bosses_cleared = checked_add_u64(self.lifetime_bosses_cleared, 1)?;
-            self.quest_counters[17] = checked_add_u32(self.quest_counters[17], 1)?;
         }
         if metrics.arena_or_practice {
             let weekday = cadence_day(now).saturating_add(3) % 7;
@@ -296,14 +342,14 @@ impl PlayerState {
         Ok(stars - current)
     }
 
-    pub fn roll_claims(&mut self, day: u32, week: u32) {
-        if self.daily_claim_cadence_id != day {
-            self.daily_claim_cadence_id = day;
-            self.daily_claimed = 0;
+    pub fn roll_completions(&mut self, day: u32, week: u32) {
+        if self.daily_completion_cadence_id != day {
+            self.daily_completion_cadence_id = day;
+            self.daily_completed = 0;
         }
-        if self.weekly_claim_cadence_id != week {
-            self.weekly_claim_cadence_id = week;
-            self.weekly_claimed = 0;
+        if self.weekly_completion_cadence_id != week {
+            self.weekly_completion_cadence_id = week;
+            self.weekly_completed = 0;
         }
     }
 }
@@ -319,14 +365,10 @@ pub struct RunProgressMetrics {
     pub high_combo_hits: u16,
     pub blocks_destroyed_by_size: [u16; 4],
     pub max_combo: u8,
-    pub campaign_level_completed: bool,
-    pub rating_improved: bool,
     pub pressure_tier: u8,
     pub beat_yesterday_score: bool,
     pub practice_top_25: bool,
     pub perfect_clears: u16,
-    pub new_perfect_level: bool,
-    pub boss_cleared: bool,
 }
 
 #[account]
@@ -445,6 +487,9 @@ pub struct ActiveRun {
     pub mode: RunMode,
     pub lifecycle: RunLifecycle,
     pub rules_hash: [u8; 32],
+    /// Ranked and Practice actions and VRF callbacks are rejected at this
+    /// immutable cutoff. Campaign runs use zero (no cadence deadline).
+    pub deadline_at: i64,
     pub map_id: u8,
     pub level: u8,
     pub rules: LevelRuleSnapshot,
@@ -463,6 +508,8 @@ pub struct ActiveRun {
     pub moves: u16,
     pub combo_counter: u8,
     pub max_combo: u8,
+    /// Canonical, full-width metrics used by the three Weekly boards.
+    pub arcade_metrics: ArcadeRunMetrics,
     pub primary_progress: u8,
     pub secondary_progress: u8,
     pub level_lines_cleared: u16,
@@ -499,6 +546,7 @@ impl Default for ActiveRun {
             mode: RunMode::default(),
             lifecycle: RunLifecycle::default(),
             rules_hash: [0; 32],
+            deadline_at: 0,
             map_id: 0,
             level: 0,
             rules: LevelRuleSnapshot::default(),
@@ -515,6 +563,7 @@ impl Default for ActiveRun {
             moves: 0,
             combo_counter: 0,
             max_combo: 0,
+            arcade_metrics: ArcadeRunMetrics::default(),
             primary_progress: 0,
             secondary_progress: 0,
             level_lines_cleared: 0,
@@ -591,21 +640,13 @@ pub fn cadence_day(now: i64) -> u32 {
 }
 
 pub fn cadence_week(now: i64) -> u32 {
-    if now <= 0 {
-        0
-    } else {
-        u32::try_from(now.saturating_add(259_200) / 604_800).unwrap_or(u32::MAX)
+    match zkube_core::week_id_at(now) {
+        Ok(week) => week,
+        Err(
+            zkube_core::PeriodError::BeforeUnixEpoch | zkube_core::PeriodError::BeforeMondayEpoch,
+        ) => 0,
+        Err(zkube_core::PeriodError::Overflow) => u32::MAX,
     }
-}
-
-fn checked_add_u64(left: u64, right: u64) -> Result<u64> {
-    left.checked_add(right)
-        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
-}
-
-fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
-    left.checked_add(right)
-        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
 }
 
 #[cfg(test)]
@@ -623,6 +664,18 @@ mod tests {
         assert_eq!(INITIAL_RUN_ID, expected);
         assert_eq!(player.next_run_id, expected);
         assert_eq!(player.active_run_id, 0);
+    }
+
+    #[test]
+    fn quest_week_cadence_matches_monday_aligned_competition_ids() {
+        for (day, expected) in [(4, 0), (10, 0), (11, 1)] {
+            let timestamp = i64::from(day) * zkube_core::SECONDS_PER_DAY;
+            assert_eq!(cadence_week(timestamp), expected);
+            assert_eq!(
+                cadence_week(timestamp),
+                zkube_core::week_id_for_day(day).unwrap()
+            );
+        }
     }
 
     #[test]
@@ -646,8 +699,8 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 363);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 483);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 411);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 543);
     }
 
     #[test]
@@ -746,14 +799,10 @@ mod tests {
                     high_combo_hits: 1,
                     blocks_destroyed_by_size: [6, 10, 8, 5],
                     max_combo: 10,
-                    campaign_level_completed: true,
-                    rating_improved: true,
                     pressure_tier: 6,
                     beat_yesterday_score: false,
                     practice_top_25: true,
                     perfect_clears: 2,
-                    new_perfect_level: true,
-                    boss_cleared: true,
                 },
                 day_one,
             )
@@ -762,42 +811,42 @@ mod tests {
         assert_eq!(player.lifetime_lines_cleared, 20);
         assert_eq!(player.lifetime_bonus_uses, 3);
         assert_eq!(player.lifetime_max_combo, 10);
-        assert_eq!(player.lifetime_perfect_levels, 1);
-        assert_eq!(player.lifetime_bosses_cleared, 1);
+        assert_eq!(player.lifetime_perfect_levels, 0);
+        assert_eq!(player.lifetime_bosses_cleared, 0);
         assert_eq!(player.quest_counters[0], 1);
         assert_eq!(player.quest_counters[1], 20);
-        assert_eq!(player.quest_counters[5], 1);
+        assert_eq!(player.quest_counters[5], 0);
         assert_eq!(player.quest_counters[9], 1);
         assert_eq!(player.quest_counters[10], 20);
-        assert_eq!(player.quest_counters[11], 1);
+        assert_eq!(player.quest_counters[11], 0);
         assert_eq!(player.quest_counters[12], 3);
         assert_eq!(player.quest_counters[13], 1);
         assert!(player.quest_counters[15] & (1 << 31) != 0);
         assert_eq!(player.quest_counters[16], 6);
-        assert_eq!(player.quest_counters[17], 1);
+        assert_eq!(player.quest_counters[17], 0);
         assert_eq!(player.quest_counters[18], 1);
         assert_eq!(player.quest_counters[19], 2);
 
         player.roll_quest_cadences(day_one + 86_400);
         assert_eq!(player.quest_counters[0], 0);
         assert_eq!(player.quest_counters[7], 0);
-        assert_eq!(player.quest_counters[11], 1);
+        assert_eq!(player.quest_counters[11], 0);
         assert_eq!(player.quest_counters[12], 3);
         assert_eq!(player.quest_counters[10], 20);
         assert_eq!(player.quest_counters[13], 1);
     }
 
     #[test]
-    fn quest_claim_bitmaps_reset_only_for_their_own_cadence() {
-        let mut claims = PlayerState::initialize(Pubkey::new_unique(), 1);
-        claims.daily_claim_cadence_id = 10;
-        claims.weekly_claim_cadence_id = 2;
-        claims.daily_claimed = 0b11;
-        claims.weekly_claimed = 0b100;
-        claims.roll_claims(11, 2);
-        assert_eq!(claims.daily_claimed, 0);
-        assert_eq!(claims.weekly_claimed, 0b100);
-        claims.roll_claims(11, 3);
-        assert_eq!(claims.weekly_claimed, 0);
+    fn quest_completion_bitmaps_reset_only_for_their_own_cadence() {
+        let mut progress = PlayerState::initialize(Pubkey::new_unique(), 1);
+        progress.daily_completion_cadence_id = 10;
+        progress.weekly_completion_cadence_id = 2;
+        progress.daily_completed = 0b11;
+        progress.weekly_completed = 0b100;
+        progress.roll_completions(11, 2);
+        assert_eq!(progress.daily_completed, 0);
+        assert_eq!(progress.weekly_completed, 0b100);
+        progress.roll_completions(11, 3);
+        assert_eq!(progress.weekly_completed, 0);
     }
 }

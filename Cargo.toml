@@ -1,6 +1,9 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/*",
+    "crates/zkube-core",
+    "crates/zkube-core-wasm",
+    "crates/zkube-codegen",
 ]
 resolver = "2"
 

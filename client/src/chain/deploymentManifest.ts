@@ -7,6 +7,7 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "./constants";
 import { VRF_QUEUE } from "./runPlan";
+import { deriveOperatorRevenueVaultPda } from "./pdas";
 
 type DeploymentCluster = "localnet" | "devnet";
 type DeploymentApprovalStatus = "candidate" | "approved";
@@ -14,7 +15,7 @@ type ManifestCheckStatus = "pass" | "fail";
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 3;
+  schemaVersion: 4;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -42,14 +43,10 @@ export interface ZkubeDeploymentManifest {
     vrfQueue: string;
   };
   payment: { asset: "native-sol"; decimals: 9 };
-  destinations: {
-    team: string;
-    treasury: string;
-    reward: string;
-  };
   protocol: {
     authority: string;
-    pricingOperator: string;
+    teamDestination: string;
+    operatorRevenueVault: string;
   };
   versions: {
     content: number;
@@ -95,7 +92,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 3,
+    schemaVersion: 4,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -126,14 +123,10 @@ export function deploymentManifestFromEnv(
       asset: "native-sol",
       decimals: 9,
     },
-    destinations: {
-      team: required(env, "ZKUBE_TEAM_DESTINATION"),
-      treasury: required(env, "ZKUBE_TREASURY_DESTINATION"),
-      reward: required(env, "ZKUBE_REWARD_VAULT"),
-    },
     protocol: {
       authority: required(env, "ZKUBE_PROTOCOL_AUTHORITY"),
-      pricingOperator: required(env, "ZKUBE_PRICING_OPERATOR"),
+      teamDestination: required(env, "ZKUBE_TEAM_DESTINATION"),
+      operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     versions: {
       content: requiredInteger(env, "ZKUBE_CONTENT_VERSION"),
@@ -166,27 +159,23 @@ export function validateDeploymentManifest(
   const rpc = record(manifest.rpc);
   const magic = record(manifest.magic);
   const payment = record(manifest.payment);
-  const destinations = record(manifest.destinations);
   const protocol = record(manifest.protocol);
   const versions = record(manifest.versions);
   const cluster = string(manifest.cluster);
   const approvalStatus = string(approval?.status);
   const approved = approvalStatus === "approved";
-  const destinationValues = destinations
-    ? [destinations.team, destinations.treasury, destinations.reward]
-    : [];
   const checks: DeploymentManifestCheck[] = [
     check(
       "schema",
       "Schema",
-      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 3,
-      "Expected zkube-solana-deployment@3",
+      manifest.schema === "zkube-solana-deployment" && manifest.schemaVersion === 4,
+      "Expected zkube-solana-deployment@4",
     ),
     check(
       "cluster",
       "Cluster",
       cluster === "localnet" || cluster === "devnet",
-      "Only localnet and devnet are allowed by schema v3",
+      "Only localnet and devnet are allowed by schema v4",
     ),
     check(
       "created-at",
@@ -245,19 +234,13 @@ export function validateDeploymentManifest(
       "Protocol requires nine-decimal native SOL payments",
     ),
     check(
-      "destinations",
-      "Segregated revenue destinations",
-      destinationValues.length === 3
-        && destinationValues.every(validPublicKey)
-        && new Set(destinationValues).size === 3,
-      "Team, treasury, and reward destinations must be valid and pairwise distinct",
-    ),
-    check(
       "protocol",
-      "Protocol controls",
+      "Protocol authority and native-SOL custody",
       validPublicKey(protocol?.authority)
-        && validPublicKey(protocol?.pricingOperator),
-      "Protocol authority or pricing operator is invalid",
+        && validPublicKey(protocol?.teamDestination)
+        && protocol?.operatorRevenueVault === deriveOperatorRevenueVaultPda().toBase58()
+        && protocol?.authority !== protocol?.teamDestination,
+      "Authority, team destination, or canonical operator revenue vault is invalid",
     ),
     check(
       "versions",
@@ -295,11 +278,9 @@ export function deploymentManifestMismatches(
     ["VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC", manifest.rpc.magicRouter],
     ["VITE_PUBLIC_SOLANA_VRF_QUEUE", manifest.magic.vrfQueue],
     ["ZKUBE_PROGRAM_ARTIFACT_SHA256", manifest.program.artifactSha256],
-    ["ZKUBE_TEAM_DESTINATION", manifest.destinations.team],
-    ["ZKUBE_TREASURY_DESTINATION", manifest.destinations.treasury],
-    ["ZKUBE_REWARD_VAULT", manifest.destinations.reward],
     ["ZKUBE_PROTOCOL_AUTHORITY", manifest.protocol.authority],
-    ["ZKUBE_PRICING_OPERATOR", manifest.protocol.pricingOperator],
+    ["ZKUBE_TEAM_DESTINATION", manifest.protocol.teamDestination],
+    ["ZKUBE_OPERATOR_REVENUE_VAULT", manifest.protocol.operatorRevenueVault],
     ["ZKUBE_CONTENT_VERSION", String(manifest.versions.content)],
     ["ZKUBE_DAILY_RULES_VERSION", String(manifest.versions.dailyRules)],
   ];

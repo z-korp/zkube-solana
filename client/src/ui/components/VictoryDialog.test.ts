@@ -17,10 +17,10 @@ describe("VictoryDialog", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the confirmed boss-level XP delta", () => {
+  it("shows Campaign completion stats without Arcade XP", () => {
     const game = {
       zoneId: 2,
-      totalCubes: 40,
+      totalLinesCleared: 40,
       totalScore: 2_000,
       maxComboRun: 5,
     } as Game;
@@ -31,11 +31,10 @@ describe("VictoryDialog", () => {
         onClose: vi.fn(),
         game,
         finalCampaignMapId: 32,
-        xpAwarded: 30,
       }),
     );
 
-    expect(screen.getByText("+30 XP")).toBeInTheDocument();
-    expect(screen.getByText("Campaign level progress")).toBeInTheDocument();
+    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.queryByText(/XP/)).toBeNull();
   });
 });

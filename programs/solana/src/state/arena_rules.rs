@@ -375,7 +375,10 @@ pub fn player_level(xp: u64) -> u8 {
 }
 
 pub fn weekly_id_for_day(day_id: u32) -> u32 {
-    day_id.saturating_add(3) / 7
+    // Days before the shared Monday epoch are outside v4 competition time;
+    // retain zero as their inert cadence while routing every supported day
+    // through the one canonical period implementation.
+    zkube_core::week_id_for_day(day_id).unwrap_or(0)
 }
 
 pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
@@ -397,5 +400,45 @@ pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
         10
     } else {
         2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scoring_rotation_uses_the_canonical_monday_week_at_boundaries() {
+        for (day, expected) in [(4, 0), (10, 0), (11, 1)] {
+            assert_eq!(weekly_id_for_day(day), expected);
+            assert_eq!(
+                weekly_id_for_day(day),
+                zkube_core::week_id_for_day(day).unwrap()
+            );
+        }
+
+        let catalog = DailyRulesCatalog {
+            version: RULES_ACCOUNT_VERSION,
+            rules_version: 1,
+            protocol: Pubkey::new_unique(),
+            content_version: 1,
+            catalog_hash: [1; 32],
+            rotation_id: 1,
+            starts_day: 4,
+            rotation_seed: [7; 32],
+            scoring_rule_count: 15,
+            scoring_rules: canonical_daily_scoring_rules(),
+            pressure: DailyPressureProfile::canonical(),
+            bump: 1,
+        };
+        for day in [4, 10, 11] {
+            let week = zkube_core::week_id_for_day(day).unwrap();
+            let weekday = day.saturating_add(3) % 7;
+            let family = family_permutation(catalog.rotation_seed, week)[weekday as usize];
+            assert_eq!(
+                catalog.scoring_rule_for_day(day).unwrap(),
+                catalog.rule_for_family_and_week(family, week).unwrap()
+            );
+        }
     }
 }

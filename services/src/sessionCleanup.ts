@@ -1,6 +1,6 @@
-import { PublicKey, SystemProgram, TransactionInstruction, type Connection } from "@solana/web3.js";
+import { PublicKey, SystemProgram, type Connection } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID, type KeeperInstructionPlan } from "./arcadeChain.js";
+import { type KeeperInstructionPlan } from "./arcadeChain.js";
 
 export const SESSION_KEYS_PROGRAM_ID = new PublicKey("KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5");
 const SESSION_SEED = Buffer.from("session_token_v2");
@@ -8,16 +8,25 @@ const SESSION_BYTES = 144;
 const SESSION_DISCRIMINATOR = Buffer.from([178, 3, 85, 254, 13, 116, 128, 41]);
 const REVOKE_DISCRIMINATOR = Buffer.from([211, 59, 125, 188, 43, 155, 8, 102]);
 const MAX_SESSION_REVOKES = 2;
+const MAX_DISCOVERED_SESSION_ACCOUNTS = 10_000;
 
 export async function discoverExpiredSessionPlans(args: {
   connection: Connection;
   keeper: PublicKey;
+  targetProgramId: PublicKey;
   nowUnix: number;
 }): Promise<KeeperInstructionPlan[]> {
+  void args.keeper;
+  if (!Number.isSafeInteger(args.nowUnix) || args.nowUnix < 0) {
+    throw new Error("session cleanup time is invalid");
+  }
   const accounts = await args.connection.getProgramAccounts(SESSION_KEYS_PROGRAM_ID, {
     commitment: "confirmed",
     filters: [{ dataSize: SESSION_BYTES }],
   });
+  if (accounts.length > MAX_DISCOVERED_SESSION_ACCOUNTS) {
+    throw new Error("session discovery exceeded its fail-closed account bound");
+  }
   const candidates = accounts.flatMap(({ pubkey, account }) => {
     const data = Buffer.from(account.data);
     if (!account.owner.equals(SESSION_KEYS_PROGRAM_ID) || account.executable ||
@@ -32,8 +41,9 @@ export async function discoverExpiredSessionPlans(args: {
       [SESSION_SEED, target.toBuffer(), sessionSigner.toBuffer(), authority.toBuffer()],
       SESSION_KEYS_PROGRAM_ID,
     )[0];
-    if (!Number.isSafeInteger(validUntil) || validUntil > args.nowUnix ||
-        !target.equals(ZKUBE_PROGRAM_ID) || !pubkey.equals(expected) || !feePayer.equals(authority)) return [];
+    if (!Number.isSafeInteger(validUntil) || validUntil < 0 || validUntil > args.nowUnix ||
+        !target.equals(args.targetProgramId) || !pubkey.equals(expected) ||
+        !feePayer.equals(authority)) return [];
     return [{ address: pubkey, authority, sessionSigner, feePayer, validUntil }];
   });
   const owners = [...new Map(candidates.map((value) => [value.authority.toBase58(), value.authority])).values()];
@@ -47,27 +57,25 @@ export async function discoverExpiredSessionPlans(args: {
     .slice(0, MAX_SESSION_REVOKES)
     .map((session) => ({
       operation: "revoke_expired_session",
-      context: { owner: session.authority, sessionSigner: session.sessionSigner },
-      instruction: new TransactionInstruction({
-        programId: SESSION_KEYS_PROGRAM_ID,
-        keys: [
-          { pubkey: session.address, isSigner: false, isWritable: true },
-          { pubkey: session.feePayer, isSigner: false, isWritable: true },
-          { pubkey: session.authority, isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        ],
-        data: REVOKE_DISCRIMINATOR,
-      }),
+      execution: "validation_only",
+      context: {
+        owner: session.authority,
+        sessionSigner: session.sessionSigner,
+        sessionAddress: session.address,
+        sessionValidUntil: session.validUntil,
+      },
     }));
 }
 
-export function deriveSessionPda(owner: PublicKey, sessionSigner: PublicKey): PublicKey {
+export function deriveSessionPda(
+  targetProgramId: PublicKey,
+  owner: PublicKey,
+  sessionSigner: PublicKey,
+): PublicKey {
   return PublicKey.findProgramAddressSync(
-    [SESSION_SEED, ZKUBE_PROGRAM_ID.toBuffer(), sessionSigner.toBuffer(), owner.toBuffer()],
+    [SESSION_SEED, targetProgramId.toBuffer(), sessionSigner.toBuffer(), owner.toBuffer()],
     SESSION_KEYS_PROGRAM_ID,
   )[0];
 }
 
-export function isRevokeSessionData(data: Buffer): boolean {
-  return data.equals(REVOKE_DISCRIMINATOR);
-}
+export const REVOKE_SESSION_V2_DISCRIMINATOR = REVOKE_DISCRIMINATOR;

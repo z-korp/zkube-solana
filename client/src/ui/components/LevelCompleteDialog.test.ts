@@ -52,7 +52,7 @@ describe("calculateLevelStars", () => {
     ).toBe(0);
   });
 
-  it("shows the confirmed campaign XP delta", () => {
+  it("shows Campaign score and stars without Arcade XP", () => {
     render(
       React.createElement(LevelCompleteDialog, {
         isOpen: true,
@@ -77,10 +77,10 @@ describe("calculateLevelStars", () => {
           star3Threshold: 10,
           star2Threshold: 15,
         },
-        xpAwarded: 20,
       }),
     );
 
-    expect(screen.getByText("+20 XP")).toBeInTheDocument();
+    expect(screen.getByText("+120")).toBeInTheDocument();
+    expect(screen.queryByText(/XP/)).toBeNull();
   });
 });

@@ -17,7 +17,11 @@ export interface ChainReadinessResult {
 export function expectedGenesisHashFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string {
-  return env.SOLANA_EXPECTED_GENESIS_HASH ?? SOLANA_DEVNET_GENESIS_HASH;
+  const configured = env.SOLANA_EXPECTED_GENESIS_HASH;
+  if (configured && configured !== SOLANA_DEVNET_GENESIS_HASH) {
+    throw new Error("keeper release is pinned to the Solana Devnet genesis");
+  }
+  return SOLANA_DEVNET_GENESIS_HASH;
 }
 
 /** Creates the keeper's base-layer connection; Router and ER RPCs stay separate. */

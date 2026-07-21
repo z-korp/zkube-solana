@@ -1,12 +1,8 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import QuestsTab from "./QuestsTab";
-
-const mocks = vi.hoisted(() => ({
-  claimQuest: vi.fn<(index: number) => Promise<string>>(),
-}));
 
 vi.mock("@/hooks/useQuests", () => ({
   groupQuests: (quests: Array<{ type: string }>) => ({
@@ -23,7 +19,6 @@ vi.mock("@/hooks/useQuests", () => ({
         description: "Clear 20 lines",
         target: 20,
         xpReward: 100,
-        cubeReward: 0,
         type: "daily",
         icon: "📏",
         taskId: 2n,
@@ -34,15 +29,11 @@ vi.mock("@/hooks/useQuests", () => ({
         intervalId: 1,
         progress: 20,
         completed: true,
-        claimed: false,
-        claimable: true,
         active: true,
       },
     ],
     isLoading: false,
-    claiming: null,
     error: null,
-    claimQuest: mocks.claimQuest,
   }),
 }));
 
@@ -51,16 +42,10 @@ vi.mock("@/ui/components/shared/ProgressBar", () => ({
 }));
 
 describe("QuestsTab", () => {
-  beforeEach(() => {
-    mocks.claimQuest.mockReset();
-    mocks.claimQuest.mockResolvedValue("signature");
-  });
-
-  it("claims a live quest by its catalog index", () => {
+  it("shows completed quest XP as already applied", () => {
     render(<QuestsTab />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Claim +100 XP" }));
-
-    expect(mocks.claimQuest).toHaveBeenCalledWith(3);
+    expect(screen.getByText("Complete · XP applied")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /claim/i })).toBeNull();
   });
 });

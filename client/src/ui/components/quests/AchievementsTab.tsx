@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import {
@@ -30,7 +29,7 @@ const RARITY_COLORS = {
 
 const AchievementsTab: React.FC = () => {
   const colors = useThemeColors();
-  const { achievements, claiming, error, claimAchievement } = useAchievements();
+  const { achievements, error } = useAchievements();
   const totalUnlocked = achievements.filter(
     (achievement) => achievement.completed,
   ).length;
@@ -49,7 +48,7 @@ const AchievementsTab: React.FC = () => {
           .filter((achievement) => achievement.category === category)
           .sort((left, right) => left.tier - right.tier);
         const currentIndex = tiers.findIndex(
-          (achievement) => !achievement.claimed,
+          (achievement) => !achievement.completed,
         );
         const activeTier = currentIndex >= 0 ? currentIndex : tiers.length - 1;
         return { category, tiers, activeTier };
@@ -137,8 +136,7 @@ const AchievementsTab: React.FC = () => {
       {grouped.map(({ category, tiers, activeTier }) => {
         const active = tiers[activeTier];
         if (!active) return null;
-        const allClaimed = tiers.every((tier) => tier.claimed);
-        const isClaiming = claiming === `achievement:${active.index}`;
+        const allCompleted = tiers.every((tier) => tier.completed);
 
         return (
           <motion.section
@@ -162,7 +160,7 @@ const AchievementsTab: React.FC = () => {
                 {tiers.map((tier, index) => {
                   const rarity = RARITY_BY_TIER[tier.tier];
                   const rarityColor = RARITY_COLORS[rarity];
-                  const isCurrent = index === activeTier && !allClaimed;
+                  const isCurrent = index === activeTier && !allCompleted;
                   return (
                     <span
                       key={tier.tier}
@@ -186,7 +184,7 @@ const AchievementsTab: React.FC = () => {
                             ? `${rarityColor}BB`
                             : "rgba(255,255,255,0.25)",
                       }}
-                      title={tier.claimed ? "Claimed" : undefined}
+                      title={tier.completed ? "Completed" : undefined}
                     >
                       {TIER_LABELS[index]}
                     </span>
@@ -195,10 +193,10 @@ const AchievementsTab: React.FC = () => {
               </div>
             </div>
 
-            {allClaimed ? (
+            {allCompleted ? (
               <div className="mt-2 flex items-center gap-1.5">
                 <span className="inline-flex rounded-full border border-emerald-300/40 bg-emerald-300/15 px-2 py-0.5 font-sans text-[10px] font-extrabold uppercase tracking-[0.08em] text-emerald-200">
-                  All tiers claimed
+                  All tiers complete
                 </span>
                 <span
                   className="font-sans text-[10px] font-semibold"
@@ -229,26 +227,13 @@ const AchievementsTab: React.FC = () => {
                     max={active.target}
                     color={RARITY_COLORS[RARITY_BY_TIER[active.tier]]}
                     height={5}
-                    glow={active.claimable}
+                    glow={active.completed}
                   />
                 </div>
-                {active.claimable && (
-                  <motion.button
-                    whileTap={{ scale: 0.96 }}
-                    type="button"
-                    onClick={() =>
-                      void claimAchievement(active.index).catch(() => undefined)
-                    }
-                    disabled={claiming !== null}
-                    className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2 font-sans text-[10px] font-extrabold uppercase text-[#0a1628] disabled:opacity-50"
-                    style={{
-                      background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`,
-                      boxShadow: `0 0 12px ${colors.accent}55`,
-                    }}
-                  >
-                    {isClaiming && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {isClaiming ? "Claiming…" : `Claim +${active.xp} XP`}
-                  </motion.button>
+                {active.completed && (
+                  <p className="mt-2.5 text-center font-sans text-[10px] font-extrabold uppercase text-emerald-200">
+                    Complete · XP applied automatically
+                  </p>
                 )}
               </div>
             )}

@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createDevnetConnection } from "./serviceReadiness.js";
+import { AnchorKeeperAdapter } from "./anchorIdlAdapter.js";
 import {
   boundedKeeperInteger,
   DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
   DEFAULT_MIN_KEEPER_LAMPORTS,
   keeperKeypairFromEnv,
+  keeperPublicKeyFromEnv,
   runKeeperPass,
   type KeeperLogEvent,
 } from "./keeper.js";
@@ -15,10 +17,15 @@ import {
   checkChainReadiness,
   expectedGenesisHashFromEnv,
 } from "./serviceReadiness.js";
+import {
+  MAGICBLOCK_DEVNET_ROUTER_RPC,
+  resolveEphemeralConnectionForPlan,
+} from "./router.js";
+import { ZKUBE_PROGRAM_ID } from "./arcadeChain.js";
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
-const MAX_MAX_WRITES = 16;
+const MAX_MAX_WRITES = 8;
 
 /** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
@@ -35,7 +42,8 @@ export const KEEPER_WRITE_RELEASE_FINGERPRINT =
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
 ): boolean {
-  return KEEPER_EXPECTED_DEPLOYED_SBF_SHA256.length === 64
+  return /^[0-9a-f]{64}$/.test(KEEPER_EXPECTED_DEPLOYED_SBF_SHA256)
+    && /^[0-9a-f]{64}$/.test(KEEPER_WRITE_RELEASE_FINGERPRINT)
     && env.KEEPER_WRITE_ENABLED === "true"
     && env.KEEPER_APPROVED_RELEASE_FINGERPRINT === KEEPER_WRITE_RELEASE_FINGERPRINT;
 }
@@ -126,10 +134,23 @@ async function runConfiguredKeeperPass(
   });
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
+  const nowMilliseconds = Date.now();
+  const routerEndpoint = env.MAGICBLOCK_ROUTER_RPC ??
+    MAGICBLOCK_DEVNET_ROUTER_RPC;
+  const adapter = await AnchorKeeperAdapter.create({
+    connection,
+    nowUnix: Math.floor(nowMilliseconds / 1_000),
+    routerEndpoint,
+  });
+  const protocolSnapshot = await adapter.loadProtocolSnapshot();
+  const writeEnabled = keeperWriteEnabledFromEnv(env);
   await runKeeperPass({
     connection,
-    keeper: keeperKeypairFromEnv(env),
-    writeEnabled: keeperWriteEnabledFromEnv(env),
+    keeper: writeEnabled
+      ? keeperKeypairFromEnv(env)
+      : { publicKey: keeperPublicKeyFromEnv(env) },
+    writeEnabled,
+    now: () => nowMilliseconds,
     maxWrites: boundedKeeperInteger(
       env.KEEPER_MAX_WRITES,
       DEFAULT_MAX_WRITES,
@@ -145,7 +166,13 @@ async function runConfiguredKeeperPass(
       DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
       DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
     ),
-    rulesVersion: boundedKeeperInteger(env.ZKUBE_RULES_VERSION, 1, 0xffff_ffff),
+    protocolSnapshot,
+    protocolMaterializer: adapter,
+    resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
+      plan,
+      programId: ZKUBE_PROGRAM_ID,
+      routerEndpoint,
+    }),
     log,
   });
 }

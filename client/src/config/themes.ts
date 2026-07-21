@@ -679,10 +679,8 @@ export const SFX_PATHS = {
   click: "/assets/common/sounds/effects/click.mp3",
   coin: "/assets/common/sounds/effects/coin.mp3",
   star: "/assets/common/sounds/effects/star.mp3",
-  claim: "/assets/common/sounds/effects/claim.mp3",
-  // Bonus & shop
+  // Bonus and loadout
   "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
-  "shop-purchase": "/assets/common/sounds/effects/shop-purchase.mp3",
   equip: "/assets/common/sounds/effects/equip.mp3",
   unequip: "/assets/common/sounds/effects/unequip.mp3",
   "constraint-complete":

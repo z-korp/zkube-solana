@@ -1,14 +1,27 @@
 // @vitest-environment node
-import { Keypair } from "@solana/web3.js";
-import { describe, expect, it } from "vitest";
+import {
+  Keypair,
+  SystemProgram,
+  TransactionInstruction,
+  type AccountInfo,
+} from "@solana/web3.js";
+import { describe, expect, it, vi } from "vitest";
 
+import {
+  ZKUBE_PROGRAM_ID,
+  activeRunPda,
+  playerFundingPda,
+  type KeeperInstructionPlan,
+} from "../src/arcadeChain";
 import {
   DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
   DEFAULT_MIN_KEEPER_LAMPORTS,
   expiredSessionCleanupAllowance,
   keeperKeypairFromEnv,
+  keeperPublicKeyFromEnv,
   keeperSpendWithinLimit,
   predictedKeeperSpendLamports,
+  verifyConfirmedWrite,
 } from "../src/keeper";
 
 describe("v4 keeper bounds", () => {
@@ -32,5 +45,64 @@ describe("v4 keeper bounds", () => {
     const encoded = JSON.stringify([...keeper.secretKey]);
     expect(keeperKeypairFromEnv({ KEEPER_SECRET_KEY: encoded, ZKUBE_KEEPER_PUBLIC_KEY: keeper.publicKey.toBase58() }).publicKey.equals(keeper.publicKey)).toBe(true);
     expect(() => keeperKeypairFromEnv({ KEEPER_SECRET_KEY: encoded, ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58() })).toThrow("does not match");
+    expect(keeperPublicKeyFromEnv({
+      ZKUBE_KEEPER_PUBLIC_KEY: keeper.publicKey.toBase58(),
+    }).equals(keeper.publicKey)).toBe(true);
+  });
+
+  it("re-verifies the expected ActiveRun closure instead of rejecting it", async () => {
+    const owner = Keypair.generate().publicKey;
+    const runId = 9n;
+    const activeRun = activeRunPda(owner, runId);
+    const rentRecipient = playerFundingPda(owner);
+    const instruction = new TransactionInstruction({
+      programId: ZKUBE_PROGRAM_ID,
+      keys: [
+        { pubkey: activeRun, isSigner: false, isWritable: true },
+        { pubkey: rentRecipient, isSigner: false, isWritable: true },
+      ],
+      data: Buffer.alloc(8),
+    });
+    const plan: KeeperInstructionPlan = {
+      operation: "consume_campaign_run",
+      execution: "instruction",
+      connection: "base",
+      context: {
+        owner,
+        runId,
+        runMode: "campaign",
+        runLocation: "base",
+        includeArenaPlayer: false,
+      },
+      instruction,
+      instructions: [instruction],
+    };
+    const connection = {
+      getSignatureStatus: vi.fn().mockResolvedValue({
+        value: { err: null, confirmationStatus: "confirmed" },
+      }),
+      getMultipleAccountsInfo: vi.fn().mockResolvedValue([
+        null,
+        systemAccount(),
+      ]),
+    } as never;
+    await expect(verifyConfirmedWrite(plan, connection, "signature")).resolves.toBeUndefined();
+
+    connection.getMultipleAccountsInfo.mockResolvedValueOnce([
+      systemAccount(),
+      systemAccount(),
+    ]);
+    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+      .rejects.toThrow("does not match");
   });
 });
+
+function systemAccount(): AccountInfo<Buffer> {
+  return {
+    executable: false,
+    owner: SystemProgram.programId,
+    lamports: 1,
+    rentEpoch: 0,
+    data: Buffer.alloc(0),
+  };
+}

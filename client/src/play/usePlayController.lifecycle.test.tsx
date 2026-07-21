@@ -177,7 +177,7 @@ describe("usePlayController silent session renewal", () => {
     expect(fixtures.navigate).not.toHaveBeenCalled();
   });
 
-  it("uses refreshed lifetime stars for the confirmed XP delta", async () => {
+  it("settles Campaign progress without projecting Arcade XP", async () => {
     const recoverSession = vi.fn().mockResolvedValue({});
     const settleAndAdvance = vi.fn().mockResolvedValue(null);
     fixtures.campaignRefresh.mockResolvedValue({
@@ -202,9 +202,8 @@ describe("usePlayController silent session renewal", () => {
     });
 
     await waitFor(() => expect(settleAndAdvance).toHaveBeenCalledOnce());
-    await waitFor(() =>
-      expect(result.current.terminalSnapshot?.xpAwarded).toBe(20),
-    );
+    await waitFor(() => expect(result.current.terminalSnapshot).not.toBeNull());
+    expect(result.current.terminalSnapshot).not.toHaveProperty("xpAwarded");
     await waitFor(() =>
       expect(result.current.settlementStatus).toBe("complete"),
     );

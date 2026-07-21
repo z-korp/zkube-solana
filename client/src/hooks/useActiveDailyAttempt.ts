@@ -13,7 +13,7 @@ export const useActiveDailyAttempt = (): ActiveDailyRun | null => {
   const run = useRun();
   return useMemo(() => {
     const active = run.activeRun;
-    if (active && active.mode === "daily") {
+    if (active && (active.mode === "daily" || active.mode === "practice")) {
       return {
         gameId: active.runId,
         level: active.level,

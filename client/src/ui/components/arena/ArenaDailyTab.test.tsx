@@ -19,32 +19,19 @@ const fixtures = vi.hoisted(() => ({
     action: null as string | null,
     error: null as string | null,
     enter: vi.fn(),
-    refund: vi.fn(),
     run: { phase: "none" },
     daily: {
       status: "open",
       opensAt: 0,
       entriesCloseAt: 1234567 + 3_600,
       runsCloseAt: 1234567 + 3_600,
-      playerEligible: true,
-      playerCubes: 10n,
-      retryCubeCost: 2n,
-      maxPaidRetries: 5,
+      entryLamports: 20_000_000n,
       player: { attempts: 1, paidAttempts: 0 },
       scoringRule: null,
     },
   },
-  weekly: {
-    runs: [] as unknown[],
-    loading: false,
-    action: null as number | null,
-    error: null as string | null,
-    refresh: vi.fn(),
-    refund: vi.fn(),
-  },
   navigation: {
     navigate: vi.fn(),
-    openShop: vi.fn(),
     setSpectateTarget: vi.fn(),
   },
   entries: [
@@ -71,10 +58,6 @@ vi.mock("@/contexts/daily", () => ({
   useDaily: () => fixtures.daily,
 }));
 
-vi.mock("@/hooks/useWeeklyDailies", () => ({
-  useWeeklyDailies: () => fixtures.weekly,
-}));
-
 vi.mock("@/hooks/useActiveDailyAttempt", () => ({
   useActiveDailyAttempt: () => null,
 }));
@@ -90,7 +73,6 @@ vi.mock("@/hooks/useCurrentChallenge", () => ({
       zone_id: 1,
       total_attempts: 2n,
       settled: false,
-      cancelled: false,
       start_time: 0,
       end_time: 1234567 + 3_600,
       active_mutator_id: 0,
@@ -142,7 +124,7 @@ describe("ArenaDailyTab", () => {
     expect(screen.getByText("900")).toBeInTheDocument();
     expect(screen.getByText("750")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Retry · 2 Cubes" }),
+      screen.getByRole("button", { name: "Enter ranked · 0.02 SOL" }),
     ).toBeEnabled();
     expect(container).not.toHaveTextContent(" XP to Level");
   });
@@ -161,13 +143,11 @@ describe("ArenaDailyTab", () => {
     expect(fixtures.navigation.navigate).toHaveBeenCalledWith("spectate");
   });
 
-  it("funnels an underfunded player to the shop with the Arena origin", () => {
-    fixtures.daily.daily.playerCubes = 1n;
+  it("requires a distinct owner signature for every ranked attempt", () => {
     render(<ArenaDailyTab />);
 
-    fireEvent.click(screen.getByText("Need 1 more Cubes to enter · Get Cubes"));
-
-    expect(fixtures.navigation.openShop).toHaveBeenCalledWith("ranks");
-    fixtures.daily.daily.playerCubes = 10n;
+    expect(
+      screen.getByText("Every attempt requires a separate connected-wallet signature."),
+    ).toBeInTheDocument();
   });
 });

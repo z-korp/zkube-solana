@@ -11,12 +11,6 @@ export function deriveProtocolConfigPda(
   return derive([Buffer.from("protocol")], programId);
 }
 
-export function deriveEconomyConfigPda(
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("economy")], programId);
-}
-
 export function deriveArcadeConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
   return derive([Buffer.from("arcade")], programId);
 }
@@ -25,12 +19,6 @@ export function deriveOperatorRevenueVaultPda(
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {
   return derive([Buffer.from("operator_revenue")], programId);
-}
-
-export function deriveCubeSalesLedgerPda(
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("cube_sales")], programId);
 }
 
 export function deriveDailyRulesCatalogPda(
@@ -62,10 +50,6 @@ export function derivePlayerFundingPda(
   return derive([Buffer.from("player_funding"), owner.toBuffer()], programId);
 }
 
-export function deriveRewardVaultPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
-  return derive([Buffer.from("reward_vault")], programId);
-}
-
 export function deriveMapCatalogPda(
   contentVersion: number,
   mapId: number,
@@ -77,14 +61,6 @@ export function deriveMapCatalogPda(
     [Buffer.from("map"), u32le(contentVersion), Buffer.from([mapId])],
     programId,
   );
-}
-
-export function deriveDailyChallengePda(
-  dayId: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(dayId, 0, 0xffff_ffff, "dayId");
-  return derive([Buffer.from("daily"), u32le(dayId)], programId);
 }
 
 export function deriveArenaDailyPda(
@@ -106,39 +82,6 @@ export function deriveArenaPlayerPda(
   );
 }
 
-export function deriveArenaBoardPda(
-  challenge: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("arena_board"), challenge.toBuffer()], programId);
-}
-
-export function deriveDailyPlayerPda(
-  challenge: PublicKey,
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive(
-    [Buffer.from("daily_player"), challenge.toBuffer(), owner.toBuffer()],
-    programId,
-  );
-}
-
-export function deriveDailyLeaderboardPda(
-  challenge: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("daily_board"), challenge.toBuffer()], programId);
-}
-
-export function deriveWeeklyChallengePda(
-  weeklyId: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(weeklyId, 0, 0xffff_ffff, "weeklyId");
-  return derive([Buffer.from("weekly"), u32le(weeklyId)], programId);
-}
-
 export function deriveWeeklyJackpotPda(
   weeklyId: number,
   programId = ZKUBE_PROGRAM_ID,
@@ -147,40 +90,23 @@ export function deriveWeeklyJackpotPda(
   return derive([Buffer.from("weekly_jackpot"), u32le(weeklyId)], programId);
 }
 
-export function deriveWeeklyPlayerPda(
-  challenge: PublicKey,
+export function deriveSeasonPda(
+  seasonId: number,
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  assertInteger(seasonId, 0, 0xffff_ffff, "seasonId");
+  return derive([Buffer.from("season"), u32le(seasonId)], programId);
+}
+
+export function deriveSeasonPlayerPda(
+  season: PublicKey,
   owner: PublicKey,
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {
   return derive(
-    [Buffer.from("weekly_player"), challenge.toBuffer(), owner.toBuffer()],
+    [Buffer.from("season_player"), season.toBuffer(), owner.toBuffer()],
     programId,
   );
-}
-
-export function deriveWeeklyPlayerPdaV1(
-  jackpot: PublicKey,
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive(
-    [Buffer.from("weekly_player"), jackpot.toBuffer(), owner.toBuffer()],
-    programId,
-  );
-}
-
-export function deriveWeeklyBoardPda(
-  jackpot: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("weekly_board"), jackpot.toBuffer()], programId);
-}
-
-export function deriveWeeklyLeaderboardPda(
-  challenge: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("weekly_board"), challenge.toBuffer()], programId);
 }
 
 export function deriveRunAddresses(

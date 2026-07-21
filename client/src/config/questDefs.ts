@@ -1,11 +1,11 @@
 const DAY_SECONDS = 86_400;
 const WEEK_SECONDS = 604_800;
-const MONDAY_OFFSET = 345_600; // epoch day 0 = Thursday, +4 days = Monday
+const MONDAY_OFFSET = 345_600;
 
 const feltFromShortString = (value: string): bigint => {
   let result = 0n;
-  for (let i = 0; i < value.length; i++) {
-    result = (result << 8n) | BigInt(value.charCodeAt(i));
+  for (let index = 0; index < value.length; index += 1) {
+    result = (result << 8n) | BigInt(value.charCodeAt(index));
   }
   return result;
 };
@@ -19,7 +19,6 @@ export interface QuestDef {
   description: string;
   target: number;
   xpReward: number;
-  cubeReward: number;
   type: QuestType;
   icon: string;
   taskId: bigint;
@@ -28,196 +27,60 @@ export interface QuestDef {
   interval: number;
 }
 
+function quest(
+  shortId: string,
+  name: string,
+  description: string,
+  target: number,
+  xpReward: number,
+  type: QuestType,
+  icon: string,
+): QuestDef {
+  const weekly = type === "weekly";
+  return {
+    id: feltFromShortString(shortId),
+    shortId,
+    name,
+    description,
+    target,
+    xpReward,
+    type,
+    icon,
+    taskId: feltFromShortString(shortId.replace("QUEST_", "TASK_")),
+    start: weekly ? MONDAY_OFFSET : 0,
+    duration: weekly ? WEEK_SECONDS : DAY_SECONDS,
+    interval: weekly ? WEEK_SECONDS : DAY_SECONDS,
+  };
+}
+
+/** Exact display order for the program's 20 fixed quest-counter slots. */
 export const QUEST_DEFS: QuestDef[] = [
-  // Nine Daily quests are mixed into a deterministic three-quest selection.
-  {
-    id: feltFromShortString("QUEST_LINE_SWEEPER"),
-    shortId: "QUEST_LINE_SWEEPER",
-    name: "Line Sweeper",
-    description: "Clear 20 lines",
-    target: 20,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "📏",
-    taskId: feltFromShortString("LINE_CLEAR"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_BONUS_USER"),
-    shortId: "QUEST_BONUS_USER",
-    name: "Bonus User",
-    description: "Use 3 bonuses",
-    target: 3,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🪄",
-    taskId: feltFromShortString("BONUS_USED"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_METER_MASTER"),
-    shortId: "QUEST_METER_MASTER",
-    name: "Meter Master",
-    description: "Reach 10 on the Combo Meter",
-    target: 1,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "💥",
-    taskId: feltFromShortString("HIGH_COMBO"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_COMBO_METER"),
-    shortId: "QUEST_COMBO_METER",
-    name: "Combo Meter",
-    description: "Add 3+ to the Combo Meter twice",
-    target: 2,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🔥",
-    taskId: feltFromShortString("COMBO_3"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_DAILY_PLAYER"),
-    shortId: "QUEST_DAILY_PLAYER",
-    name: "Daily Player",
-    description: "Play a daily challenge",
-    target: 1,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🗓️",
-    taskId: feltFromShortString("DAILY_PLAY"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_LEVEL_CLEAR"),
-    shortId: "QUEST_LEVEL_CLEAR",
-    name: "Level Runner",
-    description: "Complete or replay 2 campaign levels",
-    target: 2,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🏁",
-    taskId: feltFromShortString("LEVEL_CLEAR"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_BIG_COMBO"),
-    shortId: "QUEST_BIG_COMBO",
-    name: "Big Combo",
-    description: "Hit a 4+ combo",
-    target: 1,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "⚡",
-    taskId: feltFromShortString("COMBO_4"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_BLOCK_BREAKER"),
-    shortId: "QUEST_BLOCK_BREAKER",
-    name: "Block Breaker",
-    description: "Destroy today's target blocks",
-    target: 10,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🧱",
-    taskId: feltFromShortString("BLOCK_BREAK"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_COMBO_CHAIN"),
-    shortId: "QUEST_COMBO_CHAIN",
-    name: "Combo Chain",
-    description: "Hit 2+ combo 5 times",
-    target: 5,
-    xpReward: 100,
-    cubeReward: 0,
-    type: "daily",
-    icon: "🔗",
-    taskId: feltFromShortString("COMBO_2"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  // ── Daily meta (start=0, duration=DAY, interval=DAY) ──
-  {
-    id: feltFromShortString("QUEST_DAILY_FINISHER"),
-    shortId: "QUEST_DAILY_FINISHER",
-    name: "Daily Finisher",
-    description: "Complete 3 daily quests",
-    target: 3,
-    xpReward: 200,
-    cubeReward: 2,
-    type: "finisher",
-    icon: "✅",
-    taskId: feltFromShortString("DAILY_QUEST_DONE"),
-    start: 0,
-    duration: DAY_SECONDS,
-    interval: DAY_SECONDS,
-  },
-  // ── Weekly (start=MONDAY_OFFSET, duration=WEEK, interval=WEEK) ──
-  {
-    id: feltFromShortString("QUEST_WEEKLY_GRINDER"),
-    shortId: "QUEST_WEEKLY_GRINDER",
-    name: "Weekly Grinder",
-    description: "Clear 150 lines this week",
-    target: 150,
-    xpReward: 500,
-    cubeReward: 0,
-    type: "weekly",
-    icon: "🏁",
-    taskId: feltFromShortString("LINE_CLEAR"),
-    start: MONDAY_OFFSET,
-    duration: WEEK_SECONDS,
-    interval: WEEK_SECONDS,
-  },
-  {
-    id: feltFromShortString("QUEST_WEEKLY_EXPLORER"),
-    shortId: "QUEST_WEEKLY_EXPLORER",
-    name: "Weekly Explorer",
-    description: "Play daily challenge 3 times",
-    target: 3,
-    xpReward: 500,
-    cubeReward: 0,
-    type: "weekly",
-    icon: "🏆",
-    taskId: feltFromShortString("DAILY_PLAY"),
-    start: MONDAY_OFFSET,
-    duration: WEEK_SECONDS,
-    interval: WEEK_SECONDS,
-  },
+  quest("QUEST_ARCADE_RUN", "Get Moving", "Finish an Arena or Practice run", 1, 100, "daily", "🎮"),
+  quest("QUEST_DAILY_LINES", "Line Sweeper", "Clear 40 lines in Arena or Practice", 40, 100, "daily", "📏"),
+  quest("QUEST_DAILY_BONUS", "Bonus User", "Use 3 bonuses in Arena or Practice", 3, 100, "daily", "🪄"),
+  quest("QUEST_PRESSURE_FOUR", "Under Pressure", "Reach pressure tier 4", 1, 100, "daily", "🌡️"),
+  quest("QUEST_DAILY_ENTRY", "Daily Player", "Enter today's ranked Daily", 1, 100, "daily", "🗓️"),
+  quest("QUEST_RESERVED_D5", "Reserved", "Not selected", 1, 100, "daily", "·"),
+  quest("QUEST_COMBO_THREE", "Combo Builder", "Hit a 3+ combo", 1, 100, "daily", "🔥"),
+  quest("QUEST_BEAT_YDAY", "Beat Yesterday", "Beat your score from yesterday's Arena", 1, 100, "daily", "⏪"),
+  quest("QUEST_DAILY_FINISHER", "Daily Finisher", "Complete all 3 active Daily quests", 3, 350, "finisher", "✅"),
+  quest("QUEST_WEEKLY_DAYS", "Weekly Regular", "Play Arena or Practice on 5 different days", 5, 500, "weekly", "📆"),
+  quest("QUEST_WEEKLY_LINES", "Weekly Sweeper", "Clear 300 lines in Arena or Practice", 300, 500, "weekly", "🏁"),
+  quest("QUEST_RESERVED_W11", "Reserved", "Not selected", 3, 500, "weekly", "·"),
+  quest("QUEST_WEEKLY_BONUS", "Bonus Specialist", "Use 25 bonuses this week", 25, 500, "weekly", "✨"),
+  quest("QUEST_WEEKLY_RUNS", "Arcade Grinder", "Finish 15 Arena or Practice runs", 15, 500, "weekly", "🕹️"),
+  quest("QUEST_FINISHERS", "Quest Streak", "Complete 3 Daily Finishers", 3, 500, "weekly", "🎯"),
+  quest("QUEST_BIG_ACTION", "Single-turn Power", "Make one 4-line clear or five 3-line clears", 1, 500, "weekly", "⚡"),
+  quest("QUEST_PRESSURE_SIX", "Deep Pressure", "Reach pressure tier 6", 6, 500, "weekly", "🌋"),
+  quest("QUEST_RESERVED_W17", "Reserved", "Not selected", 2, 500, "weekly", "·"),
+  quest("QUEST_PRACTICE_TOP", "Yesterday's Top 25", "Place in yesterday's hypothetical top 25 twice", 2, 500, "weekly", "🔭"),
+  quest("QUEST_PERFECT_CLEAR", "Clean Slate", "Make 2 perfect clears", 2, 500, "weekly", "💎"),
 ];
 
 export const getQuestIntervalId = (
-  quest: QuestDef,
+  definition: QuestDef,
   nowSeconds: number,
 ): number => {
-  if (nowSeconds < quest.start || quest.interval <= 0) return 0;
-  return Math.floor((nowSeconds - quest.start) / quest.interval);
+  if (nowSeconds < definition.start || definition.interval <= 0) return 0;
+  return Math.floor((nowSeconds - definition.start) / definition.interval);
 };

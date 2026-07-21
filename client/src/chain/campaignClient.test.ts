@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchCampaignView } from "./campaignClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
-import { deriveProtocolConfigPda } from "./pdas";
 
 const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
@@ -18,7 +17,6 @@ vi.mock("./runPlan", async () => ({
     account: {
       protocolConfig: { size: 10 },
       playerState: { size: 11 },
-      economyConfig: { size: 12 },
       mapCatalog: { size: 13 },
     },
     coder: { accounts: { decode: mocks.decode } },
@@ -46,18 +44,11 @@ describe("fetchCampaignView", () => {
     const owner = Keypair.generate().publicKey;
     mocks.decode.mockImplementation((name: string, data: Buffer) => {
       if (name === "protocolConfig") {
-        return { version: 2, contentVersion: 2, campaignMapCount: 10 };
-      }
-      if (name === "economyConfig") {
-        return {
-          version: 2,
-          protocol: deriveProtocolConfigPda(),
-          contentVersion: 2,
-        };
+        return { version: 3, contentVersion: 2, campaignMapCount: 10 };
       }
       const mapId = data[0] - 20;
       return {
-        version: 2,
+        version: 3,
         contentVersion: 2,
         mapId,
         themeId: mapId,
@@ -74,7 +65,7 @@ describe("fetchCampaignView", () => {
     });
     const getMultipleAccountsInfo = vi
       .fn()
-      .mockResolvedValueOnce([account(10, 1), null, account(12, 2)])
+      .mockResolvedValueOnce([account(10, 1), null])
       .mockResolvedValueOnce(
         Array.from({ length: 10 }, (_, index) => account(13, 21 + index)),
       );
@@ -86,7 +77,6 @@ describe("fetchCampaignView", () => {
 
     expect(campaign).not.toBeNull();
     expect(campaign?.contentVersion).toBe(2);
-    expect(campaign?.cubesBalance).toBe(0n);
     expect(campaign?.maps).toHaveLength(10);
     expect(campaign?.maps[0]).toMatchObject({
       mapId: 1,

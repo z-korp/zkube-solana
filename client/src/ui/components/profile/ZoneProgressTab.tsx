@@ -154,8 +154,8 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
               />
               <p className="mt-1 font-sans text-[9px] font-semibold text-white/45">
                 {zone.perfectionClaimed
-                  ? "Perfect reward earned: +300 XP"
-                  : "Perfect all 10 levels: +300 XP"}
+                  ? "Perfect map complete"
+                  : "Perfect all 10 Campaign levels"}
               </p>
             </div>
           )}

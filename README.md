@@ -1,194 +1,174 @@
-# zKube Arcade on Solana
+# zKube on Solana
 
-zKube is a wallet-native skill arcade for the Solana dApp Store and Seeker.
-The v4 loop is intentionally small:
-
-> Practice free. Pay SOL to enter. Win today's pot. Stay consistent to take
-> the weekly jackpot.
+zKube is one wallet-native Solana game for the Solana dApp Store and Seeker.
+Arcade is the default competitive mode; the complete on-chain Campaign remains
+available in the same application as a visually separate, map-first mode.
 
 The connected Solana address is the player identity. There are no embedded
-wallets, recovery codes, deposits, soft currencies, passes, prize claims, or
-server-held player funds. v4 is Devnet-only until legal, economic, and
-distribution review approves a mainnet release.
+wallets, recovery codes, deposits, soft currencies, shops, passes, token swaps,
+or prize claims. v4 is Devnet-first and presently undeployed. Mainnet remains
+blocked on counsel, economic, and distribution review.
 
 ## Product model
 
-- Campaign is free, unlocks Arena after Map 1, and retains XP, achievements,
-  titles, ratings, and perfect-map emblems.
-- Yesterday's Arena rules are replayable free as unranked Practice.
-- Every ranked Arena run is owner-approved and costs exactly 0.02 SOL.
-- Each entry routes 75% to that Daily pot, 15% to operator revenue, and 10% to
-  the current Weekly jackpot.
-- Daily settlement pushes SOL to the top five at 45/25/15/10/5.
-- Weekly settlement pushes SOL to the top three at 60/25/15.
-- XP, quests, achievements, and profile status never grant SOL, entries,
-  prize eligibility, or mint odds.
+- Campaign and yesterday's unranked Practice are free.
+- Campaign is optional and never gates Arcade.
+- Every ranked Arcade run requires a separate owner-signed exact 0.02 SOL
+  entry. A device session can never authorize that payment.
+- Campaign retains only map, level, and guardian completion. It does not grant
+  Arcade XP, quests, achievements, titles, ratings, crests, or rank.
+- Arcade and Practice may advance non-monetary Arcade progression. Only paid
+  ranked results participate in rankings, ratings, crests, or payouts.
+- Progression never grants SOL, entries, prize eligibility, or mint odds.
 
-Campaign ratings are status, not currency. The words Cube and Star refer only
-to gameplay pieces and Campaign ratings respectively; neither is a spendable
-balance.
+The static PWA/TWA opens on Arcade and exposes five primary destinations:
+Arcade, Campaign, Quests, Ranks, and Profile. Campaign uses the existing world
+map and art direction, while Arcade owns the competitive navigation and
+profile language.
 
-## Runtime boundaries
+## SOL accounting
 
-| Boundary | Responsibility | Authority and funding |
-| --- | --- | --- |
-| Owner wallet | Durable identity, enablement, paid Arena entry | Owner signs the exact entry payment |
-| Device session | Approximately seven days of safe play | Never authorizes native-SOL entry spending |
-| Player funding PDA | Reusable account-rent float | Owner-funded; signs only narrow self-CPI wrappers |
-| MagicBlock ER | Active gameplay and per-row VRF | Gasless play on a Router-resolved validator |
-| Solana program | Progression, entry accounting, boards, pots, settlement | Base-layer authority |
-| Fly keeper | Cadence opening, recovery, settlement, rollup, cleanup | Independent bounded signer |
-| Static PWA/TWA | Wallet and gameplay UI | No server signer or paymaster |
+Each paid entry transfers exactly 20,000,000 lamports:
 
-The player funding PDA is System-owned and has zero data. It may pay only the
-rent required by exact zKube wrappers for Campaign, Arena, Practice, delegation,
-and per-player rollup accounts. It is not a wallet and cannot forward arbitrary
-instructions. The owner still signs and transfers every 0.02 SOL Arena entry.
+| Destination | Share | Lamports |
+| --- | ---: | ---: |
+| Following Daily | 60% | 12,000,000 |
+| Following Weekly | 20% | 4,000,000 |
+| Following 28-day Season | 10% | 2,000,000 |
+| Operator revenue | 10% | 2,000,000 |
 
-Solana base, the MagicBlock Router, and the resolved ER are separate
-connections. ER placement is discovered with `getDelegationStatus`; regional
-endpoints are never hardcoded.
+All competition pots are prepaid. Initialization may seed only the first
+Daily, Weekly, and Season, with exact values supplied by a separately approved
+release bundle. Every later pot is funded by entries from its predecessor
+period plus predecessor rollover. Entries never increase their active Daily,
+Weekly, or Season prize.
 
-## Runs and replay verification
+Settlement is atomic, push-only, may be late, and is never cancelled. A paid
+entry has no refund or claim path: it becomes exactly one scored or expired
+entry. Operator withdrawals remain governance actions and cannot spend
+accounted prize balances.
 
-`PlayerState.active_run_id` permits one active run per owner across devices. A
-run is prepared on base, delegated, played on the ER, committed after reaching a
-terminal state, copied back, and consumed atomically. Consumption updates
-progression, clears the durable pointer, and recycles ActiveRun rent.
+Every calculated transfer rounds down to 1,000,000 lamports (0.001 SOL).
+Division residue, rounding dust, and empty allocations roll into the following
+competition of the same type. When fewer winners qualify, the occupied payout
+weights are renormalized before rounding.
 
-Arena uses the existing 15-rule, seven-family rotation. Opening rows and future
-rows use fresh verified VRF values. Practice reuses yesterday's challenge and
-rules, but not an identical row sequence; “would have ranked” comparisons are
-distributional against yesterday's finalized board.
+The accounting invariant is:
 
-Every run folds canonical actions into a rolling replay hash bound to the
-challenge, rule revision, player, and run. A best Arena commitment remains on
-the permanent Daily board. Move lists stay off-chain and may be independently
-recomputed; losing a move list does not invalidate authoritative settlement.
+```text
+entries_scored + entries_expired == entries_paid
+```
 
-## Cadence and settlement
+## Competitions
 
-Days are fixed UTC windows. Weeks contain seven Daily cadences and start on
-Monday UTC. Entry and run-close boundaries are deterministic timestamps, so a
-keeper outage cannot extend play or change an outcome.
+Days use UTC. Entries close at 23:00 and existing runs close at 23:30. The
+keeper prepares successor accounts before entries open, so the client can show
+the active guaranteed pot and following-period funding separately.
 
-Settlement is push-only and always completes, even when late:
+At the run deadline, the resolved ER freezes the last fully accepted state and
+adds a replay deadline event. A run with at least one accepted action is scored
+from that partial state. An untouched run expires without a leaderboard row.
+Pending or late VRF output is ignored. Expired or orphaned state can never
+become scoreable later.
 
-- A Daily waits until every paid entry has resolved as finalized, refunded, or
-  expired, then pays its winners.
-- Fewer than five Daily winners renormalize the active weights; division dust
-  goes to the last paid rank.
-- An empty Daily rolls its complete pot into the same Weekly jackpot.
-- Weekly finalization waits for all seven Dailies and their player rollups.
-- Fewer than three Weekly winners renormalize similarly.
-- An empty Weekly rolls its complete jackpot into the next open week.
-- Profile finish synchronization is a separate idempotent operation and can
-  never block a payout.
+### Daily
 
-Daily ranking is score descending, bonus triggers descending, engine score
-descending, moves ascending, terminal timestamp ascending, then wallet bytes.
-Weekly score sums the seven Daily band awards from each player's best run:
+Daily keeps one best score per wallet while retaining attempt counts. The top
+five receive 45/25/15/10/5.
 
-| Daily band | Weekly points |
+### Weekly skill bounties
+
+Each Monday-aligned Weekly selects one deterministic metric from each category:
+
+- combo: maximum combo, combo-scoring actions, or combo-derived score;
+- single action: highest action score, most lines, or most blocks destroyed;
+- full run: total lines, total blocks destroyed, or perfect clears.
+
+The Weekly pot is divided equally between the three boards. Each board pays
+60/25/15, and a wallet may win more than one board.
+
+### Season
+
+A Season is a Monday-aligned 28-day period. Each finalized Daily contributes
+one band result per wallet, and its best 20 results count:
+
+| Daily band | Season points |
 | --- | ---: |
 | Top 1%, capped at rank 3 | 100 |
 | Top 5%, capped at rank 10 | 60 |
 | Top 10%, capped at rank 20 | 30 |
 | Top 25%, capped at rank 50 | 10 |
-| Remaining scoreable result | 2 |
+| Another scoreable result | 2 |
 
-The denominator is the number of players with a scoreable result. Weekly ties
-use total bonus triggers descending, then the earliest timestamp at which the
-player completed their final tied score.
+Season top five receive 45/25/15/10/5. Leaderboards order the primary score or
+metric descending, then the earliest finalized achievement, then wallet bytes.
 
-## Refund solvency and incidents
+## Deterministic game and replay
 
-An entry creates a full 0.02 SOL unresolved-run liability in the operator
-revenue vault. The vault must collateralize all liabilities before another
-entry is accepted, and withdrawals preserve both those liabilities and the
-fixed 1 SOL reserve. Finalization, refund, or expiry releases the liability
-exactly once. Prize pots are never used for refunds.
+`zkube-core` is the deterministic source for grid state, blocks, mutators,
+scoring, pressure, metrics, period math, payout math, canonical encoding, and
+the replay commitment schedule. Native Rust, WASM, and the Solana program must
+pass the same committed golden vectors before an ABI is releasable.
 
-Ordinary abandoned runs expire after the recovery window. When an operator
-failure provably prevented scoring, protocol authority may declare that Daily
-an incident once, after recovery attempts and before the six-hour declaration
-window closes. The declaration fixes its cap to every unresolved entry at that
-moment; those entries receive exactly 0.02 SOL from operator funds. Incident
-declaration is governance, never part of the keeper's recurring write grant.
+Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
+mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
+SHA-256. Permanent board rows retain the qualifying replay commitment. Move
+lists can stay off-chain and be independently recomputed.
 
-The accounting invariant is:
+After a perfect clear, one domain-separated VRF output deterministically
+derives both the one-row board reseed and the next visible preview. The
+committed continuation vector prevents the run from being stranded between
+two oracle requests or accepting a stale move without a preview.
 
-```text
-runs_finalized + entries_refunded + entries_expired == entries_paid
-```
+Campaign uses the same engine and generated catalog but a separate progression
+boundary. Completing Campaign content may only change level and guardian
+completion.
 
-## Progression
+## Runtime boundaries
 
-Daily quests are deterministically selected, eligibility-filtered, and always
-free-completable through Campaign or Practice. Weekly quests always contain
-five-day attendance plus two distinct eligible candidates from the gameplay
-pool. Claims are the only quest XP faucet. Weekly completion grants XP and a
-crest; consecutive crests are status only.
+| Boundary | Responsibility | Authority and funding |
+| --- | --- | --- |
+| Owner wallet | Durable identity and paid entry | Signs every 0.02 SOL entry |
+| Device session | Approximately seven days of safe gameplay | Never signs entry payment |
+| Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
+| MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
+| Solana program | Progress, accounting, boards, settlement | Base-layer authority |
+| Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
+| Static PWA/TWA | Wallet, Campaign, and Arcade UI | No server signer or paymaster |
 
-No progression state participates in SOL settlement. Permanent cadence boards
-remain the source for permissionless best-finish synchronization and compact
-public profiles.
+The player funding PDA is System-owned and has zero data. It can fund only the
+rent paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot
+forward arbitrary instructions.
 
-## Keeper safety model
+Solana Base, the MagicBlock Router, and the Router-resolved ER are separate
+connections. Delegation placement is resolved through `getDelegationStatus`;
+regional ER endpoints are never hardcoded. One durable active run ID prevents
+overlap across modes and devices. A separate orphan reservation prevents an
+unreachable delegated run from racing a replacement run.
 
-The v4 keeper reconciles terminal Campaign, Arena, and Practice runs; expires
-unresolved paid entries after the incident window; push-settles Daily pots;
-funds and records Daily-to-Weekly rollups; push-settles the weekly jackpot;
-opens current cadence accounts; synchronizes public finishes; recycles resolved
-run, ArenaPlayer, and WeeklyPlayer rent; and revokes at most two expired zKube
-SessionTokenV2 accounts per pass. Every scanned account is owner-, size-,
-version-, discriminator-, relationship-, and PDA-checked before planning.
+## Keeper safety
 
-Incident declaration and the operator-funded refund are governance operations,
-not recurring keeper operations. An incident pauses ordinary expiry for that
-Daily; its exact affected entries must be separately enumerated and approved.
-The recurring signer can never declare an incident, refund an entry, withdraw
-team revenue, change terms, publish content, or invoke an arbitrary program.
+The keeper validates cluster genesis, program and ProgramData identity,
+account owner, bounded length, discriminator, version, PDA, and stored account
+relationships before decoding or planning a write. It reconciles:
 
-A write-enabled release is pinned to Devnet genesis, the exact deployed
-ProgramData hash, keeper signer, current/recent cadence PDAs, instruction
-allowlist, account layouts, and release fingerprint. Each pass permits at most
-eight writes, at most two expired-session closures, 0.05 SOL simulated spend,
-and preserves a 0.1 SOL keeper balance. Governance, funding, withdrawals,
-incident declaration, deployment, and mainnet are outside the recurring grant.
+- current and following Daily, Weekly, and Season preparation;
+- terminal or deadline Arena, Practice, and Campaign runs;
+- deterministic expiry and orphan recovery;
+- Daily-to-Season rollup and sealing;
+- Daily, Weekly, and Season push settlement and rollover;
+- resolved run and expired session cleanup.
 
-The release binding in `services/src/keeperRelease.ts` deterministically commits
-to the Devnet genesis, deployed ProgramData SHA-256, v4 and Session Keys program
-IDs, exact keeper, keeper image digest, active rules version, complete
-instruction allowlist and denylist, eight-write and
-two-session limits, 0.05 SOL spend ceiling, and 0.1 SOL reserve floor. After a
-deployment, build the service and run `NO_DNA=1 pnpm release:fingerprint --
-<deployed-programdata-sha256> <keeper-image-sha256:digest> <rules-version>` from
-`services/`; the resulting full fingerprint
-is the approval identifier. Placeholders never enable writes.
+The recurring signer cannot deploy, initialize, seed pots, change rules,
+withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. A
+write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
+program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
+instruction allowlist, eight-write limit, two-session cleanup limit, 0.05 SOL
+simulated spend ceiling, and a 0.1 SOL keeper reserve floor.
 
-v4 is not currently deployed. Keeper writes therefore remain fail-closed until
-a deployment and separately fingerprinted keeper release are explicitly
-approved. Read-only planning is safe before that point; signing is not.
-
-### Devnet release order
-
-A fresh protocol initializes paused. The release must then deploy and verify
-the exact SBF, publish the initial rules and Campaign maps, initialize Arcade
-and its 1 SOL operator reserve, verify every PDA and relationship read-only,
-deploy the fully reconciliating keeper in read-only mode, and only then bundle
-protocol unpause with initial keeper write enablement. Opening paid Arena play
-before terminal recovery, refund/expiry, settlement, and rollup discovery are
-present in the keeper is prohibited.
-
-Before presenting an executable release bundle, all of these must be frozen:
-the final SBF and IDL hashes; program, ProgramData, deployer, governance,
-pricing-operator, team and keeper public keys; every bootstrap instruction and
-PDA; the 1 SOL operator reserve plus rent/fee maximums; keeper image digest; and
-the keeper release fingerprint above. Simulations must use those same accounts
-and stop on any drift. Deployment, bootstrap funding, content publication,
-unpause, and initial keeper write enablement remain distinct explicitly
-enumerated operations even when approved together as one bundle.
+Fresh initialization remains paused. Paid Arcade cannot open until the exact
+program and complete recovery/settlement keeper have passed read-only
+verification and are included in an explicit approval bundle.
 
 ## Development and validation
 
@@ -198,27 +178,35 @@ cd services
 NO_DNA=1 pnpm install --frozen-lockfile
 NO_DNA=1 pnpm run build
 NO_DNA=1 pnpm test
+cd ../client
+NO_DNA=1 pnpm idl:check
+NO_DNA=1 pnpm core:wasm:sync
+NO_DNA=1 pnpm core:wasm:check
+NO_DNA=1 pnpm exec tsc -b --pretty false
+NO_DNA=1 pnpm lint
+NO_DNA=1 pnpm exec vitest run
+NO_DNA=1 pnpm build
 ```
 
-The client has its own IDL, typecheck, lint, test, and production-build gates.
-The checked-in generated IDL is the ABI handoff between the program and client.
+The generated IDL is the ABI handoff between program, keeper, and client.
+Tests must cover exact lamport conservation, period rollover, deadline
+freezing, replay parity, ER recovery, account validation, and Campaign's
+inability to mutate Arcade progression.
 
-## Deployment status and legacy v3
+## Deployment status
 
-The v4 program address is
-`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`. A read-only Devnet query on
-2026-07-19 returned no account at that address; source state is not a deployment
-record and no v4 bootstrap or funding has been authorized.
+The v4 program address reserved in source is
+`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`. A read-only Devnet check on
+2026-07-19 found no account at that address. Source state is not deployment
+evidence, and no v4 deployment, initialization, funding, or keeper enablement
+has been authorized.
 
-The previous v3 deployment remains a retired, separate legacy artifact at
-`Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR`. Its last approved Devnet keeper
-bundle recorded image
-`sha256:bbea0f6ed6104c12ef8138e0723c7a9a1447c459f7244e27c5011aa573d8bb2e`,
-release fingerprint `af24e318cb41cf69`, and catch-up fingerprint
-`29f46b444b8af47528185841fac98eae700245d2dcd72da920fbbf9542e6f01d`.
-Those identifiers document v3 only; they never authorize v4 writes or provide
-a reusable approval.
+The previous v3 address
+`Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
+its approvals never authorize v4.
 
-Production web deployment remains Git-driven from `z-korp/zkube-solana:main`
-to the z-korp Vercel project. The temporary JCN Fly exception applies only to
-the Devnet keeper and must not be copied to Vercel.
+Production web publishing remains Git-driven from
+`z-korp/zkube-solana:main` to Vercel project
+`prj_5kqIxlxgXHXGhldje8unic9h3qYA` under `z-labs`. Feature and archive branches
+do not publish production. The JCN exception applies only to Fly Devnet keeper
+hosting and must never be copied to Vercel.

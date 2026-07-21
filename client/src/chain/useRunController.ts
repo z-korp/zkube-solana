@@ -46,6 +46,7 @@ import { deriveRunAddresses, type RunAddresses } from "./pdas";
 import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
+  buildPreparePracticeRunPlan,
   type DailyView,
 } from "./dailyClient";
 import { withTransientErRetry } from "./erRetry";
@@ -146,15 +147,52 @@ export interface PublicRunSettlementDescriptor {
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily";
+  mode: "campaign" | "daily" | "practice";
   dailyChallenge: PublicKey | null;
-  dailyVersion?: 1 | 2 | 3;
 }
 
 type BaseRunRecoveryView = Pick<
   ActiveRunView,
   "owner" | "runId" | "mode" | "lifecycle"
 >;
+
+type MoveReadyRunView = Pick<
+  ActiveRunView,
+  "lifecycle" | "nextRow" | "pendingVrfCounter"
+> &
+  Partial<Pick<ActiveRunView, "mode" | "deadlineAt">>;
+
+/** A move is valid only when the decoded chain snapshot owns a preview row. */
+export function canSubmitRunMove(
+  activeRun: MoveReadyRunView,
+  nowUnix = Math.floor(Date.now() / 1_000),
+): boolean {
+  const withinWindow =
+    activeRun.mode === "campaign" ||
+    activeRun.deadlineAt === undefined ||
+    activeRun.deadlineAt <= 0 ||
+    nowUnix < activeRun.deadlineAt;
+  return (
+    withinWindow &&
+    activeRun.lifecycle === "playing" &&
+    activeRun.nextRow !== null
+  );
+}
+
+/** Legacy empty-grid continuation state that needs a fresh VRF request. */
+export function needsLegacyRowRecovery(
+  activeRun: MoveReadyRunView,
+  nowUnix = Math.floor(Date.now() / 1_000),
+): boolean {
+  return (
+    (activeRun.mode === "campaign" ||
+      activeRun.deadlineAt === undefined ||
+      activeRun.deadlineAt <= 0 ||
+      nowUnix < activeRun.deadlineAt) &&
+    activeRun.lifecycle === "awaitingVrf" &&
+    activeRun.pendingVrfCounter === 0
+  );
+}
 
 /** Pure validation shared by the chain hook and focused recovery tests. */
 export function validateBaseRunRecovery(args: {
@@ -588,7 +626,6 @@ export function useRunController() {
           wallet,
           sessionSigner: session,
           mode: "daily",
-          dailyVersion: daily.economyVersion,
         });
         lap("prepare-delegate", "solana-base", { signature: launchSignature });
         const erConnection = await resolveRunErConnection(
@@ -686,6 +723,123 @@ export function useRunController() {
     ],
   );
 
+  const startPracticeRun = useCallback(
+    async (yesterday: DailyView) => {
+      if (state.watchStatus?.phase !== "subscribed") {
+        throw runDiscoveryPendingError();
+      }
+      if (state.phase !== "none" && state.phase !== "missing") {
+        throw new Error("Finish the active run before starting Practice.");
+      }
+      return withBusy(setState, async () => {
+        if (!publicKey) throw new Error("Connect a wallet before starting Practice");
+        const device = player.requireSession();
+        const session = device.signer;
+        const sessionWallet = new SessionWallet(session);
+        telemetryTrace.current = createChainTraceId();
+        const traceId = telemetryTrace.current;
+        const launchStart = Date.now();
+        const prepared = await buildPreparePracticeRunPlan({
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
+          daily: yesterday,
+          connection,
+          sessionValidUntil: device.validUntil,
+        });
+        const launch = await combinePreparedAndDelegatePlan({
+          prepared,
+          wallet: sessionWallet,
+          ownerAuthority: publicKey,
+          sessionToken: device.sessionToken,
+        });
+        const launchSignature = await submitPreparedRunPlan({
+          preparedRun: launch,
+          owner: publicKey,
+          wallet: sessionWallet,
+          sessionSigner: session,
+          mode: "practice",
+        });
+        plog(traceId, "launch:prepare-delegate", "solana-base", {
+          durationMs: Date.now() - launchStart,
+          signature: launchSignature,
+          mode: "practice",
+        });
+        const erConnection = await resolveRunErConnection(
+          prepared.addresses.activeRun,
+        );
+        const [observer, prewarm] = await Promise.all([
+          ensureActiveRunObserver(
+            erConnection,
+            prepared.addresses.activeRun,
+            sessionWallet,
+          ),
+          prewarmErTransport(erConnection),
+        ]);
+        plog(traceId, "launch:er-ready", "magicblock-er", {
+          durationMs: Date.now() - launchStart,
+          blockhashMs: prewarm.durationMs,
+          blockhashCacheHit: prewarm.cacheHit,
+          endpointHost: new URL(erConnection.rpcEndpoint).host,
+          mode: "practice",
+        });
+        const activeRun = await hydrateRows({
+          prepared,
+          session,
+          erConnection,
+          owner: publicKey,
+          traceId,
+          observer,
+        });
+        plog(traceId, "launch:total", "orchestration", {
+          durationMs: Date.now() - launchStart,
+          mode: "practice",
+          dayId: yesterday.dayId,
+        });
+        currentRun.current = {
+          phase: "delegated",
+          marker: loadRunSession(publicKey)!,
+          activeRun,
+          connection: erConnection,
+          sessionAuthorized: true,
+        };
+        setEpoch((value) => value + 1);
+        setState((value) => ({
+          ...value,
+          phase: "delegated",
+          activeRun,
+          receipt: null,
+          lastSignature: launchSignature,
+          sessionAuthorized: true,
+        }));
+        return activeRun;
+      }).catch((error: unknown) => {
+        if (isDeviceSessionRenewalError(error)) player.markSessionNeedsRenewal();
+        if (isActiveRunConflict(error)) {
+          if (state.phase === "missing" && publicKey) clearRunSession(publicKey);
+          setState((value) => ({
+            ...value,
+            watchStatus: { phase: "resolving", attempt: 0 },
+          }));
+          setEpoch((value) => value + 1);
+        }
+        plogFailure(telemetryTrace.current, "launch:error", "orchestration", error, {
+          mode: "practice",
+          dayId: yesterday.dayId,
+        });
+        throw error;
+      });
+    },
+    [
+      connection,
+      ensureActiveRunObserver,
+      player,
+      publicKey,
+      state.phase,
+      state.watchStatus?.phase,
+    ],
+  );
+
   const setStage = useCallback(
     (settleStage: SettleStage | null) =>
       setState((value) => ({ ...value, settleStage })),
@@ -718,11 +872,10 @@ export function useRunController() {
         const marker: RunSessionMarker = {
           owner: publicKey,
           runId: preparedOnBase.runId,
-          mode: preparedOnBase.mode === "daily" ? "daily" : "campaign",
-          dailyVersion:
-            preparedOnBase.mode === "daily"
-              ? (loadRunSession(publicKey)?.dailyVersion ?? 2)
-              : undefined,
+          mode:
+            preparedOnBase.mode === "daily" || preparedOnBase.mode === "practice"
+              ? preparedOnBase.mode
+              : "campaign",
           session,
           sessionToken: device.sessionToken,
           addresses,
@@ -824,10 +977,76 @@ export function useRunController() {
     wallet,
   ]);
 
+  const recoverMissingRow = useCallback(async () => {
+    const run = currentRun.current;
+    if (!run || !needsLegacyRowRecovery(run.activeRun)) {
+      return run?.activeRun ?? null;
+    }
+    if (actionInFlight.current) {
+      throw new Error("A run action is already in progress");
+    }
+    actionInFlight.current = true;
+    try {
+      return await withBusy(setState, async () => {
+        const device = player.requireSession();
+        const sessionWallet = new SessionWallet(device.signer);
+        const observer = await ensureActiveRunObserver(
+          run.connection,
+          run.marker.addresses.activeRun,
+          sessionWallet,
+        );
+        const activeRun = await hydrateRows({
+          prepared: {
+            runId: run.marker.runId,
+            addresses: run.marker.addresses,
+            sessionToken: run.marker.sessionToken,
+            sessionValidUntil: run.marker.validUntil,
+          },
+          session: device.signer,
+          erConnection: run.connection,
+          owner: run.marker.owner,
+          traceId: telemetryTrace.current,
+          observer,
+        });
+        if (!canSubmitRunMove(activeRun) && !isTerminal(activeRun.lifecycle)) {
+          throw new Error("Fresh row VRF returned without a playable preview");
+        }
+        run.activeRun = activeRun;
+        setState((value) => ({ ...value, activeRun }));
+        return activeRun;
+      });
+    } finally {
+      actionInFlight.current = false;
+    }
+  }, [ensureActiveRunObserver, player]);
+
+  // Old delegated runs may expose AwaitingVrf with no outstanding request
+  // after a perfect clear. Repair that snapshot once; never let the board send
+  // a move against it.
+  useEffect(() => {
+    if (
+      !state.activeRun ||
+      !needsLegacyRowRecovery(state.activeRun) ||
+      actionInFlight.current
+    ) {
+      return;
+    }
+    void recoverMissingRow().catch(() => {
+      // withBusy projects the actionable error into shared run state.
+    });
+  }, [recoverMissingRow, state.activeRun]);
+
   const playMove = useCallback(
     async (row: number, start: number, destination: number) => {
       const run = currentRun.current;
       if (!run) throw new Error("No delegated run is attached");
+      if (!canSubmitRunMove(run.activeRun)) {
+        if (needsLegacyRowRecovery(run.activeRun)) {
+          await recoverMissingRow();
+          throw new Error("Board refreshed — make your move again");
+        }
+        throw new Error("The run is waiting for a playable preview row");
+      }
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
@@ -938,7 +1157,7 @@ export function useRunController() {
         actionInFlight.current = false;
       }
     },
-    [ensureActiveRunObserver, player],
+    [ensureActiveRunObserver, player, recoverMissingRow],
   );
 
   /**
@@ -966,7 +1185,6 @@ export function useRunController() {
         addresses: descriptor.addresses,
         mode: descriptor.mode,
         dailyChallenge: descriptor.dailyChallenge,
-        dailyVersion: descriptor.dailyVersion ?? 1,
         connection,
       });
       const submitStartedAt = Date.now();
@@ -1039,13 +1257,12 @@ export function useRunController() {
           setStage("committing");
           const commitStartedAt = Date.now();
           const commit =
-            run.marker.mode === "daily"
+            run.marker.mode === "daily" || run.marker.mode === "practice"
               ? await buildCommitDailyRunPlan({
                   owner: run.marker.owner,
                   payerWallet: sessionWallet,
                   addresses: run.marker.addresses,
                   dailyChallenge: run.activeRun.dailyChallenge,
-                  economyVersion: run.marker.dailyVersion ?? 1,
                   erConnection: run.connection,
                 })
               : await buildCommitRunPlan({
@@ -1385,7 +1602,6 @@ export function useRunController() {
           addresses: marker.addresses,
           mode: marker.mode,
           dailyChallenge: activeRun.dailyChallenge,
-          dailyVersion: marker.dailyVersion ?? 1,
           abandonFirst: true,
           connection,
         });
@@ -1582,6 +1798,7 @@ export function useRunController() {
     publicKey,
     startCampaignRun,
     startDailyRun,
+    startPracticeRun,
     resumePreparedRun,
     playMove,
     applyBonus,
@@ -1738,7 +1955,6 @@ function settlementDescriptor(
     addresses: marker.addresses,
     mode: marker.mode,
     dailyChallenge,
-    dailyVersion: marker.dailyVersion ?? 1,
   };
 }
 

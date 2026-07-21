@@ -13,7 +13,6 @@ import { dailyToCurrentChallenge } from "./useCurrentChallenge";
 const key = () => Keypair.generate().publicKey;
 const daily = (status: DailyStatus): DailyView => ({
   address: key(),
-  economyVersion: 2,
   dayId: 10,
   weeklyId: 2,
   status,
@@ -23,14 +22,17 @@ const daily = (status: DailyStatus): DailyView => ({
   runsCloseAt: 300,
   settlementGraceCloseAt: 400,
   finalizedAt: 0,
-  retryCubeCost: 1n,
+  recoveryDeadlineAt: 400,
+  entryLamports: 20_000_000n,
+  dailyPotLamports: 100_000_000n,
   uniquePlayers: 2,
   weeklyEligiblePlayers: 2,
   weeklyRollups: 1,
   attemptsStarted: 3n,
   runsFinalized: 1n,
-  playerEligible: true,
-  playerCubes: 5n,
+  closedPlayers: 0,
+  entriesExpired: 0n,
+  rentRecipient: key(),
   nextRunId: 2n,
   activeRunId: 0n,
   player: null,
@@ -81,18 +83,16 @@ describe("Daily projection", () => {
   });
 
   it.each([
-    ["open", false, false],
-    ["claimable", true, false],
-    ["closed", true, false],
-    ["cancelled", false, true],
+    ["open", false],
+    ["funding", false],
+    ["finalized", true],
   ])(
     "maps %s without inventing a settled status",
-    (status, settled, cancelled) => {
+    (status, settled) => {
       expect(dailyToCurrentChallenge(daily(status))).toMatchObject({
         challenge_id: 10,
         zone_id: 4,
         settled,
-        cancelled,
         active_mutator_id: 8,
         passive_mutator_id: 9,
         total_attempts: 3n,

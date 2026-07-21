@@ -18,6 +18,7 @@ import {
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
+import { canSubmitRunMove } from "@/chain/useRunController";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import GameBoard from "@/ui/components/GameBoard";
@@ -46,6 +47,7 @@ export default function PlayScreen() {
   const images = ImageAssets(themeTemplate);
   const [activeBonus, setActiveBonus] = useState(BonusType.None);
   const [recoveringRun, setRecoveringRun] = useState(false);
+  const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1_000));
   // HUD hold: the chain confirms a move while its cascade is still animating.
   // Freeze the values the top bar (and the bonus badge) displays at the
   // pre-move snapshot until the cascade lands, so numbers never jump ahead of
@@ -96,6 +98,14 @@ export default function PlayScreen() {
 
   // Restore the full menu rotation only when leaving the play surface.
   useEffect(() => () => setMusicMoodRef.current("menu"), []);
+
+  useEffect(() => {
+    const clock = window.setInterval(
+      () => setNowUnix(Math.floor(Date.now() / 1_000)),
+      1_000,
+    );
+    return () => window.clearInterval(clock);
+  }, []);
 
   useEffect(() => {
     setActiveBonus(BonusType.None);
@@ -216,13 +226,13 @@ export default function PlayScreen() {
   const handleQuit = useCallback(() => {
     // Quit is an on-chain abandon (terminal, zero stars, rent reclaimed).
     // Stay on a "Forfeiting…" screen until the run has really settled
-    // on-chain, then return home. A failed abandon must keep the durable run
+    // on-chain, then return to Arcade. A failed abandon must keep the durable run
     // attached; forgetting it would hide a still-live active_run_id.
     setQuitting(true);
     void (async () => {
       try {
         await abandonRun();
-        navigate("home");
+        navigate("arcade");
       } catch {
         setQuitting(false);
       }
@@ -238,7 +248,7 @@ export default function PlayScreen() {
   /** Local-only escape hatch: forget the marker, never touch the chain. */
   const handleForgetLocally = useCallback(() => {
     dismissRun();
-    navigate("home");
+    navigate("arcade");
   }, [dismissRun, navigate]);
 
   const handleRecoverBaseRun = useCallback(async () => {
@@ -305,7 +315,7 @@ export default function PlayScreen() {
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                onClick={() => navigate("home")}
+                onClick={() => navigate("arcade")}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white"
               >
                 Back to Home
@@ -331,17 +341,17 @@ export default function PlayScreen() {
 
   if (controller.settledReceipt) {
     const receipt = controller.settledReceipt;
-    const isDailyReceipt = receipt.mode === "daily";
+    const isArcadeReceipt = receipt.mode !== "campaign";
     const dailyBonus = Math.max(0, receipt.dailyScore - receipt.score);
     return (
       <PlaySurface>
         <StatePanel title="Run settled">
           <p className="text-white/75">
-            {isDailyReceipt ? "Daily" : "Score"}{" "}
-            {isDailyReceipt ? receipt.dailyScore : receipt.score} ·{" "}
+            {receipt.mode === "practice" ? "Practice" : isArcadeReceipt ? "Daily" : "Score"}{" "}
+            {isArcadeReceipt ? receipt.dailyScore : receipt.score} ·{" "}
             {receipt.moves} moves
           </p>
-          {isDailyReceipt && (
+          {isArcadeReceipt && (
             <div className="text-center text-xs text-cyan-100/80">
               <p>
                 Engine {receipt.score} · Challenge +{dailyBonus} · Pressure{" "}
@@ -354,11 +364,6 @@ export default function PlayScreen() {
                   : ""}
               </p>
             </div>
-          )}
-          {!isDailyReceipt && receipt.completed && (
-            <p className="text-center text-sm font-bold text-cyan-300">
-              +{receipt.campaignXpAwarded} XP
-            </p>
           )}
           {controller.settledCleanupStatus === "running" && (
             <p className="text-center text-xs text-cyan-200">
@@ -458,7 +463,7 @@ export default function PlayScreen() {
             {!preparing && (
               <button
                 type="button"
-                onClick={() => navigate("home")}
+                onClick={() => navigate("arcade")}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white"
               >
                 Back to Home
@@ -482,6 +487,24 @@ export default function PlayScreen() {
   const chainTerminal =
     activeRun.lifecycle === "levelComplete" ||
     activeRun.lifecycle === "finished";
+  const deadlineExpired =
+    activeRun.mode !== "campaign" &&
+    (activeRun.deadlineAt ?? 0) > 0 &&
+    nowUnix >= (activeRun.deadlineAt ?? 0) &&
+    !chainTerminal;
+  if (deadlineExpired) {
+    return (
+      <PlaySurface>
+        <StatePanel title="Daily window closed">
+          <p className="max-w-sm text-center text-sm text-white/70">
+            Your current on-chain score is frozen. The keeper is closing the
+            run at its recorded deadline and the result will settle
+            automatically.
+          </p>
+        </StatePanel>
+      </PlaySurface>
+    );
+  }
   // Hold the level-complete PRESENTATION until the client cascade for the final
   // move has finished. The chain settles in the background, but the overlay,
   // next-line clear and terminal styling wait for onCascadeComplete so the
@@ -522,6 +545,7 @@ export default function PlayScreen() {
   // so `chainTerminal` here — not the gated `terminal`.
   const locked =
     run.busy ||
+    !canSubmitRunMove(activeRun, nowUnix) ||
     waitingForOpening ||
     chainTerminal ||
     basePhase ||
@@ -561,7 +585,6 @@ export default function PlayScreen() {
           closeDisabled={controller.settlementStatus !== "complete"}
           game={game}
           finalCampaignMapId={controller.finalCampaignMapId}
-          xpAwarded={controller.terminalSnapshot?.xpAwarded ?? 0}
           colors={getThemeColors(themeTemplate as ThemeId)}
         />
       )}
@@ -575,7 +598,6 @@ export default function PlayScreen() {
           prevTotalScore={0}
           totalScore={controller.terminalSnapshot.activeRun.score}
           gameLevel={controller.terminalSnapshot.gameLevel}
-          xpAwarded={controller.terminalSnapshot.xpAwarded}
           zoneId={controller.terminalSnapshot.game.zoneId}
           colors={getThemeColors(themeTemplate as ThemeId)}
           isIncomplete={!controller.terminalSnapshot.completed}
@@ -799,7 +821,7 @@ export default function PlayScreen() {
 function PlaySurface({ children }: { children: ReactNode }) {
   // In-game background is the themed stone tablet (matching the original), not
   // the scenic zone art — blocks read clearly on it. The scenic background
-  // stays on home/map. Both come from the active `data-theme` CSS variables.
+  // stays on Arcade/Campaign. Both come from the active `data-theme` CSS variables.
   return (
     <div
       className="relative flex h-full min-h-0 flex-col"

@@ -171,4 +171,27 @@ describe("run session persistence", () => {
     expect(loadRunSession(first.publicKey, { storage })).toBeNull();
     expect(loadRunSession(second.publicKey, { storage })).not.toBeNull();
   });
+
+  it("round-trips the free Practice run mode", () => {
+    const storage = new MemoryStorage();
+    const owner = Keypair.generate().publicKey;
+    const session = Keypair.generate();
+    saveRunSession(
+      {
+        owner,
+        runId: 22n,
+        mode: "practice",
+        session,
+        sessionToken: deriveSessionTokenV2Pda({
+          authority: owner,
+          sessionSigner: session.publicKey,
+        }).sessionToken,
+        addresses: deriveRunAddresses(owner, 22n),
+        validUntil: 5_000,
+        createdAt: 1_000,
+      },
+      storage,
+    );
+    expect(loadRunSession(owner, { storage })?.mode).toBe("practice");
+  });
 });

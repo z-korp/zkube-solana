@@ -8,16 +8,21 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID } from "./constants.js";
+import {
+  MAGIC_CONTEXT_ID,
+  MAGIC_PROGRAM_ID,
+  ZKUBE_PROGRAM_ID,
+} from "./constants.js";
 import {
   deriveArcadeConfigPda,
-  deriveArenaBoardPda,
   deriveArenaDailyPda,
   deriveArenaPlayerPda,
   deriveOperatorRevenueVaultPda,
+  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
+  deriveSeasonPda,
   deriveWeeklyJackpotPda,
 } from "./pdas.js";
 import {
@@ -62,8 +67,7 @@ export interface DailyPlayerView {
   bestEngineScore: number;
   bestMoves: number;
   bestScore: number;
-  weeklyRolledUp: boolean;
-  refundedAttempts: number;
+  seasonRolledUp: boolean;
   activePaidRunId: bigint;
 }
 
@@ -83,26 +87,24 @@ export function dailyLeaderboardRank(
 }
 
 export type DailyStatus =
-  | "draft"
+  | "funding"
   | "open"
-  | "entriesClosed"
-  | "finalizing"
-  | "claimable"
-  | "cancelled"
-  | "closed"
+  | "finalized"
   | "unknown";
 
 export function parseDailyStatus(value: unknown): DailyStatus {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "unknown";
-  const status = Object.keys(value)[0] as DailyStatus | undefined;
-  return status ?? "unknown";
+  const status = Object.keys(value)[0];
+  return status === "funding" || status === "open" || status === "finalized"
+    ? status
+    : "unknown";
 }
 
 export interface DailyView extends EndlessRulesView {
-  economyVersion: 3;
   address: PublicKey;
   dayId: number;
   weeklyId: number;
+  seasonId: number;
   status: DailyStatus;
   mapId: number;
   opensAt: number;
@@ -113,18 +115,14 @@ export interface DailyView extends EndlessRulesView {
   finalizedAt: number;
   entryLamports: bigint;
   dailyPotLamports: bigint;
-  retryCubeCost: bigint;
-  maxPaidRetries: number;
+  followingDailyLamports: bigint | null;
   uniquePlayers: number;
-  closedPlayers: number;
-  weeklyEligiblePlayers: number;
-  weeklyRollups: number;
+  seasonEligiblePlayers: number;
+  seasonRollups: number;
   attemptsStarted: bigint;
   runsFinalized: bigint;
-  entriesRefunded: bigint;
-  rentRecipient: PublicKey;
-  playerEligible: boolean;
-  playerCubes: bigint;
+  entriesExpired: bigint;
+  rulesHash: Uint8Array;
   nextRunId: bigint;
   activeRunId: bigint;
   player: DailyPlayerView | null;
@@ -138,6 +136,18 @@ export function currentDailyDayId(nowUnix = Math.floor(Date.now() / 1_000)): num
   return Math.max(0, Math.floor(nowUnix / 86_400));
 }
 
+export function practiceRunsCloseAt(
+  nowUnix = Math.floor(Date.now() / 1_000),
+): number {
+  return currentDailyDayId(nowUnix) * 86_400 + 23 * 3_600 + 30 * 60;
+}
+
+export function isPracticeEntryWindowOpen(
+  nowUnix = Math.floor(Date.now() / 1_000),
+): boolean {
+  return nowUnix < practiceRunsCloseAt(nowUnix);
+}
+
 export async function fetchDailyView(args: {
   connection: Connection;
   wallet: WalletLike;
@@ -149,21 +159,22 @@ export async function fetchDailyView(args: {
   const challenge = await program.account.arenaDaily.fetchNullable(address);
   if (!challenge) return null;
   const owner = args.wallet.publicKey;
-  const [profile, player, board] = await Promise.all([
+  const [profile, player, arcadeConfig, following] = await Promise.all([
     program.account.playerState.fetchNullable(derivePlayerStatePda(owner)),
     program.account.arenaPlayer.fetchNullable(deriveArenaPlayerPda(address, owner)),
-    program.account.arenaBoard.fetch(deriveArenaBoardPda(address)),
+    program.account.arcadeConfig.fetch(deriveArcadeConfigPda()),
+    program.account.arenaDaily.fetchNullable(deriveArenaDailyPda(dayId + 1)),
   ]);
-  const rows = board.entries.map((entry) => ({
+  const rows = challenge.entries.map((entry) => ({
     player: entry.player,
     runId: BigInt(entry.runId.toString()),
     dailyScore: Number(entry.score),
-    dailyBonusTriggers: Number(entry.bonusTriggers),
-    engineScore: Number(entry.engineScore),
-    moves: Number(entry.moves),
+    dailyBonusTriggers: 0,
+    engineScore: Number(entry.score),
+    moves: 0,
     finalizedAttempts: Number(entry.attempts),
     score: Number(entry.score),
-    submittedAt: Number(entry.submittedAt),
+    submittedAt: Number(entry.finalizedAt),
     replayHash: Uint8Array.from(entry.replayHash),
   }));
   const labels = await fetchPlayerLabels({
@@ -174,10 +185,10 @@ export async function fetchDailyView(args: {
   const names = new Map(labels.map((label) => [label.owner.toBase58(), label.displayName]));
   const pressure = mapDailyPressureProfile(challenge.pressure);
   return {
-    economyVersion: 3,
     address,
     dayId: Number(challenge.dayId),
     weeklyId: Number(challenge.weekId),
+    seasonId: Number(challenge.seasonId),
     status: parseDailyStatus(challenge.status),
     mapId: Number(challenge.mapId),
     opensAt: Number(challenge.opensAt),
@@ -186,35 +197,32 @@ export async function fetchDailyView(args: {
     settlementGraceCloseAt: Number(challenge.recoveryDeadlineAt),
     recoveryDeadlineAt: Number(challenge.recoveryDeadlineAt),
     finalizedAt: Number(challenge.finalizedAt),
-    entryLamports: BigInt(challenge.terms.entryLamports.toString()),
-    dailyPotLamports: BigInt(challenge.potLamports.toString()),
-    retryCubeCost: 0n,
-    maxPaidRetries: Number.MAX_SAFE_INTEGER,
+    entryLamports: BigInt(arcadeConfig.entryLamports.toString()),
+    dailyPotLamports: availablePoolLamports(challenge.ledger),
+    followingDailyLamports: following
+      ? availablePoolLamports(following.ledger)
+      : null,
     uniquePlayers: Number(challenge.uniquePlayers),
-    closedPlayers: 0,
-    weeklyEligiblePlayers: Number(challenge.weeklyEligiblePlayers),
-    weeklyRollups: Number(challenge.weeklyRollups),
+    seasonEligiblePlayers: Number(challenge.seasonEligiblePlayers),
+    seasonRollups: Number(challenge.seasonRollups),
     attemptsStarted: BigInt(challenge.entriesPaid.toString()),
-    runsFinalized: BigInt(challenge.runsFinalized.toString()),
-    entriesRefunded: BigInt(challenge.entriesRefunded.toString()),
-    rentRecipient: challenge.rentRecipient,
-    playerEligible: Boolean(profile?.dailyEligible),
-    playerCubes: 0n,
+    runsFinalized: BigInt(challenge.entriesScored.toString()),
+    entriesExpired: BigInt(challenge.entriesExpired.toString()),
+    rulesHash: Uint8Array.from(challenge.rulesHash),
     nextRunId: profile ? BigInt(profile.nextRunId.toString()) : 0n,
     activeRunId: profile ? BigInt(profile.activeRunId.toString()) : 0n,
     player: player
       ? {
           attempts: Number(player.paidEntries),
           paidAttempts: Number(player.paidEntries),
-          finalizedAttempts: Number(player.finalizedEntries),
-          bestRunId: BigInt(player.bestRunId.toString()),
-          bestDailyScore: Number(player.bestScore),
-          bestDailyBonusTriggers: Number(player.bestBonusTriggers),
-          bestEngineScore: Number(player.bestEngineScore),
-          bestMoves: Number(player.bestMoves),
-          bestScore: Number(player.bestScore),
-          weeklyRolledUp: Boolean(player.weeklyRolledUp),
-          refundedAttempts: Number(player.refundedEntries),
+          finalizedAttempts: Number(player.resolvedEntries),
+          bestRunId: BigInt(player.bestEntry.runId.toString()),
+          bestDailyScore: Number(player.bestEntry.score),
+          bestDailyBonusTriggers: 0,
+          bestEngineScore: Number(player.bestEntry.score),
+          bestMoves: 0,
+          bestScore: Number(player.bestEntry.score),
+          seasonRolledUp: Boolean(player.seasonRolledUp),
           activePaidRunId: BigInt(player.activePaidRunId.toString()),
         }
       : null,
@@ -245,7 +253,7 @@ export async function buildPrepareDailyRunPlan(args: {
   const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
   await assertPreparedRunAddressesAvailable(args.connection, owner, args.daily.nextRunId, addresses);
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.enterArenaV1(
+    .methods.fundedEnterArenaV2(
       new BN(args.daily.nextRunId.toString()),
       new BN(args.daily.entryLamports.toString()),
     )
@@ -253,13 +261,19 @@ export async function buildPrepareDailyRunPlan(args: {
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       playerState: derivePlayerStatePda(owner),
-      arenaDaily: args.daily.address,
+      currentDaily: args.daily.address,
       arenaPlayer: deriveArenaPlayerPda(args.daily.address, owner),
-      weeklyJackpot: deriveWeeklyJackpotPda(args.daily.weeklyId),
+      currentWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId),
+      currentSeason: deriveSeasonPda(args.daily.seasonId),
+      followingDaily: deriveArenaDailyPda(args.daily.dayId + 1),
+      followingWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId + 1),
+      followingSeason: deriveSeasonPda(args.daily.seasonId + 1),
       operatorRevenueVault: deriveOperatorRevenueVaultPda(),
       activeRun: addresses.activeRun,
+      playerFunding: derivePlayerFundingPda(owner),
       owner,
       systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return {
@@ -268,9 +282,68 @@ export async function buildPrepareDailyRunPlan(args: {
     sessionToken: args.sessionToken,
     sessionValidUntil: args.sessionValidUntil,
     transactionPlan: basePlan(
-      `Enter Arena · ${(Number(args.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL`,
+      `Enter Arena · exact ${(Number(args.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL + network fee`,
       args.connection,
       owner,
+      [instruction],
+    ),
+  };
+}
+
+/**
+ * Prepares a free run against yesterday's immutable Arena rules. The device
+ * signer pays the transaction fee while the narrow funded self-CPI may spend
+ * only the owner's protocol-controlled rent allowance.
+ */
+export async function buildPreparePracticeRunPlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey;
+  daily: DailyView;
+  sessionValidUntil: number;
+  nowUnix?: number;
+}): Promise<PreparedRunPlan> {
+  const owner = args.ownerAuthority;
+  if (args.daily.status !== "finalized") {
+    throw new Error("Practice requires yesterday's finalized Arena");
+  }
+  if (!isPracticeEntryWindowOpen(args.nowUnix)) {
+    throw new Error(
+      "Practice entry closes at 23:30 UTC so every started run has a valid on-chain window",
+    );
+  }
+  const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
+  await assertPreparedRunAddressesAvailable(
+    args.connection,
+    owner,
+    args.daily.nextRunId,
+    addresses,
+  );
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.fundedPreparePracticeRunV2(new BN(args.daily.nextRunId.toString()))
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      playerState: derivePlayerStatePda(owner),
+      arenaDaily: args.daily.address,
+      activeRun: addresses.activeRun,
+      playerFunding: derivePlayerFundingPda(owner),
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
+      systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
+    })
+    .instruction();
+  return {
+    runId: args.daily.nextRunId,
+    addresses,
+    sessionToken: args.sessionToken,
+    sessionValidUntil: args.sessionValidUntil,
+    transactionPlan: basePlan(
+      "Prepare free Practice run",
+      args.connection,
+      args.wallet.publicKey,
       [instruction],
     ),
   };
@@ -281,7 +354,6 @@ export async function buildCommitDailyRunPlan(args: {
   payerWallet: WalletLike;
   addresses: ReturnType<typeof deriveRunAddresses>;
   dailyChallenge: PublicKey;
-  economyVersion?: 1 | 2 | 3;
   erConnection: Connection;
 }): Promise<TransactionPlan> {
   const instruction = await zkubeProgram(args.erConnection, args.payerWallet)
@@ -307,19 +379,39 @@ export async function buildOpenDailyChallengePlan(args: {
   const program = zkubeProgram(args.connection, args.wallet);
   const config = await program.account.arcadeConfig.fetch(deriveArcadeConfigPda());
   const instruction = await program
-    .methods.openArenaDaily(dayId)
+    .methods.prepareArenaDaily(dayId)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       dailyRulesCatalog: config.rulesCatalog,
       arenaDaily: challenge,
-      arenaBoard: deriveArenaBoardPda(challenge),
       payer: args.payer ?? args.wallet.publicKey,
       caller: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return basePlan("Open Arena Daily", args.connection, args.payer ?? args.wallet.publicKey, [instruction]);
+  return basePlan("Prepare Arena Daily", args.connection, args.payer ?? args.wallet.publicKey, [instruction]);
+}
+
+export async function buildActivateDailyChallengePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  daily: DailyView;
+}): Promise<TransactionPlan> {
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.activateArenaDaily()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arenaDaily: args.daily.address,
+      caller: args.wallet.publicKey,
+    })
+    .instruction();
+  return basePlan(
+    "Activate Arena Daily",
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
 }
 
 export async function buildFinalizeDailyChallengePlan(args: {
@@ -336,8 +428,7 @@ export async function buildFinalizeDailyChallengePlan(args: {
     .methods.finalizeArenaDaily()
     .accountsPartial({
       arenaDaily: args.daily.address,
-      arenaBoard: deriveArenaBoardPda(args.daily.address),
-      weeklyJackpot: deriveWeeklyJackpotPda(args.daily.weeklyId),
+      followingDaily: deriveArenaDailyPda(args.daily.dayId + 1),
       caller: args.wallet.publicKey,
     })
     .remainingAccounts(winnerAccounts)
@@ -345,11 +436,6 @@ export async function buildFinalizeDailyChallengePlan(args: {
   return basePlan("Push Arena prizes", args.connection, args.wallet.publicKey, [instruction]);
 }
 
-/** Legacy maintenance hooks intentionally return nothing: funded Dailies never cancel or close. */
-export async function fetchOwnerCancelledDailyIds(): Promise<number[]> { return []; }
-export async function buildRefundDailyEntryPlan(): Promise<TransactionPlan> {
-  throw new Error("Stuck Arena refunds are protocol-authority recovery operations");
-}
 export async function fetchDailyPlayerRecords(): Promise<[]> { return []; }
 export async function fetchDailyChallengeIds(): Promise<number[]> { return []; }
 export async function buildCloseDailyPlayerPlan(): Promise<TransactionPlan> {
@@ -357,6 +443,22 @@ export async function buildCloseDailyPlayerPlan(): Promise<TransactionPlan> {
 }
 export async function buildCloseDailyChallengePlan(): Promise<TransactionPlan> {
   throw new Error("Funded Arena results are durable");
+}
+
+export function availablePoolLamports(ledger: {
+  seededLamports: { toString(): string };
+  entryLamports: { toString(): string };
+  rolloverInLamports: { toString(): string };
+  payoutLamports: { toString(): string };
+  rolloverOutLamports: { toString(): string };
+}): bigint {
+  return (
+    BigInt(ledger.seededLamports.toString()) +
+    BigInt(ledger.entryLamports.toString()) +
+    BigInt(ledger.rolloverInLamports.toString()) -
+    BigInt(ledger.payoutLamports.toString()) -
+    BigInt(ledger.rolloverOutLamports.toString())
+  );
 }
 
 function erPlan(label: string, connection: Connection, feePayer: PublicKey, instructions: TransactionInstruction[], signers: Keypair[] = []): TransactionPlan {
