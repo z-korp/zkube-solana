@@ -3,7 +3,6 @@ import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import {
   buildClaimAchievementPlan,
-  buildClaimLevelMilestonePlan,
   buildClaimQuestPlan,
   fetchProgressView,
   type ProgressView,
@@ -106,41 +105,6 @@ export function useProgressController() {
     [connection, player, progress, refresh],
   );
 
-  const claimLevelMilestone = useCallback(
-    async (index: number) => {
-      if (!progress) {
-        throw new Error("Level milestones are not active");
-      }
-      const owner = player.publicKey;
-      if (!owner) throw new Error("Connect a wallet before claiming rewards");
-      const session = player.requireSession();
-      const sessionWallet = new SessionWallet(session.signer);
-      setClaiming(`milestone:${index}`);
-      try {
-        const transactionPlan = await buildClaimLevelMilestonePlan({
-          connection,
-          wallet: sessionWallet,
-          ownerAuthority: owner,
-          sessionToken: session.sessionToken,
-          milestoneIndex: index,
-        });
-        const signature = await submitVersionedTransactionPlan({
-          transactionPlan,
-          wallet: sessionWallet,
-        });
-        await connection.confirmTransaction(signature, "confirmed");
-        await refresh();
-        return signature;
-      } catch (cause) {
-        setError(errorMessage(cause));
-        throw cause;
-      } finally {
-        setClaiming(null);
-      }
-    },
-    [connection, player, progress, refresh],
-  );
-
   return {
     progress,
     loading,
@@ -149,6 +113,5 @@ export function useProgressController() {
     refresh,
     claimAchievement,
     claimQuest,
-    claimLevelMilestone,
   };
 }

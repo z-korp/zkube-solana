@@ -72,6 +72,10 @@ import {
   buildDeviceSessionRefillInstructions,
   buildDeviceSignerReclaimInstruction,
 } from "./deviceSessionLifecycle";
+import {
+  buildLegacyV3FundingReclaimInstruction,
+  legacyV3PlayerFundingPda,
+} from "./legacyV3";
 import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
@@ -541,10 +545,14 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     const program = zkubeProgram(connection, current.wallet);
     const playerState = derivePlayerStatePda(current.publicKey);
     const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const [protocol, profileInfo, fundingInfo] = await Promise.all([
+    const [protocol, profileInfo, fundingInfo, legacyV3FundingInfo] = await Promise.all([
       program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
       connection.getAccountInfo(playerState, "confirmed"),
       connection.getAccountInfo(playerFunding, "confirmed"),
+      connection.getAccountInfo(
+        legacyV3PlayerFundingPda(current.publicKey),
+        "confirmed",
+      ),
     ]);
     if (profileInfo) {
       if (
@@ -583,6 +591,13 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       configuredFundingTarget - (fundingInfo?.lamports ?? 0),
     );
     const instructions: TransactionInstruction[] = [];
+    if (legacyV3FundingInfo) {
+      const legacyReclaim = buildLegacyV3FundingReclaimInstruction({
+        owner: current.publicKey,
+        fundingInfo: legacyV3FundingInfo,
+      });
+      if (legacyReclaim) instructions.push(legacyReclaim);
+    }
     if (revokeInstruction) instructions.push(revokeInstruction);
     if (previousSession) {
       const reclaim = buildDeviceSignerReclaimInstruction({

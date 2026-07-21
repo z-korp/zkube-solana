@@ -11,7 +11,7 @@ import {
   vi,
 } from "vitest";
 
-import type { StarPackQuote, StarShopView } from "@/chain/shopClient";
+import type { CubePackQuote, CubeShopView } from "@/chain/shopClient";
 import ShopPage from "./ShopPage";
 
 const fixtures = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ const fixtures = vi.hoisted(() => ({
     openWalletSettings: vi.fn(),
   },
   controller: {
-    shop: null as StarShopView | null,
+    shop: null as CubeShopView | null,
     loading: false,
     purchasingPack: null as number | null,
     error: null as string | null,
@@ -46,7 +46,7 @@ vi.mock("@/chain/connectedPlayerContext", async () =>
 );
 
 vi.mock("@/chain/useShopController", () => ({
-  StarShopQuoteChangedError: class StarShopQuoteChangedError extends Error {},
+  CubeShopQuoteChangedError: class CubeShopQuoteChangedError extends Error {},
   useShopController: () => fixtures.controller,
 }));
 
@@ -101,28 +101,28 @@ describe("ShopPage", () => {
   it("renders every purchasable pack", () => {
     render(<ShopPage />);
 
-    expect(screen.getAllByRole("button", { name: /Stars for/ })).toHaveLength(
-      5,
+    expect(screen.getAllByRole("button", { name: /Cubes for/ })).toHaveLength(
+      4,
     );
   });
 
   it("shows the exact confirmation and refreshes all balances after purchase", async () => {
     render(<ShopPage />);
     fireEvent.click(
-      screen.getByRole("button", { name: "200 Stars for 0.3 SOL" }),
+      screen.getByRole("button", { name: "200 Cubes for 0.3 SOL" }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("+200★")).toBeInTheDocument();
-    expect(screen.getByText("★ 225")).toBeInTheDocument();
-    expect(screen.getByText(/Daily Arena entries/)).toBeInTheDocument();
+    expect(screen.getByText("+200 Cubes")).toBeInTheDocument();
+    expect(screen.getByText("▣ 225")).toBeInTheDocument();
+    expect(screen.getByText(/Daily Arena retries/)).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Buy 200★ for 0.3 SOL" }),
+      screen.getByRole("button", { name: "Buy 200 Cubes for 0.3 SOL" }),
     );
     await waitFor(() =>
       expect(fixtures.controller.purchase).toHaveBeenCalledWith(
-        expect.objectContaining({ index: 2, stars: 200n }),
+        expect.objectContaining({ index: 2, cubes: 200n }),
       ),
     );
     await waitFor(() => {
@@ -141,7 +141,7 @@ describe("ShopPage", () => {
     render(<ShopPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "10 Stars for 0.02 SOL" }),
+      screen.getByRole("button", { name: "10 Cubes for 0.02 SOL" }),
     );
     expect(fixtures.navigation.openWalletSettings).toHaveBeenCalledWith("shop");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -163,25 +163,24 @@ describe("ShopPage", () => {
     render(<ShopPage />);
 
     expect(
-      screen.getByRole("button", { name: "10 Stars for 0.018 SOL" }),
+      screen.getByRole("button", { name: "10 Cubes for 0.018 SOL" }),
     ).toHaveTextContent("0.02");
     expect(screen.getByText("\u221210%")).toBeInTheDocument();
   });
 });
 
-function shopView(): StarShopView {
+function shopView(): CubeShopView {
   const prices = [
     20_000_000n,
     90_000_000n,
     300_000_000n,
     700_000_000n,
-    1_250_000_000n,
   ];
-  const stars = [10n, 50n, 200n, 500n, 1_000n];
-  const packs = stars.map(
-    (value, index): StarPackQuote => ({
+  const cubes = [10n, 50n, 200n, 500n];
+  const packs = cubes.map(
+    (value, index): CubePackQuote => ({
       index,
-      stars: value,
+      cubes: value,
       regularPrice: prices[index],
       currentPrice: prices[index],
       salePrice: prices[index],
@@ -193,9 +192,9 @@ function shopView(): StarShopView {
     economyVersion: 2,
     revision: 1n,
     playerInitialized: true,
-    starsBalance: 25n,
-    dailyEntryStars: 10n,
-    zoneUnlockStars: 40n,
+    cubesBalance: 25n,
+    dailyRetryCubes: 10n,
+    maxPaidDailyRetries: 5,
     protocolPaused: false,
     teamDestination: PublicKey.default,
     rewardVault: PublicKey.default,
@@ -204,6 +203,7 @@ function shopView(): StarShopView {
     saleStartsAt: 0n,
     saleEndsAt: 0n,
     saleLive: false,
+    weeklyChallenge: null,
     packs,
   };
 }

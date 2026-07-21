@@ -1,43 +1,13 @@
-import React from "react";
-import { Loader2 } from "lucide-react";
+import React, { type ReactNode } from "react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { ZONE_NAMES } from "@/config/profileData";
-import {
-  getThemeColors,
-  getThemeImages,
-  type ThemeColors,
-  type ThemeId,
-} from "@/config/themes";
+import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";
 import type { DailyView } from "@/chain/dailyClient";
-import { useCountdown } from "@/hooks/useNowTick";
+import { Countdown } from "@/ui/components/arena/Countdown";
 import type { PlayerPosition } from "@/ui/components/arena/dailyPosition";
-import { formatCountdown } from "@/utils/time";
-
-export const Countdown: React.FC<{
-  endTime: number;
-  colors: ThemeColors;
-}> = ({ endTime, colors }) => {
-  const seconds = useCountdown(endTime);
-
-  if (seconds <= 0) {
-    return (
-      <span className="rounded-full bg-yellow-500/80 px-3 py-1.5 font-sans text-xs font-bold text-black">
-        FINALIZING
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="rounded-full px-3 py-1.5 font-sans text-xs font-bold tabular-nums text-white"
-      style={{ background: colors.accent }}
-    >
-      {formatCountdown(seconds)}
-    </span>
-  );
-};
 
 /**
  * A finished (or finishing) daily as a compact result strip: zone art,
@@ -50,7 +20,20 @@ const DailyResultCard: React.FC<{
   label: string;
   action: string | null;
   onRefund: () => void;
-}> = ({ daily, position, label, action, onRefund }) => {
+  /** When set, the card becomes a toggle that reveals `children` below. */
+  onToggle?: () => void;
+  expanded?: boolean;
+  children?: ReactNode;
+}> = ({
+  daily,
+  position,
+  label,
+  action,
+  onRefund,
+  onToggle,
+  expanded = false,
+  children,
+}) => {
   const zoneId = daily.mapId || 1;
   const zoneName = ZONE_NAMES[zoneId] ?? `Zone ${zoneId}`;
   const zoneThemeId = `theme-${Math.min(10, Math.max(1, zoneId))}` as ThemeId;
@@ -59,6 +42,50 @@ const DailyResultCard: React.FC<{
   const guardian = getZoneGuardian(zoneId);
   const canRefund = daily.status === "cancelled" && hasPendingRefund(daily);
   const isBusy = action === "refund";
+
+  const header = (
+    <div className="relative z-10 flex items-start justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p
+          className="font-sans text-[10px] font-bold uppercase tracking-[0.14em]"
+          style={{ color: zoneColors.accent }}
+        >
+          {label} · {formatDailyDate(daily.opensAt)}
+        </p>
+        <p className="mt-0.5 font-sans text-[11px] font-semibold text-white/55">
+          {zoneName} · {guardian.name}
+        </p>
+        {position ? (
+          <p className="mt-1 font-display text-lg font-black text-white">
+            <span style={{ color: zoneColors.accent2 }}>#{position.rank}</span>{" "}
+            · {position.score.toLocaleString()}{" "}
+            <span className="text-sm font-bold text-white/45">pts</span>
+          </p>
+        ) : (
+          <p className="mt-1 font-sans text-[11px] text-white/50">
+            No entry · {daily.attemptsStarted.toString()} run
+            {daily.attemptsStarted === 1n ? "" : "s"} started
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <StatusAction
+          daily={daily}
+          canRefund={canRefund}
+          isBusy={isBusy}
+          action={action}
+          onRefund={onRefund}
+        />
+        {onToggle && (
+          <ChevronDown
+            size={18}
+            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+            style={{ color: "rgba(255,255,255,0.6)" }}
+          />
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <motion.section
@@ -74,43 +101,22 @@ const DailyResultCard: React.FC<{
         className="absolute inset-0 h-full w-full object-cover"
       />
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/50" />
-      <div className="relative z-10 px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className="font-sans text-[10px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: zoneColors.accent }}
-            >
-              {label} · {formatDailyDate(daily.opensAt)}
-            </p>
-            <p className="mt-0.5 font-sans text-[11px] font-semibold text-white/55">
-              {zoneName} · {guardian.name}
-            </p>
-            {position ? (
-              <p className="mt-1 font-display text-lg font-black text-white">
-                <span style={{ color: zoneColors.accent2 }}>
-                  #{position.rank}
-                </span>{" "}
-                · {position.score.toLocaleString()}{" "}
-                <span className="text-sm font-bold text-white/45">pts</span>
-              </p>
-            ) : (
-              <p className="mt-1 font-sans text-[11px] text-white/50">
-                No entry ·{" "}
-                {daily.attemptsStarted.toString()} run
-                {daily.attemptsStarted === 1n ? "" : "s"} started
-              </p>
-            )}
-          </div>
-          <StatusAction
-            daily={daily}
-            canRefund={canRefund}
-            isBusy={isBusy}
-            action={action}
-            onRefund={onRefund}
-          />
+      {onToggle ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="block w-full text-left transition-transform active:scale-[0.99]"
+        >
+          {header}
+        </button>
+      ) : (
+        header
+      )}
+      {expanded && children && (
+        <div className="relative z-10 border-t border-white/10 bg-black/45 px-4 py-2.5">
+          {children}
         </div>
-      </div>
+      )}
     </motion.section>
   );
 };
@@ -188,7 +194,7 @@ function StatusAction({
 function hasPendingRefund(daily: DailyView): boolean {
   const player = daily.player;
   if (!player) return false;
-  return player.attempts > 0 && !player.starRefunded;
+  return player.attempts > 0 && !player.cubeRefunded;
 }
 
 function formatDailyDate(timestamp: number): string {

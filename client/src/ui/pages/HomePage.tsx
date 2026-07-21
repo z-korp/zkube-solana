@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, type Variants } from "motion/react";
 
@@ -7,7 +7,6 @@ import {
   ZONE_NAMES,
   getLevelFromXp,
   getTitleForLevel,
-  type ZoneProgressData,
 } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
@@ -21,12 +20,11 @@ import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
-import { useZStarBalance } from "@/hooks/useZStarBalance";
+import { useCubeBalance } from "@/hooks/useCubeBalance";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useDevnetRuntimeStatus } from "@/chain/useDevnetRuntimeStatus";
 import { useNavigationStore } from "@/stores/navigationStore";
 import CtaGuardian from "@/ui/components/CtaGuardian";
-import UnlockModal from "@/ui/components/profile/UnlockModal";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
@@ -71,7 +69,6 @@ const HomePage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
   const mapZoneId = useNavigationStore((state) => state.mapZoneId);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-  const [unlockZone, setUnlockZone] = useState<ZoneProgressData | null>(null);
 
   const { playerMeta } = usePlayerMeta(address);
   const playerLabel = usePlayerLabelController();
@@ -84,11 +81,8 @@ const HomePage: React.FC = () => {
     playerLevel >= LEVEL_THRESHOLDS.length
       ? 1
       : (playerXp - levelStartXp) / Math.max(nextLevelXp - levelStartXp, 1);
-  const { balance: zStarBalance } = useZStarBalance(address);
-  const { zones: rawZones, isLoading: zonesLoading } = useZoneProgress(
-    address,
-    zStarBalance,
-  );
+  const { balance: cubeBalance } = useCubeBalance(address);
+  const { zones: rawZones, isLoading: zonesLoading } = useZoneProgress(address);
   const zones = useMemo(
     () =>
       [...rawZones].sort((left, right) => {
@@ -232,9 +226,9 @@ const HomePage: React.FC = () => {
               displayName={playerLabel.label?.displayName}
               title={playerTitle}
               address={address}
-              starBalance={zStarBalance}
+              cubeBalance={cubeBalance}
               ringSize={52}
-              starSize="md"
+              cubeSize="md"
             />
           </motion.div>
 
@@ -278,12 +272,9 @@ const HomePage: React.FC = () => {
                 {zones.map((candidate, index) => {
                   const isSelectable = candidate.unlocked;
                   const isSelected = index === activeZone && isSelectable;
-                  const statusText =
-                    !candidate.unlocked && !candidate.isFree
-                      ? (candidate.starCost ?? 0) > 0
-                        ? `${candidate.starCost} ★ to unlock`
-                        : "Locked"
-                      : `${candidate.stars}/${candidate.maxStars} ★`;
+                  const statusText = candidate.unlocked
+                    ? `${candidate.stars}/${candidate.maxStars} ★`
+                    : "Clear previous guardian";
 
                   return (
                     <motion.button
@@ -298,8 +289,6 @@ const HomePage: React.FC = () => {
                           } else {
                             setActiveZone(index);
                           }
-                        } else if (!candidate.isFree) {
-                          setUnlockZone(candidate);
                         }
                       }}
                       className="relative flex h-[clamp(8rem,22vw,11rem)] w-[clamp(6.5rem,17vw,9rem)] shrink-0 snap-center flex-col items-start justify-end overflow-hidden rounded-2xl p-2 text-left"
@@ -409,7 +398,7 @@ const HomePage: React.FC = () => {
                         : !challenge
                           ? "Not published yet — check back soon!"
                           : hasPlayedDaily && dailyMyRank
-                            ? `#${dailyMyRank} · Weekly points`
+                            ? `#${dailyMyRank} · Daily standing`
                             : `${challenge.total_attempts.toString()} attempt${challenge.total_attempts === 1n ? "" : "s"}`}
                     </p>
                   </div>
@@ -468,13 +457,6 @@ const HomePage: React.FC = () => {
         )}
       </div>
 
-      {unlockZone && (
-        <UnlockModal
-          colors={colors}
-          zone={unlockZone}
-          onClose={() => setUnlockZone(null)}
-        />
-      )}
     </div>
   );
 };

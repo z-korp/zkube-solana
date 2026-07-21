@@ -18,8 +18,6 @@ export interface ZoneProgressResult {
 
 export function campaignMapsToZones(
   maps: readonly CampaignMapView[] | null,
-  currentStars: number,
-  fallbackZoneUnlockStars: number | null = null,
 ): ZoneProgressData[] {
   const source =
     maps && maps.length > 0
@@ -31,10 +29,8 @@ export function campaignMapsToZones(
             themeId: index + 1,
             enabled: true,
             unlocked: index === 0,
-            purchased: false,
             cleared: false,
             perfected: false,
-            starCost: 0n,
             levelStars: Array.from({ length: 10 }, () => 0),
             levels: [],
           }),
@@ -44,14 +40,6 @@ export function campaignMapsToZones(
     const highestCleared = map.cleared
       ? 10
       : highestClearedLevel(map.levelStars);
-    // Map 1 is always free; paid maps never legitimately cost 0, so a zero
-    // cost means the price is not known yet (placeholder or stale snapshot).
-    const starCost =
-      map.mapId === 1
-        ? 0
-        : map.starCost > 0n
-          ? Number(map.starCost)
-          : (fallbackZoneUnlockStars ?? undefined);
     return {
       zoneId: map.mapId,
       themeId: map.themeId,
@@ -62,9 +50,7 @@ export function campaignMapsToZones(
       maxStars: 30,
       unlocked: map.unlocked,
       cleared: map.cleared,
-      isFree: map.mapId === 1,
-      starCost,
-      currentStars,
+      isFree: true,
       levelStars: map.levelStars,
       highestCleared,
       bossCleared: map.cleared,
@@ -75,25 +61,16 @@ export function campaignMapsToZones(
 
 export const useZoneProgress = (
   playerAddress: string | undefined,
-  zStarBalance: number,
 ): ZoneProgressResult => {
-  const { campaign, economy, loading } = useCampaign();
+  const { campaign, loading } = useCampaign();
   const { publicKey } = useConnectedPlayer();
   const isCurrentPlayer =
     Boolean(publicKey && (!playerAddress || playerAddress === publicKey.toBase58()));
-  const fallbackZoneUnlockStars = economy
-    ? Number(economy.zoneUnlockStars)
-    : null;
-
   return useMemo(() => {
     if (!isCurrentPlayer) {
       return { zones: [], totalStars: 0, isLoading: false };
     }
-    const zones = campaignMapsToZones(
-      campaign?.maps ?? null,
-      zStarBalance,
-      fallbackZoneUnlockStars,
-    );
+    const zones = campaignMapsToZones(campaign?.maps ?? null);
     return {
       zones,
       totalStars: zones.reduce((sum, zone) => sum + zone.stars, 0),
@@ -101,9 +78,7 @@ export const useZoneProgress = (
     };
   }, [
     campaign?.maps,
-    fallbackZoneUnlockStars,
     isCurrentPlayer,
     loading,
-    zStarBalance,
   ]);
 };

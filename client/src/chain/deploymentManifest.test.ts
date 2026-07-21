@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { readFileSync } from "node:fs";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   DELEGATION_PROGRAM_ID,
@@ -20,6 +20,10 @@ import {
   type ZkubeDeploymentManifest,
 } from "./deploymentManifest";
 import { VRF_QUEUE } from "./runPlan";
+
+const LEGACY_V3_PROGRAM_ID = new PublicKey(
+  "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
+);
 
 describe("zKube deployment manifest", () => {
   it("validates a sanitized Router-based devnet candidate", () => {
@@ -133,22 +137,26 @@ describe("zKube deployment manifest", () => {
     }).approvalSatisfied).toBe(false);
   });
 
-  it("routes Vercel builds through the exact approved v3 release", () => {
+  it("preserves the exact approved v3 release as a historical manifest", () => {
     const config = json(new URL("../../vercel.json", import.meta.url));
     expect(config).toMatchObject({ buildCommand: "pnpm run deploy:build" });
 
     const source = json(new URL("../../deployment/devnet-v3.json", import.meta.url));
-    expect(isZkubeDeploymentManifest(source)).toBe(true);
-    if (!isZkubeDeploymentManifest(source)) throw new Error("invalid release manifest");
+    expect(isZkubeDeploymentManifest(source, LEGACY_V3_PROGRAM_ID)).toBe(true);
+    if (!isZkubeDeploymentManifest(source, LEGACY_V3_PROGRAM_ID)) {
+      throw new Error("invalid release manifest");
+    }
 
     expect(validateDeploymentBinding({
       manifest: source,
       artifactSha256: source.program.artifactSha256,
+      expectedProgramId: LEGACY_V3_PROGRAM_ID,
     }).valid).toBe(true);
     const production = validateDeploymentBinding({
       manifest: source,
       artifactSha256: source.program.artifactSha256,
       requireApproved: true,
+      expectedProgramId: LEGACY_V3_PROGRAM_ID,
     });
     expect(production.approvalSatisfied).toBe(true);
     expect(production.valid).toBe(true);

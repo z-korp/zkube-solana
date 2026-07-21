@@ -44,7 +44,7 @@ describe("progress projections", () => {
       progress: 6,
       threshold: 7,
       xpReward: 200,
-      starReward: 2n,
+      cubeReward: 2n,
       active: true,
       claimed: false,
       claimable: false,
@@ -52,7 +52,7 @@ describe("progress projections", () => {
     expect(projectQuests([entry], 86_400)[0]).toMatchObject({
       target: 7,
       xpReward: 200,
-      starReward: 2,
+      cubeReward: 2,
       progress: 6,
       active: true,
     });
@@ -62,14 +62,14 @@ describe("progress projections", () => {
       index: 10,
       cadence: "weekly" as const,
       xpReward: 500,
-      starReward: 5n,
+      cubeReward: 5n,
     };
     const entries = Array.from({ length: 11 }, (_, index) =>
       index === 10 ? weekly : { ...entry, index },
     );
     expect(projectQuests(entries, 86_400)[10]).toMatchObject({
       xpReward: 500,
-      starReward: 5,
+      cubeReward: 5,
     });
 
     const blockEntries = Array.from({ length: 8 }, (_, index) => ({

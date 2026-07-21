@@ -11,7 +11,7 @@ export interface QuestPublicationRule {
   enabled: true;
   threshold: number;
   xpReward: number;
-  starReward: number;
+  cubeReward: number;
 }
 
 const DAILY_QUEST_POOL_SIZE = 9;
@@ -80,7 +80,7 @@ const quest = (
   cadence: 0 | 1,
   threshold: number,
   xpReward: number,
-  starReward: number,
+  cubeReward: number,
   questClass: QuestPublicationRule["questClass"],
 ): QuestPublicationRule => ({
   metric,
@@ -89,7 +89,7 @@ const quest = (
   enabled: true,
   threshold,
   xpReward,
-  starReward,
+  cubeReward,
 });
 
 /**
@@ -107,8 +107,8 @@ export const CANONICAL_QUEST_RULES: readonly QuestPublicationRule[] = [
   quest(7, 0, 10, 100, 0, "core"),
   quest(8, 0, 5, 100, 0, "combo"),
   quest(9, 0, 3, 200, 2, "meta"),
-  quest(10, 1, 150, 500, 5, "weekly"),
-  quest(11, 1, 3, 500, 5, "weekly"),
+  quest(10, 1, 150, 500, 0, "weekly"),
+  quest(11, 1, 3, 500, 0, "weekly"),
 ];
 
 function validateDay(day: number): void {
@@ -179,9 +179,9 @@ export function dailyQuestIndices(day: number): readonly number[] {
 
 export function questRewardsForDay(day: number): {
   dailyXp: number;
-  dailyStars: number;
+  dailyCubes: number;
   weeklyXp: number;
-  weeklyStars: number;
+  weeklyCubes: number;
 } {
   const dailyRules = [...dailyQuestIndices(day), 9].map(
     (index) => CANONICAL_QUEST_RULES[index],
@@ -191,8 +191,8 @@ export function questRewardsForDay(day: number): {
   );
   return {
     dailyXp: dailyRules.reduce((sum, rule) => sum + rule.xpReward, 0),
-    dailyStars: dailyRules.reduce((sum, rule) => sum + rule.starReward, 0),
+    dailyCubes: dailyRules.reduce((sum, rule) => sum + rule.cubeReward, 0),
     weeklyXp: weeklyRules.reduce((sum, rule) => sum + rule.xpReward, 0),
-    weeklyStars: weeklyRules.reduce((sum, rule) => sum + rule.starReward, 0),
+    weeklyCubes: weeklyRules.reduce((sum, rule) => sum + rule.cubeReward, 0),
   };
 }

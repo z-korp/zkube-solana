@@ -1,13 +1,11 @@
 import type BN from "bn.js";
 import {
   PublicKey,
-  Transaction,
   type AccountInfo,
   type Connection,
 } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
-  deriveEconomyConfigPda,
   deriveMapCatalogPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
@@ -17,7 +15,6 @@ import {
   zkubeProgram,
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
-  type TransactionPlan,
 } from "./runPlan.js";
 import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog.js";
 
@@ -26,18 +23,16 @@ export interface CampaignMapView {
   themeId: number;
   enabled: boolean;
   unlocked: boolean;
-  purchased: boolean;
   cleared: boolean;
   perfected: boolean;
-  starCost: bigint;
   levelStars: number[];
   levels: ActiveRunRulesView[];
 }
 
 export interface CampaignView {
-  economyVersion: 2;
+  economyVersion: 3;
   contentVersion: number;
-  starsBalance: bigint;
+  cubesBalance: bigint;
   maps: CampaignMapView[];
 }
 
@@ -49,13 +44,12 @@ export async function fetchCampaignView(args: {
   const owner = args.wallet.publicKey;
   const protocolAddress = deriveProtocolConfigPda();
   const playerAddress = derivePlayerStatePda(owner);
-  const economyAddress = deriveEconomyConfigPda();
-  const [protocolInfo, playerInfo, economyInfo] =
+  const [protocolInfo, playerInfo] =
     await args.connection.getMultipleAccountsInfo(
-      [protocolAddress, playerAddress, economyAddress],
+      [protocolAddress, playerAddress],
       "confirmed",
     );
-  if (!protocolInfo || !economyInfo) return null;
+  if (!protocolInfo) return null;
   assertProgramAccount(
     protocolInfo,
     program.programId,
@@ -70,21 +64,12 @@ export async function fetchCampaignView(args: {
       "PlayerState",
     );
   }
-  assertProgramAccount(
-    economyInfo,
-    program.programId,
-    program.account.economyConfig.size,
-    "EconomyConfig",
-  );
 
   type ProtocolAccount = Awaited<
     ReturnType<typeof program.account.protocolConfig.fetch>
   >;
   type PlayerAccount = Awaited<
     ReturnType<typeof program.account.playerState.fetch>
-  >;
-  type EconomyAccount = Awaited<
-    ReturnType<typeof program.account.economyConfig.fetch>
   >;
   const protocol = program.coder.accounts.decode(
     "protocolConfig",
@@ -96,20 +81,12 @@ export async function fetchCampaignView(args: {
         playerInfo.data,
       ) as unknown as PlayerAccount)
     : null;
-  const economy = program.coder.accounts.decode(
-    "economyConfig",
-    economyInfo.data,
-  ) as unknown as EconomyAccount;
-  if (
-    Number(protocol.version) !== 1 ||
-    Number(economy.version) !== 1 ||
-    !economy.protocol.equals(protocolAddress)
-  ) {
+  if (Number(protocol.version) !== 3) {
     return null;
   }
   if (
     player &&
-    (Number(player.version) !== 1 ||
+    (Number(player.version) !== 3 ||
       !player.owner.equals(owner) ||
       player.levelStars.length !== 80)
   ) {
@@ -123,7 +100,6 @@ export async function fetchCampaignView(args: {
     campaignMapCount > MAX_CAMPAIGN_MAPS
   )
     return null;
-  if (Number(economy.contentVersion) !== contentVersion) return null;
   const catalogAddresses = Array.from(
     { length: campaignMapCount },
     (_, index) => deriveMapCatalogPda(contentVersion, index + 1),
@@ -152,7 +128,7 @@ export async function fetchCampaignView(args: {
     !catalogs.every(
       (catalog, index) =>
         catalog &&
-        Number(catalog.version) === 1 &&
+        Number(catalog.version) === 3 &&
         Number(catalog.contentVersion) === contentVersion &&
         Number(catalog.mapId) === index + 1 &&
         catalog.levels.length === 10,
@@ -169,10 +145,8 @@ export async function fetchCampaignView(args: {
       themeId: Number(catalog.themeId),
       enabled: Boolean(catalog.enabled),
       unlocked: player ? hasMapFlag(player.unlockedMaps, mapId) : mapId === 1,
-      purchased: player ? hasMapFlag(player.purchasedMaps, mapId) : false,
       cleared: player ? hasMapFlag(player.clearedMaps, mapId) : false,
       perfected: player ? hasMapFlag(player.perfectedMaps, mapId) : false,
-      starCost: mapId > 1 ? BigInt(economy.zoneUnlockStars.toString()) : 0n,
       levelStars: player
         ? unpackCompactLevelStars(player.levelStars, index)
         : Array.from({ length: 10 }, () => 0),
@@ -186,9 +160,9 @@ export async function fetchCampaignView(args: {
     };
   });
   return {
-    economyVersion: 2,
+    economyVersion: 3,
     contentVersion,
-    starsBalance: player ? BigInt(player.starsBalance.toString()) : 0n,
+    cubesBalance: 0n,
     maps,
   };
 }
@@ -227,58 +201,4 @@ function unpackCompactLevelStars(
     const bit = (mapIndex * 10 + level) * 2;
     return ((bytes[bit >> 3] ?? 0) >> (bit & 7)) & 0x3;
   });
-}
-
-export async function buildUnlockMapWithStarsPlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  ownerAuthority: PublicKey;
-  sessionToken: PublicKey | null;
-  contentVersion: number;
-  mapId: number;
-}): Promise<TransactionPlan> {
-  const owner = args.ownerAuthority;
-  const program = zkubeProgram(args.connection, args.wallet);
-  const accounts = {
-    protocol: deriveProtocolConfigPda(),
-    playerState: derivePlayerStatePda(owner),
-    mapCatalog: deriveMapCatalogPda(args.contentVersion, args.mapId),
-    ownerAuthority: owner,
-    sessionToken: args.sessionToken,
-    actor: args.wallet.publicKey,
-  };
-  const instruction = await program.methods
-    .unlockZone()
-    .accountsPartial({
-      protocol: accounts.protocol,
-      economyConfig: deriveEconomyConfigPda(),
-      playerState: accounts.playerState,
-      mapCatalog: accounts.mapCatalog,
-      ownerAuthority: accounts.ownerAuthority,
-      sessionToken: accounts.sessionToken,
-      actor: accounts.actor,
-    })
-    .instruction();
-  return plan(
-    "Unlock map with Stars",
-    args.connection,
-    args.wallet.publicKey,
-    instruction,
-  );
-}
-
-function plan(
-  label: string,
-  connection: Connection,
-  feePayer: PublicKey,
-  instruction: import("@solana/web3.js").TransactionInstruction,
-): TransactionPlan {
-  return {
-    layer: "solana-base",
-    label,
-    connection,
-    transaction: new Transaction().add(instruction),
-    feePayer,
-    signers: [],
-  };
 }

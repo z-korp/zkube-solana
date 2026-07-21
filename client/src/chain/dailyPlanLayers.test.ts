@@ -23,7 +23,7 @@ describe("Daily transaction layer boundaries", () => {
       address: Keypair.generate().publicKey,
       nextRunId: 7n,
       activeRunId: 0n,
-      starEntryCost: 10n,
+      retryCubeCost: 10n,
     } as DailyView;
 
     const prepared = await buildPrepareDailyRunPlan({

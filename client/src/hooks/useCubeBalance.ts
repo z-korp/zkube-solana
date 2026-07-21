@@ -2,7 +2,7 @@ import { useProgress } from "@/contexts/progress";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { bigintToSafeNumber } from "@/utils/solanaDisplay";
 
-export const useZStarBalance = (address: string | undefined) => {
+export const useCubeBalance = (address: string | undefined) => {
   const { publicKey } = useConnectedPlayer();
   const controller = useProgress();
   const isCurrentPlayer = Boolean(
@@ -16,7 +16,7 @@ export const useZStarBalance = (address: string | undefined) => {
       ? controller.error
       : "Other-player profiles are unavailable",
     balance: isCurrentPlayer
-      ? bigintToSafeNumber(controller.progress?.starsBalance ?? 0n)
+      ? bigintToSafeNumber(controller.progress?.cubesBalance ?? 0n)
       : 0,
   };
 };

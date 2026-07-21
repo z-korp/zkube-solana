@@ -39,21 +39,20 @@ export default function WeeklyTab() {
     ? weekly.leaderboard.findIndex((entry) => entry.player.equals(owner))
     : -1;
   const isSolWinner = rank >= 0 && rank < weekly.solWinnerCount;
-  const isStarWinner =
-    rank >= 0 && rank < weekly.solWinnerCount + weekly.starWinnerCount;
+  const isCubeWinner = rank >= 5 && rank < 5 + weekly.cubeWinnerCount;
   const canClaimSol =
     weekly.status === "claimable" && isSolWinner && !weekly.player?.solClaimed;
-  const canClaimStars =
+  const canClaimCubes =
     weekly.status === "claimable" &&
-    isStarWinner &&
-    !weekly.player?.starsClaimed;
+    isCubeWinner &&
+    !weekly.player?.cubesClaimed;
 
-  // The controller intentionally surfaces the previous week while its claims
+  // The controller intentionally surfaces the previous Weekly while its claims
   // stay open, so the human label must not pretend it is still running.
   const nowUnix = Math.floor(Date.now() / 1_000);
-  const isCurrentWeek = weekly.weekId === currentWeeklyId(nowUnix);
-  const weekLabel = isCurrentWeek ? "This week" : "Last week";
-  const timingLine = isCurrentWeek
+  const isCurrentWeekly = weekly.weeklyId === currentWeeklyId(nowUnix);
+  const weeklyLabel = isCurrentWeekly ? "This Weekly" : "Previous Weekly";
+  const timingLine = isCurrentWeekly
     ? weekly.finalizesAt > nowUnix
       ? `Ends in ${formatDurationCoarse(weekly.finalizesAt - nowUnix)}`
       : "Finalizing"
@@ -69,10 +68,10 @@ export default function WeeklyTab() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-display text-xl font-black text-white">
-              {weekLabel}
+              {weeklyLabel}
             </p>
             <p className="mt-1 text-xs font-semibold text-white/55">
-              {timingLine} · best 5 Daily results count
+              {timingLine} · best 10 of 14 Daily results count
             </p>
           </div>
           <Trophy className="h-7 w-7" style={{ color: colors.accent2 }} />
@@ -100,42 +99,41 @@ export default function WeeklyTab() {
         <div className="mt-3 flex items-center justify-between gap-3">
           <p className="text-xs leading-relaxed text-white/55">
             {hasCommittedPool
-              ? `Top ${weekly.solWinnerCount} share the SOL pool · next ${weekly.starWinnerCount} win Stars.`
-              : "The SOL pool builds from Star purchases during the week."}
+              ? `Top ${weekly.solWinnerCount} share the SOL pool · next ${weekly.cubeWinnerCount} win Cubes.`
+              : "The SOL pool builds from Cube purchases during the Weekly."}
           </p>
           <InfoSheet title="How Weekly payouts work">
             <p>
-              Your best five Daily results add up to your Weekly score; days you
+              Your best ten Daily results add up to your Weekly score; days you
               skip count as zero.
             </p>
             <div>
               <InfoRow
                 label="SOL winners"
-                value={`Top ${weekly.solWinnerCount} · 55/30/15 split, renormalized`}
+                value={`Top ${weekly.solWinnerCount} · 45/25/15/10/5, renormalized`}
               />
               <InfoRow
-                label="Star winners"
-                value={`Next ${weekly.starWinnerCount} · 30/25/20/15/10 Stars by rank quantile`}
+                label="Cube winners"
+                value={`Ranks 6–${5 + weekly.cubeWinnerCount} · 30/25/20/15/10 in three-rank tiers`}
               />
-              <InfoRow label="SOL winner bonus" value="+30 Stars" />
-              <InfoRow label="Week" value={`#${weekly.weekId}`} />
+              <InfoRow label="Weekly" value={`#${weekly.weeklyId}`} />
             </div>
             <p>
-              Rewards become claimable after the week finalizes and stay open
-              for a limited claim window.
+              Rewards become claimable after the Weekly finalizes and stay open
+              for 90 days.
             </p>
           </InfoSheet>
         </div>
-        {(canClaimSol || canClaimStars) && (
+        {(canClaimSol || canClaimCubes) && (
           <div className="mt-3 flex flex-col gap-2">
-            {canClaimStars && (
+            {canClaimCubes && (
               <ArcadeButton
                 disabled={controller.action !== null}
-                onClick={() => void controller.claimStars()}
+                onClick={() => void controller.claimCubes()}
               >
-                {controller.action === "claim:stars"
+                {controller.action === "claim:cubes"
                   ? "Claiming..."
-                  : "Claim Weekly Stars"}
+                  : "Claim Weekly Cubes"}
               </ArcadeButton>
             )}
             {canClaimSol && (
@@ -157,7 +155,7 @@ export default function WeeklyTab() {
           compact
           icon={<Trophy className="h-8 w-8" />}
           title="No Daily rollups yet"
-          hint="Finish a Daily run and it rolls into this week's score."
+          hint="Finish a Daily run and it rolls into this Weekly's score."
         />
       ) : (
         <div className="flex flex-col gap-2">

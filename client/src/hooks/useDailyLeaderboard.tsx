@@ -12,6 +12,7 @@ export interface DailyLeaderboardEntry {
   player: string;
   playerName: string;
   runId: bigint;
+  finalizedAttempts: number;
   score: number;
   dailyScore: number;
   dailyBonusTriggers: number;
@@ -30,6 +31,7 @@ export function projectDailyLeaderboard(
       player,
       playerName: entry.playerName ?? truncatePublicKey(player),
       runId: entry.runId,
+      finalizedAttempts: entry.finalizedAttempts,
       score: entry.score,
       dailyScore: entry.dailyScore ?? entry.score,
       dailyBonusTriggers: entry.dailyBonusTriggers,

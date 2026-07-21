@@ -44,9 +44,9 @@ export function projectQuests(
       target,
       blockSize,
       xpReward: value?.xpReward ?? definition.xpReward,
-      starReward: value
-        ? bigintToSafeNumber(value.starReward)
-        : definition.starReward,
+      cubeReward: value
+        ? bigintToSafeNumber(value.cubeReward)
+        : definition.cubeReward,
       intervalId: getQuestIntervalId(definition, now),
       progress: value?.progress ?? 0,
       completed: Boolean(value?.claimable || value?.claimed),

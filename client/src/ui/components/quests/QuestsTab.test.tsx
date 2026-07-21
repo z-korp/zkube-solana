@@ -23,7 +23,7 @@ vi.mock("@/hooks/useQuests", () => ({
         description: "Clear 20 lines",
         target: 20,
         xpReward: 100,
-        starReward: 0,
+        cubeReward: 0,
         type: "daily",
         icon: "📏",
         taskId: 2n,

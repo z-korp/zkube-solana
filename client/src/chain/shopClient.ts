@@ -13,16 +13,17 @@ import {
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveStarSalesLedgerPda,
+  deriveCubeSalesLedgerPda,
+  deriveWeeklyChallengePda,
 } from "./pdas";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 
-const STAR_PACK_COUNT = 5;
+const CUBE_PACK_COUNT = 4;
 
-export interface StarPackQuote {
+export interface CubePackQuote {
   index: number;
-  stars: bigint;
+  cubes: bigint;
   regularPrice: bigint;
   currentPrice: bigint;
   salePrice: bigint;
@@ -30,13 +31,13 @@ export interface StarPackQuote {
   onSale: boolean;
 }
 
-export interface StarShopView {
+export interface CubeShopView {
   economyVersion: 2;
   revision: bigint;
   playerInitialized: boolean;
-  starsBalance: bigint;
-  dailyEntryStars: bigint;
-  zoneUnlockStars: bigint;
+  cubesBalance: bigint;
+  dailyRetryCubes: bigint;
+  maxPaidDailyRetries: number;
   protocolPaused: boolean;
   teamDestination: PublicKey;
   rewardVault: PublicKey;
@@ -45,14 +46,15 @@ export interface StarShopView {
   saleStartsAt: bigint;
   saleEndsAt: bigint;
   saleLive: boolean;
-  packs: readonly StarPackQuote[];
+  weeklyChallenge: PublicKey | null;
+  packs: readonly CubePackQuote[];
 }
 
-export async function fetchStarShopView(args: {
+export async function fetchCubeShopView(args: {
   connection: Connection;
   wallet: WalletLike;
   nowUnix?: bigint;
-}): Promise<StarShopView | null> {
+}): Promise<CubeShopView | null> {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
   const protocolAddress = deriveProtocolConfigPda();
@@ -97,15 +99,15 @@ export async function fetchStarShopView(args: {
   ) as unknown as EconomyAccount;
 
   if (
-    Number(protocol.version) !== 1 ||
-    Number(economy.version) !== 1 ||
+    Number(protocol.version) !== 2 ||
+    Number(economy.version) !== 2 ||
     !economy.protocol.equals(protocolAddress) ||
     Number(economy.contentVersion) !== Number(protocol.contentVersion)
   ) {
     return null;
   }
   const playerInitialized = Boolean(playerInfo);
-  let starsBalance = 0n;
+  let cubesBalance = 0n;
   if (playerInfo) {
     assertProgramAccount(
       playerInfo,
@@ -118,13 +120,13 @@ export async function fetchStarShopView(args: {
       playerInfo.data,
     ) as unknown as PlayerAccount;
     if (
-      Number(player.version) !== 1 ||
+      Number(player.version) !== 2 ||
       !player.owner.equals(owner) ||
       player.levelStars.length !== 80
     ) {
       return null;
     }
-    starsBalance = BigInt(player.starsBalance.toString());
+    cubesBalance = BigInt(player.cubesBalance.toString());
   }
 
   const now = args.nowUnix ?? BigInt(Math.floor(Date.now() / 1_000));
@@ -135,27 +137,24 @@ export async function fetchStarShopView(args: {
     throw new Error("Shop sale window is invalid");
   }
   const saleLive = saleEnabled && now >= saleStartsAt && now < saleEndsAt;
-  if (
-    BigInt(economy.dailyEntryStars.toString()) <= 0n ||
-    BigInt(economy.zoneUnlockStars.toString()) <= 0n
-  ) {
+  if (BigInt(economy.dailyRetryCubes.toString()) <= 0n) {
     throw new Error("Shop spending rules are invalid");
   }
-  const packs = economy.starPackStars.map((rawStars, index) => {
-    const stars = BigInt(rawStars.toString());
-    const regularPrice = BigInt(economy.starPackPrices[index].toString());
+  const packs = economy.cubePackCubes.map((rawCubes, index) => {
+    const cubes = BigInt(rawCubes.toString());
+    const regularPrice = BigInt(economy.cubePackPrices[index].toString());
     const salePrice = BigInt(economy.salePrices[index].toString());
-    const enabled = Boolean(economy.starPackEnabled[index]);
+    const enabled = Boolean(economy.cubePackEnabled[index]);
     if (
-      index >= STAR_PACK_COUNT ||
-      (enabled && (stars <= 0n || regularPrice <= 0n)) ||
+      index >= CUBE_PACK_COUNT ||
+      (enabled && (cubes <= 0n || regularPrice <= 0n)) ||
       (saleEnabled && enabled && (salePrice <= 0n || salePrice > regularPrice))
     ) {
-      throw new Error(`Star pack ${index + 1} is invalid`);
+      throw new Error(`Cube pack ${index + 1} is invalid`);
     }
     return {
       index,
-      stars,
+      cubes,
       regularPrice,
       currentPrice: saleLive ? salePrice : regularPrice,
       salePrice,
@@ -163,17 +162,22 @@ export async function fetchStarShopView(args: {
       onSale: saleLive && salePrice < regularPrice,
     };
   });
-  if (packs.length !== STAR_PACK_COUNT) {
-    throw new Error("Shop must expose exactly five Star packs");
+  if (packs.length !== CUBE_PACK_COUNT) {
+    throw new Error("Shop must expose exactly four Cube packs");
   }
+  const weeklyId = Math.max(0, Math.floor((Number(now) + 259_200) / 1_209_600));
+  const weeklyAddress = deriveWeeklyChallengePda(weeklyId);
+  const weeklyChallenge = (await args.connection.getAccountInfo(weeklyAddress, "confirmed"))
+    ? weeklyAddress
+    : null;
 
   return {
     economyVersion: 2,
     revision: BigInt(economy.revision.toString()),
     playerInitialized,
-    starsBalance,
-    dailyEntryStars: BigInt(economy.dailyEntryStars.toString()),
-    zoneUnlockStars: BigInt(economy.zoneUnlockStars.toString()),
+    cubesBalance,
+    dailyRetryCubes: BigInt(economy.dailyRetryCubes.toString()),
+    maxPaidDailyRetries: Number(economy.maxPaidDailyRetries),
     protocolPaused: Boolean(protocol.paused),
     teamDestination: protocol.teamDestination,
     rewardVault: protocol.rewardVault,
@@ -182,27 +186,28 @@ export async function fetchStarShopView(args: {
     saleStartsAt,
     saleEndsAt,
     saleLive,
+    weeklyChallenge,
     packs,
   };
 }
 
-export function hasStarPackQuoteChanged(
-  quoted: StarPackQuote,
-  fresh: StarPackQuote | undefined,
+export function hasCubePackQuoteChanged(
+  quoted: CubePackQuote,
+  fresh: CubePackQuote | undefined,
 ): boolean {
   return (
     !fresh ||
     quoted.index !== fresh.index ||
-    quoted.stars !== fresh.stars ||
+    quoted.cubes !== fresh.cubes ||
     quoted.currentPrice !== fresh.currentPrice ||
     quoted.enabled !== fresh.enabled
   );
 }
 
-export async function buildStarPurchasePlan(args: {
+export async function buildCubePurchasePlan(args: {
   connection: Connection;
   wallet: WalletLike;
-  shop: StarShopView;
+  shop: CubeShopView;
   packIndex: number;
 }): Promise<TransactionPlan> {
   if (
@@ -210,11 +215,11 @@ export async function buildStarPurchasePlan(args: {
     args.packIndex < 0 ||
     args.packIndex >= args.shop.packs.length
   ) {
-    throw new Error("Unknown Star pack");
+    throw new Error("Unknown Cube pack");
   }
   if (args.shop.protocolPaused) throw new Error("The Shop is temporarily paused");
   const pack = args.shop.packs[args.packIndex];
-  if (!pack.enabled) throw new Error("Star pack is disabled");
+  if (!pack.enabled) throw new Error("Cube pack is disabled");
 
   const owner = args.wallet.publicKey;
   const program = zkubeProgram(args.connection, args.wallet);
@@ -237,18 +242,19 @@ export async function buildStarPurchasePlan(args: {
   }
   instructions.push(
     await program.methods
-      .purchaseStars(
+      .purchaseCubes(
         args.packIndex,
-        new BN(pack.stars.toString()),
+        new BN(pack.cubes.toString()),
         new BN(pack.currentPrice.toString()),
       )
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         economyConfig: deriveEconomyConfigPda(),
-        starSalesLedger: deriveStarSalesLedgerPda(),
+        cubeSalesLedger: deriveCubeSalesLedgerPda(),
         playerState: derivePlayerStatePda(owner),
         teamDestination: args.shop.teamDestination,
         rewardVault: args.shop.rewardVault,
+        weeklyChallenge: args.shop.weeklyChallenge,
         treasuryDestination: args.shop.treasuryDestination,
         owner,
         systemProgram: SystemProgram.programId,
@@ -258,8 +264,8 @@ export async function buildStarPurchasePlan(args: {
   return {
     layer: "solana-base",
     label: args.shop.playerInitialized
-      ? "Purchase Stars"
-      : "Initialize player and purchase Stars",
+      ? "Purchase Cubes"
+      : "Initialize player and purchase Cubes",
     connection: args.connection,
     transaction: new Transaction().add(...instructions),
     feePayer: owner,

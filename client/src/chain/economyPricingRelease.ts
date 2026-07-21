@@ -12,7 +12,7 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { buildUpdateStarPacksPlan } from "./economyAdminClient.js";
+import { buildUpdateCubePacksPlan } from "./economyAdminClient.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants.js";
 import { inspectUpgradeableProgram } from "./deploymentRunner.js";
 import {
@@ -27,23 +27,21 @@ const DEFAULT_BASE_RPC = "https://rpc.magicblock.app/devnet";
 const MAXIMUM_PRICING_FEE_LAMPORTS = 5_000_000;
 const ZERO_ADDRESS = PublicKey.default.toBase58();
 
-const LEGACY_STAR_PACK_STARS = [10n, 50n, 100n, 500n, 1_000n] as const;
-const LEGACY_STAR_PACK_PRICES = [
-  10_000_000n,
-  47_500_000n,
-  90_000_000n,
-  425_000_000n,
-  800_000_000n,
-] as const;
-const RELEASE_STAR_PACK_STARS = [10n, 50n, 200n, 500n, 1_000n] as const;
-const RELEASE_STAR_PACK_PRICES = [
+const LEGACY_CUBE_PACK_CUBES = [10n, 50n, 200n, 500n] as const;
+const LEGACY_CUBE_PACK_PRICES = [
   20_000_000n,
   90_000_000n,
   300_000_000n,
   700_000_000n,
-  1_250_000_000n,
 ] as const;
-const ALL_PACKS_ENABLED = [true, true, true, true, true] as const;
+const RELEASE_CUBE_PACK_CUBES = [10n, 50n, 200n, 500n] as const;
+const RELEASE_CUBE_PACK_PRICES = [
+  20_000_000n,
+  90_000_000n,
+  300_000_000n,
+  700_000_000n,
+] as const;
+const ALL_PACKS_ENABLED = [true, true, true, true] as const;
 
 interface ProtocolSnapshot {
   version: number;
@@ -66,17 +64,17 @@ interface EconomySnapshot {
   contentVersion: number;
   dailyRulesVersion: number;
   revision: string;
-  dailyEntryStars: string;
-  zoneUnlockStars: string;
-  starPackStars: string[];
-  starPackPrices: string[];
-  starPackEnabled: boolean[];
+  dailyRetryCubes: string;
+  maxPaidDailyRetries: string;
+  cubePackCubes: string[];
+  cubePackPrices: string[];
+  cubePackEnabled: boolean[];
   saleEnabled: boolean;
   saleStartsAt: string;
   saleEndsAt: string;
   salePrices: string[];
-  weeklyMinSolPool: string;
-  weeklyMaxSolPool: string;
+  teamSaleBps: string;
+  potSaleBps: string;
   bump: number;
 }
 
@@ -441,9 +439,9 @@ export function formatEconomyPricingRelease(
     `Economy account: ${plan.accounts.economy.address} (writable)`,
     `Instruction data SHA-256: ${plan.instruction.dataSha256}`,
     `Economy revision: ${plan.accounts.economy.state.revision} -> ${plan.expectedPostState.revision}`,
-    `Star packs: ${plan.expectedPostState.starPackStars.join("/")}`,
-    `Prices (lamports): ${plan.expectedPostState.starPackPrices.join("/")}`,
-    `Enabled: ${plan.expectedPostState.starPackEnabled.join("/")}`,
+    `Cube packs: ${plan.expectedPostState.cubePackCubes.join("/")}`,
+    `Prices (lamports): ${plan.expectedPostState.cubePackPrices.join("/")}`,
+    `Enabled: ${plan.expectedPostState.cubePackEnabled.join("/")}`,
     `Native SOL transfers: ${plan.policy.nativeSolTransfersLamports} lamports`,
     `Maximum fee-payer spend: ${plan.policy.exactFeePayerSpendCeilingLamports} lamports`,
     `Estimated fee: ${result.estimatedFeeLamports} lamports`,
@@ -573,21 +571,22 @@ function assertLegacyPreState(
   const economy = live.economy.state;
   const protocol = live.protocol.state;
   const valid =
-    economy.version === 1 &&
+    economy.version === 2 &&
     economy.protocol === live.protocol.address &&
     economy.contentVersion === protocol.contentVersion &&
     economy.dailyRulesVersion > 0 &&
     economy.revision === "1" &&
-    economy.dailyEntryStars === "10" &&
-    economy.zoneUnlockStars === "20" &&
-    equal(economy.starPackStars, strings(LEGACY_STAR_PACK_STARS)) &&
-    equal(economy.starPackPrices, strings(LEGACY_STAR_PACK_PRICES)) &&
-    equal(economy.starPackEnabled, ALL_PACKS_ENABLED) &&
+    economy.dailyRetryCubes === "10" &&
+    economy.maxPaidDailyRetries === "5" &&
+    equal(economy.cubePackCubes, strings(LEGACY_CUBE_PACK_CUBES)) &&
+    equal(economy.cubePackPrices, strings(LEGACY_CUBE_PACK_PRICES)) &&
+    equal(economy.cubePackEnabled, ALL_PACKS_ENABLED) &&
     !economy.saleEnabled &&
     economy.saleStartsAt === "0" &&
     economy.saleEndsAt === "0" &&
-    equal(economy.salePrices, ["0", "0", "0", "0", "0"]) &&
-    BigInt(economy.weeklyMinSolPool) <= BigInt(economy.weeklyMaxSolPool);
+    equal(economy.salePrices, ["0", "0", "0", "0"]) &&
+    economy.teamSaleBps === "2000" &&
+    economy.potSaleBps === "4000";
   if (!valid) {
     throw new Error(
       "live EconomyConfig is not the exact legacy revision 1 prestate",
@@ -617,7 +616,7 @@ function assertProtocol(
     protocol.rewardVault,
   ];
   const valid =
-    protocol.version === 1 &&
+    protocol.version === 2 &&
     protocol.pricingOperator === pricingOperator.toBase58() &&
     protocol.rewardVault === deriveRewardVaultPda().toBase58() &&
     protocol.contentVersion > 0 &&
@@ -643,9 +642,9 @@ function publicPlan(args: {
   const expectedPostState: EconomySnapshot = {
     ...args.live.economy.state,
     revision: "2",
-    starPackStars: strings(RELEASE_STAR_PACK_STARS),
-    starPackPrices: strings(RELEASE_STAR_PACK_PRICES),
-    starPackEnabled: [...ALL_PACKS_ENABLED],
+    cubePackCubes: strings(RELEASE_CUBE_PACK_CUBES),
+    cubePackPrices: strings(RELEASE_CUBE_PACK_PRICES),
+    cubePackEnabled: [...ALL_PACKS_ENABLED],
   };
   return {
     schema: "zkube-devnet-economy-pricing-release",
@@ -687,11 +686,11 @@ async function pricingInstruction(
   connection: Connection,
   pricingOperator: Keypair,
 ): Promise<TransactionInstruction> {
-  const release = await buildUpdateStarPacksPlan({
+  const release = await buildUpdateCubePacksPlan({
     connection,
     pricingOperator: new SessionWallet(pricingOperator),
-    stars: RELEASE_STAR_PACK_STARS,
-    prices: RELEASE_STAR_PACK_PRICES,
+    cubes: RELEASE_CUBE_PACK_CUBES,
+    prices: RELEASE_CUBE_PACK_PRICES,
     enabled: ALL_PACKS_ENABLED,
   });
   const instruction = release.transaction.instructions[0];
@@ -851,17 +850,17 @@ function economySnapshot(account: {
   contentVersion: number;
   dailyRulesVersion: number;
   revision: { toString(): string };
-  dailyEntryStars: { toString(): string };
-  zoneUnlockStars: { toString(): string };
-  starPackStars: Array<{ toString(): string }>;
-  starPackPrices: Array<{ toString(): string }>;
-  starPackEnabled: boolean[];
+  dailyRetryCubes: { toString(): string };
+  maxPaidDailyRetries: { toString(): string };
+  cubePackCubes: Array<{ toString(): string }>;
+  cubePackPrices: Array<{ toString(): string }>;
+  cubePackEnabled: boolean[];
   saleEnabled: boolean;
   saleStartsAt: { toString(): string };
   saleEndsAt: { toString(): string };
   salePrices: Array<{ toString(): string }>;
-  weeklyMinSolPool: { toString(): string };
-  weeklyMaxSolPool: { toString(): string };
+  teamSaleBps: { toString(): string };
+  potSaleBps: { toString(): string };
   bump: number;
 }): EconomySnapshot {
   return {
@@ -870,17 +869,17 @@ function economySnapshot(account: {
     contentVersion: Number(account.contentVersion),
     dailyRulesVersion: Number(account.dailyRulesVersion),
     revision: account.revision.toString(),
-    dailyEntryStars: account.dailyEntryStars.toString(),
-    zoneUnlockStars: account.zoneUnlockStars.toString(),
-    starPackStars: account.starPackStars.map(String),
-    starPackPrices: account.starPackPrices.map(String),
-    starPackEnabled: account.starPackEnabled.map(Boolean),
+    dailyRetryCubes: account.dailyRetryCubes.toString(),
+    maxPaidDailyRetries: account.maxPaidDailyRetries.toString(),
+    cubePackCubes: account.cubePackCubes.map(String),
+    cubePackPrices: account.cubePackPrices.map(String),
+    cubePackEnabled: account.cubePackEnabled.map(Boolean),
     saleEnabled: Boolean(account.saleEnabled),
     saleStartsAt: account.saleStartsAt.toString(),
     saleEndsAt: account.saleEndsAt.toString(),
     salePrices: account.salePrices.map(String),
-    weeklyMinSolPool: account.weeklyMinSolPool.toString(),
-    weeklyMaxSolPool: account.weeklyMaxSolPool.toString(),
+    teamSaleBps: account.teamSaleBps.toString(),
+    potSaleBps: account.potSaleBps.toString(),
     bump: Number(account.bump),
   };
 }

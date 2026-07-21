@@ -6,10 +6,10 @@ import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import {
-  StarShopQuoteChangedError,
+  CubeShopQuoteChangedError,
   useShopController,
 } from "@/chain/useShopController";
-import type { StarPackQuote, StarShopView } from "@/chain/shopClient";
+import type { CubePackQuote, CubeShopView } from "@/chain/shopClient";
 import { getThemeId, getThemeImages } from "@/config/themes";
 import { useCampaign } from "@/contexts/campaign";
 import { useDaily } from "@/contexts/daily";
@@ -22,7 +22,7 @@ import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import Sheet from "@/ui/components/shared/Sheet";
-import StarBalance from "@/ui/components/shared/StarBalance";
+import CubeBalance from "@/ui/components/shared/CubeBalance";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolLamports } from "@/utils/currency";
 
@@ -74,13 +74,13 @@ const ShopPage: React.FC = () => {
     selectedIndex === null
       ? null
       : (controller.shop?.packs[selectedIndex] ?? null);
-  // The smallest enabled pack sets the reference star rate; every other
+  // The smallest enabled pack sets the reference cube rate; every other
   // pack's badge shows what buying bigger saves (live sales included, since
   // rates compare current prices).
   const basePack =
-    controller.shop?.packs.reduce<StarPackQuote | null>(
+    controller.shop?.packs.reduce<CubePackQuote | null>(
       (best, candidate) =>
-        candidate.enabled && (best === null || candidate.stars < best.stars)
+        candidate.enabled && (best === null || candidate.cubes < best.cubes)
           ? candidate
           : best,
       null,
@@ -91,7 +91,7 @@ const ShopPage: React.FC = () => {
     openWalletSettings("shop");
   };
 
-  const handlePack = (pack: StarPackQuote) => {
+  const handlePack = (pack: CubePackQuote) => {
     setStatus(null);
     if (
       !player.publicKey ||
@@ -117,11 +117,11 @@ const ShopPage: React.FC = () => {
       ]);
       setSelectedIndex(null);
       setSuccess(
-        `${selectedPack.stars.toString()} Stars added · ${truncatePublicKey(signature, { head: 6 })}`,
+        `${selectedPack.cubes.toString()} Cubes added · ${truncatePublicKey(signature, { head: 6 })}`,
       );
     } catch (cause) {
       setStatus(
-        cause instanceof StarShopQuoteChangedError
+        cause instanceof CubeShopQuoteChangedError
           ? cause.message
           : errorMessage(cause),
       );
@@ -158,8 +158,8 @@ const ShopPage: React.FC = () => {
           >
             <Card as="section" tone="raised" className="p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <StarBalance
-                  value={controller.shop?.starsBalance.toString() ?? "—"}
+                <CubeBalance
+                  value={controller.shop?.cubesBalance.toString() ?? "—"}
                   size="lg"
                   labelClassName="mt-1"
                 />
@@ -217,7 +217,7 @@ const ShopPage: React.FC = () => {
           ) : controller.shop ? (
             <section>
               <p className="mb-2 px-1 font-sans text-[11px] font-bold uppercase tracking-[0.15em] text-white/45">
-                Star packs
+                Cube packs
               </p>
               <div className="grid grid-cols-2 gap-2.5">
                 {controller.shop.packs.map((pack) => (
@@ -236,7 +236,7 @@ const ShopPage: React.FC = () => {
             </section>
           ) : (
             <EmptyState
-              title="Star Shop is unavailable"
+              title="Cube Shop is unavailable"
               hint="The shop configuration could not be read. Pull to refresh or try again shortly."
             />
           )}
@@ -253,7 +253,7 @@ const ShopPage: React.FC = () => {
           <div className="flex justify-center">
             <InfoSheet label="How the Shop works" title="How the Shop works">
               <p>
-                Stars are bound to your connected Solana address — they cannot
+                Cubes are bound to your connected Solana address — they cannot
                 be transferred, withdrawn, or redeemed for fiat. Spend them on
                 Daily Arena entries and zone unlocks.
               </p>
@@ -301,7 +301,7 @@ function PackCard({
   accent,
   onSelect,
 }: {
-  pack: StarPackQuote;
+  pack: CubePackQuote;
   savingsPct: number;
   connected: boolean;
   busy: boolean;
@@ -310,9 +310,9 @@ function PackCard({
   onSelect: () => void;
 }) {
   const badge =
-    pack.stars === 200n
+    pack.cubes === 200n
       ? "Popular"
-      : pack.stars === 1_000n
+      : pack.cubes === 500n
         ? "Best value"
         : null;
   const blocked = !pack.enabled
@@ -334,7 +334,7 @@ function PackCard({
       onClick={onSelect}
       disabled={!pack.enabled || busy || paused}
       className="group relative overflow-hidden rounded-2xl border border-white/[0.14] shadow-lg shadow-black/30 transition disabled:opacity-45"
-      aria-label={`${pack.stars.toString()} Stars for ${formatSolLamports(pack.currentPrice)} SOL`}
+      aria-label={`${pack.cubes.toString()} Cubes for ${formatSolLamports(pack.currentPrice)} SOL`}
     >
       <img
         src={packArt}
@@ -358,7 +358,7 @@ function PackCard({
       )}
       <div className="relative z-10 flex flex-col items-center justify-center gap-1.5 px-3 py-7">
         <p className="font-display text-4xl font-black text-yellow-200 drop-shadow-[0_0_14px_rgba(250,204,21,0.45)]">
-          {pack.stars.toString()}★
+          {pack.cubes.toString()}★
         </p>
         <div className="flex items-baseline gap-1.5">
           <p className="font-sans text-sm font-black text-white drop-shadow-md">
@@ -380,7 +380,7 @@ function PackCard({
   );
 }
 
-function SaleBanner({ shop }: { shop: StarShopView }) {
+function SaleBanner({ shop }: { shop: CubeShopView }) {
   const now = BigInt(Math.floor(Date.now() / 1_000));
   if (!shop.saleLive && now >= shop.saleStartsAt) return null;
   const target = shop.saleLive ? shop.saleEndsAt : shop.saleStartsAt;
@@ -388,7 +388,7 @@ function SaleBanner({ shop }: { shop: StarShopView }) {
   return (
     <div className="relative mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200/20 bg-emerald-300/10 px-3 py-2">
       <p className="font-sans text-xs font-black uppercase tracking-wide text-emerald-100">
-        {shop.saleLive ? "Star sale live" : "Star sale scheduled"}
+        {shop.saleLive ? "Cube sale live" : "Cube sale scheduled"}
       </p>
       <p className="inline-flex items-center gap-1 font-mono text-xs font-bold text-emerald-100">
         <Clock3 size={13} />
@@ -408,8 +408,8 @@ function PurchaseConfirmation({
   onFund,
   onConfirm,
 }: {
-  pack: StarPackQuote;
-  shop: StarShopView;
+  pack: CubePackQuote;
+  shop: CubeShopView;
   solBalance: bigint | null;
   savingsPct: number;
   busy: boolean;
@@ -418,20 +418,20 @@ function PurchaseConfirmation({
   onConfirm: () => void;
 }) {
   const insufficient = solBalance !== null && solBalance < pack.currentPrice;
-  const dailyEntries =
-    shop.dailyEntryStars > 0n ? pack.stars / shop.dailyEntryStars : 0n;
+  const dailyRetries =
+    shop.dailyRetryCubes > 0n ? pack.cubes / shop.dailyRetryCubes : 0n;
   return (
     <Sheet
       open
       onClose={onClose}
       dismissible={!busy}
-      srTitle={`Buy ${pack.stars.toString()} Stars`}
+      srTitle={`Buy ${pack.cubes.toString()} Cubes`}
     >
       <div className="flex flex-col gap-4 pb-1 pt-1">
         {/* What you GET, front and center. */}
         <div className="text-center">
           <p className="font-display text-5xl font-black text-yellow-200 drop-shadow-[0_0_18px_rgba(250,204,21,0.45)]">
-            +{pack.stars.toString()}★
+            +{pack.cubes.toString()} Cubes
           </p>
           <div className="mt-2 flex items-center justify-center gap-2">
             <p className="font-sans text-lg font-black text-white">
@@ -451,7 +451,7 @@ function PurchaseConfirmation({
           <p className="mt-1.5 font-sans text-xs font-semibold text-white/55">
             Balance after purchase:{" "}
             <span className="font-black text-yellow-200">
-              ★ {(shop.starsBalance + pack.stars).toString()}
+              ▣ {(shop.cubesBalance + pack.cubes).toString()}
             </span>
           </p>
         </div>
@@ -474,17 +474,17 @@ function PurchaseConfirmation({
             {busy && <Loader2 size={16} className="animate-spin" />}
             {busy
               ? "Purchasing…"
-              : `Buy ${pack.stars.toString()}★ for ${formatSolLamports(pack.currentPrice)} SOL`}
+              : `Buy ${pack.cubes.toString()} Cubes for ${formatSolLamports(pack.currentPrice)} SOL`}
           </ArcadeButton>
         )}
 
-        {dailyEntries > 0n && (
+        {dailyRetries > 0n && (
           <p className="text-center font-sans text-xs font-semibold text-white/55">
             Worth{" "}
             <span className="font-black text-white/85">
-              {dailyEntries.toString()}
+              {dailyRetries.toString()}
             </span>{" "}
-            Daily Arena entries
+            Daily Arena retries
           </p>
         )}
       </div>
@@ -493,13 +493,13 @@ function PurchaseConfirmation({
 }
 
 /**
- * Percent saved versus buying the same stars at the smallest pack's current
+ * Percent saved versus buying the same cubes at the smallest pack's current
  * rate. Bulk pricing and live sales both flow through, since the comparison
  * uses current prices on both sides.
  */
 function bulkSavingsPercent(
-  pack: StarPackQuote,
-  base: StarPackQuote | null,
+  pack: CubePackQuote,
+  base: CubePackQuote | null,
 ): number {
   if (!base || base.index === pack.index) {
     // The reference pack can still be on sale — show its sale savings.
@@ -514,12 +514,12 @@ function bulkSavingsPercent(
     }
     return 0;
   }
-  if (base.currentPrice <= 0n || base.stars <= 0n || pack.stars <= 0n) {
+  if (base.currentPrice <= 0n || base.cubes <= 0n || pack.cubes <= 0n) {
     return 0;
   }
-  const reference = base.currentPrice * pack.stars;
+  const reference = base.currentPrice * pack.cubes;
   if (reference <= 0n) return 0;
-  const pct = 100n - (pack.currentPrice * base.stars * 100n) / reference;
+  const pct = 100n - (pack.currentPrice * base.cubes * 100n) / reference;
   return pct > 0n ? Number(pct) : 0;
 }
 

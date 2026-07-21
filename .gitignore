@@ -46,3 +46,6 @@ client/twa/signing/
 **/*.rs.bk
 run_logs.txt
 .vercel
+/zkube-v1-evol.md
+/zkube-v4-evol.md
+*:Zone.Identifier

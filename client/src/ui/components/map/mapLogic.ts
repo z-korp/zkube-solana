@@ -14,10 +14,8 @@ export const UNINITIALIZED_MAP_1: CampaignMapView = {
   themeId: 1,
   enabled: true,
   unlocked: true,
-  purchased: false,
   cleared: false,
   perfected: false,
-  starCost: 0n,
   levelStars: Array.from({ length: 10 }, () => 0),
   levels: INITIAL_MAP_1.levels.map((level, index) =>
     mapLevelRuleSnapshot({

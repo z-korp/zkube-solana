@@ -14,8 +14,8 @@ interface StatsTabProps {
   totalBosses: number;
   dailiesPlayed: number;
   perfectLevels: number;
-  starsEarned: number;
-  starsSpent: number;
+  cubesEarned: number;
+  cubesSpent: number;
 }
 
 const StatsTab: React.FC<StatsTabProps> = ({
@@ -25,8 +25,8 @@ const StatsTab: React.FC<StatsTabProps> = ({
   totalBosses,
   dailiesPlayed,
   perfectLevels,
-  starsEarned,
-  starsSpent,
+  cubesEarned,
+  cubesSpent,
 }) => {
   const colors = useThemeColors();
   const stats: Array<{ label: string; value: string; color?: string }> = [
@@ -49,11 +49,11 @@ const StatsTab: React.FC<StatsTabProps> = ({
       value: perfectLevels > 0 ? perfectLevels.toLocaleString() : "--",
     },
     {
-      label: "Lifetime ★ earned",
-      value: starsEarned.toLocaleString(),
+      label: "Lifetime Cubes earned",
+      value: cubesEarned.toLocaleString(),
       color: "#fde68a",
     },
-    { label: "Lifetime ★ spent", value: starsSpent.toLocaleString() },
+    { label: "Lifetime Cubes spent", value: cubesSpent.toLocaleString() },
   ];
 
   return (

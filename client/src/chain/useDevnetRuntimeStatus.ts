@@ -6,7 +6,7 @@ import {
   deriveDailyRulesCatalogPda,
   deriveEconomyConfigPda,
   deriveProtocolConfigPda,
-  deriveStarSalesLedgerPda,
+  deriveCubeSalesLedgerPda,
 } from "./pdas";
 type DevnetRuntimePhase =
   | "checking"
@@ -46,7 +46,7 @@ async function probeDevnetRuntime(
   try {
     const catalogAddresses = [
       deriveEconomyConfigPda(),
-      deriveStarSalesLedgerPda(),
+      deriveCubeSalesLedgerPda(),
       deriveDailyRulesCatalogPda(1),
       ...Array.from({ length: 10 }, (_, index) =>
         deriveMapCatalogPda(1, index + 1),

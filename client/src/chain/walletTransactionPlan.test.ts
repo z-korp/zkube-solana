@@ -31,7 +31,7 @@ import {
   type TransactionPlan,
 } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
-import { buildStarPurchasePlan, type StarShopView } from "./shopClient";
+import { buildCubePurchasePlan, type CubeShopView } from "./shopClient";
 import { splitStarPurchase } from "../utils/currency";
 import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
@@ -40,7 +40,7 @@ describe("native SOL transaction boundaries", () => {
   it("keeps Star spending owner-signed and encodes the exact quoted lamports", async () => {
     const owner = new SessionWallet(Keypair.generate());
     const shop = shopView();
-    const plan = await buildStarPurchasePlan({
+    const plan = await buildCubePurchasePlan({
       connection: {} as Connection,
       wallet: owner,
       shop,
@@ -357,15 +357,15 @@ describe("run transaction funding preflight", () => {
   });
 });
 
-function shopView(): StarShopView {
+function shopView(): CubeShopView {
   const destination = () => Keypair.generate().publicKey;
   return {
     economyVersion: 2,
     revision: 1n,
     playerInitialized: true,
-    starsBalance: 0n,
-    dailyEntryStars: 10n,
-    zoneUnlockStars: 40n,
+    cubesBalance: 0n,
+    dailyRetryCubes: 10n,
+    maxPaidDailyRetries: 5,
     protocolPaused: false,
     teamDestination: destination(),
     rewardVault: destination(),
@@ -374,22 +374,21 @@ function shopView(): StarShopView {
     saleStartsAt: 0n,
     saleEndsAt: 0n,
     saleLive: false,
-    packs: [10n, 50n, 200n, 500n, 1_000n].map((stars, index) => ({
+    weeklyChallenge: null,
+    packs: [10n, 50n, 200n, 500n].map((cubes, index) => ({
       index,
-      stars,
+      cubes,
       regularPrice: [
         20_000_000n,
         90_000_000n,
         300_000_000n,
         700_000_000n,
-        1_250_000_000n,
       ][index]!,
       currentPrice: [
         20_000_000n,
         90_000_000n,
         300_000_000n,
         700_000_000n,
-        1_250_000_000n,
       ][index]!,
       salePrice: [
         20_000_000n,

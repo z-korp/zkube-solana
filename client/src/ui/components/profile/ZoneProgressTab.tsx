@@ -139,7 +139,7 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
               </div>
             ) : (
               <span className="flex items-center gap-1 font-sans text-[11px] font-semibold text-white/40">
-                🔒 {(zone.starCost ?? 0) > 0 ? `${zone.starCost}★` : ""}
+                🔒 Clear previous guardian
               </span>
             )}
           </div>
@@ -154,8 +154,8 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
               />
               <p className="mt-1 font-sans text-[9px] font-semibold text-white/45">
                 {zone.perfectionClaimed
-                  ? "Perfect reward earned: +20★ + 300 XP"
-                  : "Perfect all 10 levels: +20★ + 300 XP"}
+                  ? "Perfect reward earned: +300 XP"
+                  : "Perfect all 10 levels: +300 XP"}
               </p>
             </div>
           )}

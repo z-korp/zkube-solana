@@ -148,7 +148,7 @@ export interface PublicRunSettlementDescriptor {
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge: PublicKey | null;
-  dailyVersion?: 1 | 2;
+  dailyVersion?: 1 | 2 | 3;
 }
 
 type BaseRunRecoveryView = Pick<
@@ -569,7 +569,7 @@ export function useRunController() {
           mark = now;
         };
         const prepared = await buildPrepareDailyRunPlan({
-          wallet: sessionWallet,
+          wallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
           daily,
@@ -578,14 +578,14 @@ export function useRunController() {
         });
         const launch = await combinePreparedAndDelegatePlan({
           prepared,
-          wallet: sessionWallet,
+          wallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
         });
         const launchSignature = await submitPreparedRunPlan({
           preparedRun: launch,
           owner: publicKey,
-          wallet: sessionWallet,
+          wallet,
           sessionSigner: session,
           mode: "daily",
           dailyVersion: daily.economyVersion,

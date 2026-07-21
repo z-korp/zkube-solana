@@ -212,7 +212,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
 
           {/* Weekly stakes — the reason the daily matters */}
           <p className="mt-3 text-center font-sans text-[11px] font-semibold text-white/50">
-            Feeds your Weekly standing · SOL &amp; Star rewards
+            Feeds your Weekly best 10 · SOL &amp; Cube rewards
           </p>
 
           {game.currentDifficulty === 7 && (

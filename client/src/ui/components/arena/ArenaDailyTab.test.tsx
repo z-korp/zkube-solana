@@ -27,15 +27,19 @@ const fixtures = vi.hoisted(() => ({
       entriesCloseAt: 1234567 + 3_600,
       runsCloseAt: 1234567 + 3_600,
       playerEligible: true,
-      playerStars: 10n,
-      starEntryCost: 2n,
+      playerCubes: 10n,
+      retryCubeCost: 2n,
+      maxPaidRetries: 5,
+      player: { attempts: 1, paidAttempts: 0 },
       scoringRule: null,
     },
   },
-  previous: {
-    daily: null,
-    action: null as string | null,
+  weekly: {
+    runs: [] as unknown[],
+    loading: false,
+    action: null as number | null,
     error: null as string | null,
+    refresh: vi.fn(),
     refund: vi.fn(),
   },
   navigation: {
@@ -67,8 +71,8 @@ vi.mock("@/contexts/daily", () => ({
   useDaily: () => fixtures.daily,
 }));
 
-vi.mock("@/hooks/usePreviousChallenge", () => ({
-  usePreviousChallenge: () => fixtures.previous,
+vi.mock("@/hooks/useWeeklyDailies", () => ({
+  useWeeklyDailies: () => fixtures.weekly,
 }));
 
 vi.mock("@/hooks/useActiveDailyAttempt", () => ({
@@ -138,7 +142,7 @@ describe("ArenaDailyTab", () => {
     expect(screen.getByText("900")).toBeInTheDocument();
     expect(screen.getByText("750")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Enter Daily · 2★" }),
+      screen.getByRole("button", { name: "Retry · 2 Cubes" }),
     ).toBeEnabled();
     expect(container).not.toHaveTextContent(" XP to Level");
   });
@@ -158,12 +162,12 @@ describe("ArenaDailyTab", () => {
   });
 
   it("funnels an underfunded player to the shop with the Arena origin", () => {
-    fixtures.daily.daily.playerStars = 1n;
+    fixtures.daily.daily.playerCubes = 1n;
     render(<ArenaDailyTab />);
 
-    fireEvent.click(screen.getByText("Need 1 more ★ · Get Stars"));
+    fireEvent.click(screen.getByText("Need 1 more Cubes to enter · Get Cubes"));
 
     expect(fixtures.navigation.openShop).toHaveBeenCalledWith("ranks");
-    fixtures.daily.daily.playerStars = 10n;
+    fixtures.daily.daily.playerCubes = 10n;
   });
 });

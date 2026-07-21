@@ -281,9 +281,9 @@ export async function buildContentReleasePreview(
     publication: {
       contentVersion: CAMPAIGN_CONTENT_VERSION,
       rulesVersion: RELEASE_DAILY_RULES_VERSION,
-      seasonId: 1,
+      weeklyId: 1,
       startsDay: 0,
-      seasonSeed: CANONICAL_DAILY_SEASON_SEED,
+      weeklySeed: CANONICAL_DAILY_SEASON_SEED,
       scoringRuleCount: DAILY_SCORING_RULE_COUNT,
       scoringRules: CANONICAL_DAILY_SCORING_RULES,
       pressure: CANONICAL_DAILY_PRESSURE,

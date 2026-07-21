@@ -60,7 +60,7 @@ export default function App() {
   const player = useConnectedPlayer();
   const currentPage = useNavigationStore((state) => state.currentPage);
   const { campaign, error, loaded } = useCampaign();
-  // One PlayerState watch keeps every stars/XP display in agreement.
+  // One PlayerState watch keeps every Cube/XP display in agreement.
   usePlayerStateSync();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app

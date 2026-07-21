@@ -10,7 +10,7 @@ import { derivePlayerStatePda } from "./pdas";
 
 /**
  * Single invalidation point for everything that displays PlayerState-derived
- * figures (stars balance, XP, level ratings). The campaign, progress, and
+ * figures (Cube balance, XP, level ratings). The campaign, progress, and
  * daily controllers each cache their own snapshot; star earns and spends
  * mutate one on-chain account, so instead of wiring cross-refreshes into
  * every claim/unlock/refund path, watch the account itself and re-pull the

@@ -32,7 +32,7 @@ import {
   deriveMapCatalogPda,
   deriveProtocolConfigPda,
   deriveRewardVaultPda,
-  deriveStarSalesLedgerPda,
+  deriveCubeSalesLedgerPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 import { zkubeProgram } from "./runPlan";
@@ -124,7 +124,7 @@ export interface PublicBootstrapPlan {
   pdas: {
     protocol: string;
     economy: string;
-    starSalesLedger: string;
+    cubeSalesLedger: string;
     dailyRulesCatalog: string;
   };
   policy: {
@@ -187,9 +187,9 @@ function canonicalDailyRulesPublication() {
   return {
     contentVersion: POLICY.contentVersion,
     rulesVersion: POLICY.dailyRulesVersion,
-    seasonId: 1,
+    weeklyId: 1,
     startsDay: 0,
-    seasonSeed: CANONICAL_DAILY_SEASON_SEED,
+    weeklySeed: CANONICAL_DAILY_SEASON_SEED,
     scoringRuleCount: DAILY_SCORING_RULE_COUNT,
     scoringRules: CANONICAL_DAILY_SCORING_RULES,
     pressure: CANONICAL_DAILY_PRESSURE,
@@ -482,7 +482,7 @@ async function buildEconomyBatches(
   const wallet = new SessionWallet(authority);
   const program = zkubeProgram(input.connection, wallet);
   const economyAddress = deriveEconomyConfigPda();
-  const salesAddress = deriveStarSalesLedgerPda();
+  const salesAddress = deriveCubeSalesLedgerPda();
   const [economyInfo, salesInfo] =
     await input.connection.getMultipleAccountsInfo(
       [economyAddress, salesAddress],
@@ -500,7 +500,7 @@ async function buildEconomyBatches(
   const rent = await Promise.all(
     [
       program.account.economyConfig.size,
-      program.account.starSalesLedger.size,
+      program.account.cubeSalesLedger.size,
     ].map((size) =>
       input.connection.getMinimumBalanceForRentExemption(size, "confirmed"),
     ),
@@ -514,7 +514,7 @@ async function buildEconomyBatches(
   });
   const batch = fundedAuthorityBatch({
     id: "initialize-economy",
-    label: "Initialize canonical Stars economy",
+    label: "Initialize canonical Cubes economy",
     funder,
     authority,
     rent: rent[0] + rent[1],
@@ -761,10 +761,10 @@ async function verifyEconomyFoundation(
   );
   const [economy, sales] = await Promise.all([
     program.account.economyConfig.fetchNullable(deriveEconomyConfigPda()),
-    program.account.starSalesLedger.fetchNullable(deriveStarSalesLedgerPda()),
+    program.account.cubeSalesLedger.fetchNullable(deriveCubeSalesLedgerPda()),
   ]);
   if (!economy || !sales) {
-    throw new Error("EconomyConfig and StarSalesLedger must be initialized");
+    throw new Error("EconomyConfig and CubeSalesLedger must be initialized");
   }
   const validEconomy =
     Number(economy.version) === 1 &&
@@ -776,7 +776,7 @@ async function verifyEconomyFoundation(
     Number(sales.version) === 1 &&
     sales.economyConfig.equals(deriveEconomyConfigPda());
   if (!validEconomy || !validSales) {
-    throw new Error("existing Stars economy foundation mismatch");
+    throw new Error("existing Cubes economy foundation mismatch");
   }
 }
 
@@ -861,7 +861,7 @@ function publicPlan(
     pdas: {
       protocol: deriveProtocolConfigPda().toBase58(),
       economy: deriveEconomyConfigPda().toBase58(),
-      starSalesLedger: deriveStarSalesLedgerPda().toBase58(),
+      cubeSalesLedger: deriveCubeSalesLedgerPda().toBase58(),
       dailyRulesCatalog: deriveDailyRulesCatalogPda(
         POLICY.dailyRulesVersion,
       ).toBase58(),

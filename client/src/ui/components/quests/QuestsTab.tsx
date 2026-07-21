@@ -61,7 +61,7 @@ const QuestsTab: React.FC = () => {
       <QuestSection
         colors={colors}
         title="Weekly Quests"
-        subtitle="Long-run objectives awarding XP and Stars"
+        subtitle="Long-run objectives awarding XP"
         resetHint={`New quests in ${formatDurationCoarse(
           nextWeeklyResetUnix() - Math.floor(Date.now() / 1_000),
         )}`}
@@ -316,7 +316,7 @@ const QuestCard: React.FC<QuestCardProps> = ({
 function questRewardLabel(quest: QuestStatus): string {
   return [
     quest.xpReward > 0 ? `${quest.xpReward} XP` : null,
-    quest.starReward > 0 ? `${quest.starReward}★` : null,
+    quest.cubeReward > 0 ? `${quest.cubeReward}★` : null,
   ]
     .filter(Boolean)
     .join(" + ");

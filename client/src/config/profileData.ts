@@ -130,8 +130,6 @@ export interface ZoneProgressData {
   unlocked: boolean;
   cleared: boolean;
   isFree: boolean;
-  starCost?: number;
-  currentStars?: number;
   levelStars?: number[];
   highestCleared?: number;
   bossCleared?: boolean;

@@ -1,40 +1,21 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { motion } from "motion/react";
 
 import { useClaimableCounts } from "@/hooks/useClaimableCount";
-import { useProgress } from "@/contexts/progress";
-import { getLevelFromXp } from "@/config/profileData";
-import { usePlayerMeta } from "@/hooks/usePlayerMeta";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import AchievementsTab from "@/ui/components/quests/AchievementsTab";
-import MilestonesTab from "@/ui/components/quests/MilestonesTab";
 import QuestsTab from "@/ui/components/quests/QuestsTab";
 import PageHeader from "@/ui/components/shared/PageHeader";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 
-const TABS = ["Quests", "Feats", "Ranks"] as const;
+const TABS = ["Quests", "Feats"] as const;
 
 /**
  * Everything claimable, in one place: rotating quests, achievements (feats),
- * and the level-milestone ladder (ranks). Competition status lives in the
- * Arena.
+ * and achievements (feats). Competition status lives in the Arena.
  */
 const QuestsPage: React.FC = () => {
   const claimableCounts = useClaimableCounts();
-  const progress = useProgress();
-  const player = useConnectedPlayer();
-  const { playerMeta } = usePlayerMeta(player.publicKey?.toBase58() ?? "");
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Quests");
-
-  const claimableMilestones = useMemo(() => {
-    const claimed = progress.progress?.levelMilestones?.claimed ?? 0;
-    const level = getLevelFromXp(playerMeta?.lifetimeXp ?? 0);
-    let count = 0;
-    for (let index = 0; index < 10; index++) {
-      if (level >= (index + 1) * 10 && !(claimed & (1 << index))) count++;
-    }
-    return count;
-  }, [playerMeta?.lifetimeXp, progress.progress?.levelMilestones?.claimed]);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-12">
@@ -54,7 +35,6 @@ const QuestsPage: React.FC = () => {
           badges={{
             Quests: claimableCounts.daily + claimableCounts.weekly,
             Feats: claimableCounts.achievements,
-            Ranks: claimableMilestones,
           }}
           className="mx-6 mt-2"
         />
@@ -64,7 +44,6 @@ const QuestsPage: React.FC = () => {
         <div className="mx-auto max-w-[640px]">
           {activeTab === "Quests" && <QuestsTab />}
           {activeTab === "Feats" && <AchievementsTab />}
-          {activeTab === "Ranks" && <MilestonesTab />}
         </div>
       </div>
     </div>

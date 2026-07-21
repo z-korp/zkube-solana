@@ -150,7 +150,10 @@ export function deploymentManifestFromEnv(
   return manifest;
 }
 
-export function validateDeploymentManifest(source: unknown): DeploymentManifestValidation {
+export function validateDeploymentManifest(
+  source: unknown,
+  expectedProgramId: PublicKey = ZKUBE_PROGRAM_ID,
+): DeploymentManifestValidation {
   if (!isRecord(source)) {
     return {
       valid: false,
@@ -203,7 +206,7 @@ export function validateDeploymentManifest(source: unknown): DeploymentManifestV
     check(
       "program",
       "Program identity",
-      string(program?.id) === ZKUBE_PROGRAM_ID.toBase58()
+      string(program?.id) === expectedProgramId.toBase58()
         && HASH_PATTERN.test(string(program?.artifactSha256) ?? "")
         && optionalString(program?.deploymentSignature)
         && optionalIsoDate(program?.deployedAt),
@@ -313,8 +316,12 @@ export function validateDeploymentBinding(args: {
   artifactSha256: string;
   env?: Record<string, string | undefined>;
   requireApproved?: boolean;
+  expectedProgramId?: PublicKey;
 }): DeploymentBindingValidation {
-  const validation = validateDeploymentManifest(args.manifest);
+  const validation = validateDeploymentManifest(
+    args.manifest,
+    args.expectedProgramId,
+  );
   const artifactMatches = HASH_PATTERN.test(args.artifactSha256)
     && args.manifest.program.artifactSha256 === args.artifactSha256;
   const approvalSatisfied = !args.requireApproved
@@ -345,8 +352,11 @@ export function formatDeploymentManifestValidation(
   ].join("\n");
 }
 
-export function isZkubeDeploymentManifest(source: unknown): source is ZkubeDeploymentManifest {
-  return validateDeploymentManifest(source).valid;
+export function isZkubeDeploymentManifest(
+  source: unknown,
+  expectedProgramId?: PublicKey,
+): source is ZkubeDeploymentManifest {
+  return validateDeploymentManifest(source, expectedProgramId).valid;
 }
 
 function required(env: Record<string, string | undefined>, key: string): string {

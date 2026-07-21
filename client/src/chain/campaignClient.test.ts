@@ -46,19 +46,18 @@ describe("fetchCampaignView", () => {
     const owner = Keypair.generate().publicKey;
     mocks.decode.mockImplementation((name: string, data: Buffer) => {
       if (name === "protocolConfig") {
-        return { version: 1, contentVersion: 2, campaignMapCount: 10 };
+        return { version: 2, contentVersion: 2, campaignMapCount: 10 };
       }
       if (name === "economyConfig") {
         return {
-          version: 1,
+          version: 2,
           protocol: deriveProtocolConfigPda(),
           contentVersion: 2,
-          zoneUnlockStars: 10,
         };
       }
       const mapId = data[0] - 20;
       return {
-        version: 1,
+        version: 2,
         contentVersion: 2,
         mapId,
         themeId: mapId,
@@ -87,12 +86,11 @@ describe("fetchCampaignView", () => {
 
     expect(campaign).not.toBeNull();
     expect(campaign?.contentVersion).toBe(2);
-    expect(campaign?.starsBalance).toBe(0n);
+    expect(campaign?.cubesBalance).toBe(0n);
     expect(campaign?.maps).toHaveLength(10);
     expect(campaign?.maps[0]).toMatchObject({
       mapId: 1,
       unlocked: true,
-      purchased: false,
       cleared: false,
       perfected: false,
       levelStars: Array.from({ length: 10 }, () => 0),

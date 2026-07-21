@@ -27,7 +27,7 @@ export const MAGIC_CONTEXT_ID = new PublicKey(
 // zKube program.
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   clientEnv.VITE_PUBLIC_SOLANA_ZKUBE_PROGRAM_ID ??
-    "Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR",
+    "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
 
 /** The first per-player run identifier on every fresh deployment. */

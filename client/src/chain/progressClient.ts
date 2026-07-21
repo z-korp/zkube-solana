@@ -4,11 +4,7 @@ import {
   type PublicKey,
 } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet";
-import {
-  deriveEconomyConfigPda,
-  derivePlayerStatePda,
-  deriveProtocolConfigPda,
-} from "./pdas";
+import { derivePlayerStatePda, deriveProtocolConfigPda } from "./pdas";
 import {
   CANONICAL_ACHIEVEMENT_RULES,
   CANONICAL_QUEST_RULES,
@@ -36,7 +32,7 @@ export interface QuestProgressView {
   progress: number;
   threshold: number;
   xpReward: number;
-  starReward: bigint;
+  cubeReward: bigint;
   active: boolean;
   claimed: boolean;
   claimable: boolean;
@@ -53,20 +49,13 @@ interface LifetimeStatsView {
 }
 
 export interface ProgressView {
-  starsBalance: bigint;
-  lifetimeStarsEarned: bigint;
-  lifetimeStarsSpent: bigint;
+  cubesBalance: bigint;
+  lifetimeCubesEarned: bigint;
+  lifetimeCubesSpent: bigint;
   lifetimeXp: bigint;
   lifetime: LifetimeStatsView;
   achievements: AchievementProgressView[];
   quests: QuestProgressView[];
-  levelMilestones: { claimed: number; totalStarsClaimed: bigint } | null;
-  weeklyStipend: {
-    weekId: number;
-    recurringXp: number;
-    starsAwarded: boolean;
-    lifetimeStarsAwarded: bigint;
-  } | null;
 }
 
 export async function fetchProgressView(args: {
@@ -136,7 +125,7 @@ export async function fetchProgressView(args: {
       progress,
       threshold: rule.threshold,
       xpReward: rule.xpReward,
-      starReward: BigInt(rule.starReward),
+      cubeReward: BigInt(rule.cubeReward),
       active,
       claimed,
       claimable: active && !claimed && progress >= rule.threshold,
@@ -145,9 +134,9 @@ export async function fetchProgressView(args: {
   const lifetimeValue = (key: string) =>
     BigInt(String((player as Record<string, unknown>)[key] ?? 0));
   return {
-    starsBalance: BigInt(player.starsBalance.toString()),
-    lifetimeStarsEarned: lifetimeValue("lifetimeStarsEarned"),
-    lifetimeStarsSpent: lifetimeValue("lifetimeStarsSpent"),
+    cubesBalance: 0n,
+    lifetimeCubesEarned: 0n,
+    lifetimeCubesSpent: 0n,
     lifetimeXp: BigInt(player.lifetimeXp.toString()),
     lifetime: {
       runsStarted: lifetimeValue("lifetimeRunsStarted"),
@@ -160,57 +149,7 @@ export async function fetchProgressView(args: {
     },
     achievements,
     quests,
-    levelMilestones: {
-      claimed: Number(player.milestoneClaimed),
-      totalStarsClaimed: BigInt(player.milestoneStarsClaimed.toString()),
-    },
-    weeklyStipend:
-      Number(player.stipendWeekId) === week
-        ? {
-            weekId: Number(player.stipendWeekId),
-            recurringXp: Number(player.stipendRecurringXp),
-            starsAwarded: Boolean(player.stipendStarsAwarded),
-            lifetimeStarsAwarded: BigInt(
-              player.lifetimeStipendStarsAwarded.toString(),
-            ),
-          }
-        : {
-            weekId: week,
-            recurringXp: 0,
-            starsAwarded: false,
-            lifetimeStarsAwarded: BigInt(
-              player.lifetimeStipendStarsAwarded.toString(),
-            ),
-          },
   };
-}
-
-export async function buildClaimLevelMilestonePlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  ownerAuthority: PublicKey;
-  sessionToken: PublicKey;
-  milestoneIndex: number;
-}): Promise<TransactionPlan> {
-  assertIndex(args.milestoneIndex, 10, "milestoneIndex");
-  const owner = args.ownerAuthority;
-  const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.claimLevelMilestone(args.milestoneIndex)
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      economyConfig: deriveEconomyConfigPda(),
-      playerState: derivePlayerStatePda(owner),
-      ownerAuthority: owner,
-      sessionToken: args.sessionToken,
-      actor: args.wallet.publicKey,
-    })
-    .instruction();
-  return basePlan(
-    "Claim level milestone Stars",
-    args.connection,
-    args.wallet.publicKey,
-    instruction,
-  );
 }
 
 export async function buildClaimAchievementPlan(args: {
@@ -260,7 +199,7 @@ export async function buildClaimQuestPlan(args: {
     })
     .instruction();
   return basePlan(
-    args.questIndex < 10 ? "Claim Daily quest XP" : "Claim Weekly quest Stars",
+    args.questIndex < 10 ? "Claim Daily quest XP" : "Claim Weekly quest XP",
     args.connection,
     args.wallet.publicKey,
     instruction,

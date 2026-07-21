@@ -10,7 +10,7 @@ import {
   deriveDailyRulesCatalogPda,
   deriveEconomyConfigPda,
   deriveProtocolConfigPda,
-  deriveStarSalesLedgerPda,
+  deriveCubeSalesLedgerPda,
 } from "./pdas";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
@@ -26,9 +26,9 @@ export interface EconomyInitialization {
 export interface DailyRulesCatalogPublication {
   contentVersion: number;
   rulesVersion: number;
-  seasonId: number;
+  weeklyId: number;
   startsDay: number;
-  seasonSeed: readonly number[];
+  weeklySeed: readonly number[];
   scoringRuleCount: number;
   scoringRules: readonly DailyScoringRuleView[];
   pressure: DailyPressureProfileView;
@@ -50,7 +50,7 @@ export async function buildInitializeEconomyPlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       economyConfig: deriveEconomyConfigPda(),
-      starSalesLedger: deriveStarSalesLedgerPda(),
+      cubeSalesLedger: deriveCubeSalesLedgerPda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })
@@ -72,11 +72,11 @@ export async function buildPublishDailyRulesPlan(args: {
   const publication = args.publication;
   assertVersion(publication.contentVersion, "contentVersion");
   assertVersion(publication.rulesVersion, "rulesVersion");
-  assertVersion(publication.seasonId, "seasonId");
+  assertVersion(publication.weeklyId, "weeklyId");
   if (!Number.isInteger(publication.startsDay) || publication.startsDay < 0)
     throw new Error("startsDay must be a non-negative integer");
-  if (publication.seasonSeed.length !== 32)
-    throw new Error("seasonSeed must contain exactly 32 bytes");
+  if (publication.weeklySeed.length !== 32)
+    throw new Error("weeklySeed must contain exactly 32 bytes");
   if (publication.scoringRules.length !== 16)
     throw new Error("scoringRules must contain exactly 16 slots");
   if (
@@ -89,9 +89,9 @@ export async function buildPublishDailyRulesPlan(args: {
     .methods.publishDailyRules({
       contentVersion: publication.contentVersion,
       rulesVersion: publication.rulesVersion,
-      seasonId: publication.seasonId,
+      weeklyId: publication.weeklyId,
       startsDay: publication.startsDay,
-      seasonSeed: [...publication.seasonSeed],
+      weeklySeed: [...publication.weeklySeed],
       scoringRuleCount: publication.scoringRuleCount,
       scoringRules: publication.scoringRules.map((rule) => ({ ...rule })),
       pressure: {
@@ -120,17 +120,17 @@ export async function buildPublishDailyRulesPlan(args: {
   );
 }
 
-export async function buildUpdateStarPacksPlan(args: {
+export async function buildUpdateCubePacksPlan(args: {
   connection: Connection;
   pricingOperator: WalletLike;
-  stars: readonly [bigint, bigint, bigint, bigint, bigint];
-  prices: readonly [bigint, bigint, bigint, bigint, bigint];
-  enabled: readonly [boolean, boolean, boolean, boolean, boolean];
+  cubes: readonly [bigint, bigint, bigint, bigint];
+  prices: readonly [bigint, bigint, bigint, bigint];
+  enabled: readonly [boolean, boolean, boolean, boolean];
 }): Promise<TransactionPlan> {
-  assertStarPacks(args.stars, args.prices, args.enabled);
+  assertCubePacks(args.cubes, args.prices, args.enabled);
   const instruction = await zkubeProgram(args.connection, args.pricingOperator)
-    .methods.updateStarPacks({
-      stars: args.stars.map(toBN),
+    .methods.updateCubePacks({
+      cubes: args.cubes.map(toBN),
       prices: args.prices.map(toBN),
       enabled: [...args.enabled],
     })
@@ -141,7 +141,7 @@ export async function buildUpdateStarPacksPlan(args: {
     })
     .instruction();
   return plan(
-    "Update governed Star packs",
+    "Update governed Cube packs",
     args.connection,
     args.pricingOperator.publicKey,
     instruction,
@@ -156,34 +156,34 @@ function assertVersion(value: number, label: string): void {
 
 function assertPrices(prices: readonly bigint[]): void {
   if (
-    prices.length !== 5 ||
+    prices.length !== 4 ||
     prices.some((price) => price <= 0n || price > 0xffff_ffff_ffff_ffffn)
   ) {
-    throw new Error("prices must contain five positive u64 values");
+    throw new Error("prices must contain four positive u64 values");
   }
 }
 
-function assertStarPacks(
-  stars: readonly bigint[],
+function assertCubePacks(
+  cubes: readonly bigint[],
   prices: readonly bigint[],
   enabled: readonly boolean[],
 ): void {
-  assertPrices(stars);
+  assertPrices(cubes);
   assertPrices(prices);
-  if (enabled.length !== 5 || !enabled.some(Boolean)) {
+  if (enabled.length !== 4 || !enabled.some(Boolean)) {
     throw new Error(
-      "enabled must contain five flags with at least one active pack",
+      "enabled must contain four flags with at least one active pack",
     );
   }
-  for (let index = 1; index < 5; index += 1) {
+  for (let index = 1; index < 4; index += 1) {
     const previous = index - 1;
     if (
-      stars[previous]! >= stars[index]! ||
+      cubes[previous]! >= cubes[index]! ||
       prices[previous]! >= prices[index]! ||
-      prices[index]! * stars[previous]! > prices[previous]! * stars[index]!
+      prices[index]! * cubes[previous]! > prices[previous]! * cubes[index]!
     ) {
       throw new Error(
-        "Star packs must be increasing with non-increasing unit price",
+        "Cube packs must be increasing with non-increasing unit price",
       );
     }
   }

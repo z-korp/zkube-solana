@@ -291,8 +291,8 @@ const MapPage: React.FC = () => {
                 className="max-w-[220px] bg-slate-900 border border-slate-500 px-3 py-2 font-sans text-[11px] text-white shadow-lg"
               >
                 {map?.perfected
-                  ? "Perfect reward earned"
-                  : "Clear all 30 stars: +20★ + 300 XP"}
+                  ? "Perfect reward earned: +300 XP"
+                  : "Earn all 30 rating stars: +300 XP"}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

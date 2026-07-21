@@ -14,7 +14,7 @@ interface StoredRunSession {
   owner: string;
   runId: string;
   mode: "campaign" | "daily";
-  dailyVersion?: 1 | 2;
+  dailyVersion?: 1 | 2 | 3;
   sessionSecretKey: number[];
   sessionToken: string;
   activeRun: string;
@@ -26,7 +26,7 @@ export interface RunSessionMarker {
   owner: PublicKey;
   runId: bigint;
   mode: "campaign" | "daily";
-  dailyVersion?: 1 | 2;
+  dailyVersion?: 1 | 2 | 3;
   session: Keypair;
   sessionToken: PublicKey;
   addresses: RunAddresses;
@@ -162,7 +162,7 @@ function isStoredRunSession(value: unknown): value is StoredRunSession {
     typeof value.owner === "string" &&
     typeof value.runId === "string" &&
     (value.mode === "campaign" || value.mode === "daily") &&
-    (value.dailyVersion === undefined || value.dailyVersion === 1 || value.dailyVersion === 2) &&
+    (value.dailyVersion === undefined || value.dailyVersion === 1 || value.dailyVersion === 2 || value.dailyVersion === 3) &&
     validSecretKey(value.sessionSecretKey) &&
     typeof value.sessionToken === "string" &&
     typeof value.activeRun === "string" &&

@@ -1,7 +1,7 @@
 import React from "react";
 
 import LevelRing from "@/ui/components/shared/LevelRing";
-import StarBalance from "@/ui/components/shared/StarBalance";
+import CubeBalance from "@/ui/components/shared/CubeBalance";
 import WalletChip from "@/ui/components/shared/WalletChip";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
@@ -20,9 +20,9 @@ const PlayerIdentityHeader: React.FC<{
   /** Cosmetic rank title — used as the name fallback and the ring tooltip. */
   title: string;
   address: string;
-  starBalance: string | number;
+  cubeBalance: string | number;
   ringSize?: number;
-  starSize?: "md" | "lg";
+  cubeSize?: "md" | "lg";
   /** Makes the wallet pill a button (Profile links it to Settings). */
   onEditIdentity?: () => void;
 }> = ({
@@ -31,9 +31,9 @@ const PlayerIdentityHeader: React.FC<{
   displayName,
   title,
   address,
-  starBalance,
+  cubeBalance,
   ringSize = 52,
-  starSize = "md",
+  cubeSize = "md",
   onEditIdentity,
 }) => {
   const colors = useThemeColors();
@@ -63,9 +63,9 @@ const PlayerIdentityHeader: React.FC<{
           className="mt-0.5"
         />
       </div>
-      <StarBalance
-        value={starBalance}
-        size={starSize}
+      <CubeBalance
+        value={cubeBalance}
+        size={cubeSize}
         align="right"
         className="shrink-0"
       />

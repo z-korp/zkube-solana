@@ -9,8 +9,8 @@ export interface EconomyRuntime {
   protocol: PublicKey;
   contentVersion: number;
   dailyRulesVersion: number;
-  dailyEntryStars: bigint;
-  zoneUnlockStars: bigint;
+  dailyRetryCubes: bigint;
+  maxPaidDailyRetries: number;
   rewardVault: PublicKey;
 }
 
@@ -26,8 +26,8 @@ export async function fetchEconomyRuntime(args: {
   if (
     !protocol ||
     !economy ||
-    Number(protocol.version) !== 1 ||
-    Number(economy.version) !== 1 ||
+    Number(protocol.version) !== 2 ||
+    Number(economy.version) !== 2 ||
     !economy.protocol.equals(deriveProtocolConfigPda()) ||
     Number(economy.contentVersion) !== Number(protocol.contentVersion)
   ) {
@@ -38,8 +38,8 @@ export async function fetchEconomyRuntime(args: {
     protocol: deriveProtocolConfigPda(),
     contentVersion: Number(economy.contentVersion),
     dailyRulesVersion: Number(economy.dailyRulesVersion),
-    dailyEntryStars: BigInt(economy.dailyEntryStars.toString()),
-    zoneUnlockStars: BigInt(economy.zoneUnlockStars.toString()),
+    dailyRetryCubes: BigInt(economy.dailyRetryCubes.toString()),
+    maxPaidDailyRetries: Number(economy.maxPaidDailyRetries),
     rewardVault: protocol.rewardVault,
   };
 }

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { ChevronDown, Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
+import { currentDailyDayId } from "@/chain/dailyClient";
 import {
   dailyScoringRuleDescription,
   dailyScoringRuleName,
@@ -16,12 +17,10 @@ import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
-import { usePreviousChallenge } from "@/hooks/usePreviousChallenge";
+import { useWeeklyDailies } from "@/hooks/useWeeklyDailies";
 import { useNavigationStore } from "@/stores/navigationStore";
-import DailyResultCard, {
-  Countdown,
-} from "@/ui/components/arena/DailyResultCard";
-import { getPlayerPosition } from "@/ui/components/arena/dailyPosition";
+import { Countdown } from "@/ui/components/arena/Countdown";
+import DailyResultCard from "@/ui/components/arena/DailyResultCard";
 import { DailyScoringRules } from "@/ui/components/arena/dailyRulesCopy";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
@@ -54,7 +53,7 @@ const ArenaDailyTab: React.FC = () => {
   const colors = useThemeColors();
   const { address } = useAccount();
   const daily = useDaily();
-  const previous = usePreviousChallenge();
+  const weekly = useWeeklyDailies();
   const activeDailyRun = useActiveDailyAttempt();
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entries: dailyEntries, isLoading: boardLoading } =
@@ -70,6 +69,7 @@ const ArenaDailyTab: React.FC = () => {
   );
   const [starting, setStarting] = useState(false);
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
   const now = Math.floor(Date.now() / 1000);
   const hasActiveDailyRun = Boolean(activeDailyRun);
@@ -106,10 +106,24 @@ const ArenaDailyTab: React.FC = () => {
     ? getMutatorDef(challenge.passive_mutator_id)
     : null;
 
-  const previousPosition = useMemo(
-    () => getPlayerPosition(previous.daily, address),
-    [address, previous.daily],
-  );
+  // The Weekly score keeps your best ten Daily results; flag which of this
+  // weekly's runs currently clear that bar so the section reads as a scorecard.
+  const weeklyCountThreshold = useMemo(() => {
+    const scores = [
+      ...(daily.daily?.player?.bestDailyScore
+        ? [daily.daily.player.bestDailyScore]
+        : []),
+      ...weekly.runs.map((run) => run.score),
+    ].sort((a, b) => b - a);
+    return scores.length >= 10 ? scores[9] : 0;
+  }, [daily.daily?.player?.bestDailyScore, weekly.runs]);
+
+  const dayLabel = useCallback((dayId: number): string => {
+    if (dayId === currentDailyDayId() - 1) return "Yesterday";
+    return new Date(dayId * 86_400_000).toLocaleDateString(navigator.language, {
+      weekday: "long",
+    });
+  }, []);
 
   const rankRows = useMemo(
     () =>
@@ -123,6 +137,7 @@ const ArenaDailyTab: React.FC = () => {
         moves: entry.moves ?? 0,
         playerAddress: entry.player,
         runId: entry.runId,
+        finalizedAttempts: entry.finalizedAttempts,
         isYou: address === entry.player,
       })),
     [address, dailyEntries],
@@ -179,16 +194,23 @@ const ArenaDailyTab: React.FC = () => {
     }
   }, [daily, hasActiveDailyRun, navigate, starting]);
 
-  const starAttemptDisabled = Boolean(
+  const paidRetry = (daily.daily?.player?.attempts ?? 0) > 0;
+  const retriesExhausted = Boolean(
+    paidRetry &&
+      daily.daily &&
+      (daily.daily.player?.paidAttempts ?? 0) >= daily.daily.maxPaidRetries,
+  );
+  const cubeAttemptDisabled = Boolean(
     starting ||
     daily.action ||
     !entriesOpen ||
     !runAvailable ||
     !daily.daily?.playerEligible ||
-    (daily.daily && daily.daily.playerStars < daily.daily.starEntryCost),
+    retriesExhausted ||
+    (paidRetry && daily.daily && daily.daily.playerCubes < daily.daily.retryCubeCost),
   );
-  const insufficientStars = Boolean(
-    daily.daily && daily.daily.playerStars < daily.daily.starEntryCost,
+  const insufficientCubes = Boolean(
+    paidRetry && daily.daily && daily.daily.playerCubes < daily.daily.retryCubeCost,
   );
 
   if (challengeLoading || (daily.loading && !daily.daily)) {
@@ -270,9 +292,26 @@ const ArenaDailyTab: React.FC = () => {
 
               {scoringRule && (
                 <div className="mt-2.5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-2">
-                  <p className="font-display text-sm font-black text-cyan-200">
-                    {dailyScoringRuleName(scoringRule)}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-display text-sm font-black text-cyan-200">
+                      {dailyScoringRuleName(scoringRule)}
+                    </p>
+                    <InfoSheet
+                      label="Rules & rewards"
+                      title="Daily Arena"
+                      className="shrink-0"
+                    >
+                      <p>
+                        Unlimited retries — your best score counts. The first
+                        finish each day awards +100 XP.
+                      </p>
+                      <DailyScoringRules
+                        objectiveWeight={
+                          scoringRule.bonusMultiplierX100 / 100
+                        }
+                      />
+                    </InfoSheet>
+                  </div>
                   <p className="mt-0.5 font-sans text-xs leading-relaxed text-white/65">
                     {dailyScoringRuleDescription(scoringRule)}
                   </p>
@@ -317,43 +356,35 @@ const ArenaDailyTab: React.FC = () => {
             entriesOpen && (
               <div className="flex flex-col gap-1.5">
                 <ArcadeButton
-                  disabled={starAttemptDisabled}
+                  disabled={cubeAttemptDisabled}
                   onClick={() => void enter()}
                   accentOverride="#facc15"
                   className="text-[13px]"
                 >
                   {starting
                     ? "Preparing..."
-                    : `Enter Daily · ${daily.daily.starEntryCost.toString()}★`}
+                    : paidRetry
+                      ? `Retry · ${daily.daily.retryCubeCost.toString()} Cubes`
+                      : "Play free attempt"}
                 </ArcadeButton>
-                <div className="flex items-center justify-center gap-3">
-                  {insufficientStars && (
-                    <button
-                      type="button"
-                      onClick={() => openShop("ranks")}
-                      className="font-sans text-xs font-extrabold text-yellow-200"
-                    >
-                      Need{" "}
-                      {(
-                        daily.daily.starEntryCost - daily.daily.playerStars
-                      ).toString()}{" "}
-                      more ★ · Get Stars
-                    </button>
-                  )}
-                  <InfoSheet label="Rules & rewards" title="Daily Arena">
-                    <p>
-                      Unlimited retries — your best score counts. The first
-                      finish each day awards +100 XP.
-                    </p>
-                    <DailyScoringRules
-                      objectiveWeight={
-                        scoringRule
-                          ? scoringRule.bonusMultiplierX100 / 100
-                          : undefined
-                      }
-                    />
-                  </InfoSheet>
-                </div>
+                {insufficientCubes && (
+                  <button
+                    type="button"
+                    onClick={() => openShop("ranks")}
+                    className="rounded-xl border border-yellow-300/25 bg-yellow-500/[0.12] px-3 py-2 text-center font-sans text-xs font-bold text-yellow-200"
+                  >
+                    Need{" "}
+                    {(
+                      daily.daily.retryCubeCost - daily.daily.playerCubes
+                    ).toString()}{" "}
+                    more Cubes to enter · Get Cubes
+                  </button>
+                )}
+                {retriesExhausted && (
+                  <p className="text-center font-sans text-xs font-semibold text-white/55">
+                    All five paid retries have been used.
+                  </p>
+                )}
               </div>
             )
           )}
@@ -508,6 +539,10 @@ const ArenaDailyTab: React.FC = () => {
                             </span>
                             <span>{entry.dailyBonusTriggers} bonus</span>
                             <span>{entry.moves} moves</span>
+                            <span>
+                              {entry.finalizedAttempts} finalized attempt
+                              {entry.finalizedAttempts !== 1 ? "s" : ""}
+                            </span>
                           </div>
                           <button
                             type="button"
@@ -574,20 +609,87 @@ const ArenaDailyTab: React.FC = () => {
         </>
       )}
 
-      {/* ── Yesterday ── */}
-      {previous.daily?.player && (
-        <DailyResultCard
-          daily={previous.daily}
-          position={previousPosition}
-          label="Yesterday"
-          action={previous.action}
-          onRefund={() => void previous.refund().catch(() => undefined)}
-        />
+      {/* ── This weekly's earlier runs ── */}
+      {weekly.runs.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between px-1">
+            <p
+              className="font-sans text-[11px] font-black uppercase tracking-[0.18em]"
+              style={{ color: colors.textMuted }}
+            >
+              This weekly
+            </p>
+            <p
+              className="font-sans text-[11px] font-bold"
+              style={{ color: colors.textMuted }}
+            >
+              best 10 count
+            </p>
+          </div>
+          {weekly.runs.map((run) => {
+            const expanded = expandedDay === run.dayId;
+            const counts = run.score > 0 && run.score >= weeklyCountThreshold;
+            const refundable =
+              run.view.status === "cancelled" &&
+              Boolean(run.view.player) &&
+              (run.view.player?.attempts ?? 0) > 0 &&
+              !run.view.player?.cubeRefunded;
+            // Cancelled days show their refund button (a button), so they can't
+            // also be a toggle — no nested buttons, and there's no board to show.
+            const canExpand = !refundable && run.view.leaderboard.length > 0;
+            return (
+              <DailyResultCard
+                key={run.dayId}
+                daily={run.view}
+                position={run.position}
+                label={dayLabel(run.dayId)}
+                action={weekly.action === run.dayId ? "refund" : null}
+                onRefund={() => void weekly.refund(run).catch(() => undefined)}
+                onToggle={
+                  canExpand
+                    ? () => setExpandedDay(expanded ? null : run.dayId)
+                    : undefined
+                }
+                expanded={canExpand && expanded}
+              >
+                {run.view.leaderboard.slice(0, 5).map((entry, index) => {
+                  const isYou = entry.player.toBase58() === address;
+                  return (
+                    <div
+                      key={entry.player.toBase58()}
+                      className="flex items-center gap-2 py-1 font-sans text-[12px]"
+                      style={{ color: isYou ? colors.accent : "#e5e7eb" }}
+                    >
+                      <span className="w-5 shrink-0 text-center font-black">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-semibold">
+                        {isYou ? "You · " : ""}
+                        {playerLabelWithWallet(
+                          entry.playerName,
+                          entry.player.toBase58(),
+                        )}
+                      </span>
+                      <span className="shrink-0 font-black tabular-nums">
+                        {(entry.dailyScore ?? entry.score).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+                {counts && (
+                  <p className="mt-1.5 font-sans text-[11px] font-semibold text-emerald-300">
+                    ✓ Counts toward your Weekly best 10
+                  </p>
+                )}
+              </DailyResultCard>
+            );
+          })}
+        </div>
       )}
 
-      {(daily.error || previous.error) && (
+      {(daily.error || weekly.error) && (
         <p role="alert" className="text-center font-sans text-xs text-red-300">
-          {daily.error ?? previous.error}
+          {daily.error ?? weekly.error}
         </p>
       )}
     </div>

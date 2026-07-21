@@ -3,7 +3,7 @@ import React from "react";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { cn } from "@/ui/utils";
 
-interface StarBalanceProps {
+interface CubeBalanceProps {
   value: string | number;
   /** md → text-2xl figure with a text-[10px] label; lg → text-3xl / text-[11px]. */
   size?: "md" | "lg";
@@ -15,8 +15,8 @@ interface StarBalanceProps {
   className?: string;
 }
 
-/** The "★ n / Stars balance" block shared by Home, Profile, and the Shop. */
-const StarBalance: React.FC<StarBalanceProps> = ({
+/** The "★ n / Cubes balance" block shared by Home, Profile, and the Shop. */
+const CubeBalance: React.FC<CubeBalanceProps> = ({
   value,
   size = "md",
   align = "left",
@@ -35,7 +35,7 @@ const StarBalance: React.FC<StarBalanceProps> = ({
         )}
         style={{ color: colors.accent2 }}
       >
-        ★ {value}
+        ▣ {value}
       </p>
       <p
         className={cn(
@@ -46,10 +46,10 @@ const StarBalance: React.FC<StarBalanceProps> = ({
         )}
         style={labelColor ? { color: labelColor } : undefined}
       >
-        Stars balance
+        Cubes balance
       </p>
     </div>
   );
 };
 
-export default StarBalance;
+export default CubeBalance;

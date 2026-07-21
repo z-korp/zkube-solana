@@ -45,8 +45,8 @@ import {
 import { saveRunSession } from "./runSessionStore.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
-  deriveDailyLeaderboardPda,
-  deriveDailyPlayerPda,
+  deriveArenaBoardPda,
+  deriveArenaPlayerPda,
   deriveMapCatalogPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
@@ -648,7 +648,7 @@ export async function buildFinalizeRunPlan(args: {
   addresses: RunAddresses;
   mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
-  dailyVersion?: 1 | 2;
+  dailyVersion?: 1 | 2 | 3;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
   connection?: Connection;
@@ -716,14 +716,13 @@ async function buildConsumeRunInstruction(
       throw new Error("Daily settlement requires the challenge address");
     }
     return program.methods
-      .consumeDailyRun()
+      .consumeArenaRun()
       .accountsPartial({
         activeRun: args.addresses.activeRun,
         playerState: derivePlayerStatePda(args.owner),
-        dailyChallenge,
-        dailyPlayer: deriveDailyPlayerPda(dailyChallenge, args.owner),
-        leaderboard: deriveDailyLeaderboardPda(dailyChallenge),
-        owner: args.owner,
+        arenaDaily: dailyChallenge,
+        arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
+        arenaBoard: deriveArenaBoardPda(dailyChallenge),
         rentRecipient: derivePlayerFundingPda(args.owner),
       })
       .instruction();
@@ -906,7 +905,7 @@ export async function submitPreparedRunPlan(args: {
   wallet: WalletLike;
   sessionSigner: Keypair;
   mode?: "campaign" | "daily";
-  dailyVersion?: 1 | 2;
+  dailyVersion?: 1 | 2 | 3;
 }): Promise<string> {
   const signature = await submitVersionedTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,

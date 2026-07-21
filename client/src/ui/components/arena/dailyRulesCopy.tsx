@@ -26,14 +26,15 @@ export function DailyScoringRules({
         />
         <InfoRow
           label="Retries"
-          value="Unlimited — best finalized score counts"
+          value="First attempt free · up to 5 paid retries at 10 Cubes"
         />
         <InfoRow label="First finish today" value="+100 XP" />
         <InfoRow label="First Tier 7 today" value="+50 XP" />
       </div>
       <p>
-        Daily rank awards 100/60/30/10/2 Weekly points. SOL and Star rewards
-        settle from the Weekly leaderboard at the end of the week.
+        Every finalized attempt appears in the attempt count, while only your
+        best Daily score counts. A Weekly keeps your best 10 of 14 Daily scores;
+        the top 5 earn SOL and ranks 6–20 earn Cubes.
       </p>
     </>
   );

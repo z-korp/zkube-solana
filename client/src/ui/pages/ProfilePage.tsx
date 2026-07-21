@@ -10,7 +10,7 @@ import {
 import { usePlayerMeta } from "@/hooks/usePlayerMeta";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
-import { useZStarBalance } from "@/hooks/useZStarBalance";
+import { useCubeBalance } from "@/hooks/useCubeBalance";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
 import { useProgress } from "@/contexts/progress";
@@ -33,8 +33,8 @@ const ProfilePage: React.FC = () => {
   const player = useConnectedPlayer();
   const address = player.publicKey?.toBase58() ?? "";
   const { playerMeta } = usePlayerMeta(address);
-  const { balance: starBalance } = useZStarBalance(address);
-  const { zones, totalStars } = useZoneProgress(address, starBalance);
+  const { balance: cubeBalance } = useCubeBalance(address);
+  const { zones, totalStars } = useZoneProgress(address);
   const playerStats = usePlayerStats(address);
   const progress = useProgress();
   const playerLabel = usePlayerLabelController();
@@ -94,9 +94,9 @@ const ProfilePage: React.FC = () => {
                 displayName={playerLabel.label?.displayName}
                 title={title}
                 address={address}
-                starBalance={starBalance}
+                cubeBalance={cubeBalance}
                 ringSize={60}
-                starSize="lg"
+                cubeSize="lg"
                 onEditIdentity={() => navigate("settings")}
               />
             </div>
@@ -211,10 +211,10 @@ const ProfilePage: React.FC = () => {
                 perfectLevels={Number(
                   progress.progress?.lifetime.perfectLevels ?? 0n,
                 )}
-                starsEarned={Number(
-                  progress.progress?.lifetimeStarsEarned ?? 0n,
+                cubesEarned={Number(
+                  progress.progress?.lifetimeCubesEarned ?? 0n,
                 )}
-                starsSpent={Number(progress.progress?.lifetimeStarsSpent ?? 0n)}
+                cubesSpent={Number(progress.progress?.lifetimeCubesSpent ?? 0n)}
               />
             )}
 

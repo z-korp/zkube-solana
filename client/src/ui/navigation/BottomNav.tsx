@@ -3,7 +3,6 @@ import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
-import { getLevelFromXp } from "@/config/profileData";
 import { motion } from "motion/react";
 import { useProgress } from "@/contexts/progress";
 
@@ -16,28 +15,10 @@ const BottomNav = () => {
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;
   // Everything this badge counts is claimable ON the Quests page:
-  // quests + feats (achievements) + level milestones.
-  const level = getLevelFromXp(Number(progress?.lifetimeXp ?? 0n));
-  const milestoneBitmap = progress?.levelMilestones?.claimed ?? 0;
-  let milestoneClaimables = 0;
-  for (let index = 0; index < 10; index++) {
-    if (level >= (index + 1) * 10 && !(milestoneBitmap & (1 << index))) {
-      milestoneClaimables++;
-    }
-  }
-  const milestoneEntitlement = Array.from({ length: 10 }, (_, index) =>
-    milestoneBitmap & (1 << index) ? (index + 1) * 10 : 0,
-  ).reduce((sum, stars) => sum + stars, 0);
-  if (
-    milestoneEntitlement >
-    Number(progress?.levelMilestones?.totalStarsClaimed ?? 0n)
-  ) {
-    milestoneClaimables++;
-  }
+  // quests + feats (achievements).
   const claimableCount =
     (progress?.achievements.filter((entry) => entry.claimable).length ?? 0) +
-    (progress?.quests.filter((entry) => entry.claimable).length ?? 0) +
-    milestoneClaimables;
+    (progress?.quests.filter((entry) => entry.claimable).length ?? 0);
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;

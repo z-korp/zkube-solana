@@ -40,8 +40,8 @@ describe("canonical zkube progression catalog", () => {
     expect(CANONICAL_QUEST_RULES.map((rule) => rule.xpReward)).toEqual(
       QUEST_DEFS.map((definition) => definition.xpReward),
     );
-    expect(CANONICAL_QUEST_RULES.map((rule) => rule.starReward)).toEqual(
-      QUEST_DEFS.map((definition) => definition.starReward),
+    expect(CANONICAL_QUEST_RULES.map((rule) => rule.cubeReward)).toEqual(
+      QUEST_DEFS.map((definition) => definition.cubeReward),
     );
     expect(
       [0, 1, 2, 3, 10, 100, 20_000].map((day) => dailyQuestIndices(day)),
@@ -64,9 +64,9 @@ describe("canonical zkube progression catalog", () => {
       ).toBeLessThanOrEqual(2);
       expect(questRewardsForDay(day)).toEqual({
         dailyXp: 500,
-        dailyStars: 2,
+        dailyCubes: 2,
         weeklyXp: 1_000,
-        weeklyStars: 10,
+        weeklyCubes: 0,
       });
     }
   });
