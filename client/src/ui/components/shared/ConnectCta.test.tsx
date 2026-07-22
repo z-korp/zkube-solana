@@ -120,7 +120,7 @@ describe("ConnectCta", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(screen.getByRole("button", { name: /enable zkube/i }));
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(
       await screen.findByText(/wallet rejected the request/i),
     ).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe("ConnectCta", () => {
 
     render(<ConnectCta />);
 
-    expect(screen.getByRole("button", { name: /renew zkube/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /reconnect/i })).toBeEnabled();
   });
 
   it("asks for renewal when this origin's signer allowance is low", () => {
@@ -143,7 +143,7 @@ describe("ConnectCta", () => {
     fixtures.player.publicKey = PublicKey.default;
     fixtures.player.sessionStatus = "needsRenewal";
     render(<ConnectCta />);
-    expect(screen.getByRole("button", { name: /renew zkube/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /reconnect/i })).toBeEnabled();
   });
 
   it("renders nothing once the player is fully ready", () => {

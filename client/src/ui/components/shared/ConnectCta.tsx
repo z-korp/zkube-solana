@@ -74,19 +74,6 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
 
   return (
     <div className="flex w-full flex-col gap-2">
-      <ArcadeButton disabled={busy} onClick={handleTap}>
-        <Gamepad2 size={22} strokeWidth={2.5} />
-        {busy
-          ? connected
-            ? "APPROVING..."
-            : pendingLabel
-          : connected
-            ? player.sessionStatus === "expired" ||
-              player.sessionStatus === "needsRenewal"
-              ? "RENEW ZKUBE"
-              : "ENABLE ZKUBE"
-            : label}
-      </ArcadeButton>
       {localError && (
         <p
           role="alert"
@@ -95,6 +82,19 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
           {localError}
         </p>
       )}
+      <ArcadeButton disabled={busy} onClick={handleTap}>
+        <Gamepad2 size={22} strokeWidth={2.5} />
+        {busy
+          ? connected
+            ? "Connecting…"
+            : pendingLabel
+          : connected
+            ? player.sessionStatus === "expired" ||
+              player.sessionStatus === "needsRenewal"
+              ? "Reconnect"
+              : "Continue"
+            : label}
+      </ArcadeButton>
       <Sheet
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}

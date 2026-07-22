@@ -36,12 +36,11 @@ export default function ConnectScreen() {
             />          </div>
 
           <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-2.5">
-            <ConnectCta label="CONNECT & ENABLE" />
-            <InfoSheet label="How enabling works" title="Enable zKube">
+            <ConnectCta label="Connect wallet" />
+            <InfoSheet title="How it works">
               <p>
-                Connecting your Solana wallet enters you as a player. The same
-                approval enables about seven days of silent gameplay on this
-                device.
+                Connect your Solana wallet to play. You stay signed in on this
+                device, so play stays smooth.
               </p>
               <p>zKube never asks for your seed phrase or private key.</p>
             </InfoSheet>
