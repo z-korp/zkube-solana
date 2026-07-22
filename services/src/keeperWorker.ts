@@ -56,10 +56,10 @@ export function keeperReleaseFromEnv(
   env: Record<string, string | undefined>,
 ) {
   const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
-  const keeperImageDigest = flyImageRef.match(/@(sha256:[0-9a-f]{64})$/)?.[1];
-  if (!keeperImageDigest) {
-    throw new Error("FLY_IMAGE_REF must end in an immutable sha256 digest");
-  }
+  const keeperImageDigest = requiredReleaseValue(
+    env.ZKUBE_KEEPER_IMAGE_DIGEST,
+    "ZKUBE_KEEPER_IMAGE_DIGEST",
+  );
   const rulesVersion = releaseU32(env.ZKUBE_ARENA_RULES_VERSION, "rules version", 1);
   const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
   return keeperReleaseRecord({
@@ -69,6 +69,7 @@ export function keeperReleaseFromEnv(
       "ZKUBE_KEEPER_PUBLIC_KEY",
     ),
     deployedProgramDataSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
+    keeperImageReference: flyImageRef,
     keeperImageDigest,
     replayDomainHex: requiredReleaseValue(
       env.ZKUBE_REPLAY_DOMAIN_HEX,

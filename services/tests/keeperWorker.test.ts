@@ -113,7 +113,9 @@ describe("keeper worker scheduling", () => {
 
 function releaseEnvironment(): Record<string, string> {
   return {
-    FLY_IMAGE_REF: `registry.fly.io/zkube@sha256:${"12".repeat(32)}`,
+    FLY_IMAGE_REF:
+      "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
+    ZKUBE_KEEPER_IMAGE_DIGEST: `sha256:${"12".repeat(32)}`,
     ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
     ZKUBE_REPLAY_DOMAIN_HEX: canonicalDevnetReplayDomainHex(ZKUBE_PROGRAM_ID),
     ZKUBE_ARENA_RULES_CATALOG_SHA256: "34".repeat(32),

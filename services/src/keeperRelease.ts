@@ -86,6 +86,7 @@ export interface KeeperReleaseInput {
   programId: string;
   keeperPublicKey: string;
   deployedProgramDataSha256: string;
+  keeperImageReference: string;
   keeperImageDigest: string;
   replayDomainHex: string;
   rulesCatalogHash: string;
@@ -109,6 +110,11 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
   const programId = publicKey(input.programId, "program ID");
   const keeper = publicKey(input.keeperPublicKey, "keeper public key");
   assertHash(input.deployedProgramDataSha256, "deployed ProgramData SHA-256");
+  if (!/^registry\.fly\.io\/zkube-solana-devnet-keeper:deployment-[0-9A-HJKMNP-TV-Z]{26}$/.test(
+    input.keeperImageReference,
+  )) {
+    throw new Error("keeper image reference must be the Fly deployment tag");
+  }
   if (!/^sha256:[0-9a-f]{64}$/.test(input.keeperImageDigest)) {
     throw new Error("keeper image digest must be sha256:<lowercase hex>");
   }
@@ -134,6 +140,7 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     programId: programId.toBase58(),
     keeper: keeper.toBase58(),
     deployedProgramDataSha256: input.deployedProgramDataSha256,
+    keeperImageReference: input.keeperImageReference,
     keeperImageDigest: input.keeperImageDigest,
     replayDomainHex: input.replayDomainHex,
     rulesCatalogHash: input.rulesCatalogHash,

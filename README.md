@@ -315,6 +315,12 @@ dependency is one-way: immutable keeper image digest, keeper fingerprint,
 launch-plan fingerprint, then final manifest. The obsolete v3 manifest is
 intentionally not a reusable release input.
 
+Fly exposes the unique `deployment-<ULID>` tag to the worker and the immutable
+digest through the Machines API. A read-only deploy therefore precedes release
+approval: the operator verifies that mapping, injects the observed digest as
+`ZKUBE_KEEPER_IMAGE_DIGEST` on that same machine image, and fingerprints both.
+Any later image deploy changes the runtime tag and invalidates write authority.
+
 Production web publishing remains Git-driven from
 `z-korp/zkube-solana:main` to Vercel project
 `prj_5kqIxlxgXHXGhldje8unic9h3qYA` under `z-labs`. Feature and archive branches
