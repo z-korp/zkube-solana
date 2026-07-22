@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import {
   Connection,
@@ -34,7 +35,7 @@ import {
 } from "../src/arcadeChain";
 
 const FINAL_IDL_SHA256 =
-  "58dacaaa420a1c58a9b412954692296bb70b79cb5348e421ec23a7b9adbdb76b";
+  "b744106cfe4ab71188fbdd9be07fffed69b5a5823eb22627ae17d4e1102fd29c";
 const DAY = 20_651;
 const WEEK = weekIdForDay(DAY);
 const SEASON = seasonIdForDay(DAY);
@@ -60,6 +61,45 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
     const adapter = await createAdapter();
     expect(adapter.idlHash).toBe(FINAL_IDL_SHA256);
     expect(KEEPER_EXPECTED_IDL_SHA256).toBe(FINAL_IDL_SHA256);
+  });
+
+  it("keeps the ephemeral undelegation callback accounts constrained", () => {
+    const idl = JSON.parse(
+      readFileSync(
+        new URL("../../client/src/chain/idl/solana.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      instructions: Array<{
+        name: string;
+        accounts: Array<{
+          name: string;
+          address?: string;
+          pda?: {
+            seeds: Array<{ kind: string; path?: string; value?: number[] }>;
+            program?: { kind: string; value?: number[] };
+          };
+        }>;
+      }>;
+    };
+    const instruction = idl.instructions.find(
+      ({ name }) => name === "process_undelegation",
+    );
+    const buffer = instruction?.accounts.find(({ name }) => name === "buffer");
+    const systemProgram = instruction?.accounts.find(
+      ({ name }) => name === "system_program",
+    );
+
+    expect(Buffer.from(buffer?.pda?.seeds[0]?.value ?? []).toString()).toBe(
+      "undelegate-buffer",
+    );
+    expect(buffer?.pda?.seeds[1]).toMatchObject({
+      kind: "account",
+      path: "base_account",
+    });
+    expect(buffer?.pda?.program).toMatchObject({ kind: "const" });
+    expect(buffer?.pda?.program?.value).toHaveLength(32);
+    expect(systemProgram?.address).toBe(SystemProgram.programId.toBase58());
   });
 
   it("materializes every keeper protocol operation with exact bytes and metas", async () => {
@@ -283,9 +323,43 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
           winnerTwo,
         ],
       },
+      {
+        operation: "sync_daily_profile",
+        context: {
+          competition: "daily",
+          dayId: DAY,
+          owner,
+          winnerPositionMask: 1,
+        },
+        keys: [caller, meta(daily, true), meta(playerStatePda(owner), true)],
+      },
+      {
+        operation: "sync_weekly_profile",
+        context: {
+          competition: "weekly",
+          weekId: WEEK,
+          owner,
+          winnerPositionMask: 1,
+        },
+        keys: [
+          caller,
+          meta(weeklyJackpotPda(WEEK), true),
+          meta(playerStatePda(owner), true),
+        ],
+      },
+      {
+        operation: "sync_season_profile",
+        context: {
+          competition: "season",
+          seasonId: SEASON,
+          owner,
+          winnerPositionMask: 1,
+        },
+        keys: [caller, meta(season, true), meta(playerStatePda(owner), true)],
+      },
     ];
 
-    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(19);
+    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(22);
     for (const fixture of cases) {
       const [instruction] = await adapter.materialize({
         operation: fixture.operation,

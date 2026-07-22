@@ -22,9 +22,10 @@ add approval prompts to the shipped product.
 - Paid entries are scored or expired and are never refunded. At 23:30 UTC a
   run with an accepted action scores its last committed state; an untouched or
   unrecoverable run expires and can never score late.
-- Campaign changes only map, level, and guardian completion. Arcade owns XP,
-  quests, achievements, titles, ratings, crests, and competitive stats; none
-  grant SOL, entries, prize eligibility, or mint odds.
+- Campaign changes only the compact lifetime-best star record. Arcade owns
+  lifetime paid entries and Daily/Weekly/Season prize records. There is no XP,
+  quest, achievement, title, rating, crest, or general gameplay progression;
+  neither mode grants SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
   recyclable device fee allowance. Funding PDAs sign only narrow self-CPI rent
   paths; there is no Kora or generic paymaster.

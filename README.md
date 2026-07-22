@@ -15,16 +15,31 @@ blocked on counsel, economic, and distribution review.
 - Campaign is optional and never gates Arcade.
 - Every ranked Arcade run requires a separate owner-signed exact 0.02 SOL
   entry. A device session can never authorize that payment.
-- Campaign retains only map, level, and guardian completion. It does not grant
-  Arcade XP, quests, achievements, titles, ratings, crests, or rank.
-- Arcade and Practice may advance non-monetary Arcade progression. Only paid
-  ranked results participate in rankings, ratings, crests, or payouts.
-- Progression never grants SOL, entries, prize eligibility, or mint odds.
+- Campaign stars are the only progression. Campaign never changes competitive
+  records or grants SOL, entries, prize eligibility, or mint odds.
+- Arcade is competition only. It has no XP, levels, quests, achievements,
+  titles, ratings, crests, or other gameplay-progression counters.
+- Practice writes no persistent progression and never affects a prize. Only a
+  separately paid ranked result can enter a competition board.
 
-The static PWA/TWA opens on Arcade and exposes five primary destinations:
-Arcade, Campaign, Quests, Ranks, and Profile. Campaign uses the existing world
+The static PWA/TWA opens on Arcade and exposes four primary destinations:
+Arcade, Campaign, Ranks, and Profile. Campaign uses the existing world
 map and art direction, while Arcade owns the competitive navigation and
 profile language.
+
+## Campaign progression
+
+Campaign is exactly ten zones of ten levels: 100 levels and 300 possible
+stars. Its canonical state is one packed 25-byte, two-bits-per-level star
+array; zone unlocked, cleared, perfected, total stars, and badges are derived
+views rather than separately stored progression.
+
+Only Zone 1 Level 1 is initially playable. Within a zone, each later level
+requires at least one star on the preceding level. The first level of a later
+zone requires at least one star on the preceding zone's guardian, Level 10.
+Completed levels remain replayable, and a level's best one-to-three-star result
+can only increase. A guardian emblem unlocks with its guardian; its rendered
+variant becomes gold when that zone reaches 30/30 stars.
 
 ## SOL accounting
 
@@ -121,8 +136,29 @@ committed continuation vector prevents the run from being stranded between
 two oracle requests or accepting a stale move without a preview.
 
 Campaign uses the same engine and generated catalog but a separate progression
-boundary. Completing Campaign content may only change level and guardian
-completion.
+boundary. Completing Campaign content may only improve the packed star array.
+
+## Competitive profile
+
+Player state keeps lifetime paid entries and one compact Daily, Weekly, and
+Season competition record. Each record stores best payout-bearing rank,
+podiums, wins, and pushed rewards in lamports. A non-paying leaderboard place
+remains visible on the period board but is not a profile best rank. Daily and
+Season profile ranks therefore cover only the top five; each Weekly skill board
+covers its own top three, and Weekly podiums and wins count the three boards
+independently. Aggregate wins and rewards are display-time sums.
+
+The featured emblem is owner- or device-session-selectable. ID 0 automatically
+chooses the strongest unlocked emblem; IDs 1 through 10 are zone guardians,
+11 is Realm Conqueror for all ten guardians, and 12 is World Perfect for
+300/300 stars. Emblems are identity display only and have no monetary effect.
+
+Payouts are pushed before profile metadata is synchronized. Separate
+permissionless Daily, Weekly, and Season profile-sync instructions recompute
+the exact already-pushed payout from finalized boards and ledgers, then use
+per-period winner-position bitmasks to make each update idempotent. A missing
+or failed profile sync can never delay, cancel, repeat, or otherwise affect a
+SOL transfer.
 
 ## Runtime boundaries
 
@@ -132,7 +168,7 @@ completion.
 | Device session | Approximately seven days of safe gameplay | Never signs entry payment |
 | Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
-| Solana program | Progress, accounting, boards, settlement | Base-layer authority |
+| Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
 | Static PWA/TWA | Wallet, Campaign, and Arcade UI | No server signer or paymaster |
 
@@ -146,6 +182,11 @@ regional ER endpoints are never hardcoded. One durable active run ID prevents
 overlap across modes and devices. A separate orphan reservation prevents an
 unreachable delegated run from racing a replacement run.
 
+The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
+undelegation callback must constrain the canonical `undelegate-buffer` PDA and
+the System program; the committed IDL regression test rejects the unsafe older
+`#[ephemeral]` expansion.
+
 ## Keeper safety
 
 The keeper validates cluster genesis, program and ProgramData identity,
@@ -157,6 +198,7 @@ relationships before decoding or planning a write. It reconciles:
 - deterministic expiry and orphan recovery;
 - Daily-to-Season rollup and sealing;
 - Daily, Weekly, and Season push settlement and rollover;
+- post-settlement Daily, Weekly, and Season profile synchronization;
 - resolved run and expired session cleanup.
 
 The recurring signer cannot deploy, initialize, seed pots, change rules,
@@ -191,7 +233,26 @@ NO_DNA=1 pnpm build
 The generated IDL is the ABI handoff between program, keeper, and client.
 Tests must cover exact lamport conservation, period rollover, deadline
 freezing, replay parity, ER recovery, account validation, and Campaign's
-inability to mutate Arcade progression.
+inability to mutate competitive records.
+
+### Frontend handoff
+
+The protocol/client compatibility lane intentionally does not include the
+visual redesign. The next Claude frontend pass must preserve the contract and:
+
+- remove the Quests destination and all XP, title-ring, achievement, quest,
+  rating, and crest copy or controls;
+- keep exactly four primary destinations: Arcade, Campaign, Ranks, Profile;
+- present Practice only as a free, unranked “would have ranked” comparison with
+  no persistent reward or progression language;
+- remove stale `+100 XP`, `+50 XP`, and similar result messaging;
+- make Profile show the featured emblem, Campaign stars, lifetime paid entries,
+  total wins/rewards, and collapsible Daily/Weekly/Season records;
+- provide an eligible-emblem picker, including automatic selection and gold
+  guardian variants derived from Campaign stars;
+- batch-fetch player profile state for leaderboard emblem rendering instead of
+  issuing one account read per row;
+- use Season everywhere; `Monthly` is not a product or protocol label.
 
 ## Deployment status
 

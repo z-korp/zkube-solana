@@ -375,14 +375,14 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
 }
 
 #[test]
-fn sbf_player_label_update_preserves_player_progression_and_rejects_wrong_actor() {
+fn sbf_player_label_update_preserves_competition_profile_and_rejects_wrong_actor() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
     let wrong_actor = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (player, mut player_state) = player_fixture(owner);
-    player_state.credit_xp(150).unwrap();
+    player_state.lifetime_paid_entries = 150;
     let (player_label, bump) =
         Pubkey::find_program_address(&[PLAYER_LABEL_SEED, owner.as_ref()], &zkube::ID);
     let mut display_name = [0u8; PLAYER_LABEL_MAX_LEN];
@@ -450,7 +450,7 @@ fn sbf_player_label_update_preserves_player_progression_and_rejects_wrong_actor(
     let updated: PlayerLabel = decode(resulting_account(&result, &player_label));
     assert_eq!(updated.display_name(), Some(b"Ocean_Tiki".as_slice()));
     let player_after: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(player_after.lifetime_xp, 150);
+    assert_eq!(player_after.lifetime_paid_entries, 150);
 
     let wrong = anchor_lang::solana_program::instruction::Instruction {
         accounts: zkube::accounts::SetPlayerLabel {
@@ -1102,7 +1102,7 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         result.compute_units_consumed
     );
     assert_eq!(updated.active_run_id, 0);
-    assert_eq!(updated.lifetime_lines_cleared, 0);
+    assert_eq!(updated.total_campaign_stars(), 0);
 }
 
 #[test]
@@ -1250,6 +1250,7 @@ fn daily_v2_fixture(
             season_rollups: 0,
             season_rollup_sealed: false,
             entries: Vec::new(),
+            profile_sync_mask: 0,
             bump,
         },
     )
@@ -1281,6 +1282,7 @@ fn weekly_v2_fixture(
             combo_entries: Vec::new(),
             action_entries: Vec::new(),
             run_entries: Vec::new(),
+            profile_sync_mask: 0,
             bump,
         },
     )
@@ -1309,6 +1311,7 @@ fn season_v2_fixture(
             ledger: PoolLedger::default(),
             sealed_dailies: 0,
             entries: Vec::new(),
+            profile_sync_mask: 0,
             bump,
         },
     )
@@ -1461,6 +1464,7 @@ fn sbf_funded_v2_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     let operator_after: OperatorRevenueVault = decode(resulting_account(&result, &operator));
     let current_after: ArenaDaily = decode(resulting_account(&result, &current_daily));
     let player_after: ArenaPlayer = decode(resulting_account(&result, &arena_player));
+    let profile_after_entry: PlayerState = decode(resulting_account(&result, &player));
     assert_eq!(daily_after.ledger.entry_lamports, ENTRY_DAILY_LAMPORTS);
     assert_eq!(weekly_after.ledger.entry_lamports, ENTRY_WEEKLY_LAMPORTS);
     assert_eq!(season_after.ledger.entry_lamports, ENTRY_SEASON_LAMPORTS);
@@ -1468,6 +1472,7 @@ fn sbf_funded_v2_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     assert_eq!(current_after.entries_paid, 1);
     assert_eq!(player_after.paid_entries, 1);
     assert_eq!(player_after.active_paid_run_id, run_id);
+    assert_eq!(profile_after_entry.lifetime_paid_entries, 1);
     assert_eq!(
         resulting_account(&result, &owner).lamports,
         owner_before - ARENA_ENTRY_LAMPORTS,
@@ -1583,6 +1588,7 @@ fn sbf_funded_v2_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
     assert_eq!(consumed_daily.entries_expired, 1);
     assert_eq!(consumed_player.active_run_id, 0);
+    assert_eq!(consumed_player.lifetime_paid_entries, 1);
 
     // Entry availability is independent from late predecessor settlement, but
     // payout ordering is not: even a fully resolved Daily cannot finalize
@@ -1946,4 +1952,128 @@ fn sbf_keeper_can_prepare_a_missing_post_launch_daily() {
     assert_eq!(after.day_id, missing_day);
     assert_eq!(after.status, PeriodStatus::Funding);
     assert!(!after.predecessor_rollover_applied);
+}
+
+#[test]
+fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
+    let owner = Pubkey::new_unique();
+    let (player, mut player_state) = player_fixture(owner);
+    for level in 1..=LEVELS_PER_MAP as u8 {
+        player_state.record_level_stars(1, level, 1).unwrap();
+    }
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::SetFeaturedEmblem {
+            player_state: player,
+            owner_authority: owner,
+            session_token: None,
+            actor: owner,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::SetFeaturedEmblem { emblem_id: 1 }.data(),
+    };
+    let accounts = vec![
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (owner, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    let updated: PlayerState = decode(resulting_account(&result, &player));
+    assert_eq!(updated.featured_emblem, 1);
+
+    let locked = anchor_lang::solana_program::instruction::Instruction {
+        data: zkube::instruction::SetFeaturedEmblem { emblem_id: 2 }.data(),
+        ..instruction
+    };
+    assert!(mollusk()
+        .process_instruction(
+            &locked,
+            &[
+                (player, resulting_account(&result, &player).clone()),
+                (owner, system_account(ACCOUNT_LAMPORTS)),
+            ],
+        )
+        .program_result
+        .is_err());
+}
+
+#[test]
+fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
+    let owner = Pubkey::new_unique();
+    let caller = Pubkey::new_unique();
+    let arcade = Pubkey::new_unique();
+    let (daily, mut daily_state) = daily_v2_fixture(32, arcade, PeriodStatus::Finalized, true);
+    let mut players = vec![owner];
+    players.extend((0..4).map(|_| Pubkey::new_unique()));
+    daily_state.entries = players
+        .iter()
+        .enumerate()
+        .map(|(index, player)| ArenaBoardEntry {
+            player: *player,
+            score: 100 - index as u32,
+            ..ArenaBoardEntry::default()
+        })
+        .collect();
+    let pool = 101_990_000;
+    let plan = rounded_payouts(pool, &DAILY_PRIZE_WEIGHTS, 5).unwrap();
+    daily_state.ledger = PoolLedger {
+        seeded_lamports: pool,
+        payout_lamports: plan.paid_lamports,
+        rollover_out_lamports: plan.rollover_lamports,
+        ..PoolLedger::default()
+    };
+    let (player, player_state) = player_fixture(owner);
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::SyncDailyProfile {
+            caller,
+            arena_daily: daily,
+            player_state: player,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::SyncDailyProfile {}.data(),
+    };
+    let accounts = vec![
+        (caller, system_account(ACCOUNT_LAMPORTS)),
+        (
+            daily,
+            program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
+        ),
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    let daily_after: ArenaDaily = decode(resulting_account(&result, &daily));
+    let player_after: PlayerState = decode(resulting_account(&result, &player));
+    assert_eq!(daily_after.profile_sync_mask, 1);
+    assert_eq!(player_after.daily_record.best_prize_rank, 1);
+    assert_eq!(player_after.daily_record.podiums, 1);
+    assert_eq!(player_after.daily_record.wins, 1);
+    assert_eq!(player_after.daily_record.rewards_lamports, 45_000_000);
+    assert_eq!(
+        resulting_account(&result, &daily).lamports,
+        ACCOUNT_LAMPORTS
+    );
+    assert_eq!(
+        resulting_account(&result, &player).lamports,
+        ACCOUNT_LAMPORTS
+    );
+
+    assert!(mollusk()
+        .process_instruction(
+            &instruction,
+            &[
+                (caller, system_account(ACCOUNT_LAMPORTS)),
+                (daily, resulting_account(&result, &daily).clone()),
+                (player, resulting_account(&result, &player).clone()),
+            ],
+        )
+        .program_result
+        .is_err());
 }

@@ -22,7 +22,9 @@ sbf-tests = []
 
 [dependencies]
 anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
-ephemeral-rollups-sdk = { version = "0.15.5", features = ["anchor", "vrf"] }
+# 0.16.2 is the security floor: earlier `#[ephemeral]` expansions left the
+# undelegation buffer and System program callback accounts unconstrained.
+ephemeral-rollups-sdk = { version = "=0.16.2", features = ["anchor", "vrf"] }
 session-keys = { version = "3.1.1", features = ["no-entrypoint"] }
 solana-sha256-hasher = { version = "3.1.0", features = ["sha2"] }
 zkube-core = { path = "../../crates/zkube-core", default-features = false }

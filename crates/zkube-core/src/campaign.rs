@@ -8,6 +8,8 @@ const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
 pub const CAMPAIGN_MAP_COUNT: usize = 10;
 pub const CAMPAIGN_LEVELS_PER_MAP: usize = 10;
 pub const CAMPAIGN_TOTAL_LEVELS: usize = CAMPAIGN_MAP_COUNT * CAMPAIGN_LEVELS_PER_MAP;
+pub const CAMPAIGN_STAR_BYTES: usize = CAMPAIGN_TOTAL_LEVELS / 4;
+pub const CAMPAIGN_MAX_STARS: u16 = 300;
 const CAMPAIGN_MAP_COUNT_U8: u8 = 10;
 const CAMPAIGN_LEVELS_PER_MAP_U8: u8 = 10;
 
@@ -405,61 +407,47 @@ fn constraint_is_valid(value: Constraint) -> bool {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CampaignProgress {
-    pub content_version: u32,
-    pub content_hash: [u8; 32],
-    pub next_attempt: u64,
-    pub best_stars: [u8; CAMPAIGN_TOTAL_LEVELS],
-    pub endless_best_scores: [u32; CAMPAIGN_MAP_COUNT],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CampaignProgressError {
-    InvalidContent,
+pub enum CampaignStarsError {
     InvalidMap,
     InvalidLevel,
     InvalidStars,
     Locked,
-    Overflow,
 }
 
-impl CampaignProgress {
-    /// # Errors
-    ///
-    /// Returns [`CampaignProgressError::InvalidContent`] for version zero.
-    pub fn new(
-        content_version: u32,
-        content_hash: [u8; 32],
-    ) -> Result<Self, CampaignProgressError> {
-        if content_version == 0 {
-            return Err(CampaignProgressError::InvalidContent);
+/// The complete Campaign progression state: two bits for each of 100 levels.
+/// Unlocks, guardians, badges, zone completion, and total stars are derived.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CampaignStars {
+    packed: [u8; CAMPAIGN_STAR_BYTES],
+}
+
+impl CampaignStars {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            packed: [0; CAMPAIGN_STAR_BYTES],
         }
-        Ok(Self {
-            content_version,
-            content_hash,
-            next_attempt: 0,
-            best_stars: [0; CAMPAIGN_TOTAL_LEVELS],
-            endless_best_scores: [0; CAMPAIGN_MAP_COUNT],
-        })
     }
 
     #[must_use]
-    pub fn is_valid(&self) -> bool {
-        self.content_version > 0 && self.best_stars.iter().all(|stars| *stars <= 3)
+    pub const fn from_packed(packed: [u8; CAMPAIGN_STAR_BYTES]) -> Self {
+        Self { packed }
     }
 
-    /// Reserve and return the next deterministic attempt counter.
+    #[must_use]
+    pub const fn packed(self) -> [u8; CAMPAIGN_STAR_BYTES] {
+        self.packed
+    }
+
+    /// Return the lifetime-best star result for one Campaign level.
     ///
     /// # Errors
     ///
-    /// Returns an overflow error after the final `u64` attempt.
-    pub fn reserve_attempt(&mut self) -> Result<u64, CampaignProgressError> {
-        let attempt = self.next_attempt;
-        self.next_attempt = self
-            .next_attempt
-            .checked_add(1)
-            .ok_or(CampaignProgressError::Overflow)?;
-        Ok(attempt)
+    /// Rejects a map or level outside the fixed 10-by-10 Campaign.
+    pub fn best(&self, map_id: u8, level_id: u8) -> Result<u8, CampaignStarsError> {
+        let index = level_index(map_id, level_id)?;
+        let shift = (index % 4) * 2;
+        Ok((self.packed[index / 4] >> shift) & 0b11)
     }
 
     #[must_use]
@@ -470,23 +458,40 @@ impl CampaignProgress {
         if index == 0 {
             return true;
         }
-        self.best_stars[index - 1] > 0
+        let previous = index - 1;
+        let shift = (previous % 4) * 2;
+        ((self.packed[previous / 4] >> shift) & 0b11) > 0
     }
 
     #[must_use]
-    pub fn endless_unlocked(&self, map_id: u8) -> bool {
-        level_index(map_id, CAMPAIGN_LEVELS_PER_MAP_U8)
-            .is_ok_and(|index| self.best_stars[index] > 0)
+    pub fn zone_cleared(&self, map_id: u8) -> bool {
+        self.best(map_id, CAMPAIGN_LEVELS_PER_MAP_U8)
+            .is_ok_and(|stars| stars > 0)
     }
 
     #[must_use]
-    pub fn map_perfected(&self, map_id: u8) -> bool {
-        let Ok(first) = level_index(map_id, 1) else {
-            return false;
-        };
-        self.best_stars[first..first + CAMPAIGN_LEVELS_PER_MAP]
-            .iter()
-            .all(|stars| *stars == 3)
+    pub fn zone_perfected(&self, map_id: u8) -> bool {
+        (1..=CAMPAIGN_LEVELS_PER_MAP_U8).all(|level_id| self.best(map_id, level_id) == Ok(3))
+    }
+
+    #[must_use]
+    pub fn total(&self) -> u16 {
+        (1..=CAMPAIGN_MAP_COUNT_U8)
+            .flat_map(|map_id| {
+                (1..=CAMPAIGN_LEVELS_PER_MAP_U8).map(move |level_id| (map_id, level_id))
+            })
+            .map(|(map_id, level_id)| u16::from(self.best(map_id, level_id).unwrap_or(0)))
+            .sum()
+    }
+
+    #[must_use]
+    pub fn all_guardians_cleared(&self) -> bool {
+        (1..=CAMPAIGN_MAP_COUNT_U8).all(|map_id| self.zone_cleared(map_id))
+    }
+
+    #[must_use]
+    pub fn world_perfected(&self) -> bool {
+        self.total() == CAMPAIGN_MAX_STARS
     }
 
     /// Record a completed finite level, preserving the lifetime best.
@@ -499,50 +504,40 @@ impl CampaignProgress {
         map_id: u8,
         level_id: u8,
         stars: u8,
-    ) -> Result<u8, CampaignProgressError> {
+    ) -> Result<u8, CampaignStarsError> {
         if !(1..=3).contains(&stars) {
-            return Err(CampaignProgressError::InvalidStars);
+            return Err(CampaignStarsError::InvalidStars);
         }
         let index = level_index(map_id, level_id)?;
         if !self.level_unlocked(map_id, level_id) {
-            return Err(CampaignProgressError::Locked);
+            return Err(CampaignStarsError::Locked);
         }
-        let previous = self.best_stars[index];
-        self.best_stars[index] = previous.max(stars);
-        Ok(self.best_stars[index] - previous)
-    }
-
-    /// Record an Endless score after its map boss is complete.
-    ///
-    /// # Errors
-    ///
-    /// Returns a map or lock error.
-    pub fn record_endless(&mut self, map_id: u8, score: u32) -> Result<u32, CampaignProgressError> {
-        let map_index = map_index(map_id)?;
-        if !self.endless_unlocked(map_id) {
-            return Err(CampaignProgressError::Locked);
+        let previous = self.best(map_id, level_id)?;
+        let next = previous.max(stars);
+        if next != previous {
+            let shift = (index % 4) * 2;
+            let mask = !(0b11 << shift);
+            self.packed[index / 4] = (self.packed[index / 4] & mask) | (next << shift);
         }
-        let previous = self.endless_best_scores[map_index];
-        self.endless_best_scores[map_index] = previous.max(score);
-        Ok(self.endless_best_scores[map_index] - previous)
+        Ok(next - previous)
     }
 }
 
-fn map_index(map_id: u8) -> Result<usize, CampaignProgressError> {
+fn map_index(map_id: u8) -> Result<usize, CampaignStarsError> {
     map_id
         .checked_sub(1)
         .map(usize::from)
         .filter(|index| *index < CAMPAIGN_MAP_COUNT)
-        .ok_or(CampaignProgressError::InvalidMap)
+        .ok_or(CampaignStarsError::InvalidMap)
 }
 
-fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignProgressError> {
+fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
     let map = map_index(map_id)?;
     let level = level_id
         .checked_sub(1)
         .map(usize::from)
         .filter(|index| *index < CAMPAIGN_LEVELS_PER_MAP)
-        .ok_or(CampaignProgressError::InvalidLevel)?;
+        .ok_or(CampaignStarsError::InvalidLevel)?;
     Ok(map * CAMPAIGN_LEVELS_PER_MAP + level)
 }
 
@@ -586,8 +581,8 @@ mod tests {
     }
 
     #[test]
-    fn progress_unlocks_sequentially_and_keeps_bests() {
-        let mut progress = CampaignProgress::new(2, [3; 32]).unwrap();
+    fn compact_stars_unlock_sequentially_and_keep_bests() {
+        let mut progress = CampaignStars::new();
         assert!(progress.level_unlocked(1, 1));
         assert!(!progress.level_unlocked(1, 2));
         assert_eq!(progress.record_level(1, 1, 2), Ok(2));
@@ -597,8 +592,22 @@ mod tests {
             progress.record_level(1, level, 3).unwrap();
         }
         assert!(progress.level_unlocked(2, 1));
-        assert!(progress.endless_unlocked(1));
-        assert_eq!(progress.record_endless(1, 42), Ok(42));
-        assert_eq!(progress.record_endless(1, 30), Ok(0));
+        assert!(progress.zone_cleared(1));
+        assert!(!progress.zone_perfected(1));
+        assert_eq!(progress.total(), 29);
+        assert_eq!(progress.packed().len(), CAMPAIGN_STAR_BYTES);
+    }
+
+    #[test]
+    fn completion_and_perfection_are_fully_derived() {
+        let mut progress = CampaignStars::new();
+        for map_id in 1..=10 {
+            for level_id in 1..=10 {
+                progress.record_level(map_id, level_id, 3).unwrap();
+            }
+        }
+        assert!(progress.all_guardians_cleared());
+        assert!(progress.world_perfected());
+        assert_eq!(progress.total(), 300);
     }
 }

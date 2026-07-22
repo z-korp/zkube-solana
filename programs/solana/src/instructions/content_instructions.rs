@@ -534,10 +534,6 @@ pub fn handler_prepare_campaign_run(
         ErrorCode::ActiveRunExists
     );
     require!(
-        ctx.accounts.player_state.is_map_unlocked(map_id),
-        ErrorCode::MapLocked
-    );
-    require!(
         map_id > 0 && map_id <= ctx.accounts.protocol.campaign_map_count,
         ErrorCode::InvalidMap
     );
@@ -545,6 +541,12 @@ pub fn handler_prepare_campaign_run(
     require!(
         (1..=LEVELS_PER_MAP as u8).contains(&level),
         ErrorCode::InvalidLevel
+    );
+    require!(
+        ctx.accounts
+            .player_state
+            .campaign_level_unlocked(map_id, level)?,
+        ErrorCode::MapLocked
     );
 
     let rules = ctx.accounts.map_catalog.expanded_level(level)?;

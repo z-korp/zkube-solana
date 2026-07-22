@@ -35,10 +35,18 @@ mod rules;
 mod simulation;
 mod weekly;
 
+/// Canonical account schema versions consumed by the Solana program and
+/// generated TypeScript boundaries. Rules and public labels intentionally
+/// retain their independent v1 schemas.
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 3;
+pub const RULES_ACCOUNT_VERSION: u8 = 1;
+pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
+
 pub use campaign::{
-    CAMPAIGN_LEVELS_PER_MAP, CAMPAIGN_MAP_COUNT, CAMPAIGN_TOTAL_LEVELS, CampaignEndReason,
-    CampaignError, CampaignMode, CampaignProgress, CampaignProgressError, CampaignRules,
-    CampaignSimulation, CampaignSimulationConfig,
+    CAMPAIGN_LEVELS_PER_MAP, CAMPAIGN_MAP_COUNT, CAMPAIGN_MAX_STARS, CAMPAIGN_STAR_BYTES,
+    CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignError, CampaignMode, CampaignRules,
+    CampaignSimulation, CampaignSimulationConfig, CampaignStars, CampaignStarsError,
 };
 pub use daily_scoring::{
     DailyObjective, DailyObjectiveRule, DailyObjectiveScore, DailyScoringError,

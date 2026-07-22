@@ -17,14 +17,6 @@ export const applyCampaignBonus: (a: number, b: number, c: number, d: number, e:
 export const abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const campaignRunEarnedStars: (a: number, b: number) => [number, number, number];
 export const campaignRunEndReason: (a: number, b: number) => [number, number, number];
-export const initializeCampaignProgress: (a: number, b: number, c: number) => [number, number, number, number];
-export const campaignNextAttempt: (a: number, b: number) => [bigint, number, number];
-export const reserveCampaignAttempt: (a: number, b: number) => [number, number, number, number];
-export const recordCampaignLevelResult: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-export const recordCampaignEndlessResult: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const campaignLevelUnlocked: (a: number, b: number, c: number, d: number) => [number, number, number];
-export const campaignEndlessUnlocked: (a: number, b: number, c: number) => [number, number, number];
-export const campaignMapPerfected: (a: number, b: number, c: number) => [number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __externref_table_dealloc: (a: number) => void;

@@ -6,7 +6,7 @@ use crate::error::ErrorCode;
 use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
 use crate::state::protocol::LevelRuleSnapshot;
 
-pub const ARCADE_ACCOUNT_VERSION: u8 = 2;
+pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
 pub const OPERATOR_REVENUE_VAULT_SEED: &[u8] = b"operator_revenue";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
@@ -257,6 +257,9 @@ pub struct ArenaDaily {
     pub season_rollup_sealed: bool,
     #[max_len(ARENA_BOARD_CAPACITY)]
     pub entries: Vec<ArenaBoardEntry>,
+    /// Bit per payout-bearing Daily position. Profile synchronization happens
+    /// only after push settlement and cannot gate or repeat a transfer.
+    pub profile_sync_mask: u8,
     pub bump: u8,
 }
 
@@ -418,6 +421,8 @@ pub struct WeeklyJackpot {
     pub action_entries: Vec<MetricBoardEntry>,
     #[max_len(WEEKLY_BOARD_CAPACITY)]
     pub run_entries: Vec<MetricBoardEntry>,
+    /// Nine bits: `board_index * 3 + zero_based_rank`.
+    pub profile_sync_mask: u16,
     pub bump: u8,
 }
 
@@ -558,6 +563,8 @@ pub struct Season {
     pub sealed_dailies: u8,
     #[max_len(SEASON_BOARD_CAPACITY)]
     pub entries: Vec<SeasonBoardEntry>,
+    /// Bit per payout-bearing Season position.
+    pub profile_sync_mask: u8,
     pub bump: u8,
 }
 
@@ -947,6 +954,7 @@ mod tests {
             season_rollups: 0,
             season_rollup_sealed: false,
             entries: Vec::new(),
+            profile_sync_mask: 0,
             bump: 1,
         };
         let best = ArenaBoardEntry {

@@ -9,7 +9,6 @@ use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::instructions::progress_instructions::apply_automatic_arcade_progress;
 use crate::state::*;
 
 #[derive(Accounts)]
@@ -224,6 +223,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         season_rollups: 0,
         season_rollup_sealed: false,
         entries: Vec::new(),
+        profile_sync_mask: 0,
         bump: ctx.bumps.arena_daily,
     });
     Ok(())
@@ -284,6 +284,7 @@ pub fn handler_prepare_weekly_jackpot(
         combo_entries: Vec::new(),
         action_entries: Vec::new(),
         run_entries: Vec::new(),
+        profile_sync_mask: 0,
         bump: ctx.bumps.weekly_jackpot,
     });
     Ok(())
@@ -335,6 +336,7 @@ pub fn handler_prepare_season(ctx: Context<PrepareSeason>, season_id: u32) -> Re
         ledger: PoolLedger::default(),
         sealed_dailies: 0,
         entries: Vec::new(),
+        profile_sync_mask: 0,
         bump: ctx.bumps.season,
     });
     Ok(())
@@ -671,6 +673,7 @@ pub fn handler_enter_arena_v2(
         checked_add_u64(ctx.accounts.current_daily.entries_paid, 1)?;
     ctx.accounts.arena_player.paid_entries =
         checked_add_u32(ctx.accounts.arena_player.paid_entries, 1)?;
+    ctx.accounts.player_state.record_paid_entry()?;
     ctx.accounts.arena_player.active_paid_run_id = run_id;
     let daily_key = ctx.accounts.current_daily.key();
     initialize_arena_run(
@@ -682,7 +685,6 @@ pub fn handler_enter_arena_v2(
         ctx.accounts.owner.key(),
         run_id,
         RunMode::Daily,
-        now,
         ctx.accounts.current_daily.runs_close_at,
         ctx.accounts.protocol.replay_domain,
     )
@@ -740,7 +742,6 @@ pub fn handler_prepare_practice_run_v2(
         ctx.accounts.owner_authority.key(),
         run_id,
         RunMode::Practice,
-        now,
         practice_runs_close_at,
         ctx.accounts.protocol.replay_domain,
     )
@@ -756,15 +757,10 @@ fn initialize_arena_run(
     owner: Pubkey,
     run_id: u64,
     mode: RunMode,
-    now: i64,
     deadline_at: i64,
     replay_domain: [u8; 32],
 ) -> Result<()> {
     player.reserve_arcade_run(run_id, daily_key, mode, deadline_at)?;
-    player.record_run_started(now)?;
-    if mode == RunMode::Daily {
-        player.record_daily_join(daily.day_id, now)?;
-    }
     *active = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
@@ -893,11 +889,7 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
             ctx.accounts.arena_daily.season_eligible_players =
                 checked_add_u32(ctx.accounts.arena_daily.season_eligible_players, 1)?;
         }
-        ctx.accounts
-            .player_state
-            .record_run_metrics(run_progress_metrics(active), active.finished_at)?;
     }
-    apply_automatic_arcade_progress(&mut ctx.accounts.player_state, active.finished_at);
     ctx.accounts.player_state.release_run(active.run_id)
 }
 
@@ -936,28 +928,9 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
         ),
         ErrorCode::InvalidRunId
     );
-    let mut metrics = run_progress_metrics(active);
-    metrics.beat_yesterday_score = ctx
-        .accounts
-        .arena_player
-        .as_ref()
-        .is_some_and(|player| player.has_best && active.daily_score > player.best_entry.score);
-    let practice_entry = ArenaBoardEntry {
-        player: active.owner,
-        run_id: active.run_id,
-        score: active.daily_score,
-        finalized_at: active.finished_at,
-        replay_hash: active.replay_hash,
-        metrics: active_run_metrics(active)?,
-        ..ArenaBoardEntry::default()
-    };
-    metrics.practice_top_25 = ctx.accounts.arena_daily.status == PeriodStatus::Finalized
-        && !ctx.accounts.arena_daily.entries.is_empty()
-        && ctx.accounts.arena_daily.hypothetical_rank(&practice_entry) <= 25;
-    ctx.accounts
-        .player_state
-        .record_run_metrics(metrics, active.finished_at)?;
-    apply_automatic_arcade_progress(&mut ctx.accounts.player_state, active.finished_at);
+    // Practice exists only for a client-side "would have ranked" comparison.
+    // Consuming it releases the durable run reservation and writes no profile,
+    // leaderboard, payout, or other progression state.
     ctx.accounts.player_state.release_run(active.run_id)
 }
 
@@ -1525,23 +1498,6 @@ fn neutral_arena_rules(pressure: DailyPressureProfile) -> LevelRuleSnapshot {
 
 fn active_run_metrics(active: &ActiveRun) -> Result<RunMetrics> {
     Ok(active.arcade_metrics)
-}
-
-fn run_progress_metrics(active: &ActiveRun) -> RunProgressMetrics {
-    RunProgressMetrics {
-        arena_or_practice: true,
-        lines_cleared: active.total_lines_cleared,
-        bonus_uses: active.bonus_uses,
-        combo2_hits: active.combo2_hits,
-        combo3_hits: active.combo3_hits,
-        combo4_hits: active.combo4_hits,
-        high_combo_hits: active.high_combo_hits,
-        blocks_destroyed_by_size: active.blocks_destroyed_by_size,
-        max_combo: active.max_combo,
-        pressure_tier: active.current_difficulty,
-        perfect_clears: active.perfect_clears,
-        ..RunProgressMetrics::default()
-    }
 }
 
 fn transfer_from_signer<'info>(

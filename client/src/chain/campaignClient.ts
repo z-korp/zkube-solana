@@ -1,9 +1,4 @@
-import type BN from "bn.js";
-import {
-  PublicKey,
-  type AccountInfo,
-  type Connection,
-} from "@solana/web3.js";
+import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
   deriveMapCatalogPda,
@@ -16,7 +11,12 @@ import {
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
 } from "./runPlan.js";
-import { MAX_CAMPAIGN_MAPS } from "./campaignCatalog.js";
+import { CANONICAL_CAMPAIGN_MAP_COUNT } from "./campaignCatalog.js";
+import { PROTOCOL_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
+
+export const CAMPAIGN_LEVEL_COUNT = 100;
+export const CAMPAIGN_STAR_BYTES = 25;
+export const CAMPAIGN_LEVELS_PER_MAP = 10;
 
 export interface CampaignMapView {
   mapId: number;
@@ -79,14 +79,19 @@ export async function fetchCampaignView(args: {
         playerInfo.data,
       ) as unknown as PlayerAccount)
     : null;
-  if (Number(protocol.version) !== 3) {
+  if (Number(protocol.version) !== PROTOCOL_ACCOUNT_VERSION) {
     return null;
   }
+  const rawPlayer = player as unknown as {
+    version: number;
+    owner: PublicKey;
+    campaignStars: readonly number[];
+  } | null;
   if (
-    player &&
-    (Number(player.version) !== 3 ||
-      !player.owner.equals(owner) ||
-      player.levelStars.length !== 80)
+    rawPlayer &&
+    (Number(rawPlayer.version) !== PROTOCOL_ACCOUNT_VERSION ||
+      !rawPlayer.owner.equals(owner) ||
+      rawPlayer.campaignStars.length !== CAMPAIGN_STAR_BYTES)
   ) {
     return null;
   }
@@ -94,8 +99,7 @@ export async function fetchCampaignView(args: {
   const campaignMapCount = Number(protocol.campaignMapCount);
   if (
     !Number.isInteger(campaignMapCount) ||
-    campaignMapCount < 1 ||
-    campaignMapCount > MAX_CAMPAIGN_MAPS
+    campaignMapCount !== CANONICAL_CAMPAIGN_MAP_COUNT
   )
     return null;
   const catalogAddresses = Array.from(
@@ -126,7 +130,7 @@ export async function fetchCampaignView(args: {
     !catalogs.every(
       (catalog, index) =>
         catalog &&
-        Number(catalog.version) === 3 &&
+        Number(catalog.version) === PROTOCOL_ACCOUNT_VERSION &&
         Number(catalog.contentVersion) === contentVersion &&
         Number(catalog.mapId) === index + 1 &&
         catalog.levels.length === 10,
@@ -142,11 +146,17 @@ export async function fetchCampaignView(args: {
       mapId,
       themeId: Number(catalog.themeId),
       enabled: Boolean(catalog.enabled),
-      unlocked: player ? hasMapFlag(player.unlockedMaps, mapId) : mapId === 1,
-      cleared: player ? hasMapFlag(player.clearedMaps, mapId) : false,
-      perfected: player ? hasMapFlag(player.perfectedMaps, mapId) : false,
-      levelStars: player
-        ? unpackCompactLevelStars(player.levelStars, index)
+      unlocked: rawPlayer
+        ? campaignMapUnlocked(rawPlayer.campaignStars, index)
+        : mapId === 1,
+      cleared: rawPlayer
+        ? campaignMapCleared(rawPlayer.campaignStars, index)
+        : false,
+      perfected: rawPlayer
+        ? campaignMapPerfected(rawPlayer.campaignStars, index)
+        : false,
+      levelStars: rawPlayer
+        ? unpackCompactLevelStars(rawPlayer.campaignStars, index)
         : Array.from({ length: 10 }, () => 0),
       levels: catalog.levels.map((level, levelIndex) =>
         mapLevelRuleSnapshot({
@@ -178,23 +188,73 @@ function assertProgramAccount(
   }
 }
 
-function hasMapFlag(bitmap: number | bigint | BN, mapId: number): boolean {
-  if (!Number.isInteger(mapId) || mapId < 1 || mapId > MAX_CAMPAIGN_MAPS) {
-    return false;
-  }
-  const value = BigInt(bitmap.toString());
-  return (value & (1n << BigInt(mapId - 1))) !== 0n;
-}
-
-function unpackCompactLevelStars(
+export function unpackCompactLevelStars(
   bytes: readonly number[],
   mapIndex: number,
 ): number[] {
-  if (bytes.length !== 80 || mapIndex < 0 || mapIndex >= MAX_CAMPAIGN_MAPS) {
+  if (
+    bytes.length !== CAMPAIGN_STAR_BYTES ||
+    mapIndex < 0 ||
+    mapIndex >= CANONICAL_CAMPAIGN_MAP_COUNT
+  ) {
     throw new Error("Campaign level-star bitmap has an invalid layout");
   }
-  return Array.from({ length: 10 }, (_, level) => {
-    const bit = (mapIndex * 10 + level) * 2;
+  return Array.from({ length: CAMPAIGN_LEVELS_PER_MAP }, (_, level) => {
+    const bit = (mapIndex * CAMPAIGN_LEVELS_PER_MAP + level) * 2;
     return ((bytes[bit >> 3] ?? 0) >> (bit & 7)) & 0x3;
   });
+}
+
+export function campaignMapUnlocked(
+  bytes: readonly number[],
+  mapIndex: number,
+): boolean {
+  if (mapIndex === 0) return true;
+  if (mapIndex < 0 || mapIndex >= CANONICAL_CAMPAIGN_MAP_COUNT) return false;
+  return campaignLevelStars(bytes, mapIndex * CAMPAIGN_LEVELS_PER_MAP - 1) > 0;
+}
+
+export function campaignMapCleared(
+  bytes: readonly number[],
+  mapIndex: number,
+): boolean {
+  return (
+    mapIndex >= 0 &&
+    mapIndex < CANONICAL_CAMPAIGN_MAP_COUNT &&
+    campaignLevelStars(
+      bytes,
+      mapIndex * CAMPAIGN_LEVELS_PER_MAP + CAMPAIGN_LEVELS_PER_MAP - 1,
+    ) > 0
+  );
+}
+
+export function campaignMapPerfected(
+  bytes: readonly number[],
+  mapIndex: number,
+): boolean {
+  if (mapIndex < 0 || mapIndex >= CANONICAL_CAMPAIGN_MAP_COUNT) return false;
+  return unpackCompactLevelStars(bytes, mapIndex).every((stars) => stars === 3);
+}
+
+export function campaignTotalStars(bytes: readonly number[]): number {
+  assertCampaignStarLayout(bytes);
+  return Array.from({ length: CAMPAIGN_LEVEL_COUNT }, (_, levelIndex) =>
+    campaignLevelStars(bytes, levelIndex),
+  ).reduce((total, stars) => total + stars, 0);
+}
+
+function campaignLevelStars(
+  bytes: readonly number[],
+  levelIndex: number,
+): number {
+  assertCampaignStarLayout(bytes);
+  if (levelIndex < 0 || levelIndex >= CAMPAIGN_LEVEL_COUNT) return 0;
+  const bit = levelIndex * 2;
+  return ((bytes[bit >> 3] ?? 0) >> (bit & 7)) & 0x3;
+}
+
+function assertCampaignStarLayout(bytes: readonly number[]): void {
+  if (bytes.length !== CAMPAIGN_STAR_BYTES) {
+    throw new Error("Campaign level-star bitmap has an invalid layout");
+  }
 }

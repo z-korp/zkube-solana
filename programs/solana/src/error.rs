@@ -62,8 +62,6 @@ pub enum ErrorCode {
     MapLocked,
     #[msg("Map is disabled")]
     MapDisabled,
-    #[msg("Map is already unlocked")]
-    MapAlreadyUnlocked,
     #[msg("Content version mismatch")]
     ContentVersionMismatch,
     #[msg("Invalid block weights")]
@@ -76,8 +74,6 @@ pub enum ErrorCode {
     VrfRequestMismatch,
     #[msg("The player has no Daily prize")]
     NoPrize,
-    #[msg("The progression rule is invalid")]
-    InvalidProgressRule,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
     #[msg("The Arena entry price changed; refresh the exact quote")]
@@ -88,6 +84,8 @@ pub enum ErrorCode {
     SessionExpired,
     #[msg("The player label is invalid")]
     InvalidPlayerLabel,
+    #[msg("The featured emblem is invalid or not unlocked")]
+    InvalidEmblem,
     #[msg("The provided period is not the canonical current or successor period")]
     InvalidPeriod,
     #[msg("The first Daily, Weekly, and Season pools were already seeded")]

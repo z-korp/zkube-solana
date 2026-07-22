@@ -11,7 +11,7 @@ pub mod governance_instructions;
 pub mod player_authorization;
 pub mod player_funding_instructions;
 pub mod player_label_instructions;
-pub mod progress_instructions;
+pub mod profile_instructions;
 pub mod run_lifecycle;
 
 pub use arcade_instructions::*;
@@ -20,4 +20,5 @@ pub use governance_instructions::*;
 pub use player_authorization::*;
 pub use player_funding_instructions::*;
 pub use player_label_instructions::*;
+pub use profile_instructions::*;
 pub use run_lifecycle::*;

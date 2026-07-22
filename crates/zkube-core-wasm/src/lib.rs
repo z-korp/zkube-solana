@@ -4,14 +4,12 @@ mod campaign;
 mod simulation;
 
 pub use campaign::{
-    CAMPAIGN_PROGRESS_LEN, CAMPAIGN_SIMULATION_CONFIG_LEN, CAMPAIGN_SIMULATION_STATE_LEN,
-    campaign_endless_unlocked, campaign_level_unlocked, campaign_map_perfected,
-    campaign_progress_next_attempt, campaign_simulation_abandon, campaign_simulation_apply_bonus,
-    campaign_simulation_earned_stars, campaign_simulation_end_reason,
-    campaign_simulation_play_move, decode_campaign_progress, decode_campaign_simulation_config,
-    decode_campaign_simulation_state, encode_campaign_progress, encode_campaign_simulation_config,
-    encode_campaign_simulation_state, initialize_campaign_progress, initialize_campaign_simulation,
-    record_campaign_endless_result, record_campaign_level_result, reserve_campaign_attempt,
+    CAMPAIGN_SIMULATION_CONFIG_LEN, CAMPAIGN_SIMULATION_STATE_LEN, campaign_simulation_abandon,
+    campaign_simulation_apply_bonus, campaign_simulation_earned_stars,
+    campaign_simulation_end_reason, campaign_simulation_play_move,
+    decode_campaign_simulation_config, decode_campaign_simulation_state,
+    encode_campaign_simulation_config, encode_campaign_simulation_state,
+    initialize_campaign_simulation,
 };
 pub use simulation::{
     DAILY_SIMULATION_CONFIG_LEN, DAILY_SIMULATION_STATE_LEN, decode_daily_simulation_config,
@@ -32,7 +30,6 @@ pub enum BoundaryError {
     InvalidEncoding,
     Simulation(zkube_core::SimulationError),
     Campaign(zkube_core::CampaignError),
-    Progress(zkube_core::CampaignProgressError),
     Randomness(zkube_core::RandomnessError),
 }
 
@@ -45,12 +42,6 @@ impl From<zkube_core::SimulationError> for BoundaryError {
 impl From<zkube_core::CampaignError> for BoundaryError {
     fn from(error: zkube_core::CampaignError) -> Self {
         Self::Campaign(error)
-    }
-}
-
-impl From<zkube_core::CampaignProgressError> for BoundaryError {
-    fn from(error: zkube_core::CampaignProgressError) -> Self {
-        Self::Progress(error)
     }
 }
 
@@ -154,15 +145,12 @@ pub fn empty_continuation_rows(
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm {
     use super::{
-        BoundaryError, campaign_endless_unlocked, campaign_level_unlocked, campaign_map_perfected,
-        campaign_progress_next_attempt, campaign_simulation_abandon,
-        campaign_simulation_apply_bonus, campaign_simulation_earned_stars,
-        campaign_simulation_end_reason, campaign_simulation_play_move, empty_continuation_rows,
-        initial_replay_commitment, initialize_campaign_progress, initialize_campaign_simulation,
-        initialize_daily_simulation, qualified_player_id, record_campaign_endless_result,
-        record_campaign_level_result, reserve_campaign_attempt, simulation_apply_bonus,
-        simulation_apply_vrf, simulation_finish_deadline, simulation_play_move,
-        simulation_score_eligible, weekly_metric_selection,
+        BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
+        campaign_simulation_earned_stars, campaign_simulation_end_reason,
+        campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
+        initialize_campaign_simulation, initialize_daily_simulation, qualified_player_id,
+        simulation_apply_bonus, simulation_apply_vrf, simulation_finish_deadline,
+        simulation_play_move, simulation_score_eligible, weekly_metric_selection,
     };
     use wasm_bindgen::prelude::*;
 
@@ -175,7 +163,6 @@ mod wasm {
             BoundaryError::InvalidEncoding => JsError::new("invalid simulation encoding"),
             BoundaryError::Simulation(_) => JsError::new("simulation transition rejected"),
             BoundaryError::Campaign(_) => JsError::new("Campaign transition rejected"),
-            BoundaryError::Progress(_) => JsError::new("Campaign progress rejected"),
             BoundaryError::Randomness(_) => JsError::new("randomness transition rejected"),
         }
     }
@@ -340,62 +327,6 @@ mod wasm {
     #[wasm_bindgen(js_name = campaignRunEndReason)]
     pub fn js_campaign_simulation_end_reason(state: &[u8]) -> Result<u8, JsError> {
         campaign_simulation_end_reason(state).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = initializeCampaignProgress)]
-    pub fn js_initialize_campaign_progress(
-        content_version: u32,
-        content_hash: &[u8],
-    ) -> Result<Vec<u8>, JsError> {
-        initialize_campaign_progress(content_version, content_hash).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = campaignNextAttempt)]
-    pub fn js_campaign_progress_next_attempt(progress: &[u8]) -> Result<u64, JsError> {
-        campaign_progress_next_attempt(progress).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = reserveCampaignAttempt)]
-    pub fn js_reserve_campaign_attempt(progress: &[u8]) -> Result<Vec<u8>, JsError> {
-        reserve_campaign_attempt(progress).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = recordCampaignLevelResult)]
-    pub fn js_record_campaign_level_result(
-        progress: &[u8],
-        map_id: u8,
-        level_id: u8,
-        stars: u8,
-    ) -> Result<Vec<u8>, JsError> {
-        record_campaign_level_result(progress, map_id, level_id, stars).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = recordCampaignEndlessResult)]
-    pub fn js_record_campaign_endless_result(
-        progress: &[u8],
-        map_id: u8,
-        score: u32,
-    ) -> Result<Vec<u8>, JsError> {
-        record_campaign_endless_result(progress, map_id, score).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = campaignLevelUnlocked)]
-    pub fn js_campaign_level_unlocked(
-        progress: &[u8],
-        map_id: u8,
-        level_id: u8,
-    ) -> Result<bool, JsError> {
-        campaign_level_unlocked(progress, map_id, level_id).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = campaignEndlessUnlocked)]
-    pub fn js_campaign_endless_unlocked(progress: &[u8], map_id: u8) -> Result<bool, JsError> {
-        campaign_endless_unlocked(progress, map_id).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = campaignMapPerfected)]
-    pub fn js_campaign_map_perfected(progress: &[u8], map_id: u8) -> Result<bool, JsError> {
-        campaign_map_perfected(progress, map_id).map_err(js_error)
     }
 }
 

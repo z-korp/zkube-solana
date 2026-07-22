@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
+pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = zkube_core::PLAYER_LABEL_ACCOUNT_VERSION;
 pub const PLAYER_LABEL_SEED: &[u8] = b"label";
 pub const PLAYER_LABEL_MIN_LEN: usize = 3;
 pub const PLAYER_LABEL_MAX_LEN: usize = 16;

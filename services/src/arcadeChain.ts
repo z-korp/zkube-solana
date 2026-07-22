@@ -1,10 +1,15 @@
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
+import {
+  ARCADE_ACCOUNT_VERSION,
+  PROTOCOL_ACCOUNT_VERSION,
+} from "./protocolVersions.generated.js";
+
+export { ARCADE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION };
+
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const PROTOCOL_ACCOUNT_VERSION = 1;
-export const ARCADE_ACCOUNT_VERSION = 2;
 export const SECONDS_PER_DAY = 86_400;
 export const DAYS_PER_WEEK = 7;
 export const DAYS_PER_SEASON = 28;
@@ -48,6 +53,9 @@ export type KeeperOperation =
   | "finalize_arena_daily"
   | "finalize_weekly_jackpot"
   | "finalize_season"
+  | "sync_daily_profile"
+  | "sync_weekly_profile"
+  | "sync_season_profile"
   | "revoke_expired_session";
 
 export type CompetitionKind = "daily" | "weekly" | "season";
@@ -82,6 +90,8 @@ export interface KeeperPlanContext {
   payoutLamports?: readonly bigint[];
   payoutTotalLamports?: bigint;
   rolloverLamports?: bigint;
+  /** Canonical payout-position bits this profile sync is expected to consume. */
+  winnerPositionMask?: number;
   sessionSigner?: PublicKey;
   sessionAddress?: PublicKey;
   sessionValidUntil?: number;

@@ -54,6 +54,10 @@ pub mod solana {
         instructions::player_label_instructions::handler_set_player_label(ctx, args)
     }
 
+    pub fn set_featured_emblem(ctx: Context<SetFeaturedEmblem>, emblem_id: u8) -> Result<()> {
+        instructions::profile_instructions::handler_set_featured_emblem(ctx, emblem_id)
+    }
+
     pub fn withdraw_player_funding(
         ctx: Context<WithdrawPlayerFunding>,
         lamports: u64,
@@ -213,6 +217,18 @@ pub mod solana {
 
     pub fn finalize_season<'info>(ctx: Context<'info, FinalizeSeason<'info>>) -> Result<()> {
         instructions::arcade_instructions::handler_finalize_season(ctx)
+    }
+
+    pub fn sync_daily_profile(ctx: Context<SyncDailyProfile>) -> Result<()> {
+        instructions::profile_instructions::handler_sync_daily_profile(ctx)
+    }
+
+    pub fn sync_weekly_profile(ctx: Context<SyncWeeklyProfile>) -> Result<()> {
+        instructions::profile_instructions::handler_sync_weekly_profile(ctx)
+    }
+
+    pub fn sync_season_profile(ctx: Context<SyncSeasonProfile>) -> Result<()> {
+        instructions::profile_instructions::handler_sync_season_profile(ctx)
     }
 
     pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {

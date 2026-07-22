@@ -66,6 +66,8 @@ export interface DailySnapshot {
   seasonEligiblePlayers: number;
   seasonRollups: number;
   seasonRollupSealed: boolean;
+  /** Finalized payout positions already reflected in durable PlayerState profiles. */
+  profileSyncMask: number;
   settlement?: SettlementSnapshot;
 }
 
@@ -77,6 +79,8 @@ export interface WeeklySnapshot {
   predecessorRolloverRequired: boolean;
   predecessorRolloverApplied: boolean;
   qualificationDailiesComplete: boolean;
+  /** Nine bits: three ranks for each of the three skill boards. */
+  profileSyncMask: number;
   settlement?: SettlementSnapshot;
 }
 
@@ -88,6 +92,8 @@ export interface SeasonSnapshot {
   predecessorRolloverRequired: boolean;
   predecessorRolloverApplied: boolean;
   sealedDailies: number;
+  /** Finalized payout positions already reflected in durable PlayerState profiles. */
+  profileSyncMask: number;
   settlement?: SettlementSnapshot;
 }
 
@@ -127,6 +133,8 @@ export interface ProtocolSnapshot {
   seasons: readonly SeasonSnapshot[];
   runs: readonly RunSnapshot[];
   dailySeasonPlayers: readonly DailySeasonPlayerSnapshot[];
+  /** Relationship-checked canonical PlayerState owners available for profile sync. */
+  playerStateOwners: readonly PublicKey[];
 }
 
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
@@ -138,6 +146,7 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   seasons: Object.freeze([]),
   runs: Object.freeze([]),
   dailySeasonPlayers: Object.freeze([]),
+  playerStateOwners: Object.freeze([]),
 });
 
 /**
@@ -161,6 +170,9 @@ export function discoverReconciliationPlans(args: {
   const dailyById = new Map(args.snapshot.dailies.map((value) => [value.dayId, value]));
   const weeklyById = new Map(args.snapshot.weeklies.map((value) => [value.weekId, value]));
   const seasonById = new Map(args.snapshot.seasons.map((value) => [value.seasonId, value]));
+  const playerStateOwners = new Set(
+    args.snapshot.playerStateOwners.map((owner) => owner.toBase58()),
+  );
 
   if (!args.snapshot.paused) {
     for (const daily of args.snapshot.dailies) {
@@ -302,6 +314,15 @@ export function discoverReconciliationPlans(args: {
         seasonId: seasonIdForDay(daily.dayId),
       }));
     }
+    appendProfileSyncPlans(
+      plans,
+      "daily",
+      daily.dayId,
+      daily.status,
+      daily.settlement,
+      daily.profileSyncMask,
+      playerStateOwners,
+    );
   }
 
   for (const weekly of args.snapshot.weeklies) {
@@ -317,6 +338,15 @@ export function discoverReconciliationPlans(args: {
       weekly.settlement,
       weeklyById.has(weekly.weekId + 1),
       weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1,
+    );
+    appendProfileSyncPlans(
+      plans,
+      "weekly",
+      weekly.weekId,
+      weekly.status,
+      weekly.settlement,
+      weekly.profileSyncMask,
+      playerStateOwners,
     );
   }
 
@@ -340,6 +370,15 @@ export function discoverReconciliationPlans(args: {
       seasonById.has(season.seasonId + 1),
       undefined,
       season.sealedDailies,
+    );
+    appendProfileSyncPlans(
+      plans,
+      "season",
+      season.seasonId,
+      season.status,
+      season.settlement,
+      season.profileSyncMask,
+      playerStateOwners,
     );
   }
   return plans;
@@ -419,6 +458,10 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     snapshot.dailySeasonPlayers.map(({ dayId, owner }) => `${dayId}:${owner.toBase58()}`),
     "ArenaPlayer",
   );
+  assertUnique(
+    snapshot.playerStateOwners.map((owner) => owner.toBase58()),
+    "PlayerState owner",
+  );
 
   for (const daily of snapshot.dailies) {
     assertCadenceId(daily.dayId, "day id");
@@ -452,6 +495,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("Daily Season rollup counters are inconsistent");
     }
     validateSettlement("daily", daily.potLamports, daily.settlement, 5);
+    validateProfileSyncMask("daily", daily.profileSyncMask, daily.settlement);
   }
 
   for (const weekly of snapshot.weeklies) {
@@ -474,6 +518,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("Weekly qualification is incomplete");
     }
     validateSettlement("weekly", weekly.potLamports, weekly.settlement, 9);
+    validateProfileSyncMask("weekly", weekly.profileSyncMask, weekly.settlement);
   }
 
   for (const season of snapshot.seasons) {
@@ -504,6 +549,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("finalized Season qualification is incomplete");
     }
     validateSettlement("season", season.potLamports, season.settlement, 5);
+    validateProfileSyncMask("season", season.profileSyncMask, season.settlement);
   }
 
   for (const run of snapshot.runs) validateRun(snapshot, run);
@@ -607,6 +653,80 @@ function appendFinalizationPlan(
     potLamports: payoutTotal + settlement.rolloverLamports,
     rolloverLamports: settlement.rolloverLamports,
   }));
+}
+
+function appendProfileSyncPlans(
+  plans: KeeperInstructionPlan[],
+  competition: CompetitionKind,
+  id: number,
+  status: PeriodStatus,
+  settlement: SettlementSnapshot | undefined,
+  syncedMask: number,
+  playerStateOwners: ReadonlySet<string>,
+): void {
+  if (status !== "finalized" || !settlement) return;
+  const outstandingByOwner = new Map<string, { owner: PublicKey; mask: number }>();
+  for (const winner of settlement.winners) {
+    if (winner.payoutLamports === 0n) continue;
+    if (!playerStateOwners.has(winner.owner.toBase58())) continue;
+    const bit = winnerPositionBit(competition, winner);
+    if ((syncedMask & bit) !== 0) continue;
+    const key = winner.owner.toBase58();
+    const current = outstandingByOwner.get(key);
+    if (current) current.mask |= bit;
+    else outstandingByOwner.set(key, { owner: winner.owner, mask: bit });
+  }
+  const operation = competition === "daily"
+    ? "sync_daily_profile"
+    : competition === "weekly"
+      ? "sync_weekly_profile"
+      : "sync_season_profile";
+  for (const { owner, mask } of outstandingByOwner.values()) {
+    plans.push(validationOnlyPlan(operation, {
+      ...periodContext(competition, id),
+      competition,
+      owner,
+      winnerPositionMask: mask,
+    }));
+  }
+}
+
+function validateProfileSyncMask(
+  competition: CompetitionKind,
+  syncedMask: number,
+  settlement: SettlementSnapshot | undefined,
+): void {
+  const maximumMask = competition === "weekly" ? 0x01ff : 0x001f;
+  if (!Number.isSafeInteger(syncedMask) || syncedMask < 0 ||
+      (syncedMask & ~maximumMask) !== 0) {
+    throw new Error(`${competition} profile sync mask is invalid`);
+  }
+  if (syncedMask === 0) return;
+  if (!settlement) {
+    throw new Error(`${competition} profile sync mask has no finalized settlement`);
+  }
+  const winnerMask = settlement.winners.reduce(
+    (mask, winner) => winner.payoutLamports > 0n
+      ? mask | winnerPositionBit(competition, winner)
+      : mask,
+    0,
+  );
+  if ((syncedMask & ~winnerMask) !== 0) {
+    throw new Error(`${competition} profile sync mask references a non-winner`);
+  }
+}
+
+function winnerPositionBit(
+  competition: CompetitionKind,
+  winner: WinnerSnapshot,
+): number {
+  if (competition === "weekly") {
+    if (winner.bountyIndex === undefined) {
+      throw new Error("Weekly payout position is missing a bounty index");
+    }
+    return 1 << (winner.bountyIndex * 3 + winner.rank - 1);
+  }
+  return 1 << (winner.rank - 1);
 }
 
 function validateSettlement(

@@ -7,17 +7,12 @@ use anchor_lang::prelude::*;
 use crate::error::ErrorCode;
 use crate::game::sha256v;
 
-pub const RULES_ACCOUNT_VERSION: u8 = 1;
+pub const RULES_ACCOUNT_VERSION: u8 = zkube_core::RULES_ACCOUNT_VERSION;
 pub const DAILY_RULES_CATALOG_SEED: &[u8] = b"daily_rules";
 pub const DAILY_SCORE_RULE_CAPACITY: usize = 16;
 pub const DAILY_SCORE_FAMILY_COUNT: usize = 7;
 pub const DAILY_PRESSURE_TIERS: usize = 8;
 pub const DAILY_MAX_MOVES: u16 = 100;
-/// Campaign XP follows the lifetime best rating for one map-level. Each newly
-/// earned star is worth ten XP, so a level can mint at most thirty XP across
-/// all of its clears, independent of the one-time perfect-map reward.
-pub const CAMPAIGN_LEVEL_XP_PER_STAR: u32 = 10;
-pub const PERFECT_MAP_XP: u32 = 300;
 
 pub const DAILY_FAMILY_CLASSIC: u8 = 0;
 pub const DAILY_FAMILY_COMBO: u8 = 1;
@@ -360,18 +355,6 @@ fn daily_hash_u64(seed: [u8; 32], domain: &[u8], value: u32, discriminator: u8) 
             .try_into()
             .expect("SHA-256 prefix is eight bytes"),
     )
-}
-
-pub fn player_level(xp: u64) -> u8 {
-    let mut level = 1u8;
-    for candidate in 2u8..=100 {
-        let threshold = 16u64 * u64::from(candidate) * u64::from(candidate);
-        if xp < threshold {
-            break;
-        }
-        level = candidate;
-    }
-    level
 }
 
 pub fn weekly_id_for_day(day_id: u32) -> u32 {

@@ -1014,49 +1014,20 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
     } else {
         0
     };
-    let reward = award_campaign_level_progression(
-        &mut ctx.accounts.player_state,
-        active.map_id,
-        active.level,
-        stars,
-    )?;
+    let newly_earned_stars =
+        ctx.accounts
+            .player_state
+            .record_level_stars(active.map_id, active.level, stars)?;
     emit!(CampaignLevelRewarded {
         owner: active.owner,
         run_id: active.run_id,
         map_id: active.map_id,
         level: active.level,
         achieved_stars: stars,
-        newly_earned_stars: reward.stars,
-        xp: reward.xp,
+        newly_earned_stars,
     });
-    update_campaign_unlocks(
-        &mut ctx.accounts.player_state,
-        active.map_id,
-        active.level,
-        completed,
-    )?;
-    award_map_perfection(&mut ctx.accounts.player_state, active.map_id)?;
     ctx.accounts.player_state.release_run(active.run_id)?;
     Ok(())
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct CampaignLevelReward {
-    stars: u8,
-    xp: u32,
-}
-
-/// Applies the lifetime-best reward delta for one campaign map-level. Keeping
-/// the progress mutation and both credits behind one helper makes replay
-/// idempotence explicit: equal or worse results return a zero reward.
-fn award_campaign_level_progression(
-    player: &mut PlayerState,
-    map_id: u8,
-    level: u8,
-    achieved_stars: u8,
-) -> Result<CampaignLevelReward> {
-    let stars = player.record_level_stars(map_id, level, achieved_stars)?;
-    Ok(CampaignLevelReward { stars, xp: 0 })
 }
 
 #[inline(never)]
@@ -1069,44 +1040,6 @@ fn record_destroyed_blocks(active: &mut ActiveRun, destroyed: [u8; 4]) -> Result
     Ok(())
 }
 
-fn update_campaign_unlocks(
-    player: &mut PlayerState,
-    map_id: u8,
-    level: u8,
-    completed: bool,
-) -> Result<()> {
-    if !completed || level != LEVELS_PER_MAP as u8 {
-        return Ok(());
-    }
-    let bit = 1u32 << (map_id - 1);
-    player.cleared_maps |= bit;
-    if map_id < MAX_MAPS as u8 {
-        player.unlock_map(map_id + 1)?;
-    }
-    Ok(())
-}
-
-fn award_map_perfection(player: &mut PlayerState, map_id: u8) -> Result<bool> {
-    let perfected = (1..=LEVELS_PER_MAP as u8)
-        .all(|candidate| player.best_stars(map_id, candidate).ok() == Some(3));
-    if !perfected {
-        return Ok(false);
-    }
-    let bit = 1u32
-        .checked_shl(u32::from(map_id.saturating_sub(1)))
-        .ok_or(ErrorCode::InvalidMap)?;
-    if player.perfected_maps & bit != 0 {
-        return Ok(false);
-    }
-    player.perfected_maps |= bit;
-    emit!(MapPerfected {
-        owner: player.owner,
-        map_id,
-        xp: 0,
-    });
-    Ok(true)
-}
-
 #[event]
 pub struct CampaignLevelRewarded {
     pub owner: Pubkey,
@@ -1115,14 +1048,6 @@ pub struct CampaignLevelRewarded {
     pub level: u8,
     pub achieved_stars: u8,
     pub newly_earned_stars: u8,
-    pub xp: u32,
-}
-
-#[event]
-pub struct MapPerfected {
-    pub owner: Pubkey,
-    pub map_id: u8,
-    pub xp: u32,
 }
 
 fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
@@ -2344,7 +2269,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_perfection_keeps_guardian_unlock_without_arcade_xp() {
+    fn campaign_perfection_and_guardian_unlock_are_derived_from_stars() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
@@ -2352,54 +2277,46 @@ mod tests {
                 .record_level_stars(1, level, if level == 4 { 2 } else { 3 })
                 .unwrap();
         }
-        player.next_run_id = 2;
-        update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
-        assert!(!award_map_perfection(&mut player, 1).unwrap());
+        assert!(player.zone_cleared(1).unwrap());
+        assert!(!player.zone_perfected(1).unwrap());
+        assert!(player.campaign_level_unlocked(2, 1).unwrap());
         player.record_level_stars(1, 4, 3).unwrap();
-        assert!(award_map_perfection(&mut player, 1).unwrap());
-        assert!(player.is_map_unlocked(2));
-        assert_eq!(player.cleared_maps, 1);
-        assert_eq!(player.perfected_maps, 1);
-        assert_eq!(player.lifetime_xp, 0);
-        assert!(!award_map_perfection(&mut player, 1).unwrap());
-        assert_eq!(player.lifetime_xp, 0);
+        assert!(player.zone_perfected(1).unwrap());
     }
 
     #[test]
-    fn campaign_levels_track_stars_without_arcade_xp() {
+    fn campaign_levels_track_only_monotonic_stars() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
 
-        let one_star = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
-        assert_eq!(one_star, CampaignLevelReward { stars: 1, xp: 0 });
+        let one_star = player.record_level_stars(1, 1, 1).unwrap();
+        assert_eq!(one_star, 1);
 
-        let equal_replay = award_campaign_level_progression(&mut player, 1, 1, 1).unwrap();
-        let worse_replay = award_campaign_level_progression(&mut player, 1, 1, 0).unwrap();
-        assert_eq!(equal_replay, CampaignLevelReward { stars: 0, xp: 0 });
-        assert_eq!(worse_replay, CampaignLevelReward { stars: 0, xp: 0 });
+        let equal_replay = player.record_level_stars(1, 1, 1).unwrap();
+        let worse_replay = player.record_level_stars(1, 1, 0).unwrap();
+        assert_eq!(equal_replay, 0);
+        assert_eq!(worse_replay, 0);
 
-        let improved_to_three = award_campaign_level_progression(&mut player, 1, 1, 3).unwrap();
-        assert_eq!(improved_to_three, CampaignLevelReward { stars: 2, xp: 0 });
+        let improved_to_three = player.record_level_stars(1, 1, 3).unwrap();
+        assert_eq!(improved_to_three, 2);
 
-        let fresh_two_star = award_campaign_level_progression(&mut player, 1, 2, 2).unwrap();
-        let fresh_three_star = award_campaign_level_progression(&mut player, 1, 3, 3).unwrap();
-        assert_eq!(fresh_two_star, CampaignLevelReward { stars: 2, xp: 0 });
-        assert_eq!(fresh_three_star, CampaignLevelReward { stars: 3, xp: 0 });
+        let fresh_two_star = player.record_level_stars(1, 2, 2).unwrap();
+        let fresh_three_star = player.record_level_stars(1, 3, 3).unwrap();
+        assert_eq!(fresh_two_star, 2);
+        assert_eq!(fresh_three_star, 3);
         assert_eq!(player.best_stars(1, 1).unwrap(), 3);
-        assert_eq!(player.lifetime_xp, 0);
     }
 
     #[test]
-    fn ordinary_guardian_clear_enables_daily_and_unlocks_the_next_map() {
+    fn ordinary_guardian_clear_unlocks_the_next_zone_without_extra_state() {
         let owner = Pubkey::new_unique();
         let mut player = PlayerState::initialize(owner, 1);
         for level in 1..=LEVELS_PER_MAP as u8 {
             player.record_level_stars(1, level, 2).unwrap();
         }
-        update_campaign_unlocks(&mut player, 1, 10, true).unwrap();
-        assert!(player.is_map_unlocked(2));
-        assert_eq!(player.cleared_maps, 1);
-        assert_eq!(player.perfected_maps, 0);
+        assert!(player.zone_cleared(1).unwrap());
+        assert!(player.campaign_level_unlocked(2, 1).unwrap());
+        assert!(!player.zone_perfected(1).unwrap());
     }
 
     #[test]

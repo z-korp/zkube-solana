@@ -17,7 +17,7 @@ export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
-  schemaVersion: 3,
+  schemaVersion: 4,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),
@@ -59,6 +59,9 @@ export const KEEPER_RELEASE_POLICY = {
     "seal_arena_season_rollups",
     "finalize_weekly_jackpot",
     "finalize_season",
+    "sync_daily_profile",
+    "sync_weekly_profile",
+    "sync_season_profile",
     "revoke_session_v2",
   ],
   denied: [

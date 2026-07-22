@@ -14,6 +14,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
+import { PLAYER_LABEL_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 
@@ -181,7 +182,7 @@ function decodePlayerLabel(
   ) as unknown as RawPlayerLabel;
   const displayName = decodeFixedAscii(raw.displayName, Number(raw.nameLen));
   if (
-    Number(raw.version) !== 1 ||
+    Number(raw.version) !== PLAYER_LABEL_ACCOUNT_VERSION ||
     !raw.owner.equals(expectedOwner) ||
     !address.equals(derivePlayerLabelPda(expectedOwner)) ||
     validatePlayerLabel(displayName) !== displayName

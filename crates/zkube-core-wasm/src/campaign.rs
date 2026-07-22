@@ -1,16 +1,14 @@
 use crate::BoundaryError;
 use zkube_core::{
-    Bonus, CAMPAIGN_MAP_COUNT, CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignMode,
-    CampaignProgress, CampaignRules, CampaignSimulation, CampaignSimulationConfig, Constraint,
-    ConstraintKind, EndlessRules, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunPhase,
+    Bonus, CampaignEndReason, CampaignMode, CampaignRules, CampaignSimulation,
+    CampaignSimulationConfig, Constraint, ConstraintKind, EndlessRules, Grid, LevelRules,
+    MoveReport, MutatorRules, RunEngine, RunPhase,
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 234;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
-pub const CAMPAIGN_PROGRESS_LEN: usize = 185;
 const CONFIG_VERSION: u8 = 1;
 const STATE_VERSION: u8 = 1;
-const PROGRESS_VERSION: u8 = 1;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -336,132 +334,6 @@ fn decode_for_transition(
     Ok((config, simulation))
 }
 
-#[must_use]
-pub fn encode_campaign_progress(progress: CampaignProgress) -> [u8; CAMPAIGN_PROGRESS_LEN] {
-    let mut writer = Writer::new();
-    writer.write(&[PROGRESS_VERSION]);
-    writer.write(&progress.content_version.to_le_bytes());
-    writer.write(&progress.content_hash);
-    writer.write(&progress.next_attempt.to_le_bytes());
-    writer.write(&progress.best_stars);
-    for score in progress.endless_best_scores {
-        writer.write(&score.to_le_bytes());
-    }
-    writer.finish()
-}
-
-/// # Errors
-///
-/// Rejects invalid versions, lengths, and star values.
-pub fn decode_campaign_progress(bytes: &[u8]) -> Result<CampaignProgress, BoundaryError> {
-    if bytes.len() != CAMPAIGN_PROGRESS_LEN {
-        return Err(BoundaryError::InvalidLength);
-    }
-    let mut reader = Reader::new(bytes);
-    if reader.u8()? != PROGRESS_VERSION {
-        return Err(BoundaryError::InvalidEncoding);
-    }
-    let content_version = reader.u32()?;
-    let content_hash = reader.array()?;
-    let next_attempt = reader.u64()?;
-    let best_stars = reader.array()?;
-    let mut endless_best_scores = [0; CAMPAIGN_MAP_COUNT];
-    for score in &mut endless_best_scores {
-        *score = reader.u32()?;
-    }
-    reader.finish()?;
-    let progress = CampaignProgress {
-        content_version,
-        content_hash,
-        next_attempt,
-        best_stars,
-        endless_best_scores,
-    };
-    if !progress.is_valid() {
-        return Err(BoundaryError::InvalidEncoding);
-    }
-    Ok(progress)
-}
-
-/// # Errors
-///
-/// Returns a content validation error.
-pub fn initialize_campaign_progress(
-    content_version: u32,
-    content_hash: &[u8],
-) -> Result<Vec<u8>, BoundaryError> {
-    let progress = CampaignProgress::new(content_version, array_32(content_hash)?)?;
-    Ok(encode_campaign_progress(progress).to_vec())
-}
-
-/// # Errors
-///
-/// Returns an encoding error for invalid progress.
-pub fn campaign_progress_next_attempt(progress: &[u8]) -> Result<u64, BoundaryError> {
-    Ok(decode_campaign_progress(progress)?.next_attempt)
-}
-
-/// # Errors
-///
-/// Returns an encoding or attempt-overflow error.
-pub fn reserve_campaign_attempt(progress: &[u8]) -> Result<Vec<u8>, BoundaryError> {
-    let mut progress = decode_campaign_progress(progress)?;
-    progress.reserve_attempt()?;
-    Ok(encode_campaign_progress(progress).to_vec())
-}
-
-/// # Errors
-///
-/// Returns an encoding, bounds, lock, or stars error.
-pub fn record_campaign_level_result(
-    progress: &[u8],
-    map_id: u8,
-    level_id: u8,
-    stars: u8,
-) -> Result<Vec<u8>, BoundaryError> {
-    let mut progress = decode_campaign_progress(progress)?;
-    progress.record_level(map_id, level_id, stars)?;
-    Ok(encode_campaign_progress(progress).to_vec())
-}
-
-/// # Errors
-///
-/// Returns an encoding, bounds, or lock error.
-pub fn record_campaign_endless_result(
-    progress: &[u8],
-    map_id: u8,
-    score: u32,
-) -> Result<Vec<u8>, BoundaryError> {
-    let mut progress = decode_campaign_progress(progress)?;
-    progress.record_endless(map_id, score)?;
-    Ok(encode_campaign_progress(progress).to_vec())
-}
-
-/// # Errors
-///
-/// Returns an encoding error for invalid progress.
-pub fn campaign_level_unlocked(
-    progress: &[u8],
-    map_id: u8,
-    level_id: u8,
-) -> Result<bool, BoundaryError> {
-    Ok(decode_campaign_progress(progress)?.level_unlocked(map_id, level_id))
-}
-
-/// # Errors
-///
-/// Returns an encoding error for invalid progress.
-pub fn campaign_endless_unlocked(progress: &[u8], map_id: u8) -> Result<bool, BoundaryError> {
-    Ok(decode_campaign_progress(progress)?.endless_unlocked(map_id))
-}
-
-/// # Errors
-///
-/// Returns an encoding error for invalid progress.
-pub fn campaign_map_perfected(progress: &[u8], map_id: u8) -> Result<bool, BoundaryError> {
-    Ok(decode_campaign_progress(progress)?.map_perfected(map_id))
-}
-
 fn encode_level<const N: usize>(writer: &mut Writer<N>, level: LevelRules) {
     writer.write(&level.points_required.to_le_bytes());
     writer.write(&level.max_moves.to_le_bytes());
@@ -616,10 +488,6 @@ fn decode_end_reason(tag: u8) -> Result<Option<CampaignEndReason>, BoundaryError
     }
 }
 
-fn array_32(bytes: &[u8]) -> Result<[u8; 32], BoundaryError> {
-    bytes.try_into().map_err(|_| BoundaryError::InvalidLength)
-}
-
 struct Writer<const N: usize> {
     bytes: [u8; N],
     cursor: usize,
@@ -701,8 +569,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-const _: () = assert!(CAMPAIGN_TOTAL_LEVELS == 100);
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,17 +596,13 @@ mod tests {
     }
 
     #[test]
-    fn campaign_config_state_and_progress_round_trip() {
+    fn campaign_config_and_state_round_trip() {
         let config = config();
         let encoded = encode_campaign_simulation_config(config);
         assert_eq!(decode_campaign_simulation_config(&encoded), Ok(config));
         let state = CampaignSimulation::new(config).unwrap();
         let encoded_state = encode_campaign_simulation_state(state);
         assert_eq!(decode_campaign_simulation_state(&encoded_state), Ok(state));
-
-        let progress = CampaignProgress::new(2, [7; 32]).unwrap();
-        let encoded_progress = encode_campaign_progress(progress);
-        assert_eq!(decode_campaign_progress(&encoded_progress), Ok(progress));
     }
 
     #[test]
@@ -760,17 +622,5 @@ mod tests {
             decode_campaign_simulation_state(&corrupted),
             Err(BoundaryError::InvalidEncoding)
         );
-    }
-
-    #[test]
-    fn progress_boundary_enforces_sequential_unlocks() {
-        let mut progress = initialize_campaign_progress(2, &[7; 32]).unwrap();
-        assert!(campaign_level_unlocked(&progress, 1, 1).unwrap());
-        assert!(!campaign_level_unlocked(&progress, 1, 2).unwrap());
-        progress = record_campaign_level_result(&progress, 1, 1, 2).unwrap();
-        assert!(campaign_level_unlocked(&progress, 1, 2).unwrap());
-        assert_eq!(campaign_progress_next_attempt(&progress), Ok(0));
-        progress = reserve_campaign_attempt(&progress).unwrap();
-        assert_eq!(campaign_progress_next_attempt(&progress), Ok(1));
     }
 }

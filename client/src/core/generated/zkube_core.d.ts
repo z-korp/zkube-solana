@@ -9,14 +9,6 @@ export function applyDailySimulationBonus(config: Uint8Array, state: Uint8Array,
 
 export function applyDailySimulationVrf(config: Uint8Array, state: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
 
-export function campaignEndlessUnlocked(progress: Uint8Array, map_id: number): boolean;
-
-export function campaignLevelUnlocked(progress: Uint8Array, map_id: number, level_id: number): boolean;
-
-export function campaignMapPerfected(progress: Uint8Array, map_id: number): boolean;
-
-export function campaignNextAttempt(progress: Uint8Array): bigint;
-
 export function campaignRunEarnedStars(state: Uint8Array): number;
 
 export function campaignRunEndReason(state: Uint8Array): number;
@@ -29,8 +21,6 @@ export function finishDailySimulationAtDeadline(config: Uint8Array, state: Uint8
 
 export function initialReplayCommitment(chain_domain: Uint8Array, challenge_id: Uint8Array, rules_hash: Uint8Array, raw_account: Uint8Array, run_id: bigint, mode_tag: number): Uint8Array;
 
-export function initializeCampaignProgress(content_version: number, content_hash: Uint8Array): Uint8Array;
-
 export function initializeCampaignSimulation(config: Uint8Array): Uint8Array;
 
 export function initializeDailySimulation(config: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
@@ -40,12 +30,6 @@ export function playCampaignMove(config: Uint8Array, state: Uint8Array, expected
 export function playDailySimulationMove(config: Uint8Array, state: Uint8Array, action: number, expected_move: number, row: number, start: number, destination: number): Uint8Array;
 
 export function qualifiedPlayerId(chain_domain: Uint8Array, raw_account: Uint8Array): Uint8Array;
-
-export function recordCampaignEndlessResult(progress: Uint8Array, map_id: number, score: number): Uint8Array;
-
-export function recordCampaignLevelResult(progress: Uint8Array, map_id: number, level_id: number, stars: number): Uint8Array;
-
-export function reserveCampaignAttempt(progress: Uint8Array): Uint8Array;
 
 export function weeklyMetricTags(week_id: number, rules_hash: Uint8Array): Uint8Array;
 
@@ -69,14 +53,6 @@ export interface InitOutput {
     readonly abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly campaignRunEarnedStars: (a: number, b: number) => [number, number, number];
     readonly campaignRunEndReason: (a: number, b: number) => [number, number, number];
-    readonly initializeCampaignProgress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly campaignNextAttempt: (a: number, b: number) => [bigint, number, number];
-    readonly reserveCampaignAttempt: (a: number, b: number) => [number, number, number, number];
-    readonly recordCampaignLevelResult: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly recordCampaignEndlessResult: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly campaignLevelUnlocked: (a: number, b: number, c: number, d: number) => [number, number, number];
-    readonly campaignEndlessUnlocked: (a: number, b: number, c: number) => [number, number, number];
-    readonly campaignMapPerfected: (a: number, b: number, c: number) => [number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;

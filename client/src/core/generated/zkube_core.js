@@ -86,66 +86,6 @@ export function applyDailySimulationVrf(config, state, request_counter, vrf_outp
 }
 
 /**
- * @param {Uint8Array} progress
- * @param {number} map_id
- * @returns {boolean}
- */
-export function campaignEndlessUnlocked(progress, map_id) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignEndlessUnlocked(ptr0, len0, map_id);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return ret[0] !== 0;
-}
-
-/**
- * @param {Uint8Array} progress
- * @param {number} map_id
- * @param {number} level_id
- * @returns {boolean}
- */
-export function campaignLevelUnlocked(progress, map_id, level_id) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignLevelUnlocked(ptr0, len0, map_id, level_id);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return ret[0] !== 0;
-}
-
-/**
- * @param {Uint8Array} progress
- * @param {number} map_id
- * @returns {boolean}
- */
-export function campaignMapPerfected(progress, map_id) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignMapPerfected(ptr0, len0, map_id);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return ret[0] !== 0;
-}
-
-/**
- * @param {Uint8Array} progress
- * @returns {bigint}
- */
-export function campaignNextAttempt(progress) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignNextAttempt(ptr0, len0);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return BigInt.asUintN(64, ret[0]);
-}
-
-/**
  * @param {Uint8Array} state
  * @returns {number}
  */
@@ -257,23 +197,6 @@ export function initialReplayCommitment(chain_domain, challenge_id, rules_hash, 
 }
 
 /**
- * @param {number} content_version
- * @param {Uint8Array} content_hash
- * @returns {Uint8Array}
- */
-export function initializeCampaignProgress(content_version, content_hash) {
-    const ptr0 = passArray8ToWasm0(content_hash, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.initializeCampaignProgress(content_version, ptr0, len0);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
-}
-
-/**
  * @param {Uint8Array} config
  * @returns {Uint8Array}
  */
@@ -373,59 +296,6 @@ export function qualifiedPlayerId(chain_domain, raw_account) {
     var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
-}
-
-/**
- * @param {Uint8Array} progress
- * @param {number} map_id
- * @param {number} score
- * @returns {Uint8Array}
- */
-export function recordCampaignEndlessResult(progress, map_id, score) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.recordCampaignEndlessResult(ptr0, len0, map_id, score);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
-}
-
-/**
- * @param {Uint8Array} progress
- * @param {number} map_id
- * @param {number} level_id
- * @param {number} stars
- * @returns {Uint8Array}
- */
-export function recordCampaignLevelResult(progress, map_id, level_id, stars) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.recordCampaignLevelResult(ptr0, len0, map_id, level_id, stars);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
-}
-
-/**
- * @param {Uint8Array} progress
- * @returns {Uint8Array}
- */
-export function reserveCampaignAttempt(progress) {
-    const ptr0 = passArray8ToWasm0(progress, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.reserveCampaignAttempt(ptr0, len0);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
 }
 
 /**

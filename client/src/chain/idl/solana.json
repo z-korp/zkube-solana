@@ -3972,14 +3972,82 @@
           "writable": true
         },
         {
-          "name": "buffer"
+          "name": "buffer",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  110,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  101,
+                  45,
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "base_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                181,
+                183,
+                0,
+                225,
+                242,
+                87,
+                58,
+                192,
+                204,
+                6,
+                34,
+                1,
+                52,
+                74,
+                207,
+                151,
+                184,
+                53,
+                6,
+                235,
+                140,
+                229,
+                25,
+                152,
+                204,
+                98,
+                126,
+                24,
+                147,
+                128,
+                167,
+                62
+              ]
+            }
+          }
         },
         {
           "name": "payer",
           "writable": true
         },
         {
-          "name": "system_program"
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -4588,6 +4656,61 @@
       ]
     },
     {
+      "name": "set_featured_emblem",
+      "discriminator": [
+        244,
+        224,
+        61,
+        60,
+        103,
+        62,
+        90,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "emblem_id",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "set_player_label",
       "discriminator": [
         9,
@@ -4735,6 +4858,223 @@
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "sync_daily_profile",
+      "discriminator": [
+        35,
+        146,
+        149,
+        125,
+        173,
+        65,
+        199,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "PlayerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "sync_season_profile",
+      "discriminator": [
+        156,
+        201,
+        185,
+        52,
+        165,
+        82,
+        28,
+        185
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "PlayerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "sync_weekly_profile",
+      "discriminator": [
+        254,
+        235,
+        129,
+        112,
+        28,
+        155,
+        35,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "PlayerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
     },
     {
       "name": "update_team_destination",
@@ -5156,6 +5496,19 @@
       ]
     },
     {
+      "name": "CompetitionProfileSynced",
+      "discriminator": [
+        119,
+        50,
+        140,
+        56,
+        141,
+        91,
+        185,
+        106
+      ]
+    },
+    {
       "name": "ContentReleaseActivated",
       "discriminator": [
         159,
@@ -5169,16 +5522,16 @@
       ]
     },
     {
-      "name": "MapPerfected",
+      "name": "FeaturedEmblemSet",
       "discriminator": [
-        49,
-        192,
-        204,
-        18,
-        33,
-        218,
-        88,
-        122
+        108,
+        243,
+        154,
+        135,
+        9,
+        73,
+        25,
+        108
       ]
     },
     {
@@ -5365,76 +5718,71 @@
     },
     {
       "code": 6023,
-      "name": "MapAlreadyUnlocked",
-      "msg": "Map is already unlocked"
-    },
-    {
-      "code": 6024,
       "name": "ContentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6025,
+      "code": 6024,
       "name": "InvalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6026,
+      "code": 6025,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6027,
+      "code": 6026,
       "name": "NoVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6028,
+      "code": 6027,
       "name": "VrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6029,
+      "code": 6028,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6030,
-      "name": "InvalidProgressRule",
-      "msg": "The progression rule is invalid"
-    },
-    {
-      "code": 6031,
+      "code": 6029,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6032,
+      "code": 6030,
       "name": "PriceChanged",
       "msg": "The Arena entry price changed; refresh the exact quote"
     },
     {
-      "code": 6033,
+      "code": 6031,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6034,
+      "code": 6032,
       "name": "SessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6035,
+      "code": 6033,
       "name": "InvalidPlayerLabel",
       "msg": "The player label is invalid"
     },
     {
-      "code": 6036,
+      "code": 6034,
+      "name": "InvalidEmblem",
+      "msg": "The featured emblem is invalid or not unlocked"
+    },
+    {
+      "code": 6035,
       "name": "InvalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     },
     {
-      "code": 6037,
+      "code": 6036,
       "name": "AlreadySeeded",
       "msg": "The first Daily, Weekly, and Season pools were already seeded"
     }
@@ -5958,6 +6306,14 @@
             }
           },
           {
+            "name": "profile_sync_mask",
+            "docs": [
+              "Bit per payout-bearing Daily position. Profile synchronization happens",
+              "only after push settlement and cannot gate or repeat a transfer."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -6044,10 +6400,6 @@
           {
             "name": "newly_earned_stars",
             "type": "u8"
-          },
-          {
-            "name": "xp",
-            "type": "u32"
           }
         ]
       }
@@ -6157,6 +6509,61 @@
           {
             "name": "starting_rows",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompetitionProfileSynced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "period_kind",
+            "docs": [
+              "0 Daily, 1 Weekly, 2 Season."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "rank",
+            "type": "u16"
+          },
+          {
+            "name": "reward_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompetitionRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "best_prize_rank",
+            "docs": [
+              "Zero means no payout-bearing rank. Nonzero ranks are Daily/Season top",
+              "five or a Weekly board's top three only."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "podiums",
+            "type": "u32"
+          },
+          {
+            "name": "wins",
+            "type": "u32"
+          },
+          {
+            "name": "rewards_lamports",
+            "type": "u64"
           }
         ]
       }
@@ -6384,6 +6791,22 @@
       }
     },
     {
+      "name": "FeaturedEmblemSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "emblem_id",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "InitializeProtocolArgs",
       "type": {
         "kind": "struct",
@@ -6561,26 +6984,6 @@
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "MapPerfected",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "xp",
-            "type": "u32"
           }
         ]
       }
@@ -6791,139 +7194,60 @@
             "type": "u64"
           },
           {
-            "name": "achievement_flags",
+            "name": "campaign_stars",
             "docs": [
-              "Bit per canonical achievement; the catalog is bounded to 24 entries."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "lifetime_xp",
-            "docs": [
-              "All progression XP, regardless of whether it came from achievements,",
-              "quests, Daily play, or finite Campaign rewards."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "quest_cadence_day",
-            "type": "u32"
-          },
-          {
-            "name": "quest_cadence_week",
-            "type": "u32"
-          },
-          {
-            "name": "quest_counters",
-            "type": {
-              "array": [
-                "u32",
-                20
-              ]
-            }
-          },
-          {
-            "name": "lifetime_runs_started",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_lines_cleared",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_bosses_cleared",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_perfect_levels",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_daily_challenges",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_bonus_uses",
-            "type": "u64"
-          },
-          {
-            "name": "lifetime_max_combo",
-            "type": "u8"
-          },
-          {
-            "name": "last_daily_challenge_day",
-            "type": "u32"
-          },
-          {
-            "name": "unlocked_maps",
-            "docs": [
-              "Bit `map_id - 1`; Map 1 is unlocked on initialization."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "cleared_maps",
-            "type": "u32"
-          },
-          {
-            "name": "perfected_maps",
-            "type": "u32"
-          },
-          {
-            "name": "level_stars",
-            "docs": [
-              "Two bits per Campaign level across all maps."
+              "Two bits per level for exactly ten zones of ten levels. Campaign stars",
+              "are the sole progression source; all unlocks and badges are derived."
             ],
             "type": {
               "array": [
                 "u8",
-                80
+                25
               ]
             }
           },
           {
-            "name": "daily_completion_cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "weekly_completion_cadence_id",
-            "type": "u32"
-          },
-          {
-            "name": "daily_completed",
-            "type": "u32"
-          },
-          {
-            "name": "weekly_completed",
-            "type": "u32"
-          },
-          {
-            "name": "best_daily_finish",
-            "type": "u16"
-          },
-          {
-            "name": "best_weekly_finish",
-            "type": "u16"
-          },
-          {
-            "name": "crest_streak",
-            "type": "u16"
-          },
-          {
-            "name": "last_crest_week",
-            "type": "u32"
-          },
-          {
-            "name": "weekly_attendance_mask",
+            "name": "featured_emblem",
             "docs": [
-              "One bit per weekday with a free Practice or paid Arena completion."
+              "Zero selects the strongest currently unlocked emblem automatically."
             ],
             "type": "u8"
           },
           {
+            "name": "lifetime_paid_entries",
+            "docs": [
+              "Incremented exactly once by each successful owner-signed paid entry."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "daily_record",
+            "type": {
+              "defined": {
+                "name": "CompetitionRecord"
+              }
+            }
+          },
+          {
+            "name": "weekly_record",
+            "type": {
+              "defined": {
+                "name": "CompetitionRecord"
+              }
+            }
+          },
+          {
+            "name": "season_record",
+            "type": {
+              "defined": {
+                "name": "CompetitionRecord"
+              }
+            }
+          },
+          {
             "name": "reserved",
             "docs": [
-              "Reserved for the deferred five-run credit schema. It has no v1 meaning."
+              "Reserved bytes for a future explicitly versioned schema only."
             ],
             "type": {
               "array": [
@@ -7287,6 +7611,13 @@
             }
           },
           {
+            "name": "profile_sync_mask",
+            "docs": [
+              "Bit per payout-bearing Season position."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -7506,6 +7837,13 @@
                 }
               }
             }
+          },
+          {
+            "name": "profile_sync_mask",
+            "docs": [
+              "Nine bits: `board_index * 3 + zero_based_rank`."
+            ],
+            "type": "u16"
           },
           {
             "name": "bump",

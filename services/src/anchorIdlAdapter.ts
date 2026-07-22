@@ -70,7 +70,7 @@ const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 const MAX_ARENA_PLAYERS_PER_DAILY = 5_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "58dacaaa420a1c58a9b412954692296bb70b79cb5348e421ec23a7b9adbdb76b";
+  "b744106cfe4ab71188fbdd9be07fffed69b5a5823eb22627ae17d4e1102fd29c";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -103,6 +103,9 @@ const REQUIRED_INSTRUCTIONS = [
   "finalizeArenaDaily",
   "finalizeWeeklyJackpot",
   "finalizeSeason",
+  "syncDailyProfile",
+  "syncWeeklyProfile",
+  "syncSeasonProfile",
 ] as const;
 
 interface LoadedAccount {
@@ -271,6 +274,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       seasons,
       runs,
       dailySeasonPlayers,
+      playerStateOwners: playerStates.map(({ owner }) => owner),
     };
   }
 
@@ -555,6 +559,42 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
           remaining: context.owners,
         };
+      case "sync_daily_profile": {
+        const player = requiredOwner(owner);
+        return {
+          name: "syncDailyProfile",
+          args: {},
+          accounts: {
+            caller: keeper,
+            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+            playerState: playerStatePda(player),
+          },
+        };
+      }
+      case "sync_weekly_profile": {
+        const player = requiredOwner(owner);
+        return {
+          name: "syncWeeklyProfile",
+          args: {},
+          accounts: {
+            caller: keeper,
+            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
+            playerState: playerStatePda(player),
+          },
+        };
+      }
+      case "sync_season_profile": {
+        const player = requiredOwner(owner);
+        return {
+          name: "syncSeasonProfile",
+          args: {},
+          accounts: {
+            caller: keeper,
+            season: seasonPda(requiredNumber(seasonId, "Season id")),
+            playerState: playerStatePda(player),
+          },
+        };
+      }
     }
   }
 
@@ -624,9 +664,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         arcadeConfigPda(),
         "ArenaDaily ArcadeConfig",
       );
-      const potLamports = availableLedgerLamports(item.value.ledger, "ArenaDaily");
-      await this.assertSpendable(item.account, potLamports, "ArenaDaily");
       const status = periodStatus(item.value.status, "ArenaDaily status");
+      const availableLamports = availableLedgerLamports(item.value.ledger, "ArenaDaily");
+      const potLamports = status === "finalized"
+        ? fundedLedgerLamports(item.value.ledger, "ArenaDaily")
+        : availableLamports;
+      if (status === "finalized" && availableLamports !== 0n) {
+        throw new Error("finalized ArenaDaily retains unsettled ledger lamports");
+      }
+      await this.assertSpendable(item.account, availableLamports, "ArenaDaily");
       const snapshot: DailySnapshot = {
         dayId,
         status,
@@ -653,7 +699,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           item.value.seasonRollupSealed,
           "ArenaDaily Season seal",
         ),
-        ...(status === "open" ? {
+        profileSyncMask: u8(item.value.profileSyncMask, "ArenaDaily profile sync mask"),
+        ...(status !== "funding" ? {
           settlement: await this.rankedSettlement(
             array(item.value.entries, "ArenaDaily entries"),
             potLamports,
@@ -693,9 +740,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         arcadeConfigPda(),
         "WeeklyJackpot ArcadeConfig",
       );
-      const potLamports = availableLedgerLamports(item.value.ledger, "WeeklyJackpot");
-      await this.assertSpendable(item.account, potLamports, "WeeklyJackpot");
       const status = periodStatus(item.value.status, "WeeklyJackpot status");
+      const availableLamports = availableLedgerLamports(item.value.ledger, "WeeklyJackpot");
+      const potLamports = status === "finalized"
+        ? fundedLedgerLamports(item.value.ledger, "WeeklyJackpot")
+        : availableLamports;
+      if (status === "finalized" && availableLamports !== 0n) {
+        throw new Error("finalized WeeklyJackpot retains unsettled ledger lamports");
+      }
+      await this.assertSpendable(item.account, availableLamports, "WeeklyJackpot");
       const qualificationDailiesComplete = range(
         weekStartDay(weekId),
         weekStartDay(weekId) + DAYS_PER_WEEK - 1,
@@ -711,7 +764,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           "WeeklyJackpot predecessor flag",
         ),
         qualificationDailiesComplete,
-        ...(status === "open" ? {
+        profileSyncMask: u16(
+          item.value.profileSyncMask,
+          "WeeklyJackpot profile sync mask",
+        ),
+        ...(status !== "funding" ? {
           settlement: await this.weeklySettlement(item.value, potLamports),
         } : {}),
       });
@@ -747,9 +804,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         arcadeConfigPda(),
         "Season ArcadeConfig",
       );
-      const potLamports = availableLedgerLamports(item.value.ledger, "Season");
-      await this.assertSpendable(item.account, potLamports, "Season");
       const status = periodStatus(item.value.status, "Season status");
+      const availableLamports = availableLedgerLamports(item.value.ledger, "Season");
+      const potLamports = status === "finalized"
+        ? fundedLedgerLamports(item.value.ledger, "Season")
+        : availableLamports;
+      if (status === "finalized" && availableLamports !== 0n) {
+        throw new Error("finalized Season retains unsettled ledger lamports");
+      }
+      await this.assertSpendable(item.account, availableLamports, "Season");
       output.push({
         seasonId,
         status,
@@ -761,7 +824,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           "Season predecessor flag",
         ),
         sealedDailies: u8(item.value.sealedDailies, "Season sealed Dailies"),
-        ...(status === "open" ? {
+        profileSyncMask: u8(item.value.profileSyncMask, "Season profile sync mask"),
+        ...(status !== "funding" ? {
           settlement: await this.rankedSettlement(
             array(item.value.entries, "Season entries"),
             potLamports,
@@ -1248,7 +1312,19 @@ function instructionRecord(idl: Idl, name: string): {
 
 function availableLedgerLamports(value: unknown, label: string): bigint {
   const ledger = record(value, `${label} ledger`);
-  const funded = checkedU64Add(
+  const funded = fundedLedgerLamports(ledger, label);
+  const accountedOut = checkedU64Add(
+    bigint(ledger.payoutLamports, `${label} payout lamports`),
+    bigint(ledger.rolloverOutLamports, `${label} rollover out`),
+    label,
+  );
+  if (accountedOut > funded) throw new Error(`${label} ledger is overdrawn`);
+  return funded - accountedOut;
+}
+
+function fundedLedgerLamports(value: unknown, label: string): bigint {
+  const ledger = record(value, `${label} ledger`);
+  return checkedU64Add(
     checkedU64Add(
       bigint(ledger.seededLamports, `${label} seeded lamports`),
       bigint(ledger.entryLamports, `${label} entry lamports`),
@@ -1257,13 +1333,6 @@ function availableLedgerLamports(value: unknown, label: string): bigint {
     bigint(ledger.rolloverInLamports, `${label} rollover in`),
     label,
   );
-  const accountedOut = checkedU64Add(
-    bigint(ledger.payoutLamports, `${label} payout lamports`),
-    bigint(ledger.rolloverOutLamports, `${label} rollover out`),
-    label,
-  );
-  if (accountedOut > funded) throw new Error(`${label} ledger is overdrawn`);
-  return funded - accountedOut;
 }
 
 function checkedU64Add(left: bigint, right: bigint, label: string): bigint {
@@ -1378,6 +1447,12 @@ function timestamp(value: unknown, label: string): number {
 function u8(value: unknown, label: string): number {
   const parsed = safeInteger(value, label);
   if (parsed > 0xff) throw new Error(`${label} is outside u8`);
+  return parsed;
+}
+
+function u16(value: unknown, label: string): number {
+  const parsed = safeInteger(value, label);
+  if (parsed > 0xffff) throw new Error(`${label} is outside u16`);
   return parsed;
 }
 

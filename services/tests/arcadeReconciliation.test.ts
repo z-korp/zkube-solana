@@ -38,6 +38,7 @@ describe("v4 keeper reconciliation", () => {
         predecessorRolloverRequired: false,
         predecessorRolloverApplied: false,
         qualificationDailiesComplete: false,
+        profileSyncMask: 0,
       }],
       seasons: [season(737, "funding")],
     });
@@ -359,6 +360,174 @@ describe("v4 keeper reconciliation", () => {
       .map(({ operation }) => operation)).toContain("seal_arena_season_rollups");
   });
 
+  it("schedules only finalized unsynced payout positions for canonical profiles", () => {
+    const owner = Keypair.generate().publicKey;
+    const other = Keypair.generate().publicKey;
+    const dailySettlement = {
+      winners: [{
+        owner,
+        payoutLamports: 10_000_000n,
+        rank: 1,
+        destinationValid: true,
+      }],
+      rolloverLamports: 0n,
+    };
+    const dailyPlans = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        dailies: [daily(DAY, "finalized", {
+          potLamports: 10_000_000n,
+          settlement: dailySettlement,
+        })],
+        playerStateOwners: [owner],
+      }),
+      nowUnix: NOW,
+    });
+    expect(dailyPlans).toContainEqual(expect.objectContaining({
+      operation: "sync_daily_profile",
+      context: expect.objectContaining({
+        dayId: DAY,
+        owner,
+        winnerPositionMask: 1,
+      }),
+    }));
+
+    const week = weekIdForDay(DAY);
+    const weekStart = weekStartDay(week);
+    const weeklySettlement = {
+      winners: [
+        {
+          owner,
+          payoutLamports: 20_000_000n,
+          rank: 1,
+          bountyIndex: 0 as const,
+          destinationValid: true,
+        },
+        {
+          owner,
+          payoutLamports: 20_000_000n,
+          rank: 1,
+          bountyIndex: 1 as const,
+          destinationValid: true,
+        },
+        {
+          owner: other,
+          payoutLamports: 20_000_000n,
+          rank: 1,
+          bountyIndex: 2 as const,
+          destinationValid: true,
+        },
+      ],
+      rolloverLamports: 0n,
+    };
+    const qualification = Array.from({ length: 7 }, (_, offset) =>
+      daily(weekStart + offset, "finalized", {
+        predecessorRolloverRequired: weekStart + offset !== weekStart,
+        seasonRollupSealed: true,
+      }));
+    const weeklyPlans = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        launchDayId: weekStart,
+        dailies: qualification,
+        weeklies: [weekly(week, "finalized", {
+          potLamports: 60_000_000n,
+          predecessorRolloverRequired: false,
+          qualificationDailiesComplete: true,
+          settlement: weeklySettlement,
+          profileSyncMask: 1,
+        })],
+        playerStateOwners: [owner, other],
+      }),
+      nowUnix: NOW,
+    });
+    expect(weeklyPlans).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        operation: "sync_weekly_profile",
+        context: expect.objectContaining({ owner, winnerPositionMask: 8 }),
+      }),
+      expect.objectContaining({
+        operation: "sync_weekly_profile",
+        context: expect.objectContaining({ owner: other, winnerPositionMask: 64 }),
+      }),
+    ]));
+
+    const seasonId = seasonIdForDay(DAY);
+    const seasonStart = seasonStartDay(seasonId);
+    const seasonDailies = Array.from({ length: 28 }, (_, offset) =>
+      daily(seasonStart + offset, "finalized", {
+        predecessorRolloverRequired: offset !== 0,
+        seasonRollupSealed: true,
+      }));
+    const seasonPlans = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        launchDayId: seasonStart,
+        dailies: seasonDailies,
+        seasons: [season(seasonId, "finalized", {
+          potLamports: 10_000_000n,
+          sealedDailies: 28,
+          settlement: dailySettlement,
+        })],
+        playerStateOwners: [owner],
+      }),
+      nowUnix: NOW,
+    });
+    expect(seasonPlans).toContainEqual(expect.objectContaining({
+      operation: "sync_season_profile",
+      context: expect.objectContaining({
+        seasonId,
+        owner,
+        winnerPositionMask: 1,
+      }),
+    }));
+  });
+
+  it("skips unavailable profile sync without gating monetary reconciliation", () => {
+    const missingProfile = Keypair.generate().publicKey;
+    const payableOwner = Keypair.generate().publicKey;
+    const snapshot = baseSnapshot({
+      launchDayId: DAY - 1,
+      dailies: [
+        daily(DAY - 1, "finalized", {
+          predecessorRolloverRequired: false,
+          potLamports: 10_000_000n,
+          settlement: {
+            winners: [{
+              owner: missingProfile,
+              payoutLamports: 10_000_000n,
+              rank: 1,
+              destinationValid: true,
+            }],
+            rolloverLamports: 0n,
+          },
+        }),
+        daily(DAY, "open", {
+          entriesPaid: 1n,
+          entriesScored: 1n,
+          potLamports: 10_000_000n,
+          predecessorRolloverRequired: true,
+          predecessorRolloverApplied: true,
+          settlement: {
+            winners: [{
+              owner: payableOwner,
+              payoutLamports: 10_000_000n,
+              rank: 1,
+              destinationValid: true,
+            }],
+            rolloverLamports: 0n,
+          },
+        }),
+        daily(DAY + 1, "funding", {
+          predecessorRolloverRequired: true,
+        }),
+      ],
+      playerStateOwners: [payableOwner],
+    });
+    const plans = discoverReconciliationPlans({ snapshot, nowUnix: NOW });
+    expect(plans.some(({ operation }) => operation === "sync_daily_profile"))
+      .toBe(false);
+    expect(plans.some(({ operation }) => operation === "finalize_arena_daily"))
+      .toBe(true);
+  });
+
   it("rejects noncanonical payout schedules before planning", () => {
     const malformed = baseSnapshot({
       dailies: [daily(DAY, "open", {
@@ -388,6 +557,7 @@ function baseSnapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapsh
     seasons: [],
     runs: [],
     dailySeasonPlayers: [],
+    playerStateOwners: [],
     ...overrides,
   };
 }
@@ -411,6 +581,7 @@ function daily(
     seasonEligiblePlayers: 0,
     seasonRollups: 0,
     seasonRollupSealed: false,
+    profileSyncMask: 0,
     ...overrides,
   };
 }
@@ -428,6 +599,7 @@ function season(
     predecessorRolloverRequired: false,
     predecessorRolloverApplied: false,
     sealedDailies: 0,
+    profileSyncMask: 0,
     ...overrides,
   };
 }
@@ -445,6 +617,7 @@ function weekly(
     predecessorRolloverRequired: true,
     predecessorRolloverApplied: false,
     qualificationDailiesComplete: false,
+    profileSyncMask: 0,
     ...overrides,
   };
 }

@@ -60,6 +60,7 @@ validate_sbf() {
 
 validate_program() {
   cd "$root"
+  NO_DNA=1 cargo run -p zkube-codegen -- check
   NO_DNA=1 cargo fmt --all -- --check
   NO_DNA=1 cargo test --workspace
   NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings

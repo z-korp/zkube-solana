@@ -139,6 +139,29 @@ describe("v4 keeper semantic policy", () => {
     expect(() => policy(plan)).toThrow("routing");
   });
 
+  it("limits permissionless profile sync to recent canonical winner positions", () => {
+    const owner = Keypair.generate().publicKey;
+    const daily = validationOnlyPlan("sync_daily_profile", {
+      competition: "daily",
+      dayId: DAY,
+      owner,
+      winnerPositionMask: 0b00101,
+    });
+    expect(() => policy(daily)).not.toThrow();
+    daily.context!.winnerPositionMask = 0b100000;
+    expect(() => policy(daily)).toThrow("profile sync");
+
+    const weekly = validationOnlyPlan("sync_weekly_profile", {
+      competition: "weekly",
+      weekId: weekIdForDay(DAY),
+      owner,
+      winnerPositionMask: 0x0101,
+    });
+    expect(() => policy(weekly)).not.toThrow();
+    weekly.context!.competition = "season";
+    expect(() => policy(weekly)).toThrow("profile sync");
+  });
+
   it("rejects executable bytes before generated-IDL materialization", () => {
     const plan = validationOnlyPlan("activate_arena_daily", { dayId: DAY });
     plan.instruction = {} as never;

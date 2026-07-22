@@ -245,7 +245,33 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
       }
       assertAtomicFinalization(context, today, currentWeek, currentSeason);
       return;
+    case "sync_daily_profile":
+      assertProfileSync(context, "daily", today, currentWeek, currentSeason, 0x001f);
+      return;
+    case "sync_weekly_profile":
+      assertProfileSync(context, "weekly", today, currentWeek, currentSeason, 0x01ff);
+      return;
+    case "sync_season_profile":
+      assertProfileSync(context, "season", today, currentWeek, currentSeason, 0x001f);
+      return;
   }
+}
+
+function assertProfileSync(
+  context: KeeperPlanContext,
+  competition: "daily" | "weekly" | "season",
+  today: number,
+  currentWeek: number,
+  currentSeason: number,
+  maximumMask: number,
+): void {
+  if (!context.owner || context.competition !== competition ||
+      !Number.isSafeInteger(context.winnerPositionMask) ||
+      context.winnerPositionMask === undefined || context.winnerPositionMask <= 0 ||
+      (context.winnerPositionMask & ~maximumMask) !== 0) {
+    throw new Error("keeper policy rejects profile sync context");
+  }
+  assertCompetitionContext(context, today, currentWeek, currentSeason);
 }
 
 function assertSessionCleanupPlan(

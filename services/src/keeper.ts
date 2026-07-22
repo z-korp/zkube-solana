@@ -461,7 +461,10 @@ function operationPriority(operation: string): number {
     prepare_weekly_jackpot: 14,
     prepare_season: 15,
     cleanup_orphan_active_run: 16,
-    revoke_expired_session: 17,
+    sync_daily_profile: 17,
+    sync_weekly_profile: 17,
+    sync_season_profile: 17,
+    revoke_expired_session: 18,
   };
   return priority[operation] ?? Number.MAX_SAFE_INTEGER;
 }

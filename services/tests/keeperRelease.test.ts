@@ -12,7 +12,7 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "20000000",
@@ -31,6 +31,9 @@ describe("keeper release binding", () => {
       reserveFloorLamports: 100_000_000,
     });
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("finalize_season");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_daily_profile");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_weekly_profile");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_season_profile");
     expect(KEEPER_RELEASE_POLICY.denied).toContain("incident_or_refund");
   });
 

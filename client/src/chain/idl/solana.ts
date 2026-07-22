@@ -3978,14 +3978,82 @@ export type Solana = {
           "writable": true
         },
         {
-          "name": "buffer"
+          "name": "buffer",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  110,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  101,
+                  45,
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "baseAccount"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                181,
+                183,
+                0,
+                225,
+                242,
+                87,
+                58,
+                192,
+                204,
+                6,
+                34,
+                1,
+                52,
+                74,
+                207,
+                151,
+                184,
+                53,
+                6,
+                235,
+                140,
+                229,
+                25,
+                152,
+                204,
+                98,
+                126,
+                24,
+                147,
+                128,
+                167,
+                62
+              ]
+            }
+          }
         },
         {
           "name": "payer",
           "writable": true
         },
         {
-          "name": "systemProgram"
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -4594,6 +4662,61 @@ export type Solana = {
       ]
     },
     {
+      "name": "setFeaturedEmblem",
+      "discriminator": [
+        244,
+        224,
+        61,
+        60,
+        103,
+        62,
+        90,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ownerAuthority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "emblemId",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "setPlayerLabel",
       "discriminator": [
         9,
@@ -4741,6 +4864,223 @@ export type Solana = {
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "syncDailyProfile",
+      "discriminator": [
+        35,
+        146,
+        149,
+        125,
+        173,
+        65,
+        199,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "arenaDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "playerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "syncSeasonProfile",
+      "discriminator": [
+        156,
+        201,
+        185,
+        52,
+        165,
+        82,
+        28,
+        185
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "playerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "syncWeeklyProfile",
+      "discriminator": [
+        254,
+        235,
+        129,
+        112,
+        28,
+        155,
+        35,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "weeklyJackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "weeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state.owner",
+                "account": "playerState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
     },
     {
       "name": "updateTeamDestination",
@@ -5162,6 +5502,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "competitionProfileSynced",
+      "discriminator": [
+        119,
+        50,
+        140,
+        56,
+        141,
+        91,
+        185,
+        106
+      ]
+    },
+    {
       "name": "contentReleaseActivated",
       "discriminator": [
         159,
@@ -5175,16 +5528,16 @@ export type Solana = {
       ]
     },
     {
-      "name": "mapPerfected",
+      "name": "featuredEmblemSet",
       "discriminator": [
-        49,
-        192,
-        204,
-        18,
-        33,
-        218,
-        88,
-        122
+        108,
+        243,
+        154,
+        135,
+        9,
+        73,
+        25,
+        108
       ]
     },
     {
@@ -5371,76 +5724,71 @@ export type Solana = {
     },
     {
       "code": 6023,
-      "name": "mapAlreadyUnlocked",
-      "msg": "Map is already unlocked"
-    },
-    {
-      "code": 6024,
       "name": "contentVersionMismatch",
       "msg": "Content version mismatch"
     },
     {
-      "code": 6025,
+      "code": 6024,
       "name": "invalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6026,
+      "code": 6025,
       "name": "vrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6027,
+      "code": 6026,
       "name": "noVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6028,
+      "code": 6027,
       "name": "vrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6029,
+      "code": 6028,
       "name": "noPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6030,
-      "name": "invalidProgressRule",
-      "msg": "The progression rule is invalid"
-    },
-    {
-      "code": 6031,
+      "code": 6029,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6032,
+      "code": 6030,
       "name": "priceChanged",
       "msg": "The Arena entry price changed; refresh the exact quote"
     },
     {
-      "code": 6033,
+      "code": 6031,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6034,
+      "code": 6032,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6035,
+      "code": 6033,
       "name": "invalidPlayerLabel",
       "msg": "The player label is invalid"
     },
     {
-      "code": 6036,
+      "code": 6034,
+      "name": "invalidEmblem",
+      "msg": "The featured emblem is invalid or not unlocked"
+    },
+    {
+      "code": 6035,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     },
     {
-      "code": 6037,
+      "code": 6036,
       "name": "alreadySeeded",
       "msg": "The first Daily, Weekly, and Season pools were already seeded"
     }
@@ -5964,6 +6312,14 @@ export type Solana = {
             }
           },
           {
+            "name": "profileSyncMask",
+            "docs": [
+              "Bit per payout-bearing Daily position. Profile synchronization happens",
+              "only after push settlement and cannot gate or repeat a transfer."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -6050,10 +6406,6 @@ export type Solana = {
           {
             "name": "newlyEarnedStars",
             "type": "u8"
-          },
-          {
-            "name": "xp",
-            "type": "u32"
           }
         ]
       }
@@ -6163,6 +6515,61 @@ export type Solana = {
           {
             "name": "startingRows",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "competitionProfileSynced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "periodKind",
+            "docs": [
+              "0 Daily, 1 Weekly, 2 Season."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "rank",
+            "type": "u16"
+          },
+          {
+            "name": "rewardLamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "competitionRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bestPrizeRank",
+            "docs": [
+              "Zero means no payout-bearing rank. Nonzero ranks are Daily/Season top",
+              "five or a Weekly board's top three only."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "podiums",
+            "type": "u32"
+          },
+          {
+            "name": "wins",
+            "type": "u32"
+          },
+          {
+            "name": "rewardsLamports",
+            "type": "u64"
           }
         ]
       }
@@ -6390,6 +6797,22 @@ export type Solana = {
       }
     },
     {
+      "name": "featuredEmblemSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "emblemId",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "initializeProtocolArgs",
       "type": {
         "kind": "struct",
@@ -6567,26 +6990,6 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "mapPerfected",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "mapId",
-            "type": "u8"
-          },
-          {
-            "name": "xp",
-            "type": "u32"
           }
         ]
       }
@@ -6797,139 +7200,60 @@ export type Solana = {
             "type": "u64"
           },
           {
-            "name": "achievementFlags",
+            "name": "campaignStars",
             "docs": [
-              "Bit per canonical achievement; the catalog is bounded to 24 entries."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "lifetimeXp",
-            "docs": [
-              "All progression XP, regardless of whether it came from achievements,",
-              "quests, Daily play, or finite Campaign rewards."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "questCadenceDay",
-            "type": "u32"
-          },
-          {
-            "name": "questCadenceWeek",
-            "type": "u32"
-          },
-          {
-            "name": "questCounters",
-            "type": {
-              "array": [
-                "u32",
-                20
-              ]
-            }
-          },
-          {
-            "name": "lifetimeRunsStarted",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimeLinesCleared",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimeBossesCleared",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimePerfectLevels",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimeDailyChallenges",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimeBonusUses",
-            "type": "u64"
-          },
-          {
-            "name": "lifetimeMaxCombo",
-            "type": "u8"
-          },
-          {
-            "name": "lastDailyChallengeDay",
-            "type": "u32"
-          },
-          {
-            "name": "unlockedMaps",
-            "docs": [
-              "Bit `map_id - 1`; Map 1 is unlocked on initialization."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "clearedMaps",
-            "type": "u32"
-          },
-          {
-            "name": "perfectedMaps",
-            "type": "u32"
-          },
-          {
-            "name": "levelStars",
-            "docs": [
-              "Two bits per Campaign level across all maps."
+              "Two bits per level for exactly ten zones of ten levels. Campaign stars",
+              "are the sole progression source; all unlocks and badges are derived."
             ],
             "type": {
               "array": [
                 "u8",
-                80
+                25
               ]
             }
           },
           {
-            "name": "dailyCompletionCadenceId",
-            "type": "u32"
-          },
-          {
-            "name": "weeklyCompletionCadenceId",
-            "type": "u32"
-          },
-          {
-            "name": "dailyCompleted",
-            "type": "u32"
-          },
-          {
-            "name": "weeklyCompleted",
-            "type": "u32"
-          },
-          {
-            "name": "bestDailyFinish",
-            "type": "u16"
-          },
-          {
-            "name": "bestWeeklyFinish",
-            "type": "u16"
-          },
-          {
-            "name": "crestStreak",
-            "type": "u16"
-          },
-          {
-            "name": "lastCrestWeek",
-            "type": "u32"
-          },
-          {
-            "name": "weeklyAttendanceMask",
+            "name": "featuredEmblem",
             "docs": [
-              "One bit per weekday with a free Practice or paid Arena completion."
+              "Zero selects the strongest currently unlocked emblem automatically."
             ],
             "type": "u8"
           },
           {
+            "name": "lifetimePaidEntries",
+            "docs": [
+              "Incremented exactly once by each successful owner-signed paid entry."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "dailyRecord",
+            "type": {
+              "defined": {
+                "name": "competitionRecord"
+              }
+            }
+          },
+          {
+            "name": "weeklyRecord",
+            "type": {
+              "defined": {
+                "name": "competitionRecord"
+              }
+            }
+          },
+          {
+            "name": "seasonRecord",
+            "type": {
+              "defined": {
+                "name": "competitionRecord"
+              }
+            }
+          },
+          {
             "name": "reserved",
             "docs": [
-              "Reserved for the deferred five-run credit schema. It has no v1 meaning."
+              "Reserved bytes for a future explicitly versioned schema only."
             ],
             "type": {
               "array": [
@@ -7293,6 +7617,13 @@ export type Solana = {
             }
           },
           {
+            "name": "profileSyncMask",
+            "docs": [
+              "Bit per payout-bearing Season position."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -7512,6 +7843,13 @@ export type Solana = {
                 }
               }
             }
+          },
+          {
+            "name": "profileSyncMask",
+            "docs": [
+              "Nine bits: `board_index * 3 + zero_based_rank`."
+            ],
+            "type": "u16"
           },
           {
             "name": "bump",
