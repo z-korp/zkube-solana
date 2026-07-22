@@ -311,15 +311,14 @@ No client or Fly process contains an unconditional launch path.
 
 Deployment manifest schema v5 binds the deployed ProgramData, allocation,
 content/rules catalogs, exact launch day and seed plan, and keeper release. The
-dependency is one-way: immutable keeper image digest, keeper fingerprint,
+dependency is one-way: unique Fly keeper release tag, keeper fingerprint,
 launch-plan fingerprint, then final manifest. The obsolete v3 manifest is
 intentionally not a reusable release input.
 
-Fly exposes the unique `deployment-<ULID>` tag to the worker and the immutable
-digest through the Machines API. A read-only deploy therefore precedes release
-approval: the operator verifies that mapping, injects the observed digest as
-`ZKUBE_KEEPER_IMAGE_DIGEST` on that same machine image, and fingerprints both.
-Any later image deploy changes the runtime tag and invalidates write authority.
+Fly exposes a unique `deployment-<ULID>` release tag to the worker; that tag is
+part of the keeper fingerprint. The approval bundle also records the immutable
+digest observed through the Machines API. Any later deploy changes the runtime
+tag and therefore invalidates write authority.
 
 Production web publishing remains Git-driven from
 `z-korp/zkube-solana:main` to Vercel project

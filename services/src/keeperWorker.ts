@@ -56,10 +56,6 @@ export function keeperReleaseFromEnv(
   env: Record<string, string | undefined>,
 ) {
   const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
-  const keeperImageDigest = requiredReleaseValue(
-    env.ZKUBE_KEEPER_IMAGE_DIGEST,
-    "ZKUBE_KEEPER_IMAGE_DIGEST",
-  );
   const rulesVersion = releaseU32(env.ZKUBE_ARENA_RULES_VERSION, "rules version", 1);
   const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
   return keeperReleaseRecord({
@@ -70,7 +66,6 @@ export function keeperReleaseFromEnv(
     ),
     deployedProgramDataSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
     keeperImageReference: flyImageRef,
-    keeperImageDigest,
     replayDomainHex: requiredReleaseValue(
       env.ZKUBE_REPLAY_DOMAIN_HEX,
       "ZKUBE_REPLAY_DOMAIN_HEX",

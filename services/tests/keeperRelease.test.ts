@@ -68,7 +68,6 @@ function releaseInput() {
     deployedProgramDataSha256: "ab".repeat(32),
     keeperImageReference:
       "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
-    keeperImageDigest: `sha256:${"cd".repeat(32)}`,
     replayDomainHex: canonicalDevnetReplayDomainHex(programId),
     rulesCatalogHash: "02".repeat(32),
     idlHash: KEEPER_EXPECTED_IDL_SHA256,
