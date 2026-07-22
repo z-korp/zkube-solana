@@ -47,7 +47,7 @@ describe("BottomNav", () => {
     expect(buttons.map((button) => button.textContent)).toEqual([
       "Arcade",
       "Campaign",
-      "Ranks",
+      "Leaderboard",
       "Profile",
     ]);
     expect(buttons.every((button) => !button.hasAttribute("disabled"))).toBe(

@@ -45,6 +45,16 @@ if (spectatePlayer || spectatePda) {
   }
 }
 
+// DEV-only: `?page=<id>` deep-links a menu screen for local screenshots.
+// Guarded by DEV_BYPASS_ACTIVE (import.meta.env.DEV) — dead-code-eliminated in prod.
+if (DEV_BYPASS_ACTIVE) {
+  const devPage = params.get("page");
+  const devPages = ["arcade", "campaign", "ranks", "profile", "settings"];
+  if (devPage && devPages.includes(devPage)) {
+    useNavigationStore.setState({ currentPage: devPage as PageId });
+  }
+}
+
 const pageComponents: Record<PageId, ReactNode> = {
   arcade: <HomePage />,
   campaign: <CampaignPage />,
