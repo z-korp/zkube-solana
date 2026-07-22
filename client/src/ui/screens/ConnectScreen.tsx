@@ -25,7 +25,7 @@ export default function ConnectScreen() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/95" />
           <AmbientWeather className="absolute inset-0 z-[1] h-full w-full" density={80} />
 
-          <div className="relative z-10 flex w-full max-w-sm flex-1 flex-col items-center justify-center text-center">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
             <motion.img
               src={images.logo}
               alt="zKube"
@@ -35,7 +35,7 @@ export default function ConnectScreen() {
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             />          </div>
 
-          <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-2.5">
+          <div className="absolute bottom-0 left-1/2 z-10 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2.5 px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
             <ConnectCta label="Connect wallet" />
             <InfoSheet title="How it works">
               <p>
