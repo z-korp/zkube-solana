@@ -12,7 +12,6 @@ import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
-import QuestsPage from "@/ui/pages/QuestsPage";
 import SettingsPage from "@/ui/pages/SettingsPage";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
@@ -47,7 +46,6 @@ if (spectatePlayer || spectatePda) {
 const pageComponents: Record<PageId, ReactNode> = {
   arcade: <HomePage />,
   campaign: <CampaignPage />,
-  quests: <QuestsPage />,
   profile: <ProfilePage />,
   ranks: <ArenaPage />,
   settings: <SettingsPage />,

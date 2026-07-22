@@ -34,6 +34,33 @@ export interface CampaignView {
   maps: CampaignMapView[];
 }
 
+/** Per-period Arcade prize record mirrored from PlayerState.competitionRecord. */
+export interface CompetitionRecord {
+  /** Zero means no payout-bearing rank yet. */
+  bestPrizeRank: number;
+  podiums: number;
+  wins: number;
+  rewardsLamports: bigint;
+}
+
+/**
+ * Fully decoded, relationship-verified PlayerState. This is the single
+ * authoritative projection of the on-chain player account; Campaign,
+ * competitive-profile, emblem, and leaderboard reads all share this decoder so
+ * the untrusted-RPC validation lives in exactly one place.
+ */
+export interface PlayerStateView {
+  owner: PublicKey;
+  version: number;
+  campaignStars: number[];
+  /** Zero selects the strongest currently unlocked emblem automatically. */
+  featuredEmblem: number;
+  lifetimePaidEntries: bigint;
+  dailyRecord: CompetitionRecord;
+  weeklyRecord: CompetitionRecord;
+  seasonRecord: CompetitionRecord;
+}
+
 export async function fetchCampaignView(args: {
   connection: Connection;
   wallet: WalletLike;
@@ -54,46 +81,30 @@ export async function fetchCampaignView(args: {
     program.account.protocolConfig.size,
     "ProtocolConfig",
   );
-  if (playerInfo) {
-    assertProgramAccount(
-      playerInfo,
-      program.programId,
-      program.account.playerState.size,
-      "PlayerState",
-    );
-  }
 
   type ProtocolAccount = Awaited<
     ReturnType<typeof program.account.protocolConfig.fetch>
-  >;
-  type PlayerAccount = Awaited<
-    ReturnType<typeof program.account.playerState.fetch>
   >;
   const protocol = program.coder.accounts.decode(
     "protocolConfig",
     protocolInfo.data,
   ) as unknown as ProtocolAccount;
-  const player = playerInfo
-    ? (program.coder.accounts.decode(
-        "playerState",
-        playerInfo.data,
-      ) as unknown as PlayerAccount)
-    : null;
   if (Number(protocol.version) !== PROTOCOL_ACCOUNT_VERSION) {
     return null;
   }
-  const rawPlayer = player as unknown as {
-    version: number;
-    owner: PublicKey;
-    campaignStars: readonly number[];
-  } | null;
-  if (
-    rawPlayer &&
-    (Number(rawPlayer.version) !== PROTOCOL_ACCOUNT_VERSION ||
-      !rawPlayer.owner.equals(owner) ||
-      rawPlayer.campaignStars.length !== CAMPAIGN_STAR_BYTES)
-  ) {
-    return null;
+  let playerView: PlayerStateView | null = null;
+  if (playerInfo) {
+    try {
+      playerView = decodePlayerStateAccount(
+        program,
+        playerAddress,
+        owner,
+        playerInfo,
+      );
+    } catch {
+      // Untrusted RPC: a malformed PlayerState never fabricates progression.
+      return null;
+    }
   }
   const contentVersion = Number(protocol.contentVersion);
   const campaignMapCount = Number(protocol.campaignMapCount);
@@ -146,17 +157,17 @@ export async function fetchCampaignView(args: {
       mapId,
       themeId: Number(catalog.themeId),
       enabled: Boolean(catalog.enabled),
-      unlocked: rawPlayer
-        ? campaignMapUnlocked(rawPlayer.campaignStars, index)
+      unlocked: playerView
+        ? campaignMapUnlocked(playerView.campaignStars, index)
         : mapId === 1,
-      cleared: rawPlayer
-        ? campaignMapCleared(rawPlayer.campaignStars, index)
+      cleared: playerView
+        ? campaignMapCleared(playerView.campaignStars, index)
         : false,
-      perfected: rawPlayer
-        ? campaignMapPerfected(rawPlayer.campaignStars, index)
+      perfected: playerView
+        ? campaignMapPerfected(playerView.campaignStars, index)
         : false,
-      levelStars: rawPlayer
-        ? unpackCompactLevelStars(rawPlayer.campaignStars, index)
+      levelStars: playerView
+        ? unpackCompactLevelStars(playerView.campaignStars, index)
         : Array.from({ length: 10 }, () => 0),
       levels: catalog.levels.map((level, levelIndex) =>
         mapLevelRuleSnapshot({
@@ -186,6 +197,87 @@ function assertProgramAccount(
   if (info.data.length !== expectedSize) {
     throw new Error(`${label} has invalid data length ${info.data.length}`);
   }
+}
+
+interface RawCompetitionRecord {
+  bestPrizeRank: number | bigint;
+  podiums: number | bigint;
+  wins: number | bigint;
+  rewardsLamports: { toString(): string } | number | bigint;
+}
+
+interface RawPlayerState {
+  version: number;
+  owner: PublicKey;
+  campaignStars: readonly number[];
+  featuredEmblem: number;
+  lifetimePaidEntries: { toString(): string } | number | bigint;
+  dailyRecord: RawCompetitionRecord;
+  weeklyRecord: RawCompetitionRecord;
+  seasonRecord: RawCompetitionRecord;
+}
+
+function toBigint(value: { toString(): string } | number | bigint): bigint {
+  const parsed = BigInt(
+    typeof value === "bigint" ? value : value.toString(),
+  );
+  if (parsed < 0n) throw new Error("PlayerState carried a negative u64");
+  return parsed;
+}
+
+function mapCompetitionRecord(raw: RawCompetitionRecord): CompetitionRecord {
+  return {
+    bestPrizeRank: Number(raw.bestPrizeRank),
+    podiums: Number(raw.podiums),
+    wins: Number(raw.wins),
+    rewardsLamports: toBigint(raw.rewardsLamports),
+  };
+}
+
+/**
+ * Decode and relationship-verify a PlayerState account. Mirrors the untrusted
+ * RPC discipline in dailyClient/weeklyClient: the owning program (via
+ * assertProgramAccount), the exact account size, the Anchor discriminator (via
+ * coder.decode), the account version, the embedded owner field, the derived
+ * PDA seed, and the compact star bitmap length are all confirmed before any
+ * field is trusted. Throws on any mismatch so callers can treat a malformed
+ * account as "no state" rather than inventing profile data.
+ */
+export function decodePlayerStateAccount(
+  program: ReturnType<typeof zkubeProgram>,
+  address: PublicKey,
+  owner: PublicKey,
+  info: AccountInfo<Buffer>,
+): PlayerStateView {
+  assertProgramAccount(
+    info,
+    program.programId,
+    program.account.playerState.size,
+    "PlayerState",
+  );
+  const raw = program.coder.accounts.decode(
+    "playerState",
+    info.data,
+  ) as unknown as RawPlayerState;
+  const campaignStars = Array.from(raw.campaignStars, (byte) => Number(byte));
+  if (
+    Number(raw.version) !== PROTOCOL_ACCOUNT_VERSION ||
+    !raw.owner.equals(owner) ||
+    !address.equals(derivePlayerStatePda(owner)) ||
+    campaignStars.length !== CAMPAIGN_STAR_BYTES
+  ) {
+    throw new Error("PlayerState relationship is invalid");
+  }
+  return {
+    owner: raw.owner,
+    version: Number(raw.version),
+    campaignStars,
+    featuredEmblem: Number(raw.featuredEmblem),
+    lifetimePaidEntries: toBigint(raw.lifetimePaidEntries),
+    dailyRecord: mapCompetitionRecord(raw.dailyRecord),
+    weeklyRecord: mapCompetitionRecord(raw.weeklyRecord),
+    seasonRecord: mapCompetitionRecord(raw.seasonRecord),
+  };
 }
 
 export function unpackCompactLevelStars(

@@ -58,6 +58,10 @@ vi.mock("@/chain/connectedPlayerContext", async () =>
   })),
 );
 
+vi.mock("@/ui/components/arena/useLeaderboardEmblems", () => ({
+  useLeaderboardEmblems: () => new Map(),
+}));
+
 beforeAll(() => {
   vi.stubGlobal("React", React);
 });

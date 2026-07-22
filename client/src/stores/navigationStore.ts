@@ -1,13 +1,7 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-type TabId =
-  | "arcade"
-  | "campaign"
-  | "quests"
-  | "ranks"
-  | "profile"
-  | "settings";
+type TabId = "arcade" | "campaign" | "ranks" | "profile" | "settings";
 type OverlayId = "play" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 type SettingsFocus = "wallet";

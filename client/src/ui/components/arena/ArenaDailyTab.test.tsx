@@ -93,6 +93,10 @@ vi.mock("@/hooks/usePlayerEntry", () => ({
   usePlayerEntry: () => ({ entry: null }),
 }));
 
+vi.mock("@/ui/components/arena/useLeaderboardEmblems", () => ({
+  useLeaderboardEmblems: () => new Map(),
+}));
+
 vi.mock("@/stores/navigationStore", async () =>
   (await import("@/test/mocks/navigation")).navigationStoreMock(
     fixtures.navigation,
@@ -116,16 +120,13 @@ describe("ArenaDailyTab", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the board with exact identity matches and the entry CTA", () => {
+  it("shows the board with exact identity matches", () => {
     const { container } = render(<ArenaDailyTab />);
 
     expect(screen.getByText("Wave_Rider7 · abcd…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("You · ABCD…WXYZ")).toBeInTheDocument();
     expect(screen.getByText("900")).toBeInTheDocument();
     expect(screen.getByText("750")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Enter ranked · 0.02 SOL" }),
-    ).toBeEnabled();
     expect(container).not.toHaveTextContent(" XP to Level");
   });
 
@@ -143,11 +144,14 @@ describe("ArenaDailyTab", () => {
     expect(fixtures.navigation.navigate).toHaveBeenCalledWith("spectate");
   });
 
-  it("requires a distinct owner signature for every ranked attempt", () => {
+  it("is view-only — ranked entry lives on the Arcade home, not the board", () => {
     render(<ArenaDailyTab />);
 
     expect(
-      screen.getByText("Every attempt requires a separate connected-wallet signature."),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /Enter ranked|Resume Daily/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByText(/separate connected-wallet signature/i),
+    ).toBeNull();
   });
 });

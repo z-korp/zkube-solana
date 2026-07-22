@@ -10,9 +10,9 @@ import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 const TABS = ["Daily", "Weekly", "Season"] as const;
 
 /**
- * The competition hub: today's rules + board + entry on the Daily tab, weekly
- * standings + SOL pool + payouts on the Weekly tab. Daily ranks feed weekly
- * points, so the two live side by side.
+ * The competition hub: three boards — Daily, Weekly (three skill bounties),
+ * and Season. View-only; entering a ranked run lives on the Arcade home. Daily
+ * results feed Season points.
  */
 const ArenaPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Daily");
@@ -25,7 +25,7 @@ const ArenaPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 24 }}
         >
-          <PageHeader title="Arena" />
+          <PageHeader title="Ranks" />
         </motion.div>
         <SegmentedTabs
           tabs={TABS}

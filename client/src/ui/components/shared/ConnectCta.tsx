@@ -16,8 +16,8 @@ interface ConnectCtaProps {
  * The one onboarding button, used by Home ("PLAY NOW") and Settings
  * ("CONNECT ACCOUNT"). One tap connects directly when a single compatible
  * wallet is installed, otherwise opens the wallet picker sheet; once a wallet
- * is connected it becomes the ENABLE/RENEW ZKUBE action. Renders nothing when
- * the player is fully ready.
+ * is connected the same tap enables (or renews) the device session, always
+ * under the one label. Renders nothing when the player is fully ready.
  */
 const ConnectCta: React.FC<ConnectCtaProps> = ({
   label = "CONNECT ACCOUNT",
@@ -74,19 +74,6 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
 
   return (
     <div className="flex w-full flex-col gap-2">
-      <ArcadeButton disabled={busy} onClick={handleTap}>
-        <Gamepad2 size={22} strokeWidth={2.5} />
-        {busy
-          ? connected
-            ? "APPROVING..."
-            : pendingLabel
-          : connected
-            ? player.sessionStatus === "expired" ||
-              player.sessionStatus === "needsRenewal"
-              ? "RENEW ZKUBE"
-              : "ENABLE ZKUBE"
-            : label}
-      </ArcadeButton>
       {localError && (
         <p
           role="alert"
@@ -95,6 +82,10 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
           {localError}
         </p>
       )}
+      <ArcadeButton disabled={busy} onClick={handleTap}>
+        <Gamepad2 size={22} strokeWidth={2.5} />
+        {busy ? (connected ? "Connecting…" : pendingLabel) : label}
+      </ArcadeButton>
       <Sheet
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -137,9 +128,16 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
 };
 
 function userFacingError(cause: unknown): string {
-  return isWalletRejection(cause)
-    ? "The wallet rejected the request. You can try again when ready."
-    : errorMessage(cause);
+  if (isWalletRejection(cause)) {
+    return "The wallet rejected the request. You can try again when ready.";
+  }
+  const message = errorMessage(cause);
+  // Before initialization the protocol's config/session accounts don't exist
+  // yet; surface that as a calm status rather than a raw RPC error.
+  if (/does not exist or has no data|account does not exist/i.test(message)) {
+    return "zKube isn't live";
+  }
+  return message;
 }
 
 export default ConnectCta;

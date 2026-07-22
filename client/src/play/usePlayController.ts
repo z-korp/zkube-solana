@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCampaign } from "@/contexts/campaign";
 import { useDaily } from "@/contexts/daily";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useProgress } from "@/contexts/progress";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
@@ -127,7 +126,6 @@ function snapshotRun(
 export function usePlayController() {
   const run = useRun();
   const campaign = useCampaign();
-  const progress = useProgress();
   const daily = useDaily();
   const { playSfx, duck, unduck } = useMusicPlayer();
   const navigate = useNavigationStore((state) => state.navigate);
@@ -238,7 +236,6 @@ export function usePlayController() {
   const recoverSettlement = run.recoverSettlement;
   const recoverSession = run.recoverSession;
   const campaignRefresh = campaign.refresh;
-  const progressRefresh = progress.refresh;
   const dailyRefresh = daily.refresh;
   const terminalRun =
     run.activeRun && isTerminalLifecycle(run.activeRun.lifecycle)
@@ -367,7 +364,7 @@ export function usePlayController() {
       run.phase === "settleable" ? recoverSettlement : settleAndAdvance;
     void (async () => {
       // Start commit/copyback as soon as terminal state is observed. The
-      // display-only progression refresh runs concurrently and never delays
+      // display-only Campaign-star refresh runs concurrently and never delays
       // the settlement boundary or waits for the local cascade animation.
       const refreshBeforeConsumption = terminalRun.mode !== "campaign"
         ? Promise.resolve(null)
@@ -389,11 +386,7 @@ export function usePlayController() {
 
       const settlementFailure = await settlement;
       if (settlementFailure) throw settlementFailure;
-      await Promise.all([
-        campaignRefresh(),
-        terminalRun.mode === "campaign" ? Promise.resolve(null) : progressRefresh(),
-        dailyRefresh(),
-      ]);
+      await Promise.all([campaignRefresh(), dailyRefresh()]);
       // Presentation is user-driven from here: the card/dialog Continue
       // (continueFromTerminal/closeOutcome) unlocks on "complete".
       setSettlementStatus("complete");
@@ -408,7 +401,6 @@ export function usePlayController() {
     campaignRefresh,
     dailyRefresh,
     localActionPending,
-    progressRefresh,
     recoveryRunId,
     run.phase,
     run.busy,
@@ -484,11 +476,7 @@ export function usePlayController() {
   const recoverOrphanedBaseRun = useCallback(
     async (runId: bigint) => {
       const signature = await recoverBaseRun(runId);
-      await Promise.allSettled([
-        campaignRefresh(),
-        progressRefresh(),
-        dailyRefresh(),
-      ]);
+      await Promise.allSettled([campaignRefresh(), dailyRefresh()]);
       setRecoveryRunId(null);
       navigate("map");
       return signature;
@@ -497,7 +485,6 @@ export function usePlayController() {
       campaignRefresh,
       dailyRefresh,
       navigate,
-      progressRefresh,
       recoverBaseRun,
       setRecoveryRunId,
     ],

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { ChevronDown, Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -12,20 +12,29 @@ import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
-import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { useNavigationStore } from "@/stores/navigationStore";
+import BoardPotHeader from "@/ui/components/arena/BoardPotHeader";
 import { Countdown } from "@/ui/components/arena/Countdown";
 import { DailyScoringRules } from "@/ui/components/arena/dailyRulesCopy";
+import { PaidCutLine } from "@/ui/components/arena/LeaderboardRow";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
-import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import { useLeaderboardEmblems } from "@/ui/components/arena/useLeaderboardEmblems";
+import {
+  DAILY_WEIGHTS,
+  EmblemBadge,
+  MONEY_GOLD,
+  PrizeLadder,
+  computePayouts,
+} from "@/ui/components/economy";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import LoadingState from "@/ui/components/shared/LoadingState";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { formatSolLamports } from "@/utils/currency";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 const rowVariants = {
@@ -43,14 +52,13 @@ const rowVariants = {
 };
 
 /**
- * The whole daily loop on one screen: today's rules, the enter/resume CTA,
- * the live board (rows spectate on tap), and yesterday's result.
+ * The daily leaderboard on one screen: today's rules and the live board
+ * (rows spectate on tap). Entering a ranked run lives on the Arcade home.
  */
 const ArenaDailyTab: React.FC = () => {
   const colors = useThemeColors();
   const { address } = useAccount();
   const daily = useDaily();
-  const activeDailyRun = useActiveDailyAttempt();
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entries: dailyEntries, isLoading: boardLoading } =
     useDailyLeaderboard(challenge?.challenge_id);
@@ -62,25 +70,15 @@ const ArenaDailyTab: React.FC = () => {
   const setSpectateTarget = useNavigationStore(
     (state) => state.setSpectateTarget,
   );
-  const [starting, setStarting] = useState(false);
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
 
   const now = Math.floor(Date.now() / 1000);
-  const hasActiveDailyRun = Boolean(activeDailyRun);
   const isActive = Boolean(
     challenge &&
     !challenge.settled &&
     challenge.start_time <= now &&
     challenge.end_time > now,
   );
-  const entriesOpen = Boolean(
-    daily.daily &&
-    daily.daily.status === "open" &&
-    daily.daily.opensAt <= now &&
-    daily.daily.entriesCloseAt > now,
-  );
-  const runAvailable =
-    daily.run.phase === "none" || daily.run.phase === "missing";
 
   // A missing challenge has no client-computed fallback. The map is part of
   // the immutable daily account and must come from Solana.
@@ -140,6 +138,12 @@ const ArenaDailyTab: React.FC = () => {
     return null;
   }, [address, dailyEntries, playerEntry]);
 
+  const boardOwners = useMemo(
+    () => rankRows.map((row) => row.playerAddress),
+    [rankRows],
+  );
+  const emblems = useLeaderboardEmblems(boardOwners);
+
   const isMyRankVisible = rankRows.some((row) => row.isYou);
 
   const watch = useCallback(
@@ -148,31 +152,6 @@ const ArenaDailyTab: React.FC = () => {
       navigate("spectate");
     },
     [navigate, setSpectateTarget],
-  );
-
-  const openRun = useCallback(() => {
-    if (!activeDailyRun) return;
-    navigate("play", activeDailyRun.gameId);
-  }, [activeDailyRun, navigate]);
-
-  const enter = useCallback(async () => {
-    if (starting || hasActiveDailyRun) return;
-    setStarting(true);
-    try {
-      const run = await daily.enter();
-      navigate("play", run.runId);
-    } catch {
-      // The shared controller projects transaction failures into daily.error.
-    } finally {
-      setStarting(false);
-    }
-  }, [daily, hasActiveDailyRun, navigate, starting]);
-
-  const entryDisabled = Boolean(
-    starting ||
-    daily.action ||
-    !entriesOpen ||
-    !runAvailable,
   );
 
   if (challengeLoading || (daily.loading && !daily.daily)) {
@@ -184,6 +163,17 @@ const ArenaDailyTab: React.FC = () => {
       />
     );
   }
+
+  // Prize amounts are computed client-side from the guaranteed pot; the chain
+  // never stores a per-row prize. Top 5 pay, renormalized over occupied places.
+  const dailyPot =
+    daily.daily && typeof daily.daily.dailyPotLamports === "bigint"
+      ? daily.daily.dailyPotLamports
+      : null;
+  const dailyPayouts =
+    dailyPot !== null
+      ? computePayouts(dailyPot, DAILY_WEIGHTS, dailyEntries.length)
+      : null;
 
   return (
     <div className="mx-auto flex max-w-[640px] flex-col gap-3">
@@ -304,33 +294,24 @@ const ArenaDailyTab: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Enter / resume ── */}
-          {hasActiveDailyRun ? (
-            <ArcadeButton onClick={openRun} accentOverride={zoneColors.accent}>
-              {activeDailyRun?.settled
-                ? "Finish previous Daily"
-                : "Resume Daily"}
-            </ArcadeButton>
-          ) : (
-            daily.daily &&
-            runAvailable &&
-            entriesOpen && (
-              <div className="flex flex-col gap-1.5">
-                <ArcadeButton
-                  disabled={entryDisabled}
-                  onClick={() => void enter()}
-                  accentOverride="#facc15"
-                  className="text-[13px]"
-                >
-                  {starting
-                    ? "Preparing owner signature…"
-                    : `Enter ranked · ${(Number(daily.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL`}
-                </ArcadeButton>
-                <p className="text-center font-sans text-[10px] font-semibold text-white/45">
-                  Every attempt requires a separate connected-wallet signature.
-                </p>
-              </div>
-            )
+          {/* ── Today's pot ── */}
+          {dailyPot !== null && daily.daily && (
+            <BoardPotHeader
+              label="Today's Daily pot"
+              potLamports={dailyPot}
+              followingLamports={daily.daily.followingDailyLamports}
+              followingLabel="Building tomorrow's Daily"
+            >
+              <PrizeLadder
+                potLamports={dailyPot}
+                weights={DAILY_WEIGHTS}
+                occupied={dailyEntries.length}
+              />
+              <p className="mt-2 font-sans text-[11px] leading-relaxed text-white/50">
+                Top 5 share the guaranteed pot, floored to 0.001 SOL. Prizes are
+                pushed automatically; dust rolls into tomorrow.
+              </p>
+            </BoardPotHeader>
           )}
 
           {/* ── Today's rankings ── */}
@@ -395,13 +376,24 @@ const ArenaDailyTab: React.FC = () => {
                     0,
                     entry.score - entry.engineScore,
                   );
+                  const belowCut = entry.rank > DAILY_WEIGHTS.length;
+                  const prize =
+                    dailyPayouts && !belowCut
+                      ? dailyPayouts[entry.rank - 1]
+                      : null;
+                  const showCut =
+                    belowCut &&
+                    (index === 0 ||
+                      rankRows[index - 1].rank <= DAILY_WEIGHTS.length);
+                  const emblem = emblems.get(entry.playerAddress);
 
                   return (
+                    <Fragment key={entry.id}>
+                      {showCut && <PaidCutLine />}
                     <motion.div
                       custom={index}
                       variants={rowVariants}
-                      key={entry.id}
-                      className={`overflow-hidden rounded-2xl border backdrop-blur-xl ${entry.isYou ? "leaderboard-pulse" : ""}`}
+                      className={`overflow-hidden rounded-2xl border backdrop-blur-xl ${entry.isYou ? "leaderboard-pulse" : ""} ${belowCut ? "opacity-50" : ""}`}
                       style={{
                         ...(entry.isYou
                           ? ({
@@ -444,6 +436,17 @@ const ArenaDailyTab: React.FC = () => {
                           )}
                         </div>
 
+                        {emblem ? (
+                          <EmblemBadge
+                            emblemId={emblem.featuredEmblem}
+                            totalStars={emblem.totalStars}
+                            size={24}
+                            className="shrink-0"
+                          />
+                        ) : (
+                          <span className="h-6 w-6 shrink-0 rounded-lg border border-white/10 bg-white/[0.04]" />
+                        )}
+
                         <p
                           className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
                           style={{
@@ -453,12 +456,22 @@ const ArenaDailyTab: React.FC = () => {
                           {entry.isYou ? `You · ${entry.name}` : entry.name}
                         </p>
 
-                        <span
-                          className="shrink-0 font-sans text-[17px] font-black tracking-wide tabular-nums"
-                          style={{ color: colors.text }}
-                        >
-                          {entry.score.toLocaleString()}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end leading-tight">
+                          <span
+                            className="font-sans text-[17px] font-black tracking-wide tabular-nums"
+                            style={{ color: colors.text }}
+                          >
+                            {entry.score.toLocaleString()}
+                          </span>
+                          {prize !== null && prize > 0n && (
+                            <span
+                              className="font-sans text-[11px] font-bold tabular-nums"
+                              style={{ color: MONEY_GOLD }}
+                            >
+                              {formatSolLamports(prize)} SOL
+                            </span>
+                          )}
+                        </div>
                         <ChevronDown
                           size={16}
                           className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -494,6 +507,7 @@ const ArenaDailyTab: React.FC = () => {
                         </div>
                       )}
                     </motion.div>
+                    </Fragment>
                   );
                 })}
 

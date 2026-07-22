@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import AmbientWeather from "@/ui/components/shared/AmbientWeather";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
 
@@ -49,6 +50,7 @@ const ThemeBackground: React.FC = () => {
         </AnimatePresence>
       </div>
       <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,rgba(4,8,18,0.78)_0%,rgba(4,8,18,0.62)_40%,rgba(4,8,18,0.92)_100%)]" />
+      <AmbientWeather />
     </>
   );
 };

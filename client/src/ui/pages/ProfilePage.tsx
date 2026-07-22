@@ -2,23 +2,16 @@ import React, { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { motion } from "motion/react";
 
-import {
-  LEVEL_THRESHOLDS,
-  getLevelFromXp,
-  getTitleForLevel,
-} from "@/config/profileData";
-import { usePlayerMeta } from "@/hooks/usePlayerMeta";
-import { usePlayerStats } from "@/hooks/usePlayerStats";
+import { usePlayerProfile } from "@/hooks/usePlayerProfile";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useFeaturedEmblemController } from "@/chain/useFeaturedEmblemController";
 import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
-import { useProgress } from "@/contexts/progress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import StatsTab from "@/ui/components/profile/StatsTab";
 import ZoneProgressTab from "@/ui/components/profile/ZoneProgressTab";
+import ProfileHeaderCard from "@/ui/components/profile/ProfileHeaderCard";
 import PageHeader from "@/ui/components/shared/PageHeader";
-import PlayerIdentityHeader from "@/ui/components/shared/PlayerIdentityHeader";
-import ProgressBar from "@/ui/components/shared/ProgressBar";
 import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { staggerContainer, staggerItem } from "@/ui/motion";
@@ -31,18 +24,14 @@ const ProfilePage: React.FC = () => {
   const colors = useThemeColors();
   const player = useConnectedPlayer();
   const address = player.publicKey?.toBase58() ?? "";
-  const { playerMeta } = usePlayerMeta(address);
+  const profile = usePlayerProfile();
   const { zones, totalStars } = useZoneProgress(address);
-  const playerStats = usePlayerStats(address);
-  const progress = useProgress();
   const playerLabel = usePlayerLabelController();
+  const emblem = useFeaturedEmblemController();
 
-  const xp = playerMeta?.lifetimeXp ?? 0;
-  const level = getLevelFromXp(xp);
-  const levelStartXp = LEVEL_THRESHOLDS[Math.max(level - 1, 0)] ?? 0;
-  const nextLevelXp = LEVEL_THRESHOLDS[level] ?? levelStartXp;
-  const isMaxLevel = level >= LEVEL_THRESHOLDS.length;
-  const title = getTitleForLevel(level);
+  // The controller's value updates immediately on save; fall back to the
+  // profile projection before it has loaded so the UI never flickers to auto.
+  const featuredEmblem = emblem.featuredEmblem ?? profile.featuredEmblem;
 
   const [tab, setTab] = useState<(typeof TABS)[number]>("Arcade");
   const [labelInput, setLabelInput] = useState("");
@@ -80,48 +69,13 @@ const ProfilePage: React.FC = () => {
             variants={staggerItem}
             className="rounded-3xl border border-white/[0.16] bg-white/[0.12] p-4 shadow-lg shadow-black/20 backdrop-blur-2xl"
           >
-            <div className="mb-3">
-              <PlayerIdentityHeader
-                level={level}
-                progress={
-                  isMaxLevel
-                    ? 1
-                    : (xp - levelStartXp) /
-                      Math.max(nextLevelXp - levelStartXp, 1)
-                }
-                displayName={playerLabel.label?.displayName}
-                title={title}
-                address={address}
-                ringSize={60}
-                onEditIdentity={() => navigate("settings")}
-              />
-            </div>
-
-            <div>
-              <p
-                className="mb-1 font-sans text-xs font-extrabold"
-                style={{ color: colors.accent }}
-              >
-                {isMaxLevel
-                  ? `${xp.toLocaleString()} XP`
-                  : `${xp.toLocaleString()} / ${nextLevelXp.toLocaleString()} XP`}
-              </p>
-              <ProgressBar
-                value={isMaxLevel ? 1 : xp - levelStartXp}
-                max={isMaxLevel ? 1 : Math.max(nextLevelXp - levelStartXp, 1)}
-                color={colors.accent}
-                height={8}
-                glow
-              />
-              <p
-                className="mt-1 font-sans text-xs"
-                style={{ color: colors.textMuted }}
-              >
-                {isMaxLevel
-                  ? "Maximum level"
-                  : `${Math.max(0, nextLevelXp - xp).toLocaleString()} XP to Level ${level + 1}`}
-              </p>
-            </div>
+            <ProfileHeaderCard
+              displayName={playerLabel.label?.displayName}
+              address={address}
+              featuredEmblem={featuredEmblem}
+              zones={zones}
+              onEditIdentity={() => navigate("settings")}
+            />
           </motion.section>
 
           <motion.section
@@ -197,12 +151,12 @@ const ProfilePage: React.FC = () => {
           <motion.div variants={staggerItem} className="px-0.5">
             {tab === "Arcade" && (
               <StatsTab
-                totalGames={playerMeta?.totalRuns ?? 0}
-                totalLines={playerStats.totalLines}
-                maxCombo={playerStats.maxCombo}
-                dailiesPlayed={Number(
-                  progress.progress?.lifetime.dailyChallenges ?? 0n,
-                )}
+                profile={profile}
+                zones={zones}
+                featuredEmblem={featuredEmblem}
+                onSelectEmblem={emblem.save}
+                emblemSaving={emblem.saving}
+                emblemError={emblem.error}
               />
             )}
 

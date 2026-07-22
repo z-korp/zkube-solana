@@ -27,8 +27,6 @@ export function DailyScoringRules({
           label="Every ranked run"
           value="0.02 SOL · separate owner signature"
         />
-        <InfoRow label="First finish today" value="+100 XP" />
-        <InfoRow label="First Tier 7 today" value="+50 XP" />
       </div>
       <p>
         Every finalized attempt appears in the attempt count, while only your
