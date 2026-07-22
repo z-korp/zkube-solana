@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   buildZkubeLaunchPlan,
+  canonicalDevnetReplayDomainHex,
   formatZkubeLaunchPlan,
   launchCadences,
   type LaunchPlannerInput,
@@ -26,6 +27,7 @@ describe("read-only paused bootstrap and launch planner", () => {
 
   it("plans the full fresh bootstrap and one atomic launch transaction", async () => {
     const authority = Keypair.generate().publicKey;
+    const deployer = Keypair.generate().publicKey;
     const upgradeAuthority = Keypair.generate().publicKey;
     const team = Keypair.generate().publicKey;
     const allocationBytes = 1_024;
@@ -36,17 +38,18 @@ describe("read-only paused bootstrap and launch planner", () => {
       cluster: "devnet",
       baseRpc: "https://api.devnet.solana.com",
       expectedGenesisHash: SOLANA_DEVNET_GENESIS_HASH,
+      deployer: deployer.toBase58(),
       authority: authority.toBase58(),
       teamDestination: team.toBase58(),
-      replayDomainHex: "1".repeat(64),
+      replayDomainHex: canonicalDevnetReplayDomainHex(),
       launchDayId: 100,
       launchCutoffUnixTimestamp: 100 * 86_400 + 3_600,
       deployedProgramDataSha256,
       programAllocationBytes: allocationBytes,
       programUpgradeAuthority: upgradeAuthority.toBase58(),
-      deploymentManifestSha256: "2".repeat(64),
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
+      deployerReserveLamports: 100_000_000,
     };
     const plan = await buildZkubeLaunchPlan(
       input,
@@ -63,6 +66,7 @@ describe("read-only paused bootstrap and launch planner", () => {
     });
     expect(plan.costs.seedLamports).toBe(6_000_000_000);
     expect(plan.costs.transactionCount).toBe(21);
+    expect(plan.rulesCatalogSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
       "No transaction was signed or sent. This planner has no send path.",
@@ -71,6 +75,7 @@ describe("read-only paused bootstrap and launch planner", () => {
 
   it("refuses planning after the exact launch cutoff", async () => {
     const authority = Keypair.generate().publicKey;
+    const deployer = Keypair.generate().publicKey;
     const upgradeAuthority = Keypair.generate().publicKey;
     const team = Keypair.generate().publicKey;
     const allocationBytes = 1_024;
@@ -78,9 +83,10 @@ describe("read-only paused bootstrap and launch planner", () => {
       cluster: "devnet",
       baseRpc: "https://api.devnet.solana.com",
       expectedGenesisHash: SOLANA_DEVNET_GENESIS_HASH,
+      deployer: deployer.toBase58(),
       authority: authority.toBase58(),
       teamDestination: team.toBase58(),
-      replayDomainHex: "1".repeat(64),
+      replayDomainHex: canonicalDevnetReplayDomainHex(),
       launchDayId: 100,
       launchCutoffUnixTimestamp: 100 * 86_400 + 3_600,
       deployedProgramDataSha256: createHash("sha256")
@@ -88,9 +94,9 @@ describe("read-only paused bootstrap and launch planner", () => {
         .digest("hex"),
       programAllocationBytes: allocationBytes,
       programUpgradeAuthority: upgradeAuthority.toBase58(),
-      deploymentManifestSha256: "2".repeat(64),
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
+      deployerReserveLamports: 100_000_000,
     };
     await expect(
       buildZkubeLaunchPlan(

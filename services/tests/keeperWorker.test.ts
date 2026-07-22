@@ -1,12 +1,15 @@
 // @vitest-environment node
 
+import { Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  KEEPER_WRITE_RELEASE_FINGERPRINT,
+  keeperReleaseFromEnv,
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
 } from "../src/keeperWorker";
+import { canonicalDevnetReplayDomainHex } from "../src/keeperRelease";
+import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain";
 
 describe("keeper worker scheduling", () => {
   it("keeps writes fail-closed unless explicitly enabled", () => {
@@ -24,9 +27,18 @@ describe("keeper worker scheduling", () => {
       KEEPER_WRITE_ENABLED: "true",
       KEEPER_APPROVED_RELEASE_FINGERPRINT: "wrong-release",
     })).toBe(false);
+    const releaseEnv = releaseEnvironment();
+    const release = keeperReleaseFromEnv(releaseEnv);
     expect(keeperWriteEnabledFromEnv({
+      ...releaseEnv,
       KEEPER_WRITE_ENABLED: "true",
-      KEEPER_APPROVED_RELEASE_FINGERPRINT: KEEPER_WRITE_RELEASE_FINGERPRINT,
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: release.fingerprint,
+    })).toBe(true);
+    expect(keeperWriteEnabledFromEnv({
+      ...releaseEnv,
+      FLY_IMAGE_REF: "registry.fly.io/zkube:mutable",
+      KEEPER_WRITE_ENABLED: "true",
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: release.fingerprint,
     })).toBe(false);
   });
 
@@ -98,3 +110,15 @@ describe("keeper worker scheduling", () => {
     expect(sleeps).toEqual([0]);
   });
 });
+
+function releaseEnvironment(): Record<string, string> {
+  return {
+    FLY_IMAGE_REF:
+      "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
+    ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
+    ZKUBE_REPLAY_DOMAIN_HEX: canonicalDevnetReplayDomainHex(ZKUBE_PROGRAM_ID),
+    ZKUBE_ARENA_RULES_CATALOG_SHA256: "34".repeat(32),
+    ZKUBE_ARENA_RULES_VERSION: "1",
+    ZKUBE_LAUNCH_DAY_ID: "20656",
+  };
+}

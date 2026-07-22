@@ -2,7 +2,11 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { keeperReleaseRecord, KEEPER_RELEASE_POLICY } from "../src/keeperRelease";
+import {
+  canonicalDevnetReplayDomainHex,
+  keeperReleaseRecord,
+  KEEPER_RELEASE_POLICY,
+} from "../src/keeperRelease";
 import { KEEPER_EXPECTED_IDL_SHA256 } from "../src/anchorIdlAdapter";
 
 describe("keeper release binding", () => {
@@ -57,15 +61,17 @@ describe("keeper release binding", () => {
 });
 
 function releaseInput() {
+  const programId = Keypair.generate().publicKey;
   return {
-    programId: Keypair.generate().publicKey.toBase58(),
+    programId: programId.toBase58(),
     keeperPublicKey: Keypair.generate().publicKey.toBase58(),
     deployedProgramDataSha256: "ab".repeat(32),
-    keeperImageDigest: `sha256:${"cd".repeat(32)}`,
-    replayDomainHex: "01".repeat(32),
-    rulesHash: "02".repeat(32),
-    schemaHash: "03".repeat(32),
+    keeperImageReference:
+      "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
+    replayDomainHex: canonicalDevnetReplayDomainHex(programId),
+    rulesCatalogHash: "02".repeat(32),
     idlHash: KEEPER_EXPECTED_IDL_SHA256,
     rulesVersion: 1,
+    launchDayId: 20_656,
   };
 }

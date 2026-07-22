@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createDevnetConnection } from "./serviceReadiness.js";
-import { AnchorKeeperAdapter } from "./anchorIdlAdapter.js";
+import {
+  AnchorKeeperAdapter,
+  KEEPER_EXPECTED_IDL_SHA256,
+} from "./anchorIdlAdapter.js";
 import {
   boundedKeeperInteger,
   DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
@@ -21,7 +24,8 @@ import {
   MAGICBLOCK_DEVNET_ROUTER_RPC,
   resolveEphemeralConnectionForPlan,
 } from "./router.js";
-import { ZKUBE_PROGRAM_ID } from "./arcadeChain.js";
+import { ZKUBE_PROGRAM_ID, protocolPda } from "./arcadeChain.js";
+import { keeperReleaseRecord } from "./keeperRelease.js";
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
 const DEFAULT_MAX_WRITES = 8;
@@ -29,29 +33,63 @@ const MAX_MAX_WRITES = 8;
 
 /** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
-  "UNDEPLOYED_V4";
-/** Operator-facing release binding derived from the full deployed fingerprint. */
-export const KEEPER_WRITE_RELEASE_FINGERPRINT =
-  "UNRELEASED_V4";
+  "754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4";
 
 /**
- * Writes stay disabled unless Fly injects both the case-sensitive opt-in and
- * the fingerprint compiled into this keeper release. A stale write secret from
- * an older image therefore cannot authorize a newly deployed image.
+ * The immutable runtime image digest participates in the approved release.
+ * Rebuilding the image after approval therefore cannot preserve write access.
  */
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
 ): boolean {
-  return /^[0-9a-f]{64}$/.test(KEEPER_EXPECTED_DEPLOYED_SBF_SHA256)
-    && /^[0-9a-f]{64}$/.test(KEEPER_WRITE_RELEASE_FINGERPRINT)
-    && env.KEEPER_WRITE_ENABLED === "true"
-    && env.KEEPER_APPROVED_RELEASE_FINGERPRINT === KEEPER_WRITE_RELEASE_FINGERPRINT;
+  if (env.KEEPER_WRITE_ENABLED !== "true") return false;
+  const approved = env.KEEPER_APPROVED_RELEASE_FINGERPRINT;
+  if (!approved || !/^[0-9a-f]{64}$/.test(approved)) return false;
+  try {
+    return keeperReleaseFromEnv(env).fingerprint === approved;
+  } catch {
+    return false;
+  }
+}
+
+export function keeperReleaseFromEnv(
+  env: Record<string, string | undefined>,
+) {
+  const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
+  const rulesVersion = releaseU32(env.ZKUBE_ARENA_RULES_VERSION, "rules version", 1);
+  const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
+  return keeperReleaseRecord({
+    programId: ZKUBE_PROGRAM_ID.toBase58(),
+    keeperPublicKey: requiredReleaseValue(
+      env.ZKUBE_KEEPER_PUBLIC_KEY,
+      "ZKUBE_KEEPER_PUBLIC_KEY",
+    ),
+    deployedProgramDataSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
+    keeperImageReference: flyImageRef,
+    replayDomainHex: requiredReleaseValue(
+      env.ZKUBE_REPLAY_DOMAIN_HEX,
+      "ZKUBE_REPLAY_DOMAIN_HEX",
+    ),
+    rulesCatalogHash: requiredReleaseValue(
+      env.ZKUBE_ARENA_RULES_CATALOG_SHA256,
+      "ZKUBE_ARENA_RULES_CATALOG_SHA256",
+    ),
+    idlHash: KEEPER_EXPECTED_IDL_SHA256,
+    rulesVersion,
+    launchDayId,
+  });
 }
 
 export interface KeeperWorkerEvent {
   schemaVersion: 1;
   event: "keeper_worker";
-  outcome: "disabled" | "pass_complete" | "pass_failed" | "stopping";
+  outcome:
+    | "disabled"
+    | "bootstrap_pending"
+    | "staged_launch_ready"
+    | "pass_complete"
+    | "pass_failed"
+    | "stopping";
   durationMs?: number;
   error?: string;
 }
@@ -134,6 +172,18 @@ async function runConfiguredKeeperPass(
   });
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
+  const release = keeperReleaseFromEnv(env);
+  const writeEnabled = keeperWriteEnabledFromEnv(env);
+  const protocolInfo = await connection.getAccountInfo(protocolPda(), "confirmed");
+  if (!protocolInfo) {
+    log({
+      schemaVersion: 1,
+      event: "keeper_worker",
+      outcome: "bootstrap_pending",
+    });
+    return;
+  }
+
   const nowMilliseconds = Date.now();
   const routerEndpoint = env.MAGICBLOCK_ROUTER_RPC ??
     MAGICBLOCK_DEVNET_ROUTER_RPC;
@@ -141,9 +191,23 @@ async function runConfiguredKeeperPass(
     connection,
     nowUnix: Math.floor(nowMilliseconds / 1_000),
     routerEndpoint,
+    release: {
+      replayDomainHex: release.record.replayDomainHex,
+      rulesCatalogHash: release.record.rulesCatalogHash,
+      rulesVersion: release.record.rulesVersion,
+      launchDayId: release.record.launchDayId,
+    },
   });
+  const launchState = await adapter.inspectLaunchState();
+  if (launchState === "staged_launch_ready") {
+    log({
+      schemaVersion: 1,
+      event: "keeper_worker",
+      outcome: "staged_launch_ready",
+    });
+    return;
+  }
   const protocolSnapshot = await adapter.loadProtocolSnapshot();
-  const writeEnabled = keeperWriteEnabledFromEnv(env);
   await runKeeperPass({
     connection,
     keeper: writeEnabled
@@ -175,6 +239,29 @@ async function runConfiguredKeeperPass(
     }),
     log,
   });
+}
+
+function requiredReleaseValue(
+  value: string | undefined,
+  label: string,
+): string {
+  const normalized = value?.trim();
+  if (!normalized) throw new Error(`${label} is required for keeper release`);
+  return normalized;
+}
+
+function releaseU32(
+  value: string | undefined,
+  label: string,
+  minimum: number,
+): number {
+  const normalized = requiredReleaseValue(value, label);
+  if (!/^\d+$/.test(normalized)) throw new Error(`${label} must be a u32`);
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > 0xffff_ffff) {
+    throw new Error(`${label} must be a supported u32`);
+  }
+  return parsed;
 }
 
 async function abortableDelay(
