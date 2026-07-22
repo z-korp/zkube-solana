@@ -301,6 +301,11 @@ function logWalletMessageShape(
         ? before.message.header.numRequiredSignatures
         : before.signatures.length,
     programIds: messageProgramIds(before),
+    afterRequiredSigners:
+      after instanceof VersionedTransaction
+        ? after.message.header.numRequiredSignatures
+        : after.signatures.length,
+    afterProgramIds: messageProgramIds(after),
   };
   (sameMessage ? console.info : console.warn)(JSON.stringify(event));
 }

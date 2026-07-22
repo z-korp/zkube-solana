@@ -25,7 +25,9 @@ import {
   DAYS_PER_SEASON,
   DAYS_PER_WEEK,
   ENTRY_SPLIT_LAMPORTS,
+  MONDAY_EPOCH_DAY_ID,
   PROTOCOL_ACCOUNT_VERSION,
+  RULES_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
@@ -36,6 +38,7 @@ import {
   arenaPlayerPda,
   assertCadenceId,
   currentDayId,
+  mapCatalogPda,
   playerFundingPda,
   playerStatePda,
   protocolPda,
@@ -82,6 +85,7 @@ const REQUIRED_ACCOUNTS = [
   "arenaDaily",
   "arenaPlayer",
   "dailyRulesCatalog",
+  "mapCatalog",
   "playerState",
   "protocolConfig",
   "season",
@@ -144,7 +148,17 @@ export interface AnchorKeeperAdapterInput {
   fetcher?: typeof fetch;
   connectionFactory?: (endpoint: string) => Connection;
   idlPath?: URL;
+  release?: KeeperReleaseExpectation;
 }
+
+export interface KeeperReleaseExpectation {
+  replayDomainHex: string;
+  rulesCatalogHash: string;
+  rulesVersion: number;
+  launchDayId: number;
+}
+
+export type KeeperLaunchState = "staged_launch_ready" | "active";
 
 /** Exact checked-in Anchor IDL decoder and instruction materializer. */
 export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
@@ -198,6 +212,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       arcadeConfigPda(),
       ARCADE_ACCOUNT_VERSION,
     );
+    this.requireReleaseProtocol(protocol.value);
     requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
     requireBigInt(config.value, "entryLamports", ARENA_ENTRY_LAMPORTS, "entry price");
     requireBigInt(
@@ -228,11 +243,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("keeper rejects an unseeded Arcade launch");
     }
     const launchDayId = u32(config.value.launchDayId, "launch day id");
-    if (launchDayId < 4 ||
-        launchDayId !== weekStartDay(weekIdForDay(launchDayId)) ||
-        launchDayId !== seasonStartDay(seasonIdForDay(launchDayId))) {
+    if (launchDayId < MONDAY_EPOCH_DAY_ID ||
+        launchDayId > currentDayId(this.input.nowUnix)) {
       throw new Error("keeper rejects invalid launch cadence");
     }
+    this.requireReleaseLaunchDay(launchDayId);
     const rulesVersion = u32(protocol.value.dailyRulesVersion, "active rules version");
     if (rulesVersion === 0) throw new Error("keeper rejects an inactive rules catalog");
     const rulesCatalog = rulesCatalogPda(rulesVersion);
@@ -240,8 +255,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const catalog = await this.loadRequired(
       "dailyRulesCatalog",
       rulesCatalog,
-      PROTOCOL_ACCOUNT_VERSION,
+      RULES_ACCOUNT_VERSION,
     );
+    this.requireReleaseCatalog(catalog.value, rulesVersion);
     requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
     if (u32(catalog.value.rulesVersion, "rules catalog version") !== rulesVersion) {
       throw new Error("rules catalog version relationship is invalid");
@@ -293,6 +309,162 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       arenaPlayerClosures: participantClosures.arenaPlayers,
       seasonPlayerClosures: participantClosures.seasonPlayers,
     };
+  }
+
+  /** Read-only verification gate for the paused carrier before launch seed. */
+  async inspectLaunchState(): Promise<KeeperLaunchState> {
+    const protocol = await this.loadRequired(
+      "protocolConfig",
+      protocolPda(),
+      PROTOCOL_ACCOUNT_VERSION,
+    );
+    const config = await this.loadRequired(
+      "arcadeConfig",
+      arcadeConfigPda(),
+      ARCADE_ACCOUNT_VERSION,
+    );
+    this.requireReleaseProtocol(protocol.value);
+    requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
+    const release = this.requiredRelease();
+    const rulesCatalog = rulesCatalogPda(release.rulesVersion);
+    requirePublicKey(config.value, "rulesCatalog", rulesCatalog, "ArcadeConfig rules catalog");
+    const catalog = await this.loadRequired(
+      "dailyRulesCatalog",
+      rulesCatalog,
+      RULES_ACCOUNT_VERSION,
+    );
+    requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
+    this.requireReleaseCatalog(catalog.value, release.rulesVersion);
+
+    if (boolean(config.value.launchSeeded, "ArcadeConfig launch flag")) {
+      this.requireReleaseLaunchDay(u32(config.value.launchDayId, "launch day id"));
+      return "active";
+    }
+    if (!boolean(protocol.value.paused, "protocol pause state") ||
+        u32(config.value.launchDayId, "launch day id") !== 0 ||
+        u32(protocol.value.contentVersion, "protocol content version") !== 2 ||
+        u32(protocol.value.dailyRulesVersion, "protocol rules version") !==
+          release.rulesVersion ||
+        u8(protocol.value.campaignMapCount, "Campaign map count") !== 10) {
+      throw new Error("paused launch carrier is incomplete or active");
+    }
+
+    await this.loadCanonicalCampaignMaps();
+    await this.loadStagedLaunchPeriods(release.launchDayId);
+    return "staged_launch_ready";
+  }
+
+  private requiredRelease(): KeeperReleaseExpectation {
+    const release = this.input.release;
+    if (!release || !/^[0-9a-f]{64}$/.test(release.replayDomainHex) ||
+        !/^[0-9a-f]{64}$/.test(release.rulesCatalogHash) ||
+        !Number.isSafeInteger(release.rulesVersion) || release.rulesVersion < 1 ||
+        !Number.isSafeInteger(release.launchDayId) ||
+        release.launchDayId < MONDAY_EPOCH_DAY_ID) {
+      throw new Error("keeper release expectation is missing or malformed");
+    }
+    return release;
+  }
+
+  private requireReleaseProtocol(value: Record<string, unknown>): void {
+    if (bytes32Hex(value.replayDomain, "protocol replay domain") !==
+        this.requiredRelease().replayDomainHex) {
+      throw new Error("protocol replay domain does not match keeper release");
+    }
+  }
+
+  private requireReleaseCatalog(
+    value: Record<string, unknown>,
+    rulesVersion: number,
+  ): void {
+    const release = this.requiredRelease();
+    if (rulesVersion !== release.rulesVersion ||
+        u32(value.rulesVersion, "rules catalog version") !== release.rulesVersion ||
+        u32(value.contentVersion, "rules content version") !== 2 ||
+        u32(value.startsDay, "rules start day") !== release.launchDayId ||
+        bytes32Hex(value.catalogHash, "rules catalog hash") !==
+          release.rulesCatalogHash) {
+      throw new Error("Arena rules catalog does not match keeper release");
+    }
+  }
+
+  private requireReleaseLaunchDay(launchDayId: number): void {
+    if (launchDayId !== this.requiredRelease().launchDayId) {
+      throw new Error("Arcade launch day does not match keeper release");
+    }
+  }
+
+  private async loadCanonicalCampaignMaps(): Promise<void> {
+    for (let mapId = 1; mapId <= 10; mapId += 1) {
+      const map = await this.loadRequired(
+        "mapCatalog",
+        mapCatalogPda(2, mapId),
+        PROTOCOL_ACCOUNT_VERSION,
+      );
+      if (u32(map.value.contentVersion, "Campaign content version") !== 2 ||
+          u8(map.value.mapId, "Campaign map id") !== mapId ||
+          !boolean(map.value.enabled, "Campaign map enabled")) {
+        throw new Error("paused Campaign release is incomplete");
+      }
+    }
+  }
+
+  private async loadStagedLaunchPeriods(launchDayId: number): Promise<void> {
+    const launchWeekId = weekIdForDay(launchDayId);
+    const launchSeasonId = seasonIdForDay(launchDayId);
+    for (const dayId of [launchDayId, checkedNext(launchDayId, "launch day")]) {
+      const daily = await this.loadRequired(
+        "arenaDaily",
+        arenaDailyPda(dayId),
+        ARCADE_ACCOUNT_VERSION,
+      );
+      if (u32(daily.value.dayId, "ArenaDaily day id") !== dayId ||
+          u32(daily.value.weekId, "ArenaDaily week id") !== weekIdForDay(dayId) ||
+          u32(daily.value.seasonId, "ArenaDaily Season id") !== seasonIdForDay(dayId)) {
+        throw new Error("staged Daily cadence is invalid");
+      }
+      this.requireUnfundedPeriod(daily.value, "ArenaDaily");
+    }
+    for (const weekId of [launchWeekId, checkedNext(launchWeekId, "launch week")]) {
+      const weekly = await this.loadRequired(
+        "weeklyJackpot",
+        weeklyJackpotPda(weekId),
+        ARCADE_ACCOUNT_VERSION,
+      );
+      if (u32(weekly.value.weekId, "WeeklyJackpot week id") !== weekId ||
+          u32(weekly.value.qualificationStartDay, "Weekly qualification start") !==
+            weekStartDay(weekId)) {
+        throw new Error("staged Weekly cadence is invalid");
+      }
+      this.requireUnfundedPeriod(weekly.value, "WeeklyJackpot");
+    }
+    for (const seasonId of [
+      launchSeasonId,
+      checkedNext(launchSeasonId, "launch Season"),
+    ]) {
+      const season = await this.loadRequired(
+        "season",
+        seasonPda(seasonId),
+        ARCADE_ACCOUNT_VERSION,
+      );
+      if (u32(season.value.seasonId, "Season id") !== seasonId ||
+          u32(season.value.qualificationStartDay, "Season qualification start") !==
+            seasonStartDay(seasonId)) {
+        throw new Error("staged Season cadence is invalid");
+      }
+      this.requireUnfundedPeriod(season.value, "Season");
+    }
+  }
+
+  private requireUnfundedPeriod(
+    value: Record<string, unknown>,
+    label: string,
+  ): void {
+    if (periodStatus(value.status, `${label} status`) !== "funding" ||
+        boolean(value.predecessorRolloverApplied, `${label} predecessor flag`) ||
+        fundedLedgerLamports(value.ledger, label) !== 0n) {
+      throw new Error(`${label} staged funding state is invalid`);
+    }
   }
 
   async materialize(input: {
@@ -1653,6 +1825,17 @@ function record(value: unknown, label: string): Record<string, unknown> {
 function array(value: unknown, label: string): readonly unknown[] {
   if (!Array.isArray(value)) throw new Error(`${label} is not an array`);
   return value;
+}
+
+function bytes32Hex(value: unknown, label: string): string {
+  const bytes = value instanceof Uint8Array
+    ? value
+    : Array.isArray(value) && value.length === 32 &&
+        value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+      ? Uint8Array.from(value as number[])
+      : undefined;
+  if (!bytes || bytes.length !== 32) throw new Error(`${label} is not 32 bytes`);
+  return Buffer.from(bytes).toString("hex");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -21,6 +21,7 @@ import {
 import BN from "bn.js";
 import { Buffer } from "buffer";
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -65,6 +66,32 @@ import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
+
+/**
+ * Pin the same transaction budget the runtime would otherwise assign to the
+ * two zKube instructions in an atomic paid launch. Phantom only injects its
+ * own priority-fee instructions when the message has no compute-budget
+ * instruction, so this keeps the wallet-approved message deterministic.
+ */
+export const WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT = 400_000;
+
+export function withPinnedWalletComputeBudget(
+  instructions: readonly TransactionInstruction[],
+): TransactionInstruction[] {
+  if (
+    instructions.some((instruction) =>
+      instruction.programId.equals(ComputeBudgetProgram.programId),
+    )
+  ) {
+    return [...instructions];
+  }
+  return [
+    ComputeBudgetProgram.setComputeUnitLimit({
+      units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
+    }),
+    ...instructions,
+  ];
+}
 
 type RunLayer = "solana-base" | "magicblock-er";
 
@@ -857,10 +884,13 @@ export async function compileWalletTransactionPlan(args: {
   }
   const { blockhash } =
     await transactionPlan.connection.getLatestBlockhash("confirmed");
+  const instructions = withPinnedWalletComputeBudget(
+    transactionPlan.transaction.instructions,
+  );
   const message = new TransactionMessage({
     payerKey: transactionPlan.feePayer,
     recentBlockhash: blockhash,
-    instructions: transactionPlan.transaction.instructions,
+    instructions,
   }).compileToV0Message();
   if (transactionPlan.postFeeRentReserveLamports !== undefined) {
     const [fee, balanceLamports, rentFloorLamports] = await Promise.all([

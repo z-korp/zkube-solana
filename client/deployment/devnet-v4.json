@@ -1,0 +1,69 @@
+{
+  "schema": "zkube-solana-deployment",
+  "schemaVersion": 5,
+  "cluster": "devnet",
+  "createdAt": "2026-07-22T14:04:37.000Z",
+  "approval": {
+    "status": "approved",
+    "fingerprint": "3d09e16a0b624e89",
+    "approvedAt": "2026-07-22T14:03:04.000Z",
+    "evidenceSha256": "3d09e16a0b624e892d1bc3ea74e1d093b3f19b9a6a1daeaeada2407c90e8d8de"
+  },
+  "program": {
+    "id": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "artifactSha256": "bbd69fc95d964d159fdb390810ac2b432f47540c85ff9d1ccd5cee0b6c8b0cf5",
+    "programDataAddress": "2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS",
+    "deployedProgramDataSha256": "754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4",
+    "allocationBytes": 1264080,
+    "upgradeAuthority": "2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox",
+    "deploymentSignature": "2rKP8ZsFx8tLwjumvUUxNDnxihhBDiQFPz7AP7vy4jFCDatpx5NeER3aeHpt3aTNWbSMLUaTy8Eku1976xfue3y2",
+    "deployedAt": "2026-07-22T09:49:42.000Z"
+  },
+  "rpc": {
+    "base": "https://rpc.magicblock.app/devnet",
+    "expectedGenesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "magicRouter": "https://devnet-router.magicblock.app/"
+  },
+  "magic": {
+    "routerPolicy": "closest",
+    "context": "MagicContext1111111111111111111111111111111",
+    "program": "Magic11111111111111111111111111111111111111",
+    "delegationProgram": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+    "vrfQueue": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+  },
+  "payment": {
+    "asset": "native-sol",
+    "decimals": 9
+  },
+  "protocol": {
+    "authority": "HmCGfPTW2ahuNySTddvbQpJxutDUhjMbR9j8ekFzHQ5b",
+    "teamDestination": "FVN2XcPhXJGyUmDZWts5EBmsiK7aHzQoMFCkT57oZZhP",
+    "operatorRevenueVault": "GQQWNK9df8RoB4MRdwznk1NyLskJcDEVmrXWeLZ78zwe"
+  },
+  "content": {
+    "baseVersion": 1,
+    "campaignVersion": 2,
+    "catalogSha256": "141a694c5a11ac47c3b959bb905eb834d8e239d73baf1f05a344ee3c29086684"
+  },
+  "rules": {
+    "arenaVersion": 1,
+    "catalogSha256": "cfa5f8ff98a1d1b1996dc507c5f2879588acaf90cb9ce9f6cd8e26e4d6bcd440"
+  },
+  "launch": {
+    "dayId": 20656,
+    "weekId": 2950,
+    "seasonId": 737,
+    "cutoffUnixTimestamp": 1784759400,
+    "planFingerprint": "3d09e16a0b624e892d1bc3ea74e1d093b3f19b9a6a1daeaeada2407c90e8d8de",
+    "seeds": {
+      "dailyLamports": "1000000000",
+      "weeklyLamports": "2000000000",
+      "seasonLamports": "3000000000"
+    }
+  },
+  "keeper": {
+    "signer": "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg",
+    "releaseFingerprint": "d8e26ee9bf840c14b3efda0559ece5b2035fb6a32a52b8c5f467aded82a93c09",
+    "imageDigest": "sha256:2bd055d5e6f7ed47aaa92fa5fd6630e0a33b47a6e074975efd05322bab1af1ea"
+  }
+}
