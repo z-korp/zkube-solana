@@ -16,8 +16,8 @@ interface ConnectCtaProps {
  * The one onboarding button, used by Home ("PLAY NOW") and Settings
  * ("CONNECT ACCOUNT"). One tap connects directly when a single compatible
  * wallet is installed, otherwise opens the wallet picker sheet; once a wallet
- * is connected it becomes the ENABLE/RENEW ZKUBE action. Renders nothing when
- * the player is fully ready.
+ * is connected the same tap enables (or renews) the device session, always
+ * under the one label. Renders nothing when the player is fully ready.
  */
 const ConnectCta: React.FC<ConnectCtaProps> = ({
   label = "CONNECT ACCOUNT",
@@ -84,16 +84,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
       )}
       <ArcadeButton disabled={busy} onClick={handleTap}>
         <Gamepad2 size={22} strokeWidth={2.5} />
-        {busy
-          ? connected
-            ? "Connecting…"
-            : pendingLabel
-          : connected
-            ? player.sessionStatus === "expired" ||
-              player.sessionStatus === "needsRenewal"
-              ? "Reconnect"
-              : "Continue"
-            : label}
+        {busy ? (connected ? "Connecting…" : pendingLabel) : label}
       </ArcadeButton>
       <Sheet
         open={pickerOpen}
