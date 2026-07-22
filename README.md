@@ -328,7 +328,9 @@ Deployment manifest schema v5 binds the deployed ProgramData, allocation,
 content/rules catalogs, exact launch day and seed plan, and keeper release. The
 dependency is one-way: unique Fly keeper release tag, keeper fingerprint,
 launch-plan fingerprint, then final manifest. The obsolete v3 manifest is
-intentionally not a reusable release input.
+intentionally not a reusable release input. The sanitized, approved v4 Devnet
+binding consumed by the production web build is committed at
+`client/deployment/devnet-v4.json`.
 
 Fly exposes a unique `deployment-<ULID>` release tag to the worker; that tag is
 part of the keeper fingerprint. The approval bundle also records the immutable
