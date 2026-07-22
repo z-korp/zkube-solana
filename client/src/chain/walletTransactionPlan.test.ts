@@ -29,6 +29,7 @@ import {
 import {
   compileWalletTransactionPlan,
   WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
+  WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
   withPinnedWalletComputeBudget,
   zkubeProgram,
   type TransactionPlan,
@@ -38,7 +39,7 @@ import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 describe("native SOL transaction boundaries", () => {
-  it("pins one deterministic wallet compute budget without duplicating one", () => {
+  it("pins a complete deterministic wallet compute budget", () => {
     const transfer = SystemProgram.transfer({
       fromPubkey: Keypair.generate().publicKey,
       toPubkey: Keypair.generate().publicKey,
@@ -46,7 +47,7 @@ describe("native SOL transaction boundaries", () => {
     });
     const pinned = withPinnedWalletComputeBudget([transfer]);
 
-    expect(pinned).toHaveLength(2);
+    expect(pinned).toHaveLength(3);
     expect(pinned[0]?.programId.equals(ComputeBudgetProgram.programId)).toBe(
       true,
     );
@@ -54,7 +55,29 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(pinned[0]!.data).readUInt32LE(1)).toBe(
       WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
     );
+    expect(pinned[1]?.programId.equals(ComputeBudgetProgram.programId)).toBe(
+      true,
+    );
+    expect(Buffer.from(pinned[1]!.data).readUInt8(0)).toBe(3);
+    expect(Buffer.from(pinned[1]!.data).readBigUInt64LE(1)).toBe(
+      BigInt(WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS),
+    );
     expect(withPinnedWalletComputeBudget(pinned)).toEqual(pinned);
+  });
+
+  it("adds a missing price without duplicating an existing limit", () => {
+    const limit = ComputeBudgetProgram.setComputeUnitLimit({ units: 250_000 });
+    const transfer = SystemProgram.transfer({
+      fromPubkey: Keypair.generate().publicKey,
+      toPubkey: Keypair.generate().publicKey,
+      lamports: 1,
+    });
+    const pinned = withPinnedWalletComputeBudget([limit, transfer]);
+
+    expect(pinned).toHaveLength(3);
+    expect(Buffer.from(pinned[0]!.data).readUInt8(0)).toBe(2);
+    expect(Buffer.from(pinned[0]!.data).readUInt32LE(1)).toBe(250_000);
+    expect(Buffer.from(pinned[1]!.data).readUInt8(0)).toBe(3);
   });
 
   it("exposes no generic vault signer: funded prepare is pinned to owner PDAs", async () => {
@@ -230,7 +253,8 @@ describe("native SOL transaction boundaries", () => {
     });
     const restored = VersionedTransaction.deserialize(signed.serialize());
     const computeInstruction = signed.message.compiledInstructions[0]!;
-    const transferInstruction = signed.message.compiledInstructions[1]!;
+    const priceInstruction = signed.message.compiledInstructions[1]!;
+    const transferInstruction = signed.message.compiledInstructions[2]!;
     const computeProgram =
       signed.message.staticAccountKeys[computeInstruction.programIdIndex];
     const transferProgram =
@@ -242,8 +266,12 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(computeInstruction.data).readUInt32LE(1)).toBe(
       WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
     );
+    expect(Buffer.from(priceInstruction.data).readUInt8(0)).toBe(3);
+    expect(Buffer.from(priceInstruction.data).readBigUInt64LE(1)).toBe(
+      BigInt(WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS),
+    );
     expect(transferProgram?.equals(SystemProgram.programId)).toBe(true);
-    expect(signed.message.compiledInstructions).toHaveLength(2);
+    expect(signed.message.compiledInstructions).toHaveLength(3);
     expect([...signed.signatures[0]!].some((byte) => byte !== 0)).toBe(true);
     expect(Buffer.from(restored.message.serialize())).toEqual(
       Buffer.from(signed.message.serialize()),
@@ -311,7 +339,7 @@ describe("native SOL transaction boundaries", () => {
     }).compileToV0Message();
     const serialized = new VersionedTransaction(message).serialize();
 
-    expect(message.compiledInstructions).toHaveLength(3);
+    expect(message.compiledInstructions).toHaveLength(4);
     expect(message.header.numRequiredSignatures).toBe(1);
     expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
   });

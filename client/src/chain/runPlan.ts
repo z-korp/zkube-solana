@@ -67,30 +67,50 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 
-/**
- * Pin the same transaction budget the runtime would otherwise assign to the
- * two zKube instructions in an atomic paid launch. Phantom only injects its
- * own priority-fee instructions when the message has no compute-budget
- * instruction, so this keeps the wallet-approved message deterministic.
- */
+/** Pin the complete budget before wallet approval so Phantom has no missing
+ * priority-fee field to inject into the exact message. */
 export const WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT = 400_000;
+export const WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS = 1_000;
 
 export function withPinnedWalletComputeBudget(
   instructions: readonly TransactionInstruction[],
 ): TransactionInstruction[] {
-  if (
-    instructions.some((instruction) =>
-      instruction.programId.equals(ComputeBudgetProgram.programId),
-    )
-  ) {
-    return [...instructions];
-  }
+  const limitInstruction = ComputeBudgetProgram.setComputeUnitLimit({
+    units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
+  });
+  const priceInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+    microLamports: WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+  });
+  const hasLimit = instructions.some((instruction) =>
+    isComputeBudgetVariant(instruction, limitInstruction.data[0]),
+  );
+  const hasPrice = instructions.some((instruction) =>
+    isComputeBudgetVariant(instruction, priceInstruction.data[0]),
+  );
+  if (hasLimit && hasPrice) return [...instructions];
+
+  const firstNonBudget = instructions.findIndex(
+    (instruction) =>
+      !instruction.programId.equals(ComputeBudgetProgram.programId),
+  );
+  const insertionIndex = firstNonBudget < 0
+    ? instructions.length
+    : firstNonBudget;
   return [
-    ComputeBudgetProgram.setComputeUnitLimit({
-      units: WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
-    }),
-    ...instructions,
+    ...instructions.slice(0, insertionIndex),
+    ...(hasLimit ? [] : [limitInstruction]),
+    ...(hasPrice ? [] : [priceInstruction]),
+    ...instructions.slice(insertionIndex),
   ];
+}
+
+function isComputeBudgetVariant(
+  instruction: TransactionInstruction,
+  discriminator: number | undefined,
+): boolean {
+  return discriminator !== undefined &&
+    instruction.programId.equals(ComputeBudgetProgram.programId) &&
+    instruction.data[0] === discriminator;
 }
 
 type RunLayer = "solana-base" | "magicblock-er";
