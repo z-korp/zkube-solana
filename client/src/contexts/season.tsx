@@ -5,7 +5,7 @@ import { useSeasonController } from "@/chain/useSeasonController";
 
 export type SeasonController = ReturnType<typeof useSeasonController>;
 
-const SeasonContext = createContext<SeasonController | null>(null);
+export const SeasonContext = createContext<SeasonController | null>(null);
 
 export function SeasonProvider({ children }: { children: ReactNode }) {
   const season = useSeasonController();

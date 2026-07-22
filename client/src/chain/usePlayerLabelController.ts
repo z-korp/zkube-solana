@@ -13,6 +13,8 @@ import {
 import { submitVersionedTransactionPlan } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { applyDevPlayerLabel } from "@/dev/fixtures";
 
 export function usePlayerLabelController() {
   const { connection } = useSolanaConnection();
@@ -123,5 +125,9 @@ export function usePlayerLabelController() {
     [connection, label, player, refresh],
   );
 
-  return { label, loading, saving, error, refresh, save };
+  const result = { label, loading, saving, error, refresh, save };
+  // DEV-ONLY fixture override; folds away in production builds.
+  return import.meta.env.DEV && DEV_BYPASS_ACTIVE
+    ? applyDevPlayerLabel(result)
+    : result;
 }

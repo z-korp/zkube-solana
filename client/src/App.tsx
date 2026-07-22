@@ -18,6 +18,8 @@ import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
 
 const params = new URLSearchParams(window.location.search);
 const spectatePlayer = params.get("player");
@@ -70,6 +72,19 @@ export default function App() {
     const timer = setTimeout(() => setTimedOut(true), 5000);
     return () => clearTimeout(timer);
   }, []);
+  // DEV-ONLY: skip the connect gate and render the populated menus from fixture
+  // providers. `import.meta.env.DEV` is a literal `false` in production, so this
+  // branch (and everything it imports under src/dev/) is dead-code-eliminated.
+  if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
+    return (
+      <DevFixturesProvider>
+        <TooltipProvider>
+          <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+          <Toaster position={getToastPlacement()} />
+        </TooltipProvider>
+      </DevFixturesProvider>
+    );
+  }
   if (
     player.connectionStatus !== "connected" ||
     !player.publicKey ||
