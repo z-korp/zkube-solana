@@ -6,8 +6,9 @@ available in the same application as a visually separate, map-first mode.
 
 The connected Solana address is the player identity. There are no embedded
 wallets, recovery codes, deposits, soft currencies, shops, passes, token swaps,
-or prize claims. v4 is Devnet-first and presently undeployed. Mainnet remains
-blocked on counsel, economic, and distribution review.
+or prize claims. v4 is Devnet-first; its program is deployed but the protocol
+remains uninitialized until the exact launch bundle is approved. Mainnet
+remains blocked on counsel, economic, and distribution review.
 
 ## Product model
 
@@ -266,11 +267,13 @@ visual redesign. The next Claude frontend pass must preserve the contract and:
 
 ## Deployment status
 
-The v4 program address reserved in source is
-`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`. A read-only Devnet check on
-2026-07-19 found no account at that address. Source state is not deployment
-evidence, and no v4 deployment, initialization, funding, or keeper enablement
-has been authorized.
+The v4 Devnet program is
+`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`, with ProgramData
+`2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS`, allocation `1,264,080`, and
+padded ProgramData SHA-256
+`754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4`.
+Deployment does not imply initialization: the protocol PDA remains absent
+until the separately approved bootstrap.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
@@ -286,16 +289,31 @@ planner never rebuilds the artifact or copies a program keypair.
 
 After the program and the independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
-bundle. It requires every protocol target to be absent, initializes paused,
+bundle. It requires every protocol target to be absent, calculates the exact
+deployer funding transaction, initializes paused,
 publishes Campaign v2 and Arena rules v1, prepares the current and following
 Daily/Weekly/Season accounts, and ends with one atomic transaction that seeds
 exactly 1/2/3 SOL, unpauses, and activates the three current competitions. The
 launch day may be mid-Weekly and mid-Season, but its approval expires at the
 specified pre-entry cutoff. The planner has no signing or sending path.
 
+`NO_DNA=1 pnpm chain:devnet:launch` is the separate approval-gated executor.
+Its `stage` mode simulates, signs once, confirms, and re-reads only transactions
+0–19, leaving the protocol paused and writing a public launch bundle under
+`/tmp`. A signed receipt is atomically persisted before each submission, so
+`resume` can verify the exact approved message, signer, signature status, and
+blockhash before relaying or re-signing an interrupted pass. The deployed
+keeper must then report `staged_launch_ready` for the approved release
+fingerprint. Only `activate` mode can submit transaction 20; it re-verifies the
+bundle hash, Devnet genesis, ProgramData, account contents, cutoff, signer,
+keeper evidence, and exact instruction bytes before the atomic seed/unpause.
+No client or Fly process contains an unconditional launch path.
+
 Deployment manifest schema v5 binds the deployed ProgramData, allocation,
 content/rules catalogs, exact launch day and seed plan, and keeper release. The
-obsolete v3 manifest is intentionally not a reusable release input.
+dependency is one-way: immutable keeper image digest, keeper fingerprint,
+launch-plan fingerprint, then final manifest. The obsolete v3 manifest is
+intentionally not a reusable release input.
 
 Production web publishing remains Git-driven from
 `z-korp/zkube-solana:main` to Vercel project

@@ -3,6 +3,7 @@ import {
   Connection,
   PublicKey,
   SystemProgram,
+  Transaction,
   TransactionMessage,
 } from "@solana/web3.js";
 import {
@@ -45,11 +46,15 @@ const BASE_CONTENT_VERSION = 1;
 const ARENA_RULES_VERSION = 1;
 const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60;
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
+const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
+const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
+const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 export interface LaunchPlannerInput {
   cluster: "devnet";
   baseRpc: string;
   expectedGenesisHash: string;
+  deployer: string;
   authority: string;
   teamDestination: string;
   replayDomainHex: string;
@@ -58,9 +63,9 @@ export interface LaunchPlannerInput {
   deployedProgramDataSha256: string;
   programAllocationBytes: number;
   programUpgradeAuthority: string;
-  deploymentManifestSha256: string;
   keeperReleaseFingerprint: string;
   authorityReserveLamports: number;
+  deployerReserveLamports: number;
 }
 
 export interface LaunchCostPlan {
@@ -72,6 +77,13 @@ export interface LaunchCostPlan {
   maximumAuthoritySpendLamports: number;
   authorityReserveLamports: number;
   requiredAuthorityBalanceLamports: number;
+  authorityBalanceLamports: number;
+  authorityFundingLamports: number;
+  teamFundingLamports: number;
+  deployerFeeLamports: number;
+  maximumDeployerSpendLamports: number;
+  deployerReserveLamports: number;
+  requiredDeployerBalanceLamports: number;
 }
 
 export interface ZkubeLaunchPlan {
@@ -80,9 +92,12 @@ export interface ZkubeLaunchPlan {
   weekId: number;
   seasonId: number;
   programDataAddress: string;
+  rulesCatalogSha256: string;
+  fundingPlan?: TransactionPlan;
   plans: TransactionPlan[];
   phases: Array<{ label: string; transactionIndexes: number[] }>;
   costs: LaunchCostPlan;
+  approvalPayload: unknown;
   approvalEvidenceSha256: string;
   approvalFingerprint: string;
 }
@@ -108,6 +123,7 @@ export function launchPlannerInputFromEnv(
     cluster: "devnet",
     baseRpc,
     expectedGenesisHash,
+    deployer: publicKey(required(env, "ZKUBE_DEPLOYER_PUBLIC_KEY"), "deployer"),
     authority: publicKey(
       required(env, "ZKUBE_PROTOCOL_AUTHORITY"),
       "authority",
@@ -137,10 +153,6 @@ export function launchPlannerInputFromEnv(
       required(env, "ZKUBE_PROGRAM_UPGRADE_AUTHORITY"),
       "program upgrade authority",
     ),
-    deploymentManifestSha256: hash(
-      required(env, "ZKUBE_DEPLOYMENT_MANIFEST_SHA256"),
-      "deployment manifest hash",
-    ),
     keeperReleaseFingerprint: hash(
       required(env, "ZKUBE_KEEPER_RELEASE_FINGERPRINT"),
       "keeper release fingerprint",
@@ -151,6 +163,12 @@ export function launchPlannerInputFromEnv(
           "authority reserve",
         )
       : DEFAULT_AUTHORITY_RESERVE_LAMPORTS,
+    deployerReserveLamports: env.ZKUBE_LAUNCH_DEPLOYER_RESERVE_LAMPORTS
+      ? positiveInteger(
+          env.ZKUBE_LAUNCH_DEPLOYER_RESERVE_LAMPORTS,
+          "deployer reserve",
+        )
+      : DEFAULT_DEPLOYER_RESERVE_LAMPORTS,
   };
 }
 
@@ -166,6 +184,10 @@ export async function buildZkubeLaunchPlan(
   if (genesisHash !== input.expectedGenesisHash) {
     throw new Error(`Devnet genesis mismatch: received ${genesisHash}`);
   }
+  if (input.replayDomainHex !== canonicalDevnetReplayDomainHex()) {
+    throw new Error("launch replay domain is not canonical for this Devnet program");
+  }
+  const deployer = new PublicKey(input.deployer);
   const authority = new PublicKey(input.authority);
   const teamDestination = new PublicKey(input.teamDestination);
   const programState = await inspectUpgradeableProgram(
@@ -200,16 +222,16 @@ export async function buildZkubeLaunchPlan(
     teamDestination,
     "confirmed",
   );
-  if (
-    !teamInfo ||
+  if (teamInfo && (
     teamInfo.executable ||
     !teamInfo.owner.equals(SystemProgram.programId) ||
     teamInfo.data.length !== 0
-  ) {
+  )) {
     throw new Error(
-      "team destination must be an existing System-owned zero-data account",
+      "existing team destination must be System-owned and zero-data",
     );
   }
+  const teamFundingLamports = teamInfo ? 0 : TEAM_DESTINATION_FUNDING_LAMPORTS;
 
   const targetAccounts = bootstrapTargetAccounts(
     input.launchDayId,
@@ -263,6 +285,7 @@ export async function buildZkubeLaunchPlan(
       startsDay: input.launchDayId,
     }),
   );
+  const rulesCatalogSha256 = arenaRulesCatalogHash(plans[11]);
   plans.push(
     await buildActivateContentReleasePlan({
       connection,
@@ -345,11 +368,36 @@ export async function buildZkubeLaunchPlan(
     "launch balance floor",
   );
   const authorityBalance = await connection.getBalance(authority, "confirmed");
-  if (authorityBalance < requiredAuthorityBalanceLamports) {
+  const authorityFundingLamports = Math.max(
+    0,
+    requiredAuthorityBalanceLamports - authorityBalance,
+  );
+  const deployerFeeLamports =
+    authorityFundingLamports > 0 || teamFundingLamports > 0
+      ? feePerTransactionLamports
+      : 0;
+  const maximumDeployerSpendLamports = sumSafe(
+    [authorityFundingLamports, teamFundingLamports, deployerFeeLamports],
+    "maximum deployer funding spend",
+  );
+  const requiredDeployerBalanceLamports = sumSafe(
+    [maximumDeployerSpendLamports, input.deployerReserveLamports],
+    "deployer balance floor",
+  );
+  const deployerBalance = await connection.getBalance(deployer, "confirmed");
+  if (deployerBalance < requiredDeployerBalanceLamports) {
     throw new Error(
-      `authority balance ${authorityBalance} is below launch floor ${requiredAuthorityBalanceLamports}`,
+      `deployer balance ${deployerBalance} is below launch funding floor ${requiredDeployerBalanceLamports}`,
     );
   }
+  const fundingPlan = buildFundingPlan({
+    connection,
+    deployer,
+    authority,
+    teamDestination,
+    authorityFundingLamports,
+    teamFundingLamports,
+  });
   const costs: LaunchCostPlan = {
     accountRentLamports,
     seedLamports,
@@ -359,6 +407,13 @@ export async function buildZkubeLaunchPlan(
     maximumAuthoritySpendLamports,
     authorityReserveLamports: input.authorityReserveLamports,
     requiredAuthorityBalanceLamports,
+    authorityBalanceLamports: authorityBalance,
+    authorityFundingLamports,
+    teamFundingLamports,
+    deployerFeeLamports,
+    maximumDeployerSpendLamports,
+    deployerReserveLamports: input.deployerReserveLamports,
+    requiredDeployerBalanceLamports,
   };
   const phases = [
     { label: "Initialize paused base content v1", transactionIndexes: [0] },
@@ -384,17 +439,18 @@ export async function buildZkubeLaunchPlan(
     observed: {
       programId: ZKUBE_PROGRAM_ID.toBase58(),
       programDataAddress: programState.programDataAddress.toBase58(),
-      observedUnixTimestamp,
       weekId,
       seasonId,
       freshTargetAccounts: targetAccounts.map((address) => address.toBase58()),
+      rulesCatalogSha256,
     },
     phases,
     costs,
-    transactions: plans.map(publicPlan),
+    fundingTransaction: fundingPlan ? publicLaunchPlan(fundingPlan) : null,
+    transactions: plans.map(publicLaunchPlan),
     policy: {
-      signingSupported: false,
-      sendingSupported: false,
+      signingSupported: "separate-exact-approval-runner",
+      sendingSupported: "separate-exact-approval-runner",
       initialProtocolPaused: true,
       seedUnpauseActivateAtomic: true,
     },
@@ -408,9 +464,12 @@ export async function buildZkubeLaunchPlan(
     weekId,
     seasonId,
     programDataAddress: programState.programDataAddress.toBase58(),
+    rulesCatalogSha256,
+    ...(fundingPlan ? { fundingPlan } : {}),
     plans,
     phases,
     costs,
+    approvalPayload,
     approvalEvidenceSha256,
     approvalFingerprint: approvalEvidenceSha256,
   };
@@ -435,7 +494,13 @@ export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
     `Maximum authority spend: ${plan.costs.maximumAuthoritySpendLamports} lamports`,
     `Required post-plan reserve: ${plan.costs.authorityReserveLamports} lamports`,
     `Required authority balance: ${plan.costs.requiredAuthorityBalanceLamports} lamports`,
-    `Deployment manifest SHA-256: ${plan.input.deploymentManifestSha256}`,
+    `Current authority balance: ${plan.costs.authorityBalanceLamports} lamports`,
+    `Authority funding: ${plan.costs.authorityFundingLamports} lamports`,
+    `Team destination funding: ${plan.costs.teamFundingLamports} lamports`,
+    `Maximum deployer spend: ${plan.costs.maximumDeployerSpendLamports} lamports`,
+    `Required deployer balance: ${plan.costs.requiredDeployerBalanceLamports} lamports`,
+    `Replay domain: ${plan.input.replayDomainHex}`,
+    `Arena catalog SHA-256: ${plan.rulesCatalogSha256}`,
     `Keeper release fingerprint: ${plan.input.keeperReleaseFingerprint}`,
     `Approval fingerprint: ${plan.approvalFingerprint}`,
     ...plan.phases.map(
@@ -508,7 +573,61 @@ function bootstrapTargetAccounts(
   ];
 }
 
-function publicPlan(plan: TransactionPlan) {
+export function canonicalDevnetReplayDomainHex(): string {
+  return createHash("sha256")
+    .update(REPLAY_DOMAIN_TAG)
+    .update(new PublicKey(SOLANA_DEVNET_GENESIS_HASH).toBuffer())
+    .update(ZKUBE_PROGRAM_ID.toBuffer())
+    .digest("hex");
+}
+
+function arenaRulesCatalogHash(plan: TransactionPlan | undefined): string {
+  const instruction = plan?.transaction.instructions[0];
+  if (!instruction || !instruction.programId.equals(ZKUBE_PROGRAM_ID) ||
+      instruction.data.length <= 8) {
+    throw new Error("canonical Arena rules instruction is missing or malformed");
+  }
+  return createHash("sha256")
+    .update(Buffer.from("zkube-arena-catalog-v2", "utf8"))
+    .update(instruction.data.subarray(8))
+    .digest("hex");
+}
+
+function buildFundingPlan(args: {
+  connection: Connection;
+  deployer: PublicKey;
+  authority: PublicKey;
+  teamDestination: PublicKey;
+  authorityFundingLamports: number;
+  teamFundingLamports: number;
+}): TransactionPlan | undefined {
+  const transaction = new Transaction();
+  if (args.authorityFundingLamports > 0) {
+    transaction.add(SystemProgram.transfer({
+      fromPubkey: args.deployer,
+      toPubkey: args.authority,
+      lamports: args.authorityFundingLamports,
+    }));
+  }
+  if (args.teamFundingLamports > 0) {
+    transaction.add(SystemProgram.transfer({
+      fromPubkey: args.deployer,
+      toPubkey: args.teamDestination,
+      lamports: args.teamFundingLamports,
+    }));
+  }
+  if (transaction.instructions.length === 0) return undefined;
+  return {
+    layer: "solana-base",
+    label: "Fund launch authority and team destination",
+    connection: args.connection,
+    transaction,
+    feePayer: args.deployer,
+    signers: [],
+  };
+}
+
+export function publicLaunchPlan(plan: TransactionPlan) {
   return {
     layer: plan.layer,
     label: plan.label,
@@ -523,6 +642,12 @@ function publicPlan(plan: TransactionPlan) {
       dataBase64: Buffer.from(instruction.data).toString("base64"),
     })),
   };
+}
+
+export function launchTransactionSha256(plan: TransactionPlan): string {
+  return createHash("sha256")
+    .update(JSON.stringify(publicLaunchPlan(plan)))
+    .digest("hex");
 }
 
 async function liveSingleSignerFee(

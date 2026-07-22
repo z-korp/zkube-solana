@@ -9,11 +9,13 @@ import {
   KEEPER_RECENT_SEASON_CADENCES,
   KEEPER_RECENT_WEEKLY_CADENCES,
   SOL_PAYOUT_UNIT_LAMPORTS,
+  ZKUBE_PROGRAM_ID,
 } from "./arcadeChain.js";
 import { KEEPER_EXPECTED_IDL_SHA256 } from "./anchorIdlAdapter.js";
 import { SESSION_KEYS_PROGRAM_ID } from "./sessionCleanup.js";
 
 export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
@@ -86,10 +88,21 @@ export interface KeeperReleaseInput {
   deployedProgramDataSha256: string;
   keeperImageDigest: string;
   replayDomainHex: string;
-  rulesHash: string;
-  schemaHash: string;
+  rulesCatalogHash: string;
   idlHash: string;
   rulesVersion: number;
+  launchDayId: number;
+}
+
+/** Stable across upgrades while remaining unique to this cluster and program. */
+export function canonicalDevnetReplayDomainHex(
+  programId: PublicKey = ZKUBE_PROGRAM_ID,
+): string {
+  return createHash("sha256")
+    .update(REPLAY_DOMAIN_TAG)
+    .update(new PublicKey(DEVNET_GENESIS_HASH).toBuffer())
+    .update(programId.toBuffer())
+    .digest("hex");
 }
 
 export function keeperReleaseRecord(input: KeeperReleaseInput) {
@@ -100,8 +113,10 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     throw new Error("keeper image digest must be sha256:<lowercase hex>");
   }
   assertHash(input.replayDomainHex, "replay domain");
-  assertHash(input.rulesHash, "rules hash");
-  assertHash(input.schemaHash, "schema hash");
+  if (input.replayDomainHex !== canonicalDevnetReplayDomainHex(programId)) {
+    throw new Error("replay domain does not match the canonical Devnet deployment domain");
+  }
+  assertHash(input.rulesCatalogHash, "rules catalog hash");
   assertHash(input.idlHash, "IDL hash");
   if (input.idlHash !== KEEPER_EXPECTED_IDL_SHA256) {
     throw new Error("IDL hash does not match the keeper materializer");
@@ -110,6 +125,10 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
       input.rulesVersion > 0xffff_ffff) {
     throw new Error("rules version must be a positive u32");
   }
+  if (!Number.isSafeInteger(input.launchDayId) || input.launchDayId < 4 ||
+      input.launchDayId > 0xffff_ffff) {
+    throw new Error("launch day must be a supported u32 day");
+  }
   const record = {
     ...KEEPER_RELEASE_POLICY,
     programId: programId.toBase58(),
@@ -117,10 +136,10 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     deployedProgramDataSha256: input.deployedProgramDataSha256,
     keeperImageDigest: input.keeperImageDigest,
     replayDomainHex: input.replayDomainHex,
-    rulesHash: input.rulesHash,
-    schemaHash: input.schemaHash,
+    rulesCatalogHash: input.rulesCatalogHash,
     idlHash: input.idlHash,
     rulesVersion: input.rulesVersion,
+    launchDayId: input.launchDayId,
   };
   const canonical = JSON.stringify(sortJson(record));
   return {

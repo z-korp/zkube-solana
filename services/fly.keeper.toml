@@ -14,6 +14,10 @@ kill_timeout = "240s"
   SOLANA_DEVNET_RPC_URL = "https://rpc.magicblock.app/devnet"
   SOLANA_EXPECTED_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
   ZKUBE_KEEPER_PUBLIC_KEY = "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg"
+  ZKUBE_REPLAY_DOMAIN_HEX = "0565f52607a6ee4b1efa50aa63e0060316e37e620cab63f1954315be4dfadd3c"
+  ZKUBE_ARENA_RULES_CATALOG_SHA256 = "cfa5f8ff98a1d1b1996dc507c5f2879588acaf90cb9ce9f6cd8e26e4d6bcd440"
+  ZKUBE_ARENA_RULES_VERSION = "1"
+  ZKUBE_LAUNCH_DAY_ID = "20656"
   KEEPER_ENABLED = "true"
   # Production writes require exact write=true and release-fingerprint secret
   # overrides after the new image completes a read-only planning pass.

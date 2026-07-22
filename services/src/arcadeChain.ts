@@ -10,6 +10,7 @@ import {
   DAILY_PRIZE_WEIGHTS,
   MONDAY_EPOCH_DAY_ID,
   PROTOCOL_ACCOUNT_VERSION,
+  RULES_ACCOUNT_VERSION,
   SEASON_DAYS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
@@ -23,6 +24,7 @@ export {
   DAILY_PRIZE_WEIGHTS,
   MONDAY_EPOCH_DAY_ID,
   PROTOCOL_ACCOUNT_VERSION,
+  RULES_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
   WEEKLY_PRIZE_WEIGHTS,
@@ -234,6 +236,13 @@ export const arcadeConfigPda = () => derivePda("arcade");
 export const operatorRevenuePda = () => derivePda("operator_revenue");
 export const rulesCatalogPda = (version: number) =>
   derivePda("daily_rules", u32(version));
+export const mapCatalogPda = (contentVersion: number, mapId: number) => {
+  assertCadenceId(contentVersion, "content version");
+  if (!Number.isSafeInteger(mapId) || mapId < 1 || mapId > 32) {
+    throw new Error("map id is outside the supported range");
+  }
+  return derivePda("map", u32(contentVersion), Uint8Array.from([mapId]));
+};
 export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
 export const weeklyJackpotPda = (weekId: number) =>
