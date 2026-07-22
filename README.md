@@ -58,6 +58,13 @@ release bundle. Every later pot is funded by entries from its predecessor
 period plus predecessor rollover. Entries never increase their active Daily,
 Weekly, or Season prize.
 
+Devnet may launch partway through a calendar Weekly or Season. The first
+seeded Daily starts on the launch day; the first Weekly and Season keep their
+canonical closing timestamps but qualify only finalized Dailies from the
+launch day onward. Their qualification start is immutable and settlement
+validates every included Daily on-chain. Every successor Weekly and Season
+starts at its normal Monday boundary and uses its full calendar period.
+
 Settlement is atomic, push-only, may be late, and is never cancelled. A paid
 entry has no refund or claim path: it becomes exactly one scored or expired
 entry. Operator withdrawals remain governance actions and cannot spend
@@ -199,14 +206,17 @@ relationships before decoding or planning a write. It reconciles:
 - Daily-to-Season rollup and sealing;
 - Daily, Weekly, and Season push settlement and rollover;
 - post-settlement Daily, Weekly, and Season profile synchronization;
-- resolved run and expired session cleanup.
+- resolved run and expired session cleanup;
+- bounded post-rollup participant-account closure, with rent recycled only to
+  the canonical player funding PDA.
 
 The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. A
 write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
 program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
 instruction allowlist, eight-write limit, two-session cleanup limit, 0.05 SOL
-simulated spend ceiling, and a 0.1 SOL keeper reserve floor.
+simulated spend ceiling, a separate two-participant-account closure limit, and
+a 0.1 SOL keeper reserve floor.
 
 Fresh initialization remains paused. Paid Arcade cannot open until the exact
 program and complete recovery/settlement keeper have passed read-only
@@ -265,6 +275,27 @@ has been authorized.
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
 its approvals never authorize v4.
+
+Deployment preparation is split into two exact, independently approved
+bundles. From `client`, `NO_DNA=1 pnpm chain:devnet:deploy` plans an explicit
+`initial` or `upgrade` operation from an already frozen SBF. Its live read-only
+preflight binds Devnet genesis, the canonical ProgramData address, artifact and
+padded ProgramData hashes, allocation, rent, fees, signer public keys, spend,
+and reserve; a fresh initial deployment reserves 10,240 bytes of headroom. The
+planner never rebuilds the artifact or copies a program keypair.
+
+After the program and the independently fingerprinted keeper release exist,
+`NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
+bundle. It requires every protocol target to be absent, initializes paused,
+publishes Campaign v2 and Arena rules v1, prepares the current and following
+Daily/Weekly/Season accounts, and ends with one atomic transaction that seeds
+exactly 1/2/3 SOL, unpauses, and activates the three current competitions. The
+launch day may be mid-Weekly and mid-Season, but its approval expires at the
+specified pre-entry cutoff. The planner has no signing or sending path.
+
+Deployment manifest schema v5 binds the deployed ProgramData, allocation,
+content/rules catalogs, exact launch day and seed plan, and keeper release. The
+obsolete v3 manifest is intentionally not a reusable release input.
 
 Production web publishing remains Git-driven from
 `z-korp/zkube-solana:main` to Vercel project

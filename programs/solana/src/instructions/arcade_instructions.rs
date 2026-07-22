@@ -87,8 +87,20 @@ pub fn handler_publish_arena_rules(
     args: PublishArenaRulesArgs,
 ) -> Result<()> {
     require!(
-        args.content_version == ctx.accounts.protocol.content_version,
+        args.content_version >= ctx.accounts.protocol.content_version,
         ErrorCode::ContentVersionMismatch
+    );
+    require!(
+        args.rules_version > ctx.accounts.protocol.daily_rules_version,
+        ErrorCode::InvalidVersion
+    );
+    require!(
+        arena_rules_staging_is_allowed(
+            ctx.accounts.protocol.content_version,
+            args.content_version,
+            ctx.accounts.protocol.paused,
+        ),
+        ErrorCode::InvalidState
     );
     let mut serialized = Vec::new();
     args.serialize(&mut serialized)?;
@@ -272,6 +284,7 @@ pub fn handler_prepare_weekly_jackpot(
     ctx.accounts.weekly_jackpot.set_inner(WeeklyJackpot {
         version: ARCADE_ACCOUNT_VERSION,
         week_id,
+        qualification_start_day: week_start_day(week_id)?,
         arcade_config: ctx.accounts.arcade_config.key(),
         status: PeriodStatus::Funding,
         predecessor_rollover_applied: false,
@@ -327,6 +340,7 @@ pub fn handler_prepare_season(ctx: Context<PrepareSeason>, season_id: u32) -> Re
     ctx.accounts.season.set_inner(Season {
         version: ARCADE_ACCOUNT_VERSION,
         season_id,
+        qualification_start_day: season_start_day(season_id)?,
         arcade_config: ctx.accounts.arcade_config.key(),
         status: PeriodStatus::Funding,
         predecessor_rollover_applied: false,
@@ -483,8 +497,8 @@ pub fn handler_seed_launch_pools(
         ctx.accounts.arena_daily.day_id == today
             && ctx.accounts.arena_daily.week_id == ctx.accounts.weekly_jackpot.week_id
             && ctx.accounts.arena_daily.season_id == ctx.accounts.season.season_id
-            && week_start_day(ctx.accounts.weekly_jackpot.week_id)? == today
-            && season_start_day(ctx.accounts.season.season_id)? == today,
+            && week_id_for_day(today)? == ctx.accounts.weekly_jackpot.week_id
+            && season_id_for_day(today)? == ctx.accounts.season.season_id,
         ErrorCode::InvalidPeriod
     );
     for (destination, amount) in [
@@ -505,6 +519,8 @@ pub fn handler_seed_launch_pools(
     ctx.accounts.arena_daily.ledger.seeded_lamports = daily_lamports;
     ctx.accounts.weekly_jackpot.ledger.seeded_lamports = weekly_lamports;
     ctx.accounts.season.ledger.seeded_lamports = season_lamports;
+    ctx.accounts.weekly_jackpot.qualification_start_day = today;
+    ctx.accounts.season.qualification_start_day = today;
     ctx.accounts.arena_daily.predecessor_rollover_applied = true;
     ctx.accounts.weekly_jackpot.predecessor_rollover_applied = true;
     ctx.accounts.season.predecessor_rollover_applied = true;
@@ -515,7 +531,7 @@ pub fn handler_seed_launch_pools(
 
 #[derive(Accounts)]
 #[instruction(run_id: u64, expected_entry_lamports: u64)]
-pub struct EnterArenaV2<'info> {
+pub struct EnterArena<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
@@ -560,8 +576,8 @@ pub struct EnterArenaV2<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_enter_arena_v2(
-    ctx: Context<EnterArenaV2>,
+pub fn handler_enter_arena(
+    ctx: Context<EnterArena>,
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
@@ -692,7 +708,7 @@ pub fn handler_enter_arena_v2(
 
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
-pub struct PreparePracticeRunV2<'info> {
+pub struct PreparePracticeRun<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -713,10 +729,7 @@ pub struct PreparePracticeRunV2<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_prepare_practice_run_v2(
-    ctx: Context<PreparePracticeRunV2>,
-    run_id: u64,
-) -> Result<()> {
+pub fn handler_prepare_practice_run(ctx: Context<PreparePracticeRun>, run_id: u64) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
@@ -1064,7 +1077,8 @@ pub struct RollupArenaToSeason<'info> {
 
 pub fn handler_rollup_arena_to_season(ctx: Context<RollupArenaToSeason>) -> Result<()> {
     require!(
-        ctx.accounts.arena_player.resolved()
+        ctx.accounts.arena_daily.day_id >= ctx.accounts.season.qualification_start_day
+            && ctx.accounts.arena_player.resolved()
             && ctx.accounts.arena_player.has_best
             && !ctx.accounts.arena_player.season_rolled_up,
         ErrorCode::InvalidState
@@ -1117,7 +1131,8 @@ pub struct SealArenaSeasonRollups<'info> {
 
 pub fn handler_seal_arena_season_rollups(ctx: Context<SealArenaSeasonRollups>) -> Result<()> {
     require!(
-        !ctx.accounts.arena_daily.season_rollup_sealed
+        ctx.accounts.arena_daily.day_id >= ctx.accounts.season.qualification_start_day
+            && !ctx.accounts.arena_daily.season_rollup_sealed
             && ctx.accounts.arena_daily.season_rollups
                 == ctx.accounts.arena_daily.season_eligible_players,
         ErrorCode::InvalidState
@@ -1178,11 +1193,6 @@ pub fn handler_finalize_arena_daily<'info>(
 pub struct FinalizeWeeklyJackpot<'info> {
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()], bump = weekly_jackpot.bump)]
     pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
-    #[account(seeds = [ARENA_DAILY_SEED, final_daily.day_id.to_le_bytes().as_ref()], bump = final_daily.bump,
-        constraint = final_daily.week_id == weekly_jackpot.week_id @ ErrorCode::InvalidPeriod,
-        constraint = final_daily.day_id == week_start_day(weekly_jackpot.week_id)?.saturating_add(6) @ ErrorCode::InvalidPeriod,
-        constraint = final_daily.status == PeriodStatus::Finalized @ ErrorCode::ChallengeNotEnded)]
-    pub final_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [WEEKLY_JACKPOT_SEED, following_weekly.week_id.to_le_bytes().as_ref()], bump = following_weekly.bump,
         constraint = following_weekly.week_id == weekly_jackpot.week_id.saturating_add(1) @ ErrorCode::InvalidPeriod,
         constraint = !following_weekly.predecessor_rollover_applied @ ErrorCode::AlreadySubmitted)]
@@ -1200,6 +1210,27 @@ pub fn handler_finalize_weekly_jackpot<'info>(
             && period_settlement_ready(now, ctx.accounts.weekly_jackpot.closes_at),
         ErrorCode::ChallengeNotEnded
     );
+    // Remaining accounts have one deterministic split: every qualified Daily
+    // first, in ascending day order and read-only, followed by the unique
+    // writable payout wallets in aggregate-recipient order. Validating every
+    // Daily on-chain prevents a permissionless caller from settling Weekly
+    // while an eligible ranked run could still change a skill board.
+    let qualified_daily_count = usize::from(ctx.accounts.weekly_jackpot.qualified_day_count()?);
+    require!(
+        ctx.remaining_accounts.len() >= qualified_daily_count,
+        ErrorCode::InvalidState
+    );
+    let (qualified_dailies, payout_destinations) =
+        ctx.remaining_accounts.split_at(qualified_daily_count);
+    for (offset, account) in qualified_dailies.iter().enumerate() {
+        let expected_day = ctx
+            .accounts
+            .weekly_jackpot
+            .qualification_start_day
+            .checked_add(u32::try_from(offset).map_err(|_| ErrorCode::ArithmeticOverflow)?)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        validate_finalized_weekly_daily(account, &ctx.accounts.weekly_jackpot, expected_day)?;
+    }
     let pool = ctx.accounts.weekly_jackpot.ledger.available_lamports()?;
     require_spendable(&ctx.accounts.weekly_jackpot.to_account_info(), pool)?;
     let budget = weekly_bounty_budget(pool);
@@ -1222,14 +1253,14 @@ pub fn handler_finalize_weekly_jackpot<'info>(
     ];
     let recipients = aggregate_weekly_recipients(boards, counts, &plans)?;
     require!(
-        ctx.remaining_accounts.len() == usize::from(recipients.count),
+        payout_destinations.len() == usize::from(recipients.count),
         ErrorCode::InvalidState
     );
-    for index in 0..usize::from(recipients.count) {
-        validate_wallet(&ctx.remaining_accounts[index], recipients.players[index])?;
+    for (index, destination) in payout_destinations.iter().enumerate() {
+        validate_wallet(destination, recipients.players[index])?;
         move_program_lamports(
             &ctx.accounts.weekly_jackpot.to_account_info(),
-            &ctx.remaining_accounts[index],
+            destination,
             recipients.amounts[index],
         )?;
     }
@@ -1271,7 +1302,7 @@ pub fn handler_finalize_season<'info>(ctx: Context<'info, FinalizeSeason<'info>>
     require!(
         ctx.accounts.season.status == PeriodStatus::Open
             && ctx.accounts.season.predecessor_rollover_applied
-            && u32::from(ctx.accounts.season.sealed_dailies) == DAYS_PER_SEASON
+            && ctx.accounts.season.sealed_dailies == ctx.accounts.season.qualified_day_count()?
             && period_settlement_ready(now, ctx.accounts.season.closes_at),
         ErrorCode::ChallengeNotEnded
     );
@@ -1556,6 +1587,38 @@ fn validate_wallet(account: &AccountInfo<'_>, expected: Pubkey) -> Result<()> {
     Ok(())
 }
 
+fn validate_finalized_weekly_daily(
+    account: &AccountInfo<'_>,
+    weekly: &WeeklyJackpot,
+    expected_day: u32,
+) -> Result<()> {
+    require!(
+        !account.executable && !account.is_writable && *account.owner == crate::ID,
+        ErrorCode::InvalidOwner
+    );
+    require!(
+        account.data_len() == 8 + ArenaDaily::INIT_SPACE,
+        ErrorCode::InvalidOwner
+    );
+    let data = account.try_borrow_data()?;
+    let mut bytes = data.as_ref();
+    let daily = ArenaDaily::try_deserialize(&mut bytes)?;
+    require!(
+        daily.version == ARCADE_ACCOUNT_VERSION
+            && daily.day_id == expected_day
+            && daily.week_id == weekly.week_id
+            && daily.arcade_config == weekly.arcade_config
+            && daily.status == PeriodStatus::Finalized
+            && daily.resolved(),
+        ErrorCode::ChallengeNotEnded
+    );
+    let (expected_key, bump) =
+        Pubkey::find_program_address(&[ARENA_DAILY_SEED, &expected_day.to_le_bytes()], &crate::ID);
+    require_keys_eq!(account.key(), expected_key, ErrorCode::InvalidPeriod);
+    require!(daily.bump == bump, ErrorCode::InvalidPeriod);
+    Ok(())
+}
+
 fn checked_add_u64(left: u64, right: u64) -> Result<u64> {
     left.checked_add(right)
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
@@ -1573,6 +1636,14 @@ fn prepare_period_is_allowed(
     } else {
         requested >= current && no_future_gap
     }
+}
+
+fn arena_rules_staging_is_allowed(
+    active_content_version: u32,
+    requested_content_version: u32,
+    paused: bool,
+) -> bool {
+    requested_content_version == active_content_version || paused
 }
 
 fn practice_runs_close_at(challenge_day_id: u32, now: i64) -> Result<i64> {
@@ -1613,6 +1684,13 @@ mod tests {
         assert!(prepare_period_is_allowed(105, 104, false, 0));
         assert!(!prepare_period_is_allowed(103, 104, false, 0));
         assert!(!prepare_period_is_allowed(106, 104, false, 0));
+    }
+
+    #[test]
+    fn future_arena_rules_can_only_be_staged_while_paused() {
+        assert!(arena_rules_staging_is_allowed(7, 7, false));
+        assert!(arena_rules_staging_is_allowed(7, 8, true));
+        assert!(!arena_rules_staging_is_allowed(7, 8, false));
     }
 
     #[test]

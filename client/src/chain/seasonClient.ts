@@ -17,8 +17,11 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 
-const MONDAY_EPOCH_DAY_ID = 4;
-const SEASON_DAYS = 28;
+import {
+  MONDAY_EPOCH_DAY_ID,
+  SEASON_DAYS,
+  SECONDS_PER_DAY,
+} from "./protocolVersions.generated.js";
 
 export type SeasonStatus = "funding" | "open" | "finalized" | "unknown";
 
@@ -47,6 +50,7 @@ export interface SeasonLeaderboardEntryView {
 export interface SeasonView {
   address: PublicKey;
   seasonId: number;
+  qualificationStartDay: number;
   status: SeasonStatus;
   opensAt: number;
   closesAt: number;
@@ -61,7 +65,7 @@ export interface SeasonView {
 export function currentSeasonId(
   nowUnix = Math.floor(Date.now() / 1_000),
 ): number {
-  const dayId = Math.max(0, Math.floor(nowUnix / 86_400));
+  const dayId = Math.max(0, Math.floor(nowUnix / SECONDS_PER_DAY));
   return Math.max(0, Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / SEASON_DAYS));
 }
 
@@ -98,10 +102,29 @@ export async function fetchSeasonView(args: {
     labels.map((label) => [label.owner.toBase58(), label.displayName]),
   );
   const resultCount = player ? Number(player.resultCount) : 0;
+  const decodedSeasonId = Number(season.seasonId);
+  if (decodedSeasonId !== seasonId) {
+    throw new Error("Season account cadence does not match its PDA");
+  }
+  const qualificationStartDay = Number(season.qualificationStartDay);
+  const firstDay = seasonStartDay(decodedSeasonId);
+  const lastDay = firstDay + SEASON_DAYS - 1;
+  const sealedDailies = Number(season.sealedDailies);
+  if (
+    !Number.isInteger(qualificationStartDay) ||
+    qualificationStartDay < firstDay ||
+    qualificationStartDay > lastDay ||
+    !Number.isInteger(sealedDailies) ||
+    sealedDailies < 0 ||
+    sealedDailies > lastDay - qualificationStartDay + 1
+  ) {
+    throw new Error("Season qualification or seal count is invalid");
+  }
 
   return {
     address,
-    seasonId: Number(season.seasonId),
+    seasonId: decodedSeasonId,
+    qualificationStartDay,
     status: parseSeasonStatus(season.status),
     opensAt: Number(season.opensAt),
     closesAt: Number(season.closesAt),
@@ -110,7 +133,7 @@ export async function fetchSeasonView(args: {
     followingSeasonLamports: following
       ? availablePoolLamports(following.ledger)
       : null,
-    sealedDailies: Number(season.sealedDailies),
+    sealedDailies,
     leaderboard: season.entries.map((entry) => ({
       player: entry.player,
       playerName: names.get(entry.player.toBase58()) ?? null,

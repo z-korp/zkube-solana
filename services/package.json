@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@anchor-lang/core": "1.0.2",
-    "@magicblock-labs/ephemeral-rollups-sdk": "0.15.5",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.16.1",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "5.2.2"
   },

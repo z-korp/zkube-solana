@@ -347,6 +347,7 @@ mod tests {
         let weekly = WeeklyJackpot {
             version: ARCADE_ACCOUNT_VERSION,
             week_id: 1,
+            qualification_start_day: week_start_day(1).unwrap(),
             arcade_config: Pubkey::new_unique(),
             status: PeriodStatus::Finalized,
             predecessor_rollover_applied: true,

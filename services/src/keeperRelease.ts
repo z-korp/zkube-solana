@@ -17,7 +17,7 @@ export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
-  schemaVersion: 4,
+  schemaVersion: 5,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),
@@ -32,6 +32,7 @@ export const KEEPER_RELEASE_POLICY = {
   replayVersion: 2,
   maximumWritesPerPass: 8,
   maximumExpiredSessionClosuresPerPass: 2,
+  maximumParticipantClosuresPerPass: 2,
   recentCadenceWindow: {
     dailies: KEEPER_RECENT_DAILY_CADENCES,
     weeklies: KEEPER_RECENT_WEEKLY_CADENCES,
@@ -62,6 +63,8 @@ export const KEEPER_RELEASE_POLICY = {
     "sync_daily_profile",
     "sync_weekly_profile",
     "sync_season_profile",
+    "close_arena_player",
+    "close_season_player",
     "revoke_session_v2",
   ],
   denied: [

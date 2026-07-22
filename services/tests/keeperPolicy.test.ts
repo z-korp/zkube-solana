@@ -13,6 +13,9 @@ import {
   validationOnlyPlan,
   weekIdForDay,
   rulesCatalogPda,
+  playerFundingPda,
+  seasonStartDay,
+  weekStartDay,
 } from "../src/arcadeChain";
 import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 
@@ -160,6 +163,58 @@ describe("v4 keeper semantic policy", () => {
     expect(() => policy(weekly)).not.toThrow();
     weekly.context!.competition = "season";
     expect(() => policy(weekly)).toThrow("profile sync");
+  });
+
+  it("pins partial-period qualification and participant cleanup identities", () => {
+    const owner = Keypair.generate().publicKey;
+    const weekId = weekIdForDay(DAY);
+    const weekEnd = weekStartDay(weekId) + 6;
+    const weekly = validationOnlyPlan("finalize_weekly_jackpot", {
+      competition: "weekly",
+      weekId,
+      followingWeekId: weekId + 1,
+      finalDayId: weekEnd,
+      qualificationStartDay: DAY,
+      qualificationDayIds: Array.from(
+        { length: weekEnd - DAY + 1 },
+        (_, offset) => DAY + offset,
+      ),
+      owners: [],
+      payoutLamports: [],
+      payoutTotalLamports: 0n,
+      potLamports: 0n,
+      rolloverLamports: 0n,
+    });
+    expect(() => policy(weekly)).not.toThrow();
+    weekly.context!.qualificationDayIds = [DAY + 1];
+    expect(() => policy(weekly)).toThrow("qualification accounts");
+
+    const seasonId = seasonIdForDay(DAY);
+    const seasonEnd = seasonStartDay(seasonId) + 27;
+    const season = validationOnlyPlan("finalize_season", {
+      competition: "season",
+      seasonId,
+      followingSeasonId: seasonId + 1,
+      qualificationStartDay: DAY,
+      sealedDailies: seasonEnd - DAY + 1,
+      owners: [],
+      payoutLamports: [],
+      payoutTotalLamports: 0n,
+      potLamports: 0n,
+      rolloverLamports: 0n,
+    });
+    expect(() => policy(season)).not.toThrow();
+    season.context!.sealedDailies! += 1;
+    expect(() => policy(season)).toThrow("Season sealing");
+
+    const close = validationOnlyPlan("close_arena_player", {
+      dayId: DAY,
+      owner,
+      rentRecipient: playerFundingPda(owner),
+    });
+    expect(() => policy(close)).not.toThrow();
+    close.context!.rentRecipient = Keypair.generate().publicKey;
+    expect(() => policy(close)).toThrow("cleanup recipient");
   });
 
   it("rejects executable bytes before generated-IDL materialization", () => {

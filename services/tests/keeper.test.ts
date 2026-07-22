@@ -10,6 +10,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ZKUBE_PROGRAM_ID,
   activeRunPda,
+  arenaDailyPda,
+  arenaPlayerPda,
   playerFundingPda,
   type KeeperInstructionPlan,
 } from "../src/arcadeChain";
@@ -94,6 +96,42 @@ describe("v4 keeper bounds", () => {
     ]);
     await expect(verifyConfirmedWrite(plan, connection, "signature"))
       .rejects.toThrow("does not match");
+  });
+
+  it("re-verifies a closed ArenaPlayer and its canonical funding recipient", async () => {
+    const owner = Keypair.generate().publicKey;
+    const dayId = 20_651;
+    const daily = arenaDailyPda(dayId);
+    const arenaPlayer = arenaPlayerPda(daily, owner);
+    const rentRecipient = playerFundingPda(owner);
+    const instruction = new TransactionInstruction({
+      programId: ZKUBE_PROGRAM_ID,
+      keys: [
+        { pubkey: daily, isSigner: false, isWritable: false },
+        { pubkey: arenaPlayer, isSigner: false, isWritable: true },
+        { pubkey: rentRecipient, isSigner: false, isWritable: true },
+      ],
+      data: Buffer.alloc(8),
+    });
+    const plan: KeeperInstructionPlan = {
+      operation: "close_arena_player",
+      execution: "instruction",
+      connection: "base",
+      context: { dayId, owner, rentRecipient },
+      instruction,
+      instructions: [instruction],
+    };
+    const connection = {
+      getSignatureStatus: vi.fn().mockResolvedValue({
+        value: { err: null, confirmationStatus: "confirmed" },
+      }),
+      getMultipleAccountsInfo: vi.fn().mockResolvedValue([
+        null,
+        systemAccount(),
+      ]),
+    } as never;
+    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+      .resolves.toBeUndefined();
   });
 });
 

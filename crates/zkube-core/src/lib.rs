@@ -39,29 +39,31 @@ mod weekly;
 /// generated TypeScript boundaries. Rules and public labels intentionally
 /// retain their independent v1 schemas.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 3;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 4;
 pub const RULES_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
 
 pub use campaign::{
     CAMPAIGN_LEVELS_PER_MAP, CAMPAIGN_MAP_COUNT, CAMPAIGN_MAX_STARS, CAMPAIGN_STAR_BYTES,
-    CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignError, CampaignMode, CampaignRules,
-    CampaignSimulation, CampaignSimulationConfig, CampaignStars, CampaignStarsError,
+    CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignError, CampaignRules, CampaignSimulation,
+    CampaignSimulationConfig, CampaignStars, CampaignStarsError,
 };
 pub use daily_scoring::{
     DailyObjective, DailyObjectiveRule, DailyObjectiveScore, DailyScoringError,
     score_daily_objective,
 };
 pub use economics::{
-    ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_OPERATOR_BPS, ENTRY_SEASON_BPS, ENTRY_WEEKLY_BPS,
-    EntrySplit, EntrySplitError, split_arena_entry,
+    ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_BPS,
+    ENTRY_OPERATOR_LAMPORTS, ENTRY_SEASON_BPS, ENTRY_SEASON_LAMPORTS, ENTRY_WEEKLY_BPS,
+    ENTRY_WEEKLY_LAMPORTS, EntrySplit, EntrySplitError, split_arena_entry,
 };
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};
 pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{
-    EqualBudgetPlan, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS, equal_sol_unit_budgets,
-    equal_whole_budgets, sol_unit_payouts, whole_unit_payouts,
+    DAILY_PRIZE_WEIGHTS, EqualBudgetPlan, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,
+    WEEKLY_PRIZE_WEIGHTS, equal_sol_unit_budgets, equal_whole_budgets, sol_unit_payouts,
+    whole_unit_payouts,
 };
 pub use periods::{
     FundingPeriods, MONDAY_EPOCH_DAY_ID, PeriodError, SEASON_DAYS, SECONDS_PER_DAY, WEEK_DAYS,

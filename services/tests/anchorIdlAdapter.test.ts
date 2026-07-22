@@ -35,7 +35,7 @@ import {
 } from "../src/arcadeChain";
 
 const FINAL_IDL_SHA256 =
-  "b744106cfe4ab71188fbdd9be07fffed69b5a5823eb22627ae17d4e1102fd29c";
+  "d34da42b6d5e81af75ac0efe971335cb5ad985eca3ad8725a0669789b5c118fd";
 const DAY = 20_651;
 const WEEK = weekIdForDay(DAY);
 const SEASON = seasonIdForDay(DAY);
@@ -111,6 +111,11 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
     const daily = arenaDailyPda(DAY);
     const season = seasonPda(SEASON);
     const activeRun = activeRunPda(owner, RUN_ID);
+    const weeklyFinalDay = weekStartDay(WEEK) + 6;
+    const weeklyQualificationDays = Array.from(
+      { length: weeklyFinalDay - DAY + 1 },
+      (_, offset) => DAY + offset,
+    );
     const caller = meta(keeper, false, true);
     const payer = meta(keeper, true, true);
     const winner = meta(owner, true, false);
@@ -295,15 +300,17 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         operation: "finalize_weekly_jackpot",
         context: {
           weekId: WEEK,
-          finalDayId: weekStartDay(WEEK) + 6,
+          finalDayId: weeklyFinalDay,
+          qualificationStartDay: DAY,
+          qualificationDayIds: weeklyQualificationDays,
           followingWeekId: WEEK + 1,
           owners: [owner, otherWinner],
         },
         keys: [
           meta(weeklyJackpotPda(WEEK), true),
-          meta(arenaDailyPda(weekStartDay(WEEK) + 6)),
           meta(weeklyJackpotPda(WEEK + 1), true),
           caller,
+          ...weeklyQualificationDays.map((dayId) => meta(arenaDailyPda(dayId))),
           winner,
           winnerTwo,
         ],
@@ -357,9 +364,37 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         },
         keys: [caller, meta(season, true), meta(playerStatePda(owner), true)],
       },
+      {
+        operation: "close_arena_player",
+        context: {
+          dayId: DAY,
+          owner,
+          rentRecipient: playerFundingPda(owner),
+        },
+        keys: [
+          meta(daily),
+          meta(arenaPlayerPda(daily, owner), true),
+          meta(playerFundingPda(owner), true),
+          caller,
+        ],
+      },
+      {
+        operation: "close_season_player",
+        context: {
+          seasonId: SEASON,
+          owner,
+          rentRecipient: playerFundingPda(owner),
+        },
+        keys: [
+          meta(season),
+          meta(seasonPlayerPda(season, owner), true),
+          meta(playerFundingPda(owner), true),
+          caller,
+        ],
+      },
     ];
 
-    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(22);
+    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(24);
     for (const fixture of cases) {
       const [instruction] = await adapter.materialize({
         operation: fixture.operation,

@@ -13,6 +13,7 @@ import {
   SOL_PAYOUT_UNIT_LAMPORTS,
   assertCadenceId,
   currentDayId,
+  playerFundingPda,
   seasonIdForDay,
   seasonStartDay,
   weekIdForDay,
@@ -182,7 +183,8 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
         "Daily",
       );
       if (!context.owner || context.dayId === undefined ||
-          context.seasonId !== seasonIdForDay(context.dayId)) {
+          context.seasonId !== seasonIdForDay(context.dayId) ||
+          !validQualificationDay(context.dayId, context.qualificationStartDay)) {
         throw new Error("keeper policy rejects Daily-to-Season relationship");
       }
       return;
@@ -194,7 +196,8 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
         "Daily",
       );
       if (context.dayId === undefined ||
-          context.seasonId !== seasonIdForDay(context.dayId)) {
+          context.seasonId !== seasonIdForDay(context.dayId) ||
+          !validQualificationDay(context.dayId, context.qualificationStartDay)) {
         throw new Error("keeper policy rejects Daily Season seal relationship");
       }
       return;
@@ -225,9 +228,10 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
           context.finalDayId !== weekStartDay(context.weekId) + DAYS_PER_WEEK - 1) {
         throw new Error("keeper policy rejects Weekly final Daily");
       }
+      assertWeeklyQualificationAccounts(context);
       assertAtomicFinalization(context, today, currentWeek, currentSeason);
       return;
-    case "finalize_season":
+    case "finalize_season": {
       assertRecentPastOrCurrent(
         context.seasonId,
         currentSeason,
@@ -240,11 +244,19 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
         currentSeason,
         "Season",
       );
-      if (context.sealedDailies !== DAYS_PER_SEASON) {
+      if (context.seasonId === undefined || context.qualificationStartDay === undefined) {
+        throw new Error("keeper policy rejects incomplete Season sealing");
+      }
+      const seasonStart = seasonStartDay(context.seasonId);
+      const seasonEnd = seasonStart + DAYS_PER_SEASON - 1;
+      if (context.qualificationStartDay < seasonStart ||
+          context.qualificationStartDay > seasonEnd ||
+          context.sealedDailies !== seasonEnd - context.qualificationStartDay + 1) {
         throw new Error("keeper policy rejects incomplete Season sealing");
       }
       assertAtomicFinalization(context, today, currentWeek, currentSeason);
       return;
+    }
     case "sync_daily_profile":
       assertProfileSync(context, "daily", today, currentWeek, currentSeason, 0x001f);
       return;
@@ -254,6 +266,57 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
     case "sync_season_profile":
       assertProfileSync(context, "season", today, currentWeek, currentSeason, 0x001f);
       return;
+    case "close_arena_player":
+      assertParticipantClosure(
+        context,
+        context.dayId,
+        today,
+        KEEPER_RECENT_DAILY_CADENCES,
+        "ArenaPlayer",
+      );
+      return;
+    case "close_season_player":
+      assertParticipantClosure(
+        context,
+        context.seasonId,
+        currentSeason,
+        KEEPER_RECENT_SEASON_CADENCES,
+        "SeasonPlayer",
+      );
+      return;
+  }
+}
+
+function validQualificationDay(dayId: number, qualificationStartDay: number | undefined): boolean {
+  return qualificationStartDay !== undefined && qualificationStartDay <= dayId;
+}
+
+function assertWeeklyQualificationAccounts(context: KeeperPlanContext): void {
+  const weekId = context.weekId;
+  const start = context.qualificationStartDay;
+  const days = context.qualificationDayIds;
+  if (weekId === undefined || start === undefined || !days) {
+    throw new Error("keeper policy rejects Weekly qualification accounts");
+  }
+  const first = weekStartDay(weekId);
+  const last = first + DAYS_PER_WEEK - 1;
+  if (start < first || start > last || days.length !== last - start + 1 ||
+      days.some((dayId, index) => dayId !== start + index)) {
+    throw new Error("keeper policy rejects Weekly qualification accounts");
+  }
+}
+
+function assertParticipantClosure(
+  context: KeeperPlanContext,
+  cadenceId: number | undefined,
+  currentCadence: number,
+  recentWindow: number,
+  label: string,
+): void {
+  assertRecentPastOrCurrent(cadenceId, currentCadence, recentWindow, label);
+  if (!context.owner || !context.rentRecipient ||
+      !context.rentRecipient.equals(playerFundingPda(context.owner))) {
+    throw new Error(`keeper policy rejects ${label} cleanup recipient`);
   }
 }
 

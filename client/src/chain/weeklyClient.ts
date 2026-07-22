@@ -17,6 +17,11 @@ import { fetchPlayerLabels } from "./playerLabelClient.js";
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
+  MONDAY_EPOCH_DAY_ID,
+  SECONDS_PER_DAY,
+  WEEK_DAYS,
+} from "./protocolVersions.generated.js";
+import {
   coreWeeklyMetricLabels,
   initializeZkubeCore,
   WEEKLY_METRIC_LABELS,
@@ -38,6 +43,7 @@ export interface WeeklyLeaderboardEntryView {
 export interface WeeklyView {
   address: PublicKey;
   weeklyId: number;
+  qualificationStartDay: number;
   status: WeeklyStatus;
   opensAt: number;
   closesAt: number;
@@ -57,15 +63,18 @@ export interface WeeklyView {
 }
 
 export function currentWeeklyId(nowUnix = Math.floor(Date.now() / 1_000)): number {
-  const dayId = Math.max(0, Math.floor(nowUnix / 86_400));
-  return Math.max(0, Math.floor((dayId - 4) / 7));
+  const dayId = Math.max(0, Math.floor(nowUnix / SECONDS_PER_DAY));
+  return Math.max(
+    0,
+    Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / WEEK_DAYS),
+  );
 }
 
 export function weekStartDay(weeklyId: number): number {
   if (!Number.isInteger(weeklyId) || weeklyId < 0) {
     throw new Error("weeklyId is out of range");
   }
-  return 4 + weeklyId * 7;
+  return MONDAY_EPOCH_DAY_ID + weeklyId * WEEK_DAYS;
 }
 
 export async function fetchWeeklyView(args: {
@@ -134,10 +143,17 @@ export async function fetchWeeklyView(args: {
   ) {
     throw new Error("Weekly metric selection does not match zkube-core");
   }
+  const decodedWeeklyId = Number(challenge.weekId);
+  if (decodedWeeklyId !== weeklyId) {
+    throw new Error("Weekly account cadence does not match its PDA");
+  }
+  const qualificationStartDay = Number(challenge.qualificationStartDay);
+  weeklyQualificationDays(decodedWeeklyId, qualificationStartDay);
 
   return {
     address,
-    weeklyId: Number(challenge.weekId),
+    weeklyId: decodedWeeklyId,
+    qualificationStartDay,
     status: parseWeeklyStatus(challenge.status),
     opensAt: Number(challenge.opensAt),
     closesAt: Number(challenge.closesAt),
@@ -220,16 +236,25 @@ export async function buildFinalizeWeeklyPlan(args: {
     .methods.finalizeWeeklyJackpot()
     .accountsPartial({
       weeklyJackpot: args.weekly.address,
-      finalDaily: deriveArenaDailyPda(weekStartDay(args.weekly.weeklyId) + 6),
       followingWeekly: deriveWeeklyJackpotPda(args.weekly.weeklyId + 1),
       caller: args.wallet.publicKey,
     })
     .remainingAccounts(
-      [...recipients.values()].map((pubkey) => ({
-        pubkey,
-        isSigner: false,
-        isWritable: true,
-      })),
+      [
+        ...weeklyQualificationDays(
+          args.weekly.weeklyId,
+          args.weekly.qualificationStartDay,
+        ).map((dayId) => ({
+          pubkey: deriveArenaDailyPda(dayId),
+          isSigner: false,
+          isWritable: false,
+        })),
+        ...[...recipients.values()].map((pubkey) => ({
+          pubkey,
+          isSigner: false,
+          isWritable: true,
+        })),
+      ],
     )
     .instruction();
   return plan(
@@ -237,6 +262,25 @@ export async function buildFinalizeWeeklyPlan(args: {
     args.connection,
     args.wallet.publicKey,
     instruction,
+  );
+}
+
+function weeklyQualificationDays(
+  weeklyId: number,
+  qualificationStartDay: number,
+): number[] {
+  const first = weekStartDay(weeklyId);
+  const last = first + WEEK_DAYS - 1;
+  if (
+    !Number.isInteger(qualificationStartDay) ||
+    qualificationStartDay < first ||
+    qualificationStartDay > last
+  ) {
+    throw new Error("Weekly qualification start is outside its calendar period");
+  }
+  return Array.from(
+    { length: last - qualificationStartDay + 1 },
+    (_, index) => qualificationStartDay + index,
   );
 }
 

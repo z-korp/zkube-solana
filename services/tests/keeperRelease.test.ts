@@ -12,7 +12,7 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "20000000",
@@ -26,6 +26,7 @@ describe("keeper release binding", () => {
       replayVersion: 2,
       maximumWritesPerPass: 8,
       maximumExpiredSessionClosuresPerPass: 2,
+      maximumParticipantClosuresPerPass: 2,
       recentCadenceWindow: { dailies: 84, weeklies: 12, seasons: 3 },
       maximumSpendLamportsPerPass: 50_000_000,
       reserveFloorLamports: 100_000_000,
@@ -34,6 +35,8 @@ describe("keeper release binding", () => {
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_daily_profile");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_weekly_profile");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_season_profile");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("close_arena_player");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("close_season_player");
     expect(KEEPER_RELEASE_POLICY.denied).toContain("incident_or_refund");
   });
 

@@ -6,11 +6,16 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  deriveArcadeConfigPda,
+  deriveArenaDailyPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
+  deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
+  deriveSeasonPda,
+  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
@@ -19,6 +24,18 @@ import {
 } from "./campaignCatalog";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
+import BN from "bn.js";
+import {
+  CANONICAL_DAILY_PRESSURE,
+  CANONICAL_DAILY_SCORING_RULES,
+  CANONICAL_DAILY_SEASON_SEED,
+  DAILY_SCORING_RULE_COUNT,
+} from "./dailyRules";
+import {
+  LAUNCH_DAILY_SEED_LAMPORTS,
+  LAUNCH_SEASON_SEED_LAMPORTS,
+  LAUNCH_WEEKLY_SEED_LAMPORTS,
+} from "./deploymentManifest";
 
 export interface ProtocolInitialization {
   teamDestination: PublicKey;
@@ -225,6 +242,232 @@ export async function buildSetProtocolPausePlan(args: {
   );
 }
 
+export async function buildPublishCanonicalArenaRulesPlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  contentVersion: number;
+  rulesVersion: number;
+  startsDay: number;
+}): Promise<TransactionPlan> {
+  assertPositiveInteger(args.contentVersion, "contentVersion");
+  assertPositiveInteger(args.rulesVersion, "rulesVersion");
+  assertU32(args.startsDay, "startsDay");
+  const instruction = await zkubeProgram(args.connection, args.authority)
+    .methods.publishArenaRules({
+      contentVersion: args.contentVersion,
+      rulesVersion: args.rulesVersion,
+      rotationId: 1,
+      startsDay: args.startsDay,
+      rotationSeed: [...CANONICAL_DAILY_SEASON_SEED],
+      scoringRuleCount: DAILY_SCORING_RULE_COUNT,
+      scoringRules: CANONICAL_DAILY_SCORING_RULES.map((rule) => ({ ...rule })),
+      pressure: {
+        ...CANONICAL_DAILY_PRESSURE,
+        thresholds: [...CANONICAL_DAILY_PRESSURE.thresholds],
+        scoreMultipliersX100: [
+          ...CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
+        ],
+        blockWeights: CANONICAL_DAILY_PRESSURE.blockWeights.map((weights) => [
+          ...weights,
+        ]),
+      },
+    })
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+      authority: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return basePlan(
+    `Publish Arena rules v${args.rulesVersion}`,
+    args.connection,
+    args.authority.publicKey,
+    [instruction],
+  );
+}
+
+export async function buildInitializeArcadePlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  rulesVersion: number;
+}): Promise<TransactionPlan> {
+  assertPositiveInteger(args.rulesVersion, "rulesVersion");
+  const instruction = await zkubeProgram(args.connection, args.authority)
+    .methods.initializeArcade()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+      arcadeConfig: deriveArcadeConfigPda(),
+      operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+      authority: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return basePlan(
+    "Initialize paused Arcade",
+    args.connection,
+    args.authority.publicKey,
+    [instruction],
+  );
+}
+
+/** One account-creation transaction per cadence keeps every plan packet-safe. */
+export async function buildPrepareLaunchPeriodPlans(args: {
+  connection: Connection;
+  authority: WalletLike;
+  rulesVersion: number;
+  dayId: number;
+  weekId: number;
+  seasonId: number;
+}): Promise<TransactionPlan[]> {
+  assertPositiveInteger(args.rulesVersion, "rulesVersion");
+  assertU32(args.dayId, "dayId");
+  assertU32(args.weekId, "weekId");
+  assertU32(args.seasonId, "seasonId");
+  const program = zkubeProgram(args.connection, args.authority);
+  const plans: TransactionPlan[] = [];
+  for (const dayId of [args.dayId, args.dayId + 1]) {
+    assertU32(dayId, "dayId");
+    const instruction = await program.methods
+      .prepareArenaDaily(dayId)
+      .accountsPartial({
+        protocol: deriveProtocolConfigPda(),
+        arcadeConfig: deriveArcadeConfigPda(),
+        dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+        arenaDaily: deriveArenaDailyPda(dayId),
+        payer: args.authority.publicKey,
+        caller: args.authority.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    plans.push(
+      basePlan(
+        `Prepare Daily ${dayId}`,
+        args.connection,
+        args.authority.publicKey,
+        [instruction],
+      ),
+    );
+  }
+  for (const weeklyId of [args.weekId, args.weekId + 1]) {
+    assertU32(weeklyId, "weekId");
+    const instruction = await program.methods
+      .prepareWeeklyJackpot(weeklyId)
+      .accountsPartial({
+        protocol: deriveProtocolConfigPda(),
+        arcadeConfig: deriveArcadeConfigPda(),
+        dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+        weeklyJackpot: deriveWeeklyJackpotPda(weeklyId),
+        payer: args.authority.publicKey,
+        caller: args.authority.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    plans.push(
+      basePlan(
+        `Prepare Weekly ${weeklyId}`,
+        args.connection,
+        args.authority.publicKey,
+        [instruction],
+      ),
+    );
+  }
+  for (const seasonId of [args.seasonId, args.seasonId + 1]) {
+    assertU32(seasonId, "seasonId");
+    const instruction = await program.methods
+      .prepareSeason(seasonId)
+      .accountsPartial({
+        protocol: deriveProtocolConfigPda(),
+        arcadeConfig: deriveArcadeConfigPda(),
+        season: deriveSeasonPda(seasonId),
+        payer: args.authority.publicKey,
+        caller: args.authority.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    plans.push(
+      basePlan(
+        `Prepare Season ${seasonId}`,
+        args.connection,
+        args.authority.publicKey,
+        [instruction],
+      ),
+    );
+  }
+  return plans;
+}
+
+/**
+ * The first funding, unpause, and three current-period activations share one
+ * transaction. Any failed instruction rolls the entire launch back.
+ */
+export async function buildAtomicArcadeLaunchPlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  dayId: number;
+  weekId: number;
+  seasonId: number;
+}): Promise<TransactionPlan> {
+  assertU32(args.dayId, "dayId");
+  assertU32(args.weekId, "weekId");
+  assertU32(args.seasonId, "seasonId");
+  const program = zkubeProgram(args.connection, args.authority);
+  const seed = await program.methods
+    .seedLaunchPools(
+      new BN(LAUNCH_DAILY_SEED_LAMPORTS),
+      new BN(LAUNCH_WEEKLY_SEED_LAMPORTS),
+      new BN(LAUNCH_SEASON_SEED_LAMPORTS),
+    )
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arcadeConfig: deriveArcadeConfigPda(),
+      arenaDaily: deriveArenaDailyPda(args.dayId),
+      weeklyJackpot: deriveWeeklyJackpotPda(args.weekId),
+      season: deriveSeasonPda(args.seasonId),
+      authority: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  const unpause = await program.methods
+    .setProtocolPause(false)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      authority: args.authority.publicKey,
+    })
+    .instruction();
+  const activateDaily = await program.methods
+    .activateArenaDaily()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arenaDaily: deriveArenaDailyPda(args.dayId),
+      caller: args.authority.publicKey,
+    })
+    .instruction();
+  const activateWeekly = await program.methods
+    .activateWeeklyJackpot()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      weeklyJackpot: deriveWeeklyJackpotPda(args.weekId),
+      caller: args.authority.publicKey,
+    })
+    .instruction();
+  const activateSeason = await program.methods
+    .activateSeason()
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      season: deriveSeasonPda(args.seasonId),
+      caller: args.authority.publicKey,
+    })
+    .instruction();
+  return basePlan(
+    "Atomically seed 1/2/3 SOL and launch Arcade",
+    args.connection,
+    args.authority.publicKey,
+    [seed, unpause, activateDaily, activateWeekly, activateSeason],
+  );
+}
+
 export async function buildInitializePlayerPlan(args: {
   connection: Connection;
   owner: WalletLike;
@@ -265,4 +508,10 @@ function basePlan(
 function assertPositiveInteger(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value <= 0)
     throw new Error(`${label} must be positive`);
+}
+
+function assertU32(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new Error(`${label} must fit in u32`);
+  }
 }

@@ -5,17 +5,24 @@ import { describe, expect, it } from "vitest";
 import {
   buildActivateCampaignMapPlan,
   buildActivateContentReleasePlan,
+  buildAtomicArcadeLaunchPlan,
+  buildInitializeArcadePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
+  buildPrepareLaunchPeriodPlans,
   buildPublishCanonicalMapsPlan,
+  buildPublishCanonicalArenaRulesPlan,
   buildSetProtocolPausePlan,
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import {
   deriveMapCatalogPda,
+  deriveArenaDailyPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
+  deriveSeasonPda,
+  deriveWeeklyJackpotPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 
@@ -129,6 +136,86 @@ describe("authority publication client", () => {
     expect(
       pause.transaction.instructions[0].keys[0].pubkey.equals(
         deriveProtocolConfigPda(),
+      ),
+    ).toBe(true);
+  });
+
+  it("stages canonical Arena rules and initializes Arcade while paused", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const rules = await buildPublishCanonicalArenaRulesPlan({
+      connection: {} as Connection,
+      authority,
+      contentVersion: 2,
+      rulesVersion: 1,
+      startsDay: 10_000,
+    });
+    const arcade = await buildInitializeArcadePlan({
+      connection: {} as Connection,
+      authority,
+      rulesVersion: 1,
+    });
+    expect(rules.transaction.instructions).toHaveLength(1);
+    expect(arcade.transaction.instructions).toHaveLength(1);
+    expect(rules.label).toBe("Publish Arena rules v1");
+    expect(arcade.label).toBe("Initialize paused Arcade");
+  });
+
+  it("prepares current and following Daily, Weekly, and Season separately", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const plans = await buildPrepareLaunchPeriodPlans({
+      connection: {} as Connection,
+      authority,
+      rulesVersion: 1,
+      dayId: 100,
+      weekId: 13,
+      seasonId: 3,
+    });
+
+    expect(plans.map(({ label }) => label)).toEqual([
+      "Prepare Daily 100",
+      "Prepare Daily 101",
+      "Prepare Weekly 13",
+      "Prepare Weekly 14",
+      "Prepare Season 3",
+      "Prepare Season 4",
+    ]);
+    expect(
+      plans[0]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveArenaDailyPda(100)),
+      ),
+    ).toBe(true);
+    expect(
+      plans[2]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveWeeklyJackpotPda(13)),
+      ),
+    ).toBe(true);
+    expect(
+      plans[4]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveSeasonPda(3)),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps seed, unpause, and all three activations in one ordered transaction", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const plan = await buildAtomicArcadeLaunchPlan({
+      connection: {} as Connection,
+      authority,
+      dayId: 100,
+      weekId: 13,
+      seasonId: 3,
+    });
+
+    expect(plan.transaction.instructions).toHaveLength(5);
+    expect(plan.label).toBe("Atomically seed 1/2/3 SOL and launch Arcade");
+    expect(
+      plan.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveArenaDailyPda(100)),
+      ),
+    ).toBe(true);
+    expect(
+      plan.transaction.instructions[4]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveSeasonPda(3)),
       ),
     ).toBe(true);
   });

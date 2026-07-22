@@ -21,6 +21,7 @@ import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_PRIZE_WEIGHTS,
   DAYS_PER_SEASON,
   DAYS_PER_WEEK,
   ENTRY_SPLIT_LAMPORTS,
@@ -28,6 +29,7 @@ import {
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
+  WEEKLY_PRIZE_WEIGHTS,
   activeRunPda,
   arcadeConfigPda,
   arenaDailyPda,
@@ -52,11 +54,13 @@ import { equalBudgetPlan, payoutPlan } from "./arcadeEconomy.js";
 import {
   type DailySeasonPlayerSnapshot,
   type DailySnapshot,
+  type ArenaPlayerClosureSnapshot,
   type PeriodStatus,
   type ProtocolSnapshot,
   type RunLifecycle,
   type RunSnapshot,
   type SeasonSnapshot,
+  type SeasonPlayerClosureSnapshot,
   type SettlementSnapshot,
   type WeeklySnapshot,
   type WinnerSnapshot,
@@ -68,9 +72,10 @@ const MAX_PROGRAM_ACCOUNT_BYTES = 10_240;
 const MAX_CADENCE_PERIODS = 10_000;
 const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 const MAX_ARENA_PLAYERS_PER_DAILY = 5_000;
+const MAX_SEASON_PLAYERS_PER_SEASON = 10_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "b744106cfe4ab71188fbdd9be07fffed69b5a5823eb22627ae17d4e1102fd29c";
+  "d34da42b6d5e81af75ac0efe971335cb5ad985eca3ad8725a0669789b5c118fd";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -106,7 +111,14 @@ const REQUIRED_INSTRUCTIONS = [
   "syncDailyProfile",
   "syncWeeklyProfile",
   "syncSeasonProfile",
+  "closeArenaPlayer",
+  "closeSeasonPlayer",
 ] as const;
+
+interface RemainingAccountMeta {
+  pubkey: PublicKey;
+  isWritable: boolean;
+}
 
 interface LoadedAccount {
   address: PublicKey;
@@ -250,11 +262,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const weeklies = await this.loadWeeklies(
       weeklyIds,
       weekIdForDay(launchDayId),
+      launchDayId,
       dailies,
     );
     const seasons = await this.loadSeasons(
       seasonIds,
       seasonIdForDay(launchDayId),
+      launchDayId,
       dailies,
     );
     if (!dailies.some(({ snapshot }) => snapshot.dayId === launchDayId) ||
@@ -265,6 +279,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const dailySeasonPlayers = await this.loadDailySeasonPlayers(dailies, seasons);
     const playerStates = await this.loadPlayerStates();
     const runs = await this.loadRuns(playerStates, dailies);
+    const participantClosures = await this.loadParticipantClosures(dailies, seasons);
     return {
       paused,
       launchDayId,
@@ -275,6 +290,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       runs,
       dailySeasonPlayers,
       playerStateOwners: playerStates.map(({ owner }) => owner),
+      arenaPlayerClosures: participantClosures.arenaPlayers,
+      seasonPlayerClosures: participantClosures.seasonPlayers,
     };
   }
 
@@ -299,7 +316,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     name: string;
     args: Record<string, unknown>;
     accounts: Record<string, PublicKey>;
-    remaining?: readonly PublicKey[];
+    remaining?: readonly RemainingAccountMeta[];
   } {
     const context = input.context;
     const keeper = input.keeper;
@@ -528,24 +545,31 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
               requiredNumber(context.followingDayId, "following day id"),
             ),
           },
-          remaining: context.owners,
+          remaining: writableRemaining(context.owners),
         };
       case "finalize_weekly_jackpot":
+        {
+          const id = requiredNumber(weekId, "week id");
+          const qualificationDays = requiredWeeklyQualificationDays(context, id);
         return {
           name: "finalizeWeeklyJackpot",
           args: {},
           accounts: {
             ...base,
-            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
-            finalDaily: arenaDailyPda(
-              requiredNumber(context.finalDayId, "Weekly final day id"),
-            ),
+            weeklyJackpot: weeklyJackpotPda(id),
             followingWeekly: weeklyJackpotPda(
               requiredNumber(context.followingWeekId, "following week id"),
             ),
           },
-          remaining: context.owners,
+          remaining: [
+            ...qualificationDays.map((day) => ({
+              pubkey: arenaDailyPda(day),
+              isWritable: false,
+            })),
+            ...writableRemaining(context.owners),
+          ],
         };
+        }
       case "finalize_season":
         return {
           name: "finalizeSeason",
@@ -557,7 +581,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
               requiredNumber(context.followingSeasonId, "following Season id"),
             ),
           },
-          remaining: context.owners,
+          remaining: writableRemaining(context.owners),
         };
       case "sync_daily_profile": {
         const player = requiredOwner(owner);
@@ -595,6 +619,36 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
       }
+      case "close_arena_player": {
+        const player = requiredOwner(owner);
+        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
+        requireRentRecipient(context.rentRecipient, player);
+        return {
+          name: "closeArenaPlayer",
+          args: {},
+          accounts: {
+            caller: keeper,
+            arenaDaily: daily,
+            arenaPlayer: arenaPlayerPda(daily, player),
+            rentRecipient: playerFundingPda(player),
+          },
+        };
+      }
+      case "close_season_player": {
+        const player = requiredOwner(owner);
+        const season = seasonPda(requiredNumber(seasonId, "Season id"));
+        requireRentRecipient(context.rentRecipient, player);
+        return {
+          name: "closeSeasonPlayer",
+          args: {},
+          accounts: {
+            caller: keeper,
+            season,
+            seasonPlayer: seasonPlayerPda(season, player),
+            rentRecipient: playerFundingPda(player),
+          },
+        };
+      }
     }
   }
 
@@ -602,7 +656,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     name: string,
     args: Record<string, unknown>,
     accounts: Record<string, PublicKey>,
-    remaining: readonly PublicKey[] = [],
+    remaining: readonly RemainingAccountMeta[] = [],
   ): TransactionInstruction {
     const instruction = instructionRecord(this.idl, name);
     const accountSpecs = instruction.accounts;
@@ -625,9 +679,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         isSigner: raw.signer === true,
       };
     });
-    keys.push(...remaining.map((pubkey) => ({
+    keys.push(...remaining.map(({ pubkey, isWritable }) => ({
       pubkey,
-      isWritable: true,
+      isWritable,
       isSigner: false,
     })));
     return new TransactionInstruction({
@@ -716,6 +770,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadWeeklies(
     ids: readonly number[],
     launchWeekId: number,
+    launchDayId: number,
     dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
   ): Promise<WeeklySnapshot[]> {
     const loaded = await this.loadKnown(
@@ -729,7 +784,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       const weekId = u32(item.value.weekId, "WeeklyJackpot week id");
       const opensAt = weekStartDay(weekId) * SECONDS_PER_DAY;
       const closesAt = (weekStartDay(weekId) + DAYS_PER_WEEK) * SECONDS_PER_DAY;
+      const qualificationStartDay = u32(
+        item.value.qualificationStartDay,
+        "WeeklyJackpot qualification start",
+      );
+      const expectedQualificationStart = weekId === launchWeekId
+        ? launchDayId
+        : weekStartDay(weekId);
       if (!item.address.equals(weeklyJackpotPda(weekId)) ||
+          qualificationStartDay !== expectedQualificationStart ||
           timestamp(item.value.opensAt, "WeeklyJackpot open") !== opensAt ||
           timestamp(item.value.closesAt, "WeeklyJackpot close") !== closesAt) {
         throw new Error("WeeklyJackpot PDA is invalid");
@@ -750,11 +813,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       }
       await this.assertSpendable(item.account, availableLamports, "WeeklyJackpot");
       const qualificationDailiesComplete = range(
-        weekStartDay(weekId),
+        qualificationStartDay,
         weekStartDay(weekId) + DAYS_PER_WEEK - 1,
       ).every((dayId) => dailyById.get(dayId)?.status === "finalized");
       output.push({
         weekId,
+        qualificationStartDay,
         status,
         closesAt,
         potLamports,
@@ -779,6 +843,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadSeasons(
     ids: readonly number[],
     launchSeasonId: number,
+    launchDayId: number,
     dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
   ): Promise<SeasonSnapshot[]> {
     const loaded = await this.loadKnown(
@@ -790,10 +855,18 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const output: SeasonSnapshot[] = [];
     for (const item of loaded) {
       const seasonId = u32(item.value.seasonId, "Season id");
+      const qualificationStartDay = u32(
+        item.value.qualificationStartDay,
+        "Season qualification start",
+      );
       const opensAt = (seasonId * DAYS_PER_SEASON + 4) * SECONDS_PER_DAY;
       const closesAt =
         (seasonId * DAYS_PER_SEASON + 4 + DAYS_PER_SEASON) * SECONDS_PER_DAY;
+      const expectedQualificationStart = seasonId === launchSeasonId
+        ? launchDayId
+        : seasonStartDay(seasonId);
       if (!item.address.equals(seasonPda(seasonId)) ||
+          qualificationStartDay !== expectedQualificationStart ||
           timestamp(item.value.opensAt, "Season open") !== opensAt ||
           timestamp(item.value.closesAt, "Season close") !== closesAt) {
         throw new Error("Season PDA is invalid");
@@ -815,6 +888,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       await this.assertSpendable(item.account, availableLamports, "Season");
       output.push({
         seasonId,
+        qualificationStartDay,
         status,
         closesAt,
         potLamports,
@@ -841,6 +915,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
     seasons: readonly SeasonSnapshot[],
   ): Promise<DailySeasonPlayerSnapshot[]> {
+    const qualificationStarts = new Map(
+      seasons.map(({ seasonId, qualificationStartDay }) =>
+        [seasonId, qualificationStartDay]),
+    );
     const eligible: Array<{
       dayId: number;
       daily: PublicKey;
@@ -849,6 +927,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }> = [];
     for (const daily of dailies) {
       if (daily.snapshot.status !== "finalized" || daily.snapshot.seasonRollupSealed) continue;
+      const qualificationStart = qualificationStarts.get(
+        seasonIdForDay(daily.snapshot.dayId),
+      );
+      if (qualificationStart === undefined || daily.snapshot.dayId < qualificationStart) {
+        continue;
+      }
       const accounts = await this.scanAccounts(
         "arenaPlayer",
         ARCADE_ACCOUNT_VERSION,
@@ -909,6 +993,89 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         seasonPlayerExists: !!info,
       };
     });
+  }
+
+  private async loadParticipantClosures(
+    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
+    seasons: readonly SeasonSnapshot[],
+  ): Promise<{
+    arenaPlayers: ArenaPlayerClosureSnapshot[];
+    seasonPlayers: SeasonPlayerClosureSnapshot[];
+  }> {
+    const arenaCandidates: Array<{ dayId: number; owner: PublicKey }> = [];
+    for (const daily of dailies) {
+      if (daily.snapshot.status !== "finalized") continue;
+      const players = await this.scanAccounts(
+        "arenaPlayer",
+        ARCADE_ACCOUNT_VERSION,
+        MAX_ARENA_PLAYERS_PER_DAILY,
+        [{ memcmp: { offset: 9, bytes: daily.loaded.address.toBase58() } }],
+      );
+      for (const player of players) {
+        const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
+        const owner = publicKey(player.value.player, "ArenaPlayer owner");
+        if (!challenge.equals(daily.loaded.address) ||
+            !player.address.equals(arenaPlayerPda(challenge, owner))) {
+          throw new Error("ArenaPlayer cleanup PDA or Daily relationship is invalid");
+        }
+        const activePaidRunId = bigint(
+          player.value.activePaidRunId,
+          "ArenaPlayer active paid run id",
+        );
+        const hasBest = boolean(player.value.hasBest, "ArenaPlayer best flag");
+        const seasonRolled = boolean(
+          player.value.seasonRolledUp,
+          "ArenaPlayer Season rollup flag",
+        );
+        if (activePaidRunId === 0n && (!hasBest || seasonRolled)) {
+          arenaCandidates.push({ dayId: daily.snapshot.dayId, owner });
+        }
+      }
+    }
+
+    const seasonCandidates: Array<{ seasonId: number; owner: PublicKey }> = [];
+    for (const season of seasons) {
+      if (season.status !== "finalized") continue;
+      const seasonAddress = seasonPda(season.seasonId);
+      const players = await this.scanAccounts(
+        "seasonPlayer",
+        ARCADE_ACCOUNT_VERSION,
+        MAX_SEASON_PLAYERS_PER_SEASON,
+        [{ memcmp: { offset: 9, bytes: seasonAddress.toBase58() } }],
+      );
+      for (const player of players) {
+        const storedSeason = publicKey(player.value.season, "SeasonPlayer Season");
+        const owner = publicKey(player.value.player, "SeasonPlayer owner");
+        if (!storedSeason.equals(seasonAddress) ||
+            !player.address.equals(seasonPlayerPda(storedSeason, owner))) {
+          throw new Error("SeasonPlayer cleanup PDA or Season relationship is invalid");
+        }
+        seasonCandidates.push({ seasonId: season.seasonId, owner });
+      }
+    }
+
+    const allOwners = [
+      ...arenaCandidates.map(({ owner }) => owner),
+      ...seasonCandidates.map(({ owner }) => owner),
+    ];
+    const fundingInfos = await this.getMultiple(
+      allOwners.map((owner) => playerFundingPda(owner)),
+    );
+    // A canonical, not-yet-created PDA is a valid close destination: the
+    // runtime presents it as an empty System account and the recycled rent
+    // creates it. Existing accounts must still be exact System zero-data.
+    const validFunding = fundingInfos.map((info) => !info || (!info.executable &&
+      info.owner.equals(SystemProgram.programId) && info.data.length === 0));
+    let fundingIndex = 0;
+    const arenaPlayers = arenaCandidates.flatMap(({ dayId, owner }) => {
+      const valid = validFunding[fundingIndex++] ?? false;
+      return valid ? [{ dayId, owner, rentRecipient: playerFundingPda(owner) }] : [];
+    });
+    const seasonPlayers = seasonCandidates.flatMap(({ seasonId, owner }) => {
+      const valid = validFunding[fundingIndex++] ?? false;
+      return valid ? [{ seasonId, owner, rentRecipient: playerFundingPda(owner) }] : [];
+    });
+    return { arenaPlayers, seasonPlayers };
   }
 
   private async loadPlayerStates(): Promise<PlayerStateRecord[]> {
@@ -1118,7 +1285,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       rank: index + 1,
     }));
     const plan = winners.length > 0
-      ? payoutPlan(potLamports, [45, 25, 15, 10, 5], winners.length)
+      ? payoutPlan(potLamports, DAILY_PRIZE_WEIGHTS, winners.length)
       : { payouts: [], paidLamports: 0n, rolloverLamports: potLamports };
     const valid = await this.walletValidity(winners.map(({ owner }) => owner));
     return {
@@ -1148,7 +1315,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       );
       const winners = winnerCount === -1 ? board : board.slice(0, winnerCount);
       const plan = winners.length > 0
-        ? payoutPlan(budgetPlan.budgets[bountyIndex]!, [60, 25, 15], winners.length)
+        ? payoutPlan(
+          budgetPlan.budgets[bountyIndex]!,
+          WEEKLY_PRIZE_WEIGHTS,
+          winners.length,
+        )
         : { payouts: [], paidLamports: 0n, rolloverLamports: budgetPlan.budgets[bountyIndex]! };
       winners.forEach((entry, rank) => positions.push({
         owner: publicKey(entry.player, "Weekly winner"),
@@ -1511,6 +1682,33 @@ function requiredRulesCatalog(value: PublicKey | undefined): PublicKey {
 function requiredOwner(value: PublicKey | undefined): PublicKey {
   if (!value) throw new Error("IDL materializer is missing run/player owner");
   return value;
+}
+
+function requiredWeeklyQualificationDays(
+  context: KeeperPlanContext,
+  weekId: number,
+): readonly number[] {
+  const start = requiredNumber(context.qualificationStartDay, "Weekly qualification start");
+  const last = weekStartDay(weekId) + DAYS_PER_WEEK - 1;
+  if (context.finalDayId !== last || start < weekStartDay(weekId) || start > last ||
+      !context.qualificationDayIds ||
+      context.qualificationDayIds.length !== last - start + 1 ||
+      context.qualificationDayIds.some((dayId, index) => dayId !== start + index)) {
+    throw new Error("IDL materializer rejects Weekly qualification accounts");
+  }
+  return context.qualificationDayIds;
+}
+
+function writableRemaining(
+  owners: readonly PublicKey[] | undefined,
+): RemainingAccountMeta[] {
+  return (owners ?? []).map((pubkey) => ({ pubkey, isWritable: true }));
+}
+
+function requireRentRecipient(value: PublicKey | undefined, owner: PublicKey): void {
+  if (!value || !value.equals(playerFundingPda(owner))) {
+    throw new Error("IDL materializer rejects noncanonical player funding recipient");
+  }
 }
 
 function requiredRunId(value: bigint | undefined): bigint {

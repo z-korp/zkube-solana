@@ -11,6 +11,10 @@ import {
 import {
   ZKUBE_PROGRAM_ID,
   activeRunPda,
+  arenaDailyPda,
+  arenaPlayerPda,
+  seasonPda,
+  seasonPlayerPda,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
 import {
@@ -28,6 +32,7 @@ export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 50_000_000;
 const MAX_WRITES = 8;
 const MAX_EXPIRED_SESSION_REVOKES = 2;
+const MAX_PARTICIPANT_CLOSURES = 2;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
@@ -140,7 +145,8 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let plannedWrites = 0;
   let failures = 0;
   let spentLamports = 0;
-  for (const plan of selectBoundedPlans(plans, maxWrites)) {
+  const selectedPlans = selectBoundedPlans(plans, maxWrites);
+  for (const plan of selectedPlans) {
     assertKeeperPlanPolicy({
       plan,
       keeper: input.keeper.publicKey,
@@ -257,7 +263,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     writeEnabled,
     operationFailures: failures,
     maxWrites,
-    backlog: Math.max(0, plans.length - maxWrites),
+    backlog: Math.max(0, plans.length - selectedPlans.length),
     balanceLamports,
     reserveLow: balanceLamports < minimumBalanceLamports,
     spentLamports,
@@ -348,6 +354,22 @@ function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string
       throw new Error("run cleanup verification is missing its ActiveRun account");
     }
     closed.add(activeRun.pubkey.toBase58());
+  }
+  if (plan.operation === "close_arena_player") {
+    const owner = plan.context?.owner;
+    const dayId = plan.context?.dayId;
+    if (!owner || dayId === undefined) {
+      throw new Error("ArenaPlayer cleanup verification is missing its identity");
+    }
+    closed.add(arenaPlayerPda(arenaDailyPda(dayId), owner).toBase58());
+  }
+  if (plan.operation === "close_season_player") {
+    const owner = plan.context?.owner;
+    const seasonId = plan.context?.seasonId;
+    if (!owner || seasonId === undefined) {
+      throw new Error("SeasonPlayer cleanup verification is missing its identity");
+    }
+    closed.add(seasonPlayerPda(seasonPda(seasonId), owner).toBase58());
   }
   return closed;
 }
@@ -464,7 +486,9 @@ function operationPriority(operation: string): number {
     sync_daily_profile: 17,
     sync_weekly_profile: 17,
     sync_season_profile: 17,
-    revoke_expired_session: 18,
+    close_arena_player: 18,
+    close_season_player: 18,
+    revoke_expired_session: 19,
   };
   return priority[operation] ?? Number.MAX_SAFE_INTEGER;
 }
@@ -474,12 +498,18 @@ function selectBoundedPlans<T extends { operation: string }>(
   maximum: number,
 ): T[] {
   let sessionRevokes = 0;
+  let participantClosures = 0;
   const selected: T[] = [];
   for (const plan of plans) {
     if (selected.length >= maximum) break;
     if (plan.operation === "revoke_expired_session") {
       if (sessionRevokes >= MAX_EXPIRED_SESSION_REVOKES) continue;
       sessionRevokes += 1;
+    }
+    if (plan.operation === "close_arena_player" ||
+        plan.operation === "close_season_player") {
+      if (participantClosures >= MAX_PARTICIPANT_CLOSURES) continue;
+      participantClosures += 1;
     }
     selected.push(plan);
   }

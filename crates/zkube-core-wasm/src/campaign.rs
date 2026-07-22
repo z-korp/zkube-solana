@@ -1,14 +1,13 @@
 use crate::BoundaryError;
 use zkube_core::{
-    Bonus, CampaignEndReason, CampaignMode, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, Constraint, ConstraintKind, EndlessRules, Grid, LevelRules,
-    MoveReport, MutatorRules, RunEngine, RunPhase,
+    Bonus, CampaignEndReason, CampaignRules, CampaignSimulation, CampaignSimulationConfig,
+    Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 234;
-pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
-const CONFIG_VERSION: u8 = 1;
-const STATE_VERSION: u8 = 1;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 187;
+pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 182;
+const CONFIG_VERSION: u8 = 2;
+const STATE_VERSION: u8 = 2;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -21,7 +20,6 @@ pub fn encode_campaign_simulation_config(
     writer.write(&[config.map_id, config.level_id]);
     writer.write(&config.attempt.to_le_bytes());
     writer.write(&config.seed);
-    writer.write(&[config.mode.tag()]);
     encode_level(&mut writer, config.rules.level);
     encode_mutator(&mut writer, config.rules.mutator);
     writer.write(&[bonus_tag(config.rules.bonus)]);
@@ -35,13 +33,6 @@ pub fn encode_campaign_simulation_config(
             writer.write(&value.to_le_bytes());
         }
     }
-    for threshold in config.rules.endless.thresholds {
-        writer.write(&threshold.to_le_bytes());
-    }
-    for multiplier in config.rules.endless.score_multipliers_x100 {
-        writer.write(&multiplier.to_le_bytes());
-    }
-    writer.write(&config.rules.endless.ramp_multiplier_x100.to_le_bytes());
     writer.finish()
 }
 
@@ -64,7 +55,6 @@ pub fn decode_campaign_simulation_config(
     let level_id = reader.u8()?;
     let attempt = reader.u64()?;
     let seed = reader.array()?;
-    let mode = decode_mode(reader.u8()?)?;
     let level = decode_level(&mut reader)?;
     let mutator = decode_mutator(&mut reader)?;
     let bonus = decode_bonus(reader.u8()?)?;
@@ -77,15 +67,6 @@ pub fn decode_campaign_simulation_config(
             *value = reader.u16()?;
         }
     }
-    let mut thresholds = [0; 7];
-    for threshold in &mut thresholds {
-        *threshold = reader.u32()?;
-    }
-    let mut score_multipliers_x100 = [0; 8];
-    for multiplier in &mut score_multipliers_x100 {
-        *multiplier = reader.u16()?;
-    }
-    let ramp_multiplier_x100 = reader.u16()?;
     reader.finish()?;
     let config = CampaignSimulationConfig {
         content_version,
@@ -94,7 +75,6 @@ pub fn decode_campaign_simulation_config(
         level_id,
         attempt,
         seed,
-        mode,
         rules: CampaignRules {
             level,
             mutator,
@@ -103,11 +83,6 @@ pub fn decode_campaign_simulation_config(
             starting_height,
             level_difficulty,
             block_weights,
-            endless: EndlessRules {
-                thresholds,
-                score_multipliers_x100,
-                ramp_multiplier_x100,
-            },
         },
     };
     if !config.rules.is_valid() {
@@ -126,7 +101,6 @@ pub fn encode_campaign_simulation_state(
     writer.write(&simulation.content_hash);
     writer.write(&[simulation.map_id, simulation.level_id]);
     writer.write(&simulation.attempt.to_le_bytes());
-    writer.write(&[simulation.mode.tag()]);
     writer.write(&[phase_tag(simulation.engine.phase)]);
     writer.write(&[u8::from(simulation.engine.next_row.is_some())]);
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
@@ -169,7 +143,6 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let map_id = reader.u8()?;
     let level_id = reader.u8()?;
     let attempt = reader.u64()?;
-    let mode = decode_mode(reader.u8()?)?;
     let phase = decode_phase(reader.u8()?)?;
     let has_next_row = reader.bool()?;
     let bonus = decode_bonus(reader.u8()?)?;
@@ -204,9 +177,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let terminal_valid = match end_reason {
         None => phase == RunPhase::Playing && earned_stars == 0 && next_row.is_some(),
         Some(CampaignEndReason::Completed) => {
-            mode == CampaignMode::Level
-                && phase == RunPhase::LevelComplete
-                && (1..=3).contains(&earned_stars)
+            phase == RunPhase::LevelComplete && (1..=3).contains(&earned_stars)
         }
         Some(CampaignEndReason::Exhausted | CampaignEndReason::Abandoned) => {
             phase == RunPhase::Finished && earned_stars == 0 && next_row.is_none()
@@ -221,7 +192,6 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
         map_id,
         level_id,
         attempt,
-        mode,
         engine: RunEngine {
             grid,
             next_row,
@@ -320,14 +290,7 @@ fn decode_for_transition(
     let simulation = decode_campaign_simulation_state(state)?;
     if !simulation.matches_config(config)
         || simulation.engine.bonus != config.rules.bonus
-        || simulation.current_difficulty
-            != match config.mode {
-                CampaignMode::Level => config.rules.level_difficulty,
-                CampaignMode::Endless => config
-                    .rules
-                    .endless
-                    .difficulty_for_score(simulation.engine.score),
-            }
+        || simulation.current_difficulty != config.rules.level_difficulty
     {
         return Err(BoundaryError::InvalidEncoding);
     }
@@ -427,14 +390,6 @@ const fn constraint_tag(value: ConstraintKind) -> u8 {
         ConstraintKind::ComboLines => 1,
         ConstraintKind::BreakBlocks => 2,
         ConstraintKind::ComboMeter => 3,
-    }
-}
-
-fn decode_mode(tag: u8) -> Result<CampaignMode, BoundaryError> {
-    match tag {
-        0 => Ok(CampaignMode::Level),
-        1 => Ok(CampaignMode::Endless),
-        _ => Err(BoundaryError::InvalidMode),
     }
 }
 
@@ -581,7 +536,6 @@ mod tests {
             level_id: 1,
             attempt: 9,
             seed: [11; 32],
-            mode: CampaignMode::Level,
             rules: CampaignRules {
                 level: LevelRules::default(),
                 mutator: MutatorRules::default(),
@@ -590,7 +544,6 @@ mod tests {
                 starting_height: 4,
                 level_difficulty: 0,
                 block_weights: [[20; 5]; 8],
-                endless: EndlessRules::default(),
             },
         }
     }

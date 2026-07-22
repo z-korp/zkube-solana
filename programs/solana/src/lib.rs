@@ -135,41 +135,35 @@ pub mod solana {
         )
     }
 
-    pub fn enter_arena_v2(
-        ctx: Context<EnterArenaV2>,
+    pub fn enter_arena(
+        ctx: Context<EnterArena>,
         run_id: u64,
         expected_entry_lamports: u64,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_enter_arena_v2(
+        instructions::arcade_instructions::handler_enter_arena(ctx, run_id, expected_entry_lamports)
+    }
+
+    pub fn funded_enter_arena(
+        ctx: Context<FundedEnterArena>,
+        run_id: u64,
+        expected_entry_lamports: u64,
+    ) -> Result<()> {
+        instructions::player_funding_instructions::handler_funded_enter_arena(
             ctx,
             run_id,
             expected_entry_lamports,
         )
     }
 
-    pub fn funded_enter_arena_v2(
-        ctx: Context<FundedEnterArenaV2>,
-        run_id: u64,
-        expected_entry_lamports: u64,
-    ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_enter_arena_v2(
-            ctx,
-            run_id,
-            expected_entry_lamports,
-        )
+    pub fn prepare_practice_run(ctx: Context<PreparePracticeRun>, run_id: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_prepare_practice_run(ctx, run_id)
     }
 
-    pub fn prepare_practice_run_v2(ctx: Context<PreparePracticeRunV2>, run_id: u64) -> Result<()> {
-        instructions::arcade_instructions::handler_prepare_practice_run_v2(ctx, run_id)
-    }
-
-    pub fn funded_prepare_practice_run_v2(
-        ctx: Context<FundedPreparePracticeRunV2>,
+    pub fn funded_prepare_practice_run(
+        ctx: Context<FundedPreparePracticeRun>,
         run_id: u64,
     ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_prepare_practice_run_v2(
-            ctx, run_id,
-        )
+        instructions::player_funding_instructions::handler_funded_prepare_practice_run(ctx, run_id)
     }
 
     pub fn consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {

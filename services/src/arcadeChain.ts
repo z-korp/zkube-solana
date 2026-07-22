@@ -2,17 +2,37 @@ import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
   ARCADE_ACCOUNT_VERSION,
+  ARENA_ENTRY_LAMPORTS,
+  ENTRY_DAILY_LAMPORTS,
+  ENTRY_OPERATOR_LAMPORTS,
+  ENTRY_SEASON_LAMPORTS,
+  ENTRY_WEEKLY_LAMPORTS,
+  DAILY_PRIZE_WEIGHTS,
+  MONDAY_EPOCH_DAY_ID,
   PROTOCOL_ACCOUNT_VERSION,
+  SEASON_DAYS,
+  SECONDS_PER_DAY,
+  SOL_PAYOUT_UNIT_LAMPORTS,
+  WEEK_DAYS,
+  WEEKLY_PRIZE_WEIGHTS,
 } from "./protocolVersions.generated.js";
 
-export { ARCADE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION };
+export {
+  ARCADE_ACCOUNT_VERSION,
+  ARENA_ENTRY_LAMPORTS,
+  DAILY_PRIZE_WEIGHTS,
+  MONDAY_EPOCH_DAY_ID,
+  PROTOCOL_ACCOUNT_VERSION,
+  SECONDS_PER_DAY,
+  SOL_PAYOUT_UNIT_LAMPORTS,
+  WEEKLY_PRIZE_WEIGHTS,
+};
 
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const SECONDS_PER_DAY = 86_400;
-export const DAYS_PER_WEEK = 7;
-export const DAYS_PER_SEASON = 28;
+export const DAYS_PER_WEEK = WEEK_DAYS;
+export const DAYS_PER_SEASON = SEASON_DAYS;
 export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60;
 export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
 export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
@@ -24,13 +44,11 @@ export const PERIOD_SETTLEMENT_DELAY_SECONDS =
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
 export const KEEPER_RECENT_WEEKLY_CADENCES = 12;
 export const KEEPER_RECENT_SEASON_CADENCES = 3;
-export const ARENA_ENTRY_LAMPORTS = 20_000_000n;
-export const SOL_PAYOUT_UNIT_LAMPORTS = 1_000_000n;
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
-  followingDaily: 12_000_000n,
-  followingWeekly: 4_000_000n,
-  followingSeason: 2_000_000n,
-  operator: 2_000_000n,
+  followingDaily: ENTRY_DAILY_LAMPORTS,
+  followingWeekly: ENTRY_WEEKLY_LAMPORTS,
+  followingSeason: ENTRY_SEASON_LAMPORTS,
+  operator: ENTRY_OPERATOR_LAMPORTS,
 });
 
 export type KeeperOperation =
@@ -56,6 +74,8 @@ export type KeeperOperation =
   | "sync_daily_profile"
   | "sync_weekly_profile"
   | "sync_season_profile"
+  | "close_arena_player"
+  | "close_season_player"
   | "revoke_expired_session";
 
 export type CompetitionKind = "daily" | "weekly" | "season";
@@ -73,6 +93,8 @@ export interface KeeperPlanContext {
   seasonId?: number;
   followingSeasonId?: number;
   competition?: CompetitionKind;
+  qualificationStartDay?: number;
+  qualificationDayIds?: readonly number[];
   rulesCatalog?: PublicKey;
   launchCadenceId?: number;
   owner?: PublicKey;
@@ -92,6 +114,7 @@ export interface KeeperPlanContext {
   rolloverLamports?: bigint;
   /** Canonical payout-position bits this profile sync is expected to consume. */
   winnerPositionMask?: number;
+  rentRecipient?: PublicKey;
   sessionSigner?: PublicKey;
   sessionAddress?: PublicKey;
   sessionValidUntil?: number;
@@ -126,25 +149,35 @@ export function currentDayId(nowUnix: number): number {
 /** Monday-aligned week 0 starts on 1970-01-05. */
 export function weekIdForDay(dayId: number): number {
   assertCadenceId(dayId, "day id");
-  if (dayId < 4) throw new Error("week cadence predates Monday epoch");
-  return Math.floor((dayId - 4) / DAYS_PER_WEEK);
+  if (dayId < MONDAY_EPOCH_DAY_ID) throw new Error("week cadence predates Monday epoch");
+  return Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / DAYS_PER_WEEK);
 }
 
 export function weekStartDay(weekId: number): number {
   assertCadenceId(weekId, "week id");
-  return checkedCadenceProduct(weekId, DAYS_PER_WEEK, 4, "week start day");
+  return checkedCadenceProduct(
+    weekId,
+    DAYS_PER_WEEK,
+    MONDAY_EPOCH_DAY_ID,
+    "week start day",
+  );
 }
 
 /** Monday-aligned 28-day Season 0 starts on 1970-01-05. */
 export function seasonIdForDay(dayId: number): number {
   assertCadenceId(dayId, "day id");
-  if (dayId < 4) throw new Error("Season cadence predates Monday epoch");
-  return Math.floor((dayId - 4) / DAYS_PER_SEASON);
+  if (dayId < MONDAY_EPOCH_DAY_ID) throw new Error("Season cadence predates Monday epoch");
+  return Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / DAYS_PER_SEASON);
 }
 
 export function seasonStartDay(seasonId: number): number {
   assertCadenceId(seasonId, "season id");
-  return checkedCadenceProduct(seasonId, DAYS_PER_SEASON, 4, "Season start day");
+  return checkedCadenceProduct(
+    seasonId,
+    DAYS_PER_SEASON,
+    MONDAY_EPOCH_DAY_ID,
+    "Season start day",
+  );
 }
 
 export function fundingPeriodsForDay(dayId: number) {

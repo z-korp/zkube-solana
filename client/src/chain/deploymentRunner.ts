@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
-import { copyFileSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  TransactionMessage,
+} from "@solana/web3.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 interface DeploymentCommand {
@@ -10,6 +16,25 @@ interface DeploymentCommand {
   command: string;
   args: string[];
   cwd: string;
+}
+
+export interface DeploymentPreflight {
+  programDataAddress: string;
+  artifactBytes: number;
+  allocationBytes: number;
+  headroomBytes: number;
+  programAccountRentLamports: number;
+  programDataRentLamports: number;
+  programBufferRentLamports: number;
+  feePerSignatureLamports: number;
+  maximumSignatures: number;
+  maximumFeeLamports: number;
+  maximumPayerSpendLamports: number;
+  deployerReserveLamports: number;
+  requiredDeployerBalanceLamports: number;
+  currentDeployedSbfSha256: string | null;
+  expectedPostDeploymentSbfSha256: string;
+  currentProgramDataLamports: number;
 }
 
 export interface ZkubeDevnetDeploymentInput {
@@ -21,9 +46,8 @@ export interface ZkubeDevnetDeploymentInput {
   workspaceDir: string;
   artifactPath: string;
   artifactSha256: string;
+  artifactBytes: number;
   expectedCurrentSbfSha256?: string;
-  expectedPostDeploymentSbfSha256?: string;
-  expectedProgramBufferRentLamports?: number;
   programKeypairPath?: string;
   programKeypairPublicKey?: string;
   programBufferKeypairPath?: string;
@@ -32,7 +56,9 @@ export interface ZkubeDevnetDeploymentInput {
   deployerPublicKey?: string;
   upgradeAuthorityKeypairPath?: string;
   upgradeAuthorityPublicKey?: string;
+  deployerReserveLamports: number;
   commands: DeploymentCommand[];
+  preflight?: DeploymentPreflight;
   approvalEvidenceSha256: string;
   approvalFingerprint: string;
   sendEnabled: boolean;
@@ -53,28 +79,37 @@ export interface ZkubeDevnetDeploymentResult {
   deploymentSignature?: string;
 }
 
-const PROGRAM_KEYPAIR_TARGET = "target/deploy/solana-keypair.json";
 const DEFAULT_BASE_RPC = "https://rpc.magicblock.app/devnet";
+const PROGRAM_ACCOUNT_BYTES = 36;
 const PROGRAM_DATA_HEADER_BYTES = 45;
 const PROGRAM_BUFFER_HEADER_BYTES = 37;
+const PROGRAM_ALLOCATION_HEADROOM_BYTES = 10_240;
+const PROGRAM_WRITE_CHUNK_BOUND_BYTES = 512;
+const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
+const MAXIMUM_DEPLOY_SIGN_ATTEMPTS = 1;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
-const MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS = 50_000_000;
-const MAXIMUM_DEPLOY_SIGN_ATTEMPTS = 1;
 const EXECUTABLE_OWNERS = new Set([
   "BPFLoader1111111111111111111111111111111111",
   "BPFLoader2111111111111111111111111111111111",
   "BPFLoaderUpgradeab1e11111111111111111111111",
 ]);
 
+/**
+ * Parses only immutable local deployment inputs. The returned candidate is not
+ * approvable until `prepareZkubeDevnetDeployment` binds current chain state,
+ * rent, fees, ProgramData, reserve, and the frozen artifact into its fingerprint.
+ */
 export function devnetDeploymentInputFromEnv(
   env: Record<string, string | undefined> = process.env,
   cwd = process.cwd(),
 ): ZkubeDevnetDeploymentInput {
   const cluster = env.ZKUBE_CLUSTER?.trim().toLowerCase() || "devnet";
-  if (cluster !== "devnet")
+  if (cluster !== "devnet") {
     throw new Error("zKube deployment currently accepts devnet only");
+  }
+  const deploymentMode = deploymentModeFromEnv(env.ZKUBE_DEPLOY_MODE);
   const baseRpc = devnetEndpoint(
     env.ZKUBE_BASE_RPC ??
       env.VITE_PUBLIC_SOLANA_RPC_ENDPOINT ??
@@ -94,7 +129,11 @@ export function devnetDeploymentInputFromEnv(
     cwd,
     env.ZKUBE_PROGRAM_ARTIFACT ?? "../target/deploy/solana.so",
   );
-  const artifactSha256 = fileSha256(artifactPath);
+  const artifact = readFileSync(artifactPath);
+  if (artifact.byteLength <= 0) {
+    throw new Error("ZKUBE_PROGRAM_ARTIFACT must be a non-empty frozen SBF");
+  }
+  const artifactSha256 = createHash("sha256").update(artifact).digest("hex");
   const programKeypairPath = optionalPath(cwd, env.ZKUBE_PROGRAM_KEYPAIR);
   const programBufferKeypairPath = optionalPath(
     cwd,
@@ -105,7 +144,6 @@ export function devnetDeploymentInputFromEnv(
     cwd,
     env.ZKUBE_UPGRADE_AUTHORITY_KEYPAIR,
   );
-  const deploymentMode = deploymentModeFromEnv(env.ZKUBE_DEPLOY_MODE);
   const expectedCurrentSbfSha256 =
     deploymentMode === "upgrade"
       ? requiredSha256(
@@ -113,79 +151,50 @@ export function devnetDeploymentInputFromEnv(
           "ZKUBE_EXPECTED_CURRENT_SBF_SHA256",
         )
       : undefined;
-  const expectedPostDeploymentSbfSha256 = optionalSha256(
-    env.ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256,
-    "ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256",
-  );
-  const expectedProgramBufferRentLamports = optionalSafeInteger(
-    env.ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS,
-    "ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS",
-  );
   const programKeypairPublicKey = programKeypairPath
     ? keypairPublicKey(programKeypairPath, "ZKUBE_PROGRAM_KEYPAIR")
     : undefined;
   const programBufferPublicKey = programBufferKeypairPath
     ? keypairPublicKey(programBufferKeypairPath, "ZKUBE_PROGRAM_BUFFER_KEYPAIR")
-    : undefined;
+    : optionalPublicKey(
+        env.ZKUBE_PROGRAM_BUFFER_PUBLIC_KEY,
+        "ZKUBE_PROGRAM_BUFFER_PUBLIC_KEY",
+      );
   const deployerPublicKey = deployerKeypairPath
     ? keypairPublicKey(deployerKeypairPath, "ZKUBE_DEPLOYER_KEYPAIR")
-    : undefined;
+    : optionalPublicKey(
+        env.ZKUBE_DEPLOYER_PUBLIC_KEY,
+        "ZKUBE_DEPLOYER_PUBLIC_KEY",
+      );
   const upgradeAuthorityPublicKey = upgradeAuthorityKeypairPath
     ? keypairPublicKey(
         upgradeAuthorityKeypairPath,
         "ZKUBE_UPGRADE_AUTHORITY_KEYPAIR",
       )
-    : undefined;
+    : optionalPublicKey(
+        env.ZKUBE_UPGRADE_AUTHORITY_PUBLIC_KEY,
+        "ZKUBE_UPGRADE_AUTHORITY_PUBLIC_KEY",
+      );
+  const deployerReserveLamports =
+    optionalSafeInteger(
+      env.ZKUBE_DEPLOYER_RESERVE_LAMPORTS,
+      "ZKUBE_DEPLOYER_RESERVE_LAMPORTS",
+    ) ?? DEFAULT_DEPLOYER_RESERVE_LAMPORTS;
   const commands = deploymentCommands({
     deploymentMode,
     workspaceDir,
     baseRpc,
     programId: ZKUBE_PROGRAM_ID.toBase58(),
     artifactPath,
-    artifactBytes: readFileSync(artifactPath).byteLength,
+    allocationBytes:
+      deploymentMode === "initial"
+        ? checkedAdd(artifact.byteLength, PROGRAM_ALLOCATION_HEADROOM_BYTES)
+        : artifact.byteLength,
     programKeypairPath,
     programBufferKeypairPath,
     deployerKeypairPath,
     upgradeAuthorityKeypairPath,
   });
-  const approvalPayload = {
-    cluster: "devnet",
-    deploymentMode,
-    baseRpc,
-    expectedGenesisHash,
-    programId: ZKUBE_PROGRAM_ID.toBase58(),
-    artifactSha256,
-    artifactBytes: readFileSync(artifactPath).byteLength,
-    expectedCurrentSbfSha256: expectedCurrentSbfSha256 ?? null,
-    expectedPostDeploymentSbfSha256: expectedPostDeploymentSbfSha256 ?? null,
-    expectedProgramBufferRentLamports:
-      expectedProgramBufferRentLamports ?? null,
-    programKeypairPublicKey: programKeypairPublicKey ?? null,
-    programBufferPublicKey: programBufferPublicKey ?? null,
-    deployerPublicKey: deployerPublicKey ?? null,
-    upgradeAuthorityPublicKey: upgradeAuthorityPublicKey ?? null,
-    commands: commands.map((command) =>
-      publicCommand(command, {
-        artifactPath,
-        programKeypairPath,
-        programBufferKeypairPath,
-        deployerKeypairPath,
-        upgradeAuthorityKeypairPath,
-      }),
-    ),
-    policy: {
-      mainnetDisabled: true,
-      skipPreflight: false,
-      maximumDeployNetSpendLamports: MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS,
-      maximumDeploySignAttempts: MAXIMUM_DEPLOY_SIGN_ATTEMPTS,
-      programBufferExpectedState: programBufferPublicKey ? "missing" : null,
-      programUpgradeAuthority: upgradeAuthorityPublicKey ?? null,
-    },
-  };
-  const approvalEvidenceSha256 = createHash("sha256")
-    .update(JSON.stringify(approvalPayload))
-    .digest("hex");
-  const approvalFingerprint = approvalEvidenceSha256.slice(0, 16);
 
   return {
     cluster: "devnet",
@@ -196,9 +205,8 @@ export function devnetDeploymentInputFromEnv(
     workspaceDir,
     artifactPath,
     artifactSha256,
+    artifactBytes: artifact.byteLength,
     expectedCurrentSbfSha256,
-    expectedPostDeploymentSbfSha256,
-    expectedProgramBufferRentLamports,
     programKeypairPath,
     programKeypairPublicKey,
     programBufferKeypairPath,
@@ -207,138 +215,285 @@ export function devnetDeploymentInputFromEnv(
     deployerPublicKey,
     upgradeAuthorityKeypairPath,
     upgradeAuthorityPublicKey,
+    deployerReserveLamports,
     commands,
-    approvalEvidenceSha256,
-    approvalFingerprint,
+    approvalEvidenceSha256: "unprepared",
+    approvalFingerprint: "unprepared",
     sendEnabled: env.ZKUBE_DEPLOY === "1",
     suppliedApproval: env.ZKUBE_DEPLOY_APPROVAL?.trim() || undefined,
   };
 }
 
+/** Read-only chain preflight. No keypair is required and no transaction is built. */
+export async function prepareZkubeDevnetDeployment(
+  candidate: ZkubeDevnetDeploymentInput,
+  connection: Connection = new Connection(candidate.baseRpc, "confirmed"),
+): Promise<ZkubeDevnetDeploymentInput> {
+  assertFrozenArtifact(candidate);
+  const genesisHash = await connection.getGenesisHash();
+  if (genesisHash !== candidate.expectedGenesisHash) {
+    throw new Error(`Devnet genesis mismatch: received ${genesisHash}`);
+  }
+  if (!candidate.deployerPublicKey) {
+    throw new Error(
+      "ZKUBE_DEPLOYER_KEYPAIR or ZKUBE_DEPLOYER_PUBLIC_KEY is required for an approvable preflight",
+    );
+  }
+  if (!candidate.programBufferPublicKey) {
+    throw new Error(
+      "ZKUBE_PROGRAM_BUFFER_KEYPAIR is required for an approvable bounded deployment",
+    );
+  }
+  const programId = new PublicKey(candidate.programId);
+  const programBuffer = new PublicKey(candidate.programBufferPublicKey);
+  const bufferInfo = await connection.getAccountInfo(
+    programBuffer,
+    "confirmed",
+  );
+  if (bufferInfo) {
+    throw new Error(
+      "approved program buffer is occupied; create a new deployment bundle",
+    );
+  }
+
+  const derivedProgramDataAddress = PublicKey.findProgramAddressSync(
+    [programId.toBuffer()],
+    UPGRADEABLE_LOADER_ID,
+  )[0];
+  let allocationBytes: number;
+  let currentProgramDataLamports = 0;
+  let currentDeployedSbfSha256: string | null = null;
+  let programDataAddress = derivedProgramDataAddress;
+  if (candidate.deploymentMode === "initial") {
+    if (!candidate.programKeypairPublicKey) {
+      throw new Error(
+        "ZKUBE_PROGRAM_KEYPAIR is required for an initial deployment preflight",
+      );
+    }
+    if (candidate.programKeypairPublicKey !== candidate.programId) {
+      throw new Error(
+        `program key ${candidate.programKeypairPublicKey} does not match declared program ${candidate.programId}`,
+      );
+    }
+    const [program, programData] = await Promise.all([
+      connection.getAccountInfo(programId, "confirmed"),
+      connection.getAccountInfo(derivedProgramDataAddress, "confirmed"),
+    ]);
+    if (program || programData) {
+      throw new Error(
+        "initial deployment blocked: fresh Program or ProgramData address is occupied",
+      );
+    }
+    allocationBytes = checkedAdd(
+      candidate.artifactBytes,
+      PROGRAM_ALLOCATION_HEADROOM_BYTES,
+    );
+  } else {
+    const state = await inspectUpgradeableProgram(connection, programId);
+    programDataAddress = state.programDataAddress;
+    allocationBytes = state.programCapacityBytes;
+    currentProgramDataLamports = state.programDataLamports;
+    currentDeployedSbfSha256 = state.deployedSbfSha256;
+    if (state.deployedSbfSha256 !== candidate.expectedCurrentSbfSha256) {
+      throw new Error(
+        `deployed SBF hash ${state.deployedSbfSha256} does not match approved preimage ${candidate.expectedCurrentSbfSha256 ?? "missing"}`,
+      );
+    }
+    if (!state.upgradeAuthority) {
+      throw new Error("deployed program is immutable and cannot be upgraded");
+    }
+    if (state.upgradeAuthority !== candidate.upgradeAuthorityPublicKey) {
+      throw new Error(
+        `upgrade authority ${candidate.upgradeAuthorityPublicKey ?? "missing"} does not match deployed authority ${state.upgradeAuthority}`,
+      );
+    }
+    if (candidate.artifactBytes > allocationBytes) {
+      throw new Error(
+        `program upgrade requires ${candidate.artifactBytes - allocationBytes} additional ProgramData bytes; approve and execute a separate extension first`,
+      );
+    }
+  }
+
+  const [
+    programAccountRentLamports,
+    programDataRentLamports,
+    programBufferRentLamports,
+  ] = await Promise.all([
+    connection.getMinimumBalanceForRentExemption(
+      PROGRAM_ACCOUNT_BYTES,
+      "confirmed",
+    ),
+    connection.getMinimumBalanceForRentExemption(
+      checkedAdd(PROGRAM_DATA_HEADER_BYTES, allocationBytes),
+      "confirmed",
+    ),
+    connection.getMinimumBalanceForRentExemption(
+      checkedAdd(PROGRAM_BUFFER_HEADER_BYTES, candidate.artifactBytes),
+      "confirmed",
+    ),
+  ]);
+  if (
+    candidate.deploymentMode === "upgrade" &&
+    currentProgramDataLamports < programDataRentLamports
+  ) {
+    throw new Error("deployed ProgramData is below its current rent floor");
+  }
+  const feePerSignatureLamports = await liveFeePerSignature(
+    connection,
+    new PublicKey(candidate.deployerPublicKey),
+  );
+  const writeTransactions = Math.ceil(
+    candidate.artifactBytes / PROGRAM_WRITE_CHUNK_BOUND_BYTES,
+  );
+  const maximumSignatures =
+    2 +
+    writeTransactions * 2 +
+    (candidate.deploymentMode === "initial" ? 4 : 3);
+  const maximumFeeLamports = checkedMultiply(
+    feePerSignatureLamports,
+    maximumSignatures,
+  );
+  const newAccountRentLamports =
+    candidate.deploymentMode === "initial"
+      ? checkedAdd(programAccountRentLamports, programDataRentLamports)
+      : 0;
+  const maximumPayerSpendLamports = checkedAdd(
+    checkedAdd(newAccountRentLamports, programBufferRentLamports),
+    maximumFeeLamports,
+  );
+  const requiredDeployerBalanceLamports = checkedAdd(
+    maximumPayerSpendLamports,
+    candidate.deployerReserveLamports,
+  );
+  const deployerBalance = await connection.getBalance(
+    new PublicKey(candidate.deployerPublicKey),
+    "confirmed",
+  );
+  if (deployerBalance < requiredDeployerBalanceLamports) {
+    throw new Error(
+      `deployer balance ${deployerBalance} is below dynamic deployment floor ${requiredDeployerBalanceLamports}`,
+    );
+  }
+  const artifact = readFileSync(candidate.artifactPath);
+  const expectedPostDeploymentSbfSha256 = hashPaddedArtifact(
+    artifact,
+    allocationBytes,
+  );
+  const preflight: DeploymentPreflight = {
+    programDataAddress: programDataAddress.toBase58(),
+    artifactBytes: candidate.artifactBytes,
+    allocationBytes,
+    headroomBytes: allocationBytes - candidate.artifactBytes,
+    programAccountRentLamports,
+    programDataRentLamports,
+    programBufferRentLamports,
+    feePerSignatureLamports,
+    maximumSignatures,
+    maximumFeeLamports,
+    maximumPayerSpendLamports,
+    deployerReserveLamports: candidate.deployerReserveLamports,
+    requiredDeployerBalanceLamports,
+    currentDeployedSbfSha256,
+    expectedPostDeploymentSbfSha256,
+    currentProgramDataLamports,
+  };
+  const commands = deploymentCommands({
+    deploymentMode: candidate.deploymentMode,
+    workspaceDir: candidate.workspaceDir,
+    baseRpc: candidate.baseRpc,
+    programId: candidate.programId,
+    artifactPath: candidate.artifactPath,
+    allocationBytes,
+    programKeypairPath: candidate.programKeypairPath,
+    programBufferKeypairPath: candidate.programBufferKeypairPath,
+    deployerKeypairPath: candidate.deployerKeypairPath,
+    upgradeAuthorityKeypairPath: candidate.upgradeAuthorityKeypairPath,
+  });
+  const approvalEvidenceSha256 = createHash("sha256")
+    .update(
+      JSON.stringify({
+        operation: "deploy-frozen-zkube-program",
+        cluster: candidate.cluster,
+        deploymentMode: candidate.deploymentMode,
+        baseRpc: candidate.baseRpc,
+        expectedGenesisHash: candidate.expectedGenesisHash,
+        programId: candidate.programId,
+        artifactSha256: candidate.artifactSha256,
+        preflight,
+        programKeypairPublicKey: candidate.programKeypairPublicKey ?? null,
+        programBufferPublicKey: candidate.programBufferPublicKey,
+        deployerPublicKey: candidate.deployerPublicKey,
+        upgradeAuthorityPublicKey: candidate.upgradeAuthorityPublicKey ?? null,
+        commands: commands.map((command) => publicCommand(command, candidate)),
+        policy: {
+          artifactBuildAfterApproval: false,
+          keypairCopy: false,
+          mainnetDisabled: true,
+          preflightSkipping: false,
+          maximumDeploySignAttempts: MAXIMUM_DEPLOY_SIGN_ATTEMPTS,
+        },
+      }),
+    )
+    .digest("hex");
+  return {
+    ...candidate,
+    commands,
+    preflight,
+    approvalEvidenceSha256,
+    approvalFingerprint: approvalEvidenceSha256.slice(0, 16),
+  };
+}
+
 export async function runZkubeDevnetDeployment(
-  input: ZkubeDevnetDeploymentInput,
+  candidate: ZkubeDevnetDeploymentInput,
 ): Promise<ZkubeDevnetDeploymentResult> {
+  const input = await prepareZkubeDevnetDeployment(candidate);
   if (!input.sendEnabled) return { mode: "dry-run", input, executions: [] };
   if (input.suppliedApproval !== input.approvalFingerprint) {
     throw new Error(
       `deployment blocked: set ZKUBE_DEPLOY_APPROVAL=${input.approvalFingerprint} after explicit approval`,
     );
   }
-  if (!input.deployerKeypairPath || !input.deployerPublicKey) {
-    throw new Error("ZKUBE_DEPLOYER_KEYPAIR is required for deployment");
-  }
-  if (!input.programBufferKeypairPath || !input.programBufferPublicKey) {
-    throw new Error(
-      "ZKUBE_PROGRAM_BUFFER_KEYPAIR is required for a bounded deployment",
-    );
-  }
-  if (input.expectedProgramBufferRentLamports === undefined) {
-    throw new Error(
-      "ZKUBE_EXPECTED_PROGRAM_BUFFER_RENT_LAMPORTS is required for a bounded deployment",
-    );
-  }
-  if (!input.expectedPostDeploymentSbfSha256) {
-    throw new Error(
-      "ZKUBE_EXPECTED_POST_DEPLOYMENT_SBF_SHA256 is required for deployment",
-    );
-  }
-  if (input.deploymentMode === "initial") {
-    if (!input.programKeypairPath || !input.programKeypairPublicKey) {
-      throw new Error(
-        "ZKUBE_PROGRAM_KEYPAIR is required for an initial deployment",
-      );
-    }
-    if (input.programKeypairPublicKey !== input.programId) {
-      throw new Error(
-        `program key ${input.programKeypairPublicKey} does not match declared program ${input.programId}`,
-      );
-    }
-    if (
-      !input.upgradeAuthorityKeypairPath ||
-      !input.upgradeAuthorityPublicKey
-    ) {
-      throw new Error(
-        "ZKUBE_UPGRADE_AUTHORITY_KEYPAIR is required to establish initial upgrade custody",
-      );
-    }
-  } else if (
+  if (
+    !input.deployerKeypairPath ||
+    !input.deployerPublicKey ||
+    !input.programBufferKeypairPath ||
+    !input.programBufferPublicKey ||
     !input.upgradeAuthorityKeypairPath ||
     !input.upgradeAuthorityPublicKey
   ) {
     throw new Error(
-      "ZKUBE_UPGRADE_AUTHORITY_KEYPAIR is required for an existing-program upgrade",
+      "deployment requires deployer, buffer, and upgrade-authority keypairs after approval",
     );
   }
-  const connection = new Connection(input.baseRpc, "confirmed");
-  const genesisHash = await connection.getGenesisHash();
-  if (genesisHash !== input.expectedGenesisHash) {
-    throw new Error(`Devnet genesis mismatch: received ${genesisHash}`);
+  if (
+    keypairPublicKey(input.deployerKeypairPath, "ZKUBE_DEPLOYER_KEYPAIR") !==
+      input.deployerPublicKey ||
+    keypairPublicKey(
+      input.programBufferKeypairPath,
+      "ZKUBE_PROGRAM_BUFFER_KEYPAIR",
+    ) !== input.programBufferPublicKey ||
+    keypairPublicKey(
+      input.upgradeAuthorityKeypairPath,
+      "ZKUBE_UPGRADE_AUTHORITY_KEYPAIR",
+    ) !== input.upgradeAuthorityPublicKey
+  ) {
+    throw new Error("a deployment signer changed after approval");
   }
-  const deployerBalance = await connection.getBalance(
-    new PublicKey(input.deployerPublicKey),
-    "confirmed",
-  );
-  const artifactBytes = readFileSync(input.artifactPath).byteLength;
-  const programBufferRent = await connection.getMinimumBalanceForRentExemption(
-    artifactBytes + PROGRAM_BUFFER_HEADER_BYTES,
-    "confirmed",
-  );
-  if (programBufferRent !== input.expectedProgramBufferRentLamports) {
-    throw new Error(
-      `program buffer rent ${programBufferRent} does not match approved rent ${input.expectedProgramBufferRentLamports}`,
-    );
+  if (
+    input.deploymentMode === "initial" &&
+    (!input.programKeypairPath ||
+      keypairPublicKey(input.programKeypairPath, "ZKUBE_PROGRAM_KEYPAIR") !==
+        input.programId)
+  ) {
+    throw new Error("the initial program keypair changed after approval");
   }
-  const programBuffer = await connection.getAccountInfo(
-    new PublicKey(input.programBufferPublicKey),
-    "confirmed",
-  );
-  if (programBuffer) {
-    throw new Error(
-      "approved program buffer is no longer absent; create a new deployment bundle",
-    );
-  }
-  const requiredBalance = programBufferRent + MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS;
-  const existing = await connection.getAccountInfo(
-    ZKUBE_PROGRAM_ID,
-    "confirmed",
-  );
-  if (input.deploymentMode === "upgrade") {
-    const state = await inspectUpgradeableProgram(connection, ZKUBE_PROGRAM_ID);
-    if (state.deployedSbfSha256 !== input.expectedCurrentSbfSha256) {
-      throw new Error(
-        `deployed SBF hash ${state.deployedSbfSha256} does not match approved preimage ${input.expectedCurrentSbfSha256 ?? "missing"}`,
-      );
-    }
-    if (state.upgradeAuthority !== input.upgradeAuthorityPublicKey) {
-      throw new Error(
-        `upgrade authority ${input.upgradeAuthorityPublicKey} does not match deployed authority ${state.upgradeAuthority ?? "none"}`,
-      );
-    }
-    if (artifactBytes > state.programCapacityBytes) {
-      throw new Error(
-        `program upgrade requires ${artifactBytes - state.programCapacityBytes} additional ProgramData bytes; approve and execute a separate extension first`,
-      );
-    }
-    if (deployerBalance < requiredBalance) {
-      throw new Error(
-        `deployer balance ${deployerBalance} is below required Devnet deployment floor ${requiredBalance}`,
-      );
-    }
-  } else {
-    if (deployerBalance < requiredBalance) {
-      throw new Error(
-        `deployer balance ${deployerBalance} is below required Devnet deployment floor ${requiredBalance}`,
-      );
-    }
-    if (existing)
-      throw new Error("initial deployment blocked: program already exists");
-    const targetKeypair = resolve(input.workspaceDir, PROGRAM_KEYPAIR_TARGET);
-    if (resolve(input.programKeypairPath!) !== targetKeypair) {
-      copyFileSync(input.programKeypairPath!, targetKeypair);
-    }
-  }
+  assertFrozenArtifact(input);
+
   const executions: DeploymentExecution[] = [];
   for (const planned of input.commands) {
+    // The approved artifact is never rebuilt or copied into the workspace.
+    assertFrozenArtifact(input);
     const result = spawnSync(planned.command, planned.args, {
       cwd: planned.cwd,
       encoding: "utf8",
@@ -356,15 +511,9 @@ export async function runZkubeDevnetDeployment(
         `${planned.label} failed: ${execution.stderr.trim() || `exit ${String(execution.status)}`}`,
       );
     }
-    if (
-      planned.label === "Build Anchor program" &&
-      fileSha256(input.artifactPath) !== input.artifactSha256
-    ) {
-      throw new Error(
-        "Anchor build changed the approved SBF hash; deployment stopped before send",
-      );
-    }
   }
+
+  const connection = new Connection(input.baseRpc, "confirmed");
   const info = await connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed");
   if (!info?.executable || !EXECUTABLE_OWNERS.has(info.owner.toBase58())) {
     throw new Error(
@@ -375,34 +524,31 @@ export async function runZkubeDevnetDeployment(
     connection,
     ZKUBE_PROGRAM_ID,
   );
-  if (deployed.deployedSbfSha256 !== input.expectedPostDeploymentSbfSha256) {
-    throw new Error(
-      `post-deployment SBF hash ${deployed.deployedSbfSha256} does not match approved hash ${input.expectedPostDeploymentSbfSha256}`,
-    );
+  if (
+    deployed.programDataAddress.toBase58() !==
+      input.preflight?.programDataAddress ||
+    deployed.programCapacityBytes !== input.preflight.allocationBytes ||
+    deployed.deployedSbfSha256 !==
+      input.preflight.expectedPostDeploymentSbfSha256 ||
+    deployed.upgradeAuthority !== input.upgradeAuthorityPublicKey
+  ) {
+    throw new Error("post-deployment ProgramData binding verification failed");
   }
   const remainingBuffer = await connection.getAccountInfo(
     new PublicKey(input.programBufferPublicKey),
     "confirmed",
   );
   if (remainingBuffer) {
-    throw new Error(
-      "successful deployment left the approved buffer account open",
-    );
+    throw new Error("successful deployment left the approved buffer open");
   }
-  const finalDeployerBalance = await connection.getBalance(
+  const finalBalance = await connection.getBalance(
     new PublicKey(input.deployerPublicKey),
     "confirmed",
   );
-  const netSpendLamports = Math.max(0, deployerBalance - finalDeployerBalance);
-  if (netSpendLamports > MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS) {
-    throw new Error(
-      `deployment net spend ${netSpendLamports} exceeded approved maximum ${MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS}`,
-    );
+  if (finalBalance < input.deployerReserveLamports) {
+    throw new Error("deployment breached the approved deployer reserve");
   }
-  const deploymentSignature = executions
-    .flatMap(({ stdout, stderr }) => [stdout, stderr])
-    .join("\n")
-    .match(/Signature:\s*([1-9A-HJ-NP-Za-km-z]+)/)?.[1];
+  const deploymentSignature = deploymentSignatureFromExecutions(executions);
   return {
     mode: "deployed",
     input,
@@ -411,10 +557,45 @@ export async function runZkubeDevnetDeployment(
   };
 }
 
+export function deploymentSignatureFromExecutions(
+  executions: ReadonlyArray<{ stdout: string; stderr: string }>,
+): string | undefined {
+  const outputs = executions.flatMap(({ stdout, stderr }) => [stdout, stderr]);
+  for (const output of outputs) {
+    const trimmed = output.trim();
+    if (!trimmed) continue;
+    try {
+      const value: unknown = JSON.parse(trimmed);
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "signature" in value &&
+        validTransactionSignature(value.signature)
+      ) {
+        return value.signature;
+      }
+    } catch {
+      // Non-JSON Solana CLI output is handled by the bounded text fallback.
+    }
+    const textSignature = trimmed.match(
+      /Signature:\s*([1-9A-HJ-NP-Za-km-z]{64,128})/,
+    )?.[1];
+    if (textSignature) return textSignature;
+  }
+  return undefined;
+}
+
+function validTransactionSignature(value: unknown): value is string {
+  return (
+    typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{64,128}$/.test(value)
+  );
+}
+
 export function formatDevnetDeployment(
   result: ZkubeDevnetDeploymentResult,
 ): string {
   const { input } = result;
+  const preflight = input.preflight;
   const executable = executableDeploymentInput(input);
   return [
     "zKube Devnet deployment",
@@ -422,19 +603,29 @@ export function formatDevnetDeployment(
     `Deployment operation: ${input.deploymentMode}`,
     `Base RPC: ${input.baseRpc}`,
     `Program: ${input.programId}`,
-    `SBF SHA-256: ${input.artifactSha256}`,
-    `Expected current SBF SHA-256: ${input.expectedCurrentSbfSha256 ?? "not applicable"}`,
-    `Expected post-deployment SBF SHA-256: ${input.expectedPostDeploymentSbfSha256 ?? "missing"}`,
-    `Expected temporary buffer rent: ${input.expectedProgramBufferRentLamports ?? "missing"} lamports`,
-    `Maximum net deployer spend: ${MAXIMUM_DEPLOY_NET_SPEND_LAMPORTS} lamports`,
+    `ProgramData: ${preflight?.programDataAddress ?? "preflight required"}`,
+    `Frozen SBF SHA-256: ${input.artifactSha256}`,
+    `Artifact/allocation: ${input.artifactBytes}/${preflight?.allocationBytes ?? "preflight required"} bytes`,
+    `Allocation headroom: ${preflight?.headroomBytes ?? "preflight required"} bytes`,
+    `Current deployed SBF SHA-256: ${preflight?.currentDeployedSbfSha256 ?? "not applicable"}`,
+    `Expected padded SBF SHA-256: ${preflight?.expectedPostDeploymentSbfSha256 ?? "preflight required"}`,
+    `Program rent: ${preflight?.programAccountRentLamports ?? "preflight required"} lamports`,
+    `ProgramData rent: ${preflight?.programDataRentLamports ?? "preflight required"} lamports`,
+    `Temporary buffer rent: ${preflight?.programBufferRentLamports ?? "preflight required"} lamports`,
+    `Maximum dynamic fees: ${preflight?.maximumFeeLamports ?? "preflight required"} lamports`,
+    `Maximum payer spend: ${preflight?.maximumPayerSpendLamports ?? "preflight required"} lamports`,
+    `Post-deployment reserve: ${input.deployerReserveLamports} lamports`,
+    `Required deployer balance: ${preflight?.requiredDeployerBalanceLamports ?? "preflight required"} lamports`,
     `Maximum signing attempts: ${MAXIMUM_DEPLOY_SIGN_ATTEMPTS}`,
-    `Program deployment key: ${input.programKeypairPublicKey ?? "missing"}`,
+    `Program deployment key: ${input.programKeypairPublicKey ?? "not applicable"}`,
     `Program buffer: ${input.programBufferPublicKey ?? "missing"}`,
     `Deployer: ${input.deployerPublicKey ?? "missing"}`,
     `Upgrade authority: ${input.upgradeAuthorityPublicKey ?? "missing"}`,
     `Approval fingerprint: ${input.approvalFingerprint}`,
     `Approval evidence SHA-256: ${input.approvalEvidenceSha256}`,
     `Executable plan: ${executable ? "yes" : "no"}`,
+    "Artifact rebuild after approval: disabled",
+    "Keypair copying: disabled",
     "Preflight skipping: disabled",
     ...input.commands.map((command) => {
       const visible = publicCommand(command, input);
@@ -458,27 +649,23 @@ export function formatDevnetDeployment(
 }
 
 function executableDeploymentInput(input: ZkubeDevnetDeploymentInput): boolean {
-  if (!input.deployerKeypairPath || !input.deployerPublicKey) return false;
   if (
+    !input.preflight ||
+    !input.deployerKeypairPath ||
+    !input.deployerPublicKey ||
     !input.programBufferKeypairPath ||
     !input.programBufferPublicKey ||
-    input.expectedProgramBufferRentLamports === undefined ||
-    !input.expectedPostDeploymentSbfSha256
+    !input.upgradeAuthorityKeypairPath ||
+    !input.upgradeAuthorityPublicKey
   ) {
     return false;
   }
-  if (input.deploymentMode === "initial") {
-    return Boolean(
+  return (
+    input.deploymentMode === "upgrade" ||
+    Boolean(
       input.programKeypairPath &&
-      input.programKeypairPublicKey === input.programId &&
-      input.programBufferKeypairPath &&
-      input.programBufferPublicKey &&
-      input.upgradeAuthorityKeypairPath &&
-      input.upgradeAuthorityPublicKey,
-    );
-  }
-  return Boolean(
-    input.upgradeAuthorityKeypairPath && input.upgradeAuthorityPublicKey,
+      input.programKeypairPublicKey === input.programId,
+    )
   );
 }
 
@@ -488,65 +675,19 @@ function deploymentCommands(args: {
   baseRpc: string;
   programId: string;
   artifactPath: string;
-  artifactBytes: number;
+  allocationBytes: number;
   programKeypairPath?: string;
   programBufferKeypairPath?: string;
   deployerKeypairPath?: string;
   upgradeAuthorityKeypairPath?: string;
 }): DeploymentCommand[] {
-  if (args.deploymentMode === "upgrade") {
-    const upgradeArgs = [
-      "program",
-      "deploy",
-      args.artifactPath,
-      "--program-id",
-      args.programId,
-      "--max-len",
-      String(args.artifactBytes),
-      "--no-auto-extend",
-      "--url",
-      args.baseRpc,
-      "--output",
-      "json",
-      "--max-sign-attempts",
-      String(MAXIMUM_DEPLOY_SIGN_ATTEMPTS),
-    ];
-    if (args.upgradeAuthorityKeypairPath) {
-      upgradeArgs.push("--upgrade-authority", args.upgradeAuthorityKeypairPath);
-    }
-    if (args.deployerKeypairPath) {
-      upgradeArgs.push(
-        "--keypair",
-        args.deployerKeypairPath,
-        "--fee-payer",
-        args.deployerKeypairPath,
-      );
-    }
-    if (args.programBufferKeypairPath) {
-      upgradeArgs.push("--buffer", args.programBufferKeypairPath);
-    }
-    return [
-      {
-        label: "Build Anchor program",
-        command: "anchor",
-        args: ["build", "--ignore-keys"],
-        cwd: args.workspaceDir,
-      },
-      {
-        label: "Upgrade existing program",
-        command: "solana",
-        args: upgradeArgs,
-        cwd: args.workspaceDir,
-      },
-      verificationCommand(args),
-    ];
-  }
   const deployArgs = [
     "program",
     "deploy",
     args.artifactPath,
     "--max-len",
-    String(args.artifactBytes),
+    String(args.allocationBytes),
+    "--no-auto-extend",
     "--url",
     args.baseRpc,
     "--output",
@@ -554,7 +695,9 @@ function deploymentCommands(args: {
     "--max-sign-attempts",
     String(MAXIMUM_DEPLOY_SIGN_ATTEMPTS),
   ];
-  if (args.programKeypairPath) {
+  if (args.deploymentMode === "upgrade") {
+    deployArgs.push("--program-id", args.programId);
+  } else if (args.programKeypairPath) {
     deployArgs.push("--program-id", args.programKeypairPath);
   }
   if (args.programBufferKeypairPath) {
@@ -573,13 +716,10 @@ function deploymentCommands(args: {
   }
   return [
     {
-      label: "Build Anchor program",
-      command: "anchor",
-      args: ["build"],
-      cwd: args.workspaceDir,
-    },
-    {
-      label: "Deploy Solana program",
+      label:
+        args.deploymentMode === "initial"
+          ? "Deploy frozen Solana program"
+          : "Upgrade from frozen Solana program",
       command: "solana",
       args: deployArgs,
       cwd: args.workspaceDir,
@@ -618,33 +758,20 @@ function publicCommand(
     upgradeAuthorityKeypairPath?: string;
   },
 ): Pick<DeploymentCommand, "label" | "command" | "args"> {
+  const secrets = new Map<string, string>();
+  for (const [path, label] of [
+    [paths.artifactPath, "<program-artifact>"],
+    [paths.programKeypairPath, "<program-keypair>"],
+    [paths.programBufferKeypairPath, "<program-buffer-keypair>"],
+    [paths.deployerKeypairPath, "<deployer-keypair>"],
+    [paths.upgradeAuthorityKeypairPath, "<upgrade-authority-keypair>"],
+  ] as const) {
+    if (path) secrets.set(path, label);
+  }
   return {
     label: command.label,
     command: command.command,
-    args: command.args.map((argument) => {
-      if (paths.artifactPath && argument === paths.artifactPath) {
-        return "<program-artifact>";
-      }
-      if (paths.programKeypairPath && argument === paths.programKeypairPath) {
-        return "<program-keypair>";
-      }
-      if (
-        paths.programBufferKeypairPath &&
-        argument === paths.programBufferKeypairPath
-      ) {
-        return "<program-buffer-keypair>";
-      }
-      if (paths.deployerKeypairPath && argument === paths.deployerKeypairPath) {
-        return "<deployer-keypair>";
-      }
-      if (
-        paths.upgradeAuthorityKeypairPath &&
-        argument === paths.upgradeAuthorityKeypairPath
-      ) {
-        return "<upgrade-authority-keypair>";
-      }
-      return argument;
-    }),
+    args: command.args.map((argument) => secrets.get(argument) ?? argument),
   };
 }
 
@@ -665,7 +792,7 @@ export async function inspectUpgradeableProgram(
     !program ||
     !program.executable ||
     !program.owner.equals(UPGRADEABLE_LOADER_ID) ||
-    program.data.length < 36 ||
+    program.data.length !== PROGRAM_ACCOUNT_BYTES ||
     program.data.readUInt32LE(0) !== 2
   ) {
     throw new Error(
@@ -673,6 +800,13 @@ export async function inspectUpgradeableProgram(
     );
   }
   const programDataAddress = new PublicKey(program.data.subarray(4, 36));
+  const expectedProgramDataAddress = PublicKey.findProgramAddressSync(
+    [programId.toBuffer()],
+    UPGRADEABLE_LOADER_ID,
+  )[0];
+  if (!programDataAddress.equals(expectedProgramDataAddress)) {
+    throw new Error("Program points to a noncanonical ProgramData address");
+  }
   const info = await connection.getAccountInfo(programDataAddress, "confirmed");
   if (
     !info ||
@@ -682,9 +816,6 @@ export async function inspectUpgradeableProgram(
     info.data.readUInt32LE(0) !== 3
   ) {
     throw new Error("deployed ProgramData account is missing or malformed");
-  }
-  if (info.data[12] === 1 && info.data.length < 45) {
-    throw new Error("deployed upgrade authority is truncated");
   }
   if (info.data[12] !== 0 && info.data[12] !== 1) {
     throw new Error("deployed upgrade authority option is malformed");
@@ -699,9 +830,59 @@ export async function inspectUpgradeableProgram(
     programDataLamports: info.lamports,
     upgradeAuthority,
     deployedSbfSha256: createHash("sha256")
-      .update(info.data.subarray(info.data[12] === 1 ? 45 : 13))
+      .update(info.data.subarray(PROGRAM_DATA_HEADER_BYTES))
       .digest("hex"),
   };
+}
+
+async function liveFeePerSignature(
+  connection: Connection,
+  payer: PublicKey,
+): Promise<number> {
+  const latest = await connection.getLatestBlockhash("confirmed");
+  const message = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: latest.blockhash,
+    instructions: [
+      SystemProgram.transfer({
+        fromPubkey: payer,
+        toPubkey: payer,
+        lamports: 0,
+      }),
+    ],
+  }).compileToLegacyMessage();
+  const fee = await connection.getFeeForMessage(message, "confirmed");
+  if (
+    fee.value === null ||
+    !Number.isSafeInteger(fee.value) ||
+    fee.value <= 0
+  ) {
+    throw new Error("unable to obtain the current Devnet signature fee");
+  }
+  return fee.value;
+}
+
+function assertFrozenArtifact(input: ZkubeDevnetDeploymentInput): void {
+  const artifact = readFileSync(input.artifactPath);
+  if (
+    artifact.byteLength !== input.artifactBytes ||
+    createHash("sha256").update(artifact).digest("hex") !== input.artifactSha256
+  ) {
+    throw new Error("approved frozen program artifact changed");
+  }
+}
+
+function hashPaddedArtifact(
+  artifact: Uint8Array,
+  allocationBytes: number,
+): string {
+  if (artifact.byteLength > allocationBytes) {
+    throw new Error("artifact exceeds its approved ProgramData allocation");
+  }
+  return createHash("sha256")
+    .update(artifact)
+    .update(Buffer.alloc(allocationBytes - artifact.byteLength))
+    .digest("hex");
 }
 
 function requiredSha256(value: string | undefined, label: string): string {
@@ -710,13 +891,6 @@ function requiredSha256(value: string | undefined, label: string): string {
     throw new Error(`${label} must be a 64-hex SHA-256`);
   }
   return hash;
-}
-
-function optionalSha256(
-  value: string | undefined,
-  label: string,
-): string | undefined {
-  return value?.trim() ? requiredSha256(value, label) : undefined;
 }
 
 function optionalSafeInteger(
@@ -735,9 +909,11 @@ function optionalSafeInteger(
 function deploymentModeFromEnv(
   value: string | undefined,
 ): "upgrade" | "initial" {
-  const mode = value?.trim().toLowerCase() || "upgrade";
+  const mode = value?.trim().toLowerCase();
   if (mode !== "upgrade" && mode !== "initial") {
-    throw new Error("ZKUBE_DEPLOY_MODE must be upgrade or initial");
+    throw new Error(
+      "ZKUBE_DEPLOY_MODE is required and must be upgrade or initial",
+    );
   }
   return mode;
 }
@@ -755,21 +931,34 @@ function keypairPublicKey(path: string, label: string): string {
     !source.every(
       (value) => Number.isInteger(value) && value >= 0 && value <= 255,
     )
-  )
+  ) {
     throw new Error(`${label} must be a Solana 64-byte keypair JSON array`);
+  }
   return Keypair.fromSecretKey(
     Uint8Array.from(source as number[]),
   ).publicKey.toBase58();
 }
 
-function fileSha256(path: string): string {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+function optionalPublicKey(
+  value: string | undefined,
+  label: string,
+): string | undefined {
+  const source = value?.trim();
+  if (!source) return undefined;
+  try {
+    const publicKey = new PublicKey(source);
+    if (publicKey.equals(PublicKey.default)) throw new Error("zero key");
+    return publicKey.toBase58();
+  } catch {
+    throw new Error(`${label} must be a nonzero Solana public key`);
+  }
 }
 
 function devnetEndpoint(value: string): string {
   const endpoint = new URL(value);
-  if (endpoint.protocol !== "https:")
+  if (endpoint.protocol !== "https:") {
     throw new Error("Devnet deployment RPC must use HTTPS");
+  }
   if (/mainnet|localhost|127\.0\.0\.1|localnet/i.test(value)) {
     throw new Error("Devnet deployment RPC cannot target mainnet or localhost");
   }
@@ -786,4 +975,20 @@ function optionalPath(
 ): string | undefined {
   const value = path?.trim();
   return value ? resolvePath(cwd, value) : undefined;
+}
+
+function checkedAdd(left: number, right: number): number {
+  const value = left + right;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("deployment lamport/size addition overflow");
+  }
+  return value;
+}
+
+function checkedMultiply(left: number, right: number): number {
+  const value = left * right;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("deployment lamport multiplication overflow");
+  }
+  return value;
 }

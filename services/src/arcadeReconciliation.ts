@@ -2,6 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_PRIZE_WEIGHTS,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
   DAYS_PER_SEASON,
@@ -12,11 +13,13 @@ import {
   PERIOD_SETTLEMENT_DELAY_SECONDS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
+  WEEKLY_PRIZE_WEIGHTS,
   assertCadenceId,
   assertLamports,
   assertPayoutLamports,
   assertSafeTimestamp,
   currentDayId,
+  playerFundingPda,
   seasonIdForDay,
   seasonStartDay,
   validationOnlyPlan,
@@ -73,6 +76,7 @@ export interface DailySnapshot {
 
 export interface WeeklySnapshot {
   weekId: number;
+  qualificationStartDay: number;
   status: PeriodStatus;
   closesAt: number;
   potLamports: bigint;
@@ -86,6 +90,7 @@ export interface WeeklySnapshot {
 
 export interface SeasonSnapshot {
   seasonId: number;
+  qualificationStartDay: number;
   status: PeriodStatus;
   closesAt: number;
   potLamports: bigint;
@@ -104,6 +109,18 @@ export interface DailySeasonPlayerSnapshot {
   hasBestScore: boolean;
   seasonRolled: boolean;
   seasonPlayerExists: boolean;
+}
+
+export interface ArenaPlayerClosureSnapshot {
+  dayId: number;
+  owner: PublicKey;
+  rentRecipient: PublicKey;
+}
+
+export interface SeasonPlayerClosureSnapshot {
+  seasonId: number;
+  owner: PublicKey;
+  rentRecipient: PublicKey;
 }
 
 export interface RunSnapshot {
@@ -135,6 +152,8 @@ export interface ProtocolSnapshot {
   dailySeasonPlayers: readonly DailySeasonPlayerSnapshot[];
   /** Relationship-checked canonical PlayerState owners available for profile sync. */
   playerStateOwners: readonly PublicKey[];
+  arenaPlayerClosures: readonly ArenaPlayerClosureSnapshot[];
+  seasonPlayerClosures: readonly SeasonPlayerClosureSnapshot[];
 }
 
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
@@ -147,6 +166,8 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   runs: Object.freeze([]),
   dailySeasonPlayers: Object.freeze([]),
   playerStateOwners: Object.freeze([]),
+  arenaPlayerClosures: Object.freeze([]),
+  seasonPlayerClosures: Object.freeze([]),
 });
 
 /**
@@ -274,6 +295,8 @@ export function discoverReconciliationPlans(args: {
     if (daily?.status !== "finalized" || !player.dailyResolved ||
         !player.hasBestScore || player.seasonRolled) continue;
     const seasonId = seasonIdForDay(player.dayId);
+    const season = seasonById.get(seasonId);
+    if (!season || player.dayId < season.qualificationStartDay) continue;
     const key = `${seasonId}:${player.owner.toBase58()}`;
     if (!player.seasonPlayerExists) {
       if (!initializedSeasonPlayers.has(key)) {
@@ -288,6 +311,7 @@ export function discoverReconciliationPlans(args: {
     plans.push(validationOnlyPlan("rollup_arena_to_season", {
       dayId: player.dayId,
       seasonId,
+      qualificationStartDay: season.qualificationStartDay,
       owner: player.owner,
     }));
   }
@@ -305,13 +329,15 @@ export function discoverReconciliationPlans(args: {
       daily.settlement,
       dailyById.has(daily.dayId + 1),
     );
-    if (daily.status === "finalized" &&
-        seasonById.has(seasonIdForDay(daily.dayId)) &&
+    const dailySeason = seasonById.get(seasonIdForDay(daily.dayId));
+    if (daily.status === "finalized" && dailySeason &&
+        daily.dayId >= dailySeason.qualificationStartDay &&
         !daily.seasonRollupSealed &&
         daily.seasonRollups === daily.seasonEligiblePlayers) {
       plans.push(validationOnlyPlan("seal_arena_season_rollups", {
         dayId: daily.dayId,
         seasonId: seasonIdForDay(daily.dayId),
+        qualificationStartDay: dailySeason.qualificationStartDay,
       }));
     }
     appendProfileSyncPlans(
@@ -338,6 +364,12 @@ export function discoverReconciliationPlans(args: {
       weekly.settlement,
       weeklyById.has(weekly.weekId + 1),
       weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1,
+      undefined,
+      weekly.qualificationStartDay,
+      cadenceRange(
+        weekly.qualificationStartDay,
+        weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1,
+      ),
     );
     appendProfileSyncPlans(
       plans,
@@ -351,6 +383,7 @@ export function discoverReconciliationPlans(args: {
   }
 
   for (const season of args.snapshot.seasons) {
+    const requiredSeals = seasonRequiredDailies(season);
     if (season.seasonId < oldestKeeperSeason) continue;
     appendFinalizationPlan(
       plans,
@@ -358,11 +391,11 @@ export function discoverReconciliationPlans(args: {
       season.seasonId,
       season.status === "open" &&
         args.nowUnix >= season.closesAt + PERIOD_SETTLEMENT_DELAY_SECONDS &&
-        season.sealedDailies === DAYS_PER_SEASON &&
+        season.sealedDailies === requiredSeals &&
         qualificationDailies(
           args.snapshot,
-          seasonStartDay(season.seasonId),
-          DAYS_PER_SEASON,
+          season.qualificationStartDay,
+          requiredSeals,
           true,
         ) &&
         (!season.predecessorRolloverRequired || season.predecessorRolloverApplied),
@@ -370,6 +403,7 @@ export function discoverReconciliationPlans(args: {
       seasonById.has(season.seasonId + 1),
       undefined,
       season.sealedDailies,
+      season.qualificationStartDay,
     );
     appendProfileSyncPlans(
       plans,
@@ -380,6 +414,23 @@ export function discoverReconciliationPlans(args: {
       season.profileSyncMask,
       playerStateOwners,
     );
+  }
+
+  for (const candidate of args.snapshot.arenaPlayerClosures) {
+    if (candidate.dayId < oldestKeeperDay) continue;
+    plans.push(validationOnlyPlan("close_arena_player", {
+      dayId: candidate.dayId,
+      owner: candidate.owner,
+      rentRecipient: candidate.rentRecipient,
+    }));
+  }
+  for (const candidate of args.snapshot.seasonPlayerClosures) {
+    if (candidate.seasonId < oldestKeeperSeason) continue;
+    plans.push(validationOnlyPlan("close_season_player", {
+      seasonId: candidate.seasonId,
+      owner: candidate.owner,
+      rentRecipient: candidate.rentRecipient,
+    }));
   }
   return plans;
 }
@@ -462,6 +513,16 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     snapshot.playerStateOwners.map((owner) => owner.toBase58()),
     "PlayerState owner",
   );
+  assertUnique(
+    snapshot.arenaPlayerClosures.map(({ dayId, owner }) =>
+      `${dayId}:${owner.toBase58()}`),
+    "ArenaPlayer closure",
+  );
+  assertUnique(
+    snapshot.seasonPlayerClosures.map(({ seasonId, owner }) =>
+      `${seasonId}:${owner.toBase58()}`),
+    "SeasonPlayer closure",
+  );
 
   for (const daily of snapshot.dailies) {
     assertCadenceId(daily.dayId, "day id");
@@ -486,6 +547,10 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     if (daily.entriesScored + daily.entriesExpired > daily.entriesPaid) {
       throw new Error("Daily resolved entries exceed paid entries");
     }
+    if (daily.status === "finalized" &&
+        daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
+      throw new Error("finalized Daily retains unresolved paid entries");
+    }
     assertCounter(daily.seasonEligiblePlayers, "Daily Season eligible players");
     assertCounter(daily.seasonRollups, "Daily Season rollups");
     if (daily.seasonRollups > daily.seasonEligiblePlayers ||
@@ -504,6 +569,12 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     if (weekly.closesAt !== (weekStartDay(weekly.weekId) + DAYS_PER_WEEK) * SECONDS_PER_DAY) {
       throw new Error("Weekly close does not match its cadence id");
     }
+    const expectedQualificationStart = weekly.weekId === launchWeekId
+      ? snapshot.launchDayId
+      : weekStartDay(weekly.weekId);
+    if (weekly.qualificationStartDay !== expectedQualificationStart) {
+      throw new Error("Weekly qualification start is invalid");
+    }
     validatePredecessorFlag(
       weekly.weekId !== launchWeekId,
       weekly.predecessorRolloverRequired,
@@ -514,7 +585,12 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("finalized Weekly qualification is incomplete");
     }
     if (weekly.qualificationDailiesComplete &&
-        !qualificationDailies(snapshot, weekStartDay(weekly.weekId), DAYS_PER_WEEK, false)) {
+        !qualificationDailies(
+          snapshot,
+          weekly.qualificationStartDay,
+          weeklyRequiredDailies(weekly),
+          false,
+        )) {
       throw new Error("Weekly qualification is incomplete");
     }
     validateSettlement("weekly", weekly.potLamports, weekly.settlement, 9);
@@ -528,6 +604,12 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
         (seasonStartDay(season.seasonId) + DAYS_PER_SEASON) * SECONDS_PER_DAY) {
       throw new Error("Season close does not match its cadence id");
     }
+    const expectedQualificationStart = season.seasonId === launchSeasonId
+      ? snapshot.launchDayId
+      : seasonStartDay(season.seasonId);
+    if (season.qualificationStartDay !== expectedQualificationStart) {
+      throw new Error("Season qualification start is invalid");
+    }
     validatePredecessorFlag(
       season.seasonId !== launchSeasonId,
       season.predecessorRolloverRequired,
@@ -540,12 +622,14 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     }
     const qualificationCount = seasonQualificationDailies(
       snapshot,
-      seasonStartDay(season.seasonId),
+      season.qualificationStartDay,
+      seasonRequiredDailies(season),
     );
     if (season.sealedDailies !== qualificationCount) {
       throw new Error("Season qualification is incomplete");
     }
-    if (season.status === "finalized" && season.sealedDailies !== DAYS_PER_SEASON) {
+    if (season.status === "finalized" &&
+        season.sealedDailies !== seasonRequiredDailies(season)) {
       throw new Error("finalized Season qualification is incomplete");
     }
     validateSettlement("season", season.potLamports, season.settlement, 5);
@@ -554,6 +638,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
 
   for (const run of snapshot.runs) validateRun(snapshot, run);
   validateDailySeasonPlayers(snapshot);
+  validateParticipantClosures(snapshot);
 }
 
 function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
@@ -600,8 +685,12 @@ function validateDailySeasonPlayers(snapshot: ProtocolSnapshot): void {
     const daily = snapshot.dailies.find(({ dayId }) => dayId === player.dayId);
     if (!daily) throw new Error("ArenaPlayer references an undiscovered Daily");
     const seasonId = seasonIdForDay(player.dayId);
-    if (!snapshot.seasons.some((season) => season.seasonId === seasonId)) {
+    const season = snapshot.seasons.find((value) => value.seasonId === seasonId);
+    if (!season) {
       throw new Error("ArenaPlayer references an undiscovered Season");
+    }
+    if (player.dayId < season.qualificationStartDay) {
+      throw new Error("ArenaPlayer predates Season qualification");
     }
     if (player.seasonRolled &&
         (!player.dailyResolved || !player.hasBestScore || daily.status !== "finalized")) {
@@ -619,6 +708,35 @@ function validateDailySeasonPlayers(snapshot: ProtocolSnapshot): void {
   }
 }
 
+function validateParticipantClosures(snapshot: ProtocolSnapshot): void {
+  for (const candidate of snapshot.arenaPlayerClosures) {
+    assertCadenceId(candidate.dayId, "ArenaPlayer closure day id");
+    if (!snapshot.dailies.some(({ dayId, status }) =>
+      dayId === candidate.dayId && status === "finalized")) {
+      throw new Error("ArenaPlayer closure requires a finalized Daily");
+    }
+    validateClosureRecipient(candidate.owner, candidate.rentRecipient, "ArenaPlayer");
+  }
+  for (const candidate of snapshot.seasonPlayerClosures) {
+    assertCadenceId(candidate.seasonId, "SeasonPlayer closure Season id");
+    if (!snapshot.seasons.some(({ seasonId, status }) =>
+      seasonId === candidate.seasonId && status === "finalized")) {
+      throw new Error("SeasonPlayer closure requires a finalized Season");
+    }
+    validateClosureRecipient(candidate.owner, candidate.rentRecipient, "SeasonPlayer");
+  }
+}
+
+function validateClosureRecipient(
+  owner: PublicKey,
+  rentRecipient: PublicKey,
+  label: string,
+): void {
+  if (!rentRecipient.equals(playerFundingPda(owner))) {
+    throw new Error(`${label} closure rent recipient is not canonical`);
+  }
+}
+
 function appendFinalizationPlan(
   plans: KeeperInstructionPlan[],
   competition: CompetitionKind,
@@ -628,6 +746,8 @@ function appendFinalizationPlan(
   successorExists = false,
   finalDayId?: number,
   sealedDailies?: number,
+  qualificationStartDay?: number,
+  qualificationDayIds?: readonly number[],
 ): void {
   if (!ready || !settlement || !successorExists) return;
   const recipients = aggregateWinners(
@@ -646,6 +766,8 @@ function appendFinalizationPlan(
     ...successorContext(competition, id),
     ...(finalDayId === undefined ? {} : { finalDayId }),
     ...(sealedDailies === undefined ? {} : { sealedDailies }),
+    ...(qualificationStartDay === undefined ? {} : { qualificationStartDay }),
+    ...(qualificationDayIds === undefined ? {} : { qualificationDayIds }),
     competition,
     owners: recipients.map(({ owner }) => owner),
     payoutLamports: recipients.map(({ payoutLamports }) => payoutLamports),
@@ -771,7 +893,7 @@ function validatePrizeSchedule(
         .sort((left, right) => left.rank - right.rank);
       assertContiguousRanks(winners, `Weekly bounty ${bountyIndex}`);
       assertUnique(winners.map(({ owner }) => owner.toBase58()), `Weekly bounty ${bountyIndex} winner`);
-      assertExpectedPayouts(winners, budget, [60n, 25n, 15n]);
+      assertExpectedPayouts(winners, budget, WEEKLY_PRIZE_WEIGHTS);
     }
     if (settlement.winners.some(({ bountyIndex }) => bountyIndex === undefined)) {
       throw new Error("Weekly payout position is missing a bounty index");
@@ -783,19 +905,19 @@ function validatePrizeSchedule(
     throw new Error(`${competition} payout cannot carry a bounty index`);
   }
   assertContiguousRanks(winners, competition);
-  assertExpectedPayouts(winners, potLamports, [45n, 25n, 15n, 10n, 5n]);
+  assertExpectedPayouts(winners, potLamports, DAILY_PRIZE_WEIGHTS);
 }
 
 function assertExpectedPayouts(
   winners: readonly WinnerSnapshot[],
   budget: bigint,
-  weights: readonly bigint[],
+  weights: readonly number[],
 ): void {
   if (winners.length === 0) return;
   const denominator = weights.slice(0, winners.length)
-    .reduce((sum, weight) => sum + weight, 0n);
+    .reduce((sum, weight) => sum + BigInt(weight), 0n);
   winners.forEach((winner, index) => {
-    const expected = floorPayout((budget * weights[index]!) / denominator);
+    const expected = floorPayout((budget * BigInt(weights[index]!)) / denominator);
     if (winner.payoutLamports !== expected) {
       throw new Error("winner payout does not match the canonical prize schedule");
     }
@@ -828,14 +950,36 @@ function qualificationDailies(
   const dailies = new Map(snapshot.dailies.map((daily) => [daily.dayId, daily]));
   return Array.from({ length: count }, (_, offset) => dailies.get(startDay + offset))
     .every((daily) => daily?.status === "finalized" &&
+      daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
       (!requireSeasonSeal || daily.seasonRollupSealed));
 }
 
-function seasonQualificationDailies(snapshot: ProtocolSnapshot, startDay: number): number {
+function seasonQualificationDailies(
+  snapshot: ProtocolSnapshot,
+  startDay: number,
+  count: number,
+): number {
   const dailies = new Map(snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  return Array.from({ length: DAYS_PER_SEASON }, (_, offset) => dailies.get(startDay + offset))
-    .filter((daily) => daily?.status === "finalized" && daily.seasonRollupSealed)
+  return Array.from({ length: count }, (_, offset) => dailies.get(startDay + offset))
+    .filter((daily) => daily?.status === "finalized" &&
+      daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
+      daily.seasonRollupSealed)
     .length;
+}
+
+function weeklyRequiredDailies(weekly: WeeklySnapshot): number {
+  return weekStartDay(weekly.weekId) + DAYS_PER_WEEK - weekly.qualificationStartDay;
+}
+
+function seasonRequiredDailies(season: SeasonSnapshot): number {
+  return seasonStartDay(season.seasonId) + DAYS_PER_SEASON - season.qualificationStartDay;
+}
+
+function cadenceRange(first: number, lastInclusive: number): number[] {
+  if (lastInclusive < first || lastInclusive - first >= DAYS_PER_SEASON) {
+    throw new Error("qualification cadence range is invalid");
+  }
+  return Array.from({ length: lastInclusive - first + 1 }, (_, offset) => first + offset);
 }
 
 function firstMissingCadence<T>(

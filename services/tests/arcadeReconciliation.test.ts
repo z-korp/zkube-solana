@@ -9,6 +9,7 @@ import {
   SECONDS_PER_DAY,
   seasonIdForDay,
   seasonStartDay,
+  playerFundingPda,
   rulesCatalogPda,
   weekIdForDay,
   weekStartDay,
@@ -32,6 +33,7 @@ describe("v4 keeper reconciliation", () => {
       dailies: [daily(DAY, "funding")],
       weeklies: [{
         weekId: 2_949,
+        qualificationStartDay: DAY,
         status: "funding",
         closesAt: 20_654 * SECONDS_PER_DAY,
         potLamports: 0n,
@@ -183,11 +185,13 @@ describe("v4 keeper reconciliation", () => {
         settlement: emptySettlement,
       })],
       weeklies: [weekly(currentWeek, "open", {
+        qualificationStartDay: weekStartDay(currentWeek),
         predecessorRolloverRequired: true,
         predecessorRolloverApplied: false,
         settlement: emptySettlement,
       })],
       seasons: [season(currentSeason, "open", {
+        qualificationStartDay: seasonStartDay(currentSeason),
         predecessorRolloverRequired: true,
         predecessorRolloverApplied: false,
         settlement: emptySettlement,
@@ -429,6 +433,7 @@ describe("v4 keeper reconciliation", () => {
         launchDayId: weekStart,
         dailies: qualification,
         weeklies: [weekly(week, "finalized", {
+          qualificationStartDay: weekStart,
           potLamports: 60_000_000n,
           predecessorRolloverRequired: false,
           qualificationDailiesComplete: true,
@@ -462,6 +467,7 @@ describe("v4 keeper reconciliation", () => {
         launchDayId: seasonStart,
         dailies: seasonDailies,
         seasons: [season(seasonId, "finalized", {
+          qualificationStartDay: seasonStart,
           potLamports: 10_000_000n,
           sealedDailies: 28,
           settlement: dailySettlement,
@@ -528,6 +534,155 @@ describe("v4 keeper reconciliation", () => {
       .toBe(true);
   });
 
+  it("finalizes launch-partial Weekly and Season qualification ranges", () => {
+    const launchDay = DAY;
+    const week = weekIdForDay(launchDay);
+    const weekEnd = weekStartDay(week) + 6;
+    const weeklyDailies = Array.from(
+      { length: weekEnd - launchDay + 1 },
+      (_, offset) => daily(launchDay + offset, "finalized", {
+        predecessorRolloverRequired: offset !== 0,
+        seasonRollupSealed: true,
+      }),
+    );
+    const weeklyPlans = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        launchDayId: launchDay,
+        dailies: weeklyDailies,
+        weeklies: [
+          weekly(week, "open", {
+            qualificationStartDay: launchDay,
+            predecessorRolloverRequired: false,
+            qualificationDailiesComplete: true,
+            settlement: { winners: [], rolloverLamports: 0n },
+          }),
+          weekly(week + 1, "funding", {
+            qualificationStartDay: weekStartDay(week + 1),
+          }),
+        ],
+      }),
+      nowUnix: (weekEnd + 1) * SECONDS_PER_DAY + 6 * 60 * 60,
+    });
+    expect(weeklyPlans).toContainEqual(expect.objectContaining({
+      operation: "finalize_weekly_jackpot",
+      context: expect.objectContaining({
+        qualificationStartDay: launchDay,
+        qualificationDayIds: Array.from(
+          { length: weekEnd - launchDay + 1 },
+          (_, offset) => launchDay + offset,
+        ),
+      }),
+    }));
+
+    const seasonId = seasonIdForDay(launchDay);
+    const seasonEnd = seasonStartDay(seasonId) + 27;
+    const seasonDailies = Array.from(
+      { length: seasonEnd - launchDay + 1 },
+      (_, offset) => daily(launchDay + offset, "finalized", {
+        predecessorRolloverRequired: offset !== 0,
+        seasonRollupSealed: true,
+      }),
+    );
+    const seasonPlans = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        launchDayId: launchDay,
+        dailies: seasonDailies,
+        seasons: [
+          season(seasonId, "open", {
+            qualificationStartDay: launchDay,
+            predecessorRolloverRequired: false,
+            sealedDailies: seasonEnd - launchDay + 1,
+            settlement: { winners: [], rolloverLamports: 0n },
+          }),
+          season(seasonId + 1, "funding", {
+            qualificationStartDay: seasonStartDay(seasonId + 1),
+            predecessorRolloverRequired: true,
+          }),
+        ],
+      }),
+      nowUnix: (seasonEnd + 1) * SECONDS_PER_DAY + 6 * 60 * 60,
+    });
+    expect(seasonPlans).toContainEqual(expect.objectContaining({
+      operation: "finalize_season",
+      context: expect.objectContaining({
+        qualificationStartDay: launchDay,
+        sealedDailies: seasonEnd - launchDay + 1,
+      }),
+    }));
+  });
+
+  it("discovers only finalized participant cleanup with canonical rent recipients", () => {
+    const seasonId = seasonIdForDay(DAY);
+    const launchDay = seasonStartDay(seasonId) + 27;
+    const arenaOwner = Keypair.generate().publicKey;
+    const seasonOwner = Keypair.generate().publicKey;
+    const snapshot = baseSnapshot({
+      launchDayId: launchDay,
+      dailies: [daily(launchDay, "finalized", {
+        predecessorRolloverRequired: false,
+        seasonRollupSealed: true,
+      })],
+      seasons: [season(seasonId, "finalized", {
+        qualificationStartDay: launchDay,
+        predecessorRolloverRequired: false,
+        sealedDailies: 1,
+      })],
+      arenaPlayerClosures: [{
+        dayId: launchDay,
+        owner: arenaOwner,
+        rentRecipient: playerFundingPda(arenaOwner),
+      }],
+      seasonPlayerClosures: [{
+        seasonId,
+        owner: seasonOwner,
+        rentRecipient: playerFundingPda(seasonOwner),
+      }],
+    });
+    const operations = discoverReconciliationPlans({
+      snapshot,
+      nowUnix: (launchDay + 1) * SECONDS_PER_DAY,
+    }).map(({ operation }) => operation);
+    expect(operations).toContain("close_arena_player");
+    expect(operations).toContain("close_season_player");
+
+    const malformed = {
+      ...snapshot,
+      arenaPlayerClosures: [{
+        ...snapshot.arenaPlayerClosures[0]!,
+        rentRecipient: Keypair.generate().publicKey,
+      }],
+    };
+    expect(() => validateProtocolSnapshot(malformed)).toThrow("not canonical");
+  });
+
+  it("rejects partial qualification starts after the launch periods", () => {
+    const week = weekIdForDay(DAY);
+    const seasonId = seasonIdForDay(DAY);
+    const snapshot = baseSnapshot({
+      weeklies: [
+        weekly(week, "funding", {
+          qualificationStartDay: DAY,
+          predecessorRolloverRequired: false,
+        }),
+        weekly(week + 1, "funding", {
+          qualificationStartDay: weekStartDay(week + 1) + 1,
+        }),
+      ],
+      seasons: [
+        season(seasonId, "funding", {
+          qualificationStartDay: DAY,
+          predecessorRolloverRequired: false,
+        }),
+        season(seasonId + 1, "funding", {
+          qualificationStartDay: seasonStartDay(seasonId + 1),
+          predecessorRolloverRequired: true,
+        }),
+      ],
+    });
+    expect(() => validateProtocolSnapshot(snapshot))
+      .toThrow("Weekly qualification start");
+  });
+
   it("rejects noncanonical payout schedules before planning", () => {
     const malformed = baseSnapshot({
       dailies: [daily(DAY, "open", {
@@ -558,6 +713,8 @@ function baseSnapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapsh
     runs: [],
     dailySeasonPlayers: [],
     playerStateOwners: [],
+    arenaPlayerClosures: [],
+    seasonPlayerClosures: [],
     ...overrides,
   };
 }
@@ -593,6 +750,9 @@ function season(
 ): SeasonSnapshot {
   return {
     seasonId,
+    qualificationStartDay: seasonId === seasonIdForDay(DAY)
+      ? DAY
+      : seasonStartDay(seasonId),
     status,
     closesAt: (seasonId * 28 + 32) * SECONDS_PER_DAY,
     potLamports: 0n,
@@ -611,6 +771,9 @@ function weekly(
 ): WeeklySnapshot {
   return {
     weekId,
+    qualificationStartDay: weekId === weekIdForDay(DAY)
+      ? DAY
+      : weekStartDay(weekId),
     status,
     closesAt: (weekStartDay(weekId) + 7) * SECONDS_PER_DAY,
     potLamports: 0n,

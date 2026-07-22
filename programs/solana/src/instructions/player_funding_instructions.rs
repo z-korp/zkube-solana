@@ -261,7 +261,7 @@ pub fn handler_funded_prepare_campaign_run(
 
 #[derive(Accounts)]
 #[instruction(run_id: u64, expected_entry_lamports: u64)]
-pub struct FundedEnterArenaV2<'info> {
+pub struct FundedEnterArena<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     /// CHECK: Fully constrained by the inner instruction.
@@ -302,12 +302,12 @@ pub struct FundedEnterArenaV2<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-pub fn handler_funded_enter_arena_v2(
-    ctx: Context<FundedEnterArenaV2>,
+pub fn handler_funded_enter_arena(
+    ctx: Context<FundedEnterArena>,
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
-    let accounts = crate::accounts::EnterArenaV2 {
+    let accounts = crate::accounts::EnterArena {
         protocol: ctx.accounts.protocol.key(),
         arcade_config: ctx.accounts.arcade_config.key(),
         player_state: ctx.accounts.player_state.key(),
@@ -327,7 +327,7 @@ pub fn handler_funded_enter_arena_v2(
     let instruction = Instruction {
         program_id: crate::ID,
         accounts: accounts.to_account_metas(None),
-        data: crate::instruction::EnterArenaV2 {
+        data: crate::instruction::EnterArena {
             run_id,
             expected_entry_lamports,
         }
@@ -362,7 +362,7 @@ pub fn handler_funded_enter_arena_v2(
 
 #[derive(Accounts)]
 #[instruction(run_id: u64)]
-pub struct FundedPreparePracticeRunV2<'info> {
+pub struct FundedPreparePracticeRun<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
@@ -382,11 +382,11 @@ pub struct FundedPreparePracticeRunV2<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-pub fn handler_funded_prepare_practice_run_v2(
-    ctx: Context<FundedPreparePracticeRunV2>,
+pub fn handler_funded_prepare_practice_run(
+    ctx: Context<FundedPreparePracticeRun>,
     run_id: u64,
 ) -> Result<()> {
-    let accounts = crate::accounts::PreparePracticeRunV2 {
+    let accounts = crate::accounts::PreparePracticeRun {
         protocol: ctx.accounts.protocol.key(),
         player_state: ctx.accounts.player_state.key(),
         arena_daily: ctx.accounts.arena_daily.key(),
@@ -400,7 +400,7 @@ pub fn handler_funded_prepare_practice_run_v2(
     let instruction = Instruction {
         program_id: crate::ID,
         accounts: accounts.to_account_metas(None),
-        data: crate::instruction::PreparePracticeRunV2 { run_id }.data(),
+        data: crate::instruction::PreparePracticeRun { run_id }.data(),
     };
     let infos = [
         ctx.accounts.protocol.to_account_info(),

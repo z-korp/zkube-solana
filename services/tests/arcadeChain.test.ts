@@ -19,7 +19,7 @@ import {
 describe("Arcade cadence math", () => {
   it("keeps protocol-run and Arcade account versions distinct", () => {
     expect(PROTOCOL_ACCOUNT_VERSION).toBe(2);
-    expect(ARCADE_ACCOUNT_VERSION).toBe(3);
+    expect(ARCADE_ACCOUNT_VERSION).toBe(4);
   });
 
   it("matches the on-chain 05:30 UTC settlement delay", () => {

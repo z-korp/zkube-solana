@@ -253,7 +253,7 @@ export async function buildPrepareDailyRunPlan(args: {
   const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
   await assertPreparedRunAddressesAvailable(args.connection, owner, args.daily.nextRunId, addresses);
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedEnterArenaV2(
+    .methods.fundedEnterArena(
       new BN(args.daily.nextRunId.toString()),
       new BN(args.daily.entryLamports.toString()),
     )
@@ -321,7 +321,7 @@ export async function buildPreparePracticeRunPlan(args: {
     addresses,
   );
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedPreparePracticeRunV2(new BN(args.daily.nextRunId.toString()))
+    .methods.fundedPreparePracticeRun(new BN(args.daily.nextRunId.toString()))
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerState: derivePlayerStatePda(owner),

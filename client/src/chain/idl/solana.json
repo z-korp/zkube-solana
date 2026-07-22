@@ -1681,16 +1681,16 @@
       "args": []
     },
     {
-      "name": "enter_arena_v2",
+      "name": "enter_arena",
       "discriminator": [
-        140,
-        111,
-        95,
-        231,
-        103,
-        164,
-        68,
-        12
+        237,
+        44,
+        241,
+        163,
+        152,
+        39,
+        13,
+        181
       ],
       "accounts": [
         {
@@ -2351,34 +2351,6 @@
           }
         },
         {
-          "name": "final_daily",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "final_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
           "name": "following_weekly",
           "writable": true,
           "pda": {
@@ -2660,16 +2632,16 @@
       "args": []
     },
     {
-      "name": "funded_enter_arena_v2",
+      "name": "funded_enter_arena",
       "discriminator": [
-        194,
-        172,
-        195,
-        228,
-        42,
+        206,
+        116,
         24,
-        133,
-        221
+        77,
+        137,
+        195,
+        205,
+        22
       ],
       "accounts": [
         {
@@ -2870,16 +2842,16 @@
       ]
     },
     {
-      "name": "funded_prepare_practice_run_v2",
+      "name": "funded_prepare_practice_run",
       "discriminator": [
-        154,
-        73,
-        19,
-        31,
-        182,
-        127,
-        97,
-        207
+        205,
+        132,
+        68,
+        193,
+        175,
+        77,
+        42,
+        109
       ],
       "accounts": [
         {
@@ -3607,16 +3579,16 @@
       ]
     },
     {
-      "name": "prepare_practice_run_v2",
+      "name": "prepare_practice_run",
       "discriminator": [
-        48,
-        225,
-        138,
-        18,
-        62,
-        160,
-        218,
-        18
+        116,
+        161,
+        68,
+        10,
+        197,
+        139,
+        113,
+        44
       ],
       "accounts": [
         {
@@ -7561,6 +7533,14 @@
             "type": "u32"
           },
           {
+            "name": "qualification_start_day",
+            "docs": [
+              "First Daily eligible for this Season. The launch Season may start",
+              "mid-period; successor Seasons always use their natural Monday."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "arcade_config",
             "type": "pubkey"
           },
@@ -7748,6 +7728,14 @@
           },
           {
             "name": "week_id",
+            "type": "u32"
+          },
+          {
+            "name": "qualification_start_day",
+            "docs": [
+              "First Daily whose ranked runs can qualify for this Weekly. The launch",
+              "Weekly may start mid-period; all successors use the natural Monday."
+            ],
             "type": "u32"
           },
           {

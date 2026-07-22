@@ -11,6 +11,7 @@ async function main(): Promise<void> {
         "zKube Devnet ProgramData extension planner",
         "",
         "Required for an executable extension preview:",
+        "  ZKUBE_DEPLOY_MODE=upgrade",
         "  ZKUBE_DEPLOYER_KEYPAIR=<funded Devnet payer path>",
         "For a public, non-executable preview:",
         "  ZKUBE_EXTENSION_PAYER_PUBLIC_KEY=<funded Devnet payer address>",

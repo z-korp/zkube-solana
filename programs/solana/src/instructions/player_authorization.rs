@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn generated_arena_entry_metas_keep_sol_spending_owner_signed() {
         let owner = Pubkey::new_unique();
-        let entry = crate::accounts::EnterArenaV2 {
+        let entry = crate::accounts::EnterArena {
             protocol: Pubkey::new_unique(),
             arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),

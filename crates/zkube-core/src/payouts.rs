@@ -1,5 +1,7 @@
 /// Protocol payout granularity: 0.001 SOL expressed in lamports.
 pub const SOL_PAYOUT_UNIT_LAMPORTS: u64 = 1_000_000;
+pub const DAILY_PRIZE_WEIGHTS: [u16; 5] = [45, 25, 15, 10, 5];
+pub const WEEKLY_PRIZE_WEIGHTS: [u16; 3] = [60, 25, 15];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PayoutError {

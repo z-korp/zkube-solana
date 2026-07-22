@@ -15,14 +15,13 @@ pub const WEEKLY_JACKPOT_SEED: &[u8] = b"weekly_jackpot";
 pub const SEASON_SEED: &[u8] = b"season";
 pub const SEASON_PLAYER_SEED: &[u8] = b"season_player";
 
-pub const ARENA_ENTRY_LAMPORTS: u64 = 20_000_000;
-pub const ENTRY_DAILY_LAMPORTS: u64 = 12_000_000;
-pub const ENTRY_WEEKLY_LAMPORTS: u64 = 4_000_000;
-pub const ENTRY_SEASON_LAMPORTS: u64 = 2_000_000;
-pub const ENTRY_OPERATOR_LAMPORTS: u64 = 2_000_000;
-pub const PAYOUT_UNIT_LAMPORTS: u64 = 1_000_000;
-pub const DAILY_PRIZE_WEIGHTS: [u16; 5] = [45, 25, 15, 10, 5];
-pub const WEEKLY_PRIZE_WEIGHTS: [u16; 3] = [60, 25, 15];
+pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
+pub const ENTRY_DAILY_LAMPORTS: u64 = zkube_core::ENTRY_DAILY_LAMPORTS;
+pub const ENTRY_WEEKLY_LAMPORTS: u64 = zkube_core::ENTRY_WEEKLY_LAMPORTS;
+pub const ENTRY_SEASON_LAMPORTS: u64 = zkube_core::ENTRY_SEASON_LAMPORTS;
+pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
+pub const DAILY_PRIZE_WEIGHTS: [u16; 5] = zkube_core::DAILY_PRIZE_WEIGHTS;
+pub const WEEKLY_PRIZE_WEIGHTS: [u16; 3] = zkube_core::WEEKLY_PRIZE_WEIGHTS;
 pub const ARENA_BOARD_CAPACITY: usize = 50;
 pub const WEEKLY_BOARD_CAPACITY: usize = 16;
 pub const SEASON_BOARD_CAPACITY: usize = 50;
@@ -123,9 +122,6 @@ pub enum PeriodStatus {
     Open,
     Finalized,
 }
-
-pub type ArenaDailyStatus = PeriodStatus;
-pub type WeeklyStatus = PeriodStatus;
 
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
@@ -406,6 +402,9 @@ pub struct MetricBoardEntry {
 pub struct WeeklyJackpot {
     pub version: u8,
     pub week_id: u32,
+    /// First Daily whose ranked runs can qualify for this Weekly. The launch
+    /// Weekly may start mid-period; all successors use the natural Monday.
+    pub qualification_start_day: u32,
     pub arcade_config: Pubkey,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
@@ -427,6 +426,14 @@ pub struct WeeklyJackpot {
 }
 
 impl WeeklyJackpot {
+    pub fn qualified_day_count(&self) -> Result<u8> {
+        qualified_day_count(
+            self.qualification_start_day,
+            week_start_day(self.week_id)?,
+            DAYS_PER_WEEK,
+        )
+    }
+
     pub fn record_run(&mut self, daily: Pubkey, entry: ArenaBoardEntry) {
         for index in 0..3 {
             let candidate = MetricBoardEntry {
@@ -553,6 +560,9 @@ pub struct SeasonBoardEntry {
 pub struct Season {
     pub version: u8,
     pub season_id: u32,
+    /// First Daily eligible for this Season. The launch Season may start
+    /// mid-period; successor Seasons always use their natural Monday.
+    pub qualification_start_day: u32,
     pub arcade_config: Pubkey,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
@@ -569,6 +579,14 @@ pub struct Season {
 }
 
 impl Season {
+    pub fn qualified_day_count(&self) -> Result<u8> {
+        qualified_day_count(
+            self.qualification_start_day,
+            season_start_day(self.season_id)?,
+            DAYS_PER_SEASON,
+        )
+    }
+
     pub fn record(&mut self, entry: SeasonBoardEntry) {
         self.entries
             .retain(|current| current.player != entry.player);
@@ -682,10 +700,6 @@ pub fn aggregate_weekly_recipients(
     Ok(recipients)
 }
 
-pub const fn floor_payout(lamports: u64) -> u64 {
-    lamports / zkube_core::SOL_PAYOUT_UNIT_LAMPORTS * zkube_core::SOL_PAYOUT_UNIT_LAMPORTS
-}
-
 pub fn weekly_bounty_budget(pool: u64) -> u64 {
     zkube_core::equal_sol_unit_budgets::<3>(pool)
         .map(|plan| plan.budgets[0])
@@ -752,6 +766,18 @@ pub fn season_window(season_id: u32) -> Result<(i64, i64)> {
             .checked_add(i64::from(DAYS_PER_SEASON) * ARCADE_SECONDS_PER_DAY)
             .ok_or(ErrorCode::ArithmeticOverflow)?,
     ))
+}
+
+fn qualified_day_count(qualification_start_day: u32, period_start: u32, days: u32) -> Result<u8> {
+    let period_end = period_start
+        .checked_add(days)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    require!(
+        (period_start..period_end).contains(&qualification_start_day),
+        ErrorCode::InvalidPeriod
+    );
+    u8::try_from(period_end - qualification_start_day)
+        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
 pub fn period_settlement_ready(now: i64, closes_at: i64) -> bool {
@@ -865,6 +891,28 @@ mod tests {
         let (season_open, season_close) = season_window(730).unwrap();
         assert_eq!(season_close - season_open, 28 * ARCADE_SECONDS_PER_DAY);
         assert_eq!((season_open / ARCADE_SECONDS_PER_DAY - 4).rem_euclid(7), 0);
+    }
+
+    #[test]
+    fn qualification_counts_support_mid_period_launches() {
+        let week_start = week_start_day(2_950).unwrap();
+        assert_eq!(qualified_day_count(week_start, week_start, 7).unwrap(), 7);
+        assert_eq!(
+            qualified_day_count(week_start + 5, week_start, 7).unwrap(),
+            2
+        );
+        assert!(qualified_day_count(week_start - 1, week_start, 7).is_err());
+        assert!(qualified_day_count(week_start + 7, week_start, 7).is_err());
+
+        let season_start = season_start_day(730).unwrap();
+        assert_eq!(
+            qualified_day_count(season_start, season_start, 28).unwrap(),
+            28
+        );
+        assert_eq!(
+            qualified_day_count(season_start + 9, season_start, 28).unwrap(),
+            19
+        );
     }
 
     #[test]

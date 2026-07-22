@@ -1687,16 +1687,16 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "enterArenaV2",
+      "name": "enterArena",
       "discriminator": [
-        140,
-        111,
-        95,
-        231,
-        103,
-        164,
-        68,
-        12
+        237,
+        44,
+        241,
+        163,
+        152,
+        39,
+        13,
+        181
       ],
       "accounts": [
         {
@@ -2357,34 +2357,6 @@ export type Solana = {
           }
         },
         {
-          "name": "finalDaily",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "final_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
           "name": "followingWeekly",
           "writable": true,
           "pda": {
@@ -2666,16 +2638,16 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "fundedEnterArenaV2",
+      "name": "fundedEnterArena",
       "discriminator": [
-        194,
-        172,
-        195,
-        228,
-        42,
+        206,
+        116,
         24,
-        133,
-        221
+        77,
+        137,
+        195,
+        205,
+        22
       ],
       "accounts": [
         {
@@ -2876,16 +2848,16 @@ export type Solana = {
       ]
     },
     {
-      "name": "fundedPreparePracticeRunV2",
+      "name": "fundedPreparePracticeRun",
       "discriminator": [
-        154,
-        73,
-        19,
-        31,
-        182,
-        127,
-        97,
-        207
+        205,
+        132,
+        68,
+        193,
+        175,
+        77,
+        42,
+        109
       ],
       "accounts": [
         {
@@ -3613,16 +3585,16 @@ export type Solana = {
       ]
     },
     {
-      "name": "preparePracticeRunV2",
+      "name": "preparePracticeRun",
       "discriminator": [
-        48,
-        225,
-        138,
-        18,
-        62,
-        160,
-        218,
-        18
+        116,
+        161,
+        68,
+        10,
+        197,
+        139,
+        113,
+        44
       ],
       "accounts": [
         {
@@ -7567,6 +7539,14 @@ export type Solana = {
             "type": "u32"
           },
           {
+            "name": "qualificationStartDay",
+            "docs": [
+              "First Daily eligible for this Season. The launch Season may start",
+              "mid-period; successor Seasons always use their natural Monday."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "arcadeConfig",
             "type": "pubkey"
           },
@@ -7754,6 +7734,14 @@ export type Solana = {
           },
           {
             "name": "weekId",
+            "type": "u32"
+          },
+          {
+            "name": "qualificationStartDay",
+            "docs": [
+              "First Daily whose ranked runs can qualify for this Weekly. The launch",
+              "Weekly may start mid-period; all successors use the natural Monday."
+            ],
             "type": "u32"
           },
           {

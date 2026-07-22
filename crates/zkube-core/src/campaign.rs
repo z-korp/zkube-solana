@@ -1,10 +1,13 @@
 use crate::{
-    BlockWeights, Bonus, Constraint, ConstraintKind, EndlessRules, LevelRules, MoveReport,
-    MutatorRules, RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
-    calculate_level_stars, opening_from_vrf, row_from_vrf,
+    BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
+    RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256, calculate_level_stars,
+    opening_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
+/// Retained in the randomness preimage so finite-level output remains
+/// byte-identical after removing the never-shipped Endless variant.
+const CAMPAIGN_LEVEL_MODE_TAG: u8 = 0;
 pub const CAMPAIGN_MAP_COUNT: usize = 10;
 pub const CAMPAIGN_LEVELS_PER_MAP: usize = 10;
 pub const CAMPAIGN_TOTAL_LEVELS: usize = CAMPAIGN_MAP_COUNT * CAMPAIGN_LEVELS_PER_MAP;
@@ -12,22 +15,6 @@ pub const CAMPAIGN_STAR_BYTES: usize = CAMPAIGN_TOTAL_LEVELS / 4;
 pub const CAMPAIGN_MAX_STARS: u16 = 300;
 const CAMPAIGN_MAP_COUNT_U8: u8 = 10;
 const CAMPAIGN_LEVELS_PER_MAP_U8: u8 = 10;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CampaignMode {
-    Level,
-    Endless,
-}
-
-impl CampaignMode {
-    #[must_use]
-    pub const fn tag(self) -> u8 {
-        match self {
-            Self::Level => 0,
-            Self::Endless => 1,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CampaignEndReason {
@@ -56,7 +43,6 @@ pub struct CampaignRules {
     pub starting_height: u8,
     pub level_difficulty: u8,
     pub block_weights: [[u16; 5]; 8],
-    pub endless: EndlessRules,
 }
 
 impl CampaignRules {
@@ -84,17 +70,6 @@ impl CampaignRules {
                 BlockWeights { values: *weights }.validate().is_ok()
                     && weights.iter().map(|value| u32::from(*value)).sum::<u32>() == 100
             })
-            && self.endless.ramp_multiplier_x100 > 0
-            && self
-                .endless
-                .thresholds
-                .windows(2)
-                .all(|pair| pair[0] < pair[1])
-            && self
-                .endless
-                .score_multipliers_x100
-                .iter()
-                .all(|value| *value > 0)
     }
 
     #[must_use]
@@ -110,11 +85,10 @@ pub struct CampaignSimulationConfig {
     pub content_version: u32,
     pub content_hash: [u8; 32],
     pub map_id: u8,
-    /// Level 1..=10 for finite runs and zero for Endless.
+    /// Finite Campaign level 1..=10.
     pub level_id: u8,
     pub attempt: u64,
     pub seed: [u8; 32],
-    pub mode: CampaignMode,
     pub rules: CampaignRules,
 }
 
@@ -125,7 +99,6 @@ pub struct CampaignSimulation {
     pub map_id: u8,
     pub level_id: u8,
     pub attempt: u64,
-    pub mode: CampaignMode,
     pub engine: RunEngine,
     pub action_counter: u32,
     pub row_counter: u32,
@@ -168,17 +141,11 @@ impl CampaignSimulation {
         if !config.rules.is_valid()
             || config.content_version == 0
             || !(1..=CAMPAIGN_MAP_COUNT_U8).contains(&config.map_id)
-            || match config.mode {
-                CampaignMode::Level => !(1..=CAMPAIGN_LEVELS_PER_MAP_U8).contains(&config.level_id),
-                CampaignMode::Endless => config.level_id != 0,
-            }
+            || !(1..=CAMPAIGN_LEVELS_PER_MAP_U8).contains(&config.level_id)
         {
             return Err(CampaignError::InvalidConfig);
         }
-        let current_difficulty = match config.mode {
-            CampaignMode::Level => config.rules.level_difficulty,
-            CampaignMode::Endless => 0,
-        };
+        let current_difficulty = config.rules.level_difficulty;
         let output = derive_randomness(config, 1);
         let opening = opening_from_vrf(
             output,
@@ -196,7 +163,6 @@ impl CampaignSimulation {
             map_id: config.map_id,
             level_id: config.level_id,
             attempt: config.attempt,
-            mode: config.mode,
             engine,
             action_counter: 0,
             row_counter: 1,
@@ -214,7 +180,6 @@ impl CampaignSimulation {
             && self.map_id == config.map_id
             && self.level_id == config.level_id
             && self.attempt == config.attempt
-            && self.mode == config.mode
             && config.rules.is_valid()
     }
 
@@ -244,8 +209,8 @@ impl CampaignSimulation {
             row,
             start,
             destination,
-            effective_level(config),
-            effective_mutator(config, next.current_difficulty)?,
+            config.rules.level,
+            config.rules.mutator,
         )?;
         next.accept_action(config, report)?;
         *self = next;
@@ -266,12 +231,9 @@ impl CampaignSimulation {
     ) -> Result<MoveReport, CampaignError> {
         self.require_transition(config)?;
         let mut next = *self;
-        let report = next.engine.apply_bonus(
-            row,
-            column,
-            effective_level(config),
-            effective_mutator(config, next.current_difficulty)?,
-        )?;
+        let report =
+            next.engine
+                .apply_bonus(row, column, config.rules.level, config.rules.mutator)?;
         next.accept_action(config, report)?;
         *self = next;
         Ok(report)
@@ -313,12 +275,9 @@ impl CampaignSimulation {
             .checked_add(1)
             .ok_or(CampaignError::Overflow)?;
         self.last_report = report;
-        if self.mode == CampaignMode::Endless {
-            self.current_difficulty = config.rules.endless.difficulty_for_score(self.engine.score);
-        }
         match self.engine.phase {
             RunPhase::AwaitingVrf => self.provide_next_row(config)?,
-            RunPhase::LevelComplete if self.mode == CampaignMode::Level => {
+            RunPhase::LevelComplete => {
                 self.end_reason = Some(CampaignEndReason::Completed);
                 self.earned_stars = calculate_level_stars(
                     config.rules.level.max_moves,
@@ -326,7 +285,7 @@ impl CampaignSimulation {
                     config.rules.mutator.star_threshold_modifier,
                 );
             }
-            RunPhase::LevelComplete | RunPhase::Finished => {
+            RunPhase::Finished => {
                 self.engine.phase = RunPhase::Finished;
                 self.engine.next_row = None;
                 self.end_reason = Some(CampaignEndReason::Exhausted);
@@ -360,41 +319,11 @@ fn derive_randomness(config: CampaignSimulationConfig, request_counter: u32) -> 
         CAMPAIGN_RANDOMNESS_DOMAIN,
         &config.content_hash,
         &config.content_version.to_le_bytes(),
-        &[config.map_id, config.level_id, config.mode.tag()],
+        &[config.map_id, config.level_id, CAMPAIGN_LEVEL_MODE_TAG],
         &config.attempt.to_le_bytes(),
         &request_counter.to_le_bytes(),
         &config.seed,
     ])
-}
-
-fn effective_level(config: CampaignSimulationConfig) -> LevelRules {
-    match config.mode {
-        CampaignMode::Level => config.rules.level,
-        CampaignMode::Endless => LevelRules {
-            points_required: u32::MAX,
-            max_moves: u16::MAX,
-            primary: Constraint::default(),
-            secondary: Constraint::default(),
-        },
-    }
-}
-
-fn effective_mutator(
-    config: CampaignSimulationConfig,
-    difficulty: u8,
-) -> Result<MutatorRules, CampaignError> {
-    if config.mode == CampaignMode::Level {
-        return Ok(config.rules.mutator);
-    }
-    let multiplier = u32::from(config.rules.mutator.score_multiplier_x100)
-        .checked_mul(u32::from(config.rules.endless.score_multiplier(difficulty)))
-        .and_then(|value| value.checked_div(100))
-        .and_then(|value| u16::try_from(value).ok())
-        .ok_or(CampaignError::Overflow)?;
-    Ok(MutatorRules {
-        score_multiplier_x100: multiplier,
-        ..config.rules.mutator
-    })
 }
 
 fn constraint_is_valid(value: Constraint) -> bool {
@@ -545,15 +474,14 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 mod tests {
     use super::*;
 
-    fn config(mode: CampaignMode) -> CampaignSimulationConfig {
+    fn config() -> CampaignSimulationConfig {
         CampaignSimulationConfig {
             content_version: 2,
             content_hash: [7; 32],
             map_id: 1,
-            level_id: u8::from(mode == CampaignMode::Level),
+            level_id: 1,
             attempt: 9,
             seed: [11; 32],
-            mode,
             rules: CampaignRules {
                 level: LevelRules::default(),
                 mutator: MutatorRules::default(),
@@ -562,17 +490,16 @@ mod tests {
                 starting_height: 4,
                 level_difficulty: 0,
                 block_weights: [[20; 5]; 8],
-                endless: EndlessRules::default(),
             },
         }
     }
 
     #[test]
     fn campaign_opening_is_seeded_and_reproducible() {
-        let first = CampaignSimulation::new(config(CampaignMode::Level)).unwrap();
-        let second = CampaignSimulation::new(config(CampaignMode::Level)).unwrap();
+        let first = CampaignSimulation::new(config()).unwrap();
+        let second = CampaignSimulation::new(config()).unwrap();
         assert_eq!(first, second);
-        let mut changed = config(CampaignMode::Level);
+        let mut changed = config();
         changed.attempt += 1;
         assert_ne!(
             first.engine.grid,
