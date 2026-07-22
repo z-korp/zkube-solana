@@ -38,7 +38,7 @@ export function nextDailyResetUnix(
   return (currentDailyDayId(nowUnix) + 1) * 86_400;
 }
 
-/** Unix time (seconds) when Monday's weekly quest cadence resets. */
+/** Unix time (seconds) when Monday's weekly cadence resets. */
 export function nextWeeklyResetUnix(
   nowUnix = Math.floor(Date.now() / 1_000),
 ): number {

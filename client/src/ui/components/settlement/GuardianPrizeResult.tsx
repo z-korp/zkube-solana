@@ -15,6 +15,12 @@ interface GuardianPrizeResultProps {
   amountLamports: bigint;
   /** Which period paid. */
   periodLabel: "Daily" | "Weekly" | "Season";
+  /**
+   * Best payout-bearing rank on the period record (0 = none, hidden). This is the
+   * lifetime-best rank carried on PlayerState, not necessarily this exact
+   * placement, so it is framed as "Best" rather than claiming this win's rank.
+   */
+  bestPrizeRank?: number;
 }
 
 /**
@@ -30,6 +36,7 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   zoneId,
   amountLamports,
   periodLabel,
+  bestPrizeRank = 0,
 }) => {
   const colors = useThemeColors();
   const reduceMotion = useReducedMotion();
@@ -47,6 +54,15 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
         >
           {periodLabel} prize
         </span>
+
+        {bestPrizeRank > 0 && (
+          <span
+            className="-mt-2 font-sans text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/50"
+            title="Best payout-bearing finish on this board"
+          >
+            Best #{bestPrizeRank}
+          </span>
+        )}
 
         <div className="relative flex flex-col items-center">
           <GuardianMedallion zoneId={zoneId} size={96} glow />

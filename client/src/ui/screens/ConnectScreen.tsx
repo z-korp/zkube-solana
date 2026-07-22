@@ -1,14 +1,14 @@
 import { motion } from "motion/react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import AmbientWeather from "@/ui/components/shared/AmbientWeather";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import ThemeBackground from "@/ui/components/shared/ThemeBackground";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
 
 /** The only application surface available before wallet + session readiness. */
 export default function ConnectScreen() {
-  const player = useConnectedPlayer();
   const { themeTemplate } = useTheme();
   const images = ImageAssets(themeTemplate);
 
@@ -23,6 +23,7 @@ export default function ConnectScreen() {
             style={{ backgroundImage: `url('${images.loadingBackground}')` }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/95" />
+          <AmbientWeather className="absolute inset-0 z-[1] h-full w-full" density={80} />
 
           <div className="relative z-10 flex w-full max-w-sm flex-1 flex-col items-center justify-center text-center">
             <motion.img
@@ -32,23 +33,18 @@ export default function ConnectScreen() {
               className="w-56 max-w-[75vw] drop-shadow-2xl"
               animate={{ y: [0, -4, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <p className="mt-7 font-sans text-sm font-semibold leading-6 text-white/75">
-              Connect your Solana wallet to enter. The same approval enables
-              seven days of silent gameplay on this device.
-            </p>
-          </div>
+            />          </div>
 
-          <div className="relative z-10 w-full max-w-sm space-y-3">
+          <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-2.5">
             <ConnectCta label="CONNECT & ENABLE" />
-            {player.error && (
-              <p role="alert" className="text-center font-sans text-xs leading-5 text-red-200">
-                {player.error}
+            <InfoSheet label="How enabling works" title="Enable zKube">
+              <p>
+                Connecting your Solana wallet enters you as a player. The same
+                approval enables about seven days of silent gameplay on this
+                device.
               </p>
-            )}
-            <p className="text-center font-sans text-[11px] leading-4 text-white/45">
-              zKube never requests your seed phrase or wallet private key.
-            </p>
+              <p>zKube never asks for your seed phrase or private key.</p>
+            </InfoSheet>
           </div>
         </div>
       </div>

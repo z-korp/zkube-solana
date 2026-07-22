@@ -217,6 +217,7 @@ const HomePage: React.FC = () => {
           zoneId={zoneId}
           amountLamports={prize.amountLamports}
           periodLabel={prize.periodLabel}
+          bestPrizeRank={prize.bestPrizeRank}
         />
       )}
     </div>

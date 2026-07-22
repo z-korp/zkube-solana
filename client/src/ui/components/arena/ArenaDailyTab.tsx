@@ -12,7 +12,6 @@ import { ZONE_NAMES } from "@/config/profileData";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
-import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
@@ -31,7 +30,6 @@ import {
   PrizeLadder,
   computePayouts,
 } from "@/ui/components/economy";
-import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import LoadingState from "@/ui/components/shared/LoadingState";
@@ -54,14 +52,13 @@ const rowVariants = {
 };
 
 /**
- * The whole daily loop on one screen: today's rules, the enter/resume CTA,
- * the live board (rows spectate on tap), and yesterday's result.
+ * The daily leaderboard on one screen: today's rules and the live board
+ * (rows spectate on tap). Entering a ranked run lives on the Arcade home.
  */
 const ArenaDailyTab: React.FC = () => {
   const colors = useThemeColors();
   const { address } = useAccount();
   const daily = useDaily();
-  const activeDailyRun = useActiveDailyAttempt();
   const { challenge, isLoading: challengeLoading } = useCurrentChallenge();
   const { entries: dailyEntries, isLoading: boardLoading } =
     useDailyLeaderboard(challenge?.challenge_id);
@@ -73,25 +70,15 @@ const ArenaDailyTab: React.FC = () => {
   const setSpectateTarget = useNavigationStore(
     (state) => state.setSpectateTarget,
   );
-  const [starting, setStarting] = useState(false);
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
 
   const now = Math.floor(Date.now() / 1000);
-  const hasActiveDailyRun = Boolean(activeDailyRun);
   const isActive = Boolean(
     challenge &&
     !challenge.settled &&
     challenge.start_time <= now &&
     challenge.end_time > now,
   );
-  const entriesOpen = Boolean(
-    daily.daily &&
-    daily.daily.status === "open" &&
-    daily.daily.opensAt <= now &&
-    daily.daily.entriesCloseAt > now,
-  );
-  const runAvailable =
-    daily.run.phase === "none" || daily.run.phase === "missing";
 
   // A missing challenge has no client-computed fallback. The map is part of
   // the immutable daily account and must come from Solana.
@@ -165,31 +152,6 @@ const ArenaDailyTab: React.FC = () => {
       navigate("spectate");
     },
     [navigate, setSpectateTarget],
-  );
-
-  const openRun = useCallback(() => {
-    if (!activeDailyRun) return;
-    navigate("play", activeDailyRun.gameId);
-  }, [activeDailyRun, navigate]);
-
-  const enter = useCallback(async () => {
-    if (starting || hasActiveDailyRun) return;
-    setStarting(true);
-    try {
-      const run = await daily.enter();
-      navigate("play", run.runId);
-    } catch {
-      // The shared controller projects transaction failures into daily.error.
-    } finally {
-      setStarting(false);
-    }
-  }, [daily, hasActiveDailyRun, navigate, starting]);
-
-  const entryDisabled = Boolean(
-    starting ||
-    daily.action ||
-    !entriesOpen ||
-    !runAvailable,
   );
 
   if (challengeLoading || (daily.loading && !daily.daily)) {
@@ -331,35 +293,6 @@ const ArenaDailyTab: React.FC = () => {
               )}
             </div>
           </div>
-
-          {/* ── Enter / resume ── */}
-          {hasActiveDailyRun ? (
-            <ArcadeButton onClick={openRun} accentOverride={zoneColors.accent}>
-              {activeDailyRun?.settled
-                ? "Finish previous Daily"
-                : "Resume Daily"}
-            </ArcadeButton>
-          ) : (
-            daily.daily &&
-            runAvailable &&
-            entriesOpen && (
-              <div className="flex flex-col gap-1.5">
-                <ArcadeButton
-                  disabled={entryDisabled}
-                  onClick={() => void enter()}
-                  accentOverride="#facc15"
-                  className="text-[13px]"
-                >
-                  {starting
-                    ? "Preparing owner signature…"
-                    : `Enter ranked · ${(Number(daily.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL`}
-                </ArcadeButton>
-                <p className="text-center font-sans text-[10px] font-semibold text-white/45">
-                  Every attempt requires a separate connected-wallet signature.
-                </p>
-              </div>
-            )
-          )}
 
           {/* ── Today's pot ── */}
           {dailyPot !== null && daily.daily && (

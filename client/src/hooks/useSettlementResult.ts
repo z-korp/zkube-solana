@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 
 import type { CompetitionRecord } from "@/chain/campaignClient";
-import { usePlayerProfile } from "./usePlayerProfile";
+import type { PeriodKind, SettlementEvent } from "@/chain/settlementEvents";
+import { useSettlementWatcher } from "./useSettlementWatcher";
 
-export type PeriodKind = 0 | 1 | 2;
+export type { PeriodKind } from "@/chain/settlementEvents";
 
 export interface PeriodSettlement {
   /** 0 Daily, 1 Weekly, 2 Season — matches competitionProfileSynced.periodKind. */
@@ -23,20 +24,30 @@ export interface SettlementResult {
   totalRewardsLamports: bigint;
   totalWins: number;
   /**
-   * TODO(chain): the guardian-delivers screen also wants the single MOST RECENT
-   * pushed prize and a scored-vs-expired signal for the just-settled run. That
-   * cannot be derived from PlayerState alone — the account only carries the
-   * aggregate lifetime `competitionRecord`s reflected above, not a per-event
-   * history. It requires the `competitionProfileSynced` event
-   * ({ owner, periodKind, rank, rewardLamports }) via a program-log
-   * subscription or an indexer, which is a separate read surface. Until that
-   * lands, `latestEvent` stays null rather than fabricating a "latest" result.
+   * The single most recent pushed prize — the largest reward increase observed
+   * since this session began watching PlayerState. Real-time and exact for the
+   * period + amount; `bestPrizeRank` is the record's lifetime-best rank (see
+   * `SettlementEvent`), not a claim about this specific placement.
+   *
+   * This only ever signals a PAID placement: PlayerState carries the aggregate
+   * lifetime records, and a reward increase can only come from a real settlement
+   * push. A "scored but did not place" vs "expired" outcome for an arbitrary run
+   * is NOT derivable here — PlayerState has no per-run history, only the daily
+   * per-run receipt (ArenaPlayer) does — so that distinction is left as a
+   * documented follow-up rather than fabricated.
    */
-  latestEvent: null;
+  latestEvent: SettlementEvent | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<unknown>;
 }
+
+const EMPTY_RECORD: CompetitionRecord = {
+  bestPrizeRank: 0,
+  podiums: 0,
+  wins: 0,
+  rewardsLamports: 0n,
+};
 
 const PERIODS: readonly { kind: PeriodKind; label: PeriodSettlement["label"] }[] =
   [
@@ -62,29 +73,37 @@ function toPeriod(
 }
 
 /**
- * Read-only settlement summary for the connected player, derived from the
- * on-chain Daily/Weekly/Season competition records. Settlement is push-only and
- * may be late; these records update whenever the keeper pushes a profile sync,
- * so this reflects the latest confirmed prize state without gating on money.
+ * Real-time settlement summary for the connected player, derived from the
+ * live-subscribed Daily/Weekly/Season competition records on PlayerState (via
+ * `useSettlementWatcher`). Settlement is push-only and may be late; the account
+ * updates whenever the keeper pushes a profile sync, so this reflects the latest
+ * confirmed prize state — including the most recent pushed prize as
+ * `latestEvent` — the instant it lands, without gating on money.
  */
 export function useSettlementResult(): SettlementResult {
-  const profile = usePlayerProfile();
+  const { view, latestEvent, loading, error, refresh } = useSettlementWatcher();
+
+  const daily = view?.dailyRecord ?? EMPTY_RECORD;
+  const weekly = view?.weeklyRecord ?? EMPTY_RECORD;
+  const season = view?.seasonRecord ?? EMPTY_RECORD;
+
   const periods = useMemo<PeriodSettlement[]>(() => {
     const records: Record<PeriodKind, CompetitionRecord> = {
-      0: profile.dailyRecord,
-      1: profile.weeklyRecord,
-      2: profile.seasonRecord,
+      0: daily,
+      1: weekly,
+      2: season,
     };
     return PERIODS.map(({ kind, label }) => toPeriod(kind, label, records[kind]));
-  }, [profile.dailyRecord, profile.weeklyRecord, profile.seasonRecord]);
+  }, [daily, weekly, season]);
 
   return {
     periods,
-    totalRewardsLamports: profile.totalRewardsLamports,
-    totalWins: profile.totalWins,
-    latestEvent: null,
-    loading: profile.loading,
-    error: profile.error,
-    refresh: profile.refresh,
+    totalRewardsLamports:
+      daily.rewardsLamports + weekly.rewardsLamports + season.rewardsLamports,
+    totalWins: daily.wins + weekly.wins + season.wins,
+    latestEvent,
+    loading,
+    error,
+    refresh,
   };
 }

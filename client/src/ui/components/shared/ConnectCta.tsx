@@ -137,9 +137,16 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
 };
 
 function userFacingError(cause: unknown): string {
-  return isWalletRejection(cause)
-    ? "The wallet rejected the request. You can try again when ready."
-    : errorMessage(cause);
+  if (isWalletRejection(cause)) {
+    return "The wallet rejected the request. You can try again when ready.";
+  }
+  const message = errorMessage(cause);
+  // Before initialization the protocol's config/session accounts don't exist
+  // yet; surface that as a calm status rather than a raw RPC error.
+  if (/does not exist or has no data|account does not exist/i.test(message)) {
+    return "zKube isn't live";
+  }
+  return message;
 }
 
 export default ConnectCta;

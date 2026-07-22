@@ -13,7 +13,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const TABS = ["Quests", "Daily", "Weekly"] as const;
+const TABS = ["Alpha", "Daily", "Weekly"] as const;
 
 describe("SegmentedTabs", () => {
   it("renders every tab and reports switches", () => {
@@ -21,7 +21,7 @@ describe("SegmentedTabs", () => {
     render(
       <SegmentedTabs
         tabs={TABS}
-        active="Quests"
+        active="Alpha"
         onChange={onChange}
         layoutId="test-tabs"
       />,
@@ -42,7 +42,7 @@ describe("SegmentedTabs", () => {
         active="Daily"
         onChange={vi.fn()}
         layoutId="test-tabs-badge"
-        badges={{ Quests: 3 }}
+        badges={{ Alpha: 3 }}
       />,
     );
 
