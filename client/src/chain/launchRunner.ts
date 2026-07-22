@@ -157,7 +157,9 @@ export async function runLaunchFromEnv(
     });
     signatures.push(bundle.progress.funding.signature);
   }
-  await verifyFunding(connection, bundle);
+  if (bundle.progress.staged.length === 0) {
+    await verifyFunding(connection, bundle);
+  }
   for (const [index, transaction] of plan.plans.slice(0, 20).entries()) {
     const receipt = await executeApprovedTransaction({
       plan: transaction,
@@ -221,7 +223,9 @@ async function resumeStaging(
   } else if (bundle.progress.funding) {
     throw new Error("bundle contains an unapproved funding receipt");
   }
-  await verifyFunding(connection, bundle);
+  if (bundle.progress.staged.length === 0) {
+    await verifyFunding(connection, bundle);
+  }
 
   if (bundle.progress.staged.length > 20) {
     throw new Error("bundle contains excess staging receipts");
