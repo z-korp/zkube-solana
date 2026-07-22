@@ -23,6 +23,7 @@ import {
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
   buildZkubeLaunchPlan,
+  LAUNCH_ACCOUNT_SPACES,
   launchCadences,
   launchPlannerInputFromEnv,
   launchTransactionSha256,
@@ -351,7 +352,7 @@ async function verifyStagedLaunch(
     program,
     "protocolConfig",
     deriveProtocolConfigPda(),
-    program.account.protocolConfig.size,
+    LAUNCH_ACCOUNT_SPACES.protocolConfig,
   );
   if (!key(protocol.authority).equals(authority) ||
       !key(protocol.teamDestination).equals(new PublicKey(bundle.input.teamDestination)) ||
@@ -369,7 +370,7 @@ async function verifyStagedLaunch(
       program,
       "mapCatalog",
       deriveMapCatalogPda(2, mapId),
-      program.account.mapCatalog.size,
+      LAUNCH_ACCOUNT_SPACES.mapCatalog,
     );
     const expected = canonicalCampaignMap(2, mapId);
     if (integer(map.contentVersion) !== 2 || integer(map.mapId) !== mapId ||
@@ -385,7 +386,7 @@ async function verifyStagedLaunch(
     program,
     "dailyRulesCatalog",
     deriveDailyRulesCatalogPda(1),
-    program.account.dailyRulesCatalog.size,
+    LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
   );
   if (integer(rules.rulesVersion) !== 1 || integer(rules.contentVersion) !== 2 ||
       integer(rules.startsDay) !== bundle.input.launchDayId ||
@@ -398,7 +399,7 @@ async function verifyStagedLaunch(
     program,
     "arcadeConfig",
     deriveArcadeConfigPda(),
-    program.account.arcadeConfig.size,
+    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
   );
   if (arcade.launchSeeded !== false || integer(arcade.launchDayId) !== 0 ||
       amount(arcade.entryLamports) !== ARENA_ENTRY_LAMPORTS ||
@@ -413,7 +414,7 @@ async function verifyStagedLaunch(
     program,
     "operatorRevenueVault",
     deriveOperatorRevenueVaultPda(),
-    program.account.operatorRevenueVault.size,
+    LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
   );
   if (amount(vault.grossOperatorShare) !== 0n || amount(vault.withdrawn) !== 0n) {
     throw new Error("operator vault is not fresh");
@@ -432,14 +433,14 @@ async function verifyActiveLaunch(
     program,
     "protocolConfig",
     deriveProtocolConfigPda(),
-    program.account.protocolConfig.size,
+    LAUNCH_ACCOUNT_SPACES.protocolConfig,
   );
   const arcade = await fetchExact(
     connection,
     program,
     "arcadeConfig",
     deriveArcadeConfigPda(),
-    program.account.arcadeConfig.size,
+    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
   );
   if (protocol.paused !== false || arcade.launchSeeded !== true ||
       integer(arcade.launchDayId) !== bundle.input.launchDayId) {
@@ -466,7 +467,7 @@ async function verifyPeriods(
       program,
       "arenaDaily",
       deriveArenaDailyPda(id),
-      program.account.arenaDaily.size,
+      LAUNCH_ACCOUNT_SPACES.arenaDaily,
     );
     verifyPeriod(value, id === dayId && active, id === dayId && active
       ? BigInt(LAUNCH_DAILY_SEED_LAMPORTS)
@@ -478,7 +479,7 @@ async function verifyPeriods(
       program,
       "weeklyJackpot",
       deriveWeeklyJackpotPda(id),
-      program.account.weeklyJackpot.size,
+      LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
     );
     verifyPeriod(value, id === weekId && active, id === weekId && active
       ? BigInt(LAUNCH_WEEKLY_SEED_LAMPORTS)
@@ -496,7 +497,7 @@ async function verifyPeriods(
       program,
       "season",
       deriveSeasonPda(id),
-      program.account.season.size,
+      LAUNCH_ACCOUNT_SPACES.season,
     );
     verifyPeriod(value, id === seasonId && active, id === seasonId && active
       ? BigInt(LAUNCH_SEASON_SEED_LAMPORTS)

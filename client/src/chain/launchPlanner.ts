@@ -39,7 +39,7 @@ import {
   WEEK_DAYS,
 } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
+import type { TransactionPlan } from "./runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 const BASE_CONTENT_VERSION = 1;
@@ -49,6 +49,18 @@ const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
 const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
 const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
+
+/** Exact `8 + INIT_SPACE` allocations enforced by the deployed Rust program. */
+export const LAUNCH_ACCOUNT_SPACES = {
+  protocolConfig: 156,
+  mapCatalog: 275,
+  dailyRulesCatalog: 346,
+  arcadeConfig: 119,
+  operatorRevenueVault: 58,
+  arenaDaily: 7_426,
+  weeklyJackpot: 5_925,
+  season: 2_222,
+} as const;
 
 export interface LaunchPlannerInput {
   cluster: "devnet";
@@ -322,19 +334,18 @@ export async function buildZkubeLaunchPlan(
     }),
   );
 
-  const program = zkubeProgram(connection, wallet);
   const accountSpaces = [
-    program.account.protocolConfig.size,
-    ...Array.from({ length: 10 }, () => program.account.mapCatalog.size),
-    program.account.dailyRulesCatalog.size,
-    program.account.arcadeConfig.size,
-    program.account.operatorRevenueVault.size,
-    program.account.arenaDaily.size,
-    program.account.arenaDaily.size,
-    program.account.weeklyJackpot.size,
-    program.account.weeklyJackpot.size,
-    program.account.season.size,
-    program.account.season.size,
+    LAUNCH_ACCOUNT_SPACES.protocolConfig,
+    ...Array.from({ length: 10 }, () => LAUNCH_ACCOUNT_SPACES.mapCatalog),
+    LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
+    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
+    LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
+    LAUNCH_ACCOUNT_SPACES.arenaDaily,
+    LAUNCH_ACCOUNT_SPACES.arenaDaily,
+    LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
+    LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
+    LAUNCH_ACCOUNT_SPACES.season,
+    LAUNCH_ACCOUNT_SPACES.season,
   ];
   const rentFloors = await Promise.all(
     accountSpaces.map((space) =>
