@@ -11,6 +11,10 @@ import {
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useMusicPlayer } from "@/contexts/hooks";
+import {
+  useNotifications,
+  type NotificationPermissionState,
+} from "@/hooks/useNotifications";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 import PageHeader from "@/ui/components/shared/PageHeader";
@@ -29,6 +33,7 @@ const SettingsPage: React.FC = () => {
   );
   const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
     useMusicPlayer();
+  const notifications = useNotifications();
   const [copied, setCopied] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletStatus, setWalletStatus] = useState("");
@@ -105,6 +110,54 @@ const SettingsPage: React.FC = () => {
               <AudioSlider icon="🎵" value={musicVolume} color={colors.accent} label="Music volume" delay={0.1} onChange={setMusicVolume} />
               <AudioSlider icon="🔔" value={effectsVolume} color={colors.accent2} label="Effects volume" delay={0.15} onChange={setEffectsVolume} />
             </div>
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.05 }}
+            className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 shadow-lg shadow-black/20 backdrop-blur-xl"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-lg">🔔</span>
+              <h2 className="font-display text-lg tracking-wide" style={{ color: colors.text }}>
+                NOTIFICATIONS
+              </h2>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-sans text-sm font-semibold text-white/90">Local alerts</p>
+                <p className="mt-0.5 font-sans text-xs text-white/55">
+                  Get notified when you win and when a new Daily opens.
+                </p>
+              </div>
+              <NotificationToggle
+                supported={notifications.supported}
+                permission={notifications.permission}
+                enabled={notifications.enabled}
+                color={colors.accent}
+                onToggle={() => {
+                  if (notifications.enabled) {
+                    notifications.disable();
+                  } else {
+                    void notifications.requestAndEnable();
+                  }
+                }}
+              />
+            </div>
+            {notifications.permission === "denied" ? (
+              <p className="mt-2 font-sans text-xs text-amber-300/90">
+                Enable notifications in your browser settings.
+              </p>
+            ) : !notifications.supported ? (
+              <p className="mt-2 font-sans text-xs text-white/45">
+                This browser does not support notifications.
+              </p>
+            ) : (
+              <p className="mt-2 font-sans text-xs text-white/45">
+                Alerts arrive while zKube is open.
+              </p>
+            )}
           </motion.section>
 
           <motion.section
@@ -187,6 +240,38 @@ function AudioSlider({ icon, value, color, label, delay, onChange }: { icon: str
       <input type="range" min={0} max={100} step={1} value={toPercent(value)} onChange={(event) => onChange(Number(event.target.value) / 100)} className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-white/10" style={{ accentColor: color }} />
       <span className="w-8 text-right font-display text-lg tracking-wider" style={{ color }}>{toPercent(value)}</span>
     </motion.label>
+  );
+}
+
+function NotificationToggle({
+  supported,
+  permission,
+  enabled,
+  color,
+  onToggle,
+}: {
+  supported: boolean;
+  permission: NotificationPermissionState;
+  enabled: boolean;
+  color: string;
+  onToggle: () => void;
+}) {
+  const disabled = !supported || permission === "denied";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label="Toggle notifications"
+      disabled={disabled}
+      onClick={onToggle}
+      className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${enabled ? "border-transparent" : "border-white/15 bg-white/10"}`}
+      style={enabled ? { backgroundColor: color } : undefined}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${enabled ? "left-[26px]" : "left-0.5"}`}
+      />
+    </button>
   );
 }
 

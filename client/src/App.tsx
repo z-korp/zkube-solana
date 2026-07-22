@@ -17,6 +17,7 @@ import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
+import { useNotifications } from "@/hooks/useNotifications";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
@@ -73,6 +74,13 @@ export default function App() {
   // One PlayerState watch keeps Arcade progression and Campaign completion in
   // agreement without mixing their presentation surfaces.
   usePlayerStateSync();
+  // Mount the opt-in notification observers once at the app root so "you won"
+  // and "new Daily is open" alerts fire across the whole in-session lifetime,
+  // not only while Settings is open. Fully inert until the player opts in
+  // (Settings toggle) and the browser grants permission; local/in-session only.
+  // Safe to also mount on Settings — each fire persists its baseline before
+  // notifying and carries an OS-level dedupe tag.
+  useNotifications();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app
   // opens on the correct background). Spectator/recovery deep-links don't
