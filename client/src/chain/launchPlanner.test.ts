@@ -44,7 +44,6 @@ describe("read-only paused bootstrap and launch planner", () => {
       deployedProgramDataSha256,
       programAllocationBytes: allocationBytes,
       programUpgradeAuthority: upgradeAuthority.toBase58(),
-      deploymentManifestSha256: "2".repeat(64),
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
     };
@@ -88,7 +87,6 @@ describe("read-only paused bootstrap and launch planner", () => {
         .digest("hex"),
       programAllocationBytes: allocationBytes,
       programUpgradeAuthority: upgradeAuthority.toBase58(),
-      deploymentManifestSha256: "2".repeat(64),
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
     };

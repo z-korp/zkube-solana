@@ -58,7 +58,6 @@ export interface LaunchPlannerInput {
   deployedProgramDataSha256: string;
   programAllocationBytes: number;
   programUpgradeAuthority: string;
-  deploymentManifestSha256: string;
   keeperReleaseFingerprint: string;
   authorityReserveLamports: number;
 }
@@ -136,10 +135,6 @@ export function launchPlannerInputFromEnv(
     programUpgradeAuthority: publicKey(
       required(env, "ZKUBE_PROGRAM_UPGRADE_AUTHORITY"),
       "program upgrade authority",
-    ),
-    deploymentManifestSha256: hash(
-      required(env, "ZKUBE_DEPLOYMENT_MANIFEST_SHA256"),
-      "deployment manifest hash",
     ),
     keeperReleaseFingerprint: hash(
       required(env, "ZKUBE_KEEPER_RELEASE_FINGERPRINT"),
@@ -435,7 +430,6 @@ export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
     `Maximum authority spend: ${plan.costs.maximumAuthoritySpendLamports} lamports`,
     `Required post-plan reserve: ${plan.costs.authorityReserveLamports} lamports`,
     `Required authority balance: ${plan.costs.requiredAuthorityBalanceLamports} lamports`,
-    `Deployment manifest SHA-256: ${plan.input.deploymentManifestSha256}`,
     `Keeper release fingerprint: ${plan.input.keeperReleaseFingerprint}`,
     `Approval fingerprint: ${plan.approvalFingerprint}`,
     ...plan.phases.map(

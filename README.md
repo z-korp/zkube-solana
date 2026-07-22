@@ -295,7 +295,11 @@ specified pre-entry cutoff. The planner has no signing or sending path.
 
 Deployment manifest schema v5 binds the deployed ProgramData, allocation,
 content/rules catalogs, exact launch day and seed plan, and keeper release. The
-obsolete v3 manifest is intentionally not a reusable release input.
+keeper image is first deployed and verified read-only by its immutable Fly
+digest. That digest determines the keeper fingerprint, the keeper fingerprint
+determines the launch plan, and the final manifest binds the launch-plan
+fingerprint. This one-way dependency avoids self-referential release hashes.
+The obsolete v3 manifest is intentionally not a reusable release input.
 
 Production web publishing remains Git-driven from
 `z-korp/zkube-solana:main` to Vercel project

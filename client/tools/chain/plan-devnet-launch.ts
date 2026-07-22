@@ -22,7 +22,6 @@ async function main(): Promise<void> {
         "  ZKUBE_DEPLOYED_PROGRAM_DATA_SHA256=<64 lowercase hex>",
         "  ZKUBE_PROGRAM_ALLOCATION_BYTES=<exact live allocation>",
         "  ZKUBE_PROGRAM_UPGRADE_AUTHORITY=<exact live authority address>",
-        "  ZKUBE_DEPLOYMENT_MANIFEST_SHA256=<64 lowercase hex>",
         "  ZKUBE_KEEPER_RELEASE_FINGERPRINT=<64 lowercase hex>",
         "",
         "Optional:",
@@ -31,7 +30,8 @@ async function main(): Promise<void> {
         "The planner reads Devnet, requires fresh paused bootstrap targets,",
         "derives current/following cadence PDAs, calculates live rent and fees,",
         "and prints an exact approval fingerprint. It accepts no keypair and",
-        "has no sign or send path.",
+        "has no sign or send path. The final manifest is generated afterward",
+        "and binds this plan fingerprint, avoiding a circular hash dependency.",
         "",
       ].join("\n"),
     );

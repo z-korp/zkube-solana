@@ -1,9 +1,10 @@
 // @vitest-environment node
 
+import { Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  KEEPER_WRITE_RELEASE_FINGERPRINT,
+  keeperReleaseFromEnv,
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
 } from "../src/keeperWorker";
@@ -24,9 +25,18 @@ describe("keeper worker scheduling", () => {
       KEEPER_WRITE_ENABLED: "true",
       KEEPER_APPROVED_RELEASE_FINGERPRINT: "wrong-release",
     })).toBe(false);
+    const releaseEnv = releaseEnvironment();
+    const release = keeperReleaseFromEnv(releaseEnv);
     expect(keeperWriteEnabledFromEnv({
+      ...releaseEnv,
       KEEPER_WRITE_ENABLED: "true",
-      KEEPER_APPROVED_RELEASE_FINGERPRINT: KEEPER_WRITE_RELEASE_FINGERPRINT,
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: release.fingerprint,
+    })).toBe(true);
+    expect(keeperWriteEnabledFromEnv({
+      ...releaseEnv,
+      FLY_IMAGE_REF: "registry.fly.io/zkube:mutable-tag",
+      KEEPER_WRITE_ENABLED: "true",
+      KEEPER_APPROVED_RELEASE_FINGERPRINT: release.fingerprint,
     })).toBe(false);
   });
 
@@ -98,3 +108,14 @@ describe("keeper worker scheduling", () => {
     expect(sleeps).toEqual([0]);
   });
 });
+
+function releaseEnvironment(): Record<string, string> {
+  return {
+    FLY_IMAGE_REF: `registry.fly.io/zkube@sha256:${"12".repeat(32)}`,
+    ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
+    ZKUBE_REPLAY_DOMAIN_HEX: "23".repeat(32),
+    ZKUBE_ARENA_RULES_CATALOG_SHA256: "34".repeat(32),
+    ZKUBE_KEEPER_SCHEMA_SHA256: "45".repeat(32),
+    ZKUBE_ARENA_RULES_VERSION: "1",
+  };
+}
