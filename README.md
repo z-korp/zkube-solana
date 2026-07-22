@@ -6,9 +6,8 @@ available in the same application as a visually separate, map-first mode.
 
 The connected Solana address is the player identity. There are no embedded
 wallets, recovery codes, deposits, soft currencies, shops, passes, token swaps,
-or prize claims. v4 is Devnet-first; its program is deployed but the protocol
-remains uninitialized until the exact launch bundle is approved. Mainnet
-remains blocked on counsel, economic, and distribution review.
+or prize claims. v4 is live on Devnet; Mainnet remains blocked on counsel,
+economic, and distribution review.
 
 ## Product model
 
@@ -272,8 +271,18 @@ The v4 Devnet program is
 `2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS`, allocation `1,264,080`, and
 padded ProgramData SHA-256
 `754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4`.
-Deployment does not imply initialization: the protocol PDA remains absent
-until the separately approved bootstrap.
+The approved launch completed on 2026-07-22 at protocol PDA
+`G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ`. Daily `20656`, Weekly `2950`,
+and Season `737` opened atomically with 1/2/3 SOL; the following cadence
+accounts remain in funding state. The activation signature is
+`A1iaCAkcQDbEdhtQDZjsvH8hWuLQ3N9waycid52rB6UkrS2zDv6tHmhZSkEn6GADawuBkpxR6pEGFUsJCEKjdXS`.
+
+Fly machine `286e275bd6e968` runs the approved keeper release
+`d8e26ee9bf840c14b3efda0559ece5b2035fb6a32a52b8c5f467aded82a93c09`
+from image digest
+`sha256:2bd055d5e6f7ed47aaa92fa5fd6630e0a33b47a6e074975efd05322bab1af1ea`.
+Its first active pass completed with zero planned writes, zero writes, and zero
+lamports spent.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
