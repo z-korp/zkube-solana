@@ -1,10 +1,13 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
+import { ConnectedPlayerContext } from "@/chain/connectedPlayerContext";
 import { GuardianMedallion, MONEY_GOLD } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolLamports } from "@/utils/currency";
+import { shareOrCopyWin } from "@/utils/share";
 
 interface GuardianPrizeResultProps {
   open: boolean;
@@ -21,6 +24,12 @@ interface GuardianPrizeResultProps {
    * placement, so it is framed as "Best" rather than claiming this win's rank.
    */
   bestPrizeRank?: number;
+  /**
+   * Owner address (base58) used to build the spectator share link. Optional —
+   * when absent the connected player's key is used, and if neither is known the
+   * win is shared as text only.
+   */
+  owner?: string;
 }
 
 /**
@@ -37,9 +46,46 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   amountLamports,
   periodLabel,
   bestPrizeRank = 0,
+  owner,
 }) => {
   const colors = useThemeColors();
   const reduceMotion = useReducedMotion();
+  const connectedPlayer = useContext(ConnectedPlayerContext);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) {
+        window.clearTimeout(copiedTimer.current);
+      }
+    },
+    [],
+  );
+
+  const shareOwner = owner ?? connectedPlayer?.publicKey?.toBase58() ?? null;
+  // Honest content built only from the real props: the delivered amount, the
+  // period that paid, and (when we know who won) the spectator deep-link the
+  // app already resolves. No fabricated ranks or numbers.
+  const shareText = `I just won ${formatSolLamports(amountLamports)} SOL on the zKube ${periodLabel} 🏆`;
+  const shareUrl = shareOwner
+    ? `${window.location.origin}?player=${encodeURIComponent(shareOwner)}`
+    : undefined;
+
+  const handleShare = useCallback(async () => {
+    try {
+      const outcome = await shareOrCopyWin({ text: shareText, url: shareUrl });
+      if (outcome === "copied") {
+        setCopied(true);
+        if (copiedTimer.current !== null) {
+          window.clearTimeout(copiedTimer.current);
+        }
+        copiedTimer.current = window.setTimeout(() => setCopied(false), 1_600);
+      }
+    } catch {
+      // Sharing is best-effort; a rejected share/clipboard call stays silent.
+    }
+  }, [shareText, shareUrl]);
 
   return (
     <Sheet
@@ -135,8 +181,18 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
           Pushed to your wallet · no claim
         </p>
 
-        <div className="w-full pt-1">
-          <ArcadeButton onClick={onDismiss}>Nice</ArcadeButton>
+        <div className="flex w-full items-stretch gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            aria-label="Share this win"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-sans text-sm font-bold text-white/80 transition-colors hover:bg-white/[0.1]"
+          >
+            {copied ? "Copied!" : "🏆 Share"}
+          </button>
+          <div className="flex-1">
+            <ArcadeButton onClick={onDismiss}>Nice</ArcadeButton>
+          </div>
         </div>
       </div>
     </Sheet>

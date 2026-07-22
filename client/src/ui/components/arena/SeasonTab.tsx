@@ -81,7 +81,7 @@ export default function SeasonTab() {
         </p>
       </BoardPotHeader>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+      <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 backdrop-blur-xl">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/40">
           Your counted Dailies
         </p>

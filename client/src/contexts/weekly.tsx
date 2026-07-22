@@ -5,7 +5,7 @@ import { useWeeklyController } from "@/chain/useWeeklyController";
 
 export type WeeklyController = ReturnType<typeof useWeeklyController>;
 
-const WeeklyContext = createContext<WeeklyController | null>(null);
+export const WeeklyContext = createContext<WeeklyController | null>(null);
 
 export function WeeklyProvider({ children }: { children: ReactNode }) {
   const weekly = useWeeklyController();

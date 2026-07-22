@@ -87,7 +87,7 @@ export default function WeeklyTab() {
           return (
             <section
               key={label}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] p-3"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 backdrop-blur-xl"
             >
               <div className="flex items-center gap-3">
                 <div

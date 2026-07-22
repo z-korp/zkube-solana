@@ -1,7 +1,7 @@
 import { formatSolLamports } from "@/utils/currency";
 import { cn } from "@/ui/utils";
 
-import { computePayouts } from "./payout";
+import { computePayouts, ordinal } from "./payout";
 import { MONEY_GOLD } from "./tokens";
 
 interface PrizeLadderProps {
@@ -14,22 +14,6 @@ interface PrizeLadderProps {
   /** 1-based rank to emphasize; defaults to first place. */
   highlightRank?: number;
   className?: string;
-}
-
-/** English ordinal: 1 -> 1st, 2 -> 2nd, 3 -> 3rd, 4 -> 4th, ... */
-function ordinal(rank: number): string {
-  const tens = rank % 100;
-  if (tens >= 11 && tens <= 13) return `${rank}th`;
-  switch (rank % 10) {
-    case 1:
-      return `${rank}st`;
-    case 2:
-      return `${rank}nd`;
-    case 3:
-      return `${rank}rd`;
-    default:
-      return `${rank}th`;
-  }
 }
 
 /**

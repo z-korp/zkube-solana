@@ -8,6 +8,8 @@ import {
   type PlayerStateView,
 } from "@/chain/playerStateClient";
 import { errorMessage } from "@/utils/errors";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { applyDevPlayerProfile } from "@/dev/fixtures";
 import { useZoneProgress } from "./useZoneProgress";
 
 const EMPTY_RECORD: CompetitionRecord = {
@@ -101,5 +103,9 @@ export function usePlayerProfile(): PlayerProfileResult {
     };
   }, [state, totalStars]);
 
-  return { ...profile, loading, error, refresh };
+  const result: PlayerProfileResult = { ...profile, loading, error, refresh };
+  // DEV-ONLY fixture override; folds away in production builds.
+  return import.meta.env.DEV && DEV_BYPASS_ACTIVE
+    ? applyDevPlayerProfile(result)
+    : result;
 }

@@ -24,7 +24,7 @@ const BottomNav = () => {
   }[] = [
     { id: "arcade", icon: Gamepad2, label: "Arcade" },
     { id: "campaign", icon: Map, label: "Campaign" },
-    { id: "ranks", icon: Trophy, label: "Ranks" },
+    { id: "ranks", icon: Trophy, label: "Leaderboard" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 

@@ -5,7 +5,7 @@ import { useDailyController } from "@/chain/useDailyController";
 
 export type DailyController = ReturnType<typeof useDailyController>;
 
-const DailyContext = createContext<DailyController | null>(null);
+export const DailyContext = createContext<DailyController | null>(null);
 
 export function DailyProvider({ children }: { children: ReactNode }) {
   const daily = useDailyController();

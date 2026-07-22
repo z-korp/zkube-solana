@@ -5,7 +5,7 @@ import { useCampaignController } from "@/chain/useCampaignController";
 
 export type CampaignController = ReturnType<typeof useCampaignController>;
 
-const CampaignContext = createContext<CampaignController | null>(null);
+export const CampaignContext = createContext<CampaignController | null>(null);
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
   const campaign = useCampaignController();

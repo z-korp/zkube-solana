@@ -10,6 +10,22 @@
  * shape for presentational components.
  */
 
+/** English ordinal: 1 -> 1st, 2 -> 2nd, 3 -> 3rd, 4 -> 4th, 11 -> 11th, ... */
+export function ordinal(rank: number): string {
+  const tens = rank % 100;
+  if (tens >= 11 && tens <= 13) return `${rank}th`;
+  switch (rank % 10) {
+    case 1:
+      return `${rank}st`;
+    case 2:
+      return `${rank}nd`;
+    case 3:
+      return `${rank}rd`;
+    default:
+      return `${rank}th`;
+  }
+}
+
 /** Daily prize weights, first through fifth place. */
 export const DAILY_WEIGHTS = [45, 25, 15, 10, 5];
 /** Weekly (per skill board) prize weights, first through third place. */
