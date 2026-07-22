@@ -11,10 +11,6 @@ const fixtures = vi.hoisted(() => ({
   publicKey: null as unknown,
 }));
 
-vi.mock("@/contexts/progress", () => ({
-  useProgress: () => ({ progress: null }),
-}));
-
 vi.mock("@/chain/connectedPlayerContext", async () =>
   (await import("@/test/mocks/contexts")).connectedPlayerMock(() => ({
     publicKey: fixtures.publicKey,
@@ -51,7 +47,6 @@ describe("BottomNav", () => {
     expect(buttons.map((button) => button.textContent)).toEqual([
       "Arcade",
       "Campaign",
-      "Quests",
       "Ranks",
       "Profile",
     ]);

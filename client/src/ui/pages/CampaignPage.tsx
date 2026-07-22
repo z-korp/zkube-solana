@@ -45,7 +45,7 @@ export default function CampaignPage() {
             </div>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-amber-50/55">
-            Campaign completion stays here. It does not affect Arcade XP, quests, titles, ranks, or prizes.
+            Campaign is free and never affects Arcade prizes.
           </p>
         </section>
 

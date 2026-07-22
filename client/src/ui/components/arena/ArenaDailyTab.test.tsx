@@ -93,6 +93,10 @@ vi.mock("@/hooks/usePlayerEntry", () => ({
   usePlayerEntry: () => ({ entry: null }),
 }));
 
+vi.mock("@/ui/components/arena/useLeaderboardEmblems", () => ({
+  useLeaderboardEmblems: () => new Map(),
+}));
+
 vi.mock("@/stores/navigationStore", async () =>
   (await import("@/test/mocks/navigation")).navigationStoreMock(
     fixtures.navigation,

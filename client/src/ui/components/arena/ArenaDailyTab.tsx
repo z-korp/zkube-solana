@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { ChevronDown, Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -17,15 +17,26 @@ import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { useNavigationStore } from "@/stores/navigationStore";
+import BoardPotHeader from "@/ui/components/arena/BoardPotHeader";
 import { Countdown } from "@/ui/components/arena/Countdown";
 import { DailyScoringRules } from "@/ui/components/arena/dailyRulesCopy";
+import { PaidCutLine } from "@/ui/components/arena/LeaderboardRow";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
+import { useLeaderboardEmblems } from "@/ui/components/arena/useLeaderboardEmblems";
+import {
+  DAILY_WEIGHTS,
+  EmblemBadge,
+  MONEY_GOLD,
+  PrizeLadder,
+  computePayouts,
+} from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import EmptyState from "@/ui/components/shared/EmptyState";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import LoadingState from "@/ui/components/shared/LoadingState";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { formatSolLamports } from "@/utils/currency";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 const rowVariants = {
@@ -140,6 +151,12 @@ const ArenaDailyTab: React.FC = () => {
     return null;
   }, [address, dailyEntries, playerEntry]);
 
+  const boardOwners = useMemo(
+    () => rankRows.map((row) => row.playerAddress),
+    [rankRows],
+  );
+  const emblems = useLeaderboardEmblems(boardOwners);
+
   const isMyRankVisible = rankRows.some((row) => row.isYou);
 
   const watch = useCallback(
@@ -184,6 +201,17 @@ const ArenaDailyTab: React.FC = () => {
       />
     );
   }
+
+  // Prize amounts are computed client-side from the guaranteed pot; the chain
+  // never stores a per-row prize. Top 5 pay, renormalized over occupied places.
+  const dailyPot =
+    daily.daily && typeof daily.daily.dailyPotLamports === "bigint"
+      ? daily.daily.dailyPotLamports
+      : null;
+  const dailyPayouts =
+    dailyPot !== null
+      ? computePayouts(dailyPot, DAILY_WEIGHTS, dailyEntries.length)
+      : null;
 
   return (
     <div className="mx-auto flex max-w-[640px] flex-col gap-3">
@@ -333,6 +361,26 @@ const ArenaDailyTab: React.FC = () => {
             )
           )}
 
+          {/* ── Today's pot ── */}
+          {dailyPot !== null && daily.daily && (
+            <BoardPotHeader
+              label="Today's Daily pot"
+              potLamports={dailyPot}
+              followingLamports={daily.daily.followingDailyLamports}
+              followingLabel="Building tomorrow's Daily"
+            >
+              <PrizeLadder
+                potLamports={dailyPot}
+                weights={DAILY_WEIGHTS}
+                occupied={dailyEntries.length}
+              />
+              <p className="mt-2 font-sans text-[11px] leading-relaxed text-white/50">
+                Top 5 share the guaranteed pot, floored to 0.001 SOL. Prizes are
+                pushed automatically; dust rolls into tomorrow.
+              </p>
+            </BoardPotHeader>
+          )}
+
           {/* ── Today's rankings ── */}
           {boardLoading ? (
             <LoadingState
@@ -395,13 +443,24 @@ const ArenaDailyTab: React.FC = () => {
                     0,
                     entry.score - entry.engineScore,
                   );
+                  const belowCut = entry.rank > DAILY_WEIGHTS.length;
+                  const prize =
+                    dailyPayouts && !belowCut
+                      ? dailyPayouts[entry.rank - 1]
+                      : null;
+                  const showCut =
+                    belowCut &&
+                    (index === 0 ||
+                      rankRows[index - 1].rank <= DAILY_WEIGHTS.length);
+                  const emblem = emblems.get(entry.playerAddress);
 
                   return (
+                    <Fragment key={entry.id}>
+                      {showCut && <PaidCutLine />}
                     <motion.div
                       custom={index}
                       variants={rowVariants}
-                      key={entry.id}
-                      className={`overflow-hidden rounded-2xl border backdrop-blur-xl ${entry.isYou ? "leaderboard-pulse" : ""}`}
+                      className={`overflow-hidden rounded-2xl border backdrop-blur-xl ${entry.isYou ? "leaderboard-pulse" : ""} ${belowCut ? "opacity-50" : ""}`}
                       style={{
                         ...(entry.isYou
                           ? ({
@@ -444,6 +503,17 @@ const ArenaDailyTab: React.FC = () => {
                           )}
                         </div>
 
+                        {emblem ? (
+                          <EmblemBadge
+                            emblemId={emblem.featuredEmblem}
+                            totalStars={emblem.totalStars}
+                            size={24}
+                            className="shrink-0"
+                          />
+                        ) : (
+                          <span className="h-6 w-6 shrink-0 rounded-lg border border-white/10 bg-white/[0.04]" />
+                        )}
+
                         <p
                           className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
                           style={{
@@ -453,12 +523,22 @@ const ArenaDailyTab: React.FC = () => {
                           {entry.isYou ? `You · ${entry.name}` : entry.name}
                         </p>
 
-                        <span
-                          className="shrink-0 font-sans text-[17px] font-black tracking-wide tabular-nums"
-                          style={{ color: colors.text }}
-                        >
-                          {entry.score.toLocaleString()}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end leading-tight">
+                          <span
+                            className="font-sans text-[17px] font-black tracking-wide tabular-nums"
+                            style={{ color: colors.text }}
+                          >
+                            {entry.score.toLocaleString()}
+                          </span>
+                          {prize !== null && prize > 0n && (
+                            <span
+                              className="font-sans text-[11px] font-bold tabular-nums"
+                              style={{ color: MONEY_GOLD }}
+                            >
+                              {formatSolLamports(prize)} SOL
+                            </span>
+                          )}
+                        </div>
                         <ChevronDown
                           size={16}
                           className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -494,6 +574,7 @@ const ArenaDailyTab: React.FC = () => {
                         </div>
                       )}
                     </motion.div>
+                    </Fragment>
                   );
                 })}
 

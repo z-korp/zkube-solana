@@ -4,20 +4,17 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CampaignProvider, useCampaign } from "./campaign";
 import { DailyProvider, useDaily } from "./daily";
-import { ProgressProvider, useProgress } from "./progress";
 import { RunProvider, useRun } from "./run";
 
 const controllers = vi.hoisted(() => ({
   campaign: { kind: "campaign-controller" },
   daily: { kind: "daily-controller" },
-  progress: { kind: "progress-controller" },
   run: { kind: "run-controller" },
 }));
 
 const chainHooks = vi.hoisted(() => ({
   campaign: vi.fn(() => controllers.campaign),
   daily: vi.fn(() => controllers.daily),
-  progress: vi.fn(() => controllers.progress),
   run: vi.fn(() => controllers.run),
 }));
 
@@ -27,10 +24,6 @@ vi.mock("@/chain/useCampaignController", () => ({
 
 vi.mock("@/chain/useDailyController", () => ({
   useDailyController: chainHooks.daily,
-}));
-
-vi.mock("@/chain/useProgressController", () => ({
-  useProgressController: chainHooks.progress,
 }));
 
 vi.mock("@/chain/useRunController", () => ({
@@ -51,35 +44,26 @@ describe("shared controller providers", () => {
     let observed: unknown[] = [];
 
     function Probe() {
-      observed = [
-        useRun(),
-        useCampaign(),
-        useProgress(),
-        useDaily(),
-      ];
+      observed = [useRun(), useCampaign(), useDaily()];
       return null;
     }
 
     render(
       <RunProvider>
         <CampaignProvider>
-          <ProgressProvider>
-            <DailyProvider>
-              <Probe />
-            </DailyProvider>
-          </ProgressProvider>
+          <DailyProvider>
+            <Probe />
+          </DailyProvider>
         </CampaignProvider>
       </RunProvider>,
     );
 
     expect(chainHooks.run).toHaveBeenCalledTimes(1);
     expect(chainHooks.campaign).toHaveBeenCalledTimes(1);
-    expect(chainHooks.progress).toHaveBeenCalledTimes(1);
     expect(chainHooks.daily).toHaveBeenCalledTimes(1);
     expect(observed).toEqual([
       controllers.run,
       controllers.campaign,
-      controllers.progress,
       controllers.daily,
     ]);
   });

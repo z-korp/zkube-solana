@@ -5,7 +5,6 @@ import App from "./App";
 import { CampaignProvider } from "./contexts/campaign";
 import { DailyProvider } from "./contexts/daily";
 import { MusicPlayerProvider } from "./contexts/music";
-import { ProgressProvider } from "./contexts/progress";
 import { RunProvider } from "./contexts/run";
 import { SeasonProvider } from "./contexts/season";
 import { WeeklyProvider } from "./contexts/weekly";
@@ -26,15 +25,13 @@ createRoot(document.getElementById("root")!).render(
         <MusicPlayerProvider>
           <RunProvider>
             <CampaignProvider>
-              <ProgressProvider>
-                <DailyProvider>
-                  <WeeklyProvider>
-                    <SeasonProvider>
-                      <App />
-                    </SeasonProvider>
-                  </WeeklyProvider>
-                </DailyProvider>
-              </ProgressProvider>
+              <DailyProvider>
+                <WeeklyProvider>
+                  <SeasonProvider>
+                    <App />
+                  </SeasonProvider>
+                </WeeklyProvider>
+              </DailyProvider>
             </CampaignProvider>
           </RunProvider>
         </MusicPlayerProvider>

@@ -3,24 +3,22 @@ import { PublicKey } from "@solana/web3.js";
 
 import { useCampaign } from "@/contexts/campaign";
 import { useDaily } from "@/contexts/daily";
-import { useProgress } from "@/contexts/progress";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
 import { derivePlayerStatePda } from "./pdas";
 
 /**
  * Single invalidation point for everything that displays PlayerState-derived
- * figures (Arcade XP, stats, and Campaign completion). The campaign, progress,
+ * figures (Campaign completion and Arcade competition records). The campaign
  * and daily controllers each cache their own snapshot, so instead of wiring
- * cross-refreshes into every terminal path, watch the account itself and re-pull the
- * views when it changes. The subscription is only a signal — data still
- * flows through the controllers' validated fetchers.
+ * cross-refreshes into every terminal path, watch the account itself and
+ * re-pull the views when it changes. The subscription is only a signal — data
+ * still flows through the controllers' validated fetchers.
  */
 export function usePlayerStateSync(): void {
   const { connection } = useSolanaConnection();
   const player = useConnectedPlayer();
   const campaign = useCampaign();
-  const progress = useProgress();
   const daily = useDaily();
 
   // Latest-refresh ref so the subscription never has to be re-created when
@@ -28,7 +26,6 @@ export function usePlayerStateSync(): void {
   const refreshAllRef = useRef<() => void>(() => {});
   refreshAllRef.current = () => {
     void campaign.refresh();
-    void progress.refresh();
     void daily.refresh();
   };
 

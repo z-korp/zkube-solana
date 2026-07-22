@@ -1,4 +1,4 @@
-import { Gamepad2, Map, ScrollText, Trophy, User } from "lucide-react";
+import { Gamepad2, Map, Trophy, User } from "lucide-react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
@@ -24,7 +24,6 @@ const BottomNav = () => {
   }[] = [
     { id: "arcade", icon: Gamepad2, label: "Arcade" },
     { id: "campaign", icon: Map, label: "Campaign" },
-    { id: "quests", icon: ScrollText, label: "Quests" },
     { id: "ranks", icon: Trophy, label: "Ranks" },
     { id: "profile", icon: User, label: "Profile" },
   ];

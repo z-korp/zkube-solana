@@ -8,7 +8,6 @@ import { usePlayController } from "./usePlayController";
 const fixtures = vi.hoisted(() => ({
   run: {} as Record<string, unknown>,
   campaignRefresh: vi.fn(),
-  progressRefresh: vi.fn(),
   dailyRefresh: vi.fn(),
   navigate: vi.fn(),
   setPendingLevelCompletion: vi.fn(),
@@ -26,9 +25,6 @@ vi.mock("@/contexts/campaign", () => ({
     loading: false,
     refresh: fixtures.campaignRefresh,
   }),
-}));
-vi.mock("@/contexts/progress", () => ({
-  useProgress: () => ({ refresh: fixtures.progressRefresh }),
 }));
 vi.mock("@/contexts/daily", () => ({
   useDaily: () => ({ refresh: fixtures.dailyRefresh }),
@@ -88,7 +84,6 @@ describe("usePlayController silent session renewal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fixtures.campaignRefresh.mockResolvedValue(undefined);
-    fixtures.progressRefresh.mockResolvedValue(undefined);
     fixtures.dailyRefresh.mockResolvedValue(undefined);
     fixtures.recoveryRunId = null;
   });
