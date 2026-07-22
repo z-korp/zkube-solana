@@ -184,10 +184,11 @@ rent paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot
 forward arbitrary instructions.
 
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
-limit before wallet approval. This prevents wallet-side priority-fee message
-enhancement while retaining the exact signed-message check: changed
-instructions, accounts, blockhashes, signer roles, or existing partial
-signatures are rejected.
+limit and 1,000-micro-lamport unit price before wallet approval. The maximum
+priority fee is therefore 400 lamports. Fully specifying both fields prevents
+wallet-side priority-fee message enhancement while retaining the exact
+signed-message check: changed instructions, accounts, blockhashes, signer
+roles, or existing partial signatures are rejected.
 
 Solana Base, the MagicBlock Router, and the Router-resolved ER are separate
 connections. Delegation placement is resolved through `getDelegationStatus`;

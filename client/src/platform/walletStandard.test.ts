@@ -13,6 +13,39 @@ import { describe, expect, it } from "vitest";
 import { verifyWalletSignedOutput } from "./walletStandard";
 
 describe("Wallet Standard signing boundary", () => {
+  it("preserves a device fee-payer signature when the owner approves entry", () => {
+    const owner = Keypair.generate();
+    const device = Keypair.generate();
+    const original = signedTransaction(device, owner, device);
+    original.sign([device]);
+    const deviceSignature = Uint8Array.from(original.signatures[0]!);
+
+    const walletOutput = VersionedTransaction.deserialize(original.serialize());
+    walletOutput.sign([owner]);
+    const checked = verifyWalletSignedOutput(
+      original,
+      walletOutput.serialize(),
+      owner.publicKey,
+    ) as VersionedTransaction;
+
+    expect(checked.message.header.numRequiredSignatures).toBe(2);
+    expect(checked.signatures[0]).toEqual(deviceSignature);
+    expect(
+      verifyEd25519(
+        checked.message.serialize(),
+        checked.signatures[0]!,
+        device.publicKey.toBytes(),
+      ),
+    ).toBe(true);
+    expect(
+      verifyEd25519(
+        checked.message.serialize(),
+        checked.signatures[1]!,
+        owner.publicKey.toBytes(),
+      ),
+    ).toBe(true);
+  });
+
   it("preserves a deterministic v0 message and a real device partial signature", () => {
     const feePayer = Keypair.fromSeed(
       Uint8Array.from({ length: 32 }, (_, i) => i + 1),

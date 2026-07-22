@@ -47,17 +47,24 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
 }
 
 describe("InsertCoinSheet", () => {
-  it("shows the heading, the exact gold amount, and the single info affordance", () => {
+  it("shows the heading, the exact gold amount, and a tap-to-open info affordance", () => {
     renderSheet();
 
     expect(screen.getByText("Insert coin")).toBeInTheDocument();
     expect(screen.getByText("0.02")).toBeInTheDocument();
     expect(screen.getByText("SOL")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "How ranked entry works" }),
+      screen.getByRole("button", { name: /how it works/i }),
     ).toBeInTheDocument();
-    // The rules copy lives only inside the (closed) tooltip — no other body text.
-    expect(screen.queryByText(/Owner signs/)).not.toBeInTheDocument();
+    // The rules copy stays hidden until the info affordance is tapped.
+    expect(screen.queryByText(/funds tomorrow/i)).not.toBeInTheDocument();
+  });
+
+  it("reveals the rules only after tapping the info affordance", () => {
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("button", { name: /how it works/i }));
+    expect(screen.getByText(/funds tomorrow/i)).toBeInTheDocument();
   });
 
   it("proceeds via the Sign & enter button", () => {
