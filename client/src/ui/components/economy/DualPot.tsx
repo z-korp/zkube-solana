@@ -1,13 +1,9 @@
-import { ArrowUp, Info } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import { formatSolLamports } from "@/utils/currency";
 import { cn } from "@/ui/utils";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/ui/elements/tooltip";
 
 import PrizeLadder from "./PrizeLadder";
 import { DAILY_WEIGHTS } from "./payout";
@@ -56,10 +52,6 @@ const DualPot: React.FC<DualPotProps> = ({
     { label: "Season", value: followingSeasonLamports },
   ];
 
-  const infoText = `Today's pot is prepaid & guaranteed — entries never raise it. Each ${formatSolLamports(
-    entryLamports,
-  )} entry funds tomorrow: 60% Daily · 20% Weekly · 10% Season · 10% team. Scored or expired, never refunded.`;
-
   return (
     <div
       className={cn(
@@ -72,24 +64,8 @@ const DualPot: React.FC<DualPotProps> = ({
         boxShadow: `0 0 24px ${colors.accent}14, inset 0 1px 0 rgba(255,255,255,0.05)`,
       }}
     >
-      {/* Single info affordance — one tooltip, no other body copy. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label="How the pot works"
-            className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full text-white/40 transition-colors hover:text-white/75"
-          >
-            <Info size={15} />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-[260px] text-left font-sans text-[11px] font-medium normal-case leading-relaxed">
-          {infoText}
-        </TooltipContent>
-      </Tooltip>
-
       {/* Top — the guaranteed pot the player competes for today. */}
-      <div className="flex flex-col gap-2 pr-8">
+      <div className="flex flex-col gap-2">
         <span
           className="font-sans text-[11px] font-bold uppercase tracking-[0.12em]"
           style={{ color: MONEY_GOLD }}
@@ -158,6 +134,20 @@ const DualPot: React.FC<DualPotProps> = ({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* One tap-to-open info affordance carries the rules (no hover). */}
+      <div className="mt-4 flex justify-center">
+        <InfoSheet title="How the pot works">
+          <p>
+            Today's pot is prepaid and guaranteed — entries never raise it.
+          </p>
+          <p>
+            Each {formatSolLamports(entryLamports)} SOL entry funds tomorrow:
+            60% Daily, 20% Weekly, 10% Season, 10% team. Scored or expired,
+            never refunded.
+          </p>
+        </InfoSheet>
       </div>
     </div>
   );

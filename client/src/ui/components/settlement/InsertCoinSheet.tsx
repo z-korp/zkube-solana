@@ -1,23 +1,10 @@
-import { Info } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { MONEY_GOLD } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/ui/elements/tooltip";
 import { formatSolLamports } from "@/utils/currency";
-
-/**
- * The single info affordance carries every rule; no other body copy exists on
- * this surface (product truth: owner-only signature, tomorrow's split, and the
- * scored-or-expired-never-refunded guarantee).
- */
-const INFO_COPY =
-  "Owner signs; a device session can't pay. Funds tomorrow: 60% Daily · 20% Weekly · 10% Season · 10% team. Scored or expired, never refunded.";
 
 interface InsertCoinSheetProps {
   open: boolean;
@@ -102,21 +89,17 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
             >
               SOL
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="How ranked entry works"
-                  className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-white/40 transition-colors hover:text-white/75"
-                >
-                  <Info size={15} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[260px] text-left font-sans text-[11px] font-medium normal-case leading-relaxed">
-                {INFO_COPY}
-              </TooltipContent>
-            </Tooltip>
           </div>
+          <InfoSheet title="How ranked entry works">
+            <p>
+              Your wallet signs every ranked entry — a device session can't pay
+              for you.
+            </p>
+            <p>
+              Each entry funds tomorrow: 60% Daily, 20% Weekly, 10% Season, 10%
+              team. Scored or expired, never refunded.
+            </p>
+          </InfoSheet>
         </div>
 
         <div className="w-full pt-1">
