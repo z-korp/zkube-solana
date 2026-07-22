@@ -20,13 +20,20 @@ import { describe, expect, it, vi } from "vitest";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import { IDL } from "./idl";
 import {
+  deriveArcadeConfigPda,
+  deriveArenaDailyPda,
+  deriveArenaPlayerPda,
   deriveMapCatalogPda,
+  deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
+  deriveSeasonPda,
+  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
+  combinePreparedAndDelegatePlan,
   compileWalletTransactionPlan,
   WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
   WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
@@ -35,6 +42,8 @@ import {
   type TransactionPlan,
 } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
+import { deriveSessionTokenV2Pda } from "./sessionV2";
+import * as router from "./router";
 import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
@@ -342,6 +351,123 @@ describe("native SOL transaction boundaries", () => {
     expect(message.compiledInstructions).toHaveLength(4);
     expect(message.header.numRequiredSignatures).toBe(1);
     expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
+  });
+
+  it("keeps the device as Daily fee payer and delegation actor while the owner approves entry", async () => {
+    const owner = Keypair.generate();
+    const session = Keypair.generate();
+    const sessionToken = deriveSessionTokenV2Pda({
+      authority: owner.publicKey,
+      sessionSigner: session.publicKey,
+    }).sessionToken;
+    const addresses = deriveRunAddresses(owner.publicKey, 1n);
+    const connection = makeFakeConnection({
+      getBalance: vi.fn().mockResolvedValue(5_000_000),
+      getMinimumBalanceForRentExemption: vi.fn().mockResolvedValue(890_880),
+    });
+    vi.spyOn(router, "getClosestValidator").mockResolvedValueOnce({
+      identity: Keypair.generate().publicKey,
+    });
+    const currentDaily = deriveArenaDailyPda(20);
+    const enterArena = await zkubeProgram(connection, new SessionWallet(owner))
+      .methods.fundedEnterArena(new BN(1), new BN(20_000_000))
+      .accountsPartial({
+        protocol: deriveProtocolConfigPda(),
+        arcadeConfig: deriveArcadeConfigPda(),
+        playerState: derivePlayerStatePda(owner.publicKey),
+        currentDaily,
+        arenaPlayer: deriveArenaPlayerPda(currentDaily, owner.publicKey),
+        currentWeekly: deriveWeeklyJackpotPda(2),
+        currentSeason: deriveSeasonPda(1),
+        followingDaily: deriveArenaDailyPda(21),
+        followingWeekly: deriveWeeklyJackpotPda(3),
+        followingSeason: deriveSeasonPda(2),
+        operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+        activeRun: addresses.activeRun,
+        playerFunding: derivePlayerFundingPda(owner.publicKey),
+        owner: owner.publicKey,
+        systemProgram: SystemProgram.programId,
+        zkubeProgram: ZKUBE_PROGRAM_ID,
+      })
+      .instruction();
+    const prepared = {
+      runId: 1n,
+      addresses,
+      sessionToken,
+      sessionValidUntil: 1_800_000_000,
+      transactionPlan: {
+        layer: "solana-base" as const,
+        label: "Enter Arena · exact 0.02 SOL + network fee",
+        connection,
+        transaction: new Transaction().add(enterArena),
+        feePayer: owner.publicKey,
+        signers: [],
+      },
+    };
+
+    const combined = await combinePreparedAndDelegatePlan({
+      prepared,
+      ownerAuthority: owner.publicKey,
+      sessionToken,
+      sessionSigner: session,
+    });
+    const delegate = combined.transactionPlan.transaction.instructions[1]!;
+
+    expect(combined.transactionPlan.feePayer.equals(session.publicKey)).toBe(
+      true,
+    );
+    expect(combined.transactionPlan.signers).toEqual([session]);
+    expect(delegate.keys[5]?.pubkey.equals(owner.publicKey)).toBe(true);
+    expect(delegate.keys[6]?.pubkey.equals(sessionToken)).toBe(true);
+    expect(delegate.keys[7]).toMatchObject({
+      pubkey: session.publicKey,
+      isSigner: true,
+    });
+
+    const signed = await compileWalletTransactionPlan({
+      transactionPlan: combined.transactionPlan,
+      wallet: new SessionWallet(owner),
+    });
+    const requiredSigners = signed.message.staticAccountKeys.slice(
+      0,
+      signed.message.header.numRequiredSignatures,
+    );
+    expect(requiredSigners).toEqual([session.publicKey, owner.publicKey]);
+    expect(signed.message.compiledInstructions).toHaveLength(4);
+    expect(signed.serialize().byteLength).toBeLessThanOrEqual(1_232);
+    expect(
+      signed.signatures.every((signature) =>
+        [...signature].some((byte) => byte !== 0),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects an owner approval when the device fee-payer signature is missing", async () => {
+    const owner = Keypair.generate();
+    const device = Keypair.generate();
+    const transactionPlan: TransactionPlan = {
+      layer: "solana-base",
+      label: "unsigned device fee payer",
+      connection: makeFakeConnection(),
+      transaction: new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: owner.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 20_000_000,
+        }),
+      ),
+      feePayer: device.publicKey,
+      signers: [],
+    };
+
+    await expect(
+      compileWalletTransactionPlan({
+        transactionPlan,
+        wallet: new SessionWallet(owner),
+      }),
+    ).rejects.toThrow(
+      `Missing partial signature for required signer ${device.publicKey.toBase58()}`,
+    );
   });
 });
 

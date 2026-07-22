@@ -453,9 +453,9 @@ export function useRunController() {
       });
       const launch = await combinePreparedAndDelegatePlan({
         prepared,
-        wallet: sessionWallet,
         ownerAuthority: publicKey,
         sessionToken: device.sessionToken,
+        sessionSigner: session,
       });
       const launchSignature = await submitPreparedRunPlan({
         preparedRun: launch,
@@ -616,9 +616,9 @@ export function useRunController() {
         });
         const launch = await combinePreparedAndDelegatePlan({
           prepared,
-          wallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
+          sessionSigner: session,
         });
         const launchSignature = await submitPreparedRunPlan({
           preparedRun: launch,
@@ -749,9 +749,9 @@ export function useRunController() {
         });
         const launch = await combinePreparedAndDelegatePlan({
           prepared,
-          wallet: sessionWallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
+          sessionSigner: session,
         });
         const launchSignature = await submitPreparedRunPlan({
           preparedRun: launch,

@@ -44,7 +44,7 @@ import {
   getDelegationRecord,
 } from "./constants.js";
 import { saveRunSession } from "./runSessionStore.js";
-import type { WalletLike } from "./sessionWallet.js";
+import { SessionWallet, type WalletLike } from "./sessionWallet.js";
 import {
   deriveArenaPlayerPda,
   deriveMapCatalogPda,
@@ -66,6 +66,7 @@ import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
+import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */
@@ -456,20 +457,32 @@ export async function buildDelegateRunPlan(args: {
  */
 export async function combinePreparedAndDelegatePlan(args: {
   prepared: PreparedRunPlan;
-  wallet: WalletLike;
   ownerAuthority: PublicKey;
   sessionToken: PublicKey;
+  sessionSigner: Keypair;
 }): Promise<PreparedRunPlan> {
+  if (!args.prepared.sessionToken.equals(args.sessionToken)) {
+    throw new Error("Prepared run and delegation use different session tokens");
+  }
+  const expectedSessionToken = deriveSessionTokenV2Pda({
+    authority: args.ownerAuthority,
+    sessionSigner: args.sessionSigner.publicKey,
+  }).sessionToken;
+  if (!expectedSessionToken.equals(args.sessionToken)) {
+    throw new Error("Delegation session token does not match the device signer");
+  }
+  const sessionWallet = new SessionWallet(args.sessionSigner);
   const delegate = await buildDelegateRunPlan({
-    wallet: args.wallet,
+    wallet: sessionWallet,
     ownerAuthority: args.ownerAuthority,
     sessionToken: args.sessionToken,
     addresses: args.prepared.addresses,
     connection: args.prepared.transactionPlan.connection,
   });
   if (
+    args.prepared.transactionPlan.layer !== "solana-base" ||
     delegate.layer !== "solana-base" ||
-    !delegate.feePayer.equals(args.prepared.transactionPlan.feePayer) ||
+    !delegate.feePayer.equals(args.sessionSigner.publicKey) ||
     delegate.connection.rpcEndpoint !==
       args.prepared.transactionPlan.connection.rpcEndpoint
   ) {
@@ -483,12 +496,16 @@ export async function combinePreparedAndDelegatePlan(args: {
       "solana-base",
       "Prepare and delegate active run",
       args.prepared.transactionPlan.connection,
-      args.prepared.transactionPlan.feePayer,
+      args.sessionSigner.publicKey,
       [
         ...args.prepared.transactionPlan.transaction.instructions,
         ...delegate.transaction.instructions,
       ],
-      [...args.prepared.transactionPlan.signers, ...delegate.signers],
+      uniqueSigners([
+        ...args.prepared.transactionPlan.signers,
+        ...delegate.signers,
+        args.sessionSigner,
+      ]),
       {
         postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
       },
@@ -899,9 +916,6 @@ export async function compileWalletTransactionPlan(args: {
   wallet: WalletLike;
 }): Promise<VersionedTransaction> {
   const { transactionPlan } = args;
-  if (!transactionPlan.feePayer.equals(args.wallet.publicKey)) {
-    throw new Error("The transaction fee payer must be the signing wallet");
-  }
   const { blockhash } =
     await transactionPlan.connection.getLatestBlockhash("confirmed");
   const instructions = withPinnedWalletComputeBudget(
@@ -912,6 +926,15 @@ export async function compileWalletTransactionPlan(args: {
     recentBlockhash: blockhash,
     instructions,
   }).compileToV0Message();
+  const requiredSignerKeys = message.staticAccountKeys.slice(
+    0,
+    message.header.numRequiredSignatures,
+  );
+  if (!requiredSignerKeys.some((key) => key.equals(args.wallet.publicKey))) {
+    throw new Error(
+      "The connected wallet is not a required transaction signer",
+    );
+  }
   if (transactionPlan.postFeeRentReserveLamports !== undefined) {
     const [fee, balanceLamports, rentFloorLamports] = await Promise.all([
       transactionPlan.connection.getFeeForMessage(message, "confirmed"),
@@ -939,6 +962,16 @@ export async function compileWalletTransactionPlan(args: {
   let transaction = new VersionedTransaction(message);
   if (transactionPlan.signers.length > 0)
     transaction.sign(transactionPlan.signers);
+  requiredSignerKeys.forEach((key, index) => {
+    if (
+      !key.equals(args.wallet.publicKey) &&
+      isZeroSignature(transaction.signatures[index])
+    ) {
+      throw new Error(
+        `Missing partial signature for required signer ${key.toBase58()}`,
+      );
+    }
+  });
   transaction = await args.wallet.signTransaction(transaction);
   const simulation = await transactionPlan.connection.simulateTransaction(
     transaction,
@@ -953,6 +986,20 @@ export async function compileWalletTransactionPlan(args: {
     );
   }
   return transaction;
+}
+
+function uniqueSigners(signers: readonly Signer[]): Signer[] {
+  const seen = new Set<string>();
+  return signers.filter(({ publicKey }) => {
+    const address = publicKey.toBase58();
+    if (seen.has(address)) return false;
+    seen.add(address);
+    return true;
+  });
+}
+
+function isZeroSignature(signature: Uint8Array | undefined): boolean {
+  return !signature || signature.every((byte) => byte === 0);
 }
 
 export async function submitVersionedTransactionPlan(args: {
