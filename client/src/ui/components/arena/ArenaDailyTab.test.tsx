@@ -154,4 +154,15 @@ describe("ArenaDailyTab", () => {
       screen.queryByText(/separate connected-wallet signature/i),
     ).toBeNull();
   });
+
+  it("is stripped to rows — the rules capsule and pot header moved to the Arcade home", () => {
+    render(<ArenaDailyTab />);
+
+    // The rankings themselves stay on the board.
+    expect(screen.getByText(/Today's rankings/i)).toBeInTheDocument();
+    // The zone pill, pot header, and prize ladder no longer live here.
+    expect(screen.queryByText("Tiki")).toBeNull();
+    expect(screen.queryByText(/Today's Daily pot/i)).toBeNull();
+    expect(screen.queryByText(/Building tomorrow's Daily/i)).toBeNull();
+  });
 });
