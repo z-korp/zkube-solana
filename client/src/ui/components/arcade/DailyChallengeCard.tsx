@@ -8,7 +8,7 @@ import {
 } from "@/chain/dailyRules";
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { ZONE_NAMES } from "@/config/profileData";
-import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
+import { getThemeColors, getThemeId } from "@/config/themes";
 import { cn } from "@/ui/utils";
 
 interface DailyChallengeCardProps {
@@ -22,10 +22,11 @@ interface DailyChallengeCardProps {
 }
 
 /**
- * The Arcade home's top card: the zone guardian and today's rule presented as
- * glass OVER the painted zone art. The zone image sits inside the card under a
- * light inner veil, so the guardian portrait and rule read against the painting
- * (the reference "rules capsule" look) rather than a flat black panel.
+ * The Arcade home's top card: the zone guardian and today's rule. It is dark
+ * translucent glass matching the "Playing for today" pot below, so the page's
+ * single ZoneBackdrop shows through both — no second copy of the zone art
+ * embedded here (that read as image-within-image). The accent-tinted border and
+ * the small guardian portrait carry the zone identity instead.
  */
 const DailyChallengeCard: React.FC<DailyChallengeCardProps> = ({
   zoneId,
@@ -34,7 +35,6 @@ const DailyChallengeCard: React.FC<DailyChallengeCardProps> = ({
   className,
 }) => {
   const themeId = getThemeId(zoneId);
-  const images = getThemeImages(themeId);
   const colors = getThemeColors(themeId);
   const guardian = getZoneGuardian(zoneId);
   const zoneName = ZONE_NAMES[zoneId] ?? `Zone ${zoneId}`;
@@ -44,25 +44,15 @@ const DailyChallengeCard: React.FC<DailyChallengeCardProps> = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "relative overflow-hidden rounded-3xl border",
+        "relative overflow-hidden rounded-3xl border bg-black/30 backdrop-blur-xl",
         className,
       )}
       style={{
         borderColor: `${colors.accent}44`,
-        boxShadow: `0 4px 32px rgba(0,0,0,0.3), inset 0 1px 0 ${colors.accent}15`,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
       }}
     >
-      {/* Painted zone art embedded in the card, revealed through a light veil. */}
-      <img
-        src={images.background}
-        alt=""
-        draggable={false}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ opacity: 0.7 }}
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,18,0.42)_0%,rgba(2,6,18,0.58)_55%,rgba(2,5,13,0.74)_100%)]" />
-
-      <div className="relative z-10 flex flex-col gap-3 p-5">
+      <div className="flex flex-col gap-3 p-5">
         <div className="flex items-center gap-3">
           <img
             src={getGuardianPortrait(zoneId)}
@@ -100,7 +90,7 @@ const DailyChallengeCard: React.FC<DailyChallengeCardProps> = ({
             className="rounded-2xl border px-3 py-2.5"
             style={{
               borderColor: `${colors.accent}33`,
-              background: "rgba(0,0,0,0.28)",
+              background: "rgba(255,255,255,0.05)",
             }}
           >
             <p
