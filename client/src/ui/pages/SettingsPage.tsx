@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { errorMessage } from "@/utils/errors";
 import { motion } from "motion/react";
 import {
@@ -6,27 +6,21 @@ import {
   ChevronLeft,
   Copy,
   ExternalLink,
-  Palette,
   UserRound,
 } from "lucide-react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { THEME_IDS, THEME_META, type ThemeId } from "@/config/themes";
-import { useCampaign } from "@/contexts/campaign";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useNavigationStore } from "@/stores/navigationStore";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 import PageHeader from "@/ui/components/shared/PageHeader";
-import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
-import ImageAssets from "@/ui/theme/ImageAssets";
+import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSol } from "@/utils/currency";
 
 const toPercent = (value: number): number => Math.round(value * 100);
 
 const SettingsPage: React.FC = () => {
   const player = useConnectedPlayer();
-  const { campaign } = useCampaign();
-  const { themeTemplate, setThemeTemplate } = useTheme();
   const colors = useThemeColors();
   const goBack = useNavigationStore((state) => state.goBack);
   const settingsFocus = useNavigationStore((state) => state.settingsFocus);
@@ -49,14 +43,6 @@ const SettingsPage: React.FC = () => {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [clearSettingsFocus, settingsFocus]);
-
-  const unlockedThemes = useMemo(() => {
-    const unlocked = new Set<ThemeId>(["theme-1"]);
-    for (const map of campaign?.maps ?? []) {
-      if (map.unlocked) unlocked.add(`theme-${map.mapId}` as ThemeId);
-    }
-    return THEME_IDS.filter((theme) => unlocked.has(theme));
-  }, [campaign?.maps]);
 
   const runWalletAction = async (
     action: () => Promise<unknown>,
@@ -118,43 +104,6 @@ const SettingsPage: React.FC = () => {
             <div className="flex flex-col gap-3">
               <AudioSlider icon="🎵" value={musicVolume} color={colors.accent} label="Music volume" delay={0.1} onChange={setMusicVolume} />
               <AudioSlider icon="🔔" value={effectsVolume} color={colors.accent2} label="Effects volume" delay={0.15} onChange={setEffectsVolume} />
-            </div>
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: 0.04 }}
-            className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 shadow-lg shadow-black/20 backdrop-blur-xl"
-          >
-            <div className="mb-3 flex items-center gap-2">
-              <Palette size={18} style={{ color: colors.accent }} />
-              <h2 className="font-display text-lg tracking-wide" style={{ color: colors.text }}>
-                THEME
-              </h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {unlockedThemes.map((themeId, index) => {
-                const themeAssets = ImageAssets(themeId);
-                const isSelected = themeTemplate === themeId;
-                return (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 + index * 0.03, type: "spring", stiffness: 300, damping: 24 }}
-                    key={themeId}
-                    type="button"
-                    whileTap={{ scale: 0.93 }}
-                    onClick={() => setThemeTemplate(themeId)}
-                    title={THEME_META[themeId].name}
-                    className={`relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border transition-colors ${isSelected ? "bg-white/10" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"}`}
-                    style={{ borderColor: isSelected ? colors.accent : undefined }}
-                  >
-                    <img src={themeAssets.themeIcon} alt={THEME_META[themeId].name} className="h-full w-full object-cover" draggable={false} />
-                    {isSelected && <Check size={14} className="absolute bottom-1 right-1 drop-shadow-md" style={{ color: colors.accent }} />}
-                  </motion.button>
-                );
-              })}
             </div>
           </motion.section>
 

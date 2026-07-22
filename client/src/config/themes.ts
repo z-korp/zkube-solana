@@ -722,8 +722,8 @@ export interface AudioSettings {
 }
 
 const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
-  musicVolume: 0.3,
-  effectsVolume: 0.5,
+  musicVolume: 0.2,
+  effectsVolume: 0.4,
 };
 
 export function loadAudioSettings(): AudioSettings {
