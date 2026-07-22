@@ -46,7 +46,6 @@ import {
   ENTRY_OPERATOR_LAMPORTS,
   ENTRY_SEASON_LAMPORTS,
   ENTRY_WEEKLY_LAMPORTS,
-  SECONDS_PER_DAY,
 } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";

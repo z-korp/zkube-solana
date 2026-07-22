@@ -61,7 +61,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas";
-import { zkubeProgram } from "./runPlan";
+import { withPinnedWalletComputeBudget, zkubeProgram } from "./runPlan";
 import {
   DEVICE_FEE_ALLOWANCE_LAMPORTS,
   deviceSignerTopUpLamports,
@@ -796,7 +796,7 @@ async function submitOwnerSessionTransaction(args: {
     new TransactionMessage({
       payerKey: args.owner,
       recentBlockhash: blockhash,
-      instructions: args.instructions,
+      instructions: withPinnedWalletComputeBudget(args.instructions),
     }).compileToV0Message(),
   );
   transaction.sign(args.signers);

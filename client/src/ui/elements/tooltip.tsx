@@ -25,41 +25,45 @@ const TouchCtx = React.createContext<{
 const Tooltip: React.FC<
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>
 > = ({ children, open: controlledOpen, onOpenChange, ...props }) => {
-  const [touchOpen, setTouchOpen] = React.useState(false);
-  const isTouch = React.useSyncExternalStore(subscribeTouch, getIsTouch, () => false);
-  const timerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isTouch = React.useSyncExternalStore(
+    subscribeTouch,
+    getIsTouch,
+    () => false,
+  );
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const open = controlledOpen ?? internalOpen;
+
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (controlledOpen === undefined) setInternalOpen(next);
+      onOpenChange?.(next);
+      if (!next) clearTimeout(timerRef.current);
+    },
+    [controlledOpen, onOpenChange],
+  );
 
   const toggle = React.useCallback(() => {
-    setTouchOpen((prev) => {
-      const next = !prev;
-      clearTimeout(timerRef.current);
-      if (next) {
-        // Auto-dismiss after 2.5s
-        timerRef.current = setTimeout(() => setTouchOpen(false), 2500);
-      }
-      return next;
-    });
-  }, []);
+    const next = !open;
+    clearTimeout(timerRef.current);
+    setOpen(next);
+    if (next) {
+      // Auto-dismiss after 2.5s
+      timerRef.current = setTimeout(() => setOpen(false), 2500);
+    }
+  }, [open, setOpen]);
 
   React.useEffect(() => () => clearTimeout(timerRef.current), []);
 
-  // If caller already controls open state, pass through
-  if (controlledOpen !== undefined) {
-    return (
-      <TooltipPrimitive.Root open={controlledOpen} onOpenChange={onOpenChange} {...props}>
-        <TouchCtx.Provider value={{ isTouch, toggle }}>{children}</TouchCtx.Provider>
-      </TooltipPrimitive.Root>
-    );
-  }
-
-  // Touch: controlled via tap toggle. Pointer: uncontrolled (hover).
+  // Remain controlled for the component's full lifetime. Touch versus pointer
+  // changes how the state is toggled, never whether `open` is defined.
   return (
-    <TooltipPrimitive.Root
-      open={isTouch ? touchOpen : undefined}
-      onOpenChange={isTouch ? setTouchOpen : onOpenChange}
-      {...props}
-    >
-      <TouchCtx.Provider value={{ isTouch, toggle }}>{children}</TouchCtx.Provider>
+    <TooltipPrimitive.Root open={open} onOpenChange={setOpen} {...props}>
+      <TouchCtx.Provider value={{ isTouch, toggle }}>
+        {children}
+      </TouchCtx.Provider>
     </TooltipPrimitive.Root>
   );
 };
@@ -81,7 +85,9 @@ const TooltipTrigger = React.forwardRef<
     [ctx, onClick],
   );
 
-  return <TooltipPrimitive.Trigger ref={ref} onClick={handleClick} {...props} />;
+  return (
+    <TooltipPrimitive.Trigger ref={ref} onClick={handleClick} {...props} />
+  );
 });
 TooltipTrigger.displayName = "TooltipTrigger";
 
