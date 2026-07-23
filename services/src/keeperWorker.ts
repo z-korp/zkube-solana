@@ -40,7 +40,7 @@ const MAX_MAX_WRITES = 8;
 
 /** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
-  "754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4";
+  "9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e";
 
 /**
  * The immutable runtime image digest participates in the approved release.

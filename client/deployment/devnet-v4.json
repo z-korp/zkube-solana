@@ -11,13 +11,13 @@
   },
   "program": {
     "id": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-    "artifactSha256": "bbd69fc95d964d159fdb390810ac2b432f47540c85ff9d1ccd5cee0b6c8b0cf5",
+    "artifactSha256": "9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e",
     "programDataAddress": "2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS",
-    "deployedProgramDataSha256": "754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4",
-    "allocationBytes": 1264080,
+    "deployedProgramDataSha256": "9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e",
+    "allocationBytes": 1420056,
     "upgradeAuthority": "2so568MdBWj9FMdC1pLQEJtgMo3LpYXFHKZ39GvEgEox",
-    "deploymentSignature": "2rKP8ZsFx8tLwjumvUUxNDnxihhBDiQFPz7AP7vy4jFCDatpx5NeER3aeHpt3aTNWbSMLUaTy8Eku1976xfue3y2",
-    "deployedAt": "2026-07-22T09:49:42.000Z"
+    "deploymentSignature": "41u1gJxYMAvXcJBU8HHedikFoFbmd8rq8Qb8823Hoe1DEi3huCYiQiUUzPe1Ri71ZRi79VM3KmFpRd5AfcBYVDmJ",
+    "deployedAt": "2026-07-23T09:59:33.000Z"
   },
   "rpc": {
     "base": "https://rpc.magicblock.app/devnet",

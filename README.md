@@ -304,9 +304,9 @@ visual redesign. The next Claude frontend pass must preserve the contract and:
 
 The v4 Devnet program is
 `Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`, with ProgramData
-`2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS`, allocation `1,264,080`, and
+`2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS`, allocation `1,420,056`, and
 padded ProgramData SHA-256
-`754974b0248a9236fe25fde81185649dd73d9b1099d734b9a5029d39750933b4`.
+`9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e`.
 The approved launch completed on 2026-07-22 at protocol PDA
 `G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ`. Daily `20656`, Weekly `2950`,
 and Season `737` opened atomically with 1/2/3 SOL; the following cadence
@@ -320,17 +320,15 @@ from image digest
 Its first active pass completed with zero planned writes, zero writes, and zero
 lamports spent.
 
-The source tree now contains an undeployed upgrade candidate for cadence
-archives, PlayerState v3 run slots, retired Practice preparation, and the exact
-0.01 SOL entry split. It does not change the live ProgramData hash, Arcade
-configuration, or keeper fingerprint above. Already-created v2 runs migrate
+The cadence-archive, PlayerState v3 run-slot, retired-Practice preparation, and
+exact 0.01 SOL entry-split program upgrade confirmed on 2026-07-23 with
+signature
+`41u1gJxYMAvXcJBU8HHedikFoFbmd8rq8Qb8823Hoe1DEi3huCYiQiUUzPe1Ri71ZRi79VM3KmFpRd5AfcBYVDmJ`.
+The protocol is intentionally paused pending the separately approved archive
+migration, one-way exact `activate_run_slots_v3` governance instruction, 0.5
+SOL cadence-rent float, `zkube_archives` Fly volume, fingerprinted keeper
+release, read-only verification, and re-enable. Already-created v2 runs migrate
 in place and legacy Practice retains only its recovery and settlement paths.
-Rollout requires a new exact approval bundle covering the program upgrade,
-paused archive migration, the one-way exact `activate_run_slots_v3`
-governance instruction, 0.5 SOL cadence-rent float, the `zkube_archives` Fly
-volume and fingerprinted keeper release, read-only verification, and
-re-enable. The final keeper fingerprint must bind the post-upgrade padded
-ProgramData and IDL hashes.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
