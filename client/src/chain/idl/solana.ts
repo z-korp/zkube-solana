@@ -335,6 +335,69 @@ export type Solana = {
       ]
     },
     {
+      "name": "activateRunSlotsV3",
+      "discriminator": [
+        230,
+        125,
+        93,
+        106,
+        10,
+        43,
+        74,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "activateSeason",
       "discriminator": [
         65,
@@ -6545,6 +6608,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "runSlotsV3Activated",
+      "discriminator": [
+        21,
+        32,
+        226,
+        1,
+        3,
+        97,
+        16,
+        197
+      ]
+    },
+    {
       "name": "teamDestinationChanged",
       "discriminator": [
         25,
@@ -6716,31 +6792,36 @@ export type Solana = {
     },
     {
       "code": 6031,
+      "name": "practiceRetired",
+      "msg": "Practice has been retired; finish an existing legacy Practice run instead"
+    },
+    {
+      "code": 6032,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6032,
+      "code": 6033,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6033,
+      "code": 6034,
       "name": "invalidPlayerLabel",
       "msg": "The player label is invalid"
     },
     {
-      "code": 6034,
+      "code": 6035,
       "name": "invalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6035,
+      "code": 6036,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     },
     {
-      "code": 6036,
+      "code": 6037,
       "name": "alreadySeeded",
       "msg": "The first Daily, Weekly, and Season pools were already seeded"
     }
@@ -8234,9 +8315,8 @@ export type Solana = {
           {
             "name": "activeRunId",
             "docs": [
-              "Zero when idle; otherwise the only run that may exist for this owner.",
-              "This durable pointer makes resume deterministic across devices and",
-              "prevents two valid device sessions from opening concurrent runs."
+              "Zero when the Arcade slot is idle. In legacy v2 accounts this is the",
+              "single shared pointer and is normalized according to active_run_mode."
             ],
             "type": "u64"
           },
@@ -8320,6 +8400,14 @@ export type Solana = {
             }
           },
           {
+            "name": "campaignActiveRunId",
+            "docs": [
+              "Zero when the Campaign slot is idle. This consumes the first eight",
+              "bytes of v2's zeroed reserve without changing PlayerState's allocation."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "reserved",
             "docs": [
               "Reserved bytes for a future explicitly versioned schema only."
@@ -8327,7 +8415,7 @@ export type Solana = {
             "type": {
               "array": [
                 "u8",
-                32
+                24
               ]
             }
           },
@@ -8618,6 +8706,42 @@ export type Solana = {
           },
           {
             "name": "practice"
+          }
+        ]
+      }
+    },
+    {
+      "name": "runSlotsV3Activated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "playerFundingTargetLamports",
+            "type": "u64"
+          },
+          {
+            "name": "entryLamports",
+            "type": "u64"
+          },
+          {
+            "name": "dailyLamports",
+            "type": "u64"
+          },
+          {
+            "name": "weeklyLamports",
+            "type": "u64"
+          },
+          {
+            "name": "seasonLamports",
+            "type": "u64"
+          },
+          {
+            "name": "operatorLamports",
+            "type": "u64"
           }
         ]
       }

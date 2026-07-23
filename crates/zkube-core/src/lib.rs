@@ -39,6 +39,7 @@ mod weekly;
 /// generated TypeScript boundaries. Rules and public labels intentionally
 /// retain their independent v1 schemas.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
+pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 3;
 pub const ARCADE_ACCOUNT_VERSION: u8 = 4;
 pub const RULES_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;

@@ -78,6 +78,8 @@ pub enum ErrorCode {
     AccountingInvariant,
     #[msg("The Arena entry price changed; refresh the exact quote")]
     PriceChanged,
+    #[msg("Practice has been retired; finish an existing legacy Practice run instead")]
+    PracticeRetired,
     #[msg("The scoped player session is invalid")]
     InvalidSession,
     #[msg("The scoped player session has expired")]

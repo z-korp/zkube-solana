@@ -58,11 +58,17 @@ describe("shared controller providers", () => {
       </RunProvider>,
     );
 
-    expect(chainHooks.run).toHaveBeenCalledTimes(1);
+    expect(chainHooks.run).toHaveBeenCalledTimes(2);
+    expect(chainHooks.run).toHaveBeenNthCalledWith(1, "campaign");
+    expect(chainHooks.run).toHaveBeenNthCalledWith(2, "arcade");
     expect(chainHooks.campaign).toHaveBeenCalledTimes(1);
     expect(chainHooks.daily).toHaveBeenCalledTimes(1);
     expect(observed).toEqual([
-      controllers.run,
+      {
+        ...controllers.run,
+        campaign: controllers.run,
+        arcade: controllers.run,
+      },
       controllers.campaign,
       controllers.daily,
     ]);

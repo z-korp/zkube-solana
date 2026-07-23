@@ -12,7 +12,10 @@ import {
   type RawLevelRuleSnapshot,
 } from "./runPlan.js";
 import { CANONICAL_CAMPAIGN_MAP_COUNT } from "./campaignCatalog.js";
-import { PROTOCOL_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
+import {
+  PLAYER_STATE_ACCOUNT_VERSION,
+  PROTOCOL_ACCOUNT_VERSION,
+} from "./protocolVersions.generated.js";
 
 export const CAMPAIGN_LEVEL_COUNT = 100;
 export const CAMPAIGN_STAR_BYTES = 25;
@@ -261,7 +264,8 @@ export function decodePlayerStateAccount(
   ) as unknown as RawPlayerState;
   const campaignStars = Array.from(raw.campaignStars, (byte) => Number(byte));
   if (
-    Number(raw.version) !== PROTOCOL_ACCOUNT_VERSION ||
+    (Number(raw.version) !== PROTOCOL_ACCOUNT_VERSION &&
+      Number(raw.version) !== PLAYER_STATE_ACCOUNT_VERSION) ||
     !raw.owner.equals(owner) ||
     !address.equals(derivePlayerStatePda(owner)) ||
     campaignStars.length !== CAMPAIGN_STAR_BYTES

@@ -22,6 +22,11 @@ pub const ENTRY_DAILY_LAMPORTS: u64 = zkube_core::ENTRY_DAILY_LAMPORTS;
 pub const ENTRY_WEEKLY_LAMPORTS: u64 = zkube_core::ENTRY_WEEKLY_LAMPORTS;
 pub const ENTRY_SEASON_LAMPORTS: u64 = zkube_core::ENTRY_SEASON_LAMPORTS;
 pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
+pub const LEGACY_ARENA_ENTRY_LAMPORTS: u64 = 20_000_000;
+pub const LEGACY_ENTRY_DAILY_LAMPORTS: u64 = 12_000_000;
+pub const LEGACY_ENTRY_WEEKLY_LAMPORTS: u64 = 4_000_000;
+pub const LEGACY_ENTRY_SEASON_LAMPORTS: u64 = 2_000_000;
+pub const LEGACY_ENTRY_OPERATOR_LAMPORTS: u64 = 2_000_000;
 pub const DAILY_PRIZE_WEIGHTS: [u16; 5] = zkube_core::DAILY_PRIZE_WEIGHTS;
 pub const WEEKLY_PRIZE_WEIGHTS: [u16; 3] = zkube_core::WEEKLY_PRIZE_WEIGHTS;
 pub const ARENA_BOARD_CAPACITY: usize = 50;
@@ -102,6 +107,22 @@ impl ArcadeConfig {
             ErrorCode::AccountingInvariant
         );
         Ok(())
+    }
+
+    pub fn has_legacy_terms(&self) -> bool {
+        self.entry_lamports == LEGACY_ARENA_ENTRY_LAMPORTS
+            && self.daily_lamports == LEGACY_ENTRY_DAILY_LAMPORTS
+            && self.weekly_lamports == LEGACY_ENTRY_WEEKLY_LAMPORTS
+            && self.season_lamports == LEGACY_ENTRY_SEASON_LAMPORTS
+            && self.operator_lamports == LEGACY_ENTRY_OPERATOR_LAMPORTS
+    }
+
+    pub fn activate_current_terms(&mut self) {
+        self.entry_lamports = ARENA_ENTRY_LAMPORTS;
+        self.daily_lamports = ENTRY_DAILY_LAMPORTS;
+        self.weekly_lamports = ENTRY_WEEKLY_LAMPORTS;
+        self.season_lamports = ENTRY_SEASON_LAMPORTS;
+        self.operator_lamports = ENTRY_OPERATOR_LAMPORTS;
     }
 }
 

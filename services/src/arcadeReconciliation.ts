@@ -827,9 +827,8 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
     }
     assertSafeTimestamp(candidate.closeEligibleAt);
     if (candidate.competition === "daily" &&
-        candidate.closeEligibleAt <
-          (candidate.cadenceId + 1) * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
-      throw new Error("Daily archive closes before its Practice dependency");
+        candidate.closeEligibleAt < (period as DailySnapshot).runsCloseAt) {
+      throw new Error("Daily archive closes before the ranked run deadline");
     }
     if (candidate.closeEligible && (!candidate.committed ||
         period.profileSyncMask !== candidate.requiredProfileSyncMask ||
@@ -879,7 +878,8 @@ function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
   const deadlineStart = run.deadlineDayId * SECONDS_PER_DAY;
   if ((run.mode === "ranked" && run.challengeDayId !== run.deadlineDayId) ||
       (run.mode === "practice" && run.challengeDayId + 1 !== run.deadlineDayId) ||
-      !snapshot.dailies.some(({ dayId }) => dayId === run.challengeDayId) ||
+      (run.mode === "ranked" &&
+        !snapshot.dailies.some(({ dayId }) => dayId === run.challengeDayId)) ||
       run.runsCloseAt !== deadlineStart + DAILY_RUN_CLOSE_OFFSET ||
       run.recoveryDeadlineAt !== deadlineStart + DAILY_RECOVERY_DEADLINE_OFFSET ||
       (run.mode === "ranked" && !run.arenaPlayerExists)) {

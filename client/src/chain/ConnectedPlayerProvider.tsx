@@ -77,7 +77,7 @@ import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_READY_SKEW_SECONDS = 60;
-const PLAYER_FUNDING_TARGET_LAMPORTS = 25_000_000;
+const PLAYER_FUNDING_TARGET_LAMPORTS = 50_000_000;
 
 interface ConnectedWalletState {
   connector: WalletConnector;
@@ -235,8 +235,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       let fundingInfo;
       let signerInfo;
       let signerRentFloor;
+      let protocol;
       try {
-        [[info, fundingInfo, signerInfo], signerRentFloor] = await Promise.all([
+        const program = zkubeProgram(connection, createReadOnlyWallet(owner));
+        [[info, fundingInfo, signerInfo], signerRentFloor, protocol] = await Promise.all([
           connection.getMultipleAccountsInfo(
             [
               stored.sessionToken,
@@ -246,6 +248,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
             "confirmed",
           ),
           connection.getMinimumBalanceForRentExemption(0, "confirmed"),
+          program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
         ]);
       } catch (cause) {
         const message = walletErrorMessage(cause);
@@ -287,6 +290,9 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           setSessionStatus("missing");
           return "missing";
         }
+        const configuredFundingTarget = validatedPlayerFundingTarget(
+          protocol.playerFundingTargetLamports,
+        );
         const now = Math.floor(Date.now() / 1_000);
         const fundingStatus = validateDeviceSignerFunding({
           info: signerInfo,
@@ -294,7 +300,9 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         });
         const result =
           token.validUntil - now > SESSION_READY_SKEW_SECONDS
-            ? fundingStatus
+            ? fundingInfo!.lamports >= configuredFundingTarget
+              ? fundingStatus
+              : "needsRenewal"
             : "expired";
         setSessionStatus(result);
         emitChainMetric({
@@ -430,6 +438,22 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     let previousSignerBalance = 0;
     let previousSession: DeviceSession | null = null;
     let revokeInstruction: TransactionInstruction | null = null;
+    const program = zkubeProgram(connection, current.wallet);
+    const playerFunding = derivePlayerFundingPda(current.publicKey);
+    const [protocol, existingFundingInfo] = await Promise.all([
+      program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
+      connection.getAccountInfo(playerFunding, "confirmed"),
+    ]);
+    if (existingFundingInfo && !isNormalizedPlayerFunding(existingFundingInfo)) {
+      throw new Error("Player funding PDA has an invalid owner or account layout");
+    }
+    const configuredFundingTarget = validatedPlayerFundingTarget(
+      protocol.playerFundingTargetLamports,
+    );
+    const fundingTopUp = Math.max(
+      0,
+      configuredFundingTarget - (existingFundingInfo?.lamports ?? 0),
+    );
 
     if (stored) {
       const [tokenInfo, signerInfo] = await connection.getMultipleAccountsInfo(
@@ -458,7 +482,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       previousSession = stored;
       if (token.validUntil - now > SESSION_READY_SKEW_SECONDS) {
         const topUpLamports = deviceSignerTopUpLamports(previousSignerBalance);
-        if (topUpLamports === 0) {
+        if (topUpLamports === 0 && fundingTopUp === 0) {
           setSession(stored);
           setSessionStatus("ready");
           setError(null);
@@ -471,6 +495,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
             owner: current.publicKey.toBase58(),
             actor: stored.signer.publicKey.toBase58(),
             balanceAfterLamports: previousSignerBalance,
+            playerFundingLamports: existingFundingInfo?.lamports ?? 0,
             validUntil: stored.validUntil,
           });
           return "";
@@ -485,20 +510,33 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           actor: stored.signer.publicKey.toBase58(),
           balanceBeforeLamports: previousSignerBalance,
           topUpLamports,
+          playerFundingTopUpLamports: fundingTopUp,
           validUntil: stored.validUntil,
         });
-        const refill = buildDeviceSessionRefillInstructions({
-          owner: current.publicKey,
-          signer: stored.signer.publicKey,
-          balanceLamports: previousSignerBalance,
-        });
+        const refillInstructions =
+          topUpLamports > 0
+            ? buildDeviceSessionRefillInstructions({
+                owner: current.publicKey,
+                signer: stored.signer.publicKey,
+                balanceLamports: previousSignerBalance,
+              }).instructions
+            : [];
+        if (fundingTopUp > 0) {
+          refillInstructions.push(
+            SystemProgram.transfer({
+              fromPubkey: current.publicKey,
+              toPubkey: playerFunding,
+              lamports: fundingTopUp,
+            }),
+          );
+        }
         const signature = await submitOwnerSessionTransaction({
           connection,
           wallet: current.wallet,
           owner: current.publicKey,
           label: "Refill zKube device session",
-          instructions: refill.instructions,
-          signers: [stored.signer],
+          instructions: refillInstructions,
+          signers: topUpLamports > 0 ? [stored.signer] : [],
           assertWalletCurrent: () =>
             assertConnectedWallet(current, connectedRef.current),
         });
@@ -514,6 +552,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           signature,
           durationMs: Date.now() - startedAt,
           balanceAfterLamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
+          playerFundingLamports:
+            (existingFundingInfo?.lamports ?? 0) + fundingTopUp,
         });
         return signature;
       }
@@ -531,11 +571,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       authority: current.publicKey,
       sessionSigner: signer.publicKey,
     });
-    const program = zkubeProgram(connection, current.wallet);
     const playerState = derivePlayerStatePda(current.publicKey);
-    const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const [protocol, profileInfo, fundingInfo] = await Promise.all([
-      program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
+    const [profileInfo, fundingInfo] = await Promise.all([
       connection.getAccountInfo(playerState, "confirmed"),
       connection.getAccountInfo(playerFunding, "confirmed"),
     ]);
@@ -560,17 +597,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         "Player funding PDA has an invalid owner or account layout",
       );
     }
-    const configuredFundingTarget = Number(
-      protocol.playerFundingTargetLamports,
-    );
-    if (
-      !Number.isSafeInteger(configuredFundingTarget) ||
-      configuredFundingTarget <= 0 ||
-      configuredFundingTarget > PLAYER_FUNDING_TARGET_LAMPORTS
-    ) {
-      throw new Error("Protocol player funding target is invalid");
-    }
-    const fundingTopUp = Math.max(
+    const freshFundingTopUp = Math.max(
       0,
       configuredFundingTarget - (fundingInfo?.lamports ?? 0),
     );
@@ -598,12 +625,12 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         })
         .instruction(),
     );
-    if (fundingTopUp > 0) {
+    if (freshFundingTopUp > 0) {
       instructions.push(
         SystemProgram.transfer({
           fromPubkey: current.publicKey,
           toPubkey: playerFunding,
-          lamports: fundingTopUp,
+          lamports: freshFundingTopUp,
         }),
       );
     }
@@ -628,7 +655,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       actor: signer.publicKey.toBase58(),
       reclaimedSignerLamports: previousSignerBalance,
       revokedExpiredToken: Boolean(revokeInstruction),
-      fundingTopUpLamports: fundingTopUp,
+      fundingTopUpLamports: freshFundingTopUp,
       allowanceLamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
       validUntil,
     });
@@ -851,4 +878,16 @@ function isNormalizedPlayerFunding(info: AccountInfo<Buffer> | null): boolean {
     info.owner.equals(SystemProgram.programId) &&
     info.data.length === 0,
   );
+}
+
+function validatedPlayerFundingTarget(value: { toString(): string }): number {
+  const target = Number(value.toString());
+  if (
+    !Number.isSafeInteger(target) ||
+    target <= 0 ||
+    target > PLAYER_FUNDING_TARGET_LAMPORTS
+  ) {
+    throw new Error("Protocol player funding target is invalid");
+  }
+  return target;
 }

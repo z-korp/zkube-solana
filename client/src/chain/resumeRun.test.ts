@@ -57,6 +57,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       deviceSession,
@@ -72,7 +73,7 @@ describe("persisted run resolution", () => {
     expect(result.phase === "delegated" && result.marker.runId).toBe(12n);
     expect(result.phase === "delegated" && result.marker.mode).toBe("daily");
     expect(result.phase === "delegated" && result.sessionAuthorized).toBe(true);
-    expect(loadRunSession(owner.publicKey)?.session.publicKey.equals(deviceSigner.publicKey))
+    expect(loadRunSession(owner.publicKey, "arcade")?.session.publicKey.equals(deviceSigner.publicKey))
       .toBe(true);
   });
 
@@ -116,6 +117,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection,
       deviceSession,
@@ -132,7 +134,7 @@ describe("persisted run resolution", () => {
       "prepared",
     );
     expect(result.phase === "base" && result.sessionAuthorized).toBe(true);
-    expect(loadRunSession(owner.publicKey)?.runId).toBe(1n);
+    expect(loadRunSession(owner.publicKey, "campaign")?.runId).toBe(1n);
   });
 
   it("re-resolves the ER and verifies the active run identity", async () => {
@@ -147,6 +149,7 @@ describe("persisted run resolution", () => {
     } as unknown as Connection;
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -190,6 +193,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -236,6 +240,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -274,6 +279,7 @@ describe("persisted run resolution", () => {
     } as unknown as Connection;
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -290,6 +296,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 2n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi.fn().mockResolvedValue({}),
@@ -327,6 +334,7 @@ describe("persisted run resolution", () => {
     await expect(
       resolvePersistedRun({
         owner: owner.publicKey,
+        slot: "campaign",
         wallet: new SessionWallet(owner),
         baseConnection: {
           getAccountInfo: vi.fn().mockResolvedValue({}),
@@ -359,6 +367,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 5n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
@@ -382,6 +391,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 6n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
+      slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi

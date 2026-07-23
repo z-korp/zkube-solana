@@ -114,7 +114,7 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         player.set_inner(PlayerState::initialize(owner, ctx.bumps.player_state));
     } else {
         require!(player.owner == owner, ErrorCode::Unauthorized);
-        require!(player.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
+        player.migrate_run_slots()?;
     }
 
     require_canonical_player_funding(&ctx.accounts.player_funding.to_account_info())?;
@@ -477,7 +477,7 @@ pub struct PrepareCampaignRun<'info> {
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
@@ -525,12 +525,13 @@ pub fn handler_prepare_campaign_run(
         ctx.accounts.actor.key(),
         ctx.accounts.payer.key(),
     )?;
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.next_run_id == run_id,
         ErrorCode::InvalidRunId
     );
     require!(
-        ctx.accounts.player_state.active_run_id == 0,
+        ctx.accounts.player_state.campaign_active_run_id == 0,
         ErrorCode::ActiveRunExists
     );
     require!(
@@ -597,7 +598,7 @@ pub fn handler_prepare_campaign_run(
     active.finished_at = 0;
     active.bump = ctx.bumps.active_run;
 
-    ctx.accounts.player_state.reserve_run(run_id)?;
+    ctx.accounts.player_state.reserve_campaign_run(run_id)?;
     Ok(())
 }
 

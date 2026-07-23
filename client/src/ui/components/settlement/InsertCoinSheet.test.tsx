@@ -38,7 +38,7 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
       <InsertCoinSheet
         open
         onClose={vi.fn()}
-        entryLamports={20_000_000n}
+        entryLamports={10_000_000n}
         onConfirm={vi.fn()}
         {...props}
       />
@@ -51,7 +51,7 @@ describe("InsertCoinSheet", () => {
     renderSheet();
 
     expect(screen.getByText("Insert coin")).toBeInTheDocument();
-    expect(screen.getByText("0.02")).toBeInTheDocument();
+    expect(screen.getByText("0.01")).toBeInTheDocument();
     expect(screen.getByText("SOL")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /how it works/i }),

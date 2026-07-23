@@ -11,16 +11,17 @@ economic, and distribution review.
 
 ## Product model
 
-- Campaign and yesterday's unranked Practice are free.
+- Campaign is free. Practice is retired; already-created legacy Practice runs
+  remain recoverable through their terminal or deterministic-expiry paths.
 - Campaign is optional and never gates Arcade.
-- Every ranked Arcade run requires a separate owner-signed exact 0.02 SOL
+- Every ranked Arcade run requires a separate owner-signed exact 0.01 SOL
   entry. A device session can never authorize that payment.
 - Campaign stars are the only progression. Campaign never changes competitive
   records or grants SOL, entries, prize eligibility, or mint odds.
 - Arcade is competition only. It has no XP, levels, quests, achievements,
   titles, ratings, crests, or other gameplay-progression counters.
-- Practice writes no persistent progression and never affects a prize. Only a
-  separately paid ranked result can enter a competition board.
+- Legacy Practice writes no persistent progression and never affects a prize.
+  Only a separately paid ranked result can enter a competition board.
 
 The static PWA/TWA opens on Arcade and exposes four primary destinations:
 Arcade, Campaign, Ranks, and Profile. Campaign uses the existing world
@@ -43,14 +44,14 @@ variant becomes gold when that zone reaches 30/30 stars.
 
 ## SOL accounting
 
-Each paid entry transfers exactly 20,000,000 lamports:
+Each paid entry transfers exactly 10,000,000 lamports:
 
 | Destination | Share | Lamports |
 | --- | ---: | ---: |
-| Following Daily | 60% | 12,000,000 |
-| Following Weekly | 20% | 4,000,000 |
-| Following 28-day Season | 10% | 2,000,000 |
-| Operator revenue | 10% | 2,000,000 |
+| Following Daily | 60% | 6,000,000 |
+| Following Weekly | 20% | 2,000,000 |
+| Following 28-day Season | 10% | 1,000,000 |
+| Operator revenue | 10% | 1,000,000 |
 
 All competition pots are prepaid. Initialization may seed only the first
 Daily, Weekly, and Season, with exact values supplied by a separately approved
@@ -173,7 +174,7 @@ SOL transfer.
 
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
-| Owner wallet | Durable identity and paid entry | Signs every 0.02 SOL entry |
+| Owner wallet | Durable identity and paid entry | Signs every 0.01 SOL entry |
 | Device session | Approximately seven days of safe gameplay | Never signs entry payment |
 | Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
 | Cadence funding PDA | Recyclable Daily/Weekly/Season rent float | Separately seeded; narrow self-CPI preparation only |
@@ -207,9 +208,13 @@ roles, or existing partial signatures are rejected.
 
 Solana Base, the MagicBlock Router, and the Router-resolved ER are separate
 connections. Delegation placement is resolved through `getDelegationStatus`;
-regional ER endpoints are never hardcoded. One durable active run ID prevents
-overlap across modes and devices. A separate orphan reservation prevents an
-unreachable delegated run from racing a replacement run.
+regional ER endpoints are never hardcoded. PlayerState v3 has one durable
+Campaign run slot and one durable Arcade run slot, so one run of each may
+coexist while overlap within either mode is rejected across devices. Both
+slots allocate from one monotonic run-ID sequence. A separate Arcade orphan
+reservation prevents an unreachable delegated run from racing a replacement.
+The byte-compatible v2 migration moves a legacy shared pointer into the slot
+selected by its stored immutable mode.
 
 The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
 undelegation callback must constrain the canonical `undelegate-buffer` PDA and
@@ -277,8 +282,8 @@ visual redesign. The next Claude frontend pass must preserve the contract and:
 - remove the Quests destination and all XP, title-ring, achievement, quest,
   rating, and crest copy or controls;
 - keep exactly four primary destinations: Arcade, Campaign, Ranks, Profile;
-- present Practice only as a free, unranked “would have ranked” comparison with
-  no persistent reward or progression language;
+- expose no new Practice launch affordance, while allowing an already-created
+  legacy Practice run to resume, settle, or expire safely;
 - remove stale `+100 XP`, `+50 XP`, and similar result messaging;
 - make Profile show the featured emblem, Campaign stars, lifetime paid entries,
   total wins/rewards, and collapsible Daily/Weekly/Season records;
@@ -308,15 +313,17 @@ from image digest
 Its first active pass completed with zero planned writes, zero writes, and zero
 lamports spent.
 
-The source tree now contains an undeployed cadence-archive upgrade candidate.
-It does not change the live ProgramData hash or keeper fingerprint above.
-Already-created Dailies retain their snapshotted legacy entry and run
-deadlines; the 23:45/23:59 schedule applies only to Dailies prepared by the
-upgraded program. Rollout requires a new exact approval bundle covering the
-program upgrade, paused archive migration, 0.5 SOL cadence-rent float, the
-`zkube_archives` Fly volume and fingerprinted keeper release, read-only
-verification, and re-enable. The final keeper fingerprint must bind the
-post-upgrade padded ProgramData hash.
+The source tree now contains an undeployed upgrade candidate for cadence
+archives, PlayerState v3 run slots, retired Practice preparation, and the exact
+0.01 SOL entry split. It does not change the live ProgramData hash, Arcade
+configuration, or keeper fingerprint above. Already-created v2 runs migrate
+in place and legacy Practice retains only its recovery and settlement paths.
+Rollout requires a new exact approval bundle covering the program upgrade,
+paused archive migration, the one-way exact `activate_run_slots_v3`
+governance instruction, 0.5 SOL cadence-rent float, the `zkube_archives` Fly
+volume and fingerprinted keeper release, read-only verification, and
+re-enable. The final keeper fingerprint must bind the post-upgrade padded
+ProgramData and IDL hashes.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;

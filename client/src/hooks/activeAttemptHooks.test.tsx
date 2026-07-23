@@ -14,8 +14,13 @@ const fixture = vi.hoisted(() => ({
       level: number;
     },
     receipt: null,
+    campaign: null as unknown,
+    arcade: null as unknown,
   },
 }));
+
+fixture.run.campaign = fixture.run;
+fixture.run.arcade = fixture.run;
 
 vi.mock("@/contexts/run", async () =>
   (await import("@/test/mocks/contexts")).runContextMock(fixture.run),
@@ -61,8 +66,28 @@ describe("authoritative active-attempt projection", () => {
     expect(result.current).toEqual({
       gameId: 2n,
       level: 1,
+      mode: "daily",
       isReplay: false,
       settled: false,
+    });
+  });
+
+  it("projects Campaign progress only from the Campaign slot", () => {
+    fixture.run.phase = "base";
+    fixture.run.activeRun = {
+      runId: 3n,
+      mode: "practice",
+      mapId: 8,
+      level: 1,
+    };
+
+    const story = renderHook(() => useActiveStoryAttempt());
+    const arcade = renderHook(() => useActiveDailyAttempt());
+
+    expect(story.result.current).toBeNull();
+    expect(arcade.result.current).toMatchObject({
+      gameId: 3n,
+      mode: "practice",
     });
   });
 });

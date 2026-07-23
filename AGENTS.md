@@ -9,9 +9,10 @@ add approval prompts to the shipped product.
 - The connected Solana address is the player identity. There are no embedded
   wallets, recovery codes, deposits, soft currencies, shops, passes, or prize
   claims.
-- Campaign and yesterday's unranked Practice are free. Arcade is immediately
+- Campaign is free. Practice preparation is retired; existing legacy Practice
+  runs retain recovery, settlement, and expiry only. Arcade is immediately
   available; Campaign never gates paid play.
-- Every ranked Arena run requires a separate owner-signed exact 0.02 SOL entry.
+- Every ranked Arena run requires a separate owner-signed exact 0.01 SOL entry.
   Device sessions can never authorize that transfer.
 - Entries split 60% to the following Daily, 20% to the following Weekly, 10%
   to the following Monday-aligned 28-day Season, and 10% to operator revenue.
@@ -31,9 +32,11 @@ add approval prompts to the shipped product.
   cadence funding PDA recycles Daily/Weekly/Season account rent after finalized
   results are durably archived. Funding PDAs sign only narrow self-CPI rent
   paths; there is no Kora or generic paymaster.
-- One durable `active_run_id` prevents overlapping runs and supports
-  cross-device recovery. Base, Router, and resolved ER connections remain
-  separate; resolve ER placement with `getDelegationStatus`.
+- Separate durable Campaign and Arcade run slots prevent overlap within either
+  mode and support cross-device recovery while allowing one run of each. They
+  share one monotonic run-ID sequence. Base, Router, and resolved ER
+  connections remain separate; resolve ER placement with
+  `getDelegationStatus`.
 - Fly runs only the independently funded Daily/Weekly/Season keeper. The web
   client is static PWA/TWA code with no server signer.
 - The cadence-archive upgrade is Devnet-first and presently undeployed.

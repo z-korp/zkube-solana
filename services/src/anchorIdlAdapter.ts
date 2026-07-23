@@ -30,6 +30,7 @@ import {
   MONDAY_EPOCH_DAY_ID,
   KEEPER_RECENT_DAILY_CADENCES,
   KEEPER_RECENT_SEASON_CADENCES,
+  PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   RULES_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
@@ -88,7 +89,7 @@ const MAX_RPC_ACCOUNT_BATCH = 100;
 const LEGACY_DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60;
 const LEGACY_DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "a0d6819f92365e72558104e347ff8f25ccf417b808f7827743f82311a03f8ba7";
+  "2f116982ddd7cc355d037f2da44446d53024ce96e6a922b8f7991e382c169fc7";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -146,7 +147,9 @@ interface PlayerStateRecord {
   address: PublicKey;
   owner: PublicKey;
   nextRunId: bigint;
+  version: number;
   activeRunId: bigint;
+  campaignActiveRunId: bigint;
   activeRunDaily: PublicKey;
   activeRunMode: "campaign" | "ranked" | "practice";
   activeRunDeadlineAt: number;
@@ -567,10 +570,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         input.currentRoot,
         input.cadenceId,
         resultHash,
-      );
+    );
     const requiredProfileSyncMask = profileSyncMask(input.period);
     const closeEligibleAt = input.competition === "daily"
-      ? (input.cadenceId + 1) * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET
+      ? (input.period as DailySnapshot).runsCloseAt
       : (input.period as WeeklySnapshot | SeasonSnapshot).closesAt;
     const canonicalJson = canonicalJsonString({
       account: input.loaded.address.toBase58(),
@@ -1742,7 +1745,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadPlayerStates(): Promise<PlayerStateRecord[]> {
     const accounts = await this.scanAccounts(
       "playerState",
-      PROTOCOL_ACCOUNT_VERSION,
+      [PROTOCOL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION],
       MAX_DISCOVERED_PLAYER_STATES,
     );
     return accounts.map((loaded) => {
@@ -1750,8 +1753,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       if (!loaded.address.equals(playerStatePda(owner))) {
         throw new Error("PlayerState PDA is invalid");
       }
+      const version = u8(loaded.value.version, "PlayerState version");
       const nextRunId = bigint(loaded.value.nextRunId, "PlayerState next run id");
-      const activeRunId = bigint(loaded.value.activeRunId, "PlayerState active run id");
+      let activeRunId = bigint(loaded.value.activeRunId, "PlayerState active run id");
+      let campaignActiveRunId = bigint(
+        loaded.value.campaignActiveRunId,
+        "PlayerState Campaign active run id",
+      );
       const orphanRunId = bigint(loaded.value.orphanRunId, "PlayerState orphan run id");
       const activeRunDaily = publicKey(
         loaded.value.activeRunDaily,
@@ -1762,7 +1770,25 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         loaded.value.activeRunDeadlineAt,
         "PlayerState active run deadline",
       );
-      if (nextRunId === 0n || activeRunId >= nextRunId || orphanRunId >= nextRunId ||
+      if (
+        version === PROTOCOL_ACCOUNT_VERSION &&
+        activeRunId !== 0n &&
+        activeRunMode === "campaign"
+      ) {
+        if (
+          campaignActiveRunId !== 0n ||
+          !activeRunDaily.equals(SystemProgram.programId) ||
+          activeRunDeadlineAt !== 0 ||
+          orphanRunId !== 0n
+        ) {
+          throw new Error("legacy Campaign reservation is inconsistent");
+        }
+        campaignActiveRunId = activeRunId;
+        activeRunId = 0n;
+      }
+      if (nextRunId === 0n || activeRunId >= nextRunId ||
+          campaignActiveRunId >= nextRunId || orphanRunId >= nextRunId ||
+          (activeRunId !== 0n && activeRunId === campaignActiveRunId) ||
           (activeRunId !== 0n && orphanRunId !== 0n)) {
         throw new Error("PlayerState run reservations are invalid");
       }
@@ -1770,7 +1796,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       const noArenaCadence = activeRunDaily.equals(SystemProgram.programId) &&
         activeRunDeadlineAt === 0;
       if ((idle && (!noArenaCadence || activeRunMode !== "campaign")) ||
-          (!idle && activeRunMode === "campaign" && !noArenaCadence) ||
+          (!idle && activeRunMode === "campaign") ||
           (!idle && activeRunMode !== "campaign" &&
             (activeRunDaily.equals(SystemProgram.programId) || activeRunDeadlineAt <= 0))) {
         throw new Error("PlayerState active reservation fields are inconsistent");
@@ -1779,7 +1805,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         address: loaded.address,
         owner,
         nextRunId,
+        version,
         activeRunId,
+        campaignActiveRunId,
         activeRunDaily,
         activeRunMode,
         activeRunDeadlineAt,
@@ -1797,12 +1825,35 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     const output: RunSnapshot[] = [];
     for (const player of players) {
+      if (player.campaignActiveRunId !== 0n) {
+        output.push(await this.loadRun(
+          player,
+          player.campaignActiveRunId,
+          true,
+          dailyByAddress,
+          {
+            mode: "campaign",
+            daily: SystemProgram.programId,
+            deadlineAt: 0,
+          },
+        ));
+      }
       if (player.activeRunId !== 0n) {
         try {
-          output.push(await this.loadRun(player, player.activeRunId, true, dailyByAddress));
+          output.push(await this.loadRun(
+            player,
+            player.activeRunId,
+            true,
+            dailyByAddress,
+            {
+              mode: player.activeRunMode,
+              daily: player.activeRunDaily,
+              deadlineAt: player.activeRunDeadlineAt,
+            },
+          ));
         } catch (error) {
-          if (player.activeRunMode === "campaign" ||
-              this.input.nowUnix < player.activeRunDeadlineAt + RUN_RECOVERY_SECONDS) {
+          if (this.input.nowUnix <
+              player.activeRunDeadlineAt + RUN_RECOVERY_SECONDS) {
             throw error;
           }
           const daily = dailyByAddress.get(player.activeRunDaily.toBase58());
@@ -1838,7 +1889,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       }
       if (player.orphanRunId !== 0n) {
         try {
-          output.push(await this.loadRun(player, player.orphanRunId, false, dailyByAddress));
+          output.push(await this.loadRun(
+            player,
+            player.orphanRunId,
+            false,
+            dailyByAddress,
+          ));
         } catch {
           // The durable orphan remains non-scoreable; retry Router discovery.
         }
@@ -1852,6 +1908,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     runId: bigint,
     reservationActive: boolean,
     dailyByAddress: ReadonlyMap<string, DailySnapshot>,
+    expected?: {
+      mode: "campaign" | "ranked" | "practice";
+      daily: PublicKey;
+      deadlineAt: number;
+    },
   ): Promise<RunSnapshot> {
     const address = activeRunPda(player.owner, runId);
     const status = await getDelegationStatus(
@@ -1887,8 +1948,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const deadlineAt = signedTimestamp(loaded.value.deadlineAt, "ActiveRun deadline");
     const dailyAddress = publicKey(loaded.value.dailyChallenge, "ActiveRun Daily");
     if (reservationActive &&
-        (mode !== player.activeRunMode || !dailyAddress.equals(player.activeRunDaily) ||
-          deadlineAt !== player.activeRunDeadlineAt)) {
+        (!expected || mode !== expected.mode || !dailyAddress.equals(expected.daily) ||
+          deadlineAt !== expected.deadlineAt)) {
       throw new Error("ActiveRun does not match its durable reservation");
     }
     if (mode === "campaign") {
@@ -2043,7 +2104,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadRequired(
     name: string,
     address: PublicKey,
-    version: number,
+    version: number | readonly number[],
   ): Promise<LoadedAccount> {
     const info = await this.input.connection.getAccountInfo(address, "confirmed");
     if (!info) throw new Error(`${name} account is missing`);
@@ -2053,7 +2114,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadKnown(
     name: string,
     items: readonly { id: number; address: PublicKey }[],
-    version: number,
+    version: number | readonly number[],
   ): Promise<LoadedAccount[]> {
     const infos = await this.getMultiple(items.map(({ address }) => address));
     return items.flatMap((item, index) => {
@@ -2066,7 +2127,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
 
   private async scanAccounts(
     name: string,
-    version: number,
+    version: number | readonly number[],
     maximum: number,
     extraFilters: readonly GetProgramAccountsFilter[] = [],
   ): Promise<LoadedAccount[]> {
@@ -2093,14 +2154,16 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     name: string,
     address: PublicKey,
     info: AccountInfo<Buffer>,
-    version: number,
+    version: number | readonly number[],
     expectedAddress?: PublicKey,
   ): LoadedAccount {
     if ((expectedAddress && !address.equals(expectedAddress)) ||
         !info.owner.equals(ZKUBE_PROGRAM_ID) || info.executable ||
         info.data.length < 9 || info.data.length >= MAX_PROGRAM_ACCOUNT_BYTES ||
         !info.data.subarray(0, 8).equals(this.accountsCoder.accountDiscriminator(name)) ||
-        info.data[8] !== version) {
+        !(Array.isArray(version)
+          ? version.includes(info.data[8]!)
+          : info.data[8] === version)) {
       throw new Error(`${name} owner, size, discriminator, version, or PDA is invalid`);
     }
     let decoded: unknown;

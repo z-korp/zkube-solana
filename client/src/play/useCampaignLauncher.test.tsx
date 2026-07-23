@@ -10,7 +10,9 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/run", async () =>
-  (await import("@/test/mocks/contexts")).runContextMock(() => fixtures.run),
+  (await import("@/test/mocks/contexts")).runContextMock(() => ({
+    campaign: fixtures.run,
+  })),
 );
 vi.mock("@/stores/navigationStore", async () =>
   (await import("@/test/mocks/navigation")).navigationStoreMock(() => ({

@@ -33,6 +33,15 @@ export interface RunSessionMarker {
 }
 
 export type RunSessionMode = "campaign" | "daily" | "practice";
+export type RunSlot = "campaign" | "arcade";
+
+export function runSlotForMode(mode: RunSessionMode): RunSlot {
+  return mode === "campaign" ? "campaign" : "arcade";
+}
+
+function sessionKey(owner: PublicKey, slot: RunSlot): string {
+  return `${owner.toBase58()}:${slot}`;
+}
 
 export function saveRunSession(
   marker: RunSessionMarker,
@@ -40,7 +49,7 @@ export function saveRunSession(
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
-  sessions[marker.owner.toBase58()] = {
+  sessions[sessionKey(marker.owner, runSlotForMode(marker.mode))] = {
     version: 2,
     owner: marker.owner.toBase58(),
     runId: marker.runId.toString(),
@@ -60,16 +69,31 @@ export function saveRunSession(
 
 export function loadRunSession(
   owner: PublicKey,
+  slot: RunSlot,
   options: { storage?: StorageLike | null } = {},
 ): RunSessionMarker | null {
   const storage =
     options.storage === undefined ? browserLocalStorage() : options.storage;
   if (!storage) return null;
   const sessions = loadStoredSessions(storage);
-  const stored = sessions[owner.toBase58()];
+  const key = sessionKey(owner, slot);
+  const stored = sessions[key] ?? sessions[owner.toBase58()];
   if (!stored) return null;
   const marker = restoreStoredRunSession(stored, owner);
-  if (!marker) clearRunSession(owner, storage);
+  if (!marker || runSlotForMode(marker.mode) !== slot) {
+    clearRunSession(owner, slot, storage);
+    return null;
+  }
+  // Move the legacy single-owner entry into its explicit slot on first read.
+  if (!sessions[key]) {
+    sessions[key] = stored;
+    delete sessions[owner.toBase58()];
+    try {
+      storage.setItem(RUN_SESSION_STORAGE_KEY, JSON.stringify(sessions));
+    } catch {
+      // Recovery still succeeds even if storage migration is unavailable.
+    }
+  }
   return marker;
 }
 
@@ -82,11 +106,17 @@ export function isRunSessionFresh(
 
 export function clearRunSession(
   owner: PublicKey,
+  slot?: RunSlot,
   storage = browserLocalStorage(),
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
   delete sessions[owner.toBase58()];
+  if (slot) delete sessions[sessionKey(owner, slot)];
+  else {
+    delete sessions[sessionKey(owner, "campaign")];
+    delete sessions[sessionKey(owner, "arcade")];
+  }
   try {
     if (Object.keys(sessions).length === 0)
       storage.removeItem(RUN_SESSION_STORAGE_KEY);

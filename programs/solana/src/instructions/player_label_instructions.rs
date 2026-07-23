@@ -32,7 +32,7 @@ pub struct CreatePlayerLabel<'info> {
     #[account(
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
@@ -93,7 +93,7 @@ pub struct SetPlayerLabel<'info> {
     #[account(
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_state: Box<Account<'info, PlayerState>>,

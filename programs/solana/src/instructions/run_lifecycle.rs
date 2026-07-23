@@ -973,7 +973,7 @@ pub struct ConsumeCampaignRun<'info> {
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
         bump = player_state.bump,
         has_one = owner @ ErrorCode::Unauthorized,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Player wallet pinned by every durable account and active_run.
@@ -992,8 +992,11 @@ pub struct ConsumeCampaignRun<'info> {
 pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
     require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
-        ctx.accounts.player_state.active_run_id == active.run_id,
+        ctx.accounts
+            .player_state
+            .campaign_reservation_matches(active.run_id),
         ErrorCode::InvalidRunId
     );
     require!(
@@ -1026,7 +1029,9 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
         achieved_stars: stars,
         newly_earned_stars,
     });
-    ctx.accounts.player_state.release_run(active.run_id)?;
+    ctx.accounts
+        .player_state
+        .release_campaign_run(active.run_id)?;
     Ok(())
 }
 

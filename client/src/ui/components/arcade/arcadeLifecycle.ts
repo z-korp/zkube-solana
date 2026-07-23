@@ -9,7 +9,7 @@ export type ArcadeLifecycle =
   | "resume"
   | "entries-open"
   | "entries-closed"
-  | "practice-only";
+  | "preparing";
 
 interface DailyTiming {
   status: DailyStatus;
@@ -22,11 +22,9 @@ interface DailyTiming {
  * live run, and the current time.
  *
  * Precedence:
- *  1. `resume` — a live daily/practice run always wins; it must be finished or
- *     scored before anything else can start.
- *  2. `practice-only` — today's Daily is not a guaranteed, open pot yet
- *     (missing, still funding, or an unknown status). Only yesterday's free
- *     Practice is actionable.
+ *  1. `resume` — a live ranked or legacy Practice run always wins.
+ *  2. `preparing` — today's Daily is not a guaranteed, open pot yet (missing,
+ *     still funding, or an unknown status).
  *  3. `entries-open` — today's Daily is open and inside the paid-entry window.
  *  4. `entries-closed` — today's Daily is guaranteed but the entry window has
  *     passed (settling, or already finalized) before the next UTC reset.
@@ -39,7 +37,7 @@ export function computeArcadeLifecycle(args: {
   const { view, hasActiveRun, nowUnix } = args;
   if (hasActiveRun) return "resume";
   if (!view || view.status === "funding" || view.status === "unknown") {
-    return "practice-only";
+    return "preparing";
   }
   const entriesOpen =
     view.status === "open" &&

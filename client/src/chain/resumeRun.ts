@@ -3,7 +3,9 @@ import type { RunSessionMarker } from "./runSessionStore";
 import {
   isRunSessionFresh,
   loadRunSession,
+  runSlotForMode,
   saveRunSession,
+  type RunSlot,
 } from "./runSessionStore";
 import {
   fetchActiveRun,
@@ -81,11 +83,13 @@ export interface ResumeRunDependencies {
     connection: Connection,
     wallet: WalletLike,
     owner: PublicKey,
+    slot: RunSlot,
   ) => Promise<bigint>;
 }
 
 export async function resolvePersistedRun(args: {
   owner: PublicKey;
+  slot: RunSlot;
   wallet: WalletLike;
   baseConnection: Connection;
   /** Current device authorization used to reconstruct a missing local marker. */
@@ -93,10 +97,11 @@ export async function resolvePersistedRun(args: {
   dependencies?: ResumeRunDependencies;
 }): Promise<ResumedRun> {
   const dependencies = args.dependencies ?? {};
-  let marker = loadRunSession(args.owner);
+  let marker = loadRunSession(args.owner, args.slot);
   if (!marker && args.deviceSession) {
     marker = await discoverActiveRunMarker({
       owner: args.owner,
+      slot: args.slot,
       wallet: args.wallet,
       baseConnection: args.baseConnection,
       deviceSession: args.deviceSession,
@@ -206,6 +211,7 @@ export async function resolvePersistedRun(args: {
  */
 async function discoverActiveRunMarker(args: {
   owner: PublicKey;
+  slot: RunSlot;
   wallet: WalletLike;
   baseConnection: Connection;
   deviceSession: DeviceSession;
@@ -217,7 +223,7 @@ async function discoverActiveRunMarker(args: {
   const dependencies = args.dependencies ?? {};
   const runId = await (
     dependencies.fetchActiveRunId ?? fetchActiveRunId
-  )(args.baseConnection, args.wallet, args.owner);
+  )(args.baseConnection, args.wallet, args.owner, args.slot);
   if (runId === 0n) return null;
 
   const addresses = deriveRunAddresses(args.owner, runId);
@@ -278,6 +284,9 @@ async function discoverActiveRunMarker(args: {
     activeRun.mode === "daily" || activeRun.mode === "practice"
       ? activeRun.mode
       : "campaign";
+  if (runSlotForMode(mode) !== args.slot) {
+    throw new Error("The discovered ActiveRun belongs to the other run slot");
+  }
   return {
     owner: args.owner,
     runId,
@@ -294,6 +303,7 @@ async function fetchActiveRunId(
   connection: Connection,
   wallet: WalletLike,
   owner: PublicKey,
+  slot: RunSlot,
 ): Promise<bigint> {
   const profileAddress = derivePlayerStatePda(owner);
   const info = await connection.getAccountInfo(profileAddress, "confirmed");
@@ -306,11 +316,31 @@ async function fetchActiveRunId(
   ) {
     throw new Error("PlayerState has an invalid owner or data length");
   }
-  const profile = await program.account.playerState.fetch(profileAddress);
+  const profile = (await program.account.playerState.fetch(profileAddress)) as
+    Awaited<ReturnType<typeof program.account.playerState.fetch>> & {
+      campaignActiveRunId?: { toString(): string };
+    };
   if (!profile.owner.equals(owner)) {
     throw new Error("PlayerState owner does not match the connected wallet");
   }
-  return BigInt(profile.activeRunId.toString());
+  const sharedRunId = BigInt(profile.activeRunId.toString());
+  const mode = Object.keys(profile.activeRunMode)[0];
+  const version = Number(profile.version);
+  if (version === 2) {
+    return slot === "campaign"
+      ? mode === "campaign" ? sharedRunId : 0n
+      : mode === "campaign" ? 0n : sharedRunId;
+  }
+  if (version !== 3) {
+    throw new Error("PlayerState has an unsupported run-slot version");
+  }
+  if (slot === "campaign") {
+    if (!profile.campaignActiveRunId) {
+      throw new Error("PlayerState v3 is missing its Campaign run slot");
+    }
+    return BigInt(profile.campaignActiveRunId.toString());
+  }
+  return sharedRunId;
 }
 
 function defaultErConnection(endpoint: string): Connection {
@@ -322,6 +352,12 @@ function matchesMarker(
   marker: RunSessionMarker,
 ): boolean {
   return (
-    activeRun.owner.equals(marker.owner) && activeRun.runId === marker.runId
+    activeRun.owner.equals(marker.owner) &&
+    activeRun.runId === marker.runId &&
+    runSlotForMode(
+      activeRun.mode === "daily" || activeRun.mode === "practice"
+        ? activeRun.mode
+        : "campaign",
+    ) === runSlotForMode(marker.mode)
   );
 }

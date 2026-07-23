@@ -19,7 +19,7 @@ export function useCampaignLauncher(): {
   starting: boolean;
   startLevel: (mapId: number, level: number) => Promise<void>;
 } {
-  const run = useRun();
+  const run = useRun().campaign;
   const navigate = useNavigationStore((state) => state.navigate);
   const [starting, setStarting] = useState(false);
   // Synchronous double-tap guard — state alone leaves a same-tick window.

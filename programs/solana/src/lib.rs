@@ -320,6 +320,10 @@ pub mod solana {
         instructions::governance_instructions::handler_update_team_destination(ctx)
     }
 
+    pub fn activate_run_slots_v3(ctx: Context<ActivateRunSlotsV3>) -> Result<()> {
+        instructions::governance_instructions::handler_activate_run_slots_v3(ctx)
+    }
+
     pub fn write_map_catalog(
         ctx: Context<WriteMapCatalog>,
         args: WriteMapCatalogArgs,

@@ -11,7 +11,7 @@
  */
 import { PublicKey } from "@solana/web3.js";
 
-import { currentDailyDayId, practiceRunsCloseAt } from "@/chain/dailyClient";
+import { currentDailyDayId } from "@/chain/dailyClient";
 import type {
   DailyLeaderboardView,
   DailyPlayerView,
@@ -96,7 +96,7 @@ const DEV_ROW = 3;
 export function buildDevDailyView(): DailyView {
   const now = Math.floor(Date.now() / 1_000);
   const dayId = currentDailyDayId(now);
-  const runsCloseAt = practiceRunsCloseAt(now);
+  const runsCloseAt = dayId * 86_400 + 23 * 3_600 + 59 * 60;
   // A real combo rule ("3+ Line Combos") so the hero and objective read true.
   const scoringRule: DailyScoringRuleView = CANONICAL_DAILY_SCORING_RULES[2]!;
 
@@ -145,7 +145,7 @@ export function buildDevDailyView(): DailyView {
     settlementGraceCloseAt: runsCloseAt + 30 * 60,
     recoveryDeadlineAt: runsCloseAt + HOUR,
     finalizedAt: 0,
-    entryLamports: 20_000_000n,
+    entryLamports: 10_000_000n,
     dailyPotLamports: 3_200_000_000n,
     followingDailyLamports: 1_860_000_000n,
     uniquePlayers: 6,

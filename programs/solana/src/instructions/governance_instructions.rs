@@ -2,7 +2,14 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::instructions::content_instructions::validate_team_destination;
-use crate::state::protocol::{ProtocolConfig, ACCOUNT_VERSION, PROTOCOL_CONFIG_SEED};
+use crate::state::arcade::{
+    ArcadeConfig, ARCADE_CONFIG_SEED, ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_LAMPORTS,
+    ENTRY_OPERATOR_LAMPORTS, ENTRY_SEASON_LAMPORTS, ENTRY_WEEKLY_LAMPORTS,
+};
+use crate::state::protocol::{
+    ProtocolConfig, ACCOUNT_VERSION, LEGACY_PLAYER_FUNDING_TARGET_LAMPORTS,
+    PLAYER_FUNDING_TARGET_LAMPORTS, PROTOCOL_CONFIG_SEED,
+};
 
 #[derive(Accounts)]
 pub struct SetProtocolPause<'info> {
@@ -121,6 +128,51 @@ pub fn handler_update_team_destination(ctx: Context<UpdateTeamDestination>) -> R
     Ok(())
 }
 
+/// One-way Devnet v3 activation. The instruction accepts no economic
+/// parameters: it verifies the exact legacy terms and writes only the audited
+/// canonical run-slot funding target and 0.01 SOL split.
+#[derive(Accounts)]
+pub struct ActivateRunSlotsV3<'info> {
+    #[account(
+        mut,
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = protocol.paused @ ErrorCode::ProtocolPaused
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        mut,
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    pub authority: Signer<'info>,
+}
+
+pub fn handler_activate_run_slots_v3(ctx: Context<ActivateRunSlotsV3>) -> Result<()> {
+    require!(
+        ctx.accounts.protocol.player_funding_target_lamports
+            == LEGACY_PLAYER_FUNDING_TARGET_LAMPORTS
+            && ctx.accounts.arcade_config.has_legacy_terms(),
+        ErrorCode::InvalidState
+    );
+    ctx.accounts.protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
+    ctx.accounts.arcade_config.activate_current_terms();
+    emit!(RunSlotsV3Activated {
+        authority: ctx.accounts.authority.key(),
+        player_funding_target_lamports: PLAYER_FUNDING_TARGET_LAMPORTS,
+        entry_lamports: ARENA_ENTRY_LAMPORTS,
+        daily_lamports: ENTRY_DAILY_LAMPORTS,
+        weekly_lamports: ENTRY_WEEKLY_LAMPORTS,
+        season_lamports: ENTRY_SEASON_LAMPORTS,
+        operator_lamports: ENTRY_OPERATOR_LAMPORTS,
+    });
+    Ok(())
+}
+
 #[event]
 pub struct ProtocolPauseChanged {
     pub authority: Pubkey,
@@ -143,4 +195,15 @@ pub struct ProtocolAuthorityAccepted {
 pub struct TeamDestinationChanged {
     pub previous_team_destination: Pubkey,
     pub team_destination: Pubkey,
+}
+
+#[event]
+pub struct RunSlotsV3Activated {
+    pub authority: Pubkey,
+    pub player_funding_target_lamports: u64,
+    pub entry_lamports: u64,
+    pub daily_lamports: u64,
+    pub weekly_lamports: u64,
+    pub season_lamports: u64,
+    pub operator_lamports: u64,
 }

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRun } from "@/contexts/run";
 import { errorMessage } from "@/utils/errors";
+import { describeRunStartError } from "./runStartError";
 import { useSolanaConnection } from "./connectionContext";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import {
   currentDailyDayId,
   fetchDailyView,
-  isPracticeEntryWindowOpen,
   type DailyView,
 } from "./dailyClient";
 
@@ -15,26 +15,29 @@ export function useDailyController() {
   const { connection } = useSolanaConnection();
   const player = useConnectedPlayer();
   const wallet = player.readOnlyWallet;
-  const run = useRun();
+  const run = useRun().arcade;
   const [daily, setDaily] = useState<DailyView | null>(null);
   const [practiceDaily, setPracticeDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1_000));
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const dayId = currentDailyDayId();
-      const [value, yesterday] = await Promise.all([
+      const [value, previous] = await Promise.all([
         fetchDailyView({ connection, wallet, dayId }),
-        dayId > 0
+        run.activeRun?.mode === "practice" && dayId > 0
           ? fetchDailyView({ connection, wallet, dayId: dayId - 1 })
           : Promise.resolve(null),
       ]);
       setDaily(value);
-      setPracticeDaily(yesterday?.status === "finalized" ? yesterday : null);
+      // Read-only compatibility for displaying a legacy Practice result.
+      // No new Practice run can be launched.
+      setPracticeDaily(
+        run.activeRun?.mode === "practice" ? previous : null,
+      );
       setError(null);
       return value;
     } catch (cause) {
@@ -43,21 +46,13 @@ export function useDailyController() {
     } finally {
       setLoading(false);
     }
-  }, [connection, wallet]);
+  }, [connection, run.activeRun?.mode, wallet]);
 
   useEffect(() => {
     void refresh();
     const refreshTimer = globalThis.setInterval(() => void refresh(), 60_000);
     return () => globalThis.clearInterval(refreshTimer);
   }, [refresh]);
-
-  useEffect(() => {
-    const clock = globalThis.setInterval(
-      () => setNowUnix(Math.floor(Date.now() / 1_000)),
-      1_000,
-    );
-    return () => globalThis.clearInterval(clock);
-  }, []);
 
   const dailyAddress = daily?.address.toBase58() ?? null;
   useEffect(() => {
@@ -87,7 +82,7 @@ export function useDailyController() {
       await refresh();
       return active;
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(describeRunStartError(errorMessage(cause)).headline);
       throw cause;
     } finally {
       setAction(null);
@@ -95,39 +90,13 @@ export function useDailyController() {
   }, [daily, refresh, run]);
 
   const practice = useCallback(async () => {
-    if (!practiceDaily) {
-      throw new Error(
-        "Yesterday's finalized Arena is not available for Practice",
-      );
-    }
-    if (!isPracticeEntryWindowOpen()) {
-      throw new Error("Practice entry is closed after 23:45 UTC");
-    }
-    if (run.phase !== "none" && run.phase !== "missing") {
-      throw new Error("Finish the active run first");
-    }
-    setAction("practice");
-    try {
-      const active = await run.startPracticeRun(practiceDaily);
-      await refresh();
-      return active;
-    } catch (cause) {
-      setError(errorMessage(cause));
-      throw cause;
-    } finally {
-      setAction(null);
-    }
-  }, [practiceDaily, refresh, run]);
-
-  const practiceAvailable =
-    practiceDaily !== null &&
-    practiceDaily.dayId + 1 === currentDailyDayId(nowUnix) &&
-    isPracticeEntryWindowOpen(nowUnix);
+    throw new Error("Practice has been retired");
+  }, []);
 
   return {
     daily,
     practiceDaily,
-    practiceAvailable,
+    practiceAvailable: false,
     loading,
     action,
     error,

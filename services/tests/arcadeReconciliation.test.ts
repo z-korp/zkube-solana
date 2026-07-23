@@ -725,8 +725,10 @@ describe("v4 keeper reconciliation", () => {
     expect(() => validateProtocolSnapshot(malformed)).toThrow("prize schedule");
   });
 
-  it("archives sequential terminal results and closes only after verified Practice cutoff", () => {
+  it("archives sequential terminal results and closes after the ranked deadline", () => {
     const archivedDay = DAY - 1;
+    const archivedRunsCloseAt =
+      archivedDay * SECONDS_PER_DAY + 23 * 60 * 60 + 59 * 60;
     const canonicalJson = '{"periodId":20650,"schemaVersion":1}';
     const common = {
       archiveState: {
@@ -745,8 +747,7 @@ describe("v4 keeper reconciliation", () => {
         requiredProfileSyncMask: 0,
         committed: false,
         closeEligible: false,
-        closeEligibleAt:
-          DAY * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
+        closeEligibleAt: archivedRunsCloseAt,
       }],
     };
     const uncommitted = baseSnapshot({
@@ -779,7 +780,7 @@ describe("v4 keeper reconciliation", () => {
     expect(close?.context).toMatchObject({
       dayId: archivedDay,
       archiveCommitted: true,
-      closeEligibleAt: DAY * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
+      closeEligibleAt: archivedRunsCloseAt,
     });
   });
 

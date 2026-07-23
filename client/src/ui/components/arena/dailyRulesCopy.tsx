@@ -25,7 +25,7 @@ export function DailyScoringRules({
         />
         <InfoRow
           label="Every ranked run"
-          value="0.02 SOL · separate owner signature"
+          value="0.01 SOL · separate owner signature"
         />
       </div>
       <p>

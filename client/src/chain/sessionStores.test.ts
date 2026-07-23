@@ -97,7 +97,7 @@ describe("run session persistence", () => {
       createdAt: 1_000,
     };
     saveRunSession(marker, storage);
-    const restored = loadRunSession(owner, { storage });
+    const restored = loadRunSession(owner, "campaign", { storage });
     expect(restored?.runId).toBe(17n);
     expect(restored?.session.publicKey.equals(session.publicKey)).toBe(true);
     expect(
@@ -107,7 +107,7 @@ describe("run session persistence", () => {
     expect(isRunSessionFresh(marker, 1_939)).toBe(true);
     expect(isRunSessionFresh(marker, 1_940)).toBe(false);
     expect(isRunSessionFresh(marker, 2_100)).toBe(false);
-    expect(loadRunSession(owner, { storage })?.runId).toBe(17n);
+    expect(loadRunSession(owner, "campaign", { storage })?.runId).toBe(17n);
     expect(storage.getItem(RUN_SESSION_STORAGE_KEY)).not.toBeNull();
   });
 
@@ -132,15 +132,15 @@ describe("run session persistence", () => {
       },
       storage,
     );
-    expect(loadRunSession(other, { storage })).toBeNull();
+    expect(loadRunSession(other, "arcade", { storage })).toBeNull();
 
     const parsed = JSON.parse(
       storage.getItem(RUN_SESSION_STORAGE_KEY)!,
     ) as Record<string, { activeRun: string }>;
-    parsed[owner.toBase58()].activeRun =
+    parsed[`${owner.toBase58()}:arcade`]!.activeRun =
       Keypair.generate().publicKey.toBase58();
     storage.setItem(RUN_SESSION_STORAGE_KEY, JSON.stringify(parsed));
-    expect(loadRunSession(owner, { storage })).toBeNull();
+    expect(loadRunSession(owner, "arcade", { storage })).toBeNull();
     expect(storage.getItem(RUN_SESSION_STORAGE_KEY)).toBeNull();
   });
 
@@ -167,9 +167,9 @@ describe("run session persistence", () => {
         storage,
       );
     }
-    clearRunSession(first.publicKey, storage);
-    expect(loadRunSession(first.publicKey, { storage })).toBeNull();
-    expect(loadRunSession(second.publicKey, { storage })).not.toBeNull();
+    clearRunSession(first.publicKey, undefined, storage);
+    expect(loadRunSession(first.publicKey, "campaign", { storage })).toBeNull();
+    expect(loadRunSession(second.publicKey, "campaign", { storage })).not.toBeNull();
   });
 
   it("round-trips the free Practice run mode", () => {
@@ -192,6 +192,38 @@ describe("run session persistence", () => {
       },
       storage,
     );
-    expect(loadRunSession(owner, { storage })?.mode).toBe("practice");
+    expect(loadRunSession(owner, "arcade", { storage })?.mode).toBe("practice");
+  });
+
+  it("keeps one Campaign marker and one Arcade marker for the same owner", () => {
+    const storage = new MemoryStorage();
+    const owner = Keypair.generate().publicKey;
+    for (const [runId, mode] of [
+      [31n, "campaign"],
+      [32n, "daily"],
+    ] as const) {
+      const session = Keypair.generate();
+      saveRunSession(
+        {
+          owner,
+          runId,
+          mode,
+          session,
+          sessionToken: deriveSessionTokenV2Pda({
+            authority: owner,
+            sessionSigner: session.publicKey,
+          }).sessionToken,
+          addresses: deriveRunAddresses(owner, runId),
+          validUntil: 5_000,
+          createdAt: 1_000,
+        },
+        storage,
+      );
+    }
+    expect(loadRunSession(owner, "campaign", { storage })?.runId).toBe(31n);
+    expect(loadRunSession(owner, "arcade", { storage })?.runId).toBe(32n);
+    clearRunSession(owner, "campaign", storage);
+    expect(loadRunSession(owner, "campaign", { storage })).toBeNull();
+    expect(loadRunSession(owner, "arcade", { storage })?.runId).toBe(32n);
   });
 });

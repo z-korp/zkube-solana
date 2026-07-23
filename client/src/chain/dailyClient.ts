@@ -30,6 +30,7 @@ import {
   deriveWeeklyJackpotPda,
 } from "./pdas.js";
 import {
+  activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,
   mapLevelRuleSnapshot,
   zkubeProgram,
@@ -144,24 +145,6 @@ export function currentDailyDayId(
   return Math.max(0, Math.floor(nowUnix / 86_400));
 }
 
-export function practiceEntriesCloseAt(
-  nowUnix = Math.floor(Date.now() / 1_000),
-): number {
-  return currentDailyDayId(nowUnix) * 86_400 + 23 * 3_600 + 45 * 60;
-}
-
-export function practiceRunsCloseAt(
-  nowUnix = Math.floor(Date.now() / 1_000),
-): number {
-  return currentDailyDayId(nowUnix) * 86_400 + 23 * 3_600 + 59 * 60;
-}
-
-export function isPracticeEntryWindowOpen(
-  nowUnix = Math.floor(Date.now() / 1_000),
-): boolean {
-  return nowUnix < practiceEntriesCloseAt(nowUnix);
-}
-
 export async function fetchDailyView(args: {
   connection: Connection;
   wallet: WalletLike;
@@ -228,7 +211,7 @@ export async function fetchDailyView(args: {
     entriesExpired: BigInt(challenge.entriesExpired.toString()),
     rulesHash: Uint8Array.from(challenge.rulesHash),
     nextRunId: profile ? BigInt(profile.nextRunId.toString()) : 0n,
-    activeRunId: profile ? BigInt(profile.activeRunId.toString()) : 0n,
+    activeRunId: activeRunIdForSlot(profile, "arcade"),
     player: player
       ? {
           attempts: Number(player.paidEntries),
@@ -315,65 +298,6 @@ export async function buildPrepareDailyRunPlan(args: {
       `Enter Arena · exact ${(Number(args.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL + network fee`,
       args.connection,
       owner,
-      [instruction],
-    ),
-  };
-}
-
-/**
- * Prepares a free run against yesterday's immutable Arena rules. The device
- * signer pays the transaction fee while the narrow funded self-CPI may spend
- * only the owner's protocol-controlled rent allowance.
- */
-export async function buildPreparePracticeRunPlan(args: {
-  connection: Connection;
-  wallet: WalletLike;
-  ownerAuthority: PublicKey;
-  sessionToken: PublicKey;
-  daily: DailyView;
-  sessionValidUntil: number;
-  nowUnix?: number;
-}): Promise<PreparedRunPlan> {
-  const owner = args.ownerAuthority;
-  if (args.daily.status !== "finalized") {
-    throw new Error("Practice requires yesterday's finalized Arena");
-  }
-  if (!isPracticeEntryWindowOpen(args.nowUnix)) {
-    throw new Error(
-      "Practice entry closes at 23:45 UTC so every started run has a valid on-chain window",
-    );
-  }
-  const addresses = deriveRunAddresses(owner, args.daily.nextRunId);
-  await assertPreparedRunAddressesAvailable(
-    args.connection,
-    owner,
-    args.daily.nextRunId,
-    addresses,
-  );
-  const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedPreparePracticeRun(new BN(args.daily.nextRunId.toString()))
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      playerState: derivePlayerStatePda(owner),
-      arenaDaily: args.daily.address,
-      activeRun: addresses.activeRun,
-      playerFunding: derivePlayerFundingPda(owner),
-      ownerAuthority: owner,
-      sessionToken: args.sessionToken,
-      actor: args.wallet.publicKey,
-      systemProgram: SystemProgram.programId,
-      zkubeProgram: ZKUBE_PROGRAM_ID,
-    })
-    .instruction();
-  return {
-    runId: args.daily.nextRunId,
-    addresses,
-    sessionToken: args.sessionToken,
-    sessionValidUntil: args.sessionValidUntil,
-    transactionPlan: basePlan(
-      "Prepare free Practice run",
-      args.connection,
-      args.wallet.publicKey,
       [instruction],
     ),
   };

@@ -6,9 +6,7 @@ use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
 use crate::game::sha256v;
-use crate::instructions::player_authorization::{
-    require_player_authorization, require_player_rent_payer,
-};
+use crate::instructions::player_authorization::require_player_rent_payer;
 use crate::state::*;
 
 #[derive(Accounts)]
@@ -799,35 +797,8 @@ pub struct PreparePracticeRun<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_prepare_practice_run(ctx: Context<PreparePracticeRun>, run_id: u64) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
-    require_player_rent_payer(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.payer.key(),
-    )?;
-    let now = Clock::get()?.unix_timestamp;
-    // Practice reuses yesterday's immutable rules and replay challenge, but
-    // receives today's full run window. Pinning it to yesterday's close would
-    // make every VRF request and action immediately stale.
-    let practice_runs_close_at = practice_runs_close_at(ctx.accounts.arena_daily.day_id, now)?;
-    let daily_key = ctx.accounts.arena_daily.key();
-    initialize_arena_run(
-        &mut ctx.accounts.player_state,
-        &ctx.accounts.arena_daily,
-        daily_key,
-        &mut ctx.accounts.active_run,
-        ctx.bumps.active_run,
-        ctx.accounts.owner_authority.key(),
-        run_id,
-        RunMode::Practice,
-        practice_runs_close_at,
-        ctx.accounts.protocol.replay_domain,
-    )
+pub fn handler_prepare_practice_run(_ctx: Context<PreparePracticeRun>, _run_id: u64) -> Result<()> {
+    err!(ErrorCode::PracticeRetired)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -933,6 +904,10 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
             && active.pending_vrf_counter == 0,
         ErrorCode::GameNotFinished
     );
+    // An entry created before the v3 upgrade still owns the v2 shared
+    // reservation. Normalize it before validating and releasing the Arcade
+    // slot so an in-flight paid run cannot be stranded by the upgrade.
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.arcade_reservation_matches(
             active.run_id,
@@ -973,7 +948,7 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
                 checked_add_u32(ctx.accounts.arena_daily.season_eligible_players, 1)?;
         }
     }
-    ctx.accounts.player_state.release_run(active.run_id)
+    ctx.accounts.player_state.release_arcade_run(active.run_id)
 }
 
 #[derive(Accounts)]
@@ -1004,6 +979,7 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
             && active.pending_vrf_counter == 0,
         ErrorCode::GameNotFinished
     );
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.arcade_reservation_matches(
             active.run_id,
@@ -1013,10 +989,10 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
         ),
         ErrorCode::InvalidRunId
     );
-    // Practice exists only for a client-side "would have ranked" comparison.
-    // Consuming it releases the durable run reservation and writes no profile,
-    // leaderboard, payout, or other progression state.
-    ctx.accounts.player_state.release_run(active.run_id)
+    // Compatibility only: consuming an already-created legacy Practice run
+    // releases its durable reservation and writes no profile, leaderboard,
+    // payout, or other progression state.
+    ctx.accounts.player_state.release_arcade_run(active.run_id)
 }
 
 #[derive(Accounts)]
@@ -1038,6 +1014,7 @@ pub fn handler_expire_unresolved_practice_run(
     ctx: Context<ExpireUnresolvedPracticeRun>,
     run_id: u64,
 ) -> Result<()> {
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.active_run_mode == RunMode::Practice,
         ErrorCode::InvalidState
@@ -1080,6 +1057,7 @@ pub fn handler_expire_unresolved_arena_run(
     ctx: Context<ExpireUnresolvedArenaRun>,
     run_id: u64,
 ) -> Result<()> {
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         Clock::get()?.unix_timestamp
             >= ctx
@@ -1127,6 +1105,7 @@ pub struct CleanupOrphanActiveRun<'info> {
 }
 
 pub fn handler_cleanup_orphan_active_run(ctx: Context<CleanupOrphanActiveRun>) -> Result<()> {
+    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.active_run_id == 0
             && ctx.accounts.player_state.orphan_run_id == ctx.accounts.active_run.run_id
@@ -1675,15 +1654,6 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
                 == ranked_profile_sync_mask(daily.entries.len(), daily.ledger)?,
         ErrorCode::InvalidState
     );
-    let following_day = daily
-        .day_id
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let (_, following_practice_entry_close, _, _) = day_window(following_day)?;
-    require!(
-        Clock::get()?.unix_timestamp >= following_practice_entry_close,
-        ErrorCode::ChallengeNotEnded
-    );
     Ok(())
 }
 
@@ -2024,20 +1994,6 @@ fn arena_rules_staging_is_allowed(
     requested_content_version == active_content_version || paused
 }
 
-fn practice_runs_close_at(challenge_day_id: u32, now: i64) -> Result<i64> {
-    let today = day_id_at(now)?;
-    require!(
-        challenge_day_id.saturating_add(1) == today,
-        ErrorCode::InvalidPeriod
-    );
-    let (opens_at, entries_close_at, runs_close_at, _) = day_window(today)?;
-    require!(
-        now >= opens_at && now < entries_close_at,
-        ErrorCode::ChallengeEnded
-    );
-    Ok(runs_close_at)
-}
-
 fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
     left.checked_add(right)
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
@@ -2069,20 +2025,5 @@ mod tests {
         assert!(arena_rules_staging_is_allowed(7, 7, false));
         assert!(arena_rules_staging_is_allowed(7, 8, true));
         assert!(!arena_rules_staging_is_allowed(7, 8, false));
-    }
-
-    #[test]
-    fn practice_reuses_yesterday_rules_but_gets_todays_run_window() {
-        let yesterday = 104;
-        let today = yesterday + 1;
-        let (today_opens, today_entries_close, today_runs_close, _) = day_window(today).unwrap();
-        let (_, _, stale_yesterday_close, _) = day_window(yesterday).unwrap();
-        assert_eq!(
-            practice_runs_close_at(yesterday, today_opens + 1).unwrap(),
-            today_runs_close
-        );
-        assert!(today_runs_close > stale_yesterday_close);
-        assert!(practice_runs_close_at(today, today_opens + 1).is_err());
-        assert!(practice_runs_close_at(yesterday, today_entries_close).is_err());
     }
 }

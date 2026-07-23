@@ -16,15 +16,15 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       programId: input.programId,
       keeper: input.keeperPublicKey,
-      entryLamports: "20000000",
+      entryLamports: "10000000",
       entrySplitLamports: {
-        followingDaily: "12000000",
-        followingWeekly: "4000000",
-        followingSeason: "2000000",
-        operator: "2000000",
+        followingDaily: "6000000",
+        followingWeekly: "2000000",
+        followingSeason: "1000000",
+        operator: "1000000",
       },
       payoutUnitLamports: "1000000",
       replayVersion: 2,

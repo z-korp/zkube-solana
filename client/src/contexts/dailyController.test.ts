@@ -55,14 +55,14 @@ describe("useDailyController run sharing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fixtures.fetchDailyView.mockResolvedValue(null);
-    fixtures.useRun.mockReturnValue(fixtures.run);
+    fixtures.useRun.mockReturnValue({ arcade: fixtures.run });
   });
 
   it("uses the RunProvider controller without creating a second controller", async () => {
     const { result } = renderHook(() => useDailyController());
 
     await waitFor(() =>
-      expect(fixtures.fetchDailyView).toHaveBeenCalledTimes(2),
+      expect(fixtures.fetchDailyView).toHaveBeenCalledOnce(),
     );
 
     expect(fixtures.useRun).toHaveBeenCalled();

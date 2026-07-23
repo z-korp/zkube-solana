@@ -21,7 +21,7 @@ export interface EqualBudgetPlan {
 
 export function exactEntrySplit(entryLamports: bigint): typeof ENTRY_SPLIT_LAMPORTS {
   if (entryLamports !== ARENA_ENTRY_LAMPORTS) {
-    throw new Error("ranked entry must be exactly 0.02 SOL");
+    throw new Error("ranked entry must be exactly 0.01 SOL");
   }
   const accounted = Object.values(ENTRY_SPLIT_LAMPORTS)
     .reduce((sum, amount) => checkedAdd(sum, amount), 0n);

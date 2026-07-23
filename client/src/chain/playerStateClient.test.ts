@@ -13,7 +13,10 @@ import {
   fetchPlayerEmblems,
   fetchPlayerStateView,
 } from "./playerStateClient";
-import { PROTOCOL_ACCOUNT_VERSION } from "./protocolVersions.generated";
+import {
+  PLAYER_STATE_ACCOUNT_VERSION,
+  PROTOCOL_ACCOUNT_VERSION,
+} from "./protocolVersions.generated";
 import { zkubeProgram } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
 
@@ -38,7 +41,8 @@ const OFFSET = {
   dailyRecord: 140,
   weeklyRecord: 158,
   seasonRecord: 176,
-  reserved: 194,
+  campaignActiveRunId: 194,
+  reserved: 202,
   bump: 226,
 } as const;
 
@@ -72,18 +76,20 @@ function writeRecord(
 function playerStateBuffer(
   owner: Keypair,
   campaignStars: readonly number[] = [],
+  version = PROTOCOL_ACCOUNT_VERSION,
 ): Buffer {
   const data = Buffer.alloc(PLAYER_STATE_SIZE);
   for (let i = 0; i < PLAYER_STATE_DISCRIMINATOR.length; i += 1) {
     data[i] = PLAYER_STATE_DISCRIMINATOR[i]!;
   }
-  data.writeUInt8(PROTOCOL_ACCOUNT_VERSION, OFFSET.version);
+  data.writeUInt8(version, OFFSET.version);
   owner.publicKey.toBuffer().copy(data, OFFSET.owner);
   data.writeBigUInt64LE(7n, OFFSET.nextRunId);
   data.writeBigUInt64LE(0n, OFFSET.activeRunId);
   data.writeUInt8(0, OFFSET.activeRunMode);
   data.writeBigInt64LE(0n, OFFSET.activeRunDeadlineAt);
   data.writeBigUInt64LE(0n, OFFSET.orphanRunId);
+  data.writeBigUInt64LE(0n, OFFSET.campaignActiveRunId);
   campaignStars.forEach((byte, index) => {
     data[OFFSET.campaignStars + index] = byte;
   });
@@ -147,6 +153,21 @@ describe("decodePlayerStateAccount", () => {
       wins: 13,
       rewardsLamports: 3_000n,
     });
+  });
+
+  it("accepts the byte-compatible v3 dual-slot PlayerState", () => {
+    const owner = Keypair.generate();
+    const view = decodePlayerStateAccount(
+      program(),
+      derivePlayerStatePda(owner.publicKey),
+      owner.publicKey,
+      accountInfo(
+        playerStateBuffer(owner, [0x03], PLAYER_STATE_ACCOUNT_VERSION),
+      ),
+    );
+
+    expect(view.version).toBe(PLAYER_STATE_ACCOUNT_VERSION);
+    expect(view.campaignStars[0]).toBe(0x03);
   });
 
   it("rejects an account whose embedded owner is not the expected wallet", () => {

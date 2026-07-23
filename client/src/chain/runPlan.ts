@@ -43,7 +43,10 @@ import {
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
 } from "./constants.js";
-import { saveRunSession } from "./runSessionStore.js";
+import {
+  saveRunSession,
+  type RunSlot,
+} from "./runSessionStore.js";
 import { SessionWallet, type WalletLike } from "./sessionWallet.js";
 import {
   deriveArenaPlayerPda,
@@ -67,6 +70,10 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
+import {
+  PLAYER_STATE_ACCOUNT_VERSION,
+  PROTOCOL_ACCOUNT_VERSION,
+} from "./protocolVersions.generated.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */
@@ -304,7 +311,11 @@ export async function buildPrepareCampaignRunPlan(args: {
     await program.account.playerState.fetchNullable(profileAddress);
   const protocolAddress = deriveProtocolConfigPda();
   const protocol = await program.account.protocolConfig.fetch(protocolAddress);
-  const { runId, addresses } = resolvePreparedRunAddresses(owner, profile);
+  const { runId, addresses } = resolvePreparedRunAddresses(
+    owner,
+    profile,
+    "campaign",
+  );
   await assertPreparedRunAddressesAvailable(
     connection,
     owner,
@@ -358,21 +369,69 @@ export async function buildPrepareCampaignRunPlan(args: {
 
 export function resolvePreparedRunAddresses(
   owner: PublicKey,
-  profile: {
-    nextRunId: { toString(): string };
-    activeRunId?: { toString(): string };
-  } | null,
+  profile: RunSlotProfile | null,
+  slot: RunSlot,
 ): { runId: bigint; addresses: RunAddresses } {
-  const activeRunId = profile?.activeRunId
-    ? BigInt(profile.activeRunId.toString())
-    : 0n;
+  const activeRunId = activeRunIdForSlot(profile, slot);
   if (activeRunId > 0n) {
     throw new Error(
-      `Run ${activeRunId.toString()} is already active. Resume or abandon it before starting another.`,
+      `${slot === "campaign" ? "Campaign" : "Arcade"} run ${activeRunId.toString()} is already active. Resume it before starting another.`,
     );
   }
   const runId = profile ? BigInt(profile.nextRunId.toString()) : INITIAL_RUN_ID;
   return { runId, addresses: deriveRunAddresses(owner, runId) };
+}
+
+interface RunSlotProfile {
+  version: number | { toString(): string };
+  nextRunId: { toString(): string };
+  activeRunId?: { toString(): string };
+  activeRunMode?: unknown;
+  campaignActiveRunId?: { toString(): string };
+}
+
+/**
+ * PlayerState v2 stored one mode-tagged pointer. v3 keeps that byte-compatible
+ * pointer as Arcade and consumes eight reserved bytes for Campaign. Normalize
+ * both layouts before any client code decides whether a mode is blocked.
+ */
+export function activeRunIdForSlot(
+  profile: Pick<
+    RunSlotProfile,
+    "version" | "activeRunId" | "activeRunMode" | "campaignActiveRunId"
+  > | null,
+  slot: RunSlot,
+): bigint {
+  if (!profile) return 0n;
+  const version = Number(profile.version);
+  const sharedRunId = profile.activeRunId
+    ? BigInt(profile.activeRunId.toString())
+    : 0n;
+  if (version === PLAYER_STATE_ACCOUNT_VERSION) {
+    if (slot === "arcade") return sharedRunId;
+    if (!profile.campaignActiveRunId) {
+      throw new Error("PlayerState v3 is missing its Campaign run slot");
+    }
+    return BigInt(profile.campaignActiveRunId.toString());
+  }
+  if (version !== PROTOCOL_ACCOUNT_VERSION) {
+    throw new Error("PlayerState has an unsupported run-slot version");
+  }
+  if (sharedRunId === 0n) return 0n;
+  const mode = anchorEnumVariant(profile.activeRunMode);
+  if (mode !== "campaign" && mode !== "daily" && mode !== "practice") {
+    throw new Error("PlayerState v2 has an invalid active-run mode");
+  }
+  if (slot === "campaign") {
+    return mode === "campaign" ? sharedRunId : 0n;
+  }
+  return mode === "campaign" ? 0n : sharedRunId;
+}
+
+function anchorEnumVariant(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const keys = Object.keys(value);
+  return keys.length === 1 ? keys[0] ?? null : null;
 }
 
 export async function assertPreparedRunAddressesAvailable(

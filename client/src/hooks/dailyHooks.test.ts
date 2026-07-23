@@ -23,7 +23,7 @@ const daily = (status: DailyStatus): DailyView => ({
   settlementGraceCloseAt: 400,
   finalizedAt: 0,
   recoveryDeadlineAt: 400,
-  entryLamports: 20_000_000n,
+  entryLamports: 10_000_000n,
   dailyPotLamports: 100_000_000n,
   uniquePlayers: 2,
   weeklyEligiblePlayers: 2,

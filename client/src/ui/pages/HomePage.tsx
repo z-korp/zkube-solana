@@ -11,7 +11,6 @@ import { useNavigationStore } from "@/stores/navigationStore";
 import {
   DailyChallengeCard,
   EntriesCountdown,
-  PracticeChip,
   computeArcadeLifecycle,
   formatUtcClock,
 } from "@/ui/components/arcade";
@@ -33,8 +32,8 @@ const META_CLASS =
 /**
  * Arcade home — the Guardian's Trial. Today's zone art shows through a shared
  * ZoneBackdrop, with glass panels layered over it: the challenge card (guardian
- * + rule on painted art), the simplified Daily pot with the player's rank, a
- * free Practice chip, and one ranked CTA. The body reshapes across five
+ * + rule on painted art), the simplified Daily pot with the player's rank,
+ * and one ranked CTA. The body reshapes across five
  * lifecycle states (the connect-gate is handled globally by App).
  */
 const HomePage: React.FC = () => {
@@ -51,10 +50,7 @@ const HomePage: React.FC = () => {
   const { prize, dismiss: dismissPrize } = usePrizeDeltaTrigger();
 
   const view = daily.daily;
-  const practiceView = daily.practiceDaily;
-  // Today's zone drives the guardian, the surface accent, and the background;
-  // fall back to yesterday's Practice zone while today's Daily is unprepared.
-  const zoneId = view?.mapId ?? practiceView?.mapId ?? 1;
+  const zoneId = view?.mapId ?? 1;
 
   // Tint the whole app surface with today's zone accent (never persisted).
   useEffect(() => {
@@ -76,11 +72,12 @@ const HomePage: React.FC = () => {
     nowUnix,
   });
 
-  const scoringRule = view?.scoringRule ?? practiceView?.scoringRule ?? null;
+  const scoringRule = view?.scoringRule ?? null;
   const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
-  const entrySol = view ? formatSolLamports(view.entryLamports) : "0.02";
+  const entrySol = view ? formatSolLamports(view.entryLamports) : "0.01";
   const busy = daily.action !== null;
-  const preparingPractice = daily.action === "practice";
+  const arcadeDiscoveryReady =
+    daily.run.watchStatus?.phase === "subscribed";
 
   const enterRanked = async () => {
     const active = await daily.enter();
@@ -90,18 +87,14 @@ const HomePage: React.FC = () => {
   // a failure closes the sheet and surfaces the error banner on the home body.
   const confirmRanked = () =>
     void enterRanked().catch(() => setCoinSheetOpen(false));
-  const enterPractice = async () => {
-    const active = await daily.practice();
-    navigate("play", active.runId);
-  };
-  const startPractice = () => void enterPractice().catch(() => undefined);
-
   // Hero status line per lifecycle state.
   let meta: ReactNode;
   if (lifecycle === "resume") {
     meta = (
       <span className={META_CLASS}>
-        Run in progress · scores {runsCloseLabel}
+        {activeDaily?.mode === "practice"
+          ? "Legacy Practice in progress"
+          : `Run in progress · scores ${runsCloseLabel}`}
       </span>
     );
   } else if (lifecycle === "entries-open" && view) {
@@ -112,19 +105,24 @@ const HomePage: React.FC = () => {
     meta = <span className={META_CLASS}>New Daily opens 00:00 UTC</span>;
   }
 
-  // Primary CTA + secondary Practice chip per state.
+  // Primary CTA per state.
   let primaryLabel = `Enter ranked · ${entrySol} SOL`;
   let primaryDisabled = false;
   let primaryOnClick: () => void = () => {};
-  let showPracticeChip = false;
 
   if (lifecycle === "resume") {
-    primaryLabel = "Resume ranked run";
+    primaryLabel =
+      activeDaily?.mode === "practice"
+        ? "Resume legacy Practice"
+        : "Resume ranked run";
     primaryOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };
   } else if (lifecycle === "entries-open") {
-    if (view?.followingDailyLamports === null) {
+    if (!arcadeDiscoveryReady) {
+      primaryLabel = "Checking active Arcade run…";
+      primaryDisabled = true;
+    } else if (view?.followingDailyLamports === null) {
       primaryLabel = "Ranked paused · next Daily preparing";
       primaryDisabled = true;
     } else {
@@ -136,12 +134,6 @@ const HomePage: React.FC = () => {
       // Tap the CTA → confirm sheet → owner signature → play.
       primaryOnClick = () => setCoinSheetOpen(true);
     }
-    showPracticeChip = daily.practiceAvailable;
-  } else if (daily.practiceAvailable) {
-    // entries-closed or practice-only with Practice enterable → Practice leads.
-    primaryLabel = preparingPractice ? "Preparing…" : "Play free practice";
-    primaryDisabled = busy;
-    primaryOnClick = startPractice;
   } else {
     // Nothing actionable: ranked closed, or the Daily is still being prepared.
     primaryLabel =
@@ -197,14 +189,6 @@ const HomePage: React.FC = () => {
               Opens 00:00 UTC
             </p>
           </div>
-        )}
-
-        {showPracticeChip && (
-          <PracticeChip
-            onClick={startPractice}
-            busy={preparingPractice}
-            disabled={busy && !preparingPractice}
-          />
         )}
 
         {daily.error && (

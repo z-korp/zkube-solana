@@ -14,10 +14,10 @@ export const useGame = (options: {
     const active = run.activeRun;
     if (!active) return null;
     const levelStars =
-      active.mode === "daily"
-        ? []
-        : (campaign?.maps.find((map) => map.mapId === active.mapId)
-            ?.levelStars ?? []);
+      active.mode === "campaign"
+        ? (campaign?.maps.find((map) => map.mapId === active.mapId)
+            ?.levelStars ?? [])
+        : [];
     return new Game(active, levelStars);
   }, [campaign?.maps, run.activeRun]);
 

@@ -1,4 +1,4 @@
-pub const ARENA_ENTRY_LAMPORTS: u64 = 20_000_000;
+pub const ARENA_ENTRY_LAMPORTS: u64 = 10_000_000;
 pub const ENTRY_DAILY_BPS: u16 = 6_000;
 pub const ENTRY_WEEKLY_BPS: u16 = 2_000;
 pub const ENTRY_SEASON_BPS: u16 = 1_000;
@@ -56,7 +56,7 @@ fn share(amount: u64, basis_points: u16) -> Result<u64, EntrySplitError> {
     u64::try_from(numerator / BASIS_POINTS).map_err(|_| EntrySplitError::Overflow)
 }
 
-/// Split the protocol's exact 0.02 SOL entry using integer basis points.
+/// Split the protocol's exact 0.01 SOL entry using integer basis points.
 ///
 /// # Errors
 ///
@@ -97,10 +97,10 @@ mod tests {
         assert_eq!(
             split,
             EntrySplit {
-                next_daily_lamports: 12_000_000,
-                next_weekly_lamports: 4_000_000,
-                next_season_lamports: 2_000_000,
-                operator_lamports: 2_000_000,
+                next_daily_lamports: 6_000_000,
+                next_weekly_lamports: 2_000_000,
+                next_season_lamports: 1_000_000,
+                operator_lamports: 1_000_000,
             }
         );
         assert_eq!(split.total(), Ok(ARENA_ENTRY_LAMPORTS));

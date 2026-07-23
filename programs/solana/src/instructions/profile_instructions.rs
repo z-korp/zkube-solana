@@ -19,7 +19,7 @@ pub struct SetFeaturedEmblem<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
@@ -62,7 +62,7 @@ pub struct SyncDailyProfile<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
 }
@@ -116,7 +116,7 @@ pub struct SyncWeeklyProfile<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
 }
@@ -166,7 +166,7 @@ pub struct SyncSeasonProfile<'info> {
         mut,
         seeds = [PLAYER_STATE_SEED, player_state.owner.as_ref()],
         bump = player_state.bump,
-        constraint = player_state.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
 }

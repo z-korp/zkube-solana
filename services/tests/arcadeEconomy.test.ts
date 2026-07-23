@@ -8,14 +8,14 @@ import {
 } from "../src/arcadeEconomy";
 
 describe("native SOL Arcade accounting", () => {
-  it("conserves every exact 0.02 SOL entry", () => {
-    expect(exactEntrySplit(20_000_000n)).toEqual({
-      followingDaily: 12_000_000n,
-      followingWeekly: 4_000_000n,
-      followingSeason: 2_000_000n,
-      operator: 2_000_000n,
+  it("conserves every exact 0.01 SOL entry", () => {
+    expect(exactEntrySplit(10_000_000n)).toEqual({
+      followingDaily: 6_000_000n,
+      followingWeekly: 2_000_000n,
+      followingSeason: 1_000_000n,
+      operator: 1_000_000n,
     });
-    expect(() => exactEntrySplit(19_999_999n)).toThrow("exactly 0.02 SOL");
+    expect(() => exactEntrySplit(9_999_999n)).toThrow("exactly 0.01 SOL");
   });
 
   it("renormalizes occupied Daily weights and rolls 0.001 SOL dust", () => {

@@ -14,10 +14,6 @@ import {
   assertRankedEntryDependencies,
   buildFinalizeDailyChallengePlan,
   buildPrepareDailyRunPlan,
-  buildPreparePracticeRunPlan,
-  isPracticeEntryWindowOpen,
-  practiceEntriesCloseAt,
-  practiceRunsCloseAt,
   type DailyView,
 } from "./dailyClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
@@ -116,7 +112,7 @@ describe("Daily transaction layer boundaries", () => {
       address: deriveArenaDailyPda(20),
       nextRunId: 7n,
       activeRunId: 0n,
-      entryLamports: 20_000_000n,
+      entryLamports: 10_000_000n,
       dayId: 20,
       weeklyId: 1,
       seasonId: 1,
@@ -136,7 +132,7 @@ describe("Daily transaction layer boundaries", () => {
     });
     expect(prepared.transactionPlan.layer).toBe("solana-base");
     expect(prepared.transactionPlan.connection).toBe(connection);
-    expect(prepared.transactionPlan.label).toContain("exact 0.02 SOL");
+    expect(prepared.transactionPlan.label).toContain("exact 0.01 SOL");
     const enterAccounts =
       prepared.transactionPlan.transaction.instructions[0].keys;
     const playerFunding = enterAccounts.find(({ pubkey }) =>
@@ -157,73 +153,6 @@ describe("Daily transaction layer boundaries", () => {
     expect(finalized.connection).toBe(connection);
   });
 
-  it("uses the narrow player-funding PDA for free Practice rent", async () => {
-    const owner = Keypair.generate();
-    const session = Keypair.generate();
-    const wallet = new SessionWallet(session);
-    const connection = new Connection(
-      "https://api.devnet.solana.com",
-      "confirmed",
-    );
-    vi.spyOn(connection, "getMultipleAccountsInfo").mockResolvedValue([null]);
-    const daily = {
-      address: Keypair.generate().publicKey,
-      dayId: 20,
-      status: "finalized",
-      nextRunId: 8n,
-    } as DailyView;
-
-    const prepared = await buildPreparePracticeRunPlan({
-      connection,
-      wallet,
-      ownerAuthority: owner.publicKey,
-      sessionToken: Keypair.generate().publicKey,
-      daily,
-      sessionValidUntil: 1_800_000_000,
-      nowUnix: 20 * 86_400 + 1,
-    });
-
-    expect(prepared.transactionPlan.label).toBe("Prepare free Practice run");
-    expect(prepared.transactionPlan.feePayer.equals(session.publicKey)).toBe(
-      true,
-    );
-    const accounts = prepared.transactionPlan.transaction.instructions[0].keys;
-    expect(
-      accounts.find(({ pubkey }) =>
-        pubkey.equals(derivePlayerFundingPda(owner.publicKey)),
-      ),
-    ).toMatchObject({ isWritable: true, isSigner: false });
-    expect(
-      accounts.find(({ pubkey }) => pubkey.equals(owner.publicKey)),
-    ).toMatchObject({ isSigner: false });
-    expect(
-      accounts.find(({ pubkey }) => pubkey.equals(session.publicKey)),
-    ).toMatchObject({ isSigner: true });
-  });
-
-  it("closes new Practice preparation exactly at 23:45 UTC", async () => {
-    const dayStart = 20 * 86_400;
-    expect(practiceEntriesCloseAt(dayStart)).toBe(dayStart + 85_500);
-    expect(practiceRunsCloseAt(dayStart)).toBe(dayStart + 86_340);
-    expect(isPracticeEntryWindowOpen(dayStart + 85_499)).toBe(true);
-    expect(isPracticeEntryWindowOpen(dayStart + 85_500)).toBe(false);
-    const owner = Keypair.generate();
-    await expect(
-      buildPreparePracticeRunPlan({
-        connection: {} as Connection,
-        wallet: new SessionWallet(Keypair.generate()),
-        ownerAuthority: owner.publicKey,
-        sessionToken: Keypair.generate().publicKey,
-        daily: {
-          status: "finalized",
-          nextRunId: 9n,
-        } as DailyView,
-        sessionValidUntil: 1_800_000_000,
-        nowUnix: dayStart + 85_500,
-      }),
-    ).rejects.toThrow("closes at 23:45 UTC");
-  });
-
   it("rejects a missing following Daily before constructing a ranked entry", async () => {
     const owner = Keypair.generate();
     const daily = {
@@ -231,7 +160,7 @@ describe("Daily transaction layer boundaries", () => {
       dayId: 20,
       weeklyId: 1,
       seasonId: 1,
-      entryLamports: 20_000_000n,
+      entryLamports: 10_000_000n,
     } as DailyView;
     const infos = rankedDependencyInfos(daily);
     infos[5] = null;

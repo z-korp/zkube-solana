@@ -25,7 +25,7 @@ const fixtures = vi.hoisted(() => ({
       opensAt: 0,
       entriesCloseAt: 1234567 + 3_600,
       runsCloseAt: 1234567 + 3_600,
-      entryLamports: 20_000_000n,
+      entryLamports: 10_000_000n,
       player: { attempts: 1, paidAttempts: 0 },
       scoringRule: null,
     },

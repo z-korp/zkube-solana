@@ -816,7 +816,8 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     assert_eq!(active.owner, owner);
     assert_eq!(active.run_id, run_id);
     let player_after: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(player_after.active_run_id, run_id);
+    assert_eq!(player_after.campaign_active_run_id, run_id);
+    assert_eq!(player_after.active_run_id, 0);
     assert_eq!(player_after.next_run_id, run_id + 1);
     assert_eq!(
         resulting_account(&result, &player_funding).lamports + created.lamports,
@@ -1031,7 +1032,7 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
     let owner = Pubkey::new_unique();
     let run_id = 1u64;
     let (player, mut player_state) = player_fixture(owner);
-    player_state.active_run_id = run_id;
+    player_state.campaign_active_run_id = run_id;
     player_state.next_run_id = run_id + 1;
     let (active_run, active_bump) = Pubkey::find_program_address(
         &[
@@ -1101,7 +1102,7 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         "SBF_COMPUTE consume_campaign={}",
         result.compute_units_consumed
     );
-    assert_eq!(updated.active_run_id, 0);
+    assert_eq!(updated.campaign_active_run_id, 0);
     assert_eq!(updated.total_campaign_stars(), 0);
 }
 
@@ -1195,6 +1196,71 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
     missing_map.accounts.pop();
     assert!(mollusk()
         .process_instruction(&missing_map, &accounts)
+        .program_result
+        .is_err());
+}
+
+#[test]
+fn sbf_run_slots_v3_activation_is_paused_exact_and_one_way() {
+    let authority = Pubkey::new_unique();
+    let (protocol, mut protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), true);
+    protocol_state.player_funding_target_lamports = LEGACY_PLAYER_FUNDING_TARGET_LAMPORTS;
+    let (arcade, mut arcade_state) = arcade_fixture(protocol);
+    arcade_state.entry_lamports = LEGACY_ARENA_ENTRY_LAMPORTS;
+    arcade_state.daily_lamports = LEGACY_ENTRY_DAILY_LAMPORTS;
+    arcade_state.weekly_lamports = LEGACY_ENTRY_WEEKLY_LAMPORTS;
+    arcade_state.season_lamports = LEGACY_ENTRY_SEASON_LAMPORTS;
+    arcade_state.operator_lamports = LEGACY_ENTRY_OPERATOR_LAMPORTS;
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ActivateRunSlotsV3 {
+            protocol,
+            arcade_config: arcade,
+            authority,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ActivateRunSlotsV3 {}.data(),
+    };
+    let accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            arcade,
+            program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+        ),
+        (authority, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let activated = mollusk().process_instruction(&instruction, &accounts);
+    assert!(
+        activated.program_result.is_ok(),
+        "{:?}",
+        activated.program_result
+    );
+    let protocol_after: ProtocolConfig = decode(resulting_account(&activated, &protocol));
+    let arcade_after: ArcadeConfig = decode(resulting_account(&activated, &arcade));
+    assert!(protocol_after.paused);
+    assert_eq!(
+        protocol_after.player_funding_target_lamports,
+        PLAYER_FUNDING_TARGET_LAMPORTS
+    );
+    assert_eq!(arcade_after.entry_lamports, ARENA_ENTRY_LAMPORTS);
+    assert_eq!(arcade_after.daily_lamports, ENTRY_DAILY_LAMPORTS);
+    assert_eq!(arcade_after.weekly_lamports, ENTRY_WEEKLY_LAMPORTS);
+    assert_eq!(arcade_after.season_lamports, ENTRY_SEASON_LAMPORTS);
+    assert_eq!(arcade_after.operator_lamports, ENTRY_OPERATOR_LAMPORTS);
+
+    // The exact legacy precondition makes the migration non-repeatable.
+    assert!(mollusk()
+        .process_instruction(
+            &instruction,
+            &[
+                (protocol, resulting_account(&activated, &protocol).clone(),),
+                (arcade, resulting_account(&activated, &arcade).clone()),
+                (authority, system_account(ACCOUNT_LAMPORTS)),
+            ],
+        )
         .program_result
         .is_err());
 }
@@ -1552,8 +1618,19 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
         .to_account_metas(None),
         data: zkube::instruction::ConsumeArenaRun {}.data(),
     };
+    // Model an entry that was created by v2 and remained in flight across the
+    // program upgrade. Consume must lazily migrate its shared reservation
+    // before validating and releasing the paid Arcade run.
+    let mut legacy_profile_after_entry = profile_after_entry;
+    legacy_profile_after_entry.version = ACCOUNT_VERSION;
+    let legacy_profile_account = serialized_account(
+        &legacy_profile_after_entry,
+        8 + PlayerState::INIT_SPACE,
+        zkube::ID,
+        resulting_account(&result, &player).lamports,
+    );
     let consume_accounts = vec![
-        (player, resulting_account(&result, &player).clone()),
+        (player, legacy_profile_account),
         (
             current_daily,
             resulting_account(&result, &current_daily).clone(),
@@ -1589,6 +1666,7 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     let consumed_daily: ArenaDaily = decode(resulting_account(&consumed, &current_daily));
     let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
     assert_eq!(consumed_daily.entries_expired, 1);
+    assert_eq!(consumed_player.version, PLAYER_STATE_VERSION);
     assert_eq!(consumed_player.active_run_id, 0);
     assert_eq!(consumed_player.lifetime_paid_entries, 1);
 
@@ -1628,7 +1706,7 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
 }
 
 #[test]
-fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
+fn sbf_practice_is_retired_but_legacy_runs_still_consume_or_expire() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let caller = Pubkey::new_unique();
@@ -1639,10 +1717,9 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
     let (yesterday, yesterday_state) =
         daily_fixture(challenge_day, arcade, PeriodStatus::Finalized, true);
     let (today_opens, _, today_runs_close, _) = day_window(today).unwrap();
-    let (_, _, yesterday_runs_close, _) = day_window(challenge_day).unwrap();
     let (player, player_state) = player_fixture(owner);
     let run_id = INITIAL_RUN_ID;
-    let (active_run, _) = Pubkey::find_program_address(
+    let (active_run, active_bump) = Pubkey::find_program_address(
         &[
             ACTIVE_RUN_SEED,
             b"active",
@@ -1687,69 +1764,29 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
     let mut runtime = mollusk();
     runtime.sysvars.clock.unix_timestamp = today_opens + 1;
     let prepared = runtime.process_instruction(&prepare, &prepare_accounts);
-    assert!(
-        prepared.program_result.is_ok(),
-        "{:?}",
-        prepared.program_result
-    );
-    let prepared_run: ActiveRun = decode(resulting_account(&prepared, &active_run));
-    let prepared_player: PlayerState = decode(resulting_account(&prepared, &player));
-    assert_eq!(prepared_run.mode, RunMode::Practice);
-    assert_eq!(prepared_run.daily_challenge, yesterday);
-    assert_eq!(prepared_run.rules_hash, yesterday_state.rules_hash);
-    assert_eq!(prepared_run.deadline_at, today_runs_close);
-    assert!(prepared_run.deadline_at > yesterday_runs_close);
-    assert_eq!(prepared_player.active_run_deadline_at, today_runs_close);
-    assert_eq!(prepared_run.vrf_request_counter, 0);
-    assert_eq!(prepared_run.pending_vrf_counter, 0);
+    assert!(prepared.program_result.is_err());
 
-    // Project the prepared run into a valid playing state. One accepted move
-    // immediately before today's cutoff succeeds and requests fresh VRF.
-    let mut playing: ActiveRun = decode(resulting_account(&prepared, &active_run));
-    playing.lifecycle = RunLifecycle::Playing;
-    playing.rules.points_required = u32::MAX;
-    playing.rules.max_moves = 20;
-    playing.rules.score_multiplier_x100 = 100;
-    playing.rules.combo_multiplier_x100 = 100;
-    playing.daily_pressure = DailyPressureProfile::canonical();
-    for row in 0..9 {
-        playing.grid[row * 8] = 1;
-    }
-    playing.next_row = [1, 0, 0, 0, 0, 0, 0, 0];
-    playing.has_next_row = true;
-    let (_, moved) = process_play_move(playing, 0, 0, 0, today_runs_close - 1, true);
-    assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
-    let partial: ActiveRun = decode(resulting_account(&moved, &active_run));
-    assert_eq!(partial.action_counter, 1);
-    assert_eq!(partial.lifecycle, RunLifecycle::AwaitingVrf);
-    assert_eq!(partial.pending_vrf_counter, 1);
-    assert_eq!(partial.deadline_at, today_runs_close);
-
-    let force = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ForceFinishDeadline { active_run, caller }
-            .to_account_metas(None),
-        data: zkube::instruction::ForceFinishDeadline {}.data(),
+    // Existing v2 Practice reservations remain recoverable after the upgrade.
+    let mut legacy_player = player_state;
+    legacy_player.version = ACCOUNT_VERSION;
+    legacy_player.next_run_id = run_id + 1;
+    legacy_player.active_run_id = run_id;
+    legacy_player.active_run_daily = yesterday;
+    legacy_player.active_run_mode = RunMode::Practice;
+    legacy_player.active_run_deadline_at = today_runs_close;
+    let legacy_run = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        daily_challenge: yesterday,
+        run_id,
+        mode: RunMode::Practice,
+        lifecycle: RunLifecycle::Finished,
+        deadline_at: today_runs_close,
+        action_counter: 1,
+        finished_at: today_runs_close,
+        bump: active_bump,
+        ..ActiveRun::default()
     };
-    let force_accounts = vec![
-        (active_run, resulting_account(&moved, &active_run).clone()),
-        (caller, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let mut early_force = mollusk();
-    early_force.sysvars.clock.unix_timestamp = today_runs_close - 1;
-    assert!(early_force
-        .process_instruction(&force, &force_accounts)
-        .program_result
-        .is_err());
-    let mut at_close = mollusk();
-    at_close.sysvars.clock.unix_timestamp = today_runs_close;
-    let forced = at_close.process_instruction(&force, &force_accounts);
-    assert!(forced.program_result.is_ok(), "{:?}", forced.program_result);
-    let forced_partial: ActiveRun = decode(resulting_account(&forced, &active_run));
-    assert_eq!(forced_partial.lifecycle, RunLifecycle::Finished);
-    assert_eq!(forced_partial.action_counter, 1);
-    assert_eq!(forced_partial.finished_at, today_runs_close);
-    assert_eq!(forced_partial.pending_vrf_counter, 0);
 
     // Practice consumption remains valid after its source Daily has been
     // archived and closed. The two legacy ABI positions are present but
@@ -1771,7 +1808,10 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
     let consumed = mollusk().process_instruction(
         &consume,
         &[
-            (player, resulting_account(&prepared, &player).clone()),
+            (
+                player,
+                program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
+            ),
             (yesterday, system_account(0)),
             (
                 zkube::ID,
@@ -1779,7 +1819,10 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
                     "BPFLoaderUpgradeab1e11111111111111111111111",
                 )),
             ),
-            (active_run, resulting_account(&forced, &active_run).clone()),
+            (
+                active_run,
+                program_account(&legacy_run, 8 + ActiveRun::INIT_SPACE),
+            ),
             (rent_recipient, system_account(1_000_000)),
         ],
     );
@@ -1789,30 +1832,8 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
         consumed.program_result
     );
     let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
+    assert_eq!(consumed_player.version, PLAYER_STATE_VERSION);
     assert_eq!(consumed_player.active_run_id, 0);
-
-    let mut zero_action: ActiveRun = decode(resulting_account(&prepared, &active_run));
-    zero_action.lifecycle = RunLifecycle::Delegated;
-    let zero_accounts = vec![
-        (
-            active_run,
-            program_account(&zero_action, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (caller, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let mut zero_close = mollusk();
-    zero_close.sysvars.clock.unix_timestamp = today_runs_close;
-    let forced_zero = zero_close.process_instruction(&force, &zero_accounts);
-    assert!(
-        forced_zero.program_result.is_ok(),
-        "{:?}",
-        forced_zero.program_result
-    );
-    let forced_zero: ActiveRun = decode(resulting_account(&forced_zero, &active_run));
-    assert_eq!(forced_zero.lifecycle, RunLifecycle::Finished);
-    assert_eq!(forced_zero.action_counter, 0);
-    assert_eq!(forced_zero.daily_score, 0);
-    assert_eq!(forced_zero.finished_at, today_runs_close);
 
     // If the ER copy remains unavailable, durable recovery is likewise based
     // on today's deadline and never yesterday's already-past challenge time.
@@ -1827,8 +1848,11 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
         data: zkube::instruction::ExpireUnresolvedPracticeRun { run_id }.data(),
     };
     let expire_accounts = vec![
-        (player, resulting_account(&prepared, &player).clone()),
-        (owner, resulting_account(&prepared, &owner).clone()),
+        (
+            player,
+            program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
+        ),
+        (owner, system_account(0)),
         (caller, system_account(ACCOUNT_LAMPORTS)),
     ];
     let recovery_at = today_runs_close + STUCK_RUN_RECOVERY_SECONDS;
@@ -1847,6 +1871,7 @@ fn sbf_practice_uses_today_deadline_for_play_cutoff_and_recovery() {
         expired.program_result
     );
     let recovered_player: PlayerState = decode(resulting_account(&expired, &player));
+    assert_eq!(recovered_player.version, PLAYER_STATE_VERSION);
     assert_eq!(recovered_player.active_run_id, 0);
     assert_eq!(recovered_player.orphan_run_id, run_id);
 }

@@ -370,7 +370,7 @@ describe("native SOL transaction boundaries", () => {
     });
     const currentDaily = deriveArenaDailyPda(20);
     const enterArena = await zkubeProgram(connection, new SessionWallet(owner))
-      .methods.fundedEnterArena(new BN(1), new BN(20_000_000))
+      .methods.fundedEnterArena(new BN(1), new BN(10_000_000))
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
@@ -397,7 +397,7 @@ describe("native SOL transaction boundaries", () => {
       sessionValidUntil: 1_800_000_000,
       transactionPlan: {
         layer: "solana-base" as const,
-        label: "Enter Arena · exact 0.02 SOL + network fee",
+        label: "Enter Arena · exact 0.01 SOL + network fee",
         connection,
         transaction: new Transaction().add(enterArena),
         feePayer: owner.publicKey,
