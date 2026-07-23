@@ -313,22 +313,27 @@ and Season `737` opened atomically with 1/2/3 SOL; the following cadence
 accounts remain in funding state. The activation signature is
 `A1iaCAkcQDbEdhtQDZjsvH8hWuLQ3N9waycid52rB6UkrS2zDv6tHmhZSkEn6GADawuBkpxR6pEGFUsJCEKjdXS`.
 
-Fly machine `286e275bd6e968` runs the approved keeper release
-`d8e26ee9bf840c14b3efda0559ece5b2035fb6a32a52b8c5f467aded82a93c09`
+Fly machine `82d371f7d43e38` runs the approved keeper release
+`5c556fafa130d09e5315ef7c8406dbbda5558ad55275deceb2e02acdaf72175e`
 from image digest
-`sha256:2bd055d5e6f7ed47aaa92fa5fd6630e0a33b47a6e074975efd05322bab1af1ea`.
-Its first active pass completed with zero planned writes, zero writes, and zero
-lamports spent.
+`sha256:a89e5397f6fca1c788cd13c9eea0bd8311bc2f2c363d192dee432d82366d491d`.
+It mounts the encrypted one-GB `zkube_archives` volume, runs every 60 seconds,
+permits at most eight writes and 0.1 SOL simulated spend per pass, and preserves
+a 0.1 SOL signer reserve.
 
 The cadence-archive, PlayerState v3 run-slot, retired-Practice preparation, and
 exact 0.01 SOL entry-split program upgrade confirmed on 2026-07-23 with
 signature
 `41u1gJxYMAvXcJBU8HHedikFoFbmd8rq8Qb8823Hoe1DEi3huCYiQiUUzPe1Ri71ZRi79VM3KmFpRd5AfcBYVDmJ`.
-The protocol is intentionally paused pending the separately approved archive
-migration, one-way exact `activate_run_slots_v3` governance instruction, 0.5
-SOL cadence-rent float, `zkube_archives` Fly volume, fingerprinted keeper
-release, read-only verification, and re-enable. Already-created v2 runs migrate
-in place and legacy Practice retains only its recovery and settlement paths.
+The separately approved migration initialized the archive and 0.5 SOL
+recyclable cadence-rent float, activated the exact 0.01 SOL 60/20/10/10
+economy, and added an accounted 1 SOL seed to Daily `20657`. The keeper passed
+read-only verification before writes were enabled, archived and closed Daily
+`20656`, prepared the following cadence, and completed a clean zero-write pass
+after catch-up. The protocol was then unpaused with signature
+`4YzKY39Fn2ZrnDJ812CQR4KacWAg2Awr2cDoNt6AZg2Lvz6G2uTP3ucKWJs9DpvWxvGhnsCZ2Ywmc5XRiRF2jcFJ`.
+Already-created v2 runs migrate in place and legacy Practice retains only its
+recovery and settlement paths.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
