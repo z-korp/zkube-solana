@@ -1265,6 +1265,206 @@ fn sbf_run_slots_v3_activation_is_paused_exact_and_one_way() {
         .is_err());
 }
 
+#[test]
+fn sbf_authority_top_ups_are_exact_accounted_and_pool_specific() {
+    let authority = Pubkey::new_unique();
+    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
+    let (arcade, arcade_state) = arcade_fixture(protocol);
+    let day_id = 32;
+    let week_id = week_id_for_day(day_id).unwrap();
+    let season_id = season_id_for_day(day_id).unwrap();
+    let amount = 1_234_567;
+    let now = day_window(day_id).unwrap().0 + 1;
+
+    let (daily, daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Open, true);
+    let daily_instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::TopUpArenaDaily {
+            protocol,
+            arcade_config: arcade,
+            arena_daily: daily,
+            authority,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::TopUpArenaDaily { lamports: amount }.data(),
+    };
+    let mut daily_runtime = mollusk();
+    daily_runtime.sysvars.clock.unix_timestamp = now;
+    let daily_result = daily_runtime.process_instruction(
+        &daily_instruction,
+        &[
+            (
+                protocol,
+                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                arcade,
+                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+            ),
+            (
+                daily,
+                program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
+            ),
+            (authority, system_account(ACCOUNT_LAMPORTS)),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ],
+    );
+    assert!(
+        daily_result.program_result.is_ok(),
+        "{:?}",
+        daily_result.program_result
+    );
+    let daily_after: ArenaDaily = decode(resulting_account(&daily_result, &daily));
+    assert_eq!(daily_after.ledger.seeded_lamports, amount);
+    assert_eq!(
+        resulting_account(&daily_result, &daily).lamports,
+        ACCOUNT_LAMPORTS + amount
+    );
+    assert_eq!(
+        resulting_account(&daily_result, &authority).lamports,
+        ACCOUNT_LAMPORTS - amount
+    );
+
+    let (weekly, weekly_state) = weekly_fixture(week_id, arcade, PeriodStatus::Funding, true);
+    let weekly_instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::TopUpWeeklyJackpot {
+            protocol,
+            arcade_config: arcade,
+            weekly_jackpot: weekly,
+            authority,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::TopUpWeeklyJackpot { lamports: amount }.data(),
+    };
+    let mut weekly_runtime = mollusk();
+    weekly_runtime.sysvars.clock.unix_timestamp = now;
+    let weekly_result = weekly_runtime.process_instruction(
+        &weekly_instruction,
+        &[
+            (
+                protocol,
+                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                arcade,
+                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+            ),
+            (
+                weekly,
+                program_account(&weekly_state, 8 + WeeklyJackpot::INIT_SPACE),
+            ),
+            (authority, system_account(ACCOUNT_LAMPORTS)),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ],
+    );
+    assert!(
+        weekly_result.program_result.is_ok(),
+        "{:?}",
+        weekly_result.program_result
+    );
+    let weekly_after: WeeklyJackpot = decode(resulting_account(&weekly_result, &weekly));
+    assert_eq!(weekly_after.ledger.seeded_lamports, amount);
+
+    let (season, season_state) = season_fixture(season_id, arcade, PeriodStatus::Open, true);
+    let season_instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::TopUpSeason {
+            protocol,
+            arcade_config: arcade,
+            season,
+            authority,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::TopUpSeason { lamports: amount }.data(),
+    };
+    let mut season_runtime = mollusk();
+    season_runtime.sysvars.clock.unix_timestamp = now;
+    let season_result = season_runtime.process_instruction(
+        &season_instruction,
+        &[
+            (
+                protocol,
+                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                arcade,
+                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+            ),
+            (
+                season,
+                program_account(&season_state, 8 + Season::INIT_SPACE),
+            ),
+            (authority, system_account(ACCOUNT_LAMPORTS)),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ],
+    );
+    assert!(
+        season_result.program_result.is_ok(),
+        "{:?}",
+        season_result.program_result
+    );
+    let season_after: Season = decode(resulting_account(&season_result, &season));
+    assert_eq!(season_after.ledger.seeded_lamports, amount);
+}
+
+#[test]
+fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
+    let authority = Pubkey::new_unique();
+    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
+    let (arcade, arcade_state) = arcade_fixture(protocol);
+    let day_id = 32;
+    let now = day_window(day_id).unwrap().0 + 1;
+
+    for (candidate_day, status, amount) in [
+        (day_id, PeriodStatus::Open, 0),
+        (day_id, PeriodStatus::Finalized, 1),
+        (day_id + 2, PeriodStatus::Funding, 1),
+    ] {
+        let (daily, daily_state) = daily_fixture(candidate_day, arcade, status, true);
+        let instruction = anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::TopUpArenaDaily {
+                protocol,
+                arcade_config: arcade,
+                arena_daily: daily,
+                authority,
+                system_program: anchor_lang::system_program::ID,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::TopUpArenaDaily { lamports: amount }.data(),
+        };
+        let mut runtime = mollusk();
+        runtime.sysvars.clock.unix_timestamp = now;
+        let result = runtime.process_instruction(
+            &instruction,
+            &[
+                (
+                    protocol,
+                    program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+                ),
+                (
+                    arcade,
+                    program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+                ),
+                (
+                    daily,
+                    program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
+                ),
+                (authority, system_account(ACCOUNT_LAMPORTS)),
+                (anchor_lang::system_program::ID, system_program_account()),
+            ],
+        );
+        assert!(
+            result.program_result.is_err(),
+            "unexpectedly accepted day={candidate_day} status={status:?} amount={amount}"
+        );
+    }
+}
+
 fn arcade_fixture(protocol: Pubkey) -> (Pubkey, ArcadeConfig) {
     let rules = Pubkey::new_unique();
     let (address, bump) = Pubkey::find_program_address(&[ARCADE_CONFIG_SEED], &zkube::ID);

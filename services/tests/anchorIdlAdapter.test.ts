@@ -43,7 +43,7 @@ import {
 } from "../src/arcadeChain";
 
 const FINAL_IDL_SHA256 =
-  "2f116982ddd7cc355d037f2da44446d53024ce96e6a922b8f7991e382c169fc7";
+  "8f22022034d137de95b8e44be24182512f00103ca18c7c58f601f92b6454491a";
 const DAY = 20_651;
 const WEEK = weekIdForDay(DAY);
 const SEASON = seasonIdForDay(DAY);

@@ -40,6 +40,9 @@ import {
 } from "./deploymentManifest";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
+const U64_MAX = (1n << 64n) - 1n;
+
+export type PrizePoolKind = "daily" | "weekly" | "season";
 
 export interface ProtocolInitialization {
   teamDestination: PublicKey;
@@ -504,6 +507,73 @@ export async function buildAtomicArcadeLaunchPlan(args: {
     args.connection,
     args.authority.publicKey,
     [seed, unpause, activateDaily, activateWeekly, activateSeason],
+  );
+}
+
+/**
+ * Builds one exact authority-funded prize-pool transfer. The public API is
+ * generic for operators, while each branch selects a distinct constrained
+ * program instruction and canonical cadence PDA.
+ */
+export async function buildTopUpPrizePoolPlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  pool: PrizePoolKind;
+  cadenceId: number;
+  lamports: bigint;
+}): Promise<TransactionPlan> {
+  assertU32(args.cadenceId, "cadenceId");
+  if (args.lamports <= 0n || args.lamports > U64_MAX) {
+    throw new Error("lamports must fit in a positive u64");
+  }
+  const program = zkubeProgram(args.connection, args.authority);
+  const amount = new BN(args.lamports.toString());
+  let instruction: TransactionInstruction;
+  switch (args.pool) {
+    case "daily":
+      instruction = await program.methods
+        .topUpArenaDaily(amount)
+        .accountsPartial({
+          protocol: deriveProtocolConfigPda(),
+          arcadeConfig: deriveArcadeConfigPda(),
+          arenaDaily: deriveArenaDailyPda(args.cadenceId),
+          authority: args.authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      break;
+    case "weekly":
+      instruction = await program.methods
+        .topUpWeeklyJackpot(amount)
+        .accountsPartial({
+          protocol: deriveProtocolConfigPda(),
+          arcadeConfig: deriveArcadeConfigPda(),
+          weeklyJackpot: deriveWeeklyJackpotPda(args.cadenceId),
+          authority: args.authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      break;
+    case "season":
+      instruction = await program.methods
+        .topUpSeason(amount)
+        .accountsPartial({
+          protocol: deriveProtocolConfigPda(),
+          arcadeConfig: deriveArcadeConfigPda(),
+          season: deriveSeasonPda(args.cadenceId),
+          authority: args.authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      break;
+    default:
+      throw new Error(`unsupported prize pool: ${String(args.pool)}`);
+  }
+  return basePlan(
+    `Top up ${args.pool} ${args.cadenceId} with ${args.lamports.toString()} lamports`,
+    args.connection,
+    args.authority.publicKey,
+    [instruction],
   );
 }
 

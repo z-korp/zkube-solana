@@ -598,6 +598,192 @@ pub fn handler_seed_launch_pools(
 }
 
 #[derive(Accounts)]
+pub struct TopUpArenaDaily<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = arcade_config.launch_seeded @ ErrorCode::InvalidState
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        mut,
+        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
+        bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner
+    )]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_top_up_arena_daily(ctx: Context<TopUpArenaDaily>, lamports: u64) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let current = day_id_at(now)?;
+    require!(lamports > 0, ErrorCode::InvalidState);
+    require!(
+        top_up_period_is_allowed(ctx.accounts.arena_daily.day_id, current),
+        ErrorCode::InvalidPeriod
+    );
+    require!(
+        matches!(
+            ctx.accounts.arena_daily.status,
+            PeriodStatus::Funding | PeriodStatus::Open
+        ) && now < ctx.accounts.arena_daily.runs_close_at,
+        ErrorCode::ChallengeEnded
+    );
+    transfer_from_signer(
+        &ctx.accounts.authority,
+        &ctx.accounts.arena_daily.to_account_info(),
+        &ctx.accounts.system_program,
+        lamports,
+    )?;
+    ctx.accounts.arena_daily.ledger.add_seed(lamports)?;
+    emit!(PrizePoolFunded {
+        kind: 0,
+        period_id: ctx.accounts.arena_daily.day_id,
+        authority: ctx.accounts.authority.key(),
+        lamports,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct TopUpWeeklyJackpot<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = arcade_config.launch_seeded @ ErrorCode::InvalidState
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        mut,
+        seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()],
+        bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner
+    )]
+    pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_top_up_weekly_jackpot(
+    ctx: Context<TopUpWeeklyJackpot>,
+    lamports: u64,
+) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let current = week_id_for_day(day_id_at(now)?)?;
+    require!(lamports > 0, ErrorCode::InvalidState);
+    require!(
+        top_up_period_is_allowed(ctx.accounts.weekly_jackpot.week_id, current),
+        ErrorCode::InvalidPeriod
+    );
+    require!(
+        matches!(
+            ctx.accounts.weekly_jackpot.status,
+            PeriodStatus::Funding | PeriodStatus::Open
+        ) && now < ctx.accounts.weekly_jackpot.closes_at,
+        ErrorCode::ChallengeEnded
+    );
+    transfer_from_signer(
+        &ctx.accounts.authority,
+        &ctx.accounts.weekly_jackpot.to_account_info(),
+        &ctx.accounts.system_program,
+        lamports,
+    )?;
+    ctx.accounts.weekly_jackpot.ledger.add_seed(lamports)?;
+    emit!(PrizePoolFunded {
+        kind: 1,
+        period_id: ctx.accounts.weekly_jackpot.week_id,
+        authority: ctx.accounts.authority.key(),
+        lamports,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct TopUpSeason<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
+        constraint = arcade_config.launch_seeded @ ErrorCode::InvalidState
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        mut,
+        seeds = [SEASON_SEED, season.season_id.to_le_bytes().as_ref()],
+        bump = season.bump,
+        constraint = season.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = season.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner
+    )]
+    pub season: Box<Account<'info, Season>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_top_up_season(ctx: Context<TopUpSeason>, lamports: u64) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let current = season_id_for_day(day_id_at(now)?)?;
+    require!(lamports > 0, ErrorCode::InvalidState);
+    require!(
+        top_up_period_is_allowed(ctx.accounts.season.season_id, current),
+        ErrorCode::InvalidPeriod
+    );
+    require!(
+        matches!(
+            ctx.accounts.season.status,
+            PeriodStatus::Funding | PeriodStatus::Open
+        ) && now < ctx.accounts.season.closes_at,
+        ErrorCode::ChallengeEnded
+    );
+    transfer_from_signer(
+        &ctx.accounts.authority,
+        &ctx.accounts.season.to_account_info(),
+        &ctx.accounts.system_program,
+        lamports,
+    )?;
+    ctx.accounts.season.ledger.add_seed(lamports)?;
+    emit!(PrizePoolFunded {
+        kind: 2,
+        period_id: ctx.accounts.season.season_id,
+        authority: ctx.accounts.authority.key(),
+        lamports,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
 #[instruction(run_id: u64, expected_entry_lamports: u64)]
 pub struct EnterArena<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
@@ -1749,6 +1935,15 @@ pub struct CadenceArchived {
     pub root: [u8; 32],
 }
 
+#[event]
+pub struct PrizePoolFunded {
+    /// 0 = Daily, 1 = Weekly, 2 = Season.
+    pub kind: u8,
+    pub period_id: u32,
+    pub authority: Pubkey,
+    pub lamports: u64,
+}
+
 #[derive(Accounts)]
 pub struct CloseArenaPlayer<'info> {
     /// CHECK: Kept in the legacy ABI position. It must be either the live,
@@ -1984,6 +2179,10 @@ pub(crate) fn prepare_period_is_allowed(
     } else {
         requested >= current && no_future_gap
     }
+}
+
+fn top_up_period_is_allowed(requested: u32, current: u32) -> bool {
+    requested == current || requested == current.saturating_add(1)
 }
 
 fn arena_rules_staging_is_allowed(

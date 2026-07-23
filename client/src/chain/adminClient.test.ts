@@ -14,10 +14,12 @@ import {
   buildPublishCanonicalMapsPlan,
   buildPublishCanonicalArenaRulesPlan,
   buildSetProtocolPausePlan,
+  buildTopUpPrizePoolPlan,
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import {
   deriveArcadeArchivePda,
+  deriveArcadeConfigPda,
   deriveCadenceFundingPda,
   deriveMapCatalogPda,
   deriveArenaDailyPda,
@@ -238,6 +240,63 @@ describe("authority publication client", () => {
         pubkey.equals(deriveSeasonPda(3)),
       ),
     ).toBe(true);
+  });
+
+  it("routes a chosen amount to the exact selected prize-pool PDA", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const connection = {} as Connection;
+    const cases = [
+      {
+        pool: "daily" as const,
+        cadenceId: 20_657,
+        expected: deriveArenaDailyPda(20_657),
+      },
+      {
+        pool: "weekly" as const,
+        cadenceId: 2_951,
+        expected: deriveWeeklyJackpotPda(2_951),
+      },
+      {
+        pool: "season" as const,
+        cadenceId: 737,
+        expected: deriveSeasonPda(737),
+      },
+    ];
+
+    for (const testCase of cases) {
+      const plan = await buildTopUpPrizePoolPlan({
+        connection,
+        authority,
+        ...testCase,
+        lamports: 1_234_567_890n,
+      });
+      const accounts = plan.transaction.instructions[0]?.keys ?? [];
+      expect(accounts[0]?.pubkey.equals(deriveProtocolConfigPda())).toBe(true);
+      expect(accounts[1]?.pubkey.equals(deriveArcadeConfigPda())).toBe(true);
+      expect(accounts[2]?.pubkey.equals(testCase.expected)).toBe(true);
+      expect(accounts[3]?.pubkey.equals(authority.publicKey)).toBe(true);
+      expect(
+        plan.transaction.instructions[0]?.data.readBigUInt64LE(8),
+      ).toBe(1_234_567_890n);
+      expect(plan.label).toContain("1234567890 lamports");
+    }
+  });
+
+  it("rejects zero, overflow, and invalid cadence top-ups before signing", async () => {
+    const authority = new SessionWallet(Keypair.generate());
+    const connection = {} as Connection;
+    const build = (lamports: bigint, cadenceId = 1) =>
+      buildTopUpPrizePoolPlan({
+        connection,
+        authority,
+        pool: "daily",
+        cadenceId,
+        lamports,
+      });
+
+    await expect(build(0n)).rejects.toThrow("positive u64");
+    await expect(build(1n << 64n)).rejects.toThrow("positive u64");
+    await expect(build(1n, 0x1_0000_0000)).rejects.toThrow("u32");
   });
 
   it("initializes only the owner-derived player accounts", async () => {

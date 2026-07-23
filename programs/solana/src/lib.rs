@@ -162,6 +162,18 @@ pub mod solana {
         )
     }
 
+    pub fn top_up_arena_daily(ctx: Context<TopUpArenaDaily>, lamports: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_top_up_arena_daily(ctx, lamports)
+    }
+
+    pub fn top_up_weekly_jackpot(ctx: Context<TopUpWeeklyJackpot>, lamports: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_top_up_weekly_jackpot(ctx, lamports)
+    }
+
+    pub fn top_up_season(ctx: Context<TopUpSeason>, lamports: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_top_up_season(ctx, lamports)
+    }
+
     pub fn enter_arena(
         ctx: Context<EnterArena>,
         run_id: u64,

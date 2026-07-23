@@ -276,6 +276,14 @@ impl PoolLedger {
         Ok(())
     }
 
+    pub fn add_seed(&mut self, lamports: u64) -> Result<()> {
+        self.seeded_lamports = self
+            .seeded_lamports
+            .checked_add(lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
+
     pub fn add_rollover(&mut self, lamports: u64) -> Result<()> {
         self.rollover_in_lamports = self
             .rollover_in_lamports

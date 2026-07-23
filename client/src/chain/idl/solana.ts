@@ -6072,6 +6072,304 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "topUpArenaDaily",
+      "discriminator": [
+        254,
+        172,
+        152,
+        98,
+        150,
+        111,
+        105,
+        28
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arenaDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "topUpSeason",
+      "discriminator": [
+        7,
+        237,
+        27,
+        170,
+        135,
+        45,
+        220,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "topUpWeeklyJackpot",
+      "discriminator": [
+        78,
+        71,
+        152,
+        253,
+        106,
+        183,
+        177,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyJackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "weeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "updateTeamDestination",
       "discriminator": [
         16,
@@ -6566,6 +6864,19 @@ export type Solana = {
         254,
         51,
         31
+      ]
+    },
+    {
+      "name": "prizePoolFunded",
+      "discriminator": [
+        38,
+        202,
+        147,
+        153,
+        180,
+        195,
+        54,
+        247
       ]
     },
     {
@@ -8449,6 +8760,33 @@ export type Solana = {
           },
           {
             "name": "rolloverOutLamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "prizePoolFunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "docs": [
+              "0 = Daily, 1 = Weekly, 2 = Season."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "periodId",
+            "type": "u32"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "lamports",
             "type": "u64"
           }
         ]

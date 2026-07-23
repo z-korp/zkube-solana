@@ -55,9 +55,16 @@ Each paid entry transfers exactly 10,000,000 lamports:
 
 All competition pots are prepaid. Initialization may seed only the first
 Daily, Weekly, and Season, with exact values supplied by a separately approved
-release bundle. Every later pot is funded by entries from its predecessor
-period plus predecessor rollover. Entries never increase their active Daily,
-Weekly, or Season prize.
+release bundle. Automatic funding for every later pot comes from entries in
+its predecessor period plus predecessor rollover. Entries never increase their
+active Daily, Weekly, or Season prize.
+
+The protocol authority may also make a separately approved manual top-up of
+any positive lamport amount to the canonical current or following Daily,
+Weekly, or Season while that pool remains live. The pool kind and cadence ID
+select an exact PDA-specific instruction; the transfer increments the same
+on-chain seeded-funds ledger used by settlement. Direct wallet transfers are
+not prize funding, and the keeper has no authority to invoke this path.
 
 Devnet may launch partway through a calendar Weekly or Season. The first
 seeded Daily starts on the launch day; the first Weekly and Season keep their

@@ -42,9 +42,12 @@ add approval prompts to the shipped product.
 - The cadence-archive upgrade is Devnet-first and presently undeployed.
   Mainnet requires counsel, economic, and distribution review.
 - Fresh protocol initialization is paused. Initialization may seed only the
-  first Daily, Weekly, and Season. Do not unpause or open paid Arcade until the
-  full recovery/settlement keeper is deployed, fingerprinted, read-only
-  verified, and included in an exact approval bundle.
+  first Daily, Weekly, and Season. Separately approved authority top-ups may
+  add any positive lamport amount only to the canonical current or following
+  Daily, Weekly, or Season and must update its accounted seeded balance. Do
+  not unpause or open paid Arcade until the full recovery/settlement keeper is
+  deployed, fingerprinted, read-only verified, and included in an exact
+  approval bundle.
 
 Architecture and operations documentation belongs in code comments and
 `README.md`; do not add new Markdown documents.
