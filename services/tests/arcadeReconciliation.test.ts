@@ -10,6 +10,8 @@ import {
   seasonIdForDay,
   seasonStartDay,
   playerFundingPda,
+  arcadeArchivePda,
+  cadenceFundingPda,
   rulesCatalogPda,
   weekIdForDay,
   weekStartDay,
@@ -23,6 +25,7 @@ import {
   type SeasonSnapshot,
   type WeeklySnapshot,
 } from "../src/arcadeReconciliation";
+import { archiveSha256 } from "../src/archiveStore";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET;
@@ -56,6 +59,27 @@ describe("v4 keeper reconciliation", () => {
       "prepare_weekly_jackpot",
       "prepare_season",
     ]);
+  });
+
+  it("pre-activates tomorrow so the Daily opens without a settlement gap", () => {
+    const snapshot = baseSnapshot({
+      dailies: [
+        daily(DAY, "open"),
+        daily(DAY + 1, "funding", {
+          predecessorRolloverRequired: true,
+        }),
+      ],
+    });
+    const activation = discoverReconciliationPlans({
+      snapshot,
+      nowUnix: DAY * SECONDS_PER_DAY + 10,
+    }).find(({ operation, context }) =>
+      operation === "activate_arena_daily" && context?.dayId === DAY + 1
+    );
+    expect(activation?.context).toMatchObject({
+      dayId: DAY + 1,
+      preactivation: true,
+    });
   });
 
   it("recovers more than one missed Daily, Weekly, and Season sequentially", () => {
@@ -269,7 +293,7 @@ describe("v4 keeper reconciliation", () => {
         }],
       }),
       nowUnix: DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
-    }).find(({ operation }) => operation === "expire_unresolved_arena_run");
+    }).find(({ operation }) => operation === "expire_unresolved_practice_run");
     expect(expiry?.context).toMatchObject({
       challengeDayId: DAY - 1,
       deadlineDayId: DAY,
@@ -699,6 +723,87 @@ describe("v4 keeper reconciliation", () => {
       })],
     });
     expect(() => validateProtocolSnapshot(malformed)).toThrow("prize schedule");
+  });
+
+  it("archives sequential terminal results and closes only after verified Practice cutoff", () => {
+    const archivedDay = DAY - 1;
+    const canonicalJson = '{"periodId":20650,"schemaVersion":1}';
+    const common = {
+      archiveState: {
+        address: arcadeArchivePda(),
+        cadenceFunding: cadenceFundingPda(),
+        lastDailyId: archivedDay - 1,
+        lastWeeklyId: weekIdForDay(archivedDay) - 1,
+        lastSeasonId: seasonIdForDay(archivedDay) - 1,
+      },
+      archiveCandidates: [{
+        competition: "daily" as const,
+        cadenceId: archivedDay,
+        canonicalJson,
+        fileSha256: archiveSha256(canonicalJson),
+        resultHash: "12".repeat(32),
+        requiredProfileSyncMask: 0,
+        committed: false,
+        closeEligible: false,
+        closeEligibleAt:
+          DAY * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
+      }],
+    };
+    const uncommitted = baseSnapshot({
+      ...common,
+      launchDayId: archivedDay,
+      dailies: [daily(archivedDay, "finalized", {
+        predecessorRolloverRequired: false,
+        seasonRollupSealed: true,
+      })],
+    });
+    expect(discoverReconciliationPlans({ snapshot: uncommitted, nowUnix: NOW }))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ operation: "archive_arena_daily" }),
+      ]));
+
+    const committed = {
+      ...uncommitted,
+      archiveState: {
+        ...uncommitted.archiveState!,
+        lastDailyId: archivedDay,
+      },
+      archiveCandidates: [{
+        ...uncommitted.archiveCandidates![0]!,
+        committed: true,
+        closeEligible: true,
+      }],
+    };
+    const close = discoverReconciliationPlans({ snapshot: committed, nowUnix: NOW })
+      .find(({ operation }) => operation === "close_arena_daily");
+    expect(close?.context).toMatchObject({
+      dayId: archivedDay,
+      archiveCommitted: true,
+      closeEligibleAt: DAY * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
+    });
+  });
+
+  it("never recreates a cadence at or below the durable archive checkpoint", () => {
+    const launchDayId = DAY - 2;
+    const snapshot = baseSnapshot({
+      launchDayId,
+      dailies: [daily(DAY, "open", {
+        predecessorRolloverRequired: true,
+      })],
+      archiveState: {
+        address: arcadeArchivePda(),
+        cadenceFunding: cadenceFundingPda(),
+        lastDailyId: DAY - 1,
+        lastWeeklyId: weekIdForDay(DAY) - 1,
+        lastSeasonId: seasonIdForDay(DAY) - 1,
+      },
+    });
+    const prepare = discoverReconciliationPlans({ snapshot, nowUnix: NOW })
+      .find(({ operation }) => operation === "prepare_arena_daily");
+    expect(prepare?.context).toMatchObject({
+      dayId: DAY,
+      followingDayId: DAY + 1,
+    });
   });
 });
 

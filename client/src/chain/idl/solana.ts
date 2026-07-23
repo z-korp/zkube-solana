@@ -565,6 +565,229 @@ export type Solana = {
       ]
     },
     {
+      "name": "archiveArenaDaily",
+      "discriminator": [
+        145,
+        28,
+        86,
+        204,
+        154,
+        22,
+        173,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "arcadeArchive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arenaDaily",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "archiveSeason",
+      "discriminator": [
+        165,
+        31,
+        153,
+        184,
+        100,
+        101,
+        32,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "arcadeArchive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "archiveWeeklyJackpot",
+      "discriminator": [
+        173,
+        244,
+        158,
+        1,
+        61,
+        12,
+        164,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "arcadeArchive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyJackpot",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "weeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "cleanupOrphanActiveRun",
       "discriminator": [
         181,
@@ -678,20 +901,47 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "closeArenaPlayer",
+      "name": "closeArenaDaily",
       "discriminator": [
-        202,
-        241,
-        245,
-        122,
-        192,
-        220,
-        159,
-        49
+        160,
+        200,
+        101,
+        189,
+        236,
+        172,
+        132,
+        142
       ],
       "accounts": [
         {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "arenaDaily",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -719,6 +969,63 @@ export type Solana = {
           }
         },
         {
+          "name": "cadenceFunding",
+          "docs": [
+            "canonical System-owned zero-data PDA and exposes no withdrawal path."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeArenaPlayer",
+      "discriminator": [
+        202,
+        241,
+        245,
+        122,
+        192,
+        220,
+        159,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "arenaDaily",
+          "docs": [
+            "finalized parent Daily or its canonical closed System placeholder."
+          ]
+        },
+        {
           "name": "arenaPlayer",
           "writable": true,
           "pda": {
@@ -742,7 +1049,8 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "arenaDaily"
+                "path": "arena_player.challenge",
+                "account": "arenaPlayer"
               },
               {
                 "kind": "account",
@@ -792,20 +1100,47 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "closeSeasonPlayer",
+      "name": "closeSeason",
       "discriminator": [
-        91,
-        117,
-        194,
-        75,
-        230,
-        222,
-        243,
-        145
+        162,
+        198,
+        31,
+        37,
+        77,
+        0,
+        199,
+        152
       ],
       "accounts": [
         {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "season",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -826,6 +1161,60 @@ export type Solana = {
               }
             ]
           }
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeSeasonPlayer",
+      "discriminator": [
+        91,
+        117,
+        194,
+        75,
+        230,
+        222,
+        243,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "season",
+          "docs": [
+            "finalized parent Season or its canonical closed System placeholder."
+          ]
         },
         {
           "name": "seasonPlayer",
@@ -852,7 +1241,8 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "season"
+                "path": "season_player.season",
+                "account": "seasonPlayer"
               },
               {
                 "kind": "account",
@@ -890,6 +1280,112 @@ export type Solana = {
                 "kind": "account",
                 "path": "season_player.player",
                 "account": "seasonPlayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeWeeklyJackpot",
+      "discriminator": [
+        235,
+        37,
+        234,
+        76,
+        94,
+        52,
+        195,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weeklyJackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "weeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
               }
             ]
           }
@@ -1290,41 +1786,18 @@ export type Solana = {
           }
         },
         {
-          "name": "arenaDaily"
+          "name": "arenaDaily",
+          "docs": [
+            "Practice run snapshots all required rules during preparation, so its",
+            "source Daily may already have been archived and closed."
+          ]
         },
         {
           "name": "arenaPlayer",
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "activeRun"
-              }
-            ]
-          }
+          "docs": [
+            "writes paid ArenaPlayer state."
+          ],
+          "optional": true
         },
         {
           "name": "activeRun",
@@ -2166,6 +2639,57 @@ export type Solana = {
       ]
     },
     {
+      "name": "expireUnresolvedPracticeRun",
+      "discriminator": [
+        159,
+        213,
+        248,
+        237,
+        209,
+        159,
+        93,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "runId",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "finalizeArenaDaily",
       "discriminator": [
         97,
@@ -2384,6 +2908,32 @@ export type Solana = {
                 "kind": "account",
                 "path": "following_weekly.week_id",
                 "account": "weeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
               }
             ]
           }
@@ -2752,6 +3302,83 @@ export type Solana = {
       ]
     },
     {
+      "name": "fundedPrepareArenaDaily",
+      "discriminator": [
+        49,
+        198,
+        221,
+        1,
+        136,
+        42,
+        220,
+        205
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcadeConfig"
+        },
+        {
+          "name": "arcadeArchive"
+        },
+        {
+          "name": "dailyRulesCatalog"
+        },
+        {
+          "name": "arenaDaily",
+          "writable": true
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "dayId",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "fundedPrepareCampaignRun",
       "discriminator": [
         100,
@@ -2932,6 +3559,157 @@ export type Solana = {
       ]
     },
     {
+      "name": "fundedPrepareSeason",
+      "discriminator": [
+        170,
+        176,
+        201,
+        109,
+        213,
+        206,
+        111,
+        184
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcadeConfig"
+        },
+        {
+          "name": "arcadeArchive"
+        },
+        {
+          "name": "season",
+          "writable": true
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "seasonId",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "fundedPrepareWeeklyJackpot",
+      "discriminator": [
+        134,
+        253,
+        200,
+        115,
+        200,
+        192,
+        66,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcadeConfig"
+        },
+        {
+          "name": "arcadeArchive"
+        },
+        {
+          "name": "dailyRulesCatalog"
+        },
+        {
+          "name": "weeklyJackpot",
+          "writable": true
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "weekId",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "initializeArcade",
       "discriminator": [
         59,
@@ -3029,6 +3807,104 @@ export type Solana = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "initializeArcadeArchive",
+      "discriminator": [
+        252,
+        103,
+        113,
+        174,
+        74,
+        226,
+        174,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeArchive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "firstDayId",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "initializePlayer",
@@ -3420,6 +4296,32 @@ export type Solana = {
           }
         },
         {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "dailyRulesCatalog"
         },
         {
@@ -3783,6 +4685,32 @@ export type Solana = {
           }
         },
         {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "season",
           "writable": true,
           "pda": {
@@ -3871,6 +4799,32 @@ export type Solana = {
                   99,
                   97,
                   100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeArchive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
                   101
                 ]
               }
@@ -5303,6 +6257,19 @@ export type Solana = {
       ]
     },
     {
+      "name": "arcadeArchive",
+      "discriminator": [
+        217,
+        86,
+        182,
+        61,
+        130,
+        66,
+        2,
+        190
+      ]
+    },
+    {
       "name": "arcadeConfig",
       "discriminator": [
         72,
@@ -5460,6 +6427,19 @@ export type Solana = {
     }
   ],
   "events": [
+    {
+      "name": "cadenceArchived",
+      "discriminator": [
+        233,
+        44,
+        114,
+        4,
+        20,
+        38,
+        100,
+        186
+      ]
+    },
     {
       "name": "campaignLevelRewarded",
       "discriminator": [
@@ -6030,6 +7010,86 @@ export type Solana = {
       }
     },
     {
+      "name": "arcadeArchive",
+      "docs": [
+        "Small, permanent commitment accumulator for recyclable cadence accounts.",
+        "",
+        "The three roots are append-only hash chains. `last_*_id` advances by",
+        "exactly one for every archived result, beginning at the launch cadence.",
+        "Operational synchronization and rollup counters deliberately do not enter",
+        "the canonical result hashes, so those one-way cleanup steps cannot mutate",
+        "an already committed competition result."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "arcadeConfig",
+            "type": "pubkey"
+          },
+          {
+            "name": "firstDailyId",
+            "type": "u32"
+          },
+          {
+            "name": "lastDailyId",
+            "type": "u32"
+          },
+          {
+            "name": "dailyRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "firstWeeklyId",
+            "type": "u32"
+          },
+          {
+            "name": "lastWeeklyId",
+            "type": "u32"
+          },
+          {
+            "name": "weeklyRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "firstSeasonId",
+            "type": "u32"
+          },
+          {
+            "name": "lastSeasonId",
+            "type": "u32"
+          },
+          {
+            "name": "seasonRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "arcadeConfig",
       "type": {
         "kind": "struct",
@@ -6346,6 +7406,43 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cadenceArchived",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "docs": [
+              "0 = Daily, 1 = Weekly, 2 = Season."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "periodId",
+            "type": "u32"
+          },
+          {
+            "name": "resultHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }

@@ -11,12 +11,15 @@ import {
 import {
   ZKUBE_PROGRAM_ID,
   activeRunPda,
+  cadenceFundingPda,
   arenaDailyPda,
   arenaPlayerPda,
   seasonPda,
   seasonPlayerPda,
+  weeklyJackpotPda,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
+import type { KeeperArchiveStore } from "./archiveStore.js";
 import {
   discoverReconciliationPlans,
   type ProtocolSnapshot,
@@ -29,7 +32,7 @@ import {
 import { discoverExpiredSessionPlans } from "./sessionCleanup.js";
 
 export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
-export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 50_000_000;
+export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
 const MAX_WRITES = 8;
 const MAX_EXPIRED_SESSION_REVOKES = 2;
 const MAX_PARTICIPANT_CLOSURES = 2;
@@ -75,6 +78,7 @@ export interface KeeperDependencies {
   maximumSpendLamports?: number;
   protocolSnapshot?: ProtocolSnapshot;
   protocolMaterializer?: ProtocolInstructionMaterializer;
+  archiveStore?: KeeperArchiveStore;
   resolveEphemeralConnection?: (plan: KeeperInstructionPlan) => Promise<Connection>;
   verifyAfterWrite?: (
     plan: KeeperInstructionPlan,
@@ -154,6 +158,12 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       connection: input.connection,
       nowUnix,
     });
+    if (usesArchiveStorage(plan.operation)) {
+      if (!input.archiveStore) {
+        throw new Error("verified cadence archive storage is not configured");
+      }
+      await input.archiveStore.prepare(plan);
+    }
     const materialized = await materializeKeeperPlan(plan, {
       programId: ZKUBE_PROGRAM_ID,
       keeper: input.keeper.publicKey,
@@ -178,6 +188,14 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         ? input.connection
         : await requiredEphemeralConnection(input.resolveEphemeralConnection, materialized);
       const before = await connection.getBalance(input.keeper.publicKey, "confirmed");
+      const fundingWritable = materialized.instructions?.some((instruction) =>
+        instruction.keys.some((account) =>
+          account.isWritable && account.pubkey.equals(cadenceFundingPda())
+        )
+      ) ?? false;
+      const fundingBefore = fundingWritable
+        ? await connection.getBalance(cadenceFundingPda(), "confirmed")
+        : 0;
       const latest = await connection.getLatestBlockhash("confirmed");
       const transaction = new VersionedTransaction(new TransactionMessage({
         payerKey: input.keeper.publicKey,
@@ -189,7 +207,10 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         sigVerify: true,
         accounts: {
           encoding: "base64",
-          addresses: [input.keeper.publicKey.toBase58()],
+          addresses: [
+            input.keeper.publicKey.toBase58(),
+            ...(fundingWritable ? [cadenceFundingPda().toBase58()] : []),
+          ],
         },
       });
       if (simulation.value.err) {
@@ -203,7 +224,12 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         before,
         simulatedPayer.lamports,
         fee.value,
-      );
+      ) + (fundingWritable
+        ? predictedAccountSpendLamports(
+          fundingBefore,
+          simulation.value.accounts?.[1]?.lamports,
+        )
+        : 0);
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
       }
@@ -225,7 +251,12 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         signature,
       );
       const after = await connection.getBalance(input.keeper.publicKey, "confirmed");
-      const actualSpend = Math.max(0, before - after);
+      const fundingAfter = fundingWritable
+        ? await connection.getBalance(cadenceFundingPda(), "confirmed")
+        : 0;
+      const actualSpend =
+        Math.max(0, before - after) +
+        Math.max(0, fundingBefore - fundingAfter);
       if (actualSpend > predicted) {
         throw new Error("keeper actual spend exceeded its simulated reservation");
       }
@@ -371,6 +402,24 @@ function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string
     }
     closed.add(seasonPlayerPda(seasonPda(seasonId), owner).toBase58());
   }
+  if (plan.operation === "close_arena_daily") {
+    if (plan.context?.dayId === undefined) {
+      throw new Error("Daily closure verification is missing its identity");
+    }
+    closed.add(arenaDailyPda(plan.context.dayId).toBase58());
+  }
+  if (plan.operation === "close_weekly_jackpot") {
+    if (plan.context?.weekId === undefined) {
+      throw new Error("Weekly closure verification is missing its identity");
+    }
+    closed.add(weeklyJackpotPda(plan.context.weekId).toBase58());
+  }
+  if (plan.operation === "close_season") {
+    if (plan.context?.seasonId === undefined) {
+      throw new Error("Season closure verification is missing its identity");
+    }
+    closed.add(seasonPda(plan.context.seasonId).toBase58());
+  }
   return closed;
 }
 
@@ -426,6 +475,17 @@ export function predictedKeeperSpendLamports(
   return Math.max(0, before - after) + fee;
 }
 
+export function predictedAccountSpendLamports(
+  before: number,
+  after: number | undefined,
+): number {
+  if (!Number.isSafeInteger(before) || before < 0 ||
+      !Number.isSafeInteger(after) || after === undefined || after < 0) {
+    throw new Error("keeper spend simulation omitted or returned invalid account lamports");
+  }
+  return Math.max(0, before - after);
+}
+
 export function keeperSpendWithinLimit(spend: number, remaining: number): boolean {
   return Number.isSafeInteger(spend) && Number.isSafeInteger(remaining) &&
     spend >= 0 && remaining >= 0 && spend <= remaining;
@@ -464,33 +524,47 @@ function safeError(error: unknown): string {
 
 function operationPriority(operation: string): number {
   const priority: Record<string, number> = {
-    force_finish_deadline: 0,
-    commit_run: 1,
-    consume_campaign_run: 2,
-    consume_arena_run: 2,
-    consume_practice_run: 2,
-    expire_unresolved_arena_run: 3,
-    finalize_arena_daily: 4,
-    initialize_season_player: 5,
-    rollup_arena_to_season: 6,
-    seal_arena_season_rollups: 7,
-    finalize_weekly_jackpot: 8,
-    finalize_season: 9,
-    activate_arena_daily: 10,
-    activate_weekly_jackpot: 11,
-    activate_season: 12,
-    prepare_arena_daily: 13,
-    prepare_weekly_jackpot: 14,
-    prepare_season: 15,
-    cleanup_orphan_active_run: 16,
-    sync_daily_profile: 17,
-    sync_weekly_profile: 17,
-    sync_season_profile: 17,
-    close_arena_player: 18,
-    close_season_player: 18,
-    revoke_expired_session: 19,
+    prepare_arena_daily: 0,
+    prepare_weekly_jackpot: 0,
+    prepare_season: 0,
+    activate_arena_daily: 1,
+    activate_weekly_jackpot: 1,
+    activate_season: 1,
+    force_finish_deadline: 2,
+    commit_run: 3,
+    consume_campaign_run: 4,
+    consume_arena_run: 4,
+    consume_practice_run: 4,
+    expire_unresolved_arena_run: 5,
+    expire_unresolved_practice_run: 5,
+    finalize_arena_daily: 6,
+    archive_arena_daily: 7,
+    archive_weekly_jackpot: 7,
+    archive_season: 7,
+    initialize_season_player: 8,
+    rollup_arena_to_season: 9,
+    seal_arena_season_rollups: 10,
+    finalize_weekly_jackpot: 11,
+    finalize_season: 12,
+    sync_daily_profile: 13,
+    sync_weekly_profile: 13,
+    sync_season_profile: 13,
+    close_arena_daily: 14,
+    close_weekly_jackpot: 14,
+    close_season: 14,
+    cleanup_orphan_active_run: 15,
+    close_arena_player: 16,
+    close_season_player: 16,
+    revoke_expired_session: 17,
   };
   return priority[operation] ?? Number.MAX_SAFE_INTEGER;
+}
+
+function usesArchiveStorage(operation: string): boolean {
+  return operation.startsWith("archive_") ||
+    operation === "close_arena_daily" ||
+    operation === "close_weekly_jackpot" ||
+    operation === "close_season";
 }
 
 function selectBoundedPlans<T extends { operation: string }>(

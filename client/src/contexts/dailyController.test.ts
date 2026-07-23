@@ -1,10 +1,14 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDailyController } from "@/chain/useDailyController";
 
 const fixtures = vi.hoisted(() => ({
-  connection: { confirmTransaction: vi.fn() },
+  connection: {
+    confirmTransaction: vi.fn(),
+    onAccountChange: vi.fn(() => 1),
+    removeAccountChangeListener: vi.fn(),
+  },
   fetchDailyView: vi.fn(async () => null),
   directRunHook: vi.fn(() => {
     throw new Error("useDailyController created a second run controller");
@@ -29,6 +33,7 @@ vi.mock("@/chain/connectionContext", () => ({
 vi.mock("@/chain/dailyClient", () => ({
   currentDailyDayId: () => 20,
   fetchDailyView: fixtures.fetchDailyView,
+  isPracticeEntryWindowOpen: () => true,
 }));
 
 vi.mock("@/chain/connectedPlayerContext", async () =>
@@ -49,6 +54,7 @@ vi.mock("@/chain/useRunController", () => ({
 describe("useDailyController run sharing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fixtures.fetchDailyView.mockResolvedValue(null);
     fixtures.useRun.mockReturnValue(fixtures.run);
   });
 
@@ -64,5 +70,27 @@ describe("useDailyController run sharing", () => {
     expect(result.current.run).toBe(fixtures.run);
     expect(result.current.error).toBeNull();
     expect(result.current.run.error).toBe("run controller error");
+  });
+
+  it("does not start a paid run while the following Daily is absent", async () => {
+    fixtures.fetchDailyView.mockImplementation(async ({ dayId }) =>
+      dayId === 20
+        ? {
+            address: { toBase58: () => "daily-20" },
+            dayId: 20,
+            followingDailyLamports: null,
+          }
+        : null,
+    );
+    const { result } = renderHook(() => useDailyController());
+    await waitFor(() => expect(result.current.daily).not.toBeNull());
+
+    await act(async () => {
+      await expect(result.current.enter()).rejects.toThrow(
+        "Ranked entry is paused while the following Daily is prepared",
+      );
+    });
+
+    expect(fixtures.run.startDailyRun).not.toHaveBeenCalled();
   });
 });

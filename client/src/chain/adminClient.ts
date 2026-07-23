@@ -6,8 +6,10 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
+  deriveCadenceFundingPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
@@ -36,6 +38,8 @@ import {
   LAUNCH_SEASON_SEED_LAMPORTS,
   LAUNCH_WEEKLY_SEED_LAMPORTS,
 } from "./deploymentManifest";
+
+export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
 
 export interface ProtocolInitialization {
   teamDestination: PublicKey;
@@ -312,6 +316,38 @@ export async function buildInitializeArcadePlan(args: {
   );
 }
 
+export async function buildInitializeArcadeArchivePlan(args: {
+  connection: Connection;
+  authority: WalletLike;
+  firstDayId: number;
+}): Promise<TransactionPlan> {
+  assertU32(args.firstDayId, "firstDayId");
+  const archiveInstruction = await zkubeProgram(
+    args.connection,
+    args.authority,
+  )
+    .methods.initializeArcadeArchive(args.firstDayId)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arcadeConfig: deriveArcadeConfigPda(),
+      arcadeArchive: deriveArcadeArchivePda(),
+      authority: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  const cadenceSeed = SystemProgram.transfer({
+    fromPubkey: args.authority.publicKey,
+    toPubkey: deriveCadenceFundingPda(),
+    lamports: CADENCE_FUNDING_SEED_LAMPORTS,
+  });
+  return basePlan(
+    "Initialize Arcade archive and seed recyclable cadence rent",
+    args.connection,
+    args.authority.publicKey,
+    [archiveInstruction, cadenceSeed],
+  );
+}
+
 /** One account-creation transaction per cadence keeps every plan packet-safe. */
 export async function buildPrepareLaunchPeriodPlans(args: {
   connection: Connection;
@@ -334,6 +370,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
+        arcadeArchive: deriveArcadeArchivePda(),
         dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
@@ -357,6 +394,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
+        arcadeArchive: deriveArcadeArchivePda(),
         dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
         weeklyJackpot: deriveWeeklyJackpotPda(weeklyId),
         payer: args.authority.publicKey,
@@ -380,6 +418,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
+        arcadeArchive: deriveArcadeArchivePda(),
         season: deriveSeasonPda(seasonId),
         payer: args.authority.publicKey,
         caller: args.authority.publicKey,

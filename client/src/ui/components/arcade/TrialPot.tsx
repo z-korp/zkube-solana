@@ -14,7 +14,7 @@ interface TrialPotProps {
    * ribbon; `preparing` (or a null view) shows the being-prepared placeholder.
    */
   mode: "live" | "settling" | "preparing";
-  /** UTC wall-clock label for when runs score, e.g. "23:30 UTC". */
+  /** UTC wall-clock label for when runs score, e.g. "23:59 UTC". */
   runsCloseLabel?: string;
 }
 
@@ -63,7 +63,7 @@ const TrialPot: React.FC<TrialPotProps> = ({
             Settling
           </p>
           <p className="mt-0.5 font-sans text-xs font-semibold text-white/60">
-            Runs score {runsCloseLabel ?? "23:30 UTC"} · prizes push
+            Runs score {runsCloseLabel ?? "23:59 UTC"} · prizes push
             automatically
           </p>
         </div>

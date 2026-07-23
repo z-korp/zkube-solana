@@ -11,6 +11,7 @@ import {
   KEEPER_RECENT_SEASON_CADENCES,
   KEEPER_RECENT_WEEKLY_CADENCES,
   PERIOD_SETTLEMENT_DELAY_SECONDS,
+  RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
   WEEKLY_PRIZE_WEIGHTS,
@@ -19,6 +20,8 @@ import {
   assertPayoutLamports,
   assertSafeTimestamp,
   currentDayId,
+  arcadeArchivePda,
+  cadenceFundingPda,
   playerFundingPda,
   seasonIdForDay,
   seasonStartDay,
@@ -31,6 +34,7 @@ import {
 } from "./arcadeChain.js";
 
 export type PeriodStatus = "funding" | "open" | "finalized";
+const LEGACY_DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
 export type RunLifecycle =
   | "prepared"
   | "delegated"
@@ -141,6 +145,29 @@ export interface RunSnapshot {
   reservationActive: boolean;
 }
 
+export interface ArcadeArchiveSnapshot {
+  address: PublicKey;
+  cadenceFunding: PublicKey;
+  lastDailyId?: number;
+  lastWeeklyId?: number;
+  lastSeasonId?: number;
+}
+
+export interface CadenceArchiveCandidate {
+  competition: CompetitionKind;
+  cadenceId: number;
+  /** Canonical archive JSON carrying the exact result bytes/hash contract. */
+  canonicalJson: string;
+  fileSha256: string;
+  resultHash: string;
+  requiredProfileSyncMask: number;
+  /** True only after relationship-checking the on-chain ArcadeArchive root. */
+  committed: boolean;
+  /** Includes every protocol close gate and absence of a live dependency. */
+  closeEligible: boolean;
+  closeEligibleAt: number;
+}
+
 export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
@@ -154,6 +181,9 @@ export interface ProtocolSnapshot {
   playerStateOwners: readonly PublicKey[];
   arenaPlayerClosures: readonly ArenaPlayerClosureSnapshot[];
   seasonPlayerClosures: readonly SeasonPlayerClosureSnapshot[];
+  /** Present only when the deployed archive ABI has been fully validated. */
+  archiveState?: ArcadeArchiveSnapshot;
+  archiveCandidates?: readonly CadenceArchiveCandidate[];
 }
 
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
@@ -168,6 +198,7 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   playerStateOwners: Object.freeze([]),
   arenaPlayerClosures: Object.freeze([]),
   seasonPlayerClosures: Object.freeze([]),
+  archiveCandidates: Object.freeze([]),
 });
 
 /**
@@ -194,6 +225,7 @@ export function discoverReconciliationPlans(args: {
   const playerStateOwners = new Set(
     args.snapshot.playerStateOwners.map((owner) => owner.toBase58()),
   );
+  appendCadenceArchivePlans(plans, args.snapshot, today, thisWeek, thisSeason);
 
   if (!args.snapshot.paused) {
     for (const daily of args.snapshot.dailies) {
@@ -201,6 +233,11 @@ export function discoverReconciliationPlans(args: {
       if (daily.dayId === today &&
           args.nowUnix < today * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
         plans.push(validationOnlyPlan("activate_arena_daily", { dayId: today }));
+      } else if (daily.dayId === today + 1) {
+        plans.push(validationOnlyPlan("activate_arena_daily", {
+          dayId: daily.dayId,
+          preactivation: true,
+        }));
       } else if (daily.dayId >= oldestKeeperDay && daily.dayId < today &&
           daily.predecessorRolloverApplied &&
           args.nowUnix >= daily.recoveryDeadlineAt) {
@@ -216,6 +253,11 @@ export function discoverReconciliationPlans(args: {
       if (weekly.status !== "funding") continue;
       if (weekly.weekId === thisWeek) {
         plans.push(validationOnlyPlan("activate_weekly_jackpot", { weekId: thisWeek }));
+      } else if (weekly.weekId === thisWeek + 1) {
+        plans.push(validationOnlyPlan("activate_weekly_jackpot", {
+          weekId: weekly.weekId,
+          preactivation: true,
+        }));
       } else if (weekly.weekId >= oldestKeeperWeek && weekly.weekId < thisWeek &&
           weekly.predecessorRolloverApplied &&
           args.nowUnix >= weekly.closesAt + PERIOD_SETTLEMENT_DELAY_SECONDS) {
@@ -231,6 +273,11 @@ export function discoverReconciliationPlans(args: {
       if (season.status !== "funding") continue;
       if (season.seasonId === thisSeason) {
         plans.push(validationOnlyPlan("activate_season", { seasonId: thisSeason }));
+      } else if (season.seasonId === thisSeason + 1) {
+        plans.push(validationOnlyPlan("activate_season", {
+          seasonId: season.seasonId,
+          preactivation: true,
+        }));
       } else if (season.seasonId >= oldestKeeperSeason && season.seasonId < thisSeason &&
           season.predecessorRolloverApplied &&
           args.nowUnix >= season.closesAt + PERIOD_SETTLEMENT_DELAY_SECONDS) {
@@ -248,6 +295,7 @@ export function discoverReconciliationPlans(args: {
     args.snapshot.launchDayId,
     today + 1,
     dailyById,
+    args.snapshot.archiveState?.lastDailyId,
   );
   if (missingDay !== undefined && missingDay >= oldestKeeperDay) {
     plans.push(validationOnlyPlan("prepare_arena_daily", {
@@ -255,16 +303,23 @@ export function discoverReconciliationPlans(args: {
       followingDayId: missingDay,
       launchCadenceId: args.snapshot.launchDayId,
       rulesCatalog: args.snapshot.rulesCatalog,
+      cadenceFunding: cadenceFundingPda(),
     }));
   }
   const launchWeek = weekIdForDay(args.snapshot.launchDayId);
-  const missingWeek = firstMissingCadence(launchWeek, thisWeek + 1, weeklyById);
+  const missingWeek = firstMissingCadence(
+    launchWeek,
+    thisWeek + 1,
+    weeklyById,
+    args.snapshot.archiveState?.lastWeeklyId,
+  );
   if (missingWeek !== undefined && missingWeek >= oldestKeeperWeek) {
     plans.push(validationOnlyPlan("prepare_weekly_jackpot", {
       weekId: missingWeek - 1,
       followingWeekId: missingWeek,
       launchCadenceId: launchWeek,
       rulesCatalog: args.snapshot.rulesCatalog,
+      cadenceFunding: cadenceFundingPda(),
     }));
   }
   const launchSeason = seasonIdForDay(args.snapshot.launchDayId);
@@ -272,12 +327,14 @@ export function discoverReconciliationPlans(args: {
     launchSeason,
     thisSeason + 1,
     seasonById,
+    args.snapshot.archiveState?.lastSeasonId,
   );
   if (missingSeason !== undefined && missingSeason >= oldestKeeperSeason) {
     plans.push(validationOnlyPlan("prepare_season", {
       seasonId: missingSeason - 1,
       followingSeasonId: missingSeason,
       launchCadenceId: launchSeason,
+      cadenceFunding: cadenceFundingPda(),
     }));
   }
 
@@ -435,6 +492,77 @@ export function discoverReconciliationPlans(args: {
   return plans;
 }
 
+function appendCadenceArchivePlans(
+  plans: KeeperInstructionPlan[],
+  snapshot: ProtocolSnapshot,
+  today: number,
+  currentWeek: number,
+  currentSeason: number,
+): void {
+  const state = snapshot.archiveState;
+  const candidates = snapshot.archiveCandidates ?? [];
+  if (!state || candidates.length === 0) return;
+  const lastByKind: Record<CompetitionKind, number | undefined> = {
+    daily: state.lastDailyId,
+    weekly: state.lastWeeklyId,
+    season: state.lastSeasonId,
+  };
+  const currentByKind: Record<CompetitionKind, number> = {
+    daily: today,
+    weekly: currentWeek,
+    season: currentSeason,
+  };
+  for (const kind of ["daily", "weekly", "season"] as const) {
+    const ordered = candidates
+      .filter((candidate) => candidate.competition === kind)
+      .sort((left, right) => left.cadenceId - right.cadenceId);
+    const last = lastByKind[kind];
+    const next = ordered.find((candidate) =>
+      candidate.committed
+        ? candidate.cadenceId === last
+        : last === undefined || candidate.cadenceId === last + 1
+    );
+    if (!next || next.cadenceId > currentByKind[kind]) continue;
+    const identity = kind === "daily"
+      ? { dayId: next.cadenceId }
+      : kind === "weekly"
+        ? { weekId: next.cadenceId }
+        : { seasonId: next.cadenceId };
+    const context = {
+      competition: kind,
+      ...identity,
+      previousCadenceId: last,
+      cadenceFunding: state.cadenceFunding,
+      arcadeArchive: state.address,
+      archiveCanonicalJson: next.canonicalJson,
+      archiveFileSha256: next.fileSha256,
+      archiveResultHash: next.resultHash,
+      archiveCommitted: next.committed,
+      requiredProfileSyncMask: next.requiredProfileSyncMask,
+      closeEligibleAt: next.closeEligibleAt,
+    };
+    if (!next.committed) {
+      plans.push(validationOnlyPlan(
+        kind === "daily"
+          ? "archive_arena_daily"
+          : kind === "weekly"
+            ? "archive_weekly_jackpot"
+            : "archive_season",
+        context,
+      ));
+    } else if (next.closeEligible) {
+      plans.push(validationOnlyPlan(
+        kind === "daily"
+          ? "close_arena_daily"
+          : kind === "weekly"
+            ? "close_weekly_jackpot"
+            : "close_season",
+        context,
+      ));
+    }
+  }
+}
+
 function appendRunPlan(
   plans: KeeperInstructionPlan[],
   run: RunSnapshot,
@@ -465,7 +593,10 @@ function appendRunPlan(
   if (run.mode !== "campaign" && run.reservationActive &&
       (inProgress || run.lifecycle === "unavailable") &&
       run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
-    plans.push(validationOnlyPlan("expire_unresolved_arena_run", {
+    plans.push(validationOnlyPlan(
+      run.mode === "practice"
+        ? "expire_unresolved_practice_run"
+        : "expire_unresolved_arena_run", {
       ...context,
       includeArenaPlayer: run.mode === "ranked",
     }));
@@ -523,14 +654,21 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       `${seasonId}:${owner.toBase58()}`),
     "SeasonPlayer closure",
   );
+  validateArchiveSnapshot(snapshot);
 
   for (const daily of snapshot.dailies) {
     assertCadenceId(daily.dayId, "day id");
     assertSafeTimestamp(daily.runsCloseAt);
     assertSafeTimestamp(daily.recoveryDeadlineAt);
     const start = daily.dayId * SECONDS_PER_DAY;
-    if (daily.runsCloseAt !== start + DAILY_RUN_CLOSE_OFFSET ||
-        daily.recoveryDeadlineAt !== start + DAILY_RECOVERY_DEADLINE_OFFSET) {
+    const currentWindow =
+      daily.runsCloseAt === start + DAILY_RUN_CLOSE_OFFSET &&
+      daily.recoveryDeadlineAt === start + DAILY_RECOVERY_DEADLINE_OFFSET;
+    const legacyWindow =
+      daily.runsCloseAt === start + LEGACY_DAILY_RUN_CLOSE_OFFSET &&
+      daily.recoveryDeadlineAt ===
+        start + LEGACY_DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
+    if (!currentWindow && !legacyWindow) {
       throw new Error("Daily timing does not match its cadence id");
     }
     validatePredecessorFlag(
@@ -639,6 +777,77 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   for (const run of snapshot.runs) validateRun(snapshot, run);
   validateDailySeasonPlayers(snapshot);
   validateParticipantClosures(snapshot);
+}
+
+function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
+  const candidates = snapshot.archiveCandidates ?? [];
+  const state = snapshot.archiveState;
+  if (candidates.length === 0 && !state) return;
+  if (!state || !state.address.equals(arcadeArchivePda()) ||
+      !state.cadenceFunding.equals(cadenceFundingPda())) {
+    throw new Error("Arcade archive or cadence funding identity is invalid");
+  }
+  for (const value of [
+    state.lastDailyId,
+    state.lastWeeklyId,
+    state.lastSeasonId,
+  ]) {
+    if (value !== undefined) assertCadenceId(value, "last archived cadence id");
+  }
+  assertUnique(
+    candidates.map(({ competition, cadenceId }) => `${competition}:${cadenceId}`),
+    "cadence archive",
+  );
+  for (const candidate of candidates) {
+    assertCadenceId(candidate.cadenceId, "archive cadence id");
+    if (!/^[0-9a-f]{64}$/.test(candidate.fileSha256) ||
+        !/^[0-9a-f]{64}$/.test(candidate.resultHash)) {
+      throw new Error("cadence archive hashes are invalid");
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(candidate.canonicalJson);
+    } catch {
+      throw new Error("cadence archive JSON is invalid");
+    }
+    if (JSON.stringify(sortJson(parsed)) !== candidate.canonicalJson) {
+      throw new Error("cadence archive JSON is not canonical");
+    }
+    const period = candidate.competition === "daily"
+      ? snapshot.dailies.find(({ dayId }) => dayId === candidate.cadenceId)
+      : candidate.competition === "weekly"
+        ? snapshot.weeklies.find(({ weekId }) => weekId === candidate.cadenceId)
+        : snapshot.seasons.find(({ seasonId }) => seasonId === candidate.cadenceId);
+    const maximumMask = candidate.competition === "weekly" ? 0x01ff : 0x001f;
+    if (!period || period.status !== "finalized" ||
+        !Number.isSafeInteger(candidate.requiredProfileSyncMask) ||
+        candidate.requiredProfileSyncMask < 0 ||
+        (candidate.requiredProfileSyncMask & ~maximumMask) !== 0) {
+      throw new Error("cadence archive candidate is not terminal");
+    }
+    assertSafeTimestamp(candidate.closeEligibleAt);
+    if (candidate.competition === "daily" &&
+        candidate.closeEligibleAt <
+          (candidate.cadenceId + 1) * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
+      throw new Error("Daily archive closes before its Practice dependency");
+    }
+    if (candidate.closeEligible && (!candidate.committed ||
+        period.profileSyncMask !== candidate.requiredProfileSyncMask ||
+        (candidate.competition === "daily" &&
+          !(period as DailySnapshot).seasonRollupSealed))) {
+      throw new Error("uncommitted cadence archive cannot be close eligible");
+    }
+  }
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, sortJson(child)]));
+  }
+  return value;
 }
 
 function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
@@ -948,10 +1157,15 @@ function qualificationDailies(
   requireSeasonSeal: boolean,
 ): boolean {
   const dailies = new Map(snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  return Array.from({ length: count }, (_, offset) => dailies.get(startDay + offset))
-    .every((daily) => daily?.status === "finalized" &&
-      daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
-      (!requireSeasonSeal || daily.seasonRollupSealed));
+  const archivedThrough = snapshot.archiveState?.lastDailyId;
+  return Array.from({ length: count }, (_, offset) => startDay + offset)
+    .every((dayId) => {
+      if (archivedThrough !== undefined && dayId <= archivedThrough) return true;
+      const daily = dailies.get(dayId);
+      return daily?.status === "finalized" &&
+        daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
+        (!requireSeasonSeal || daily.seasonRollupSealed);
+    });
 }
 
 function seasonQualificationDailies(
@@ -960,10 +1174,15 @@ function seasonQualificationDailies(
   count: number,
 ): number {
   const dailies = new Map(snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  return Array.from({ length: count }, (_, offset) => dailies.get(startDay + offset))
-    .filter((daily) => daily?.status === "finalized" &&
-      daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
-      daily.seasonRollupSealed)
+  const archivedThrough = snapshot.archiveState?.lastDailyId;
+  return Array.from({ length: count }, (_, offset) => startDay + offset)
+    .filter((dayId) => {
+      if (archivedThrough !== undefined && dayId <= archivedThrough) return true;
+      const daily = dailies.get(dayId);
+      return daily?.status === "finalized" &&
+        daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
+        daily.seasonRollupSealed;
+    })
     .length;
 }
 
@@ -986,17 +1205,26 @@ function firstMissingCadence<T>(
   first: number,
   lastInclusive: number,
   values: ReadonlyMap<number, T>,
+  archivedThrough?: number,
 ): number | undefined {
   assertCadenceId(first, "cadence recovery start");
   assertCadenceId(lastInclusive, "cadence recovery end");
   if (lastInclusive < first || lastInclusive - first >= 10_000) {
     throw new Error("cadence recovery range is invalid or unbounded");
   }
-  // Production snapshot loading requires all three launch accounts. Keeping
-  // partial semantic fixtures inert here prevents invention of a predecessor
-  // before the launch seed.
-  if (!values.has(first)) return undefined;
-  for (let id = first + 1; id <= lastInclusive; id += 1) {
+  if (archivedThrough !== undefined) {
+    assertCadenceId(archivedThrough, "archived cadence checkpoint");
+    if (archivedThrough < first - 1 || archivedThrough > lastInclusive) {
+      throw new Error("archived cadence checkpoint is outside recovery");
+    }
+  } else if (!values.has(first)) {
+    // Production snapshot loading requires all three launch accounts.
+    return undefined;
+  }
+  const scanStart = archivedThrough === undefined
+    ? first + 1
+    : Math.max(first, archivedThrough + 1);
+  for (let id = scanStart; id <= lastInclusive; id += 1) {
     if (!values.has(id)) return id;
   }
   return undefined;

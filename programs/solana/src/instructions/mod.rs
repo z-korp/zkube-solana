@@ -6,6 +6,7 @@
 //! terminal state is atomically consumed and closed on the base layer.
 
 pub mod arcade_instructions;
+pub mod cadence_funding_instructions;
 pub mod content_instructions;
 pub mod governance_instructions;
 pub mod player_authorization;
@@ -15,6 +16,7 @@ pub mod profile_instructions;
 pub mod run_lifecycle;
 
 pub use arcade_instructions::*;
+pub use cadence_funding_instructions::*;
 pub use content_instructions::*;
 pub use governance_instructions::*;
 pub use player_authorization::*;

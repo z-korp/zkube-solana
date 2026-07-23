@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   keeperReleaseFromEnv,
+  keeperIntervalFromEnv,
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
 } from "../src/keeperWorker";
@@ -12,6 +13,10 @@ import { canonicalDevnetReplayDomainHex } from "../src/keeperRelease";
 import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain";
 
 describe("keeper worker scheduling", () => {
+  it("defaults to a one-minute normal cadence", () => {
+    expect(keeperIntervalFromEnv({})).toBe(60_000);
+  });
+
   it("keeps writes fail-closed unless explicitly enabled", () => {
     expect(keeperWriteEnabledFromEnv({})).toBe(false);
     expect(keeperWriteEnabledFromEnv({ KEEPER_WRITE_ENABLED: "false" })).toBe(
@@ -108,6 +113,29 @@ describe("keeper worker scheduling", () => {
       log: vi.fn(),
     });
     expect(sleeps).toEqual([0]);
+  });
+
+  it("runs bounded follow-up passes promptly while writes reveal more work", async () => {
+    const controller = new AbortController();
+    let passes = 0;
+    const sleeps: number[] = [];
+    await runKeeperWorker({
+      env: { KEEPER_ENABLED: "true", KEEPER_INTERVAL_MS: "60000" },
+      signal: controller.signal,
+      runPass: async () => {
+        passes += 1;
+        return passes < 3
+          ? { backlog: 0, writes: 1, plannedWrites: 0 }
+          : { backlog: 0, writes: 0, plannedWrites: 0 };
+      },
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+        if (passes === 3) controller.abort();
+      },
+      log: vi.fn(),
+    });
+    expect(sleeps).toEqual([1_000, 1_000, expect.any(Number)]);
+    expect(sleeps[2]).toBeGreaterThan(50_000);
   });
 });
 

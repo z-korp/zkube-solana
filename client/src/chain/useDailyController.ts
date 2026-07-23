@@ -67,12 +67,20 @@ export function useDailyController() {
       () => void refresh(),
       "confirmed",
     );
-    return () => { void connection.removeAccountChangeListener(subscription); };
+    return () => {
+      void connection.removeAccountChangeListener(subscription);
+    };
   }, [connection, daily, dailyAddress, refresh]);
 
   const enter = useCallback(async () => {
     if (!daily) throw new Error("Today's Arena is not available");
-    if (run.phase !== "none" && run.phase !== "missing") throw new Error("Finish the active run first");
+    if (daily.followingDailyLamports === null) {
+      throw new Error(
+        "Ranked entry is paused while the following Daily is prepared. No entry was charged.",
+      );
+    }
+    if (run.phase !== "none" && run.phase !== "missing")
+      throw new Error("Finish the active run first");
     setAction("enter:sol");
     try {
       const active = await run.startDailyRun(daily);
@@ -88,10 +96,12 @@ export function useDailyController() {
 
   const practice = useCallback(async () => {
     if (!practiceDaily) {
-      throw new Error("Yesterday's finalized Arena is not available for Practice");
+      throw new Error(
+        "Yesterday's finalized Arena is not available for Practice",
+      );
     }
     if (!isPracticeEntryWindowOpen()) {
-      throw new Error("Practice entry is closed after 23:30 UTC");
+      throw new Error("Practice entry is closed after 23:45 UTC");
     }
     if (run.phase !== "none" && run.phase !== "missing") {
       throw new Error("Finish the active run first");

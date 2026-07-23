@@ -48,7 +48,7 @@ export function computeArcadeLifecycle(args: {
   return entriesOpen ? "entries-open" : "entries-closed";
 }
 
-/** Format a Unix-seconds instant as a bare UTC wall clock, e.g. "23:30 UTC". */
+/** Format a Unix-seconds instant as a bare UTC wall clock, e.g. "23:59 UTC". */
 export function formatUtcClock(unixSeconds: number): string {
   const date = new Date(unixSeconds * 1_000);
   const hours = date.getUTCHours().toString().padStart(2, "0");

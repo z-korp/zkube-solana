@@ -472,6 +472,51 @@ describe("native SOL transaction boundaries", () => {
 });
 
 describe("run transaction funding preflight", () => {
+  it("does not call the owner wallet when unsigned deterministic simulation fails", async () => {
+    const owner = Keypair.generate();
+    const device = Keypair.generate();
+    const signTransaction = vi.fn();
+    const simulation = vi.fn().mockResolvedValue({
+      value: { err: { InstructionError: [2, { Custom: 3012 }] } },
+    });
+    const connection = makeFakeConnection({
+      simulateTransaction: simulation,
+    });
+    const transactionPlan: TransactionPlan = {
+      layer: "solana-base",
+      label: "Prepare and delegate active run",
+      connection,
+      transaction: new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: owner.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 20_000_000,
+        }),
+      ),
+      feePayer: device.publicKey,
+      signers: [device],
+    };
+
+    await expect(
+      compileWalletTransactionPlan({
+        transactionPlan,
+        wallet: {
+          publicKey: owner.publicKey,
+          signTransaction,
+          signAllTransactions: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow(
+      "Preflight failed before owner signature for Prepare and delegate active run",
+    );
+    expect(simulation).toHaveBeenCalledOnce();
+    expect(simulation).toHaveBeenCalledWith(expect.any(VersionedTransaction), {
+      sigVerify: false,
+      replaceRecentBlockhash: false,
+    });
+    expect(signTransaction).not.toHaveBeenCalled();
+  });
+
   it("rejects a low device signer before simulation", async () => {
     const signer = Keypair.generate();
     const simulation = vi.fn();

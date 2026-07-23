@@ -94,9 +94,8 @@ export function withPinnedWalletComputeBudget(
     (instruction) =>
       !instruction.programId.equals(ComputeBudgetProgram.programId),
   );
-  const insertionIndex = firstNonBudget < 0
-    ? instructions.length
-    : firstNonBudget;
+  const insertionIndex =
+    firstNonBudget < 0 ? instructions.length : firstNonBudget;
   return [
     ...instructions.slice(0, insertionIndex),
     ...(hasLimit ? [] : [limitInstruction]),
@@ -109,9 +108,11 @@ function isComputeBudgetVariant(
   instruction: TransactionInstruction,
   discriminator: number | undefined,
 ): boolean {
-  return discriminator !== undefined &&
+  return (
+    discriminator !== undefined &&
     instruction.programId.equals(ComputeBudgetProgram.programId) &&
-    instruction.data[0] === discriminator;
+    instruction.data[0] === discriminator
+  );
 }
 
 type RunLayer = "solana-base" | "magicblock-er";
@@ -469,7 +470,9 @@ export async function combinePreparedAndDelegatePlan(args: {
     sessionSigner: args.sessionSigner.publicKey,
   }).sessionToken;
   if (!expectedSessionToken.equals(args.sessionToken)) {
-    throw new Error("Delegation session token does not match the device signer");
+    throw new Error(
+      "Delegation session token does not match the device signer",
+    );
   }
   const sessionWallet = new SessionWallet(args.sessionSigner);
   const delegate = await buildDelegateRunPlan({
@@ -867,9 +870,7 @@ export function decodeActiveRunAccount(
   return mapActiveRunAccount(decoded);
 }
 
-function mapActiveRunAccount(
-  account: DecodedActiveRunAccount,
-): ActiveRunView {
+function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
   const dailyPressure = mapDailyPressureProfile(account.dailyPressure);
   return {
@@ -972,6 +973,16 @@ export async function compileWalletTransactionPlan(args: {
       );
     }
   });
+  const unsignedSimulation =
+    await transactionPlan.connection.simulateTransaction(transaction, {
+      sigVerify: false,
+      replaceRecentBlockhash: false,
+    });
+  if (unsignedSimulation.value.err) {
+    throw new Error(
+      `Preflight failed before owner signature for ${transactionPlan.label}: ${JSON.stringify(unsignedSimulation.value.err)}. The wallet was not prompted and no entry was charged.`,
+    );
+  }
   transaction = await args.wallet.signTransaction(transaction);
   const simulation = await transactionPlan.connection.simulateTransaction(
     transaction,

@@ -7,8 +7,10 @@ import {
   TransactionMessage,
 } from "@solana/web3.js";
 import {
+  CADENCE_FUNDING_SEED_LAMPORTS,
   buildActivateContentReleasePlan,
   buildAtomicArcadeLaunchPlan,
+  buildInitializeArcadeArchivePlan,
   buildInitializeArcadePlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
@@ -23,8 +25,10 @@ import {
 } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
+  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
+  deriveCadenceFundingPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
@@ -44,7 +48,7 @@ import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 const BASE_CONTENT_VERSION = 1;
 const ARENA_RULES_VERSION = 1;
-const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60;
+const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60 + 45 * 60;
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
 const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
@@ -57,6 +61,7 @@ export const LAUNCH_ACCOUNT_SPACES = {
   dailyRulesCatalog: 346,
   arcadeConfig: 119,
   operatorRevenueVault: 58,
+  arcadeArchive: 162,
   arenaDaily: 7_426,
   weeklyJackpot: 5_925,
   season: 2_222,
@@ -315,6 +320,13 @@ export async function buildZkubeLaunchPlan(
     }),
   );
   plans.push(
+    await buildInitializeArcadeArchivePlan({
+      connection,
+      authority: wallet,
+      firstDayId: input.launchDayId,
+    }),
+  );
+  plans.push(
     ...(await buildPrepareLaunchPeriodPlans({
       connection,
       authority: wallet,
@@ -340,6 +352,7 @@ export async function buildZkubeLaunchPlan(
     LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
     LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
+    LAUNCH_ACCOUNT_SPACES.arcadeArchive,
     LAUNCH_ACCOUNT_SPACES.arenaDaily,
     LAUNCH_ACCOUNT_SPACES.arenaDaily,
     LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
@@ -367,6 +380,7 @@ export async function buildZkubeLaunchPlan(
       Number(LAUNCH_DAILY_SEED_LAMPORTS),
       Number(LAUNCH_WEEKLY_SEED_LAMPORTS),
       Number(LAUNCH_SEASON_SEED_LAMPORTS),
+      CADENCE_FUNDING_SEED_LAMPORTS,
     ],
     "launch seeds",
   );
@@ -437,11 +451,11 @@ export async function buildZkubeLaunchPlan(
     { label: "Initialize paused Arcade", transactionIndexes: [13] },
     {
       label: "Prepare current and following periods",
-      transactionIndexes: [14, 15, 16, 17, 18, 19],
+      transactionIndexes: [14, 15, 16, 17, 18, 19, 20],
     },
     {
       label: "Atomic 1/2/3 SOL seed, unpause, and activation",
-      transactionIndexes: [20],
+      transactionIndexes: [21],
     },
   ];
   const approvalPayload = {
@@ -575,6 +589,8 @@ function bootstrapTargetAccounts(
     deriveDailyRulesCatalogPda(ARENA_RULES_VERSION),
     deriveArcadeConfigPda(),
     deriveOperatorRevenueVaultPda(),
+    deriveArcadeArchivePda(),
+    deriveCadenceFundingPda(),
     deriveArenaDailyPda(dayId),
     deriveArenaDailyPda(dayId + 1),
     deriveWeeklyJackpotPda(weekId),

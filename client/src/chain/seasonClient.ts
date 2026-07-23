@@ -9,6 +9,7 @@ import {
 import { availablePoolLamports } from "./dailyClient.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import {
+  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveProtocolConfigPda,
   deriveSeasonPda,
@@ -169,6 +170,7 @@ export async function buildPrepareSeasonPlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
+      arcadeArchive: deriveArcadeArchivePda(),
       season: deriveSeasonPda(args.seasonId),
       payer: feePayer,
       caller: args.wallet.publicKey,

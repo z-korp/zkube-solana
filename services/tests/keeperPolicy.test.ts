@@ -15,9 +15,12 @@ import {
   rulesCatalogPda,
   playerFundingPda,
   seasonStartDay,
+  cadenceFundingPda,
+  arcadeArchivePda,
   weekStartDay,
 } from "../src/arcadeChain";
 import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
+import { archiveSha256 } from "../src/archiveStore";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + 10;
@@ -35,6 +38,7 @@ describe("v4 keeper semantic policy", () => {
       followingDayId: DAY + 1,
       launchCadenceId: DAY - 10,
       rulesCatalog: rulesCatalogPda(1),
+      cadenceFunding: cadenceFundingPda(),
     });
     expect(() => policy(plan)).not.toThrow();
     plan.context!.followingDayId = DAY + 2;
@@ -57,6 +61,7 @@ describe("v4 keeper semantic policy", () => {
           followingDayId: target,
           launchCadenceId: source - 10,
           rulesCatalog: rulesCatalogPda(1),
+          cadenceFunding: cadenceFundingPda(),
         }),
       },
       {
@@ -68,6 +73,7 @@ describe("v4 keeper semantic policy", () => {
           followingWeekId: target,
           launchCadenceId: source - 10,
           rulesCatalog: rulesCatalogPda(1),
+          cadenceFunding: cadenceFundingPda(),
         }),
       },
       {
@@ -78,6 +84,7 @@ describe("v4 keeper semantic policy", () => {
           seasonId: source,
           followingSeasonId: target,
           launchCadenceId: Math.max(0, source - 10),
+          cadenceFunding: cadenceFundingPda(),
         }),
       },
     ];
@@ -140,6 +147,16 @@ describe("v4 keeper semantic policy", () => {
     expect(() => policy(plan)).not.toThrow();
     plan.context!.runLocation = "base";
     expect(() => policy(plan)).toThrow("routing");
+  });
+
+  it("allows only the exact following cadence to pre-activate", () => {
+    const plan = validationOnlyPlan("activate_arena_daily", {
+      dayId: DAY + 1,
+      preactivation: true,
+    });
+    expect(() => policy(plan)).not.toThrow();
+    plan.context!.dayId = DAY + 2;
+    expect(() => policy(plan)).toThrow("recovery activation");
   });
 
   it("limits permissionless profile sync to recent canonical winner positions", () => {
@@ -221,6 +238,37 @@ describe("v4 keeper semantic policy", () => {
     const plan = validationOnlyPlan("activate_arena_daily", { dayId: DAY });
     plan.instruction = {} as never;
     expect(() => policy(plan)).toThrow("instruction bytes");
+  });
+
+  it("pins sequential archive and closure plans to canonical identities and bytes", () => {
+    const canonicalJson = '{"periodId":20651,"schemaVersion":1}';
+    const archive = validationOnlyPlan("archive_arena_daily", {
+      competition: "daily",
+      dayId: DAY,
+      previousCadenceId: DAY - 1,
+      cadenceFunding: cadenceFundingPda(),
+      arcadeArchive: arcadeArchivePda(),
+      archiveCanonicalJson: canonicalJson,
+      archiveFileSha256: archiveSha256(canonicalJson),
+      archiveResultHash: "ab".repeat(32),
+      archiveCommitted: false,
+      requiredProfileSyncMask: 0,
+      closeEligibleAt:
+        (DAY + 1) * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
+    });
+    expect(() => policy(archive)).not.toThrow();
+    archive.context!.previousCadenceId = DAY - 2;
+    expect(() => policy(archive)).toThrow("non-sequential");
+
+    const close = validationOnlyPlan("close_arena_daily", {
+      ...archive.context!,
+      previousCadenceId: DAY,
+      archiveCommitted: true,
+      closeEligibleAt: NOW,
+    });
+    expect(() => policy(close)).not.toThrow();
+    close.context!.cadenceFunding = Keypair.generate().publicKey;
+    expect(() => policy(close)).toThrow("archive identity");
   });
 });
 

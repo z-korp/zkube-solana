@@ -8,6 +8,8 @@ use crate::state::protocol::LevelRuleSnapshot;
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
+pub const ARCADE_ARCHIVE_SEED: &[u8] = b"arcade_archive";
+pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const OPERATOR_REVENUE_VAULT_SEED: &[u8] = b"operator_revenue";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
 pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
@@ -27,8 +29,8 @@ pub const WEEKLY_BOARD_CAPACITY: usize = 16;
 pub const SEASON_BOARD_CAPACITY: usize = 50;
 pub const SEASON_RESULT_CAPACITY: usize = 20;
 pub const WEEKLY_MAX_PAYOUT_POSITIONS: usize = 3 * WEEKLY_PRIZE_WEIGHTS.len();
-pub const ARENA_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60;
-pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 30 * 60;
+pub const ARENA_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 45 * 60;
+pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 59 * 60;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = 6 * 60 * 60;
 pub const ARCADE_SECONDS_PER_DAY: i64 = 86_400;
 pub const DAYS_PER_WEEK: u32 = 7;
@@ -99,6 +101,102 @@ impl ArcadeConfig {
                 && total == self.entry_lamports,
             ErrorCode::AccountingInvariant
         );
+        Ok(())
+    }
+}
+
+/// Small, permanent commitment accumulator for recyclable cadence accounts.
+///
+/// The three roots are append-only hash chains. `last_*_id` advances by
+/// exactly one for every archived result, beginning at the launch cadence.
+/// Operational synchronization and rollup counters deliberately do not enter
+/// the canonical result hashes, so those one-way cleanup steps cannot mutate
+/// an already committed competition result.
+#[account]
+#[derive(InitSpace)]
+pub struct ArcadeArchive {
+    pub version: u8,
+    pub arcade_config: Pubkey,
+    pub first_daily_id: u32,
+    pub last_daily_id: u32,
+    pub daily_root: [u8; 32],
+    pub first_weekly_id: u32,
+    pub last_weekly_id: u32,
+    pub weekly_root: [u8; 32],
+    pub first_season_id: u32,
+    pub last_season_id: u32,
+    pub season_root: [u8; 32],
+    pub bump: u8,
+}
+
+impl ArcadeArchive {
+    pub fn initialize(arcade_config: Pubkey, launch_day_id: u32, bump: u8) -> Result<Self> {
+        let first_weekly_id = week_id_for_day(launch_day_id)?;
+        let first_season_id = season_id_for_day(launch_day_id)?;
+        Ok(Self {
+            version: ARCADE_ACCOUNT_VERSION,
+            arcade_config,
+            first_daily_id: launch_day_id,
+            last_daily_id: launch_day_id
+                .checked_sub(1)
+                .ok_or(ErrorCode::InvalidPeriod)?,
+            daily_root: [0; 32],
+            first_weekly_id,
+            last_weekly_id: first_weekly_id
+                .checked_sub(1)
+                .ok_or(ErrorCode::InvalidPeriod)?,
+            weekly_root: [0; 32],
+            first_season_id,
+            last_season_id: first_season_id
+                .checked_sub(1)
+                .ok_or(ErrorCode::InvalidPeriod)?,
+            season_root: [0; 32],
+            bump,
+        })
+    }
+
+    pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
+        require!(
+            day_id == self.last_daily_id.saturating_add(1) && day_id >= self.first_daily_id,
+            ErrorCode::InvalidPeriod
+        );
+        self.daily_root = crate::game::sha256v(&[
+            b"zkube-arcade-daily-root-v1",
+            &self.daily_root,
+            &day_id.to_le_bytes(),
+            &result_hash,
+        ]);
+        self.last_daily_id = day_id;
+        Ok(())
+    }
+
+    pub fn append_weekly(&mut self, week_id: u32, result_hash: [u8; 32]) -> Result<()> {
+        require!(
+            week_id == self.last_weekly_id.saturating_add(1) && week_id >= self.first_weekly_id,
+            ErrorCode::InvalidPeriod
+        );
+        self.weekly_root = crate::game::sha256v(&[
+            b"zkube-arcade-weekly-root-v1",
+            &self.weekly_root,
+            &week_id.to_le_bytes(),
+            &result_hash,
+        ]);
+        self.last_weekly_id = week_id;
+        Ok(())
+    }
+
+    pub fn append_season(&mut self, season_id: u32, result_hash: [u8; 32]) -> Result<()> {
+        require!(
+            season_id == self.last_season_id.saturating_add(1) && season_id >= self.first_season_id,
+            ErrorCode::InvalidPeriod
+        );
+        self.season_root = crate::game::sha256v(&[
+            b"zkube-arcade-season-root-v1",
+            &self.season_root,
+            &season_id.to_le_bytes(),
+            &result_hash,
+        ]);
+        self.last_season_id = season_id;
         Ok(())
     }
 }
@@ -744,6 +842,146 @@ pub fn day_window(day_id: u32) -> Result<(i64, i64, i64, i64)> {
     ))
 }
 
+/// Canonical finalized Daily result commitment. Operational season-rollup and
+/// profile-sync fields, the account bump, and predecessor transport state are
+/// intentionally excluded.
+pub fn daily_result_hash(daily: &ArenaDaily) -> Result<[u8; 32]> {
+    let mut bytes = Vec::new();
+    daily.version.serialize(&mut bytes)?;
+    daily.day_id.serialize(&mut bytes)?;
+    daily.week_id.serialize(&mut bytes)?;
+    daily.season_id.serialize(&mut bytes)?;
+    daily.arcade_config.serialize(&mut bytes)?;
+    daily.rules_version.serialize(&mut bytes)?;
+    daily.content_version.serialize(&mut bytes)?;
+    daily.catalog_hash.serialize(&mut bytes)?;
+    daily.rules_hash.serialize(&mut bytes)?;
+    daily.map_id.serialize(&mut bytes)?;
+    daily.scoring_rule.serialize(&mut bytes)?;
+    daily.rules.serialize(&mut bytes)?;
+    daily.pressure.serialize(&mut bytes)?;
+    daily.opens_at.serialize(&mut bytes)?;
+    daily.entries_close_at.serialize(&mut bytes)?;
+    daily.runs_close_at.serialize(&mut bytes)?;
+    daily.finalized_at.serialize(&mut bytes)?;
+    daily.ledger.serialize(&mut bytes)?;
+    daily.entries_paid.serialize(&mut bytes)?;
+    daily.entries_scored.serialize(&mut bytes)?;
+    daily.entries_expired.serialize(&mut bytes)?;
+    daily.unique_players.serialize(&mut bytes)?;
+    daily.season_eligible_players.serialize(&mut bytes)?;
+    daily.entries.serialize(&mut bytes)?;
+    Ok(crate::game::sha256v(&[
+        b"zkube-arcade-daily-result-v1",
+        &bytes,
+    ]))
+}
+
+/// Canonical finalized Weekly result commitment. Profile synchronization and
+/// account-transport fields are not competition results and are excluded.
+pub fn weekly_result_hash(weekly: &WeeklyJackpot) -> Result<[u8; 32]> {
+    let mut bytes = Vec::new();
+    weekly.version.serialize(&mut bytes)?;
+    weekly.week_id.serialize(&mut bytes)?;
+    weekly.qualification_start_day.serialize(&mut bytes)?;
+    weekly.arcade_config.serialize(&mut bytes)?;
+    weekly.metrics.serialize(&mut bytes)?;
+    weekly.rules_hash.serialize(&mut bytes)?;
+    weekly.opens_at.serialize(&mut bytes)?;
+    weekly.closes_at.serialize(&mut bytes)?;
+    weekly.finalized_at.serialize(&mut bytes)?;
+    weekly.ledger.serialize(&mut bytes)?;
+    weekly.combo_entries.serialize(&mut bytes)?;
+    weekly.action_entries.serialize(&mut bytes)?;
+    weekly.run_entries.serialize(&mut bytes)?;
+    Ok(crate::game::sha256v(&[
+        b"zkube-arcade-weekly-result-v1",
+        &bytes,
+    ]))
+}
+
+/// Canonical finalized Season result commitment. The mutable Daily-sealing
+/// counter and profile synchronization mask are excluded.
+pub fn season_result_hash(season: &Season) -> Result<[u8; 32]> {
+    let mut bytes = Vec::new();
+    season.version.serialize(&mut bytes)?;
+    season.season_id.serialize(&mut bytes)?;
+    season.qualification_start_day.serialize(&mut bytes)?;
+    season.arcade_config.serialize(&mut bytes)?;
+    season.opens_at.serialize(&mut bytes)?;
+    season.closes_at.serialize(&mut bytes)?;
+    season.finalized_at.serialize(&mut bytes)?;
+    season.ledger.serialize(&mut bytes)?;
+    season.entries.serialize(&mut bytes)?;
+    Ok(crate::game::sha256v(&[
+        b"zkube-arcade-season-result-v1",
+        &bytes,
+    ]))
+}
+
+pub fn ranked_profile_sync_mask(entries_len: usize, ledger: PoolLedger) -> Result<u8> {
+    let winners = entries_len.min(DAILY_PRIZE_WEIGHTS.len());
+    let pool = ledger
+        .payout_lamports
+        .checked_add(ledger.rollover_out_lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let plan = rounded_payouts(pool, &DAILY_PRIZE_WEIGHTS, winners)?;
+    require!(
+        plan.paid_lamports == ledger.payout_lamports
+            && plan.rollover_lamports == ledger.rollover_out_lamports,
+        ErrorCode::AccountingInvariant
+    );
+    plan.amounts[..winners]
+        .iter()
+        .enumerate()
+        .try_fold(0u8, |mask, (position, amount)| {
+            if *amount == 0 {
+                return Ok(mask);
+            }
+            let position = u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+            Ok(mask
+                | 1u8
+                    .checked_shl(position)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?)
+        })
+}
+
+pub fn weekly_profile_sync_mask(weekly: &WeeklyJackpot) -> Result<u16> {
+    let pool = weekly
+        .ledger
+        .payout_lamports
+        .checked_add(weekly.ledger.rollover_out_lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let budget = weekly_bounty_budget(pool);
+    let boards = [
+        weekly.combo_entries.as_slice(),
+        weekly.action_entries.as_slice(),
+        weekly.run_entries.as_slice(),
+    ];
+    let mut mask = 0u16;
+    for (board_index, board) in boards.iter().enumerate() {
+        let count = board
+            .iter()
+            .take(WEEKLY_PRIZE_WEIGHTS.len())
+            .take_while(|entry| entry.value > 0)
+            .count();
+        let plan = rounded_payouts(budget, &WEEKLY_PRIZE_WEIGHTS, count)?;
+        for (rank, amount) in plan.amounts[..count].iter().enumerate() {
+            if *amount == 0 {
+                continue;
+            }
+            let position = board_index
+                .checked_mul(WEEKLY_PRIZE_WEIGHTS.len())
+                .and_then(|value| value.checked_add(rank))
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
+            mask |= 1u16
+                .checked_shl(u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
+        }
+    }
+    Ok(mask)
+}
+
 pub fn week_window(week_id: u32) -> Result<(i64, i64)> {
     let opens_at = i64::from(week_start_day(week_id)?)
         .checked_mul(ARCADE_SECONDS_PER_DAY)
@@ -870,6 +1108,44 @@ fn compare_season_entries(
 mod tests {
     use super::*;
 
+    fn finalized_daily(day_id: u32, arcade_config: Pubkey) -> ArenaDaily {
+        let (opens_at, entries_close_at, runs_close_at, recovery_deadline_at) =
+            day_window(day_id).unwrap();
+        ArenaDaily {
+            version: ARCADE_ACCOUNT_VERSION,
+            day_id,
+            week_id: week_id_for_day(day_id).unwrap(),
+            season_id: season_id_for_day(day_id).unwrap(),
+            arcade_config,
+            rules_version: 1,
+            status: PeriodStatus::Finalized,
+            predecessor_rollover_applied: true,
+            content_version: 1,
+            catalog_hash: [1; 32],
+            rules_hash: [2; 32],
+            map_id: 1,
+            scoring_rule: DailyScoringRule::default(),
+            rules: LevelRuleSnapshot::default(),
+            pressure: DailyPressureProfile::default(),
+            opens_at,
+            entries_close_at,
+            runs_close_at,
+            recovery_deadline_at,
+            finalized_at: runs_close_at,
+            ledger: PoolLedger::default(),
+            entries_paid: 0,
+            entries_scored: 0,
+            entries_expired: 0,
+            unique_players: 0,
+            season_eligible_players: 0,
+            season_rollups: 0,
+            season_rollup_sealed: false,
+            entries: Vec::new(),
+            profile_sync_mask: 0,
+            bump: 1,
+        }
+    }
+
     #[test]
     fn entry_split_is_exact_and_static() {
         let config = ArcadeConfig::canonical(Pubkey::new_unique(), Pubkey::new_unique(), 1);
@@ -891,6 +1167,106 @@ mod tests {
         let (season_open, season_close) = season_window(730).unwrap();
         assert_eq!(season_close - season_open, 28 * ARCADE_SECONDS_PER_DAY);
         assert_eq!((season_open / ARCADE_SECONDS_PER_DAY - 4).rem_euclid(7), 0);
+    }
+
+    #[test]
+    fn newly_prepared_daily_closes_entries_at_2345_and_runs_at_2359() {
+        let (opens_at, entries_close_at, runs_close_at, recovery_deadline_at) =
+            day_window(20_658).unwrap();
+        assert_eq!(entries_close_at - opens_at, 23 * 60 * 60 + 45 * 60);
+        assert_eq!(runs_close_at - opens_at, 23 * 60 * 60 + 59 * 60);
+        assert_eq!(
+            recovery_deadline_at - runs_close_at,
+            STUCK_RUN_RECOVERY_SECONDS
+        );
+    }
+
+    #[test]
+    fn archive_is_strictly_sequential_and_hashes_ignore_cleanup_state() {
+        let arcade = Pubkey::new_unique();
+        let launch_day = 20_656;
+        let mut archive = ArcadeArchive::initialize(arcade, launch_day, 7).unwrap();
+        let mut daily = finalized_daily(launch_day, arcade);
+        let result_hash = daily_result_hash(&daily).unwrap();
+
+        daily.profile_sync_mask = u8::MAX;
+        daily.season_rollups = 42;
+        daily.season_rollup_sealed = true;
+        daily.bump = 9;
+        assert_eq!(daily_result_hash(&daily).unwrap(), result_hash);
+
+        assert!(archive.append_daily(launch_day + 1, result_hash).is_err());
+        archive.append_daily(launch_day, result_hash).unwrap();
+        assert!(archive.append_daily(launch_day, result_hash).is_err());
+        archive.append_daily(launch_day + 1, [3; 32]).unwrap();
+        assert_eq!(archive.last_daily_id, launch_day + 1);
+        assert_ne!(archive.daily_root, [0; 32]);
+    }
+
+    #[test]
+    fn archive_result_hash_golden_vectors() {
+        let arcade = Pubkey::new_from_array([9; 32]);
+        let daily = finalized_daily(20_656, arcade);
+        let weekly = WeeklyJackpot {
+            version: ARCADE_ACCOUNT_VERSION,
+            week_id: week_id_for_day(daily.day_id).unwrap(),
+            qualification_start_day: daily.day_id,
+            arcade_config: arcade,
+            status: PeriodStatus::Finalized,
+            predecessor_rollover_applied: true,
+            metrics: [
+                WeeklyMetric::HighestCombo,
+                WeeklyMetric::HighestActionScore,
+                WeeklyMetric::TotalLines,
+            ],
+            rules_hash: [4; 32],
+            opens_at: 10,
+            closes_at: 20,
+            finalized_at: 30,
+            ledger: PoolLedger::default(),
+            combo_entries: Vec::new(),
+            action_entries: Vec::new(),
+            run_entries: Vec::new(),
+            profile_sync_mask: 0,
+            bump: 2,
+        };
+        let season = Season {
+            version: ARCADE_ACCOUNT_VERSION,
+            season_id: season_id_for_day(daily.day_id).unwrap(),
+            qualification_start_day: daily.day_id,
+            arcade_config: arcade,
+            status: PeriodStatus::Finalized,
+            predecessor_rollover_applied: true,
+            opens_at: 40,
+            closes_at: 50,
+            finalized_at: 60,
+            ledger: PoolLedger::default(),
+            sealed_dailies: 1,
+            entries: Vec::new(),
+            profile_sync_mask: 0,
+            bump: 3,
+        };
+        assert_eq!(
+            daily_result_hash(&daily).unwrap(),
+            [
+                60, 127, 133, 233, 21, 213, 116, 82, 86, 202, 219, 197, 227, 25, 91, 234, 97, 244,
+                169, 24, 64, 45, 95, 104, 212, 155, 47, 170, 19, 160, 235, 142,
+            ]
+        );
+        assert_eq!(
+            weekly_result_hash(&weekly).unwrap(),
+            [
+                132, 139, 242, 177, 3, 248, 115, 65, 200, 214, 245, 238, 198, 54, 229, 47, 137, 1,
+                17, 224, 13, 18, 182, 177, 48, 221, 142, 154, 215, 17, 203, 243,
+            ]
+        );
+        assert_eq!(
+            season_result_hash(&season).unwrap(),
+            [
+                189, 231, 71, 25, 160, 8, 224, 52, 31, 154, 35, 104, 41, 132, 237, 7, 126, 56, 23,
+                216, 124, 20, 205, 161, 80, 111, 174, 79, 225, 238, 210, 71,
+            ]
+        );
     }
 
     #[test]
@@ -1042,6 +1418,7 @@ mod tests {
     fn accounts_fit_normal_allocation() {
         for size in [
             ArcadeConfig::INIT_SPACE,
+            ArcadeArchive::INIT_SPACE,
             OperatorRevenueVault::INIT_SPACE,
             ArenaDaily::INIT_SPACE,
             ArenaPlayer::INIT_SPACE,

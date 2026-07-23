@@ -6,6 +6,7 @@ import {
   buildActivateCampaignMapPlan,
   buildActivateContentReleasePlan,
   buildAtomicArcadeLaunchPlan,
+  buildInitializeArcadeArchivePlan,
   buildInitializeArcadePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
@@ -16,6 +17,8 @@ import {
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import {
+  deriveArcadeArchivePda,
+  deriveCadenceFundingPda,
   deriveMapCatalogPda,
   deriveArenaDailyPda,
   derivePlayerFundingPda,
@@ -158,6 +161,23 @@ describe("authority publication client", () => {
     expect(arcade.transaction.instructions).toHaveLength(1);
     expect(rules.label).toBe("Publish Arena rules v1");
     expect(arcade.label).toBe("Initialize paused Arcade");
+
+    const archive = await buildInitializeArcadeArchivePlan({
+      connection: {} as Connection,
+      authority,
+      firstDayId: 10_000,
+    });
+    expect(archive.transaction.instructions).toHaveLength(2);
+    expect(
+      archive.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveArcadeArchivePda()),
+      ),
+    ).toBe(true);
+    expect(
+      archive.transaction.instructions[1]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveCadenceFundingPda()),
+      ),
+    ).toBe(true);
   });
 
   it("prepares current and following Daily, Weekly, and Season separately", async () => {

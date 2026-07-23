@@ -23,15 +23,16 @@ import {
   keeperPublicKeyFromEnv,
   keeperSpendWithinLimit,
   predictedKeeperSpendLamports,
+  predictedAccountSpendLamports,
   verifyConfirmedWrite,
 } from "../src/keeper";
 
 describe("v4 keeper bounds", () => {
   it("pins reserve, spend, and session cleanup limits", () => {
     expect(DEFAULT_MIN_KEEPER_LAMPORTS).toBe(100_000_000);
-    expect(DEFAULT_MAX_KEEPER_SPEND_LAMPORTS).toBe(50_000_000);
-    expect(keeperSpendWithinLimit(50_000_000, 50_000_000)).toBe(true);
-    expect(keeperSpendWithinLimit(50_000_001, 50_000_000)).toBe(false);
+    expect(DEFAULT_MAX_KEEPER_SPEND_LAMPORTS).toBe(100_000_000);
+    expect(keeperSpendWithinLimit(100_000_000, 100_000_000)).toBe(true);
+    expect(keeperSpendWithinLimit(100_000_001, 100_000_000)).toBe(false);
     expect(expiredSessionCleanupAllowance(0, 8)).toBe(2);
     expect(expiredSessionCleanupAllowance(7, 8)).toBe(1);
     expect(expiredSessionCleanupAllowance(8, 8)).toBe(0);
@@ -39,6 +40,10 @@ describe("v4 keeper bounds", () => {
 
   it("accounts conservatively for fee and rent spend", () => {
     expect(predictedKeeperSpendLamports(100_000_000, 75_000_000, 5_000)).toBe(25_005_000);
+    expect(predictedAccountSpendLamports(500_000_000, 447_424_160))
+      .toBe(52_575_840);
+    expect(() => predictedAccountSpendLamports(1, undefined))
+      .toThrow("omitted");
     expect(() => predictedKeeperSpendLamports(1, -1, 5_000)).toThrow("invalid lamports");
   });
 

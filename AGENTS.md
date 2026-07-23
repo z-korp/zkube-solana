@@ -19,7 +19,7 @@ add approval prompts to the shipped product.
   60/25/15. All transfers floor to 0.001 SOL and dust rolls forward.
 - Settlement is push-only, may be late, and is never cancelled. Empty pots roll
   forward; profile synchronization never gates money.
-- Paid entries are scored or expired and are never refunded. At 23:30 UTC a
+- Paid entries close at 23:45 UTC. At 23:59 UTC a
   run with an accepted action scores its last committed state; an untouched or
   unrecoverable run expires and can never score late.
 - Campaign changes only the compact lifetime-best star record. Arcade owns
@@ -27,15 +27,17 @@ add approval prompts to the shipped product.
   quest, achievement, title, rating, crest, or general gameplay progression;
   neither mode grants SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
-  recyclable device fee allowance. Funding PDAs sign only narrow self-CPI rent
+  recyclable device fee allowance. A separately seeded System-owned zero-data
+  cadence funding PDA recycles Daily/Weekly/Season account rent after finalized
+  results are durably archived. Funding PDAs sign only narrow self-CPI rent
   paths; there is no Kora or generic paymaster.
 - One durable `active_run_id` prevents overlapping runs and supports
   cross-device recovery. Base, Router, and resolved ER connections remain
   separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily/Weekly/Season keeper. The web
   client is static PWA/TWA code with no server signer.
-- v4 is Devnet-first and presently undeployed. Mainnet requires counsel,
-  economic, and distribution review.
+- The cadence-archive upgrade is Devnet-first and presently undeployed.
+  Mainnet requires counsel, economic, and distribution review.
 - Fresh protocol initialization is paused. Initialization may seed only the
   first Daily, Weekly, and Season. Do not unpause or open paid Arcade until the
   full recovery/settlement keeper is deployed, fingerprinted, read-only
@@ -57,7 +59,7 @@ Architecture and operations documentation belongs in code comments and
 - The recurring keeper exception requires a separately approved fingerprinted
   release enforcing Devnet genesis, deployed ProgramData hash, exact signer,
   current/recent cadence PDAs, canonical instruction allowlist, at most eight
-  writes and two expired-session closures, 0.05 SOL simulated spend per pass,
+  writes and two expired-session closures, 0.1 SOL simulated spend per pass,
   and a 0.1 SOL reserve floor.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all

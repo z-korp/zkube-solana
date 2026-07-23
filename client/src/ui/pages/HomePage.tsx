@@ -77,7 +77,7 @@ const HomePage: React.FC = () => {
   });
 
   const scoringRule = view?.scoringRule ?? practiceView?.scoringRule ?? null;
-  const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:30 UTC";
+  const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
   const entrySol = view ? formatSolLamports(view.entryLamports) : "0.02";
   const busy = daily.action !== null;
   const preparingPractice = daily.action === "practice";
@@ -100,7 +100,9 @@ const HomePage: React.FC = () => {
   let meta: ReactNode;
   if (lifecycle === "resume") {
     meta = (
-      <span className={META_CLASS}>Run in progress · scores {runsCloseLabel}</span>
+      <span className={META_CLASS}>
+        Run in progress · scores {runsCloseLabel}
+      </span>
     );
   } else if (lifecycle === "entries-open" && view) {
     meta = <EntriesCountdown endsAt={view.entriesCloseAt} />;
@@ -122,13 +124,18 @@ const HomePage: React.FC = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };
   } else if (lifecycle === "entries-open") {
-    primaryLabel =
-      daily.action === "enter:sol"
-        ? "Preparing owner signature…"
-        : `Enter ranked · ${entrySol} SOL`;
-    primaryDisabled = busy || !player.wallet;
-    // Tap the CTA → confirm sheet → owner signature → play.
-    primaryOnClick = () => setCoinSheetOpen(true);
+    if (view?.followingDailyLamports === null) {
+      primaryLabel = "Ranked paused · next Daily preparing";
+      primaryDisabled = true;
+    } else {
+      primaryLabel =
+        daily.action === "enter:sol"
+          ? "Preparing owner signature…"
+          : `Enter ranked · ${entrySol} SOL`;
+      primaryDisabled = busy || !player.wallet;
+      // Tap the CTA → confirm sheet → owner signature → play.
+      primaryOnClick = () => setCoinSheetOpen(true);
+    }
     showPracticeChip = daily.practiceAvailable;
   } else if (daily.practiceAvailable) {
     // entries-closed or practice-only with Practice enterable → Practice leads.
@@ -138,7 +145,9 @@ const HomePage: React.FC = () => {
   } else {
     // Nothing actionable: ranked closed, or the Daily is still being prepared.
     primaryLabel =
-      lifecycle === "entries-closed" ? "Entries closed" : "Daily being prepared";
+      lifecycle === "entries-closed"
+        ? "Entries closed"
+        : "Daily being prepared";
     primaryDisabled = true;
   }
 
@@ -199,7 +208,10 @@ const HomePage: React.FC = () => {
         )}
 
         {daily.error && (
-          <p role="alert" className="text-center text-xs font-semibold text-red-300">
+          <p
+            role="alert"
+            className="text-center text-xs font-semibold text-red-300"
+          >
             {daily.error}
           </p>
         )}

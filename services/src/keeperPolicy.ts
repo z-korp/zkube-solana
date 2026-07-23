@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { PublicKey, type Connection } from "@solana/web3.js";
 
 import {
@@ -13,6 +15,8 @@ import {
   SOL_PAYOUT_UNIT_LAMPORTS,
   assertCadenceId,
   currentDayId,
+  arcadeArchivePda,
+  cadenceFundingPda,
   playerFundingPda,
   seasonIdForDay,
   seasonStartDay,
@@ -55,6 +59,7 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
   switch (input.plan.operation) {
     case "prepare_arena_daily":
       assertRulesCatalog(context);
+      assertCadenceFunding(context);
       assertExactSuccessor(
         context.dayId,
         context.followingDayId,
@@ -66,6 +71,7 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
       return;
     case "prepare_weekly_jackpot":
       assertRulesCatalog(context);
+      assertCadenceFunding(context);
       assertExactSuccessor(
         context.weekId,
         context.followingWeekId,
@@ -76,6 +82,7 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
       );
       return;
     case "prepare_season":
+      assertCadenceFunding(context);
       assertExactSuccessor(
         context.seasonId,
         context.followingSeasonId,
@@ -156,6 +163,15 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
           context.runLocation === "ephemeral_rollup" ||
           (context.runMode === "practice" && context.includeArenaPlayer)) {
         throw new Error("keeper policy rejects unresolved run expiry");
+      }
+      return;
+    case "expire_unresolved_practice_run":
+      assertArenaRunContext(context, today, "practice");
+      assertRunDeadlines(context);
+      if (context.recoveryDeadlineAt! > input.nowUnix ||
+          context.runLocation === "ephemeral_rollup" ||
+          context.includeArenaPlayer) {
+        throw new Error("keeper policy rejects unresolved Practice expiry");
       }
       return;
     case "cleanup_orphan_active_run":
@@ -266,6 +282,30 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
     case "sync_season_profile":
       assertProfileSync(context, "season", today, currentWeek, currentSeason, 0x001f);
       return;
+    case "archive_arena_daily":
+      assertCadenceArchive(context, "daily", context.dayId, today,
+        KEEPER_RECENT_DAILY_CADENCES, false, input.nowUnix);
+      return;
+    case "archive_weekly_jackpot":
+      assertCadenceArchive(context, "weekly", context.weekId, currentWeek,
+        KEEPER_RECENT_WEEKLY_CADENCES, false, input.nowUnix);
+      return;
+    case "archive_season":
+      assertCadenceArchive(context, "season", context.seasonId, currentSeason,
+        KEEPER_RECENT_SEASON_CADENCES, false, input.nowUnix);
+      return;
+    case "close_arena_daily":
+      assertCadenceArchive(context, "daily", context.dayId, today,
+        KEEPER_RECENT_DAILY_CADENCES, true, input.nowUnix);
+      return;
+    case "close_weekly_jackpot":
+      assertCadenceArchive(context, "weekly", context.weekId, currentWeek,
+        KEEPER_RECENT_WEEKLY_CADENCES, true, input.nowUnix);
+      return;
+    case "close_season":
+      assertCadenceArchive(context, "season", context.seasonId, currentSeason,
+        KEEPER_RECENT_SEASON_CADENCES, true, input.nowUnix);
+      return;
     case "close_arena_player":
       assertParticipantClosure(
         context,
@@ -284,6 +324,65 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
         "SeasonPlayer",
       );
       return;
+  }
+}
+
+function assertCadenceFunding(context: KeeperPlanContext): void {
+  if (!context.cadenceFunding?.equals(cadenceFundingPda())) {
+    throw new Error("keeper policy rejects cadence funding identity");
+  }
+}
+
+function assertCadenceArchive(
+  context: KeeperPlanContext,
+  competition: "daily" | "weekly" | "season",
+  cadenceId: number | undefined,
+  currentCadence: number,
+  recentWindow: number,
+  closing: boolean,
+  nowUnix: number,
+): void {
+  assertRecentPastOrCurrent(
+    cadenceId,
+    currentCadence,
+    recentWindow,
+    `${competition} archive`,
+  );
+  if (context.competition !== competition ||
+      !context.arcadeArchive?.equals(arcadeArchivePda()) ||
+      !context.cadenceFunding?.equals(cadenceFundingPda()) ||
+      !/^[0-9a-f]{64}$/.test(context.archiveFileSha256 ?? "") ||
+      !/^[0-9a-f]{64}$/.test(context.archiveResultHash ?? "") ||
+      !Number.isSafeInteger(context.requiredProfileSyncMask) ||
+      context.requiredProfileSyncMask === undefined ||
+      context.requiredProfileSyncMask < 0 ||
+      context.closeEligibleAt === undefined ||
+      !Number.isSafeInteger(context.closeEligibleAt) ||
+      context.closeEligibleAt < 0) {
+    throw new Error("keeper policy rejects cadence archive identity");
+  }
+  if (context.previousCadenceId !== undefined) {
+    assertCadenceId(context.previousCadenceId, "previous archived cadence id");
+    if (cadenceId !== context.previousCadenceId + 1 &&
+        !(closing && cadenceId === context.previousCadenceId)) {
+      throw new Error("keeper policy rejects non-sequential cadence archive");
+    }
+  }
+  if (closing) {
+    if (!context.archiveCommitted || context.archiveCanonicalJson === undefined ||
+        context.closeEligibleAt > nowUnix) {
+      throw new Error("keeper policy rejects uncommitted cadence closure");
+    }
+  } else {
+    if (context.archiveCommitted || context.archiveCanonicalJson === undefined) {
+      throw new Error("keeper policy rejects committed or incomplete cadence archive");
+    }
+  }
+  const actualHash = createHash("sha256")
+    .update(Buffer.from(context.archiveCanonicalJson, "utf8"))
+    .digest("hex");
+  if (actualHash !== context.archiveFileSha256) {
+    throw new Error("keeper policy rejects cadence archive file hash");
   }
 }
 
@@ -459,10 +558,16 @@ function assertActivation(
   if (id === undefined) throw new Error(`keeper policy rejects ${label} activation`);
   assertCadenceId(id, `${label} id`);
   if (id === current) {
-    if (context.recoveryActivation ||
+    if (context.recoveryActivation || context.preactivation ||
         (label === "Daily" &&
           nowUnix >= current * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET)) {
       throw new Error(`keeper policy rejects ${label} activation`);
+    }
+    return;
+  }
+  if (id === current + 1) {
+    if (context.preactivation !== true || context.recoveryActivation) {
+      throw new Error(`keeper policy rejects ${label} preactivation`);
     }
     return;
   }

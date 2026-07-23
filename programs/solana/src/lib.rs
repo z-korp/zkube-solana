@@ -86,6 +86,13 @@ pub mod solana {
         instructions::arcade_instructions::handler_initialize_arcade(ctx)
     }
 
+    pub fn initialize_arcade_archive(
+        ctx: Context<InitializeArcadeArchive>,
+        first_day_id: u32,
+    ) -> Result<()> {
+        instructions::arcade_instructions::handler_initialize_arcade_archive(ctx, first_day_id)
+    }
+
     pub fn publish_arena_rules(
         ctx: Context<PublishArenaRules>,
         args: PublishArenaRulesArgs,
@@ -101,12 +108,32 @@ pub mod solana {
         instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
     }
 
+    pub fn funded_prepare_arena_daily(
+        ctx: Context<FundedPrepareArenaDaily>,
+        day_id: u32,
+    ) -> Result<()> {
+        instructions::cadence_funding_instructions::handler_funded_prepare_arena_daily(ctx, day_id)
+    }
+
     pub fn prepare_weekly_jackpot(ctx: Context<PrepareWeeklyJackpot>, week_id: u32) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_weekly_jackpot(ctx, week_id)
     }
 
+    pub fn funded_prepare_weekly_jackpot(
+        ctx: Context<FundedPrepareWeeklyJackpot>,
+        week_id: u32,
+    ) -> Result<()> {
+        instructions::cadence_funding_instructions::handler_funded_prepare_weekly_jackpot(
+            ctx, week_id,
+        )
+    }
+
     pub fn prepare_season(ctx: Context<PrepareSeason>, season_id: u32) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_season(ctx, season_id)
+    }
+
+    pub fn funded_prepare_season(ctx: Context<FundedPrepareSeason>, season_id: u32) -> Result<()> {
+        instructions::cadence_funding_instructions::handler_funded_prepare_season(ctx, season_id)
     }
 
     pub fn activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
@@ -174,6 +201,13 @@ pub mod solana {
         instructions::arcade_instructions::handler_consume_practice_run(ctx)
     }
 
+    pub fn expire_unresolved_practice_run(
+        ctx: Context<ExpireUnresolvedPracticeRun>,
+        run_id: u64,
+    ) -> Result<()> {
+        instructions::arcade_instructions::handler_expire_unresolved_practice_run(ctx, run_id)
+    }
+
     pub fn expire_unresolved_arena_run(
         ctx: Context<ExpireUnresolvedArenaRun>,
         run_id: u64,
@@ -213,6 +247,18 @@ pub mod solana {
         instructions::arcade_instructions::handler_finalize_season(ctx)
     }
 
+    pub fn archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_archive_arena_daily(ctx)
+    }
+
+    pub fn archive_weekly_jackpot(ctx: Context<ArchiveWeeklyJackpot>) -> Result<()> {
+        instructions::arcade_instructions::handler_archive_weekly_jackpot(ctx)
+    }
+
+    pub fn archive_season(ctx: Context<ArchiveSeason>) -> Result<()> {
+        instructions::arcade_instructions::handler_archive_season(ctx)
+    }
+
     pub fn sync_daily_profile(ctx: Context<SyncDailyProfile>) -> Result<()> {
         instructions::profile_instructions::handler_sync_daily_profile(ctx)
     }
@@ -231,6 +277,18 @@ pub mod solana {
 
     pub fn close_season_player(ctx: Context<CloseSeasonPlayer>) -> Result<()> {
         instructions::arcade_instructions::handler_close_season_player(ctx)
+    }
+
+    pub fn close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_arena_daily(ctx)
+    }
+
+    pub fn close_weekly_jackpot(ctx: Context<CloseWeeklyJackpot>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_weekly_jackpot(ctx)
+    }
+
+    pub fn close_season(ctx: Context<CloseSeason>) -> Result<()> {
+        instructions::arcade_instructions::handler_close_season(ctx)
     }
 
     pub fn withdraw_operator_revenue(

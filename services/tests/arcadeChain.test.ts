@@ -22,14 +22,14 @@ describe("Arcade cadence math", () => {
     expect(ARCADE_ACCOUNT_VERSION).toBe(4);
   });
 
-  it("matches the on-chain 05:30 UTC settlement delay", () => {
+  it("matches the on-chain 05:59 UTC settlement delay", () => {
     expect(DAILY_RECOVERY_DEADLINE_OFFSET).toBe(
       DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS,
     );
     expect(PERIOD_SETTLEMENT_DELAY_SECONDS).toBe(
       DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS - SECONDS_PER_DAY,
     );
-    expect(PERIOD_SETTLEMENT_DELAY_SECONDS).toBe(5 * 60 * 60 + 30 * 60);
+    expect(PERIOD_SETTLEMENT_DELAY_SECONDS).toBe(5 * 60 * 60 + 59 * 60);
   });
 
   it("uses Monday 1970-01-05 for Weekly and 28-day Season epoch zero", () => {

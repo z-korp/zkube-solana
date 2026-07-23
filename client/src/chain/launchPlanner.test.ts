@@ -58,14 +58,14 @@ describe("read-only paused bootstrap and launch planner", () => {
 
     expect(plan.weekId).toBe(13);
     expect(plan.seasonId).toBe(3);
-    expect(plan.plans).toHaveLength(21);
-    expect(plan.plans[20]?.transaction.instructions).toHaveLength(5);
+    expect(plan.plans).toHaveLength(22);
+    expect(plan.plans[21]?.transaction.instructions).toHaveLength(5);
     expect(plan.phases.at(-1)).toEqual({
       label: "Atomic 1/2/3 SOL seed, unpause, and activation",
-      transactionIndexes: [20],
+      transactionIndexes: [21],
     });
-    expect(plan.costs.seedLamports).toBe(6_000_000_000);
-    expect(plan.costs.transactionCount).toBe(21);
+    expect(plan.costs.seedLamports).toBe(6_500_000_000);
+    expect(plan.costs.transactionCount).toBe(22);
     expect(plan.rulesCatalogSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
@@ -145,7 +145,7 @@ function launchConnection(args: {
     },
     getSlot: async () => 1,
     getBlockTime: async () => args.observedUnixTimestamp ?? 100 * 86_400 + 100,
-    getMultipleAccountsInfo: async () => Array.from({ length: 20 }, () => null),
+    getMultipleAccountsInfo: async () => Array.from({ length: 22 }, () => null),
     getMinimumBalanceForRentExemption: async (space: number) => space * 10,
     getLatestBlockhash: async () => ({
       blockhash: Keypair.generate().publicKey.toBase58(),

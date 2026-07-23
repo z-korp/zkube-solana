@@ -559,6 +559,229 @@
       ]
     },
     {
+      "name": "archive_arena_daily",
+      "discriminator": [
+        145,
+        28,
+        86,
+        204,
+        154,
+        22,
+        173,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "arcade_archive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_daily",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "archive_season",
+      "discriminator": [
+        165,
+        31,
+        153,
+        184,
+        100,
+        101,
+        32,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "arcade_archive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "season.season_id",
+                "account": "Season"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "archive_weekly_jackpot",
+      "discriminator": [
+        173,
+        244,
+        158,
+        1,
+        61,
+        12,
+        164,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "arcade_archive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_jackpot",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "cleanup_orphan_active_run",
       "discriminator": [
         181,
@@ -672,20 +895,47 @@
       "args": []
     },
     {
-      "name": "close_arena_player",
+      "name": "close_arena_daily",
       "discriminator": [
-        202,
-        241,
-        245,
-        122,
-        192,
-        220,
-        159,
-        49
+        160,
+        200,
+        101,
+        189,
+        236,
+        172,
+        132,
+        142
       ],
       "accounts": [
         {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "arena_daily",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -713,6 +963,63 @@
           }
         },
         {
+          "name": "cadence_funding",
+          "docs": [
+            "canonical System-owned zero-data PDA and exposes no withdrawal path."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_arena_player",
+      "discriminator": [
+        202,
+        241,
+        245,
+        122,
+        192,
+        220,
+        159,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "arena_daily",
+          "docs": [
+            "finalized parent Daily or its canonical closed System placeholder."
+          ]
+        },
+        {
           "name": "arena_player",
           "writable": true,
           "pda": {
@@ -736,7 +1043,8 @@
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "arena_player.challenge",
+                "account": "ArenaPlayer"
               },
               {
                 "kind": "account",
@@ -786,20 +1094,47 @@
       "args": []
     },
     {
-      "name": "close_season_player",
+      "name": "close_season",
       "discriminator": [
-        91,
-        117,
-        194,
-        75,
-        230,
-        222,
-        243,
-        145
+        162,
+        198,
+        31,
+        37,
+        77,
+        0,
+        199,
+        152
       ],
       "accounts": [
         {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "season",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -820,6 +1155,60 @@
               }
             ]
           }
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_season_player",
+      "discriminator": [
+        91,
+        117,
+        194,
+        75,
+        230,
+        222,
+        243,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "season",
+          "docs": [
+            "finalized parent Season or its canonical closed System placeholder."
+          ]
         },
         {
           "name": "season_player",
@@ -846,7 +1235,8 @@
               },
               {
                 "kind": "account",
-                "path": "season"
+                "path": "season_player.season",
+                "account": "SeasonPlayer"
               },
               {
                 "kind": "account",
@@ -884,6 +1274,112 @@
                 "kind": "account",
                 "path": "season_player.player",
                 "account": "SeasonPlayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_weekly_jackpot",
+      "discriminator": [
+        235,
+        37,
+        234,
+        76,
+        94,
+        52,
+        195,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107,
+                  108,
+                  121,
+                  95,
+                  106,
+                  97,
+                  99,
+                  107,
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "weekly_jackpot.week_id",
+                "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
               }
             ]
           }
@@ -1284,41 +1780,18 @@
           }
         },
         {
-          "name": "arena_daily"
+          "name": "arena_daily",
+          "docs": [
+            "Practice run snapshots all required rules during preparation, so its",
+            "source Daily may already have been archived and closed."
+          ]
         },
         {
           "name": "arena_player",
-          "optional": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
+          "docs": [
+            "writes paid ArenaPlayer state."
+          ],
+          "optional": true
         },
         {
           "name": "active_run",
@@ -2160,6 +2633,57 @@
       ]
     },
     {
+      "name": "expire_unresolved_practice_run",
+      "discriminator": [
+        159,
+        213,
+        248,
+        237,
+        209,
+        159,
+        93,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "run_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "finalize_arena_daily",
       "discriminator": [
         97,
@@ -2378,6 +2902,32 @@
                 "kind": "account",
                 "path": "following_weekly.week_id",
                 "account": "WeeklyJackpot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
               }
             ]
           }
@@ -2746,6 +3296,83 @@
       ]
     },
     {
+      "name": "funded_prepare_arena_daily",
+      "discriminator": [
+        49,
+        198,
+        221,
+        1,
+        136,
+        42,
+        220,
+        205
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcade_config"
+        },
+        {
+          "name": "arcade_archive"
+        },
+        {
+          "name": "daily_rules_catalog"
+        },
+        {
+          "name": "arena_daily",
+          "writable": true
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "day_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "funded_prepare_campaign_run",
       "discriminator": [
         100,
@@ -2926,6 +3553,157 @@
       ]
     },
     {
+      "name": "funded_prepare_season",
+      "discriminator": [
+        170,
+        176,
+        201,
+        109,
+        213,
+        206,
+        111,
+        184
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcade_config"
+        },
+        {
+          "name": "arcade_archive"
+        },
+        {
+          "name": "season",
+          "writable": true
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "season_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "funded_prepare_weekly_jackpot",
+      "discriminator": [
+        134,
+        253,
+        200,
+        115,
+        200,
+        192,
+        66,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "protocol"
+        },
+        {
+          "name": "arcade_config"
+        },
+        {
+          "name": "arcade_archive"
+        },
+        {
+          "name": "daily_rules_catalog"
+        },
+        {
+          "name": "weekly_jackpot",
+          "writable": true
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        }
+      ],
+      "args": [
+        {
+          "name": "week_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "initialize_arcade",
       "discriminator": [
         59,
@@ -3023,6 +3801,104 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "initialize_arcade_archive",
+      "discriminator": [
+        252,
+        103,
+        113,
+        174,
+        74,
+        226,
+        174,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_archive",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "first_day_id",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "initialize_player",
@@ -3414,6 +4290,32 @@
           }
         },
         {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "daily_rules_catalog"
         },
         {
@@ -3777,6 +4679,32 @@
           }
         },
         {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "season",
           "writable": true,
           "pda": {
@@ -3865,6 +4793,32 @@
                   99,
                   97,
                   100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_archive",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101,
+                  95,
+                  97,
+                  114,
+                  99,
+                  104,
+                  105,
+                  118,
                   101
                 ]
               }
@@ -5297,6 +6251,19 @@
       ]
     },
     {
+      "name": "ArcadeArchive",
+      "discriminator": [
+        217,
+        86,
+        182,
+        61,
+        130,
+        66,
+        2,
+        190
+      ]
+    },
+    {
       "name": "ArcadeConfig",
       "discriminator": [
         72,
@@ -5454,6 +6421,19 @@
     }
   ],
   "events": [
+    {
+      "name": "CadenceArchived",
+      "discriminator": [
+        233,
+        44,
+        114,
+        4,
+        20,
+        38,
+        100,
+        186
+      ]
+    },
     {
       "name": "CampaignLevelRewarded",
       "discriminator": [
@@ -6024,6 +7004,86 @@
       }
     },
     {
+      "name": "ArcadeArchive",
+      "docs": [
+        "Small, permanent commitment accumulator for recyclable cadence accounts.",
+        "",
+        "The three roots are append-only hash chains. `last_*_id` advances by",
+        "exactly one for every archived result, beginning at the launch cadence.",
+        "Operational synchronization and rollup counters deliberately do not enter",
+        "the canonical result hashes, so those one-way cleanup steps cannot mutate",
+        "an already committed competition result."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "arcade_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "first_daily_id",
+            "type": "u32"
+          },
+          {
+            "name": "last_daily_id",
+            "type": "u32"
+          },
+          {
+            "name": "daily_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "first_weekly_id",
+            "type": "u32"
+          },
+          {
+            "name": "last_weekly_id",
+            "type": "u32"
+          },
+          {
+            "name": "weekly_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "first_season_id",
+            "type": "u32"
+          },
+          {
+            "name": "last_season_id",
+            "type": "u32"
+          },
+          {
+            "name": "season_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "ArcadeConfig",
       "type": {
         "kind": "struct",
@@ -6340,6 +7400,43 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CadenceArchived",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "docs": [
+              "0 = Daily, 1 = Weekly, 2 = Season."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "period_id",
+            "type": "u32"
+          },
+          {
+            "name": "result_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }

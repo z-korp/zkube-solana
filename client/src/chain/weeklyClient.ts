@@ -7,6 +7,7 @@ import {
 } from "@solana/web3.js";
 
 import {
+  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveProtocolConfigPda,
@@ -185,6 +186,7 @@ export async function buildOpenWeeklyPlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
+      arcadeArchive: deriveArcadeArchivePda(),
       dailyRulesCatalog: config.rulesCatalog,
       weeklyJackpot: deriveWeeklyJackpotPda(args.weeklyId),
       payer: args.payer ?? args.wallet.publicKey,

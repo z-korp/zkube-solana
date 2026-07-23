@@ -56,6 +56,55 @@ pub fn handler_initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
     Ok(())
 }
 
+#[derive(Accounts)]
+#[instruction(first_day_id: u32)]
+pub struct InitializeArcadeArchive<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = protocol.paused @ ErrorCode::InvalidState
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ArcadeArchive::INIT_SPACE,
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler_initialize_arcade_archive(
+    ctx: Context<InitializeArcadeArchive>,
+    first_day_id: u32,
+) -> Result<()> {
+    let today = day_id_at(Clock::get()?.unix_timestamp)?;
+    require!(
+        (ctx.accounts.arcade_config.launch_seeded
+            && first_day_id == ctx.accounts.arcade_config.launch_day_id)
+            || (!ctx.accounts.arcade_config.launch_seeded && first_day_id == today),
+        ErrorCode::InvalidPeriod
+    );
+    ctx.accounts
+        .arcade_archive
+        .set_inner(ArcadeArchive::initialize(
+            ctx.accounts.arcade_config.key(),
+            first_day_id,
+            ctx.bumps.arcade_archive,
+        )?);
+    Ok(())
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PublishArenaRulesArgs {
     pub content_version: u32,
@@ -159,6 +208,14 @@ pub struct PrepareArenaDaily<'info> {
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
         constraint = arcade_config.rules_catalog == daily_rules_catalog.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_archive.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
+        constraint = day_id > arcade_archive.last_daily_id @ ErrorCode::InvalidPeriod
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
     pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(init, payer = payer, space = 8 + ArenaDaily::INIT_SPACE,
         seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
@@ -249,6 +306,14 @@ pub struct PrepareWeeklyJackpot<'info> {
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_archive.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
+        constraint = week_id > arcade_archive.last_weekly_id @ ErrorCode::InvalidPeriod
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
     #[account(address = arcade_config.rules_catalog)]
     pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(init, payer = payer, space = 8 + WeeklyJackpot::INIT_SPACE,
@@ -311,6 +376,14 @@ pub struct PrepareSeason<'info> {
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_archive.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
+        constraint = season_id > arcade_archive.last_season_id @ ErrorCode::InvalidPeriod
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
     #[account(init, payer = payer, space = 8 + Season::INIT_SPACE,
         seeds = [SEASON_SEED, season_id.to_le_bytes().as_ref()], bump)]
     pub season: Box<Account<'info, Season>>,
@@ -372,9 +445,8 @@ pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<
     let now = Clock::get()?.unix_timestamp;
     let current = day_id_at(now)?;
     require!(
-        (current == ctx.accounts.arena_daily.day_id
-            && now >= ctx.accounts.arena_daily.opens_at
-            && now < ctx.accounts.arena_daily.entries_close_at)
+        (ctx.accounts.arena_daily.day_id == current
+            || ctx.accounts.arena_daily.day_id == current.saturating_add(1))
             || (ctx.accounts.arena_daily.day_id < current
                 && ctx.accounts.arena_daily.predecessor_rollover_applied
                 && now >= ctx.accounts.arena_daily.recovery_deadline_at),
@@ -400,9 +472,8 @@ pub fn handler_activate_weekly_jackpot(ctx: Context<ActivateWeeklyJackpot>) -> R
     let now = Clock::get()?.unix_timestamp;
     let current = week_id_for_day(day_id_at(now)?)?;
     require!(
-        (current == ctx.accounts.weekly_jackpot.week_id
-            && now >= ctx.accounts.weekly_jackpot.opens_at
-            && now < ctx.accounts.weekly_jackpot.closes_at)
+        (ctx.accounts.weekly_jackpot.week_id == current
+            || ctx.accounts.weekly_jackpot.week_id == current.saturating_add(1))
             || (ctx.accounts.weekly_jackpot.week_id < current
                 && ctx.accounts.weekly_jackpot.predecessor_rollover_applied
                 && period_settlement_ready(now, ctx.accounts.weekly_jackpot.closes_at)),
@@ -428,9 +499,8 @@ pub fn handler_activate_season(ctx: Context<ActivateSeason>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let current = season_id_for_day(day_id_at(now)?)?;
     require!(
-        (current == ctx.accounts.season.season_id
-            && now >= ctx.accounts.season.opens_at
-            && now < ctx.accounts.season.closes_at)
+        (ctx.accounts.season.season_id == current
+            || ctx.accounts.season.season_id == current.saturating_add(1))
             || (ctx.accounts.season.season_id < current
                 && ctx.accounts.season.predecessor_rollover_applied
                 && period_settlement_ready(now, ctx.accounts.season.closes_at)),
@@ -910,11 +980,13 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
 pub struct ConsumePracticeRun<'info> {
     #[account(mut, seeds = [PLAYER_STATE_SEED, active_run.owner.as_ref()], bump = player_state.bump)]
     pub player_state: Box<Account<'info, PlayerState>>,
-    #[account(address = active_run.daily_challenge @ ErrorCode::InvalidOwner)]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()], bump = arena_player.bump,
-        constraint = arena_player.player == active_run.owner @ ErrorCode::Unauthorized)]
-    pub arena_player: Option<Box<Account<'info, ArenaPlayer>>>,
+    /// CHECK: Retained in its original ABI position for older clients. A
+    /// Practice run snapshots all required rules during preparation, so its
+    /// source Daily may already have been archived and closed.
+    pub arena_daily: UncheckedAccount<'info>,
+    /// CHECK: Retained in its original ABI position; Practice never reads or
+    /// writes paid ArenaPlayer state.
+    pub arena_player: Option<UncheckedAccount<'info>>,
     #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump)]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Canonical zero-data player funding PDA.
@@ -945,6 +1017,46 @@ pub fn handler_consume_practice_run(ctx: Context<ConsumePracticeRun>) -> Result<
     // Consuming it releases the durable run reservation and writes no profile,
     // leaderboard, payout, or other progression state.
     ctx.accounts.player_state.release_run(active.run_id)
+}
+
+#[derive(Accounts)]
+#[instruction(run_id: u64)]
+pub struct ExpireUnresolvedPracticeRun<'info> {
+    #[account(
+        mut,
+        seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
+        bump = player_state.bump,
+        constraint = player_state.owner == owner.key() @ ErrorCode::Unauthorized
+    )]
+    pub player_state: Box<Account<'info, PlayerState>>,
+    /// CHECK: Wallet identity pinned by PlayerState.
+    pub owner: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_expire_unresolved_practice_run(
+    ctx: Context<ExpireUnresolvedPracticeRun>,
+    run_id: u64,
+) -> Result<()> {
+    require!(
+        ctx.accounts.player_state.active_run_mode == RunMode::Practice,
+        ErrorCode::InvalidState
+    );
+    require!(
+        Clock::get()?.unix_timestamp
+            >= ctx
+                .accounts
+                .player_state
+                .active_run_deadline_at
+                .checked_add(STUCK_RUN_RECOVERY_SECONDS)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+        ErrorCode::ChallengeNotEnded
+    );
+    require!(
+        ctx.accounts.player_state.active_run_id == run_id,
+        ErrorCode::InvalidRunId
+    );
+    ctx.accounts.player_state.expire_arcade_run(run_id)
 }
 
 #[derive(Accounts)]
@@ -1197,6 +1309,13 @@ pub struct FinalizeWeeklyJackpot<'info> {
         constraint = following_weekly.week_id == weekly_jackpot.week_id.saturating_add(1) @ ErrorCode::InvalidPeriod,
         constraint = !following_weekly.predecessor_rollover_applied @ ErrorCode::AlreadySubmitted)]
     pub following_weekly: Box<Account<'info, WeeklyJackpot>>,
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_archive.arcade_config == weekly_jackpot.arcade_config @ ErrorCode::InvalidOwner
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
     pub caller: Signer<'info>,
 }
 
@@ -1210,27 +1329,21 @@ pub fn handler_finalize_weekly_jackpot<'info>(
             && period_settlement_ready(now, ctx.accounts.weekly_jackpot.closes_at),
         ErrorCode::ChallengeNotEnded
     );
-    // Remaining accounts have one deterministic split: every qualified Daily
-    // first, in ascending day order and read-only, followed by the unique
-    // writable payout wallets in aggregate-recipient order. Validating every
-    // Daily on-chain prevents a permissionless caller from settling Weekly
-    // while an eligible ranked run could still change a skill board.
-    let qualified_daily_count = usize::from(ctx.accounts.weekly_jackpot.qualified_day_count()?);
+    // Every qualified Daily must already be present in the append-only Daily
+    // archive chain. The checkpoint replaces the former list of live Daily
+    // accounts, allowing their rent to be recycled before Weekly settlement.
+    let qualified_daily_count = u32::from(ctx.accounts.weekly_jackpot.qualified_day_count()?);
+    let last_qualified_day = ctx
+        .accounts
+        .weekly_jackpot
+        .qualification_start_day
+        .checked_add(qualified_daily_count.saturating_sub(1))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
     require!(
-        ctx.remaining_accounts.len() >= qualified_daily_count,
-        ErrorCode::InvalidState
+        ctx.accounts.arcade_archive.last_daily_id >= last_qualified_day,
+        ErrorCode::ChallengeNotEnded
     );
-    let (qualified_dailies, payout_destinations) =
-        ctx.remaining_accounts.split_at(qualified_daily_count);
-    for (offset, account) in qualified_dailies.iter().enumerate() {
-        let expected_day = ctx
-            .accounts
-            .weekly_jackpot
-            .qualification_start_day
-            .checked_add(u32::try_from(offset).map_err(|_| ErrorCode::ArithmeticOverflow)?)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        validate_finalized_weekly_daily(account, &ctx.accounts.weekly_jackpot, expected_day)?;
-    }
+    let payout_destinations = ctx.remaining_accounts;
     let pool = ctx.accounts.weekly_jackpot.ledger.available_lamports()?;
     require_spendable(&ctx.accounts.weekly_jackpot.to_account_info(), pool)?;
     let budget = weekly_bounty_budget(pool);
@@ -1419,13 +1532,262 @@ fn settle_ranked_period<'info, T: RankedPeriod>(
 }
 
 #[derive(Accounts)]
-pub struct CloseArenaPlayer<'info> {
-    #[account(seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState)]
+pub struct ArchiveArenaDaily<'info> {
+    #[account(
+        mut,
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
+        bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
+    )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {
+    require!(ctx.accounts.arena_daily.resolved(), ErrorCode::InvalidState);
+    let result_hash = daily_result_hash(&ctx.accounts.arena_daily)?;
+    ctx.accounts
+        .arcade_archive
+        .append_daily(ctx.accounts.arena_daily.day_id, result_hash)?;
+    emit!(CadenceArchived {
+        kind: 0,
+        period_id: ctx.accounts.arena_daily.day_id,
+        result_hash,
+        root: ctx.accounts.arcade_archive.daily_root,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ArchiveWeeklyJackpot<'info> {
+    #[account(
+        mut,
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()],
+        bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = weekly_jackpot.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
+    )]
+    pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_archive_weekly_jackpot(ctx: Context<ArchiveWeeklyJackpot>) -> Result<()> {
+    let result_hash = weekly_result_hash(&ctx.accounts.weekly_jackpot)?;
+    ctx.accounts
+        .arcade_archive
+        .append_weekly(ctx.accounts.weekly_jackpot.week_id, result_hash)?;
+    emit!(CadenceArchived {
+        kind: 1,
+        period_id: ctx.accounts.weekly_jackpot.week_id,
+        result_hash,
+        root: ctx.accounts.arcade_archive.weekly_root,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ArchiveSeason<'info> {
+    #[account(
+        mut,
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        seeds = [SEASON_SEED, season.season_id.to_le_bytes().as_ref()],
+        bump = season.bump,
+        constraint = season.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = season.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = season.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
+    )]
+    pub season: Box<Account<'info, Season>>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_archive_season(ctx: Context<ArchiveSeason>) -> Result<()> {
+    let result_hash = season_result_hash(&ctx.accounts.season)?;
+    ctx.accounts
+        .arcade_archive
+        .append_season(ctx.accounts.season.season_id, result_hash)?;
+    emit!(CadenceArchived {
+        kind: 2,
+        period_id: ctx.accounts.season.season_id,
+        result_hash,
+        root: ctx.accounts.arcade_archive.season_root,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct CloseArenaDaily<'info> {
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        mut,
+        close = cadence_funding,
+        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
+        bump = arena_daily.bump,
+        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
+        constraint = arcade_archive.last_daily_id >= arena_daily.day_id @ ErrorCode::InvalidState
+    )]
+    pub arena_daily: Box<Account<'info, ArenaDaily>>,
+    /// CHECK: The only destination for cadence-account rent. It is a
+    /// canonical System-owned zero-data PDA and exposes no withdrawal path.
+    #[account(
+        mut,
+        seeds = [CADENCE_FUNDING_SEED],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = cadence_funding.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub cadence_funding: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
+    let daily = &ctx.accounts.arena_daily;
+    require!(
+        daily.resolved()
+            && daily.season_rollup_sealed
+            && daily.profile_sync_mask
+                == ranked_profile_sync_mask(daily.entries.len(), daily.ledger)?,
+        ErrorCode::InvalidState
+    );
+    let following_day = daily
+        .day_id
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let (_, following_practice_entry_close, _, _) = day_window(following_day)?;
+    require!(
+        Clock::get()?.unix_timestamp >= following_practice_entry_close,
+        ErrorCode::ChallengeNotEnded
+    );
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct CloseWeeklyJackpot<'info> {
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        mut,
+        close = cadence_funding,
+        seeds = [WEEKLY_JACKPOT_SEED, weekly_jackpot.week_id.to_le_bytes().as_ref()],
+        bump = weekly_jackpot.bump,
+        constraint = weekly_jackpot.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = weekly_jackpot.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = weekly_jackpot.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
+        constraint = arcade_archive.last_weekly_id >= weekly_jackpot.week_id @ ErrorCode::InvalidState
+    )]
+    pub weekly_jackpot: Box<Account<'info, WeeklyJackpot>>,
+    /// CHECK: Canonical System-owned zero-data cadence funding PDA.
+    #[account(
+        mut,
+        seeds = [CADENCE_FUNDING_SEED],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = cadence_funding.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub cadence_funding: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_weekly_jackpot(ctx: Context<CloseWeeklyJackpot>) -> Result<()> {
+    require!(
+        ctx.accounts.weekly_jackpot.profile_sync_mask
+            == weekly_profile_sync_mask(&ctx.accounts.weekly_jackpot)?,
+        ErrorCode::InvalidState
+    );
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct CloseSeason<'info> {
+    #[account(
+        seeds = [ARCADE_ARCHIVE_SEED],
+        bump = arcade_archive.bump,
+        constraint = arcade_archive.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
+    #[account(
+        mut,
+        close = cadence_funding,
+        seeds = [SEASON_SEED, season.season_id.to_le_bytes().as_ref()],
+        bump = season.bump,
+        constraint = season.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = season.arcade_config == arcade_archive.arcade_config @ ErrorCode::InvalidOwner,
+        constraint = season.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
+        constraint = arcade_archive.last_season_id >= season.season_id @ ErrorCode::InvalidState
+    )]
+    pub season: Box<Account<'info, Season>>,
+    /// CHECK: Canonical System-owned zero-data cadence funding PDA.
+    #[account(
+        mut,
+        seeds = [CADENCE_FUNDING_SEED],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = cadence_funding.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub cadence_funding: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_close_season(ctx: Context<CloseSeason>) -> Result<()> {
+    require!(
+        ctx.accounts.season.profile_sync_mask
+            == ranked_profile_sync_mask(
+                ctx.accounts.season.entries.len(),
+                ctx.accounts.season.ledger,
+            )?,
+        ErrorCode::InvalidState
+    );
+    Ok(())
+}
+
+#[event]
+pub struct CadenceArchived {
+    /// 0 = Daily, 1 = Weekly, 2 = Season.
+    pub kind: u8,
+    pub period_id: u32,
+    pub result_hash: [u8; 32],
+    pub root: [u8; 32],
+}
+
+#[derive(Accounts)]
+pub struct CloseArenaPlayer<'info> {
+    /// CHECK: Kept in the legacy ABI position. It must be either the live,
+    /// finalized parent Daily or its canonical closed System placeholder.
+    pub arena_daily: UncheckedAccount<'info>,
     #[account(mut, close = rent_recipient,
-        seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
+        seeds = [ARENA_PLAYER_SEED, arena_player.challenge.as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
         constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
+        constraint = arena_player.resolved() @ ErrorCode::InvalidState,
         constraint = !arena_player.has_best || arena_player.season_rolled_up @ ErrorCode::InvalidState)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     /// CHECK: Canonical player funding PDA receives recycled rent.
@@ -1436,17 +1798,22 @@ pub struct CloseArenaPlayer<'info> {
     pub caller: Signer<'info>,
 }
 
-pub fn handler_close_arena_player(_ctx: Context<CloseArenaPlayer>) -> Result<()> {
-    Ok(())
+pub fn handler_close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {
+    require_keys_eq!(
+        ctx.accounts.arena_daily.key(),
+        ctx.accounts.arena_player.challenge,
+        ErrorCode::InvalidOwner
+    );
+    validate_live_or_closed_daily(&ctx.accounts.arena_daily.to_account_info())
 }
 
 #[derive(Accounts)]
 pub struct CloseSeasonPlayer<'info> {
-    #[account(seeds = [SEASON_SEED, season.season_id.to_le_bytes().as_ref()], bump = season.bump,
-        constraint = season.status == PeriodStatus::Finalized @ ErrorCode::InvalidState)]
-    pub season: Box<Account<'info, Season>>,
+    /// CHECK: Kept in the legacy ABI position. It must be either the live,
+    /// finalized parent Season or its canonical closed System placeholder.
+    pub season: UncheckedAccount<'info>,
     #[account(mut, close = rent_recipient,
-        seeds = [SEASON_PLAYER_SEED, season.key().as_ref(), season_player.player.as_ref()], bump = season_player.bump)]
+        seeds = [SEASON_PLAYER_SEED, season_player.season.as_ref(), season_player.player.as_ref()], bump = season_player.bump)]
     pub season_player: Box<Account<'info, SeasonPlayer>>,
     /// CHECK: Canonical player funding PDA receives recycled rent.
     #[account(mut, seeds = [PLAYER_FUNDING_SEED, season_player.player.as_ref()], bump,
@@ -1456,8 +1823,13 @@ pub struct CloseSeasonPlayer<'info> {
     pub caller: Signer<'info>,
 }
 
-pub fn handler_close_season_player(_ctx: Context<CloseSeasonPlayer>) -> Result<()> {
-    Ok(())
+pub fn handler_close_season_player(ctx: Context<CloseSeasonPlayer>) -> Result<()> {
+    require_keys_eq!(
+        ctx.accounts.season.key(),
+        ctx.accounts.season_player.season,
+        ErrorCode::InvalidOwner
+    );
+    validate_live_or_closed_season(&ctx.accounts.season.to_account_info())
 }
 
 #[derive(Accounts)]
@@ -1587,15 +1959,11 @@ fn validate_wallet(account: &AccountInfo<'_>, expected: Pubkey) -> Result<()> {
     Ok(())
 }
 
-fn validate_finalized_weekly_daily(
-    account: &AccountInfo<'_>,
-    weekly: &WeeklyJackpot,
-    expected_day: u32,
-) -> Result<()> {
-    require!(
-        !account.executable && !account.is_writable && *account.owner == crate::ID,
-        ErrorCode::InvalidOwner
-    );
+fn validate_live_or_closed_daily(account: &AccountInfo<'_>) -> Result<()> {
+    if *account.owner == system_program::ID && account.data_is_empty() {
+        return Ok(());
+    }
+    require_keys_eq!(*account.owner, crate::ID, ErrorCode::InvalidOwner);
     require!(
         account.data_len() == 8 + ArenaDaily::INIT_SPACE,
         ErrorCode::InvalidOwner
@@ -1604,18 +1972,28 @@ fn validate_finalized_weekly_daily(
     let mut bytes = data.as_ref();
     let daily = ArenaDaily::try_deserialize(&mut bytes)?;
     require!(
-        daily.version == ARCADE_ACCOUNT_VERSION
-            && daily.day_id == expected_day
-            && daily.week_id == weekly.week_id
-            && daily.arcade_config == weekly.arcade_config
-            && daily.status == PeriodStatus::Finalized
-            && daily.resolved(),
-        ErrorCode::ChallengeNotEnded
+        daily.version == ARCADE_ACCOUNT_VERSION && daily.status == PeriodStatus::Finalized,
+        ErrorCode::InvalidState
     );
-    let (expected_key, bump) =
-        Pubkey::find_program_address(&[ARENA_DAILY_SEED, &expected_day.to_le_bytes()], &crate::ID);
-    require_keys_eq!(account.key(), expected_key, ErrorCode::InvalidPeriod);
-    require!(daily.bump == bump, ErrorCode::InvalidPeriod);
+    Ok(())
+}
+
+fn validate_live_or_closed_season(account: &AccountInfo<'_>) -> Result<()> {
+    if *account.owner == system_program::ID && account.data_is_empty() {
+        return Ok(());
+    }
+    require_keys_eq!(*account.owner, crate::ID, ErrorCode::InvalidOwner);
+    require!(
+        account.data_len() == 8 + Season::INIT_SPACE,
+        ErrorCode::InvalidOwner
+    );
+    let data = account.try_borrow_data()?;
+    let mut bytes = data.as_ref();
+    let season = Season::try_deserialize(&mut bytes)?;
+    require!(
+        season.version == ARCADE_ACCOUNT_VERSION && season.status == PeriodStatus::Finalized,
+        ErrorCode::InvalidState
+    );
     Ok(())
 }
 
@@ -1624,7 +2002,7 @@ fn checked_add_u64(left: u64, right: u64) -> Result<u64> {
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
 }
 
-fn prepare_period_is_allowed(
+pub(crate) fn prepare_period_is_allowed(
     requested: u32,
     current: u32,
     launch_seeded: bool,
@@ -1652,9 +2030,9 @@ fn practice_runs_close_at(challenge_day_id: u32, now: i64) -> Result<i64> {
         challenge_day_id.saturating_add(1) == today,
         ErrorCode::InvalidPeriod
     );
-    let (opens_at, _, runs_close_at, _) = day_window(today)?;
+    let (opens_at, entries_close_at, runs_close_at, _) = day_window(today)?;
     require!(
-        now >= opens_at && now < runs_close_at,
+        now >= opens_at && now < entries_close_at,
         ErrorCode::ChallengeEnded
     );
     Ok(runs_close_at)
@@ -1697,7 +2075,7 @@ mod tests {
     fn practice_reuses_yesterday_rules_but_gets_todays_run_window() {
         let yesterday = 104;
         let today = yesterday + 1;
-        let (today_opens, _, today_runs_close, _) = day_window(today).unwrap();
+        let (today_opens, today_entries_close, today_runs_close, _) = day_window(today).unwrap();
         let (_, _, stale_yesterday_close, _) = day_window(yesterday).unwrap();
         assert_eq!(
             practice_runs_close_at(yesterday, today_opens + 1).unwrap(),
@@ -1705,6 +2083,6 @@ mod tests {
         );
         assert!(today_runs_close > stale_yesterday_close);
         assert!(practice_runs_close_at(today, today_opens + 1).is_err());
-        assert!(practice_runs_close_at(yesterday, today_runs_close).is_err());
+        assert!(practice_runs_close_at(yesterday, today_entries_close).is_err());
     }
 }

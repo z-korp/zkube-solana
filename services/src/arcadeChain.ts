@@ -35,8 +35,8 @@ export const ZKUBE_PROGRAM_ID = new PublicKey(
 );
 export const DAYS_PER_WEEK = WEEK_DAYS;
 export const DAYS_PER_SEASON = SEASON_DAYS;
-export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60;
-export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
+export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60 + 45 * 60;
+export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 59 * 60;
 export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
 export const DAILY_RECOVERY_DEADLINE_OFFSET =
   DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
@@ -66,6 +66,7 @@ export type KeeperOperation =
   | "consume_arena_run"
   | "consume_practice_run"
   | "expire_unresolved_arena_run"
+  | "expire_unresolved_practice_run"
   | "cleanup_orphan_active_run"
   | "initialize_season_player"
   | "rollup_arena_to_season"
@@ -76,6 +77,12 @@ export type KeeperOperation =
   | "sync_daily_profile"
   | "sync_weekly_profile"
   | "sync_season_profile"
+  | "archive_arena_daily"
+  | "archive_weekly_jackpot"
+  | "archive_season"
+  | "close_arena_daily"
+  | "close_weekly_jackpot"
+  | "close_season"
   | "close_arena_player"
   | "close_season_player"
   | "revoke_expired_session";
@@ -107,6 +114,7 @@ export interface KeeperPlanContext {
   includeArenaPlayer?: boolean;
   predecessorRolloverApplied?: boolean;
   recoveryActivation?: boolean;
+  preactivation?: boolean;
   sealedDailies?: number;
   deadlineAt?: number;
   recoveryDeadlineAt?: number;
@@ -117,6 +125,15 @@ export interface KeeperPlanContext {
   /** Canonical payout-position bits this profile sync is expected to consume. */
   winnerPositionMask?: number;
   rentRecipient?: PublicKey;
+  cadenceFunding?: PublicKey;
+  arcadeArchive?: PublicKey;
+  previousCadenceId?: number;
+  archiveCanonicalJson?: string;
+  archiveFileSha256?: string;
+  archiveResultHash?: string;
+  archiveCommitted?: boolean;
+  requiredProfileSyncMask?: number;
+  closeEligibleAt?: number;
   sessionSigner?: PublicKey;
   sessionAddress?: PublicKey;
   sessionValidUntil?: number;
@@ -234,6 +251,8 @@ export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
 export const protocolPda = () => derivePda("protocol");
 export const arcadeConfigPda = () => derivePda("arcade");
 export const operatorRevenuePda = () => derivePda("operator_revenue");
+export const cadenceFundingPda = () => derivePda("cadence_funding");
+export const arcadeArchivePda = () => derivePda("arcade_archive");
 export const rulesCatalogPda = (version: number) =>
   derivePda("daily_rules", u32(version));
 export const mapCatalogPda = (contentVersion: number, mapId: number) => {

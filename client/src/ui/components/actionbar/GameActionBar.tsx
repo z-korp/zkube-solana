@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { motion } from "motion/react";
 import { Flag, Settings, Volume2, VolumeX } from "lucide-react";
 import { BonusType } from "@/chain/bonusTypes";
 import {
@@ -97,19 +96,17 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
         <div className="absolute inset-0">
           {/* Surrender — left socket */}
           <Dialog>
-            <DialogTrigger asChild>
-              <motion.button
-                disabled={surrenderDisabled}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.92 }}
-                className="absolute rounded-full flex items-center justify-center text-red-400 hover:text-red-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                style={circleToPercent(
-                  ACTION_BAR.sockets.surrender,
-                  ACTION_BAR.viewBox,
-                )}
-              >
-                <Flag className="w-[40%] h-[40%] drop-shadow-md" />
-              </motion.button>
+            <DialogTrigger
+              type="button"
+              aria-label="Quit run"
+              disabled={surrenderDisabled}
+              className="absolute flex items-center justify-center rounded-full border-0 bg-transparent p-0 text-red-400 transition-[color,transform] hover:scale-105 hover:text-red-300 active:scale-[0.92] disabled:cursor-not-allowed disabled:opacity-40"
+              style={circleToPercent(
+                ACTION_BAR.sockets.surrender,
+                ACTION_BAR.viewBox,
+              )}
+            >
+              <Flag className="h-[40%] w-[40%] drop-shadow-md" />
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader>
@@ -154,14 +151,16 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
               /* ─── No bonuses: guardian portrait + rules tooltip ─── */
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="w-full h-full rounded-full overflow-hidden cursor-pointer">
-                      <img
-                        src={portraitSrc}
-                        alt={guardian.name}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    </div>
+                  <TooltipTrigger
+                    type="button"
+                    aria-label={`About ${guardian.name}`}
+                    className="h-full w-full cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0"
+                  >
+                    <img
+                      src={portraitSrc}
+                      alt=""
+                      className="h-full w-full rounded-full object-cover"
+                    />
                   </TooltipTrigger>
                   <TooltipContent
                     side="top"
@@ -199,55 +198,45 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
                     delayDuration={0}
                   >
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.button
-                          onClick={
-                            hasCharges && !disabled ? slot.onClick : undefined
-                          }
-                          disabled={!hasCharges || disabled}
-                          whileHover={
-                            hasCharges && !disabled
-                              ? { scale: 1.08 }
-                              : undefined
-                          }
-                          whileTap={
-                            hasCharges && !disabled
-                              ? { scale: 0.92 }
-                              : undefined
-                          }
-                          className={`relative w-full h-full overflow-visible flex items-center justify-center cursor-pointer transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-                            isSelected
-                              ? "drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
-                              : ""
+                      <TooltipTrigger
+                        type="button"
+                        aria-label={`${slot.name}: ${slot.charges} charges`}
+                        onClick={
+                          hasCharges && !disabled ? slot.onClick : undefined
+                        }
+                        disabled={!hasCharges || disabled}
+                        className={`relative flex h-full w-full cursor-pointer items-center justify-center overflow-visible border-0 bg-transparent p-0 transition-all enabled:hover:scale-[1.08] enabled:active:scale-[0.92] disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isSelected
+                            ? "drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
+                            : ""
+                        }`}
+                      >
+                        {bonusEarnSignal > 0 && (
+                          <span
+                            key={`earn-ring-${bonusEarnSignal}`}
+                            className="bonus-earn-ring pointer-events-none absolute inset-0 rounded-full"
+                          />
+                        )}
+                        <img
+                          key={`icon-${bonusEarnSignal}`}
+                          src={slot.icon}
+                          alt=""
+                          className={`h-[60%] w-[60%] object-contain ${
+                            bonusEarnSignal > 0 ? "bonus-earn-swirl" : ""
+                          }`}
+                        />
+                        <span
+                          key={`badge-${bonusEarnSignal}`}
+                          className={`absolute -bottom-1 -right-1 z-10 flex h-[clamp(16px,4vw,26px)] min-w-[clamp(16px,4vw,26px)] items-center justify-center rounded-full px-0.5 font-sans text-[clamp(8px,2vw,14px)] font-bold shadow-[0_0_4px_rgba(0,0,0,0.5)] ${
+                            bonusEarnSignal > 0 ? "bonus-badge-pop " : ""
+                          }${
+                            hasCharges
+                              ? "bg-yellow-500 border border-yellow-400/50 text-white"
+                              : "bg-slate-700 border border-slate-500 text-slate-400"
                           }`}
                         >
-                          {bonusEarnSignal > 0 && (
-                            <span
-                              key={`earn-ring-${bonusEarnSignal}`}
-                              className="bonus-earn-ring pointer-events-none absolute inset-0 rounded-full"
-                            />
-                          )}
-                          <img
-                            key={`icon-${bonusEarnSignal}`}
-                            src={slot.icon}
-                            alt={slot.name}
-                            className={`w-[60%] h-[60%] object-contain ${
-                              bonusEarnSignal > 0 ? "bonus-earn-swirl" : ""
-                            }`}
-                          />
-                          <span
-                            key={`badge-${bonusEarnSignal}`}
-                            className={`absolute -bottom-1 -right-1 font-sans text-[clamp(8px,2vw,14px)] font-bold rounded-full min-w-[clamp(16px,4vw,26px)] h-[clamp(16px,4vw,26px)] flex items-center justify-center px-0.5 shadow-[0_0_4px_rgba(0,0,0,0.5)] z-10 ${
-                              bonusEarnSignal > 0 ? "bonus-badge-pop " : ""
-                            }${
-                              hasCharges
-                                ? "bg-yellow-500 border border-yellow-400/50 text-white"
-                                : "bg-slate-700 border border-slate-500 text-slate-400"
-                            }`}
-                          >
-                            {slot.charges}
-                          </span>
-                        </motion.button>
+                          {slot.charges}
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent
                         side="top"
@@ -276,18 +265,16 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
 
           {/* Settings — right socket */}
           <Dialog>
-            <DialogTrigger asChild>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.92 }}
-                className="absolute rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
-                style={circleToPercent(
-                  ACTION_BAR.sockets.settings,
-                  ACTION_BAR.viewBox,
-                )}
-              >
-                <Settings className="w-[40%] h-[40%] drop-shadow-md" />
-              </motion.button>
+            <DialogTrigger
+              type="button"
+              aria-label="Sound settings"
+              className="absolute flex items-center justify-center rounded-full border-0 bg-transparent p-0 text-slate-400 transition-[color,transform] hover:scale-105 hover:text-slate-200 active:scale-[0.92]"
+              style={circleToPercent(
+                ACTION_BAR.sockets.settings,
+                ACTION_BAR.viewBox,
+              )}
+            >
+              <Settings className="h-[40%] w-[40%] drop-shadow-md" />
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader>

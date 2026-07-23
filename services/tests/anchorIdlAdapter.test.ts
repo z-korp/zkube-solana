@@ -8,19 +8,27 @@ import {
   PublicKey,
   SystemProgram,
 } from "@solana/web3.js";
+import { convertIdlToCamelCase, type Idl } from "@anchor-lang/core";
+import BN from "bn.js";
 import { describe, expect, it } from "vitest";
 
 import {
   AnchorKeeperAdapter,
+  canonicalCadenceResultHash,
   KEEPER_EXPECTED_IDL_SHA256,
 } from "../src/anchorIdlAdapter";
 import {
   ZKUBE_PROGRAM_ID,
+  ARCADE_ACCOUNT_VERSION,
+  DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_RUN_CLOSE_OFFSET,
   activeRunPda,
   arcadeConfigPda,
+  arcadeArchivePda,
   arenaDailyPda,
   arenaPlayerPda,
   playerFundingPda,
+  cadenceFundingPda,
   playerStatePda,
   protocolPda,
   rulesCatalogPda,
@@ -35,7 +43,7 @@ import {
 } from "../src/arcadeChain";
 
 const FINAL_IDL_SHA256 =
-  "d34da42b6d5e81af75ac0efe971335cb5ad985eca3ad8725a0669789b5c118fd";
+  "a0d6819f92365e72558104e347ff8f25ccf417b808f7827743f82311a03f8ba7";
 const DAY = 20_651;
 const WEEK = weekIdForDay(DAY);
 const SEASON = seasonIdForDay(DAY);
@@ -129,11 +137,13 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         keys: [
           meta(protocolPda()),
           meta(arcadeConfigPda()),
+          meta(arcadeArchivePda()),
           meta(rulesCatalog),
           meta(arenaDailyPda(DAY + 1), true),
-          payer,
+          meta(cadenceFundingPda(), true),
           caller,
           meta(SystemProgram.programId),
+          meta(ZKUBE_PROGRAM_ID),
         ],
       },
       {
@@ -143,11 +153,13 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         keys: [
           meta(protocolPda()),
           meta(arcadeConfigPda()),
+          meta(arcadeArchivePda()),
           meta(rulesCatalog),
           meta(weeklyJackpotPda(WEEK + 1), true),
-          payer,
+          meta(cadenceFundingPda(), true),
           caller,
           meta(SystemProgram.programId),
+          meta(ZKUBE_PROGRAM_ID),
         ],
       },
       {
@@ -157,10 +169,12 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         keys: [
           meta(protocolPda()),
           meta(arcadeConfigPda()),
+          meta(arcadeArchivePda()),
           meta(seasonPda(SEASON + 1), true),
-          payer,
+          meta(cadenceFundingPda(), true),
           caller,
           meta(SystemProgram.programId),
+          meta(ZKUBE_PROGRAM_ID),
         ],
       },
       {
@@ -245,6 +259,16 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         ],
       },
       {
+        operation: "expire_unresolved_practice_run",
+        context: runContext(owner, "practice", "unavailable", false),
+        body: u64(RUN_ID),
+        keys: [
+          meta(playerStatePda(owner), true),
+          meta(owner),
+          caller,
+        ],
+      },
+      {
         operation: "cleanup_orphan_active_run",
         context: runContext(owner, "ranked", "base", true),
         keys: [
@@ -309,8 +333,8 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         keys: [
           meta(weeklyJackpotPda(WEEK), true),
           meta(weeklyJackpotPda(WEEK + 1), true),
+          meta(arcadeArchivePda()),
           caller,
-          ...weeklyQualificationDays.map((dayId) => meta(arenaDailyPda(dayId))),
           winner,
           winnerTwo,
         ],
@@ -365,6 +389,55 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
         keys: [caller, meta(season, true), meta(playerStatePda(owner), true)],
       },
       {
+        operation: "archive_arena_daily",
+        context: { dayId: DAY },
+        keys: [meta(arcadeArchivePda(), true), meta(daily), caller],
+      },
+      {
+        operation: "archive_weekly_jackpot",
+        context: { weekId: WEEK },
+        keys: [
+          meta(arcadeArchivePda(), true),
+          meta(weeklyJackpotPda(WEEK)),
+          caller,
+        ],
+      },
+      {
+        operation: "archive_season",
+        context: { seasonId: SEASON },
+        keys: [meta(arcadeArchivePda(), true), meta(season), caller],
+      },
+      {
+        operation: "close_arena_daily",
+        context: { dayId: DAY },
+        keys: [
+          meta(arcadeArchivePda()),
+          meta(daily, true),
+          meta(cadenceFundingPda(), true),
+          caller,
+        ],
+      },
+      {
+        operation: "close_weekly_jackpot",
+        context: { weekId: WEEK },
+        keys: [
+          meta(arcadeArchivePda()),
+          meta(weeklyJackpotPda(WEEK), true),
+          meta(cadenceFundingPda(), true),
+          caller,
+        ],
+      },
+      {
+        operation: "close_season",
+        context: { seasonId: SEASON },
+        keys: [
+          meta(arcadeArchivePda()),
+          meta(season, true),
+          meta(cadenceFundingPda(), true),
+          caller,
+        ],
+      },
+      {
         operation: "close_arena_player",
         context: {
           dayId: DAY,
@@ -394,7 +467,7 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
       },
     ];
 
-    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(24);
+    expect(new Set(cases.map(({ operation }) => operation)).size).toBe(31);
     for (const fixture of cases) {
       const [instruction] = await adapter.materialize({
         operation: fixture.operation,
@@ -424,6 +497,134 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
       programId: Keypair.generate().publicKey,
       keeper: Keypair.generate().publicKey,
     })).rejects.toThrow("unpinned program");
+  });
+
+  it("matches Rust archive result-hash golden vectors", () => {
+    const raw = JSON.parse(
+      readFileSync(
+        new URL("../../client/src/chain/idl/solana.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Idl;
+    const idl = convertIdlToCamelCase(raw);
+    const arcadeConfig = new PublicKey(Uint8Array.from({ length: 32 }, () => 9));
+    const goldenDay = 20_656;
+    const goldenWeek = weekIdForDay(goldenDay);
+    const goldenSeason = seasonIdForDay(goldenDay);
+    const zeroLedger = {
+      seededLamports: new BN(0),
+      entryLamports: new BN(0),
+      rolloverInLamports: new BN(0),
+      payoutLamports: new BN(0),
+      rolloverOutLamports: new BN(0),
+    };
+    const opensAt = goldenDay * 86_400;
+    const daily = {
+      version: ARCADE_ACCOUNT_VERSION,
+      dayId: goldenDay,
+      weekId: goldenWeek,
+      seasonId: goldenSeason,
+      arcadeConfig,
+      rulesVersion: 1,
+      contentVersion: 1,
+      catalogHash: Array(32).fill(1),
+      rulesHash: Array(32).fill(2),
+      mapId: 1,
+      scoringRule: {
+        id: 0,
+        family: 0,
+        kind: 0,
+        parameter: 0,
+        bonusMultiplierX100: 0,
+      },
+      rules: {
+        level: 0,
+        pointsRequired: 0,
+        maxMoves: 0,
+        difficulty: 0,
+        primary: { kind: 0, value: 0, requiredCount: 0 },
+        secondary: { kind: 0, value: 0, requiredCount: 0 },
+        activeMutatorId: 0,
+        passiveMutatorId: 0,
+        bossId: 0,
+        blockWeights: [0, 0, 0, 0, 0],
+        scoreMultiplierX100: 0,
+        comboMultiplierX100: 0,
+        lineClearBonus: 0,
+        perfectClearBonus: 0,
+        starThresholdModifier: 0,
+        bonusType: 0,
+        bonusTriggerType: 0,
+        bonusThreshold: 0,
+        startingCharges: 0,
+        startingRows: 0,
+      },
+      pressure: {
+        thresholds: [8, 18, 30, 42, 54, 66, 78],
+        scoreMultipliersX100: [100, 110, 125, 140, 160, 180, 210, 250],
+        blockWeights: [
+          [25, 30, 25, 15, 5],
+          [22, 28, 25, 18, 7],
+          [20, 25, 25, 20, 10],
+          [18, 22, 24, 22, 14],
+          [16, 20, 22, 24, 18],
+          [14, 18, 20, 26, 22],
+          [12, 16, 18, 28, 26],
+          [10, 14, 16, 30, 30],
+        ],
+        startingHeight: 4,
+        maxMoves: 100,
+      },
+      opensAt: new BN(opensAt),
+      entriesCloseAt: new BN(opensAt + DAILY_ENTRY_CLOSE_OFFSET),
+      runsCloseAt: new BN(opensAt + DAILY_RUN_CLOSE_OFFSET),
+      finalizedAt: new BN(opensAt + DAILY_RUN_CLOSE_OFFSET),
+      ledger: zeroLedger,
+      entriesPaid: new BN(0),
+      entriesScored: new BN(0),
+      entriesExpired: new BN(0),
+      uniquePlayers: 0,
+      seasonEligiblePlayers: 0,
+      entries: [],
+    };
+    expect(canonicalCadenceResultHash(idl, "daily", daily)).toBe(
+      "3c7f85e915d5745256cadbc5e3195bea61f4a918402d5f68d49b2faa13a0eb8e",
+    );
+
+    expect(canonicalCadenceResultHash(idl, "weekly", {
+      version: ARCADE_ACCOUNT_VERSION,
+      weekId: goldenWeek,
+      qualificationStartDay: goldenDay,
+      arcadeConfig,
+      metrics: [
+        { highestCombo: {} },
+        { highestActionScore: {} },
+        { totalLines: {} },
+      ],
+      rulesHash: Array(32).fill(4),
+      opensAt: new BN(10),
+      closesAt: new BN(20),
+      finalizedAt: new BN(30),
+      ledger: zeroLedger,
+      comboEntries: [],
+      actionEntries: [],
+      runEntries: [],
+    })).toBe(
+      "848bf2b103f87341c8d6f5eec636e52f890111e00d12b6b130dd8e9ad711cbf3",
+    );
+    expect(canonicalCadenceResultHash(idl, "season", {
+      version: ARCADE_ACCOUNT_VERSION,
+      seasonId: goldenSeason,
+      qualificationStartDay: goldenDay,
+      arcadeConfig,
+      opensAt: new BN(40),
+      closesAt: new BN(50),
+      finalizedAt: new BN(60),
+      ledger: zeroLedger,
+      entries: [],
+    })).toBe(
+      "bde74719a008e0341f9a23682984ed077e3817d87c14cda1506fae4fe1eed247",
+    );
   });
 });
 
@@ -460,8 +661,13 @@ function meta(
 }
 
 function discriminator(operation: ProtocolOperation): Buffer {
+  const instruction = {
+    prepare_arena_daily: "funded_prepare_arena_daily",
+    prepare_weekly_jackpot: "funded_prepare_weekly_jackpot",
+    prepare_season: "funded_prepare_season",
+  }[operation] ?? operation;
   return createHash("sha256")
-    .update(`global:${operation}`)
+    .update(`global:${instruction}`)
     .digest()
     .subarray(0, 8);
 }

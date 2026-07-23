@@ -83,9 +83,11 @@ entries_scored + entries_expired == entries_paid
 
 ## Competitions
 
-Days use UTC. Entries close at 23:00 and existing runs close at 23:30. The
-keeper prepares successor accounts before entries open, so the client can show
-the active guaranteed pot and following-period funding separately.
+Days use UTC. Entries close at 23:45 and existing runs freeze at 23:59. The
+next preactivated Daily opens at 00:00 even if the preceding payout pass is
+still finishing, so settlement does not create a playable-day gap. The keeper
+prepares successor accounts before entries open, so the client can show the
+active guaranteed pot and following-period funding separately.
 
 At the run deadline, the resolved ER freezes the last fully accepted state and
 adds a replay deadline event. A run with at least one accepted action is scored
@@ -174,6 +176,8 @@ SOL transfer.
 | Owner wallet | Durable identity and paid entry | Signs every 0.02 SOL entry |
 | Device session | Approximately seven days of safe gameplay | Never signs entry payment |
 | Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
+| Cadence funding PDA | Recyclable Daily/Weekly/Season rent float | Separately seeded; narrow self-CPI preparation only |
+| Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
 | Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
@@ -182,6 +186,17 @@ SOL transfer.
 The player funding PDA is System-owned and has zero data. It can fund only the
 rent paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot
 forward arbitrary instructions.
+
+The cadence funding PDA follows the same zero-data System-owned pattern but is
+usable only by the exact Daily, Weekly, and Season preparation wrappers.
+Finalized cadence accounts close back to that PDA only after winner profile
+synchronization and every required rollup is complete. Before the on-chain
+account is committed and closed, the Devnet keeper atomically writes and
+re-reads the complete canonical result JSON on its persistent Fly volume. The
+small program-owned Arcade archive then advances one sequential rolling
+commitment per Daily, Weekly, and Season. Devnet volume storage is a recovery
+aid, not the Mainnet durability design; Mainnet requires replicated public
+archive storage.
 
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
 limit and 1,000-micro-lamport unit price before wallet approval. The maximum
@@ -213,6 +228,8 @@ relationships before decoding or planning a write. It reconciles:
 - Daily-to-Season rollup and sealing;
 - Daily, Weekly, and Season push settlement and rollover;
 - post-settlement Daily, Weekly, and Season profile synchronization;
+- full canonical cadence snapshots, sequential on-chain archive commitments,
+  and safe cadence-account closure back to the cadence funding PDA;
 - resolved run and expired session cleanup;
 - bounded post-rollup participant-account closure, with rent recycled only to
   the canonical player funding PDA.
@@ -221,7 +238,7 @@ The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. A
 write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
 program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
-instruction allowlist, eight-write limit, two-session cleanup limit, 0.05 SOL
+instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
@@ -291,6 +308,16 @@ from image digest
 Its first active pass completed with zero planned writes, zero writes, and zero
 lamports spent.
 
+The source tree now contains an undeployed cadence-archive upgrade candidate.
+It does not change the live ProgramData hash or keeper fingerprint above.
+Already-created Dailies retain their snapshotted legacy entry and run
+deadlines; the 23:45/23:59 schedule applies only to Dailies prepared by the
+upgraded program. Rollout requires a new exact approval bundle covering the
+program upgrade, paused archive migration, 0.5 SOL cadence-rent float, the
+`zkube_archives` Fly volume and fingerprinted keeper release, read-only
+verification, and re-enable. The final keeper fingerprint must bind the
+post-upgrade padded ProgramData hash.
+
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
 its approvals never authorize v4.
@@ -307,20 +334,21 @@ After the program and the independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused,
+initializes the Arcade archive with a 0.5 SOL recyclable cadence-rent float,
 publishes Campaign v2 and Arena rules v1, prepares the current and following
 Daily/Weekly/Season accounts, and ends with one atomic transaction that seeds
-exactly 1/2/3 SOL, unpauses, and activates the three current competitions. The
-launch day may be mid-Weekly and mid-Season, but its approval expires at the
-specified pre-entry cutoff. The planner has no signing or sending path.
+exactly 1/2/3 SOL, unpauses, and activates the three current competitions.
+The launch day may be mid-Weekly and mid-Season, but its approval expires at
+the specified pre-entry cutoff. The planner has no signing or sending path.
 
 `NO_DNA=1 pnpm chain:devnet:launch` is the separate approval-gated executor.
 Its `stage` mode simulates, signs once, confirms, and re-reads only transactions
-0–19, leaving the protocol paused and writing a public launch bundle under
+0–20, leaving the protocol paused and writing a public launch bundle under
 `/tmp`. A signed receipt is atomically persisted before each submission, so
 `resume` can verify the exact approved message, signer, signature status, and
 blockhash before relaying or re-signing an interrupted pass. The deployed
 keeper must then report `staged_launch_ready` for the approved release
-fingerprint. Only `activate` mode can submit transaction 20; it re-verifies the
+fingerprint. Only `activate` mode can submit transaction 21; it re-verifies the
 bundle hash, Devnet genesis, ProgramData, account contents, cutoff, signer,
 keeper evidence, and exact instruction bytes before the atomic seed/unpause.
 No client or Fly process contains an unconditional launch path.

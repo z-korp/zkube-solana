@@ -13,7 +13,10 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
-import { buildAtomicArcadeLaunchPlan } from "./adminClient";
+import {
+  CADENCE_FUNDING_SEED_LAMPORTS,
+  buildAtomicArcadeLaunchPlan,
+} from "./adminClient";
 import { canonicalCampaignMap } from "./campaignCatalog";
 import {
   LAUNCH_DAILY_SEED_LAMPORTS,
@@ -31,8 +34,10 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner";
 import {
+  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
+  deriveCadenceFundingPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
@@ -127,7 +132,7 @@ export async function runLaunchFromEnv(
     input.authority,
     "protocol authority",
   );
-  const activation = plan.plans[20];
+  const activation = plan.plans[21];
   if (!activation) throw new Error("launch plan omitted its atomic activation");
   const bundle: LaunchBundle = {
     schema: "zkube-v4-devnet-launch-bundle",
@@ -159,7 +164,7 @@ export async function runLaunchFromEnv(
   if (bundle.progress.staged.length === 0) {
     await verifyFunding(connection, bundle);
   }
-  for (const [index, transaction] of plan.plans.slice(0, 20).entries()) {
+  for (const [index, transaction] of plan.plans.slice(0, 21).entries()) {
     const receipt = await executeApprovedTransaction({
       plan: transaction,
       signer: authority,
@@ -201,8 +206,8 @@ async function resumeStaging(
     ? undefined
     : transactionPlanFromPublic(payload.fundingTransaction, connection);
   const publicTransactions = array(payload.transactions, "approved transactions");
-  if (publicTransactions.length !== 21) {
-    throw new Error("approved launch must contain exactly 21 transactions");
+  if (publicTransactions.length !== 22) {
+    throw new Error("approved launch must contain exactly 22 transactions");
   }
   const plans = publicTransactions.map((value) =>
     transactionPlanFromPublic(value, connection));
@@ -226,10 +231,10 @@ async function resumeStaging(
     await verifyFunding(connection, bundle);
   }
 
-  if (bundle.progress.staged.length > 20) {
+  if (bundle.progress.staged.length > 21) {
     throw new Error("bundle contains excess staging receipts");
   }
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 21; index += 1) {
     const existing = bundle.progress.staged[index];
     const receipt = await executeApprovedTransaction({
       plan: plans[index]!,
@@ -422,6 +427,7 @@ async function verifyStagedLaunch(
   if (amount(vault.grossOperatorShare) !== 0n || amount(vault.withdrawn) !== 0n) {
     throw new Error("operator vault is not fresh");
   }
+  await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
   await verifyPeriods(connection, program, bundle, false);
 }
 
@@ -449,10 +455,45 @@ async function verifyActiveLaunch(
       integer(arcade.launchDayId) !== bundle.input.launchDayId) {
     throw new Error("atomic launch did not activate the approved cadence");
   }
+  await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
   await verifyPeriods(connection, program, bundle, true);
   const balance = await connection.getBalance(authority, "confirmed");
   if (balance < bundle.costs.authorityReserveLamports) {
     throw new Error("launch crossed the approved authority reserve");
+  }
+}
+
+async function verifyFreshArcadeArchive(
+  connection: Connection,
+  program: ReturnType<typeof zkubeProgram>,
+  launchDayId: number,
+): Promise<void> {
+  const archive = await fetchExact(
+    connection,
+    program,
+    "arcadeArchive",
+    deriveArcadeArchivePda(),
+    LAUNCH_ACCOUNT_SPACES.arcadeArchive,
+  );
+  const { weekId, seasonId } = launchCadences(launchDayId);
+  if (integer(archive.firstDailyId) !== launchDayId ||
+      integer(archive.lastDailyId) !== launchDayId - 1 ||
+      integer(archive.firstWeeklyId) !== weekId ||
+      integer(archive.lastWeeklyId) !== weekId - 1 ||
+      integer(archive.firstSeasonId) !== seasonId ||
+      integer(archive.lastSeasonId) !== seasonId - 1 ||
+      bytesHex(archive.dailyRoot) !== "00".repeat(32) ||
+      bytesHex(archive.weeklyRoot) !== "00".repeat(32) ||
+      bytesHex(archive.seasonRoot) !== "00".repeat(32)) {
+    throw new Error("Arcade archive is not the approved fresh checkpoint");
+  }
+  const funding = await connection.getAccountInfo(
+    deriveCadenceFundingPda(),
+    "confirmed",
+  );
+  requireSystemWallet(funding, "cadence funding PDA");
+  if (funding!.lamports !== CADENCE_FUNDING_SEED_LAMPORTS) {
+    throw new Error("cadence rent float does not match the approved seed");
   }
 }
 
@@ -814,15 +855,15 @@ function parseBundle(source: string): LaunchBundle {
       !isDeepStrictEqual(payload.costs, bundle.costs) ||
       observed.programDataAddress !== bundle.programDataAddress ||
       observed.rulesCatalogSha256 !== bundle.rulesCatalogSha256 ||
-      transactions.length !== 21 ||
+      transactions.length !== 22 ||
       createHash("sha256")
-        .update(JSON.stringify(transactions[20]))
+        .update(JSON.stringify(transactions[21]))
         .digest("hex") !== bundle.activationTransactionSha256) {
     throw new Error("launch bundle fields drifted from approved evidence");
   }
   const progress = object(bundle.progress, "launch progress");
   if (!Array.isArray(progress.staged) ||
-      progress.staged.length > 20 ||
+      progress.staged.length > 21 ||
       (progress.funding !== undefined &&
         (typeof progress.funding !== "object" || progress.funding === null)) ||
       (progress.activation !== undefined &&

@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { createDevnetConnection } from "./serviceReadiness.js";
 import {
+  DEFAULT_ARCHIVE_DIRECTORY,
+  FileKeeperArchiveStore,
+  archiveDirectoryFromEnv,
+} from "./archiveStore.js";
+import {
   AnchorKeeperAdapter,
   KEEPER_EXPECTED_IDL_SHA256,
 } from "./anchorIdlAdapter.js";
@@ -27,7 +32,9 @@ import {
 import { ZKUBE_PROGRAM_ID, protocolPda } from "./arcadeChain.js";
 import { keeperReleaseRecord } from "./keeperRelease.js";
 
-const DEFAULT_INTERVAL_MS = 5 * 60 * 1_000;
+const DEFAULT_INTERVAL_MS = 60 * 1_000;
+const RAPID_RERUN_DELAY_MS = 1_000;
+const MAX_RAPID_RERUNS = 4;
 const DEFAULT_MAX_WRITES = 8;
 const MAX_MAX_WRITES = 8;
 
@@ -99,7 +106,11 @@ export interface KeeperWorkerDependencies {
   signal: AbortSignal;
   now?: () => number;
   sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
-  runPass?: () => Promise<void>;
+  runPass?: () => Promise<{
+    backlog: number;
+    writes: number;
+    plannedWrites: number;
+  } | void>;
   log?: (event: KeeperWorkerEvent | KeeperLogEvent) => void;
 }
 
@@ -121,17 +132,23 @@ export async function runKeeperWorker(
   const sleep = dependencies.sleep ?? abortableDelay;
   const log = dependencies.log ?? jsonLog;
   const intervalMs = keeperIntervalFromEnv(env);
+  let rapidRerunsRemaining = MAX_RAPID_RERUNS;
 
   while (!dependencies.signal.aborted) {
     const startedAt = now();
+    let rapidRerun = false;
     if (env.KEEPER_ENABLED !== "true") {
       log({ schemaVersion: 1, event: "keeper_worker", outcome: "disabled" });
     } else {
       try {
         if (dependencies.runPass) {
-          await dependencies.runPass();
+          const result = await dependencies.runPass();
+          rapidRerun = !!result &&
+            (result.backlog > 0 || result.writes > 0 || result.plannedWrites > 0);
         } else {
-          await runConfiguredKeeperPass(env, log);
+          const result = await runConfiguredKeeperPass(env, log);
+          rapidRerun = !!result &&
+            (result.backlog > 0 || result.writes > 0 || result.plannedWrites > 0);
         }
         log({
           schemaVersion: 1,
@@ -140,6 +157,7 @@ export async function runKeeperWorker(
           durationMs: Math.max(0, now() - startedAt),
         });
       } catch (error) {
+        rapidRerun = false;
         log({
           schemaVersion: 1,
           event: "keeper_worker",
@@ -150,7 +168,12 @@ export async function runKeeperWorker(
       }
     }
 
-    const remaining = Math.max(0, intervalMs - (now() - startedAt));
+    if (!rapidRerun) rapidRerunsRemaining = MAX_RAPID_RERUNS;
+    const shouldRunRapidly = rapidRerun && rapidRerunsRemaining > 0;
+    if (shouldRunRapidly) rapidRerunsRemaining -= 1;
+    const remaining = shouldRunRapidly
+      ? RAPID_RERUN_DELAY_MS
+      : Math.max(0, intervalMs - (now() - startedAt));
     try {
       await sleep(remaining, dependencies.signal);
     } catch (error) {
@@ -163,7 +186,7 @@ export async function runKeeperWorker(
 async function runConfiguredKeeperPass(
   env: Record<string, string | undefined>,
   log: (event: KeeperWorkerEvent | KeeperLogEvent) => void,
-): Promise<void> {
+): Promise<Awaited<ReturnType<typeof runKeeperPass>> | undefined> {
   const connection = createDevnetConnection(env);
   const readiness = await checkChainReadiness({
     connection,
@@ -174,6 +197,10 @@ async function runConfiguredKeeperPass(
 
   const release = keeperReleaseFromEnv(env);
   const writeEnabled = keeperWriteEnabledFromEnv(env);
+  const archiveDirectory = archiveDirectoryFromEnv(env);
+  if (writeEnabled && archiveDirectory !== DEFAULT_ARCHIVE_DIRECTORY) {
+    throw new Error("write-enabled archive directory does not match the release");
+  }
   const protocolInfo = await connection.getAccountInfo(protocolPda(), "confirmed");
   if (!protocolInfo) {
     log({
@@ -208,7 +235,7 @@ async function runConfiguredKeeperPass(
     return;
   }
   const protocolSnapshot = await adapter.loadProtocolSnapshot();
-  await runKeeperPass({
+  return await runKeeperPass({
     connection,
     keeper: writeEnabled
       ? keeperKeypairFromEnv(env)
@@ -232,6 +259,7 @@ async function runConfiguredKeeperPass(
     ),
     protocolSnapshot,
     protocolMaterializer: adapter,
+    archiveStore: new FileKeeperArchiveStore(archiveDirectory),
     resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
       plan,
       programId: ZKUBE_PROGRAM_ID,

@@ -15,6 +15,18 @@ export function deriveArcadeConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
   return derive([Buffer.from("arcade")], programId);
 }
 
+export function deriveArcadeArchivePda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive([Buffer.from("arcade_archive")], programId);
+}
+
+export function deriveCadenceFundingPda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive([Buffer.from("cadence_funding")], programId);
+}
+
 export function deriveOperatorRevenueVaultPda(
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {

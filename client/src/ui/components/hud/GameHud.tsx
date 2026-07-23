@@ -416,24 +416,27 @@ const GameHud: React.FC<GameHudProps> = ({
             {/* Guardian portrait with difficulty badge overlay */}
             <TooltipProvider delayDuration={0}>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="absolute rounded-full" style={guardianPos}>
-                    <img
-                      src={portraitSrc}
-                      alt={guardian.name}
-                      className="absolute inset-0 w-full h-full rounded-full object-cover overflow-hidden"
-                    />
-                    {/* Difficulty badge — bottom-right, overlaid on portrait */}
-                    <div
-                      className="absolute -bottom-2 -right-2 rounded-full min-w-[clamp(20px,6vw,32px)] h-[clamp(20px,6vw,32px)] flex items-center justify-center px-0.5 font-sans text-[clamp(10px,3vw,16px)] font-bold z-10 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-                      style={{
-                        background: currentTier.color,
-                        border: `1px solid ${currentTier.color}80`,
-                      }}
-                    >
-                      {currentTier.emoji}
-                    </div>
-                  </div>
+                <TooltipTrigger
+                  type="button"
+                  aria-label={`About ${guardian.name}`}
+                  className="absolute rounded-full border-0 bg-transparent p-0"
+                  style={guardianPos}
+                >
+                  <img
+                    src={portraitSrc}
+                    alt=""
+                    className="absolute inset-0 h-full w-full overflow-hidden rounded-full object-cover"
+                  />
+                  {/* Difficulty badge — bottom-right, overlaid on portrait */}
+                  <span
+                    className="absolute -bottom-2 -right-2 z-10 flex h-[clamp(20px,6vw,32px)] min-w-[clamp(20px,6vw,32px)] items-center justify-center rounded-full px-0.5 font-sans text-[clamp(10px,3vw,16px)] font-bold shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                    style={{
+                      background: currentTier.color,
+                      border: `1px solid ${currentTier.color}80`,
+                    }}
+                  >
+                    {currentTier.emoji}
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent
                   side="bottom"
@@ -598,10 +601,16 @@ const GameHud: React.FC<GameHudProps> = ({
           {/* Portrait + level badge */}
           <TooltipProvider delayDuration={0}>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <motion.div
-                  className="absolute rounded-full"
-                  style={guardianPos}
+              <TooltipTrigger
+                type="button"
+                aria-label={
+                  isBoss ? `About ${guardian.name}` : `About zone ${zoneId}`
+                }
+                className="absolute rounded-full border-0 bg-transparent p-0"
+                style={guardianPos}
+              >
+                <motion.span
+                  className="relative block h-full w-full rounded-full"
                   animate={
                     isBoss
                       ? {
@@ -634,7 +643,7 @@ const GameHud: React.FC<GameHudProps> = ({
                   >
                     {level}
                   </div>
-                </motion.div>
+                </motion.span>
               </TooltipTrigger>
               <TooltipContent
                 side="bottom"
@@ -727,23 +736,20 @@ const GameHud: React.FC<GameHudProps> = ({
                 ).getDescription();
                 return (
                   <Tooltip key={`constraint-${i}`}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className="absolute flex items-center justify-center"
-                        style={pos}
-                      >
-                        <ProgressRing
-                          progress={getConstraintProgress(c.progress, c.count)}
-                          size={ringSize}
-                          color={getConstraintColor(c.progress, c.count)}
-                          icon={getConstraintIcon(c.type)}
-                          badgeBottomLeft={getValueBadge(c.type, c.value)}
-                          badgeBottomRight={getProgressBadge(
-                            c.progress,
-                            c.count,
-                          )}
-                        />
-                      </div>
+                    <TooltipTrigger
+                      type="button"
+                      aria-label={description}
+                      className="absolute flex items-center justify-center border-0 bg-transparent p-0"
+                      style={pos}
+                    >
+                      <ProgressRing
+                        progress={getConstraintProgress(c.progress, c.count)}
+                        size={ringSize}
+                        color={getConstraintColor(c.progress, c.count)}
+                        icon={getConstraintIcon(c.type)}
+                        badgeBottomLeft={getValueBadge(c.type, c.value)}
+                        badgeBottomRight={getProgressBadge(c.progress, c.count)}
+                      />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
