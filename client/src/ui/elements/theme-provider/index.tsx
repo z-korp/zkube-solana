@@ -1,5 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   loadThemeTemplate,
   saveThemeTemplate,
@@ -40,10 +46,10 @@ export function ThemeProvider({
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
+  const [theme, setThemeState] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
   );
-  const [themeTemplate, setThemeTemplate] = useState<ThemeId>(() => {
+  const [themeTemplate, setThemeTemplateState] = useState<ThemeId>(() => {
     const stored = loadThemeTemplate();
     return THEME_IDS.includes(stored) ? stored : defaultThemeTemplate;
   });
@@ -66,19 +72,34 @@ export function ThemeProvider({
     root.dataset.theme = themeTemplate;
   }, [theme, themeTemplate]);
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+  // Stable setter identities. A fresh function every render would land in the
+  // dependency arrays of consumer theme effects (HomePage, PlayScreen, …),
+  // re-firing them on every provider render. When two mounted screens target
+  // different zone themes (e.g. Arcade→Play during the AnimatePresence
+  // transition into yesterday's Practice run), that turns into an unbounded
+  // themeTemplate flip → "Maximum update depth exceeded" (React #185).
+  const setTheme = useCallback(
+    (next: Theme) => {
+      localStorage.setItem(storageKey, next);
+      setThemeState(next);
     },
-    themeTemplate,
-    setThemeTemplate: (nextThemeTemplate: ThemeId, save = true) => {
+    [storageKey],
+  );
+  const setThemeTemplate = useCallback(
+    (nextThemeTemplate: ThemeId, save = true) => {
       if (!THEME_IDS.includes(nextThemeTemplate)) return;
       if (save) saveThemeTemplate(nextThemeTemplate);
-      setThemeTemplate(nextThemeTemplate);
+      setThemeTemplateState(nextThemeTemplate);
     },
-  };
+    [],
+  );
+
+  // Memoized so theme consumers only re-render when the theme itself changes,
+  // not on every provider render.
+  const value = useMemo<ThemeProviderState>(
+    () => ({ theme, setTheme, themeTemplate, setThemeTemplate }),
+    [theme, setTheme, themeTemplate, setThemeTemplate],
+  );
 
   return (
     <ThemeProviderContext.Provider {...props} value={value}>
