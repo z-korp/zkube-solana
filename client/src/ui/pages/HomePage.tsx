@@ -11,6 +11,7 @@ import { useNowTick } from "@/hooks/useNowTick";
 import { useNavigationStore } from "@/stores/navigationStore";
 import {
   DailyChallengeCard,
+  DailyStatusPanel,
   EntriesCountdown,
   computeArcadeLifecycle,
   formatUtcClock,
@@ -185,23 +186,10 @@ const HomePage: React.FC = () => {
             />
           </>
         ) : (
-          <div className="rounded-3xl border border-white/[0.1] bg-black/30 p-5 backdrop-blur-xl">
-            <p className="font-sans text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
-              Today&apos;s pot
-            </p>
-            <p className="mt-2 font-display text-lg font-black text-white">
-              {lifecycle === "delayed"
-                ? "Today’s Daily is running late"
-                : lifecycle === "stale"
-                  ? "Yesterday’s Daily is still visible"
-                  : "Daily being prepared"}
-            </p>
-            <p className="mt-1 font-sans text-xs font-semibold text-white/55">
-              {lifecycle === "delayed" || lifecycle === "stale"
-                ? "The keeper is catching up. Entries open as soon as today’s Daily is ready."
-                : "Opens 00:00 UTC"}
-            </p>
-          </div>
+          <DailyStatusPanel
+            lifecycle={lifecycle}
+            onPlayCampaign={() => navigate("campaign")}
+          />
         )}
 
         {daily.error && (
