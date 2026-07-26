@@ -39,8 +39,9 @@ add approval prompts to the shipped product.
   `getDelegationStatus`.
 - Fly runs only the independently funded Daily/Weekly/Season keeper. The web
   client is static PWA/TWA code with no server signer.
-- The cadence-archive upgrade is Devnet-first and presently undeployed.
-  Mainnet requires counsel, economic, and distribution review.
+- The cadence-archive upgrade is deployed on Devnet only. Its deployment and
+  observed recovery state do not imply Mainnet readiness; Mainnet requires
+  counsel, economic, and distribution review.
 - Fresh protocol initialization is paused. Initialization may seed only the
   first Daily, Weekly, and Season. Separately approved authority top-ups may
   add any positive lamport amount only to the canonical current or following

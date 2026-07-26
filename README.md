@@ -26,7 +26,9 @@ economic, and distribution review.
 The static PWA/TWA opens on Arcade and exposes four primary destinations:
 Arcade, Campaign, Ranks, and Profile. Campaign uses the existing world
 map and art direction, while Arcade owns the competitive navigation and
-profile language.
+profile language. If today's Daily is delayed or only a stale previous Daily is
+visible, Arcade shows a `Play Campaign while you wait` CTA; Campaign remains
+free and does not substitute for or gate a paid entry.
 
 ## Campaign progression
 
@@ -254,6 +256,12 @@ instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
+Keeper release-policy schema v8 removes a cadence planning deadlock by
+quarantining an inconsistent Daily, Weekly, or Season without blocking cadence
+preparation, preactivation, or unrelated Campaign recovery. Dependent writes
+remain fail-closed, and a Daily cannot be archived before its Season rollup is
+sealed.
+
 Fresh initialization remains paused. Paid Arcade cannot open until the exact
 program and complete recovery/settlement keeper have passed read-only
 verification and are included in an explicit approval bundle.
@@ -280,8 +288,9 @@ The generated IDL is the ABI handoff between program, keeper, and client.
 Tests must cover exact lamport conservation, period rollover, deadline
 freezing, replay parity, ER recovery, account validation, and Campaign's
 inability to mutate competitive records.
-GitHub static validation is manual-dispatch-only; `validate.sh` and the
-`AGENTS.md` gates are the steady-state local validation path.
+GitHub static validation runs only through `workflow_dispatch`; it is not a
+push or pull-request gate. The local `validate.sh` and `AGENTS.md` gates are
+authoritative for steady-state validation.
 
 ### Frontend handoff
 
@@ -311,17 +320,18 @@ padded ProgramData SHA-256
 `9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e`.
 The approved launch completed on 2026-07-22 at protocol PDA
 `G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ`. Daily `20656`, Weekly `2950`,
-and Season `737` opened atomically with 1/2/3 SOL; the following cadence
-accounts remain in funding state. The activation signature is
+and Season `737` opened atomically with 1/2/3 SOL. The activation signature is
 `A1iaCAkcQDbEdhtQDZjsvH8hWuLQ3N9waycid52rB6UkrS2zDv6tHmhZSkEn6GADawuBkpxR6pEGFUsJCEKjdXS`.
 
 Fly machine `82d371f7d43e38` runs the approved keeper release
-`5c556fafa130d09e5315ef7c8406dbbda5558ad55275deceb2e02acdaf72175e`
-from image digest
-`sha256:a89e5397f6fca1c788cd13c9eea0bd8311bc2f2c363d192dee432d82366d491d`.
+tag `deployment-01KYFMES913DMHBWBN0043DFAR`, image digest
+`sha256:b34643e73f5802bf48c2a092c39dbe777de0711f5f51d2bc8c3ad53cc675c0f0`,
+and fingerprint
+`7ea04864e4469b03e6be880083974cf0828adfc3058e0fdd21f3e4cdc7fb2cf4`.
 It mounts the encrypted one-GB `zkube_archives` volume, runs every 60 seconds,
 permits at most eight writes and 0.1 SOL simulated spend per pass, and preserves
-a 0.1 SOL signer reserve.
+a 0.1 SOL signer reserve. Writes are enabled under the approved recurring
+authority.
 
 The cadence-archive, PlayerState v3 run-slot, retired-Practice preparation, and
 exact 0.01 SOL entry-split program upgrade confirmed on 2026-07-23 with
@@ -336,6 +346,16 @@ after catch-up. The protocol was then unpaused with signature
 `4YzKY39Fn2ZrnDJ812CQR4KacWAg2Awr2cDoNt6AZg2Lvz6G2uTP3ucKWJs9DpvWxvGhnsCZ2Ywmc5XRiRF2jcFJ`.
 Already-created v2 runs migrate in place and legacy Practice retains only its
 recovery and settlement paths.
+
+The following is a time-sensitive Devnet observation after the approved
+recovery on 2026-07-26, not a Mainnet-readiness claim: Daily `20660` is open,
+Daily `20661` is prepared and preactivated, and Dailies `20657` through `20659`
+are finalized with their Season rollups sealed. Daily `20657` remains
+fail-closed because its archive reread expected
+`7266793f61621c57ed7c76630223e64e80270d8bd2553a0862f437c0e559712b`
+but found stored hash
+`19573534f07de5e120a8d5b1dc04b7affe5f8f5a809ff4676ecca26ee01e5455`.
+That mismatch blocks its closure and rent recycling pending diagnosis.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
