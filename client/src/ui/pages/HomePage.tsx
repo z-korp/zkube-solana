@@ -7,6 +7,7 @@ import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
 import { useMyDailyRank } from "@/hooks/useMyDailyRank";
+import { useNowTick } from "@/hooks/useNowTick";
 import { useNavigationStore } from "@/stores/navigationStore";
 import {
   DailyChallengeCard,
@@ -65,7 +66,7 @@ const HomePage: React.FC = () => {
     potLamports: view?.dailyPotLamports ?? null,
   });
 
-  const nowUnix = Math.floor(Date.now() / 1_000);
+  const nowUnix = Math.floor(useNowTick(60_000) / 1_000);
   const lifecycle = computeArcadeLifecycle({
     view,
     hasActiveRun: activeDaily !== null,
@@ -101,8 +102,12 @@ const HomePage: React.FC = () => {
     meta = <EntriesCountdown endsAt={view.entriesCloseAt} />;
   } else if (lifecycle === "entries-closed") {
     meta = <span className={META_CLASS}>Entries closed</span>;
+  } else if (lifecycle === "delayed") {
+    meta = <span className={META_CLASS}>Today&apos;s Daily is running late</span>;
+  } else if (lifecycle === "stale") {
+    meta = <span className={META_CLASS}>Waiting for today&apos;s Daily</span>;
   } else {
-    meta = <span className={META_CLASS}>New Daily opens 00:00 UTC</span>;
+    meta = <span className={META_CLASS}>Opens 00:00 UTC</span>;
   }
 
   // Primary CTA per state.
@@ -139,7 +144,9 @@ const HomePage: React.FC = () => {
     primaryLabel =
       lifecycle === "entries-closed"
         ? "Entries closed"
-        : "Daily being prepared";
+        : lifecycle === "delayed" || lifecycle === "stale"
+          ? "Keeper catching up"
+          : "Daily being prepared";
     primaryDisabled = true;
   }
 
@@ -158,7 +165,7 @@ const HomePage: React.FC = () => {
           status={meta}
         />
 
-        {view ? (
+        {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
           <>
             {lifecycle === "entries-closed" && (
               <div className="rounded-2xl border border-yellow-400/30 bg-yellow-400/[0.08] px-3 py-2 backdrop-blur-xl">
@@ -183,10 +190,16 @@ const HomePage: React.FC = () => {
               Today&apos;s pot
             </p>
             <p className="mt-2 font-display text-lg font-black text-white">
-              Daily being prepared
+              {lifecycle === "delayed"
+                ? "Today’s Daily is running late"
+                : lifecycle === "stale"
+                  ? "Yesterday’s Daily is still visible"
+                  : "Daily being prepared"}
             </p>
             <p className="mt-1 font-sans text-xs font-semibold text-white/55">
-              Opens 00:00 UTC
+              {lifecycle === "delayed" || lifecycle === "stale"
+                ? "The keeper is catching up. Entries open as soon as today’s Daily is ready."
+                : "Opens 00:00 UTC"}
             </p>
           </div>
         )}

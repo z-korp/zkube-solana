@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Share2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
@@ -51,15 +52,15 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   }, [isOpen]);
 
   const tweetUrl = useMemo(() => {
-    const msg = `🏆 ${
+    const msg = `${
       campaignComplete
         ? "I completed the zKube campaign!"
         : `I defeated ${guardian.name}, the ${guardian.title}, in zKube!`
     }
-🧱 ${game.totalLinesCleared} lines cleared
-💎 ${game.totalScore.toLocaleString()} total points
-🔥 ${game.maxComboRun} max combo
-Can you clear the guardian trial? 😎
+${game.totalLinesCleared} lines cleared
+${game.totalScore.toLocaleString()} total points
+${game.maxComboRun} max combo
+Can you clear the guardian trial?
 Play now: app.zkube.xyz
 @zkorp_ @zkube_game`;
     return `https://x.com/intent/tweet?text=${encodeURIComponent(msg)}&url=app.zkube.xyz`;
@@ -124,7 +125,12 @@ Play now: app.zkube.xyz
           }}
         >
           {/* Title */}
-          <p className="font-display text-xl font-black text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.35)]">
+          <p className="flex items-center gap-2 font-display text-xl font-black text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.35)]">
+            <img
+              src="/assets/common/trophies/gold.png"
+              alt=""
+              className="h-6 w-6 object-contain"
+            />
             {campaignComplete ? "Campaign Complete!" : "Trial Passed!"}
           </p>
 
@@ -173,7 +179,8 @@ Play now: app.zkube.xyz
               rel="noreferrer"
               className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-sans text-sm font-bold text-white/80 transition-colors hover:bg-white/[0.1]"
             >
-              🏆 Share on X
+              <Share2 className="h-4 w-4" />
+              Share on X
             </a>
             <ArcadeButton onClick={onClose} disabled={closeDisabled}>
               {closeDisabled ? "Settling…" : "Continue"}

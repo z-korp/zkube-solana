@@ -3,6 +3,7 @@ export { default as DualPot } from "./DualPot";
 export { default as DailyPot } from "./DailyPot";
 export { default as EmblemBadge } from "./EmblemBadge";
 export { default as GuardianMedallion } from "./GuardianMedallion";
+export { default as Coin } from "./Coin";
 export {
   DAILY_WEIGHTS,
   WEEKLY_WEIGHTS,

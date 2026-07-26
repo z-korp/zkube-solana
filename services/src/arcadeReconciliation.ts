@@ -186,6 +186,17 @@ export interface ProtocolSnapshot {
   archiveCandidates?: readonly CadenceArchiveCandidate[];
 }
 
+export interface DomainQuarantine {
+  kind: CompetitionKind;
+  id: number;
+  reason: string;
+}
+
+export interface ReconciliationDiscovery {
+  plans: KeeperInstructionPlan[];
+  quarantines: DomainQuarantine[];
+}
+
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   paused: true,
   launchDayId: 4,
@@ -205,12 +216,13 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
  * Produces non-executable semantic plans from an already decoded and
  * relationship-checked protocol snapshot.
  */
-export function discoverReconciliationPlans(args: {
+export function discoverReconciliation(args: {
   snapshot: ProtocolSnapshot;
   nowUnix: number;
-}): KeeperInstructionPlan[] {
+}): ReconciliationDiscovery {
   assertSafeTimestamp(args.nowUnix);
   validateProtocolSnapshot(args.snapshot);
+  const quarantines = collectDomainQuarantines(args.snapshot);
 
   const plans: KeeperInstructionPlan[] = [];
   const today = currentDayId(args.nowUnix);
@@ -225,7 +237,16 @@ export function discoverReconciliationPlans(args: {
   const playerStateOwners = new Set(
     args.snapshot.playerStateOwners.map((owner) => owner.toBase58()),
   );
-  appendCadenceArchivePlans(plans, args.snapshot, today, thisWeek, thisSeason);
+  const isQuarantined = (kind: CompetitionKind, id: number) =>
+    quarantines.some((record) => record.kind === kind && record.id === id);
+  appendCadenceArchivePlans(
+    plans,
+    args.snapshot,
+    today,
+    thisWeek,
+    thisSeason,
+    isQuarantined,
+  );
 
   if (!args.snapshot.paused) {
     for (const daily of args.snapshot.dailies) {
@@ -354,6 +375,8 @@ export function discoverReconciliationPlans(args: {
     const seasonId = seasonIdForDay(player.dayId);
     const season = seasonById.get(seasonId);
     if (!season || player.dayId < season.qualificationStartDay) continue;
+    if (isQuarantined("daily", player.dayId) ||
+        isQuarantined("season", seasonId)) continue;
     const key = `${seasonId}:${player.owner.toBase58()}`;
     if (!player.seasonPlayerExists) {
       if (!initializedSeasonPlayers.has(key)) {
@@ -375,6 +398,7 @@ export function discoverReconciliationPlans(args: {
 
   for (const daily of args.snapshot.dailies) {
     if (daily.dayId < oldestKeeperDay) continue;
+    if (isQuarantined("daily", daily.dayId)) continue;
     const resolved = daily.entriesScored + daily.entriesExpired;
     appendFinalizationPlan(
       plans,
@@ -410,6 +434,7 @@ export function discoverReconciliationPlans(args: {
 
   for (const weekly of args.snapshot.weeklies) {
     if (weekly.weekId < oldestKeeperWeek) continue;
+    if (isQuarantined("weekly", weekly.weekId)) continue;
     appendFinalizationPlan(
       plans,
       "weekly",
@@ -442,6 +467,7 @@ export function discoverReconciliationPlans(args: {
   for (const season of args.snapshot.seasons) {
     const requiredSeals = seasonRequiredDailies(season);
     if (season.seasonId < oldestKeeperSeason) continue;
+    if (isQuarantined("season", season.seasonId)) continue;
     appendFinalizationPlan(
       plans,
       "season",
@@ -475,6 +501,7 @@ export function discoverReconciliationPlans(args: {
 
   for (const candidate of args.snapshot.arenaPlayerClosures) {
     if (candidate.dayId < oldestKeeperDay) continue;
+    if (isQuarantined("daily", candidate.dayId)) continue;
     plans.push(validationOnlyPlan("close_arena_player", {
       dayId: candidate.dayId,
       owner: candidate.owner,
@@ -483,13 +510,25 @@ export function discoverReconciliationPlans(args: {
   }
   for (const candidate of args.snapshot.seasonPlayerClosures) {
     if (candidate.seasonId < oldestKeeperSeason) continue;
+    if (isQuarantined("season", candidate.seasonId)) continue;
     plans.push(validationOnlyPlan("close_season_player", {
       seasonId: candidate.seasonId,
       owner: candidate.owner,
       rentRecipient: candidate.rentRecipient,
     }));
   }
-  return plans;
+  return {
+    plans: plans.filter((plan) =>
+      !planTouchesQuarantine(plan, quarantines)),
+    quarantines,
+  };
+}
+
+export function discoverReconciliationPlans(args: {
+  snapshot: ProtocolSnapshot;
+  nowUnix: number;
+}): KeeperInstructionPlan[] {
+  return discoverReconciliation(args).plans;
 }
 
 function appendCadenceArchivePlans(
@@ -498,6 +537,7 @@ function appendCadenceArchivePlans(
   today: number,
   currentWeek: number,
   currentSeason: number,
+  isQuarantined: (kind: CompetitionKind, id: number) => boolean,
 ): void {
   const state = snapshot.archiveState;
   const candidates = snapshot.archiveCandidates ?? [];
@@ -523,6 +563,7 @@ function appendCadenceArchivePlans(
         : last === undefined || candidate.cadenceId === last + 1
     );
     if (!next || next.cadenceId > currentByKind[kind]) continue;
+    if (isQuarantined(kind, next.cadenceId)) continue;
     const identity = kind === "daily"
       ? { dayId: next.cadenceId }
       : kind === "weekly"
@@ -542,6 +583,11 @@ function appendCadenceArchivePlans(
       closeEligibleAt: next.closeEligibleAt,
     };
     if (!next.committed) {
+      if (kind === "daily") {
+        const daily = snapshot.dailies.find(({ dayId }) =>
+          dayId === next.cadenceId);
+        if (!daily?.seasonRollupSealed) continue;
+      }
       plans.push(validationOnlyPlan(
         kind === "daily"
           ? "archive_arena_daily"
@@ -685,20 +731,8 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     if (daily.entriesScored + daily.entriesExpired > daily.entriesPaid) {
       throw new Error("Daily resolved entries exceed paid entries");
     }
-    if (daily.status === "finalized" &&
-        daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
-      throw new Error("finalized Daily retains unresolved paid entries");
-    }
     assertCounter(daily.seasonEligiblePlayers, "Daily Season eligible players");
     assertCounter(daily.seasonRollups, "Daily Season rollups");
-    if (daily.seasonRollups > daily.seasonEligiblePlayers ||
-        (daily.seasonRollupSealed &&
-          (daily.status !== "finalized" ||
-            daily.seasonRollups !== daily.seasonEligiblePlayers))) {
-      throw new Error("Daily Season rollup counters are inconsistent");
-    }
-    validateSettlement("daily", daily.potLamports, daily.settlement, 5);
-    validateProfileSyncMask("daily", daily.profileSyncMask, daily.settlement);
   }
 
   for (const weekly of snapshot.weeklies) {
@@ -719,20 +753,6 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
       "Weekly",
     );
     assertLamports(weekly.potLamports, "Weekly pot");
-    if (weekly.status === "finalized" && !weekly.qualificationDailiesComplete) {
-      throw new Error("finalized Weekly qualification is incomplete");
-    }
-    if (weekly.qualificationDailiesComplete &&
-        !qualificationDailies(
-          snapshot,
-          weekly.qualificationStartDay,
-          weeklyRequiredDailies(weekly),
-          false,
-        )) {
-      throw new Error("Weekly qualification is incomplete");
-    }
-    validateSettlement("weekly", weekly.potLamports, weekly.settlement, 9);
-    validateProfileSyncMask("weekly", weekly.profileSyncMask, weekly.settlement);
   }
 
   for (const season of snapshot.seasons) {
@@ -758,25 +778,118 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
         season.sealedDailies > DAYS_PER_SEASON) {
       throw new Error("Season sealed Dailies count is invalid");
     }
-    const qualificationCount = seasonQualificationDailies(
-      snapshot,
-      season.qualificationStartDay,
-      seasonRequiredDailies(season),
-    );
-    if (season.sealedDailies !== qualificationCount) {
-      throw new Error("Season qualification is incomplete");
-    }
-    if (season.status === "finalized" &&
-        season.sealedDailies !== seasonRequiredDailies(season)) {
-      throw new Error("finalized Season qualification is incomplete");
-    }
-    validateSettlement("season", season.potLamports, season.settlement, 5);
-    validateProfileSyncMask("season", season.profileSyncMask, season.settlement);
   }
 
   for (const run of snapshot.runs) validateRun(snapshot, run);
   validateDailySeasonPlayers(snapshot);
   validateParticipantClosures(snapshot);
+}
+
+function collectDomainQuarantines(
+  snapshot: ProtocolSnapshot,
+): DomainQuarantine[] {
+  const quarantines: DomainQuarantine[] = [];
+  const quarantine = (
+    kind: CompetitionKind,
+    id: number,
+    validate: () => void,
+  ) => {
+    try {
+      validate();
+    } catch (error) {
+      quarantines.push({
+        kind,
+        id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  for (const daily of snapshot.dailies) {
+    quarantine("daily", daily.dayId, () => {
+      if (daily.status === "finalized" &&
+          daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
+        throw new Error("finalized Daily retains unresolved paid entries");
+      }
+      if (daily.seasonRollups > daily.seasonEligiblePlayers ||
+          (daily.seasonRollupSealed &&
+            (daily.status !== "finalized" ||
+              daily.seasonRollups !== daily.seasonEligiblePlayers))) {
+        throw new Error("Daily Season rollup counters are inconsistent");
+      }
+      validateSettlement("daily", daily.potLamports, daily.settlement, 5);
+      validateProfileSyncMask("daily", daily.profileSyncMask, daily.settlement);
+    });
+  }
+
+  for (const weekly of snapshot.weeklies) {
+    quarantine("weekly", weekly.weekId, () => {
+      if (weekly.status === "finalized" &&
+          !weekly.qualificationDailiesComplete) {
+        throw new Error("finalized Weekly qualification is incomplete");
+      }
+      if (weekly.qualificationDailiesComplete &&
+          !qualificationDailies(
+            snapshot,
+            weekly.qualificationStartDay,
+            weeklyRequiredDailies(weekly),
+            false,
+          )) {
+        throw new Error("Weekly qualification is incomplete");
+      }
+      validateSettlement("weekly", weekly.potLamports, weekly.settlement, 9);
+      validateProfileSyncMask("weekly", weekly.profileSyncMask, weekly.settlement);
+    });
+  }
+
+  for (const season of snapshot.seasons) {
+    quarantine("season", season.seasonId, () => {
+      const requiredDailies = seasonRequiredDailies(season);
+      const qualificationCount = seasonQualificationDailies(
+        snapshot,
+        season.qualificationStartDay,
+        requiredDailies,
+      );
+      if (season.sealedDailies !== qualificationCount) {
+        throw new Error("Season qualification is incomplete");
+      }
+      if (season.status === "finalized" &&
+          season.sealedDailies !== requiredDailies) {
+        throw new Error("finalized Season qualification is incomplete");
+      }
+      validateSettlement("season", season.potLamports, season.settlement, 5);
+      validateProfileSyncMask("season", season.profileSyncMask, season.settlement);
+    });
+  }
+  return quarantines;
+}
+
+function planTouchesQuarantine(
+  plan: KeeperInstructionPlan,
+  quarantines: readonly DomainQuarantine[],
+): boolean {
+  if (plan.operation.startsWith("prepare_") ||
+      plan.operation.startsWith("activate_")) {
+    return false;
+  }
+  const context = plan.context;
+  if (!context) return false;
+  // Campaign has no competitive cadence dependency. Ranked and legacy
+  // Practice lifecycle writes remain subject to a quarantined Daily so a
+  // domain inconsistency can only narrow recurring write authority.
+  if (context.runMode === "campaign") return false;
+  return quarantines.some(({ kind, id }) => {
+    if (kind === "daily") {
+      return context.dayId === id ||
+        context.challengeDayId === id ||
+        context.qualificationDayIds?.includes(id) === true ||
+        (context.weekId !== undefined && weekIdForDay(id) === context.weekId) ||
+        (context.seasonId !== undefined &&
+          seasonIdForDay(id) === context.seasonId);
+    }
+    if (kind === "weekly") return context.weekId === id;
+    return context.seasonId === id;
+  });
 }
 
 function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
@@ -892,7 +1005,16 @@ function validateDailySeasonPlayers(snapshot: ProtocolSnapshot): void {
   for (const player of snapshot.dailySeasonPlayers) {
     assertCadenceId(player.dayId, "ArenaPlayer day id");
     const daily = snapshot.dailies.find(({ dayId }) => dayId === player.dayId);
-    if (!daily) throw new Error("ArenaPlayer references an undiscovered Daily");
+    if (!daily) {
+      const archivedThrough = snapshot.archiveState?.lastDailyId;
+      if (archivedThrough !== undefined && player.dayId <= archivedThrough) {
+        // Absence below the archive checkpoint means close_arena_daily already
+        // succeeded. The on-chain close gate proves the Daily was finalized,
+        // Season-sealed, archived, and free of live ArenaPlayer dependencies.
+        continue;
+      }
+      throw new Error("ArenaPlayer references an undiscovered Daily");
+    }
     const seasonId = seasonIdForDay(player.dayId);
     const season = snapshot.seasons.find((value) => value.seasonId === seasonId);
     if (!season) {
@@ -920,16 +1042,24 @@ function validateDailySeasonPlayers(snapshot: ProtocolSnapshot): void {
 function validateParticipantClosures(snapshot: ProtocolSnapshot): void {
   for (const candidate of snapshot.arenaPlayerClosures) {
     assertCadenceId(candidate.dayId, "ArenaPlayer closure day id");
-    if (!snapshot.dailies.some(({ dayId, status }) =>
-      dayId === candidate.dayId && status === "finalized")) {
+    const daily = snapshot.dailies.find(({ dayId }) =>
+      dayId === candidate.dayId);
+    const closed = !daily &&
+      snapshot.archiveState?.lastDailyId !== undefined &&
+      candidate.dayId <= snapshot.archiveState.lastDailyId;
+    if (daily?.status !== "finalized" && !closed) {
       throw new Error("ArenaPlayer closure requires a finalized Daily");
     }
     validateClosureRecipient(candidate.owner, candidate.rentRecipient, "ArenaPlayer");
   }
   for (const candidate of snapshot.seasonPlayerClosures) {
     assertCadenceId(candidate.seasonId, "SeasonPlayer closure Season id");
-    if (!snapshot.seasons.some(({ seasonId, status }) =>
-      seasonId === candidate.seasonId && status === "finalized")) {
+    const season = snapshot.seasons.find(({ seasonId }) =>
+      seasonId === candidate.seasonId);
+    const closed = !season &&
+      snapshot.archiveState?.lastSeasonId !== undefined &&
+      candidate.seasonId <= snapshot.archiveState.lastSeasonId;
+    if (season?.status !== "finalized" && !closed) {
       throw new Error("SeasonPlayer closure requires a finalized Season");
     }
     validateClosureRecipient(candidate.owner, candidate.rentRecipient, "SeasonPlayer");
@@ -1160,8 +1290,10 @@ function qualificationDailies(
   const archivedThrough = snapshot.archiveState?.lastDailyId;
   return Array.from({ length: count }, (_, offset) => startDay + offset)
     .every((dayId) => {
-      if (archivedThrough !== undefined && dayId <= archivedThrough) return true;
       const daily = dailies.get(dayId);
+      if (!daily && archivedThrough !== undefined && dayId <= archivedThrough) {
+        return true;
+      }
       return daily?.status === "finalized" &&
         daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
         (!requireSeasonSeal || daily.seasonRollupSealed);
@@ -1177,8 +1309,10 @@ function seasonQualificationDailies(
   const archivedThrough = snapshot.archiveState?.lastDailyId;
   return Array.from({ length: count }, (_, offset) => startDay + offset)
     .filter((dayId) => {
-      if (archivedThrough !== undefined && dayId <= archivedThrough) return true;
       const daily = dailies.get(dayId);
+      if (!daily && archivedThrough !== undefined && dayId <= archivedThrough) {
+        return true;
+      }
       return daily?.status === "finalized" &&
         daily.entriesScored + daily.entriesExpired === daily.entriesPaid &&
         daily.seasonRollupSealed;

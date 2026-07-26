@@ -333,10 +333,17 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       participantClosures.seasonCadenceBlockers,
     );
     if (archive) {
+      const dailyById = new Map(
+        dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
+      );
       for (const weekly of weeklies) {
         const finalDay = weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1;
-        if (archive.state.lastDailyId !== undefined &&
-            archive.state.lastDailyId >= finalDay) {
+        const archivedThrough = archive.state.lastDailyId;
+        if (range(weekly.qualificationStartDay, finalDay).every((dayId) => {
+          const daily = dailyById.get(dayId);
+          return daily?.status === "finalized" ||
+            (!daily && archivedThrough !== undefined && dayId <= archivedThrough);
+        })) {
           weekly.qualificationDailiesComplete = true;
         }
       }
@@ -493,6 +500,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (const daily of dailies) {
       if (daily.snapshot.status !== "finalized") continue;
       if (daily.snapshot.dayId > lastDailyId + 1) continue;
+      // Archive is intentionally after Season rollup sealing. A committed
+      // candidate still passes through so an already archived account can be
+      // closed after the remaining rollup/seal work catches up.
+      if (daily.snapshot.dayId > lastDailyId &&
+          !daily.snapshot.seasonRollupSealed) continue;
       candidates.push(this.archiveCandidate({
         competition: "daily",
         cadenceId: daily.snapshot.dayId,
@@ -1655,6 +1667,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           liveDaily.get(dayId)?.status !== "finalized") {
         throw new Error("archived Daily was recreated or mutated");
       }
+      // Archive requires finalized on-chain. If the account is absent below
+      // the checkpoint, close_arena_daily additionally proves resolution,
+      // Season sealing, profile sync, and removal of participant blockers.
       const finalized = liveDaily.get(dayId)?.status === "finalized" ||
         (archive?.lastDailyId !== undefined && dayId <= archive.lastDailyId);
       if (!finalized ||
@@ -1704,6 +1719,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           liveSeason.get(seasonId)?.status !== "finalized") {
         throw new Error("archived Season was recreated or mutated");
       }
+      // Archive requires finalized on-chain; an absent account below the
+      // checkpoint is the canonical closed System placeholder accepted by
+      // close_season_player.
       const finalized = liveSeason.get(seasonId)?.status === "finalized" ||
         (archive?.lastSeasonId !== undefined &&
           seasonId <= archive.lastSeasonId);

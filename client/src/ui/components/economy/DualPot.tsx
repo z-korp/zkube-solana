@@ -75,7 +75,7 @@ const DualPot: React.FC<DualPotProps> = ({
         <div className="flex items-baseline gap-1.5">
           <span
             className={cn(
-              "font-sans font-black leading-none tabular-nums",
+              "money font-sans font-black leading-none",
               hero ? "text-4xl" : "text-2xl",
             )}
             style={{ color: MONEY_GOLD }}

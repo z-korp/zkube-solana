@@ -21,7 +21,7 @@ import {
 } from "./arcadeChain.js";
 import type { KeeperArchiveStore } from "./archiveStore.js";
 import {
-  discoverReconciliationPlans,
+  discoverReconciliation,
   type ProtocolSnapshot,
 } from "./arcadeReconciliation.js";
 import { assertKeeperPlanPolicy } from "./keeperPolicy.js";
@@ -39,9 +39,16 @@ const MAX_PARTICIPANT_CLOSURES = 2;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
-  event: "keeper_pass" | "keeper_operation" | "keeper_plan" | "keeper_readiness";
+  event:
+    | "keeper_pass"
+    | "keeper_operation"
+    | "keeper_plan"
+    | "keeper_readiness"
+    | "keeper_domain_quarantine";
   traceId: string;
   operation?: string;
+  competition?: "daily" | "weekly" | "season";
+  cadenceId?: number;
   ok: boolean;
   writes?: number;
   plannedWrites?: number;
@@ -131,17 +138,28 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     throw new Error("exact Anchor-IDL instruction materializer is not configured");
   }
 
-  const reconciliationPlans = discoverReconciliationPlans({
+  const reconciliation = discoverReconciliation({
     snapshot: input.protocolSnapshot,
     nowUnix,
   });
+  for (const quarantine of reconciliation.quarantines) {
+    log({
+      schemaVersion: 1,
+      event: "keeper_domain_quarantine",
+      traceId,
+      competition: quarantine.kind,
+      cadenceId: quarantine.id,
+      ok: false,
+      error: quarantine.reason,
+    });
+  }
   const expiredSessionPlans = await discoverExpiredSessionPlans({
     connection: input.connection,
     keeper: input.keeper.publicKey,
     targetProgramId: ZKUBE_PROGRAM_ID,
     nowUnix,
   });
-  const plans = [...reconciliationPlans, ...expiredSessionPlans].sort(
+  const plans = [...reconciliation.plans, ...expiredSessionPlans].sort(
     (left, right) => operationPriority(left.operation) - operationPriority(right.operation),
   );
 
@@ -522,7 +540,7 @@ function safeError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 240);
 }
 
-function operationPriority(operation: string): number {
+export function operationPriority(operation: string): number {
   const priority: Record<string, number> = {
     prepare_arena_daily: 0,
     prepare_weekly_jackpot: 0,
@@ -538,12 +556,12 @@ function operationPriority(operation: string): number {
     expire_unresolved_arena_run: 5,
     expire_unresolved_practice_run: 5,
     finalize_arena_daily: 6,
-    archive_arena_daily: 7,
-    archive_weekly_jackpot: 7,
-    archive_season: 7,
-    initialize_season_player: 8,
-    rollup_arena_to_season: 9,
-    seal_arena_season_rollups: 10,
+    initialize_season_player: 7,
+    rollup_arena_to_season: 8,
+    seal_arena_season_rollups: 9,
+    archive_arena_daily: 10,
+    archive_weekly_jackpot: 10,
+    archive_season: 10,
     finalize_weekly_jackpot: 11,
     finalize_season: 12,
     sync_daily_profile: 13,

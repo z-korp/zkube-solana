@@ -48,8 +48,8 @@ export function useCurrentChallenge() {
   }, [daily?.dayId, dayId, loading, refresh]);
 
   const challenge = useMemo(
-    () => (daily ? dailyToCurrentChallenge(daily) : null),
-    [daily],
+    () => (daily?.dayId === dayId ? dailyToCurrentChallenge(daily) : null),
+    [daily, dayId],
   );
   return {
     challenge,

@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { Lock } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getThemeImages, type ThemeId } from "@/config/themes";
@@ -139,7 +140,8 @@ const ZoneProgressTab: React.FC<ZoneProgressTabProps> = ({
               </div>
             ) : (
               <span className="flex items-center gap-1 font-sans text-[11px] font-semibold text-white/40">
-                🔒 Clear previous guardian
+                <Lock className="h-3 w-3" />
+                Clear previous guardian
               </span>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Crown, Globe2, Sparkles } from "lucide-react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import {
@@ -6,6 +7,7 @@ import {
   WORLD_PERFECT_EMBLEM_ID,
   resolveLeaderboardEmblem,
 } from "@/config/emblems";
+import { ZoneIcon } from "@/config/zoneIcons";
 import { cn } from "@/ui/utils";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
@@ -62,7 +64,6 @@ const EmblemBadge: React.FC<EmblemBadgeProps> = ({
     })();
 
   const dimension = size ?? 56;
-  const glyphSize = Math.round(dimension * 0.5);
   const isAuto = emblemId === 0;
   const isGuardian = emblemId >= 1 && emblemId <= 10;
 
@@ -89,10 +90,10 @@ const EmblemBadge: React.FC<EmblemBadgeProps> = ({
 
   const glyph =
     emblemId === REALM_CONQUEROR_EMBLEM_ID
-      ? "👑"
+      ? <Crown className="h-1/2 w-1/2" />
       : emblemId === WORLD_PERFECT_EMBLEM_ID
-        ? "🌐"
-        : "✦";
+        ? <Globe2 className="h-1/2 w-1/2" />
+        : <Sparkles className="h-1/2 w-1/2" />;
 
   return (
     <div
@@ -111,11 +112,12 @@ const EmblemBadge: React.FC<EmblemBadgeProps> = ({
           onError={() => setImgError(true)}
         />
       ) : isGuardian ? (
-        <span style={{ fontSize: glyphSize }}>
-          {getZoneGuardian(emblemId).emoji}
-        </span>
+        <ZoneIcon zoneId={emblemId} className="h-1/2 w-1/2" />
       ) : (
-        <span style={{ fontSize: glyphSize, color: isAuto ? MONEY_GOLD : undefined }}>
+        <span
+          className="flex h-full w-full items-center justify-center"
+          style={{ color: isAuto ? MONEY_GOLD : undefined }}
+        >
           {glyph}
         </span>
       )}

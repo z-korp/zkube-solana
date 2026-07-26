@@ -1,9 +1,23 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import GuardianPrizeResult from "./GuardianPrizeResult";
 
+const fixtures = vi.hoisted(() => ({
+  reduceMotion: false,
+  playSfx: vi.fn(),
+}));
+
+vi.mock("motion/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("motion/react")>()),
+  useReducedMotion: () => fixtures.reduceMotion,
+}));
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock({
+    playSfx: fixtures.playSfx,
+  }),
+);
 vi.mock("@/ui/elements/theme-provider/hooks", async () =>
   (await import("@/test/mocks/theme")).themeHooksMock(),
 );
@@ -17,7 +31,12 @@ afterAll(() => {
 });
 
 describe("GuardianPrizeResult", () => {
-  it("celebrates the delivered prize with period, amount, and push-only copy", () => {
+  beforeEach(() => {
+    fixtures.reduceMotion = true;
+    vi.clearAllMocks();
+  });
+
+  it("celebrates the delivered prize with period, amount, and push-only copy", async () => {
     render(
       <GuardianPrizeResult
         open
@@ -29,11 +48,26 @@ describe("GuardianPrizeResult", () => {
     );
 
     expect(screen.getByText("Daily prize")).toBeInTheDocument();
-    expect(screen.getByText("+0.5")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("+0.5")).toBeInTheDocument());
     expect(screen.getByText("SOL")).toBeInTheDocument();
     expect(
       screen.getByText("Pushed to your wallet · no claim"),
     ).toBeInTheDocument();
+    expect(fixtures.playSfx).toHaveBeenCalledWith("coin");
+  });
+
+  it("renders the final state without particles under reduced motion", () => {
+    render(
+      <GuardianPrizeResult
+        open
+        onDismiss={vi.fn()}
+        zoneId={1}
+        amountLamports={1_250_000_000n}
+        periodLabel="Season"
+      />,
+    );
+    expect(screen.getByText("+1.25")).toBeInTheDocument();
+    expect(screen.queryByTestId("reward-particle")).not.toBeInTheDocument();
   });
 
   it("dismisses via the Nice button", () => {

@@ -280,6 +280,8 @@ The generated IDL is the ABI handoff between program, keeper, and client.
 Tests must cover exact lamport conservation, period rollover, deadline
 freezing, replay parity, ER recovery, account validation, and Campaign's
 inability to mutate competitive records.
+GitHub static validation is manual-dispatch-only; `validate.sh` and the
+`AGENTS.md` gates are the steady-state local validation path.
 
 ### Frontend handoff
 

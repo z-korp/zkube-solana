@@ -17,6 +17,7 @@ import {
   weekStartDay,
 } from "../src/arcadeChain";
 import {
+  discoverReconciliation,
   discoverReconciliationPlans,
   validateProtocolSnapshot,
   type DailySnapshot,
@@ -26,6 +27,7 @@ import {
   type WeeklySnapshot,
 } from "../src/arcadeReconciliation";
 import { archiveSha256 } from "../src/archiveStore";
+import { operationPriority } from "../src/keeper";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET;
@@ -707,7 +709,8 @@ describe("v4 keeper reconciliation", () => {
       .toThrow("Weekly qualification start");
   });
 
-  it("rejects noncanonical payout schedules before planning", () => {
+  it("quarantines noncanonical payout schedules before planning", () => {
+    const owner = Keypair.generate().publicKey;
     const malformed = baseSnapshot({
       dailies: [daily(DAY, "open", {
         potLamports: 10_000_000n,
@@ -721,8 +724,266 @@ describe("v4 keeper reconciliation", () => {
           rolloverLamports: 1_000_000n,
         },
       })],
+      runs: [
+        campaignRun(owner, 91n, "base"),
+        arenaRun(owner, 92n, "ranked", "base", "terminal", true),
+      ],
     });
-    expect(() => validateProtocolSnapshot(malformed)).toThrow("prize schedule");
+    expect(validateProtocolSnapshot(malformed)).toBeUndefined();
+    const discovery = discoverReconciliation({
+      snapshot: malformed,
+      nowUnix: NOW,
+    });
+    expect(discovery.quarantines).toEqual([expect.objectContaining({
+      kind: "daily",
+      id: DAY,
+      reason: expect.stringContaining("prize schedule"),
+    })]);
+    expect(discovery.plans.some(({ operation }) =>
+      operation === "finalize_arena_daily" ||
+      operation === "sync_daily_profile")).toBe(false);
+    expect(discovery.plans.some(({ operation }) =>
+      operation === "consume_arena_run")).toBe(false);
+    expect(discovery.plans.some(({ operation }) =>
+      operation === "consume_campaign_run")).toBe(true);
+  });
+
+  it("recovers an archived-but-unsealed Daily before any new archive", () => {
+    const firstOwner = Keypair.generate().publicKey;
+    const existingOwner = Keypair.generate().publicKey;
+    const canonicalJson = `{"periodId":${DAY},"schemaVersion":1}`;
+    const stuck = daily(DAY, "finalized", {
+      predecessorRolloverRequired: false,
+      seasonEligiblePlayers: 2,
+      seasonRollups: 0,
+      seasonRollupSealed: false,
+    });
+    const snapshot = baseSnapshot({
+      dailies: [
+        stuck,
+        daily(DAY + 1, "funding", {
+          predecessorRolloverRequired: true,
+        }),
+      ],
+      seasons: [season(seasonIdForDay(DAY), "open")],
+      dailySeasonPlayers: [
+        {
+          dayId: DAY,
+          owner: firstOwner,
+          dailyResolved: true,
+          hasBestScore: true,
+          seasonRolled: false,
+          seasonPlayerExists: false,
+        },
+        {
+          dayId: DAY,
+          owner: existingOwner,
+          dailyResolved: true,
+          hasBestScore: true,
+          seasonRolled: false,
+          seasonPlayerExists: true,
+        },
+      ],
+      archiveState: {
+        address: arcadeArchivePda(),
+        cadenceFunding: cadenceFundingPda(),
+        lastDailyId: DAY,
+      },
+      archiveCandidates: [{
+        competition: "daily",
+        cadenceId: DAY,
+        canonicalJson,
+        fileSha256: archiveSha256(canonicalJson),
+        resultHash: "23".repeat(32),
+        requiredProfileSyncMask: 0,
+        committed: true,
+        closeEligible: false,
+        closeEligibleAt: stuck.runsCloseAt,
+      }],
+    });
+
+    const discovery = discoverReconciliation({ snapshot, nowUnix: NOW });
+    expect(discovery.quarantines).toEqual([]);
+    expect(discovery.plans.map(({ operation }) => operation)).toEqual(
+      expect.arrayContaining([
+        "activate_arena_daily",
+        "initialize_season_player",
+        "rollup_arena_to_season",
+      ]),
+    );
+    expect(discovery.plans.some(({ operation }) =>
+      operation === "archive_arena_daily")).toBe(false);
+
+    const caughtUp = {
+      ...snapshot,
+      dailies: [{
+        ...stuck,
+        seasonRollups: 2,
+      }, snapshot.dailies[1]!],
+      dailySeasonPlayers: snapshot.dailySeasonPlayers.map((player) => ({
+        ...player,
+        seasonPlayerExists: true,
+        seasonRolled: true,
+      })),
+    };
+    expect(discoverReconciliationPlans({ snapshot: caughtUp, nowUnix: NOW }))
+      .toContainEqual(expect.objectContaining({
+        operation: "seal_arena_season_rollups",
+      }));
+  });
+
+  it("counts an absent archived Daily as closed and therefore Season-sealed", () => {
+    const launchDayId = seasonStartDay(seasonIdForDay(DAY)) + 27;
+    const seasonId = seasonIdForDay(launchDayId);
+    const snapshot = baseSnapshot({
+      launchDayId,
+      seasons: [season(seasonId, "open", {
+        qualificationStartDay: launchDayId,
+        sealedDailies: 1,
+      })],
+      archiveState: {
+        address: arcadeArchivePda(),
+        cadenceFunding: cadenceFundingPda(),
+        lastDailyId: launchDayId,
+      },
+    });
+    expect(discoverReconciliation({
+      snapshot,
+      nowUnix: (launchDayId + 1) * SECONDS_PER_DAY,
+    }).quarantines).toEqual([]);
+  });
+
+  it("keeps prepare and activate plans when an unrelated Season is quarantined", () => {
+    const seasonId = seasonIdForDay(DAY);
+    const discovery = discoverReconciliation({
+      snapshot: baseSnapshot({
+        dailies: [daily(DAY, "funding")],
+        seasons: [season(seasonId, "open", { sealedDailies: 1 })],
+      }),
+      nowUnix: DAY * SECONDS_PER_DAY + 15 * 60,
+    });
+    expect(discovery.quarantines).toContainEqual(expect.objectContaining({
+      kind: "season",
+      id: seasonId,
+      reason: "Season qualification is incomplete",
+    }));
+    expect(discovery.plans).toContainEqual(expect.objectContaining({
+      operation: "activate_arena_daily",
+    }));
+  });
+
+  it("orders first-time initialization and catch-up seals ahead of archives", () => {
+    expect(operationPriority("initialize_season_player"))
+      .toBeLessThan(operationPriority("rollup_arena_to_season"));
+    expect(operationPriority("rollup_arena_to_season"))
+      .toBeLessThan(operationPriority("seal_arena_season_rollups"));
+    expect(operationPriority("seal_arena_season_rollups"))
+      .toBeLessThan(operationPriority("archive_arena_daily"));
+  });
+
+  it("converges a three-day catch-up before recycling archived Daily rent", () => {
+    const dayIds = [DAY - 2, DAY - 1, DAY];
+    const seasonId = seasonIdForDay(DAY);
+    const owners = dayIds.flatMap(() => [
+      Keypair.generate().publicKey,
+      Keypair.generate().publicKey,
+    ]);
+    const makePlayers = (seasonRolled: boolean) =>
+      dayIds.flatMap((dayId, dayIndex) =>
+        owners.slice(dayIndex * 2, dayIndex * 2 + 2).map((owner) => ({
+          dayId,
+          owner,
+          dailyResolved: true,
+          hasBestScore: true,
+          seasonRolled,
+          seasonPlayerExists: true,
+        })));
+    const candidates = dayIds.map((dayId) => {
+      const canonicalJson = `{"periodId":${dayId},"schemaVersion":1}`;
+      return {
+        competition: "daily" as const,
+        cadenceId: dayId,
+        canonicalJson,
+        fileSha256: archiveSha256(canonicalJson),
+        resultHash: "34".repeat(32),
+        requiredProfileSyncMask: 0,
+        committed: false,
+        closeEligible: false,
+        closeEligibleAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+      };
+    });
+    const common = {
+      launchDayId: DAY - 2,
+      seasons: [season(seasonId, "open", {
+        qualificationStartDay: DAY - 2,
+      })],
+      archiveState: {
+        address: arcadeArchivePda(),
+        cadenceFunding: cadenceFundingPda(),
+        lastDailyId: DAY - 3,
+      },
+      archiveCandidates: candidates,
+    };
+
+    const rollupPass = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        ...common,
+        dailies: dayIds.map((dayId) => daily(dayId, "finalized", {
+          predecessorRolloverRequired: dayId !== DAY - 2,
+          predecessorRolloverApplied: dayId !== DAY - 2,
+          seasonEligiblePlayers: 2,
+        })),
+        dailySeasonPlayers: makePlayers(false),
+      }),
+      nowUnix: NOW,
+    }).sort((left, right) =>
+      operationPriority(left.operation) - operationPriority(right.operation));
+    expect(rollupPass.filter(({ operation }) =>
+      operation === "rollup_arena_to_season")).toHaveLength(6);
+    expect(rollupPass.slice(0, 8).some(({ operation }) =>
+      operation === "archive_arena_daily")).toBe(false);
+
+    const sealPass = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        ...common,
+        dailies: dayIds.map((dayId) => daily(dayId, "finalized", {
+          predecessorRolloverRequired: dayId !== DAY - 2,
+          predecessorRolloverApplied: dayId !== DAY - 2,
+          seasonEligiblePlayers: 2,
+          seasonRollups: 2,
+        })),
+        dailySeasonPlayers: makePlayers(true),
+      }),
+      nowUnix: NOW,
+    }).sort((left, right) =>
+      operationPriority(left.operation) - operationPriority(right.operation));
+    expect(sealPass.filter(({ operation }) =>
+      operation === "seal_arena_season_rollups")).toHaveLength(3);
+    expect(sealPass.slice(0, 8).some(({ operation }) =>
+      operation === "archive_arena_daily")).toBe(false);
+
+    const archivePass = discoverReconciliationPlans({
+      snapshot: baseSnapshot({
+        ...common,
+        dailies: dayIds.map((dayId) => daily(dayId, "finalized", {
+          predecessorRolloverRequired: dayId !== DAY - 2,
+          predecessorRolloverApplied: dayId !== DAY - 2,
+          seasonEligiblePlayers: 2,
+          seasonRollups: 2,
+          seasonRollupSealed: true,
+        })),
+        seasons: [season(seasonId, "open", {
+          qualificationStartDay: DAY - 2,
+          sealedDailies: 3,
+        })],
+        dailySeasonPlayers: makePlayers(true),
+      }),
+      nowUnix: NOW,
+    });
+    expect(archivePass).toContainEqual(expect.objectContaining({
+      operation: "archive_arena_daily",
+      context: expect.objectContaining({ dayId: DAY - 2 }),
+    }));
   });
 
   it("archives sequential terminal results and closes after the ranked deadline", () => {

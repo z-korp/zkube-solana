@@ -272,3 +272,23 @@
 .bonus-earn-ring {
   animation: bonusEarnRing 900ms ease-out forwards;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .svg-loading-border,
+  .svg-danger-border-warning,
+  .svg-danger-fill-warning,
+  .svg-danger-border-critical,
+  .svg-danger-fill-critical,
+  .chevron-pulse,
+  .map-playing-glow,
+  .map-playing-ring,
+  .map-current-pulse,
+  .map-guardian-pulse,
+  .guardian-pulse,
+  .leaderboard-pulse,
+  .bonus-earn-swirl,
+  .bonus-badge-pop,
+  .bonus-earn-ring {
+    animation: none !important;
+  }
+}

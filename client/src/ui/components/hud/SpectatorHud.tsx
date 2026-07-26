@@ -169,6 +169,10 @@ function ConstraintBadge({
   );
 }
 
-function constraintIcon(kind: number): string {
-  return kind === 1 ? "▰" : kind === 2 ? "◆" : "🔥";
+function constraintIcon(kind: number) {
+  return kind === 1
+    ? "▰"
+    : kind === 2
+      ? "◆"
+      : <Flame className="h-3 w-3" />;
 }

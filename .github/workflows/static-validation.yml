@@ -1,30 +1,6 @@
 name: Static validation
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "programs/**"
-      - "services/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "Anchor.toml"
-      - "validate.sh"
-      - "client/**"
-      - "fixtures/game-parity.json"
-      - ".github/workflows/static-validation.yml"
-  pull_request:
-    paths:
-      - "programs/**"
-      - "services/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "Anchor.toml"
-      - "validate.sh"
-      - "client/**"
-      - "fixtures/game-parity.json"
-      - ".github/workflows/static-validation.yml"
   workflow_dispatch:
 
 permissions:
@@ -58,45 +34,17 @@ jobs:
         working-directory: services
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Detect keeper-relevant changes
-        id: scope
-        working-directory: .
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          relevant=true
-          if [[ "$EVENT_NAME" != "workflow_dispatch" &&
-                -n "$BASE_SHA" &&
-                "$BASE_SHA" != "0000000000000000000000000000000000000000" ]] &&
-             git cat-file -e "$BASE_SHA^{commit}" &&
-             git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- \
-               services \
-               crates/zkube-core/src/economics.rs \
-               crates/zkube-core/src/lib.rs \
-               crates/zkube-codegen/src/main.rs \
-               .github/workflows/static-validation.yml; then
-            relevant=false
-          fi
-          echo "relevant=$relevant" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        if: steps.scope.outputs.relevant == 'true'
         with:
           version: 10.22.0
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        if: steps.scope.outputs.relevant == 'true'
         with:
           node-version: 24.13.0
           cache: pnpm
           cache-dependency-path: services/pnpm-lock.yaml
-      - if: steps.scope.outputs.relevant == 'true'
-        run: NO_DNA=1 pnpm install --frozen-lockfile --prefer-offline
-      - if: steps.scope.outputs.relevant == 'true'
-        run: NO_DNA=1 pnpm run build
-      - if: steps.scope.outputs.relevant == 'true'
-        run: NO_DNA=1 pnpm test
+      - run: NO_DNA=1 pnpm install --frozen-lockfile --prefer-offline
+      - run: NO_DNA=1 pnpm run build
+      - run: NO_DNA=1 pnpm test
 
   client:
     runs-on: ubuntu-24.04

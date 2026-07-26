@@ -1,14 +1,16 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { ChevronDown, Eye, Trophy } from "lucide-react";
+import { Calendar, ChevronDown, Eye, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 
 import { useDaily } from "@/contexts/daily";
 import useAccount from "@/hooks/useAccount";
 import { useCurrentChallenge } from "@/hooks/useCurrentChallenge";
 import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
+import { useNowTick } from "@/hooks/useNowTick";
 import { usePlayerEntry } from "@/hooks/usePlayerEntry";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { PaidCutLine } from "@/ui/components/arena/LeaderboardRow";
+import { computeArcadeLifecycle } from "@/ui/components/arcade";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import { useLeaderboardEmblems } from "@/ui/components/arena/useLeaderboardEmblems";
@@ -60,6 +62,12 @@ const ArenaDailyTab: React.FC = () => {
     (state) => state.setSpectateTarget,
   );
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
+  const nowUnix = Math.floor(useNowTick(60_000) / 1_000);
+  const lifecycle = computeArcadeLifecycle({
+    view: daily.daily,
+    hasActiveRun: false,
+    nowUnix,
+  });
 
   const rankRows = useMemo(
     () =>
@@ -143,9 +151,13 @@ const ArenaDailyTab: React.FC = () => {
     <div className="mx-auto flex max-w-[640px] flex-col gap-3">
       {!challenge ? (
         <EmptyState
-          icon={<span className="text-4xl">📅</span>}
-          title="No daily challenge yet"
-          hint="Today's challenge is being opened by the keeper."
+          icon={<Calendar className="h-12 w-12" />}
+          title={lifecycle === "delayed" || lifecycle === "stale"
+            ? "Today’s Daily is running late"
+            : "No Daily challenge yet"}
+          hint={lifecycle === "delayed" || lifecycle === "stale"
+            ? "The keeper is catching up. Entries open as soon as it’s ready."
+            : "Opens 00:00 UTC."}
           titleColor={colors.text}
           hintColor={colors.textMuted}
         />
@@ -293,7 +305,7 @@ const ArenaDailyTab: React.FC = () => {
                         </span>
                         {prize !== null && prize > 0n && (
                           <span
-                            className="font-sans text-[11px] font-bold tabular-nums"
+                            className="money font-sans text-[11px] font-bold"
                             style={{ color: MONEY_GOLD }}
                           >
                             {formatSolLamports(prize)} SOL

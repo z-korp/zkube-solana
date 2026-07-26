@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { ZoneIcon } from "@/config/zoneIcons";
 import { cn } from "@/ui/utils";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
@@ -54,9 +55,7 @@ const GuardianMedallion: React.FC<GuardianMedallionProps> = ({
       }
     >
       {imgError ? (
-        <span style={{ fontSize: Math.round(dimension * 0.5) }}>
-          {guardian.emoji}
-        </span>
+        <ZoneIcon zoneId={zoneId} className="h-1/2 w-1/2" />
       ) : (
         <img
           src={getGuardianPortrait(zoneId)}

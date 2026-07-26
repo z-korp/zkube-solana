@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { errorMessage } from "@/utils/errors";
 import { motion } from "motion/react";
 import {
+  Bell,
   Check,
   ChevronLeft,
   Copy,
   ExternalLink,
+  Music2,
   UserRound,
 } from "lucide-react";
 
@@ -101,14 +103,14 @@ const SettingsPage: React.FC = () => {
             className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 shadow-lg shadow-black/20 backdrop-blur-xl"
           >
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">🎵</span>
+              <Music2 className="h-5 w-5" style={{ color: colors.accent }} />
               <h2 className="font-display text-lg tracking-wide" style={{ color: colors.text }}>
                 AUDIO
               </h2>
             </div>
             <div className="flex flex-col gap-3">
-              <AudioSlider icon="🎵" value={musicVolume} color={colors.accent} label="Music volume" delay={0.1} onChange={setMusicVolume} />
-              <AudioSlider icon="🔔" value={effectsVolume} color={colors.accent2} label="Effects volume" delay={0.15} onChange={setEffectsVolume} />
+              <AudioSlider icon={<Music2 className="h-4 w-4" />} value={musicVolume} color={colors.accent} label="Music volume" delay={0.1} onChange={setMusicVolume} />
+              <AudioSlider icon={<Bell className="h-4 w-4" />} value={effectsVolume} color={colors.accent2} label="Effects volume" delay={0.15} onChange={setEffectsVolume} />
             </div>
           </motion.section>
 
@@ -119,7 +121,7 @@ const SettingsPage: React.FC = () => {
             className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 shadow-lg shadow-black/20 backdrop-blur-xl"
           >
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">🔔</span>
+              <Bell className="h-5 w-5" style={{ color: colors.accent2 }} />
               <h2 className="font-display text-lg tracking-wide" style={{ color: colors.text }}>
                 NOTIFICATIONS
               </h2>
@@ -232,7 +234,7 @@ const SettingsPage: React.FC = () => {
   );
 };
 
-function AudioSlider({ icon, value, color, label, delay, onChange }: { icon: string; value: number; color: string; label: string; delay: number; onChange: (value: number) => void }) {
+function AudioSlider({ icon, value, color, label, delay, onChange }: { icon: React.ReactNode; value: number; color: string; label: string; delay: number; onChange: (value: number) => void }) {
   return (
     <motion.label initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay, type: "spring", stiffness: 300, damping: 24 }} className="flex items-center gap-3">
       <span className="shrink-0 text-base">{icon}</span>

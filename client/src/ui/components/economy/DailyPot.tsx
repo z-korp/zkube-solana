@@ -75,7 +75,7 @@ const DailyPot: React.FC<DailyPotProps> = ({
         </span>
         <div className="flex items-baseline gap-1.5">
           <span
-            className="font-sans text-4xl font-black leading-none tabular-nums"
+            className="money font-sans text-4xl font-black leading-none"
             style={{ color: MONEY_GOLD }}
           >
             {formatSolLamports(potLamports)}

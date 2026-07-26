@@ -1,9 +1,15 @@
 const LAMPORTS_PER_SOL_BASE_UNITS = 1_000_000_000n;
 const LAMPORTS_PER_SOL = 1_000_000_000;
+const WHOLE_SOL_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
 
 /** Fixed-decimal SOL amount from a numeric lamport balance. */
 export function formatSol(lamports: number, decimals = 4): string {
-  return (lamports / LAMPORTS_PER_SOL).toFixed(decimals);
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(lamports / LAMPORTS_PER_SOL);
 }
 
 export function formatSolLamports(value: bigint): string {
@@ -14,5 +20,6 @@ export function formatSolLamports(value: bigint): string {
     .toString()
     .padStart(9, "0")
     .replace(/0+$/, "");
-  return `${sign}${fraction ? `${whole}.${fraction}` : whole.toString()}`;
+  const groupedWhole = WHOLE_SOL_FORMATTER.format(whole);
+  return `${sign}${fraction ? `${groupedWhole}.${fraction}` : groupedWhole}`;
 }

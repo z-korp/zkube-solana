@@ -1,16 +1,3 @@
-export const ZONE_EMOJIS: Record<number, string> = {
-  1: "🌊",
-  2: "🏛️",
-  3: "❄️",
-  4: "🏺",
-  5: "🐉",
-  6: "🕌",
-  7: "⛩️",
-  8: "🌿",
-  9: "🥁",
-  10: "⛰️",
-};
-
 export const ZONE_NAMES: Record<number, string> = {
   1: "Tiki",
   2: "Egypt",
@@ -29,7 +16,6 @@ export interface ZoneProgressData {
   themeId?: number;
   settingsId: number;
   name: string;
-  emoji: string;
   stars: number;
   maxStars: number;
   unlocked: boolean;

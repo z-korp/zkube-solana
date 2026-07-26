@@ -1,17 +1,20 @@
 import type { DailyStatus } from "@/chain/dailyClient";
 
 /**
- * The five presentational lifecycle states of the Guardian's Trial home. The
+ * The presentational lifecycle states of the Guardian's Trial home. The
  * connect-gate is handled globally by App/ConnectScreen and is never computed
- * here, so this returns one of four surfaces for an already-connected player.
+ * here.
  */
 export type ArcadeLifecycle =
   | "resume"
   | "entries-open"
   | "entries-closed"
-  | "preparing";
+  | "preparing"
+  | "delayed"
+  | "stale";
 
 interface DailyTiming {
+  dayId: number;
   status: DailyStatus;
   opensAt: number;
   entriesCloseAt: number;
@@ -23,21 +26,28 @@ interface DailyTiming {
  *
  * Precedence:
  *  1. `resume` — a live ranked or legacy Practice run always wins.
- *  2. `preparing` — today's Daily is not a guaranteed, open pot yet (missing,
- *     still funding, or an unknown status).
- *  3. `entries-open` — today's Daily is open and inside the paid-entry window.
- *  4. `entries-closed` — today's Daily is guaranteed but the entry window has
+ *  2. `stale` — only a previous Daily is visible.
+ *  3. `preparing`/`delayed` — today's Daily is missing or not open, split by
+ *     a short post-midnight keeper grace window.
+ *  4. `entries-open` — today's Daily is open and inside the paid-entry window.
+ *  5. `entries-closed` — today's Daily is guaranteed but the entry window has
  *     passed (settling, or already finalized) before the next UTC reset.
  */
 export function computeArcadeLifecycle(args: {
   view: DailyTiming | null;
   hasActiveRun: boolean;
   nowUnix: number;
+  expectedDayId?: number;
 }): ArcadeLifecycle {
   const { view, hasActiveRun, nowUnix } = args;
   if (hasActiveRun) return "resume";
-  if (!view || view.status === "funding" || view.status === "unknown") {
-    return "preparing";
+  const expectedDayId = args.expectedDayId ??
+    Math.max(0, Math.floor(nowUnix / 86_400));
+  if (view && view.dayId < expectedDayId) return "stale";
+  if (!view || view.dayId !== expectedDayId ||
+      view.status === "funding" || view.status === "unknown") {
+    const delayedAt = expectedDayId * 86_400 + 15 * 60;
+    return nowUnix >= delayedAt ? "delayed" : "preparing";
   }
   const entriesOpen =
     view.status === "open" &&

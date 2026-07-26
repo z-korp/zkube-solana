@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { useCampaign } from "@/contexts/campaign";
 import {
-  ZONE_EMOJIS,
   ZONE_NAMES,
   type ZoneProgressData,
 } from "@/config/profileData";
@@ -45,7 +44,6 @@ export function campaignMapsToZones(
       themeId: map.themeId,
       settingsId: map.mapId,
       name: ZONE_NAMES[map.mapId] ?? `Zone ${map.mapId}`,
-      emoji: ZONE_EMOJIS[map.mapId] ?? "🗺️",
       stars: map.levelStars.reduce((sum, stars) => sum + stars, 0),
       maxStars: 30,
       unlocked: map.unlocked,

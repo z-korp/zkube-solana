@@ -71,6 +71,7 @@ validate_frontend() {
   cd "$root/services"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run build
+  NO_DNA=1 pnpm test
   cd "$root/client"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check

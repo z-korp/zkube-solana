@@ -1,3 +1,4 @@
+import { Swords } from "lucide-react";
 import { motion } from "motion/react";
 
 import {
@@ -143,8 +144,9 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
           )}
 
           {bossCleared && (
-            <p className="mt-2 font-sans text-[12px] text-white/70">
-              ⚔️ This guardian trial has been mastered.
+            <p className="mt-2 flex items-center gap-1.5 font-sans text-[12px] text-white/70">
+              <Swords className="h-3.5 w-3.5" />
+              This guardian trial has been mastered.
             </p>
           )}
 

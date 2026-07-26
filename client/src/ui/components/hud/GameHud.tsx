@@ -6,7 +6,18 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Circle,
+  CircleDot,
+  Crown,
+  Diamond,
+  Flame,
+  Hexagon,
+  ShieldAlert,
+  Skull,
+  Zap,
+} from "lucide-react";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type { GameLevelData } from "@/hooks/useGameLevel";
@@ -64,14 +75,14 @@ const getRingSize = () => {
 };
 
 const TIER_DISPLAY = [
-  { name: "Very Easy", color: "#22c55e", emoji: "🟢" },
-  { name: "Easy", color: "#84cc16", emoji: "🟡" },
-  { name: "Medium", color: "#eab308", emoji: "🟠" },
-  { name: "Medium Hard", color: "#f97316", emoji: "🔶" },
-  { name: "Hard", color: "#ef4444", emoji: "🔴" },
-  { name: "Very Hard", color: "#dc2626", emoji: "💀" },
-  { name: "Expert", color: "#9333ea", emoji: "⚡" },
-  { name: "Master", color: "#f59e0b", emoji: "👑" },
+  { name: "Very Easy", color: "#22c55e", icon: Circle },
+  { name: "Easy", color: "#84cc16", icon: CircleDot },
+  { name: "Medium", color: "#eab308", icon: Diamond },
+  { name: "Medium Hard", color: "#f97316", icon: Hexagon },
+  { name: "Hard", color: "#ef4444", icon: ShieldAlert },
+  { name: "Very Hard", color: "#dc2626", icon: Skull },
+  { name: "Expert", color: "#9333ea", icon: Zap },
+  { name: "Master", color: "#f59e0b", icon: Crown },
 ] as const;
 
 function buildEndlessTiers(
@@ -230,6 +241,7 @@ const GameHud: React.FC<GameHudProps> = ({
   }
   const effectiveTierIndex = Math.max(tierIndex, scoreTierIndex);
   const currentTier = ENDLESS_TIERS[effectiveTierIndex] ?? ENDLESS_TIERS[0];
+  const TierIcon = currentTier.icon;
   const nextTier = ENDLESS_TIERS[effectiveTierIndex + 1] ?? null;
   const endlessTierProgress = nextTier
     ? Math.max(
@@ -435,7 +447,7 @@ const GameHud: React.FC<GameHudProps> = ({
                       border: `1px solid ${currentTier.color}80`,
                     }}
                   >
-                    {currentTier.emoji}
+                    <TierIcon className="h-[60%] w-[60%]" />
                   </span>
                 </TooltipTrigger>
                 <TooltipContent
@@ -500,9 +512,7 @@ const GameHud: React.FC<GameHudProps> = ({
                       : "bg-slate-800/60 text-slate-500"
                 }`}
               >
-                <span className="text-[clamp(10px,2.8vw,15px)] leading-none">
-                  🔥
-                </span>
+                <Flame className="h-[clamp(10px,2.8vw,15px)] w-[clamp(10px,2.8vw,15px)]" />
                 <span>{combo > 0 ? combo : "–"}</span>
               </motion.div>
             </div>
@@ -701,9 +711,7 @@ const GameHud: React.FC<GameHudProps> = ({
                     : "bg-slate-800/60 text-slate-500"
               }`}
             >
-              <span className="text-[clamp(10px,2.8vw,15px)] leading-none">
-                🔥
-              </span>
+              <Flame className="h-[clamp(10px,2.8vw,15px)] w-[clamp(10px,2.8vw,15px)]" />
               <span>{combo > 0 ? combo : "–"}</span>
             </motion.div>
           </div>

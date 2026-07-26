@@ -39,6 +39,16 @@ export type SessionRenewalStatus = "idle" | "renewing" | "failed";
  */
 export type TerminalPresentationPhase = "idle" | "cascade" | "outcome" | "card";
 export type SettlementStatus = "idle" | "pending" | "complete" | "failed";
+export interface ActionReceipt {
+  actionCounter: number;
+  chargesGained: number;
+  linesCleared: number;
+  levelLinesCleared: number;
+  source: "move" | "bonus";
+}
+export interface PlayControllerOptions {
+  onActionReceipt?: (receipt: ActionReceipt) => void;
+}
 /** Board outcome show durations; the CSS in grid.css must finish within. */
 const WIN_OUTCOME_ANIM_MS = 1500;
 const LOSE_OUTCOME_ANIM_MS = 900;
@@ -104,6 +114,28 @@ export function settleStageLabel(stage: SettleStage | null): string {
   }
 }
 
+export function bonusEarnReceipt(
+  before: ActiveRunView,
+  after: ActiveRunView,
+  source: ActionReceipt["source"],
+): ActionReceipt | null {
+  const expectedCharges = source === "bonus"
+    ? Math.max(0, before.bonusCharges - 1)
+    : before.bonusCharges;
+  const chargesGained = Math.max(0, after.bonusCharges - expectedCharges);
+  if (chargesGained === 0) return null;
+  return {
+    actionCounter: after.actionCounter,
+    chargesGained,
+    linesCleared: Math.max(
+      0,
+      after.totalLinesCleared - before.totalLinesCleared,
+    ),
+    levelLinesCleared: after.levelLinesCleared,
+    source,
+  };
+}
+
 function snapshotRun(
   activeRun: ActiveRunView,
   levelStars: readonly number[],
@@ -123,7 +155,7 @@ function snapshotRun(
   };
 }
 
-export function usePlayController() {
+export function usePlayController(options: PlayControllerOptions = {}) {
   const run = useRun();
   const campaign = useCampaign();
   const daily = useDaily();
@@ -159,6 +191,8 @@ export function usePlayController() {
   const renewingSessionRunRef = useRef<bigint | null>(null);
   const terminalAwaitingCascadeRef = useRef<bigint | null>(null);
   const settlingRunRef = useRef<bigint | null>(null);
+  const onActionReceiptRef = useRef(options.onActionReceipt);
+  onActionReceiptRef.current = options.onActionReceipt;
 
   const finalCampaignMapId = campaign.campaign?.maps.reduce(
     (highest, map) => Math.max(highest, map.mapId),
@@ -183,7 +217,12 @@ export function usePlayController() {
     async (row: number, start: number, destination: number) => {
       setLocalActionPending(true);
       try {
+        const before = run.activeRun;
         const activeRun = await playMove(row, start, destination);
+        if (before) {
+          const receipt = bonusEarnReceipt(before, activeRun, "move");
+          if (receipt) onActionReceiptRef.current?.(receipt);
+        }
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
           setAwaitingTerminalCascade(true);
@@ -195,7 +234,7 @@ export function usePlayController() {
         setLocalActionPending(false);
       }
     },
-    [playMove, rememberTerminal],
+    [playMove, rememberTerminal, run.activeRun],
   );
 
   const applyBonus = run.applyBonus;
@@ -203,7 +242,12 @@ export function usePlayController() {
     async (row: number, column: number) => {
       setLocalActionPending(true);
       try {
+        const before = run.activeRun;
         const activeRun = await applyBonus(row, column);
+        if (before) {
+          const receipt = bonusEarnReceipt(before, activeRun, "bonus");
+          if (receipt) onActionReceiptRef.current?.(receipt);
+        }
         if (isTerminalLifecycle(activeRun.lifecycle)) {
           terminalAwaitingCascadeRef.current = activeRun.runId;
           setAwaitingTerminalCascade(true);
@@ -215,7 +259,7 @@ export function usePlayController() {
         setLocalActionPending(false);
       }
     },
-    [applyBonus, rememberTerminal],
+    [applyBonus, rememberTerminal, run.activeRun],
   );
 
   const onCascadeComplete = useCallback(() => {

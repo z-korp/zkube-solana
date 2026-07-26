@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ActiveRunView } from "@/chain/runPlan";
 import {
+  bonusEarnReceipt,
   canSettleTerminalRun,
   pendingCompletionFromRun,
   projectRunResult,
@@ -59,6 +60,46 @@ describe("play controller projections", () => {
       over: true,
       nextRow: Array.from({ length: 8 }, () => 0),
     });
+  });
+
+  it("latches a move-earned charge from the authoritative receipt", () => {
+    expect(bonusEarnReceipt(
+      { ...activeRun(), bonusCharges: 1, totalLinesCleared: 7 },
+      {
+        ...activeRun(),
+        actionCounter: 5,
+        bonusCharges: 2,
+        totalLinesCleared: 10,
+        levelLinesCleared: 6,
+      },
+      "move",
+    )).toEqual({
+      actionCounter: 5,
+      chargesGained: 1,
+      linesCleared: 3,
+      levelLinesCleared: 6,
+      source: "move",
+    });
+  });
+
+  it("accounts for the spent charge before latching a bonus-earned charge", () => {
+    expect(bonusEarnReceipt(
+      { ...activeRun(), bonusCharges: 2 },
+      { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
+      "bonus",
+    )).toMatchObject({
+      actionCounter: 5,
+      chargesGained: 1,
+      source: "bonus",
+    });
+  });
+
+  it("does not emit feedback when a move earns no charge", () => {
+    expect(bonusEarnReceipt(
+      { ...activeRun(), bonusCharges: 2 },
+      { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
+      "move",
+    )).toBeNull();
   });
 
   it("snapshots pending completion before settlement", () => {

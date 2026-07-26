@@ -30,7 +30,6 @@ export interface EmblemDescriptor {
   /** Present only for guardian emblems (1..10). */
   zoneId?: number;
   name: string;
-  emoji: string;
   /** Guardian portrait asset path, or null for non-guardian emblems. */
   portrait: string | null;
 }
@@ -55,7 +54,6 @@ function guardianDescriptor(zoneId: number): EmblemDescriptor {
     kind: "guardian",
     zoneId,
     name: guardian.name,
-    emoji: guardian.emoji,
     portrait: getGuardianPortrait(zoneId),
   };
 }
@@ -66,7 +64,6 @@ export const EMBLEM_DESCRIPTORS: readonly EmblemDescriptor[] = [
     id: AUTO_EMBLEM_ID,
     kind: "auto",
     name: "Automatic",
-    emoji: "✨",
     portrait: null,
   },
   ...GUARDIAN_EMBLEM_IDS.map(guardianDescriptor),
@@ -74,14 +71,12 @@ export const EMBLEM_DESCRIPTORS: readonly EmblemDescriptor[] = [
     id: REALM_CONQUEROR_EMBLEM_ID,
     kind: "realm",
     name: "Realm Conqueror",
-    emoji: "👑",
     portrait: null,
   },
   {
     id: WORLD_PERFECT_EMBLEM_ID,
     kind: "world",
     name: "World Perfect",
-    emoji: "🌟",
     portrait: null,
   },
 ];

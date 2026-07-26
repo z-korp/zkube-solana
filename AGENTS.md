@@ -95,6 +95,9 @@ Architecture and operations documentation belongs in code comments and
 
 ## Validation gates
 
+Static GitHub validation is manual-dispatch-only; run these gates locally for
+steady-state validation without billed hosted compute.
+
 ```bash
 NO_DNA=1 ./validate.sh program
 cd services

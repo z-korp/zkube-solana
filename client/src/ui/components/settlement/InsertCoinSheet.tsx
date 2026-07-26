@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 
-import { MONEY_GOLD } from "@/ui/components/economy";
+import { Coin, MONEY_GOLD } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
@@ -29,21 +29,15 @@ const CoinSlot: React.FC = () => {
         <span className="absolute left-1/2 top-4 h-1.5 w-12 -translate-x-1/2 rounded-full bg-black/70 ring-1 ring-white/10" />
       </div>
       <motion.span
-        className="absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center font-mono text-sm font-black"
-        style={{
-          borderRadius: "9999px",
-          background: `radial-gradient(circle at 35% 30%, ${MONEY_GOLD}, ${MONEY_GOLD}cc 60%, ${MONEY_GOLD}80)`,
-          color: "#3a2c00",
-          boxShadow: `0 0 12px ${MONEY_GOLD}66`,
-        }}
+        className="absolute left-1/2 top-0 -translate-x-1/2 drop-shadow-[0_0_9px_rgba(250,204,21,0.45)]"
         animate={reduceMotion ? undefined : { y: [0, 6, 0] }}
         transition={
           reduceMotion
             ? undefined
-            : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+            : { duration: 0.8, ease: "easeOut" }
         }
       >
-        ◎
+        <Coin size={36} title="zKube entry coin" />
       </motion.span>
     </div>
   );

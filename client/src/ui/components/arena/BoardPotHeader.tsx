@@ -52,7 +52,7 @@ const BoardPotHeader: React.FC<BoardPotHeaderProps> = ({
             {label}
           </p>
           <p
-            className="mt-0.5 font-display text-[26px] font-black leading-none tabular-nums"
+            className="money mt-0.5 font-display text-[26px] font-black leading-none"
             style={{ color: MONEY_GOLD }}
           >
             {formatSolLamports(potLamports)}

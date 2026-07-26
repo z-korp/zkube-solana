@@ -35,6 +35,10 @@ export interface BonusSlot {
   name: string;
   description: string;
   triggerDescription: string; // e.g. "Chain 4 combos"
+  lineProgress?: {
+    current: number;
+    threshold: number;
+  };
   startingCharges: number;
   onClick: () => void;
 }
@@ -237,6 +241,14 @@ const GameActionBar: React.FC<GameActionBarProps> = ({
                         >
                           {slot.charges}
                         </span>
+                        {slot.lineProgress && (
+                          <span
+                            className="absolute -top-1 rounded-full border border-yellow-300/30 bg-slate-950/90 px-1.5 py-0.5 font-sans text-[clamp(7px,1.7vw,10px)] font-bold tabular-nums text-yellow-200"
+                            aria-label={`${slot.lineProgress.current} of ${slot.lineProgress.threshold} lines toward next charge`}
+                          >
+                            {slot.lineProgress.current}/{slot.lineProgress.threshold}
+                          </span>
+                        )}
                       </TooltipTrigger>
                       <TooltipContent
                         side="top"

@@ -34,11 +34,22 @@ import ImageAssets from "@/ui/theme/ImageAssets";
 import {
   describeRunStartError,
   usePlayController,
+  type ActionReceipt,
 } from "@/play/usePlayController";
 import "../../grid.css";
 
 export default function PlayScreen() {
-  const controller = usePlayController();
+  const pendingBonusEarnRef = useRef(false);
+  const lastBonusReceiptActionRef = useRef<number | null>(null);
+  const handleActionReceipt = useCallback((receipt: ActionReceipt) => {
+    if (receipt.chargesGained <= 0 ||
+        lastBonusReceiptActionRef.current === receipt.actionCounter) return;
+    lastBonusReceiptActionRef.current = receipt.actionCounter;
+    pendingBonusEarnRef.current = true;
+  }, []);
+  const controller = usePlayController({
+    onActionReceipt: handleActionReceipt,
+  });
   const { run, game, gameLevel, activeRun } = controller;
   const navigate = useNavigationStore((state) => state.navigate);
   const recoveryRunId = useNavigationStore((state) => state.recoveryRunId);
@@ -131,6 +142,17 @@ export default function PlayScreen() {
           activeRun.rules.bonusThreshold,
           activeRun.rules.startingCharges,
         ),
+        // Only the cumulative line trigger exposes meaningful progress from
+        // the authoritative receipt counters. Per-move trigger families do
+        // not have a safe "toward next" value between actions.
+        lineProgress: activeRun.rules.bonusTriggerType === 2 &&
+          activeRun.rules.bonusThreshold > 0
+          ? {
+              current: activeRun.levelLinesCleared %
+                activeRun.rules.bonusThreshold,
+              threshold: activeRun.rules.bonusThreshold,
+            }
+          : undefined,
         startingCharges: activeRun.rules.startingCharges,
         onClick: () => {
           if (activeRun.bonusCharges <= 0) return;
@@ -194,20 +216,10 @@ export default function PlayScreen() {
   // earned it finishes, so the badge pop lands with the line clears. Charge
   // decreases (spending) and run/level rollovers never latch.
   const [bonusEarnSignal, setBonusEarnSignal] = useState(0);
-  const pendingBonusEarnRef = useRef(false);
-  const chargesRef = useRef<{ key: string; charges: number } | null>(null);
   useEffect(() => {
-    if (!activeRun) {
-      chargesRef.current = null;
-      return;
-    }
-    const key = `${activeRun.runId}:${activeRun.level}`;
-    const prev = chargesRef.current;
-    chargesRef.current = { key, charges: activeRun.bonusCharges };
-    if (prev && prev.key === key && activeRun.bonusCharges > prev.charges) {
-      pendingBonusEarnRef.current = true;
-    }
-  }, [activeRun]);
+    lastBonusReceiptActionRef.current = null;
+    pendingBonusEarnRef.current = false;
+  }, [activeRun?.runId]);
 
   const onCascadeCompleteFromController = controller.onCascadeComplete;
   const handleCascadeComplete = useCallback(() => {

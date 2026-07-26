@@ -42,10 +42,21 @@ const fixtures = vi.hoisted(() => ({
   playSfx: vi.fn(),
   setThemeTemplate: vi.fn(),
   actionBarProps: null as Record<string, unknown> | null,
+  gameBoardProps: null as Record<string, unknown> | null,
+  onActionReceipt: null as null | ((receipt: {
+    actionCounter: number;
+    chargesGained: number;
+    linesCleared: number;
+    levelLinesCleared: number;
+    source: "move" | "bonus";
+  }) => void),
 }));
 
 vi.mock("@/play/usePlayController", () => ({
-  usePlayController: () => {
+  usePlayController: (options?: {
+    onActionReceipt?: typeof fixtures.onActionReceipt;
+  }) => {
+    fixtures.onActionReceipt = options?.onActionReceipt ?? null;
     const activeRun = {
       runId: 7n,
       mapId: 1,
@@ -144,7 +155,10 @@ vi.mock("@/ui/theme/ImageAssets", () => ({
   default: () => ({ background: "/background.png" }),
 }));
 vi.mock("@/ui/components/GameBoard", () => ({
-  default: () => <div data-testid="game-board" />,
+  default: (props: Record<string, unknown>) => {
+    fixtures.gameBoardProps = props;
+    return <div data-testid="game-board" />;
+  },
 }));
 vi.mock("@/ui/components/hud/GameHud", () => ({ default: () => null }));
 vi.mock("@/ui/components/actionbar/GameActionBar", () => ({
@@ -179,6 +193,8 @@ describe("PlayScreen prepared-run recovery", () => {
     fixtures.settledCleanupStatus = "idle";
     fixtures.sessionRenewalStatus = "idle";
     fixtures.recoveryRunId = null;
+    fixtures.onActionReceipt = null;
+    fixtures.gameBoardProps = null;
   });
 
   it("resumes the durable prepared run instead of starting a replacement", async () => {
@@ -204,6 +220,59 @@ describe("PlayScreen prepared-run recovery", () => {
     expect(fixtures.dismissRun).not.toHaveBeenCalled();
     expect(fixtures.navigate).not.toHaveBeenCalledWith("arcade");
     expect(screen.getByText("Run ready")).toBeInTheDocument();
+  });
+});
+
+describe("PlayScreen bonus receipt feedback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.lifecycle = "playing";
+    fixtures.phase = "delegated";
+    fixtures.gameAvailable = true;
+    fixtures.error = null;
+    fixtures.sessionAuthorized = true;
+    fixtures.settledReceipt = null;
+    fixtures.settledCleanupStatus = "idle";
+    fixtures.sessionRenewalStatus = "idle";
+    fixtures.recoveryRunId = null;
+    fixtures.onActionReceipt = null;
+    fixtures.gameBoardProps = null;
+  });
+
+  it("celebrates a receipt latched before path-A cascade completion", () => {
+    render(<PlayScreen />);
+    act(() => {
+      fixtures.onActionReceipt?.({
+        actionCounter: 8,
+        chargesGained: 1,
+        linesCleared: 3,
+        levelLinesCleared: 3,
+        source: "move",
+      });
+      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+    });
+    expect(fixtures.actionBarProps?.bonusEarnSignal).toBe(1);
+    expect(fixtures.playSfx).toHaveBeenCalledWith("coin");
+  });
+
+  it("deduplicates the same action receipt across both timing paths", () => {
+    render(<PlayScreen />);
+    const receipt = {
+      actionCounter: 8,
+      chargesGained: 1,
+      linesCleared: 3,
+      levelLinesCleared: 3,
+      source: "move" as const,
+    };
+    act(() => {
+      fixtures.onActionReceipt?.(receipt);
+      fixtures.onActionReceipt?.(receipt);
+      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+      fixtures.onActionReceipt?.(receipt);
+      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+    });
+    expect(fixtures.actionBarProps?.bonusEarnSignal).toBe(1);
+    expect(fixtures.playSfx).toHaveBeenCalledTimes(1);
   });
 });
 
