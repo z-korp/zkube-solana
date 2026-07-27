@@ -16,7 +16,7 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 10,
+      schemaVersion: 11,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "10000000",
@@ -27,6 +27,7 @@ describe("keeper release binding", () => {
         operator: "1000000",
       },
       payoutUnitLamports: "1000000",
+      maximumCadenceResultBytes: 10_240,
       replayVersion: 2,
       maximumWritesPerPass: 8,
       maximumExpiredSessionClosuresPerPass: 2,

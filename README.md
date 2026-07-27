@@ -267,9 +267,10 @@ instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy schema v10 fingerprints supported archive contracts
-`[1,2]` and requires the Daily archive checkpoint to cover a Weekly's final
-qualified day before planning settlement. It quarantines a typed per-cadence
+Keeper release-policy schema v11 fingerprints supported archive contracts
+`[1,2]` and the keeper's 10,240-byte fail-closed cadence-result encoding bound.
+It requires the Daily archive checkpoint to cover a Weekly's final qualified
+day before planning settlement. It quarantines a typed per-cadence
 archive-integrity failure without blocking an independent Daily, Weekly,
 Season, or Campaign plan. Global chain readiness, policy, materialization,
 storage configuration, and release errors remain fatal. A

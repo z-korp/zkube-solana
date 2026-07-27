@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 
 import {
   BorshAccountsCoder,
-  BorshCoder,
   BorshInstructionCoder,
   convertIdlToCamelCase,
   type Idl,
+  type IdlTypeDef,
 } from "@anchor-lang/core";
+import { IdlCoder } from "@anchor-lang/core/dist/cjs/coder/borsh/idl.js";
 import BN from "bn.js";
 import {
   Connection,
@@ -85,6 +86,10 @@ import { type ProtocolInstructionMaterializer } from "./planMaterializer.js";
 import { getDelegationStatus } from "./router.js";
 
 const MAX_PROGRAM_ACCOUNT_BYTES = 10_240;
+// Anchor 1.0.2's public type encoder hardcodes a 1,000-byte scratch buffer.
+// Build the same pinned IDL layout directly so production-sized cadence
+// results remain byte-identical while the keeper owns an explicit hard bound.
+export const MAX_CADENCE_RESULT_BYTES = 10_240;
 const MAX_CADENCE_PERIODS = 10_000;
 const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 const MAX_ARENA_PLAYERS_PER_DAILY = 5_000;
@@ -2358,19 +2363,33 @@ export function canonicalCadenceResultData(
     if (!field) throw new Error(`${definitionName}.${name} is missing from the IDL`);
     return field;
   });
-  const syntheticName = `keeper${definitionName}Result`;
-  const synthetic = {
-    ...(idl as unknown as Record<string, unknown>),
-    types: [
-      ...definitions,
-      {
-        name: syntheticName,
-        type: { kind: "struct", fields: selected },
-      },
-    ],
-  } as unknown as Idl;
-  const encoded = new BorshCoder(synthetic).types.encode(syntheticName, value);
-  return Buffer.from(encoded);
+  const resultDefinition = {
+    name: `keeper${definitionName}Result`,
+    type: { kind: "struct", fields: selected },
+  } as IdlTypeDef;
+  const layout = IdlCoder.typeDefLayout({
+    typeDef: resultDefinition,
+    types: definitions as IdlTypeDef[],
+  });
+  const buffer = Buffer.alloc(MAX_CADENCE_RESULT_BYTES);
+  let encodedLength: number;
+  try {
+    encodedLength = layout.encode(value, buffer);
+  } catch (cause) {
+    throw new Error(
+      `canonical ${competition} result encoding failed within the ` +
+        `${MAX_CADENCE_RESULT_BYTES}-byte bound`,
+      { cause },
+    );
+  }
+  if (!Number.isSafeInteger(encodedLength) || encodedLength < 0 ||
+      encodedLength >= MAX_CADENCE_RESULT_BYTES) {
+    throw new Error(
+      `canonical ${competition} result encoding reached or exceeded the ` +
+        `${MAX_CADENCE_RESULT_BYTES}-byte bound`,
+    );
+  }
+  return Buffer.from(buffer.subarray(0, encodedLength));
 }
 
 function cadenceRoot(

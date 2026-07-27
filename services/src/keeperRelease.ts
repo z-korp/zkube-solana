@@ -11,7 +11,10 @@ import {
   SOL_PAYOUT_UNIT_LAMPORTS,
   ZKUBE_PROGRAM_ID,
 } from "./arcadeChain.js";
-import { KEEPER_EXPECTED_IDL_SHA256 } from "./anchorIdlAdapter.js";
+import {
+  KEEPER_EXPECTED_IDL_SHA256,
+  MAX_CADENCE_RESULT_BYTES,
+} from "./anchorIdlAdapter.js";
 import { SUPPORTED_ARCHIVE_SCHEMA_VERSIONS } from "./archiveContract.js";
 import { SESSION_KEYS_PROGRAM_ID } from "./sessionCleanup.js";
 
@@ -20,7 +23,7 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
-  schemaVersion: 10,
+  schemaVersion: 11,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),
@@ -32,6 +35,7 @@ export const KEEPER_RELEASE_POLICY = {
     operator: ENTRY_SPLIT_LAMPORTS.operator.toString(),
   },
   payoutUnitLamports: SOL_PAYOUT_UNIT_LAMPORTS.toString(),
+  maximumCadenceResultBytes: MAX_CADENCE_RESULT_BYTES,
   replayVersion: 2,
   maximumWritesPerPass: 8,
   maximumExpiredSessionClosuresPerPass: 2,
