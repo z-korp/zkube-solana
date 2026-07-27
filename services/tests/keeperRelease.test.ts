@@ -16,7 +16,7 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 9,
+      schemaVersion: 10,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "10000000",

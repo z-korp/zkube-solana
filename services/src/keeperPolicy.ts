@@ -428,6 +428,13 @@ function assertWeeklyQualificationAccounts(context: KeeperPlanContext): void {
       days.some((dayId, index) => dayId !== start + index)) {
     throw new Error("keeper policy rejects Weekly qualification accounts");
   }
+  if (context.archiveLastDailyId === undefined) {
+    throw new Error("keeper policy rejects incomplete Weekly archive checkpoint");
+  }
+  assertCadenceId(context.archiveLastDailyId, "Weekly archive Daily checkpoint");
+  if (context.archiveLastDailyId < last) {
+    throw new Error("keeper policy rejects incomplete Weekly archive checkpoint");
+  }
 }
 
 function assertParticipantClosure(

@@ -267,17 +267,19 @@ instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy schema v9 fingerprints supported archive contracts
-`[1,2]`. It quarantines a typed per-cadence archive-integrity failure without
-blocking an independent Daily, Weekly, Season, or Campaign plan. Global chain
-readiness, policy, materialization, storage configuration, and release errors
-remain fatal. A preparation/integrity failure or archive-transaction failure
-suppresses only the same cadence's profile sync, cadence close, and participant
-cleanup writes for that pass. Quarantined and suppressed plans consume neither
-the eight-write window nor its session/participant closure quotas, so later
-eligible recovery and unrelated-cadence work backfills the same pass. The
-enforced cadence ordering is finalize, Daily-to-Season rollup, seal, archive,
-profile sync, then close.
+Keeper release-policy schema v10 fingerprints supported archive contracts
+`[1,2]` and requires the Daily archive checkpoint to cover a Weekly's final
+qualified day before planning settlement. It quarantines a typed per-cadence
+archive-integrity failure without blocking an independent Daily, Weekly,
+Season, or Campaign plan. Global chain readiness, policy, materialization,
+storage configuration, and release errors remain fatal. A
+preparation/integrity failure or archive-transaction failure suppresses only
+the same cadence's profile sync, cadence close, and participant cleanup writes
+for that pass. Quarantined and suppressed plans consume neither the eight-write
+window nor its session/participant closure quotas, so later eligible recovery
+and unrelated-cadence work backfills the same pass. The enforced cadence
+ordering is finalize, Daily-to-Season rollup, seal, archive, profile sync, then
+close.
 
 Fresh initialization remains paused. Paid Arcade cannot open until the exact
 program and complete recovery/settlement keeper have passed read-only

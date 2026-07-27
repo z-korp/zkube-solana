@@ -201,6 +201,7 @@ describe("v4 keeper semantic policy", () => {
         { length: weekEnd - DAY + 1 },
         (_, offset) => DAY + offset,
       ),
+      archiveLastDailyId: weekEnd,
       owners: [],
       payoutLamports: [],
       payoutTotalLamports: 0n,
@@ -210,6 +211,12 @@ describe("v4 keeper semantic policy", () => {
     expect(() => policy(weekly)).not.toThrow();
     weekly.context!.qualificationDayIds = [DAY + 1];
     expect(() => policy(weekly)).toThrow("qualification accounts");
+    weekly.context!.qualificationDayIds = Array.from(
+      { length: weekEnd - DAY + 1 },
+      (_, offset) => DAY + offset,
+    );
+    weekly.context!.archiveLastDailyId = weekEnd - 1;
+    expect(() => policy(weekly)).toThrow("archive checkpoint");
 
     const seasonId = seasonIdForDay(DAY);
     const seasonEnd = seasonStartDay(seasonId) + 27;

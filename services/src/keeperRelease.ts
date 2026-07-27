@@ -20,7 +20,7 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
-  schemaVersion: 9,
+  schemaVersion: 10,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),

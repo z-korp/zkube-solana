@@ -435,6 +435,7 @@ export function discoverReconciliation(args: {
   for (const weekly of args.snapshot.weeklies) {
     if (weekly.weekId < oldestKeeperWeek) continue;
     if (isQuarantined("weekly", weekly.weekId)) continue;
+    const finalQualifiedDay = weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1;
     appendFinalizationPlan(
       plans,
       "weekly",
@@ -442,16 +443,18 @@ export function discoverReconciliation(args: {
       weekly.status === "open" &&
         args.nowUnix >= weekly.closesAt + PERIOD_SETTLEMENT_DELAY_SECONDS &&
         weekly.qualificationDailiesComplete &&
+        weeklyArchiveCheckpointComplete(args.snapshot, weekly) &&
         (!weekly.predecessorRolloverRequired || weekly.predecessorRolloverApplied),
       weekly.settlement,
       weeklyById.has(weekly.weekId + 1),
-      weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1,
+      finalQualifiedDay,
       undefined,
       weekly.qualificationStartDay,
       cadenceRange(
         weekly.qualificationStartDay,
-        weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1,
+        finalQualifiedDay,
       ),
+      args.snapshot.archiveState?.lastDailyId,
     );
     appendProfileSyncPlans(
       plans,
@@ -828,6 +831,10 @@ function collectDomainQuarantines(
           !weekly.qualificationDailiesComplete) {
         throw new Error("finalized Weekly qualification is incomplete");
       }
+      if (weekly.status === "finalized" &&
+          !weeklyArchiveCheckpointComplete(snapshot, weekly)) {
+        throw new Error("finalized Weekly archive checkpoint is incomplete");
+      }
       if (weekly.qualificationDailiesComplete &&
           !qualificationDailies(
             snapshot,
@@ -1087,6 +1094,7 @@ function appendFinalizationPlan(
   sealedDailies?: number,
   qualificationStartDay?: number,
   qualificationDayIds?: readonly number[],
+  archiveLastDailyId?: number,
 ): void {
   if (!ready || !settlement || !successorExists) return;
   const recipients = aggregateWinners(
@@ -1107,6 +1115,7 @@ function appendFinalizationPlan(
     ...(sealedDailies === undefined ? {} : { sealedDailies }),
     ...(qualificationStartDay === undefined ? {} : { qualificationStartDay }),
     ...(qualificationDayIds === undefined ? {} : { qualificationDayIds }),
+    ...(archiveLastDailyId === undefined ? {} : { archiveLastDailyId }),
     competition,
     owners: recipients.map(({ owner }) => owner),
     payoutLamports: recipients.map(({ payoutLamports }) => payoutLamports),
@@ -1322,6 +1331,15 @@ function seasonQualificationDailies(
 
 function weeklyRequiredDailies(weekly: WeeklySnapshot): number {
   return weekStartDay(weekly.weekId) + DAYS_PER_WEEK - weekly.qualificationStartDay;
+}
+
+function weeklyArchiveCheckpointComplete(
+  snapshot: ProtocolSnapshot,
+  weekly: WeeklySnapshot,
+): boolean {
+  const archivedThrough = snapshot.archiveState?.lastDailyId;
+  return archivedThrough !== undefined &&
+    archivedThrough >= weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1;
 }
 
 function seasonRequiredDailies(season: SeasonSnapshot): number {

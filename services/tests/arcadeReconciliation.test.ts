@@ -467,8 +467,13 @@ describe("v4 keeper reconciliation", () => {
           profileSyncMask: 1,
         })],
         playerStateOwners: [owner, other],
+        archiveState: {
+          address: arcadeArchivePda(),
+          cadenceFunding: cadenceFundingPda(),
+          lastDailyId: weekStart + 6,
+        },
       }),
-      nowUnix: NOW,
+      nowUnix: (weekStart + 7) * SECONDS_PER_DAY + 6 * 60 * 60,
     });
     expect(weeklyPlans).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -579,6 +584,7 @@ describe("v4 keeper reconciliation", () => {
           weekly(week, "open", {
             qualificationStartDay: launchDay,
             predecessorRolloverRequired: false,
+            predecessorRolloverApplied: true,
             qualificationDailiesComplete: true,
             settlement: { winners: [], rolloverLamports: 0n },
           }),
@@ -586,6 +592,11 @@ describe("v4 keeper reconciliation", () => {
             qualificationStartDay: weekStartDay(week + 1),
           }),
         ],
+        archiveState: {
+          address: arcadeArchivePda(),
+          cadenceFunding: cadenceFundingPda(),
+          lastDailyId: weekEnd,
+        },
       }),
       nowUnix: (weekEnd + 1) * SECONDS_PER_DAY + 6 * 60 * 60,
     });
@@ -593,6 +604,7 @@ describe("v4 keeper reconciliation", () => {
       operation: "finalize_weekly_jackpot",
       context: expect.objectContaining({
         qualificationStartDay: launchDay,
+        archiveLastDailyId: weekEnd,
         qualificationDayIds: Array.from(
           { length: weekEnd - launchDay + 1 },
           (_, offset) => launchDay + offset,
@@ -617,6 +629,7 @@ describe("v4 keeper reconciliation", () => {
           season(seasonId, "open", {
             qualificationStartDay: launchDay,
             predecessorRolloverRequired: false,
+            predecessorRolloverApplied: true,
             sealedDailies: seasonEnd - launchDay + 1,
             settlement: { winners: [], rolloverLamports: 0n },
           }),
@@ -635,6 +648,119 @@ describe("v4 keeper reconciliation", () => {
         sealedDailies: seasonEnd - launchDay + 1,
       }),
     }));
+  });
+
+  it("waits for exact Weekly 2950 Daily archive catch-up without starving closure", () => {
+    const launchDayId = 20_656;
+    const weekId = 2_950;
+    const finalQualifiedDay = 20_660;
+    const nowUnix = 20_661 * SECONDS_PER_DAY + 6 * 60 * 60;
+    const snapshotAt = (
+      checkpoint: number,
+      candidateId: number,
+      committed: boolean,
+      weeklyStatus: WeeklySnapshot["status"] = "open",
+    ): ProtocolSnapshot => {
+      const canonicalJson = `{"periodId":${candidateId},"schemaVersion":1}`;
+      const dailies = Array.from(
+        { length: finalQualifiedDay - launchDayId + 1 },
+        (_, offset) => launchDayId + offset,
+      )
+        .filter((dayId) =>
+          dayId > checkpoint || (committed && dayId === candidateId))
+        .map((dayId) => daily(dayId, "finalized", {
+          predecessorRolloverRequired: dayId !== launchDayId,
+          predecessorRolloverApplied: dayId !== launchDayId,
+          seasonRollupSealed: true,
+        }));
+      return baseSnapshot({
+        launchDayId,
+        dailies,
+        weeklies: [
+          weekly(weekId, weeklyStatus, {
+            qualificationStartDay: launchDayId,
+            predecessorRolloverRequired: false,
+            predecessorRolloverApplied: true,
+            qualificationDailiesComplete: true,
+            settlement: { winners: [], rolloverLamports: 0n },
+          }),
+          weekly(weekId + 1, "funding", {
+            qualificationStartDay: weekStartDay(weekId + 1),
+          }),
+        ],
+        archiveState: {
+          address: arcadeArchivePda(),
+          cadenceFunding: cadenceFundingPda(),
+          lastDailyId: checkpoint,
+        },
+        archiveCandidates: [{
+          competition: "daily",
+          cadenceId: candidateId,
+          canonicalJson,
+          fileSha256: archiveSha256(canonicalJson),
+          resultHash: "45".repeat(32),
+          requiredProfileSyncMask: 0,
+          committed,
+          closeEligible: committed,
+          closeEligibleAt:
+            candidateId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+        }],
+      });
+    };
+
+    const checkpoint20657 = discoverReconciliation({
+      snapshot: snapshotAt(20_657, 20_657, true),
+      nowUnix,
+    });
+    expect(checkpoint20657.quarantines).toEqual([]);
+    expect(checkpoint20657.plans.some(({ operation }) =>
+      operation === "finalize_weekly_jackpot")).toBe(false);
+    expect(checkpoint20657.plans).toContainEqual(expect.objectContaining({
+      operation: "close_arena_daily",
+      context: expect.objectContaining({ dayId: 20_657 }),
+    }));
+    expect([...checkpoint20657.plans]
+      .sort((left, right) =>
+        operationPriority(left.operation) - operationPriority(right.operation))
+      .slice(0, 8)
+      .some(({ operation }) => operation === "close_arena_daily")).toBe(true);
+
+    for (const checkpoint of [20_657, 20_658, 20_659]) {
+      const nextDay = checkpoint + 1;
+      const archivePlans = discoverReconciliationPlans({
+        snapshot: snapshotAt(checkpoint, nextDay, false),
+        nowUnix,
+      });
+      expect(archivePlans.some(({ operation }) =>
+        operation === "finalize_weekly_jackpot")).toBe(false);
+      expect(archivePlans).toContainEqual(expect.objectContaining({
+        operation: "archive_arena_daily",
+        context: expect.objectContaining({ dayId: nextDay }),
+      }));
+    }
+
+    const caughtUp = discoverReconciliationPlans({
+      snapshot: snapshotAt(finalQualifiedDay, finalQualifiedDay, true),
+      nowUnix,
+    });
+    expect(caughtUp).toContainEqual(expect.objectContaining({
+      operation: "finalize_weekly_jackpot",
+      context: expect.objectContaining({
+        weekId,
+        finalDayId: finalQualifiedDay,
+        archiveLastDailyId: finalQualifiedDay,
+      }),
+    }));
+
+    const impossibleFinalized = discoverReconciliation({
+      snapshot: snapshotAt(20_657, 20_657, true, "finalized"),
+      nowUnix,
+    });
+    expect(impossibleFinalized.quarantines).toContainEqual({
+      kind: "weekly",
+      id: weekId,
+      reason: "finalized Weekly archive checkpoint is incomplete",
+    });
   });
 
   it("discovers only finalized participant cleanup with canonical rent recipients", () => {

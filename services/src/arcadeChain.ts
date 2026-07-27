@@ -106,6 +106,8 @@ export interface KeeperPlanContext {
   competition?: CompetitionKind;
   qualificationStartDay?: number;
   qualificationDayIds?: readonly number[];
+  /** Relationship-checked ArcadeArchive Daily checkpoint used by Weekly settlement. */
+  archiveLastDailyId?: number;
   rulesCatalog?: PublicKey;
   launchCadenceId?: number;
   owner?: PublicKey;

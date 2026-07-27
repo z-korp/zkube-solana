@@ -585,7 +585,8 @@ describe("keeper read-only planning", () => {
 
 function archiveIsolationSnapshot(): ProtocolSnapshot {
   const dayId = 20_660;
-  const weekId = weekIdForDay(dayId);
+  const launchDayId = 20_650;
+  const weekId = weekIdForDay(dayId) - 1;
   const owner = Keypair.generate().publicKey;
   const dailyResultData = Buffer.from("daily-result");
   const weeklyResultData = Buffer.from("weekly-result");
@@ -609,7 +610,7 @@ function archiveIsolationSnapshot(): ProtocolSnapshot {
   });
   return {
     paused: false,
-    launchDayId: 20_656,
+    launchDayId,
     rulesCatalog: rulesCatalogPda(1),
     dailies: [{
       dayId,
@@ -639,7 +640,7 @@ function archiveIsolationSnapshot(): ProtocolSnapshot {
     }],
     weeklies: [{
       weekId,
-      qualificationStartDay: 20_656,
+      qualificationStartDay: launchDayId,
       status: "finalized",
       closesAt: (weekStartDay(weekId) + 7) * SECONDS_PER_DAY,
       potLamports: 0n,
