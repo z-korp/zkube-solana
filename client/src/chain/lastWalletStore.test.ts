@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import type { StorageLike } from "@/platform/browserStorage";
@@ -25,10 +26,11 @@ function memoryStorage(): StorageLike {
 describe("lastWalletStore", () => {
   it("round-trips the last connected wallet", () => {
     const storage = memoryStorage();
-    saveLastWallet({ connectorId: "phantom", address: "Addr111" }, storage);
+    const address = Keypair.generate().publicKey.toBase58();
+    saveLastWallet({ connectorId: "phantom", address }, storage);
     expect(loadLastWallet(storage)).toEqual({
       connectorId: "phantom",
-      address: "Addr111",
+      address,
     });
 
     clearLastWallet(storage);
@@ -39,6 +41,7 @@ describe("lastWalletStore", () => {
     const storage = memoryStorage();
     storage.setItem(LAST_WALLET_STORAGE_KEY, "not json");
     expect(loadLastWallet(storage)).toBeNull();
+    expect(storage.getItem(LAST_WALLET_STORAGE_KEY)).toBeNull();
 
     storage.setItem(
       LAST_WALLET_STORAGE_KEY,
@@ -51,10 +54,16 @@ describe("lastWalletStore", () => {
       JSON.stringify({ version: 1, connectorId: 5, address: "y" }),
     );
     expect(loadLastWallet(storage)).toBeNull();
+    expect(storage.getItem(LAST_WALLET_STORAGE_KEY)).toBeNull();
+
+    saveLastWallet({ connectorId: "phantom", address: "foreign" }, storage);
+    expect(storage.getItem(LAST_WALLET_STORAGE_KEY)).toBeNull();
   });
 
   it("is a no-op without browser storage", () => {
-    expect(() => saveLastWallet({ connectorId: "a", address: "b" }, null)).not.toThrow();
+    expect(() =>
+      saveLastWallet({ connectorId: "a", address: "b" }, null),
+    ).not.toThrow();
     expect(loadLastWallet(null)).toBeNull();
     expect(() => clearLastWallet(null)).not.toThrow();
   });

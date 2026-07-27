@@ -331,6 +331,137 @@ visual redesign. The next Claude frontend pass must preserve the contract and:
   issuing one account read per row;
 - use Season everywhere; `Monthly` is not a product or protocol label.
 
+## Mobile Wallet Adapter and Seeker validation
+
+### Target surfaces
+
+| Surface | Status | Wallet path |
+| --- | --- | --- |
+| Desktop browser | Supported | Wallet Standard extension |
+| Android Chrome | Supported | Mobile Wallet Adapter |
+| Chrome-installed PWA | Supported | Mobile Wallet Adapter |
+| TWA (dApp Store / Seeker) | Eventual target | Mobile Wallet Adapter |
+| iOS | Not claimed supported | — |
+| Other Android browsers | Not claimed supported | — |
+
+Seed Vault Wallet is Seeker's built-in wallet and is the reference MWA target.
+Phantom and Solflare on Android are optional MWA-compatible wallets, not
+requirements. Nothing on iOS or on a non-Chrome Android browser is claimed
+supported yet; those surfaces are untested, not deliberately blocked.
+
+`client/src/platform/capabilities.ts` classifies only observable browser
+signals and MWA registration follows that classification, so a desktop or iOS
+browser never registers the mobile connector. TWA detection is deliberately
+conservative: Android, standalone display mode, and an `android-app://`
+referrer must all hold, so a plain Android browser or an installed PWA is never
+promoted on user agent alone. The pinned
+`@solana-mobile/wallet-standard-mobile` also requires a secure context and
+declines generic Android WebViews; the capability gate mirrors both constraints
+and permits the package's explicit `Solana Mobile Web Shell` exception.
+
+### Capability-only diagnostics
+
+The existing dev-preview surface exposes a read-only capability panel. A
+physical device must load it from a trusted HTTPS origin: plain HTTP on a LAN
+address is not a secure context and the pinned MWA package will not register.
+
+For a local-only setup, create a development certificate outside this
+repository with a locally trusted CA such as `mkcert`. Include the workstation's
+LAN IP or test hostname in the certificate, install that CA as trusted on the
+physical test device, and set both `ZKUBE_HTTPS_CERT_PATH` and
+`ZKUBE_HTTPS_KEY_PATH` to the absolute operator-supplied certificate and key
+paths. Vite reads those files without copying them:
+
+```bash
+cd client
+NO_DNA=1 ZKUBE_HTTPS_CERT_PATH=/absolute/path/outside/repo/dev-cert.pem \
+  ZKUBE_HTTPS_KEY_PATH=/absolute/path/outside/repo/dev-key.pem pnpm dev
+```
+
+Open `https://<certificate-host-or-lan-ip>:5175/?dev=1` on the device and
+confirm there is no certificate warning. A trusted HTTPS tunnel or reverse
+proxy to the Vite port is also valid when local CA installation is impractical.
+Do not use browser flags that weaken secure-context or certificate checks as G1
+evidence.
+
+Expand
+`Capability diagnostics` in the lower-right corner. `?dev=0` clears the
+persisted opt-in. The panel reports the classified platform kind, standalone
+display mode, conservative TWA signal, secure-context and Android WebView /
+Solana WebShell signals, the MWA support reason, registration-attempt state,
+and for each discovered Wallet Standard wallet its name, chains, feature keys,
+and the presence and supported transaction versions of
+`solana:signTransaction` and `solana:signAndSendTransaction`.
+
+It reads public registry metadata only. It never connects, authorizes, reads
+accounts, signs, simulates, or sends, and the whole `src/dev/` harness is
+gated on `import.meta.env.DEV`, so a production build eliminates it.
+Certificate and key suffixes are ignored repository-wide; keep all generated
+TLS material outside the worktree.
+
+### Gate G1 physical-device matrix
+
+Run every row on a physical device for Seed Vault Wallet on Seeker, Phantom on
+Android, and Solflare on Android. Step 1 is passive; steps 2 onward require a
+real wallet and are gated as described below.
+
+| # | Step | Expected result |
+| ---: | --- | --- |
+| 1 | Passive capability inspection | Panel lists the wallet with `solana:signTransaction` and version `0` |
+| 2 | Connection and authorization | Account authorized, address matches the wallet UI |
+| 3 | Rejection | User decline surfaces as a typed rejection, no partial state |
+| 4 | Reconnect after process death | Authorization re-establishes without a stale account |
+| 5 | Background and resume | Returning to the app keeps or cleanly re-requests the connection |
+| 6 | Account switch | Client observes the new address; no cross-account carryover |
+| 7 | v0 sign-only behavior | Wallet returns a signed v0 transaction without submitting it |
+| 8 | Unchanged message bytes | Returned message equals the approved message exactly |
+| 9 | Device partial signatures | An existing device-session signature survives wallet signing |
+
+Steps 7 through 9 verify the properties the client already enforces:
+signing requires `solana:signTransaction` with version `0`, a wallet that can
+only sign-and-send is rejected, and a wallet that mutates the message or
+discards an existing partial signature fails the check rather than producing a
+silently altered transaction.
+
+### Transaction-policy boundary
+
+Step 1 is passive inspection and needs no signing approval. Every later step
+drives a real wallet, produces authorization signatures or signed messages, and
+is out of scope for routine work. Any such pass — including a transaction or
+message signature test that is unsent, local-only, or zero-lamport — must first
+be proposed as one exact enumerated approval bundle covering the instructions
+or message, accounts, signers, Devnet genesis and cluster, expected send
+behavior, and maximum spend. No step in this matrix is executed by the
+documentation change that introduced it.
+
+### Stop/go rule
+
+Proceed with the sign-only architecture only after Seed Vault Wallet confirms
+`SolanaSignTransaction` with transaction version `0`, preserved partial
+signatures, and unchanged message bytes. If any of those fail, stop for an
+explicit architecture and security decision. Do not silently fall back to
+`signAndSendTransaction`; that path forfeits the exact signed-message check and
+the device partial signature.
+
+### Evidence to record
+
+Record per device, wallet, and step, with no secrets:
+
+- UTC date;
+- device model and OS or firmware build;
+- wallet name and version;
+- browser and surface (Android Chrome, installed PWA, or TWA);
+- exposed feature keys and supported transaction versions;
+- result or error class.
+
+Never record signer bytes, seed phrases, private keys, `.env` contents, keeper
+secrets, or Android credentials.
+
+Passing Gate G1 is a client-surface compatibility result only. It does not
+imply Mainnet readiness, does not open paid Arcade, and is not deployment or
+Solana dApp Store publication approval; each of those remains separately
+approved.
+
 ## Deployment status
 
 The v4 Devnet program is

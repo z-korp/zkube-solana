@@ -9,14 +9,16 @@ import { RunProvider } from "./contexts/run";
 import { SeasonProvider } from "./contexts/season";
 import { WeeklyProvider } from "./contexts/weekly";
 import { SolanaProvider } from "./chain/provider";
+import { captureInstallPrompt } from "./platform/installPrompt";
+import { initializePwaLifecycle } from "./platform/pwaLifecycle";
+import { PwaLifecycleBanner } from "./ui/components/shared/PwaLifecycleBanner";
 import { ThemeProvider } from "./ui/elements/theme-provider";
 import "./index.css";
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" });
-  });
-}
+// `beforeinstallprompt` can fire before React mounts and never fires again,
+// so the capture must start ahead of the first render.
+captureInstallPrompt();
+initializePwaLifecycle();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -29,6 +31,7 @@ createRoot(document.getElementById("root")!).render(
                 <WeeklyProvider>
                   <SeasonProvider>
                     <App />
+                    <PwaLifecycleBanner />
                   </SeasonProvider>
                 </WeeklyProvider>
               </DailyProvider>

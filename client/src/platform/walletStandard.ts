@@ -3,6 +3,7 @@ import {
   createDefaultChainSelector,
   registerMwa,
   SolanaMobileWalletAdapterWalletName,
+  type AuthorizationCache,
 } from "@solana-mobile/wallet-standard-mobile";
 import {
   SolanaSignTransaction,
@@ -21,8 +22,33 @@ import {
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
 import type { WalletLike } from "@/chain/sessionWallet";
+import {
+  currentPlatformCapabilities,
+  type PlatformCapabilities,
+} from "./capabilities";
 
 const DEVNET_CHAIN = "solana:devnet" as const;
+const WALLET_NOT_FOUND_MESSAGE =
+  "No compatible Android wallet was found. Seeker includes Seed Vault Wallet, and other installed compatible wallets may be used.";
+
+export class WalletAvailabilityError extends Error {
+  override readonly name = "WalletAvailabilityError";
+  readonly code = "wallet-not-found";
+  readonly recoverable = true;
+  readonly recoveryAction = "install-compatible-android-wallet";
+
+  constructor(readonly capabilities: PlatformCapabilities) {
+    super(WALLET_NOT_FOUND_MESSAGE);
+  }
+}
+
+export type WalletAvailabilityState =
+  | Readonly<{ status: "unknown"; error: null }>
+  | Readonly<{ status: "unavailable"; error: WalletAvailabilityError }>;
+
+export type WalletAvailabilityListener = (
+  state: WalletAvailabilityState,
+) => void;
 
 export interface WalletConnector {
   id: string;
@@ -33,27 +59,68 @@ export interface WalletConnector {
   wallet: Wallet;
 }
 
-let mobileRegistered = false;
+export type MobileWalletRegistrationState =
+  | Readonly<{ status: "not-attempted" }>
+  | Readonly<{ status: "attempted" }>;
+
+let mobileRegistrationState: MobileWalletRegistrationState = {
+  status: "not-attempted",
+};
+let mobileAuthorizationCache: AuthorizationCache | null = null;
+let walletAvailabilityState: WalletAvailabilityState = {
+  status: "unknown",
+  error: null,
+};
+const walletAvailabilityListeners = new Set<WalletAvailabilityListener>();
+
+export function getWalletAvailabilityState(): WalletAvailabilityState {
+  return walletAvailabilityState;
+}
+
+export function subscribeWalletAvailability(
+  listener: WalletAvailabilityListener,
+): () => void {
+  walletAvailabilityListeners.add(listener);
+  return () => walletAvailabilityListeners.delete(listener);
+}
+
+export function getMobileWalletRegistrationState(): MobileWalletRegistrationState {
+  return mobileRegistrationState;
+}
 
 /** Register MWA before asking Wallet Standard for its first discovery snapshot. */
 function registerMobileWalletStandard(): void {
-  if (mobileRegistered || !isAndroidBrowser()) return;
-  mobileRegistered = true;
+  const capabilities = currentPlatformCapabilities();
+  if (
+    mobileRegistrationState.status === "attempted" ||
+    !capabilities.mobileWalletAdapterSupported
+  )
+    return;
+  const authorizationCache = createDefaultAuthorizationCache();
   registerMwa({
     appIdentity: {
       name: "zKube",
       uri: window.location.origin,
-      icon: "assets/pwa-512x512.png",
+      icon: new URL(
+        "/assets/pwa-512x512.png",
+        window.location.origin,
+      ).toString(),
     },
-    authorizationCache: createDefaultAuthorizationCache(),
+    authorizationCache,
     chains: [DEVNET_CHAIN],
     chainSelector: createDefaultChainSelector(),
     onWalletNotFound: async () => {
-      throw new Error(
-        "No compatible Android wallet was found. Seeker releases require Seed Vault Wallet.",
-      );
+      const error = new WalletAvailabilityError(currentPlatformCapabilities());
+      publishWalletAvailability({ status: "unavailable", error });
+      throw error;
     },
   });
+  // registerMwa() returns void, so this records only that the pinned,
+  // capability-gated call completed. It deliberately does not claim that the
+  // package reported successful registration. A synchronous failure leaves
+  // the state retryable.
+  mobileAuthorizationCache = authorizationCache;
+  mobileRegistrationState = { status: "attempted" };
 }
 
 export function walletRegistry() {
@@ -98,6 +165,9 @@ export async function connectWalletStandard(
   const feature = connector.wallet.features[
     StandardConnect
   ] as StandardConnectFeature[typeof StandardConnect];
+  if (connector.kind === "mobile-wallet-adapter") {
+    publishWalletAvailability({ status: "unknown", error: null });
+  }
   const output = await feature.connect(
     options?.silent ? { silent: true } : undefined,
   );
@@ -106,15 +176,45 @@ export async function connectWalletStandard(
   assertSolanaAccount(account);
   return {
     account,
-    wallet: new WalletStandardWallet(connector.wallet, account),
+    wallet: createWalletStandardWallet(connector.wallet, account),
   };
 }
 
-export async function disconnectWalletStandard(wallet: Wallet): Promise<void> {
+export function createWalletStandardWallet(
+  wallet: Wallet,
+  account: WalletAccount,
+): WalletLike {
+  return new WalletStandardWallet(wallet, account);
+}
+
+export async function disconnectWalletStandard(
+  wallet: Wallet,
+  options?: { clearMobileAuthorizationCache?: boolean },
+): Promise<void> {
   const feature = wallet.features[StandardDisconnect] as
     | StandardDisconnectFeature[typeof StandardDisconnect]
     | undefined;
-  await feature?.disconnect();
+  let disconnectError: unknown;
+  try {
+    await feature?.disconnect();
+  } catch (cause) {
+    disconnectError = cause;
+  }
+  if (options?.clearMobileAuthorizationCache) {
+    await clearMobileWalletAuthorizationCache();
+  }
+  if (disconnectError) throw disconnectError;
+}
+
+/**
+ * Clears only the supported cache object supplied to the pinned MWA adapter.
+ * The registered Wallet Standard wallet does not expose that cache, so retain
+ * the public AuthorizationCache instead of reaching through adapter internals.
+ */
+export async function clearMobileWalletAuthorizationCache(): Promise<boolean> {
+  if (!mobileAuthorizationCache) return false;
+  await mobileAuthorizationCache.clear();
+  return true;
 }
 
 export function subscribeWalletAccounts(
@@ -397,10 +497,13 @@ function isZeroSignature(signature: Uint8Array | undefined): boolean {
   return !signature || signature.every((byte) => byte === 0);
 }
 
-function isAndroidBrowser(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof navigator !== "undefined" &&
-    /Android/i.test(navigator.userAgent)
-  );
+function publishWalletAvailability(state: WalletAvailabilityState): void {
+  walletAvailabilityState = state;
+  walletAvailabilityListeners.forEach((listener) => {
+    try {
+      listener(state);
+    } catch (cause) {
+      console.error("Wallet availability listener failed", cause);
+    }
+  });
 }

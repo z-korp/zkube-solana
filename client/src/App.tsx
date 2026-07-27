@@ -21,6 +21,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
+import { CapabilityDiagnostics } from "@/dev/CapabilityDiagnostics";
 
 const params = new URLSearchParams(window.location.search);
 const spectatePlayer = params.get("player");
@@ -98,6 +99,7 @@ export default function App() {
       <DevFixturesProvider>
         <TooltipProvider>
           <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+          <CapabilityDiagnostics />
           <Toaster position={getToastPlacement()} />
         </TooltipProvider>
       </DevFixturesProvider>
