@@ -479,32 +479,38 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   );
 
   const connectWallet = useCallback(
-    async (connectorId: string): Promise<SessionRefreshResult> => {
-      const silentReconnect = silentReconnectRef.current;
-      if (silentReconnect) await silentReconnect;
-      const restored = connectedRef.current;
-      if (restored) {
-        if (restored.connector.id !== connectorId) {
-          throw new Error(
-            "Disconnect the current wallet before choosing another wallet.",
-          );
-        }
-        return refreshSession(restored.publicKey);
-      }
+    (connectorId: string): Promise<SessionRefreshResult> => {
       const pending = explicitConnectRef.current;
       if (pending) {
         if (pending.connectorId === connectorId) return pending.promise;
-        throw new Error("Another wallet connection is already in progress");
+        return Promise.reject(
+          new Error("Another wallet connection is already in progress"),
+        );
       }
-      const connector = connectors.find(
-        (candidate) => candidate.id === connectorId,
-      );
-      if (!connector)
-        throw new Error("The selected wallet is no longer available");
-      const generation = ++lifecycleGenerationRef.current;
-      setConnectionStatus("connecting");
-      setError(null);
+
       const promise = (async (): Promise<SessionRefreshResult> => {
+        // Register this explicit intent before waiting so every later connect
+        // joins it. The wallet's explicit authorization cannot overlap the
+        // cache-only reconnect, and the silent lifecycle remains nonvisual.
+        const silentReconnect = silentReconnectRef.current;
+        if (silentReconnect) await silentReconnect;
+        const restored = connectedRef.current;
+        if (restored) {
+          if (restored.connector.id !== connectorId) {
+            throw new Error(
+              "Disconnect the current wallet before choosing another wallet.",
+            );
+          }
+          return refreshSession(restored.publicKey);
+        }
+        const connector = connectors.find(
+          (candidate) => candidate.id === connectorId,
+        );
+        if (!connector)
+          throw new Error("The selected wallet is no longer available");
+        const generation = ++lifecycleGenerationRef.current;
+        setConnectionStatus("connecting");
+        setError(null);
         try {
           const attempt = { connector };
           walletConnectionAttemptRef.current = attempt;
@@ -560,13 +566,19 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         }
       })();
       explicitConnectRef.current = { connectorId, promise };
-      try {
-        return await promise;
-      } finally {
-        if (explicitConnectRef.current?.promise === promise) {
-          explicitConnectRef.current = null;
-        }
-      }
+      void promise.then(
+        () => {
+          if (explicitConnectRef.current?.promise === promise) {
+            explicitConnectRef.current = null;
+          }
+        },
+        () => {
+          if (explicitConnectRef.current?.promise === promise) {
+            explicitConnectRef.current = null;
+          }
+        },
+      );
+      return promise;
     },
     [connectors, refreshBalance, refreshSession, resetConnection],
   );
