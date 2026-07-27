@@ -56,7 +56,11 @@ describe("device session storage", () => {
     const session = deviceFixture(owner, 2_000);
     saveDeviceSession(session, storage);
 
-    expect(loadDeviceSession(owner, storage)?.signer.publicKey.equals(session.signer.publicKey)).toBe(true);
+    expect(
+      loadDeviceSession(owner, storage)?.signer.publicKey.equals(
+        session.signer.publicKey,
+      ),
+    ).toBe(true);
     expect(loadDeviceSession(other, storage)).toBeNull();
     clearDeviceSession(owner, storage);
     expect(loadDeviceSession(owner, storage)).toBeNull();
@@ -72,6 +76,11 @@ describe("device session storage", () => {
     expect(() => requireCurrentDeviceSession(session, owner, 1_950)).toThrow(
       "expired",
     );
+    try {
+      requireCurrentDeviceSession(session, owner, 1_950);
+    } catch (cause) {
+      expect(cause).toMatchObject({ code: "session-expired" });
+    }
     expect(() => saveDeviceSession(session, null)).toThrow(
       "Browser storage is unavailable",
     );
@@ -169,7 +178,9 @@ describe("run session persistence", () => {
     }
     clearRunSession(first.publicKey, undefined, storage);
     expect(loadRunSession(first.publicKey, "campaign", { storage })).toBeNull();
-    expect(loadRunSession(second.publicKey, "campaign", { storage })).not.toBeNull();
+    expect(
+      loadRunSession(second.publicKey, "campaign", { storage }),
+    ).not.toBeNull();
   });
 
   it("round-trips the free Practice run mode", () => {

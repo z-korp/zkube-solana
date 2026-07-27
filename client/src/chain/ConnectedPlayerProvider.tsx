@@ -19,7 +19,9 @@ import {
 } from "@solana/web3.js";
 
 import {
+  clearMobileWalletAuthorizationCache,
   connectWalletStandard,
+  createWalletStandardWallet,
   disconnectWalletStandard,
   discoverWalletConnectors,
   subscribeWalletAccounts,
@@ -71,12 +73,15 @@ import {
 import {
   buildDeviceSessionRefillInstructions,
   buildDeviceSignerReclaimInstruction,
+  deviceSessionExpiryDelayMs,
+  DeviceSessionExpiredError,
+  DEVICE_SESSION_EXPIRED_MESSAGE,
+  DEVICE_SESSION_READY_SKEW_SECONDS,
 } from "./deviceSessionLifecycle";
 import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
-const SESSION_READY_SKEW_SECONDS = 60;
 const PLAYER_FUNDING_TARGET_LAMPORTS = 50_000_000;
 
 interface ConnectedWalletState {
@@ -113,10 +118,27 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const connectedRef = useRef<ConnectedWalletState | null>(null);
+  const mountedRef = useRef(true);
+  const lifecycleGenerationRef = useRef(0);
+  const balanceRequestRef = useRef(0);
+  const walletActionRequestRef = useRef(0);
+  const silentReconnectRef = useRef<Promise<void> | null>(null);
+  const explicitConnectRef = useRef<{
+    connectorId: string;
+    promise: Promise<SessionRefreshResult>;
+  } | null>(null);
+  const initialReconnectSelectionRef = useRef<string | null>(null);
   const readOnlyWallet = useMemo(
     () => createReadOnlyWallet(connectedWallet?.publicKey),
     [connectedWallet?.publicKey],
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     connectedRef.current = connectedWallet;
@@ -124,20 +146,42 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return;
-    const milliseconds =
-      (session.validUntil -
-        Math.floor(Date.now() / 1_000) -
-        SESSION_READY_SKEW_SECONDS) *
-      1_000;
-    if (milliseconds <= 0) {
+    const expireIfNeeded = () => {
+      if (
+        !mountedRef.current ||
+        connectedRef.current?.publicKey.equals(session.owner) !== true
+      ) {
+        return false;
+      }
+      if (deviceSessionExpiryDelayMs(session.validUntil) > 0) return false;
       setSessionStatus("expired");
-      return;
-    }
-    const timer = globalThis.setTimeout(
-      () => setSessionStatus("expired"),
-      milliseconds,
-    );
-    return () => globalThis.clearTimeout(timer);
+      setError(DEVICE_SESSION_EXPIRED_MESSAGE);
+      return true;
+    };
+    if (expireIfNeeded()) return;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const scheduleExpiry = () => {
+      const milliseconds = deviceSessionExpiryDelayMs(session.validUntil);
+      if (milliseconds <= 0) {
+        expireIfNeeded();
+        return;
+      }
+      timer = globalThis.setTimeout(scheduleExpiry, milliseconds);
+    };
+    scheduleExpiry();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") expireIfNeeded();
+    };
+    const onPageShow = () => {
+      expireIfNeeded();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      if (timer !== undefined) globalThis.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, [session]);
 
   useEffect(() => {
@@ -159,6 +203,9 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const resetConnection = useCallback(
     (reason: string | null, clearOwner: boolean) => {
+      lifecycleGenerationRef.current += 1;
+      balanceRequestRef.current += 1;
+      walletActionRequestRef.current += 1;
       const previous = connectedRef.current;
       if (previous && clearOwner) clearOwnerState(previous.publicKey);
       connectedRef.current = null;
@@ -167,6 +214,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setSessionStatus("missing");
       setBalanceLamports(null);
+      setBalanceLoading(false);
       setError(reason);
     },
     [clearOwnerState],
@@ -174,51 +222,119 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!connectedWallet) return;
-    return subscribeWalletAccounts(
+    let active = true;
+    const expected = connectedWallet;
+    const generation = lifecycleGenerationRef.current;
+    const unsubscribe = subscribeWalletAccounts(
       connectedWallet.connector.wallet,
       (accounts) => {
+        if (
+          !active ||
+          generation !== lifecycleGenerationRef.current ||
+          connectedRef.current !== expected
+        ) {
+          return;
+        }
         const account = accounts[0];
-        if (account?.address === connectedWallet.publicKey.toBase58()) return;
-        clearOwnerState(connectedWallet.publicKey);
+        if (account?.address === expected.publicKey.toBase58()) {
+          try {
+            const refreshed = {
+              ...expected,
+              wallet: createWalletStandardWallet(
+                expected.connector.wallet,
+                account,
+              ),
+            };
+            connectedRef.current = refreshed;
+            setConnectedWallet(refreshed);
+            return;
+          } catch (cause) {
+            clearOwnerState(expected.publicKey);
+            clearLastWallet();
+            resetConnection(walletErrorMessage(cause), false);
+            void disconnectWalletStandard(expected.connector.wallet, {
+              clearMobileAuthorizationCache:
+                expected.connector.kind === "mobile-wallet-adapter",
+            }).catch(() => undefined);
+            return;
+          }
+        }
+        clearOwnerState(expected.publicKey);
         clearLastWallet();
-        void disconnectWalletStandard(connectedWallet.connector.wallet).catch(
-          () => undefined,
-        );
         resetConnection(
           account
             ? "The wallet account changed. Connect and enable the new address."
             : "The wallet disconnected.",
           false,
         );
+        void disconnectWalletStandard(expected.connector.wallet, {
+          clearMobileAuthorizationCache:
+            expected.connector.kind === "mobile-wallet-adapter",
+        }).catch(() => undefined);
       },
     );
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [clearOwnerState, connectedWallet, resetConnection]);
 
   const refreshBalance = useCallback(async () => {
-    const owner = connectedRef.current?.publicKey;
-    if (!owner) {
+    const expected = connectedRef.current;
+    const request = ++balanceRequestRef.current;
+    if (!expected) {
       setBalanceLamports(null);
       return;
     }
     setBalanceLoading(true);
     try {
-      const lamports = await connection.getBalance(owner, "confirmed");
+      const lamports = await connection.getBalance(
+        expected.publicKey,
+        "confirmed",
+      );
+      if (
+        !mountedRef.current ||
+        request !== balanceRequestRef.current ||
+        !sameConnectedWallet(expected, connectedRef.current)
+      ) {
+        return;
+      }
       setBalanceLamports(lamports);
     } catch (cause) {
+      if (
+        !mountedRef.current ||
+        request !== balanceRequestRef.current ||
+        !sameConnectedWallet(expected, connectedRef.current)
+      ) {
+        return;
+      }
       setBalanceLamports(null);
       setError(walletErrorMessage(cause));
     } finally {
-      setBalanceLoading(false);
+      if (
+        mountedRef.current &&
+        request === balanceRequestRef.current &&
+        sameConnectedWallet(expected, connectedRef.current)
+      ) {
+        setBalanceLoading(false);
+      }
     }
   }, [connection]);
 
   const refreshSession = useCallback(
     async (owner: PublicKey): Promise<SessionRefreshResult> => {
+      const generation = lifecycleGenerationRef.current;
+      const canApply = () =>
+        mountedRef.current &&
+        generation === lifecycleGenerationRef.current &&
+        connectedRef.current?.publicKey.equals(owner) === true;
       const traceId = createChainTraceId();
       const stored = loadDeviceSession(owner);
       if (!stored) {
-        setSession(null);
-        setSessionStatus("missing");
+        if (canApply()) {
+          setSession(null);
+          setSessionStatus("missing");
+        }
         emitChainMetric({
           traceId,
           operation: "session:refresh",
@@ -229,8 +345,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         });
         return "missing";
       }
-      setSession(stored);
-      setSessionStatus("checking");
+      if (canApply()) {
+        setSession(stored);
+        setSessionStatus("checking");
+      }
       let info;
       let fundingInfo;
       let signerInfo;
@@ -238,23 +356,26 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       let protocol;
       try {
         const program = zkubeProgram(connection, createReadOnlyWallet(owner));
-        [[info, fundingInfo, signerInfo], signerRentFloor, protocol] = await Promise.all([
-          connection.getMultipleAccountsInfo(
-            [
-              stored.sessionToken,
-              derivePlayerFundingPda(owner),
-              stored.signer.publicKey,
-            ],
-            "confirmed",
-          ),
-          connection.getMinimumBalanceForRentExemption(0, "confirmed"),
-          program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
-        ]);
+        [[info, fundingInfo, signerInfo], signerRentFloor, protocol] =
+          await Promise.all([
+            connection.getMultipleAccountsInfo(
+              [
+                stored.sessionToken,
+                derivePlayerFundingPda(owner),
+                stored.signer.publicKey,
+              ],
+              "confirmed",
+            ),
+            connection.getMinimumBalanceForRentExemption(0, "confirmed"),
+            program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
+          ]);
       } catch (cause) {
         const message = walletErrorMessage(cause);
-        setError(
-          `Solana Devnet unavailable; the local session was retained. ${message}`,
-        );
+        if (canApply()) {
+          setError(
+            `Solana Devnet unavailable; the local session was retained. ${message}`,
+          );
+        }
         emitChainMetric({
           traceId,
           operation: "session:refresh",
@@ -286,8 +407,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           );
         }
         if (!isNormalizedPlayerFunding(fundingInfo)) {
-          setSession(null);
-          setSessionStatus("missing");
+          if (canApply()) {
+            setSession(null);
+            setSessionStatus("missing");
+          }
           return "missing";
         }
         const configuredFundingTarget = validatedPlayerFundingTarget(
@@ -299,12 +422,17 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           rentFloorLamports: signerRentFloor,
         });
         const result =
-          token.validUntil - now > SESSION_READY_SKEW_SECONDS
+          token.validUntil - now > DEVICE_SESSION_READY_SKEW_SECONDS
             ? fundingInfo!.lamports >= configuredFundingTarget
               ? fundingStatus
               : "needsRenewal"
             : "expired";
-        setSessionStatus(result);
+        if (canApply()) {
+          setSessionStatus(result);
+          setError(
+            result === "expired" ? DEVICE_SESSION_EXPIRED_MESSAGE : null,
+          );
+        }
         emitChainMetric({
           traceId,
           operation: "session:refresh",
@@ -319,11 +447,13 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         });
         return result;
       } catch (cause) {
-        clearDeviceSession(owner);
-        setSession(null);
-        setSessionStatus("missing");
         const message = walletErrorMessage(cause);
-        setError(message);
+        if (canApply()) {
+          clearDeviceSession(owner);
+          setSession(null);
+          setSessionStatus("missing");
+          setError(message);
+        }
         emitChainMetric({
           traceId,
           operation: "session:refresh",
@@ -341,73 +471,129 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const connectWallet = useCallback(
     async (connectorId: string): Promise<SessionRefreshResult> => {
+      const silentReconnect = silentReconnectRef.current;
+      if (silentReconnect) await silentReconnect;
+      const restored = connectedRef.current;
+      if (restored) {
+        if (restored.connector.id !== connectorId) {
+          throw new Error(
+            "Disconnect the current wallet before choosing another wallet.",
+          );
+        }
+        return refreshSession(restored.publicKey);
+      }
+      const pending = explicitConnectRef.current;
+      if (pending) {
+        if (pending.connectorId === connectorId) return pending.promise;
+        throw new Error("Another wallet connection is already in progress");
+      }
       const connector = connectors.find(
         (candidate) => candidate.id === connectorId,
       );
       if (!connector)
         throw new Error("The selected wallet is no longer available");
+      const generation = ++lifecycleGenerationRef.current;
       setConnectionStatus("connecting");
       setError(null);
+      const promise = (async (): Promise<SessionRefreshResult> => {
+        try {
+          const connected = await connectWalletStandard(connector);
+          if (
+            !mountedRef.current ||
+            generation !== lifecycleGenerationRef.current
+          ) {
+            await disconnectWalletStandard(connector.wallet, {
+              clearMobileAuthorizationCache:
+                connector.kind === "mobile-wallet-adapter",
+            }).catch(() => undefined);
+            throw new Error("Wallet connection was superseded");
+          }
+          const next = {
+            connector,
+            publicKey: connected.wallet.publicKey,
+            wallet: connected.wallet,
+          };
+          connectedRef.current = next;
+          setConnectedWallet(next);
+          setConnectionStatus("connected");
+          saveLastWallet({
+            connectorId: connector.id,
+            address: next.publicKey.toBase58(),
+          });
+          const [sessionResult] = await Promise.all([
+            refreshSession(next.publicKey),
+            (async () => {
+              await Promise.resolve();
+              await refreshBalance();
+            })(),
+          ]);
+          if (generation !== lifecycleGenerationRef.current) {
+            throw new Error("Wallet connection was superseded");
+          }
+          return sessionResult;
+        } catch (cause) {
+          if (
+            mountedRef.current &&
+            generation === lifecycleGenerationRef.current
+          ) {
+            resetConnection(walletErrorMessage(cause), false);
+          }
+          throw cause;
+        }
+      })();
+      explicitConnectRef.current = { connectorId, promise };
       try {
-        const connected = await connectWalletStandard(connector);
-        const next = {
-          connector,
-          publicKey: connected.wallet.publicKey,
-          wallet: connected.wallet,
-        };
-        connectedRef.current = next;
-        setConnectedWallet(next);
-        setConnectionStatus("connected");
-        saveLastWallet({
-          connectorId: connector.id,
-          address: next.publicKey.toBase58(),
-        });
-        const [sessionResult] = await Promise.all([
-          refreshSession(next.publicKey),
-          (async () => {
-            await Promise.resolve();
-            await refreshBalance();
-          })(),
-        ]);
-        return sessionResult;
-      } catch (cause) {
-        resetConnection(walletErrorMessage(cause), false);
-        throw cause;
+        return await promise;
+      } finally {
+        if (explicitConnectRef.current?.promise === promise) {
+          explicitConnectRef.current = null;
+        }
       }
     },
     [connectors, refreshBalance, refreshSession, resetConnection],
   );
 
-  // Silently restore the last wallet on page load so a refresh never forces a
-  // reconnect tap. One attempt per page load; wallets register asynchronously,
-  // so the effect waits for the remembered connector to appear.
-  const autoReconnectAttempted = useRef(false);
-  useEffect(() => {
-    if (autoReconnectAttempted.current || connectedRef.current) return;
+  const reconnectRememberedWallet = useCallback((): Promise<void> => {
+    if (connectedRef.current) return Promise.resolve();
+    if (explicitConnectRef.current) return Promise.resolve();
+    if (silentReconnectRef.current) return silentReconnectRef.current;
     const stored = loadLastWallet();
-    if (!stored) {
-      autoReconnectAttempted.current = true;
-      return;
-    }
+    if (!stored) return Promise.resolve();
     const connector = connectors.find(
       (candidate) => candidate.id === stored.connectorId,
     );
-    if (!connector) return;
-    autoReconnectAttempted.current = true;
-    void (async () => {
-      setConnectionStatus("connecting");
+    if (!connector) return Promise.resolve();
+    const generation = ++lifecycleGenerationRef.current;
+    setConnectionStatus("connecting");
+    const task = (async () => {
       try {
+        // Wallet Standard requires `silent: true` to prohibit connection UI.
+        // MWA 0.5.3 satisfies this from its authorization cache only.
         const connected = await connectWalletStandard(connector, {
           silent: true,
         });
-        if (connectedRef.current) return;
+        if (
+          !mountedRef.current ||
+          generation !== lifecycleGenerationRef.current
+        ) {
+          await disconnectWalletStandard(connector.wallet, {
+            clearMobileAuthorizationCache:
+              connector.kind === "mobile-wallet-adapter",
+          }).catch(() => undefined);
+          return;
+        }
         if (connected.wallet.publicKey.toBase58() !== stored.address) {
-          // A different account came back — require an explicit tap instead
-          // of silently adopting it.
-          await disconnectWalletStandard(connector.wallet).catch(
-            () => undefined,
-          );
-          setConnectionStatus("disconnected");
+          clearLastWallet();
+          await disconnectWalletStandard(connector.wallet, {
+            clearMobileAuthorizationCache:
+              connector.kind === "mobile-wallet-adapter",
+          }).catch(() => undefined);
+          if (generation === lifecycleGenerationRef.current) {
+            resetConnection(
+              "The wallet account does not match the previously connected player. Connect the intended address explicitly.",
+              false,
+            );
+          }
           return;
         }
         const next = {
@@ -420,11 +606,65 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         setConnectionStatus("connected");
         await Promise.all([refreshSession(next.publicKey), refreshBalance()]);
       } catch {
-        // Silent restore is best-effort; the gate stays one tap away.
-        if (!connectedRef.current) setConnectionStatus("disconnected");
+        // Silent restore is best-effort and never opens a wallet prompt. Keep
+        // the remembered selection so an explicit user retry remains possible.
+        if (
+          mountedRef.current &&
+          generation === lifecycleGenerationRef.current
+        ) {
+          resetConnection(null, false);
+        }
       }
     })();
-  }, [connectors, refreshBalance, refreshSession]);
+    silentReconnectRef.current = task;
+    void task.then(
+      () => {
+        if (silentReconnectRef.current === task) {
+          silentReconnectRef.current = null;
+        }
+      },
+      () => {
+        if (silentReconnectRef.current === task) {
+          silentReconnectRef.current = null;
+        }
+      },
+    );
+    return task;
+  }, [connectors, refreshBalance, refreshSession, resetConnection]);
+
+  // Restore exactly one remembered connector/address pair on startup. Wallets
+  // register asynchronously, so wait until that connector appears. A failed
+  // cache-only attempt can be retried on a later foreground resume.
+  useEffect(() => {
+    if (connectedRef.current) return;
+    const stored = loadLastWallet();
+    if (!stored) return;
+    const connector = connectors.find(
+      (candidate) => candidate.id === stored.connectorId,
+    );
+    if (!connector) return;
+    const selection = `${stored.connectorId}\0${stored.address}`;
+    if (initialReconnectSelectionRef.current === selection) return;
+    initialReconnectSelectionRef.current = selection;
+    void reconnectRememberedWallet();
+  }, [connectors, reconnectRememberedWallet]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void reconnectRememberedWallet();
+      }
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) void reconnectRememberedWallet();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [reconnectRememberedWallet]);
 
   const authorizeDeviceSession = useCallback(async () => {
     const current = connectedRef.current;
@@ -444,8 +684,13 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
       connection.getAccountInfo(playerFunding, "confirmed"),
     ]);
-    if (existingFundingInfo && !isNormalizedPlayerFunding(existingFundingInfo)) {
-      throw new Error("Player funding PDA has an invalid owner or account layout");
+    if (
+      existingFundingInfo &&
+      !isNormalizedPlayerFunding(existingFundingInfo)
+    ) {
+      throw new Error(
+        "Player funding PDA has an invalid owner or account layout",
+      );
     }
     const configuredFundingTarget = validatedPlayerFundingTarget(
       protocol.playerFundingTargetLamports,
@@ -480,7 +725,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         ? validatedDeviceSignerBalance(signerInfo)
         : 0;
       previousSession = stored;
-      if (token.validUntil - now > SESSION_READY_SKEW_SECONDS) {
+      if (token.validUntil - now > DEVICE_SESSION_READY_SKEW_SECONDS) {
         const topUpLamports = deviceSignerTopUpLamports(previousSignerBalance);
         if (topUpLamports === 0 && fundingTopUp === 0) {
           setSession(stored);
@@ -589,10 +834,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         throw new Error("PlayerState belongs to a different wallet");
       }
     }
-    if (
-      fundingInfo &&
-      !isNormalizedPlayerFunding(fundingInfo)
-    ) {
+    if (fundingInfo && !isNormalizedPlayerFunding(fundingInfo)) {
       throw new Error(
         "Player funding PDA has an invalid owner or account layout",
       );
@@ -700,6 +942,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const connectAndEnable = useCallback(
     async (connectorId: string) => {
+      const request = ++walletActionRequestRef.current;
       setError(null);
       try {
         const current = connectedRef.current;
@@ -717,9 +960,12 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         if (sessionResult === "ready") return;
         await authorizeDeviceSession();
       } catch (cause) {
-        const message = walletErrorMessage(cause);
-        setError(message);
-        throw new Error(message);
+        if (mountedRef.current && request === walletActionRequestRef.current) {
+          setError(walletErrorMessage(cause));
+        }
+        // Preserve the pinned Mobile Wallet Adapter error/cause chain for the
+        // connection CTA's typed recovery classifier.
+        throw cause;
       }
     },
     [authorizeDeviceSession, connectWallet, refreshSession],
@@ -727,24 +973,35 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(async () => {
     const current = connectedRef.current;
+    const stored = loadLastWallet();
+    const selectedConnector =
+      current?.connector ??
+      connectors.find((connector) => connector.id === stored?.connectorId);
     if (current) {
       clearOwnerState(current.publicKey);
-      await disconnectWalletStandard(current.connector.wallet).catch(
-        () => undefined,
-      );
     }
     clearLastWallet();
     resetConnection(null, false);
-  }, [clearOwnerState, resetConnection]);
+    if (selectedConnector) {
+      await disconnectWalletStandard(selectedConnector.wallet).catch(
+        () => undefined,
+      );
+    }
+    // Await the same public cache object supplied to registerMwa. This also
+    // closes the small gap in MWA 0.5.3 where StandardDisconnect invokes
+    // AuthorizationCache.clear() without awaiting it.
+    await clearMobileWalletAuthorizationCache().catch(() => false);
+  }, [clearOwnerState, connectors, resetConnection]);
 
   const requireSession = useCallback(() => {
     if (!session || sessionStatus !== "ready") {
+      if (sessionStatus === "expired") {
+        throw new DeviceSessionExpiredError();
+      }
       throw new Error(
-        sessionStatus === "expired"
-          ? "The zKube device session expired. Renew it before continuing."
-          : sessionStatus === "needsRenewal"
-            ? "This device's zKube fee allowance is low. Renew it before continuing."
-            : "Enable zKube before changing player state.",
+        sessionStatus === "needsRenewal"
+          ? "This device's zKube fee allowance is low. Renew it before continuing."
+          : "Enable zKube before changing player state.",
       );
     }
     const current = connectedRef.current;
@@ -856,13 +1113,20 @@ function assertConnectedWallet(
   expected: ConnectedWalletState,
   current: ConnectedWalletState | null,
 ): void {
-  if (
-    !current ||
-    !current.publicKey.equals(expected.publicKey) ||
-    current.connector.id !== expected.connector.id
-  ) {
+  if (!sameConnectedWallet(expected, current)) {
     throw new Error("The wallet account changed during session authorization");
   }
+}
+
+function sameConnectedWallet(
+  expected: ConnectedWalletState,
+  current: ConnectedWalletState | null,
+): boolean {
+  return Boolean(
+    current &&
+    current.publicKey.equals(expected.publicKey) &&
+    current.connector.id === expected.connector.id,
+  );
 }
 
 function walletErrorMessage(cause: unknown): string {

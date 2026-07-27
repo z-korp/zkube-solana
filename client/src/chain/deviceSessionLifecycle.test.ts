@@ -10,9 +10,24 @@ import { describe, expect, it } from "vitest";
 import {
   buildDeviceSessionRefillInstructions,
   buildDeviceSignerReclaimInstruction,
+  deviceSessionExpiryDelayMs,
+  DeviceSessionExpiredError,
+  DEVICE_SESSION_EXPIRED_MESSAGE,
 } from "./deviceSessionLifecycle";
 
 describe("device session balance lifecycle", () => {
+  it("uses one fail-closed expiry boundary for startup and foreground checks", () => {
+    expect(deviceSessionExpiryDelayMs(2_000, 1_939_000)).toBe(1_000);
+    expect(deviceSessionExpiryDelayMs(2_000, 1_940_000)).toBe(0);
+    expect(deviceSessionExpiryDelayMs(2_000, 1_950_000)).toBe(-10_000);
+    const error = new DeviceSessionExpiredError();
+    expect(error).toMatchObject({
+      name: "DeviceSessionExpiredError",
+      code: "session-expired",
+      message: DEVICE_SESSION_EXPIRED_MESSAGE,
+    });
+  });
+
   it("refills a live signer to exactly 0.005 SOL without rotating it", () => {
     const owner = Keypair.generate().publicKey;
     const signer = Keypair.generate().publicKey;

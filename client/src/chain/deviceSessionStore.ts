@@ -1,10 +1,21 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 
-import { browserLocalStorage, type StorageLike } from "@/platform/browserStorage";
+import {
+  browserLocalStorage,
+  type StorageLike,
+} from "@/platform/browserStorage";
+import {
+  deviceSessionExpiryDelayMs,
+  DeviceSessionExpiredError,
+} from "./deviceSessionLifecycle";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 
 const DEVICE_SESSION_STORAGE_KEY = "zkube:device-sessions:v1";
 
+// localStorage is best-effort origin storage across Chrome, installed PWAs,
+// and TWAs; the browser or user may clear or evict it without notice. Losing
+// this time-bounded device key therefore fails closed and requires owner
+// reauthorization. It never removes or transfers the owner's payment authority.
 interface StoredDeviceSession {
   version: 1;
   owner: string;
@@ -39,8 +50,14 @@ export function requireCurrentDeviceSession(
   if (!session.owner.equals(connectedOwner)) {
     throw new Error("The connected wallet account changed");
   }
-  if (session.validUntil - nowUnix <= readySkewSeconds) {
-    throw new Error("The zKube device session expired. Renew it before continuing.");
+  if (
+    deviceSessionExpiryDelayMs(
+      session.validUntil,
+      nowUnix * 1_000,
+      readySkewSeconds,
+    ) <= 0
+  ) {
+    throw new DeviceSessionExpiredError();
   }
   return session;
 }
