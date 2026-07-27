@@ -364,6 +364,139 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
     });
   });
 
+  it("keeps a foreground reconnect from superseding an explicit connect queued behind silent restore", async () => {
+    const now = Math.floor(Date.now() / 1_000);
+    const { owner, session } = sessionFixture(now + 3_600);
+    const connector = mocks.connectors[0]!;
+    prepareStoredSession(owner, session);
+    const silent = deferred<never>();
+    const explicit = deferred<{
+      account: WalletAccount;
+      wallet: ReturnType<typeof walletLike>;
+    }>();
+    const competingSilent = deferred<never>();
+    mocks.connectWalletStandard
+      .mockReturnValueOnce(silent.promise)
+      .mockImplementationOnce(() => {
+        // Deliver a foreground event at the old race boundary: after silent
+        // restore settles, but synchronously as explicit authorization starts.
+        const foreground = new Event("pageshow");
+        Object.defineProperty(foreground, "persisted", { value: true });
+        window.dispatchEvent(foreground);
+        return explicit.promise;
+      })
+      .mockReturnValueOnce(competingSilent.promise);
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+    await waitFor(() =>
+      expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(1),
+    );
+
+    let explicitConnect!: Promise<void>;
+    act(() => {
+      explicitConnect = result.current.connectAndEnable(connector.id);
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    // The queued explicit intent suppresses foreground retries while the
+    // original cache-only attempt is still pending.
+    expect(result.current.connectionStatus).toBe("disconnected");
+    expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      silent.reject(new Error("silent cache unavailable"));
+      await silent.promise.catch(() => undefined);
+    });
+    await waitFor(() => {
+      expect(result.current.connectionStatus).toBe("connecting");
+      expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      explicit.resolve({
+        account: walletAccount(owner),
+        wallet: walletLike(owner),
+      });
+      await explicitConnect;
+    });
+
+    expect(result.current.connectionStatus).toBe("connected");
+    expect(result.current.publicKey?.equals(owner)).toBe(true);
+    expect(mocks.disconnectWalletStandard).not.toHaveBeenCalled();
+    expect(mocks.clearMobileWalletAuthorizationCache).not.toHaveBeenCalled();
+  });
+
+  it("joins the same connector and rejects a different connector while explicit connect waits for silent restore", async () => {
+    const now = Math.floor(Date.now() / 1_000);
+    const { owner, session } = sessionFixture(now + 3_600);
+    const connector = mocks.connectors[0]!;
+    const otherConnector = {
+      ...connectorFixture(),
+      id: "other-wallet",
+      name: "Other Wallet",
+    };
+    mocks.connectors = [connector, otherConnector];
+    prepareStoredSession(owner, session);
+    const silent = deferred<never>();
+    const explicit = deferred<{
+      account: WalletAccount;
+      wallet: ReturnType<typeof walletLike>;
+    }>();
+    mocks.connectWalletStandard
+      .mockReturnValueOnce(silent.promise)
+      .mockReturnValueOnce(explicit.promise);
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+    await waitFor(() =>
+      expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(1),
+    );
+
+    let firstConnect!: Promise<void>;
+    let joinedConnect!: Promise<void>;
+    let rejectedConnect!: Promise<void>;
+    let rejectedCause: unknown;
+    act(() => {
+      firstConnect = result.current.connectAndEnable(connector.id);
+      joinedConnect = result.current.connectAndEnable(connector.id);
+      rejectedConnect = result.current.connectAndEnable(otherConnector.id);
+      void rejectedConnect.catch((cause: unknown) => {
+        rejectedCause = cause;
+      });
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(rejectedCause).toEqual(
+      new Error("Another wallet connection is already in progress"),
+    );
+    expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      silent.reject(new Error("silent cache unavailable"));
+      await silent.promise.catch(() => undefined);
+    });
+    await waitFor(() =>
+      expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(2),
+    );
+
+    await act(async () => {
+      explicit.resolve({
+        account: walletAccount(owner),
+        wallet: walletLike(owner),
+      });
+      await Promise.all([firstConnect, joinedConnect]);
+    });
+    await expect(rejectedConnect).rejects.toThrow(
+      "Another wallet connection is already in progress",
+    );
+
+    expect(result.current.connectionStatus).toBe("connected");
+    expect(result.current.publicKey?.equals(owner)).toBe(true);
+    expect(mocks.connectWalletStandard).toHaveBeenCalledTimes(2);
+  });
+
   it("does not clear an unrelated balance error during session refresh", async () => {
     const now = Math.floor(Date.now() / 1_000);
     const { owner, session } = sessionFixture(now + 3_600);
