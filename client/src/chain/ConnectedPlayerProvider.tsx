@@ -123,6 +123,9 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
   const balanceRequestRef = useRef(0);
   const walletActionRequestRef = useRef(0);
   const silentReconnectRef = useRef<Promise<void> | null>(null);
+  const walletConnectionAttemptRef = useRef<{
+    connector: WalletConnector;
+  } | null>(null);
   const explicitConnectRef = useRef<{
     connectorId: string;
     promise: Promise<SessionRefreshResult>;
@@ -235,8 +238,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         ) {
           return;
         }
-        const account = accounts[0];
-        if (account?.address === expected.publicKey.toBase58()) {
+        const account = accounts.find(
+          (candidate) => candidate.address === expected.publicKey.toBase58(),
+        );
+        if (account) {
           try {
             const refreshed = {
               ...expected,
@@ -262,7 +267,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         clearOwnerState(expected.publicKey);
         clearLastWallet();
         resetConnection(
-          account
+          accounts.length > 0
             ? "The wallet account changed. Connect and enable the new address."
             : "The wallet disconnected.",
           false,
@@ -429,8 +434,12 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
             : "expired";
         if (canApply()) {
           setSessionStatus(result);
-          setError(
-            result === "expired" ? DEVICE_SESSION_EXPIRED_MESSAGE : null,
+          setError((current) =>
+            result === "expired"
+              ? DEVICE_SESSION_EXPIRED_MESSAGE
+              : current === DEVICE_SESSION_EXPIRED_MESSAGE
+                ? null
+                : current,
           );
         }
         emitChainMetric({
@@ -497,7 +506,16 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       setError(null);
       const promise = (async (): Promise<SessionRefreshResult> => {
         try {
-          const connected = await connectWalletStandard(connector);
+          const attempt = { connector };
+          walletConnectionAttemptRef.current = attempt;
+          let connected: Awaited<ReturnType<typeof connectWalletStandard>>;
+          try {
+            connected = await connectWalletStandard(connector);
+          } finally {
+            if (walletConnectionAttemptRef.current === attempt) {
+              walletConnectionAttemptRef.current = null;
+            }
+          }
           if (
             !mountedRef.current ||
             generation !== lifecycleGenerationRef.current
@@ -564,14 +582,22 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     );
     if (!connector) return Promise.resolve();
     const generation = ++lifecycleGenerationRef.current;
-    setConnectionStatus("connecting");
     const task = (async () => {
       try {
         // Wallet Standard requires `silent: true` to prohibit connection UI.
         // MWA 0.5.3 satisfies this from its authorization cache only.
-        const connected = await connectWalletStandard(connector, {
-          silent: true,
-        });
+        const attempt = { connector };
+        walletConnectionAttemptRef.current = attempt;
+        let connected: Awaited<ReturnType<typeof connectWalletStandard>>;
+        try {
+          connected = await connectWalletStandard(connector, {
+            silent: true,
+          });
+        } finally {
+          if (walletConnectionAttemptRef.current === attempt) {
+            walletConnectionAttemptRef.current = null;
+          }
+        }
         if (
           !mountedRef.current ||
           generation !== lifecycleGenerationRef.current
@@ -973,10 +999,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(async () => {
     const current = connectedRef.current;
-    const stored = loadLastWallet();
     const selectedConnector =
-      current?.connector ??
-      connectors.find((connector) => connector.id === stored?.connectorId);
+      current?.connector ?? walletConnectionAttemptRef.current?.connector;
     if (current) {
       clearOwnerState(current.publicKey);
     }
@@ -991,7 +1015,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     // closes the small gap in MWA 0.5.3 where StandardDisconnect invokes
     // AuthorizationCache.clear() without awaiting it.
     await clearMobileWalletAuthorizationCache().catch(() => false);
-  }, [clearOwnerState, connectors, resetConnection]);
+  }, [clearOwnerState, resetConnection]);
 
   const requireSession = useCallback(() => {
     if (!session || sessionStatus !== "ready") {

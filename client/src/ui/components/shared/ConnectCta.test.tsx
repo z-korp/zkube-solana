@@ -56,6 +56,9 @@ const fixtures = vi.hoisted(() => ({
     connectAndEnable: vi.fn(),
   },
   platformKind: "desktop" as string,
+  secureContext: true,
+  androidWebView: false,
+  solanaMobileWebShell: false,
   walletAvailability: {
     status: "unknown",
     error: null,
@@ -75,12 +78,26 @@ vi.mock("@/ui/elements/theme-provider/hooks", async () =>
 vi.mock("@/platform/capabilities", () => ({
   currentPlatformCapabilities: () => ({
     kind: fixtures.platformKind,
+    secureContext: fixtures.secureContext,
     displayModeStandalone: false,
     twaSignal: fixtures.platformKind === "twa",
+    androidWebView: fixtures.androidWebView,
+    solanaMobileWebShell: fixtures.solanaMobileWebShell,
     mobileWalletAdapterSupported:
-      fixtures.platformKind === "android-browser" ||
-      fixtures.platformKind === "android-pwa" ||
-      fixtures.platformKind === "twa",
+      fixtures.secureContext &&
+      (!fixtures.androidWebView || fixtures.solanaMobileWebShell) &&
+      (fixtures.platformKind === "android-browser" ||
+        fixtures.platformKind === "android-pwa" ||
+        fixtures.platformKind === "twa"),
+    mobileWalletAdapterSupportReason: !fixtures.secureContext
+      ? "insecure-context"
+      : fixtures.androidWebView && !fixtures.solanaMobileWebShell
+        ? "unsupported-android-webview"
+        : fixtures.platformKind === "android-browser" ||
+            fixtures.platformKind === "android-pwa" ||
+            fixtures.platformKind === "twa"
+          ? "available"
+          : "not-android",
   }),
 }));
 
@@ -110,6 +127,9 @@ beforeEach(() => {
   fixtures.player.publicKey = null;
   fixtures.player.sessionStatus = "missing";
   fixtures.player.error = null;
+  fixtures.secureContext = true;
+  fixtures.androidWebView = false;
+  fixtures.solanaMobileWebShell = false;
   fixtures.player.connectors = [phantom()];
   fixtures.player.connectAndEnable.mockResolvedValue(undefined);
   fixtures.platformKind = "desktop";
@@ -443,6 +463,46 @@ describe("ConnectCta platform guidance", () => {
     expect(recovery).not.toHaveTextContent(/local network access/i);
   });
 
+  it("does not claim LNA denial from a bare loopback code", async () => {
+    setupAndroid("android-browser");
+    fixtures.player.connectAndEnable.mockRejectedValue(
+      wrappedMwaError(
+        "ERROR_LOOPBACK_ACCESS_BLOCKED",
+        "An arbitrary loopback failure",
+      ),
+    );
+
+    render(<ConnectCta />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /use installed wallet/i }),
+    );
+    const recovery = await screen.findByRole("alert");
+    expect(recovery).toHaveAccessibleName(/wallet handoff did not finish/i);
+    expect(recovery).not.toHaveTextContent(/local network access/i);
+  });
+
+  it("uses TWA-specific recovery for a grounded LNA denial", async () => {
+    setupAndroid("twa");
+    fixtures.player.connectAndEnable.mockRejectedValue(
+      wrappedMwaError(
+        "ERROR_LOOPBACK_ACCESS_BLOCKED",
+        "Local Network Access permission denied",
+      ),
+    );
+
+    render(<ConnectCta />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /use installed wallet/i }),
+    );
+    const recovery = await screen.findByRole("alert");
+    expect(recovery).toHaveTextContent(
+      /zkube's android app or site permissions/i,
+    );
+    expect(recovery).toHaveTextContent(/trusted https url in android chrome/i);
+  });
+
   it("offers the PWA install action only in an Android browser", () => {
     setupAndroid("android-browser");
     fixtures.installReady = true;
@@ -459,6 +519,33 @@ describe("ConnectCta platform guidance", () => {
     expect(
       screen.queryByRole("button", { name: /install zkube as an app/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("explains that an insecure Android origin cannot register MWA", () => {
+    setupAndroid();
+    fixtures.player.connectors = [];
+    fixtures.secureContext = false;
+
+    render(<ConnectCta />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /requires a trusted HTTPS page/i,
+    );
+  });
+
+  it("redirects an unsupported Android WebView to a supported surface", () => {
+    setupAndroid("android-pwa");
+    fixtures.player.connectors = [];
+    fixtures.androidWebView = true;
+
+    render(<ConnectCta />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /webview cannot register mobile wallet adapter/i,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /android chrome.*solana mobile webshell/i,
+    );
   });
 
   it("shows honest iOS guidance instead of a dead mobile option", () => {

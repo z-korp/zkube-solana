@@ -8,10 +8,15 @@ import {
   describeWalletCapabilities,
   type WalletCapabilityDiagnostic,
 } from "@/platform/walletDiagnostics";
-import { walletRegistry } from "@/platform/walletStandard";
+import {
+  getMobileWalletRegistrationState,
+  walletRegistry,
+  type MobileWalletRegistrationState,
+} from "@/platform/walletStandard";
 
 interface CapabilitySnapshot {
   platform: PlatformCapabilities;
+  mwaRegistration: MobileWalletRegistrationState;
   wallets: WalletCapabilityDiagnostic[];
 }
 
@@ -43,6 +48,10 @@ export function CapabilityDiagnostics() {
             <dd className="text-right font-mono text-white">
               {snapshot.platform.kind}
             </dd>
+            <dt>Secure context</dt>
+            <dd className="text-right font-mono text-white">
+              {yesNo(snapshot.platform.secureContext)}
+            </dd>
             <dt>Standalone display</dt>
             <dd className="text-right font-mono text-white">
               {yesNo(snapshot.platform.displayModeStandalone)}
@@ -51,9 +60,25 @@ export function CapabilityDiagnostics() {
             <dd className="text-right font-mono text-white">
               {yesNo(snapshot.platform.twaSignal)}
             </dd>
+            <dt>Android WebView</dt>
+            <dd className="text-right font-mono text-white">
+              {yesNo(snapshot.platform.androidWebView)}
+            </dd>
+            <dt>Solana WebShell</dt>
+            <dd className="text-right font-mono text-white">
+              {yesNo(snapshot.platform.solanaMobileWebShell)}
+            </dd>
             <dt>MWA supported</dt>
             <dd className="text-right font-mono text-white">
               {yesNo(snapshot.platform.mobileWalletAdapterSupported)}
+            </dd>
+            <dt>MWA reason</dt>
+            <dd className="text-right font-mono text-white">
+              {snapshot.platform.mobileWalletAdapterSupportReason}
+            </dd>
+            <dt>MWA registration</dt>
+            <dd className="text-right font-mono text-white">
+              {snapshot.mwaRegistration.status}
             </dd>
           </dl>
         </section>
@@ -146,6 +171,7 @@ function DiagnosticFeature({
 function readCapabilitySnapshot(): CapabilitySnapshot {
   return {
     platform: currentPlatformCapabilities(),
+    mwaRegistration: getMobileWalletRegistrationState(),
     wallets: walletRegistry().get().map(describeWalletCapabilities),
   };
 }

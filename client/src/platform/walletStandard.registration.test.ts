@@ -12,9 +12,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   capabilities: {
     kind: "desktop",
+    secureContext: true,
     displayModeStandalone: false,
     twaSignal: false,
+    androidWebView: false,
+    solanaMobileWebShell: false,
     mobileWalletAdapterSupported: false,
+    mobileWalletAdapterSupportReason: "not-android",
   },
   authorizationCache: {
     clear: vi.fn(async () => undefined),
@@ -46,9 +50,13 @@ beforeEach(() => {
   vi.resetModules();
   mocks.capabilities = {
     kind: "desktop",
+    secureContext: true,
     displayModeStandalone: false,
     twaSignal: false,
+    androidWebView: false,
+    solanaMobileWebShell: false,
     mobileWalletAdapterSupported: false,
+    mobileWalletAdapterSupportReason: "not-android",
   };
   mocks.createDefaultAuthorizationCache.mockClear();
   mocks.createDefaultAuthorizationCache.mockReturnValue(
@@ -117,14 +125,22 @@ describe("Mobile Wallet Adapter registration", () => {
   it("registers once before discovery when the capability module enables MWA", async () => {
     mocks.capabilities = {
       kind: "android-pwa",
+      secureContext: true,
       displayModeStandalone: true,
       twaSignal: false,
+      androidWebView: false,
+      solanaMobileWebShell: false,
       mobileWalletAdapterSupported: true,
+      mobileWalletAdapterSupportReason: "available",
     };
     const registry = walletRegistry([]);
     mocks.getWallets.mockReturnValue(registry);
-    const { walletRegistry: getRegistry } = await import("./walletStandard");
+    const { getMobileWalletRegistrationState, walletRegistry: getRegistry } =
+      await import("./walletStandard");
 
+    expect(getMobileWalletRegistrationState()).toEqual({
+      status: "not-attempted",
+    });
     expect(getRegistry()).toBe(registry);
     expect(getRegistry()).toBe(registry);
     expect(mocks.registerMwa).toHaveBeenCalledTimes(1);
@@ -143,14 +159,83 @@ describe("Mobile Wallet Adapter registration", () => {
     );
     expect(config.chains).toEqual(["solana:devnet"]);
     expect(config.authorizationCache).toBe(mocks.authorizationCache);
+    expect(getMobileWalletRegistrationState()).toEqual({
+      status: "attempted",
+    });
+  });
+
+  it("gates insecure Android and unsupported WebViews before registration", async () => {
+    mocks.capabilities = {
+      kind: "android-browser",
+      secureContext: false,
+      displayModeStandalone: false,
+      twaSignal: false,
+      androidWebView: false,
+      solanaMobileWebShell: false,
+      mobileWalletAdapterSupported: false,
+      mobileWalletAdapterSupportReason: "insecure-context",
+    };
+    mocks.getWallets.mockReturnValue(walletRegistry([]));
+    const { getMobileWalletRegistrationState, walletRegistry: getRegistry } =
+      await import("./walletStandard");
+
+    getRegistry();
+    expect(mocks.registerMwa).not.toHaveBeenCalled();
+    expect(getMobileWalletRegistrationState()).toEqual({
+      status: "not-attempted",
+    });
+
+    mocks.capabilities = {
+      ...mocks.capabilities,
+      secureContext: true,
+      androidWebView: true,
+      mobileWalletAdapterSupportReason: "unsupported-android-webview",
+    };
+    getRegistry();
+    expect(mocks.registerMwa).not.toHaveBeenCalled();
+  });
+
+  it("does not mark a thrown registration attempt and permits a retry", async () => {
+    mocks.capabilities = {
+      kind: "android-browser",
+      secureContext: true,
+      displayModeStandalone: false,
+      twaSignal: false,
+      androidWebView: false,
+      solanaMobileWebShell: false,
+      mobileWalletAdapterSupported: true,
+      mobileWalletAdapterSupportReason: "available",
+    };
+    mocks.getWallets.mockReturnValue(walletRegistry([]));
+    mocks.registerMwa
+      .mockImplementationOnce(() => {
+        throw new Error("registration failed");
+      })
+      .mockImplementationOnce(() => undefined);
+    const { getMobileWalletRegistrationState, walletRegistry: getRegistry } =
+      await import("./walletStandard");
+
+    expect(() => getRegistry()).toThrow("registration failed");
+    expect(getMobileWalletRegistrationState()).toEqual({
+      status: "not-attempted",
+    });
+    expect(getRegistry()).toBeDefined();
+    expect(mocks.registerMwa).toHaveBeenCalledTimes(2);
+    expect(getMobileWalletRegistrationState()).toEqual({
+      status: "attempted",
+    });
   });
 
   it("awaits the supported MWA authorization cache clear on disconnect", async () => {
     mocks.capabilities = {
       kind: "android-browser",
+      secureContext: true,
       displayModeStandalone: false,
       twaSignal: false,
+      androidWebView: false,
+      solanaMobileWebShell: false,
       mobileWalletAdapterSupported: true,
+      mobileWalletAdapterSupportReason: "available",
     };
     const disconnect = vi.fn(async () => undefined);
     const mobileWallet = {
@@ -185,9 +270,13 @@ describe("Mobile Wallet Adapter registration", () => {
   it("throws a typed recoverable error and publishes wallet-not-found state", async () => {
     mocks.capabilities = {
       kind: "twa",
+      secureContext: true,
       displayModeStandalone: true,
       twaSignal: true,
+      androidWebView: false,
+      solanaMobileWebShell: false,
       mobileWalletAdapterSupported: true,
+      mobileWalletAdapterSupportReason: "available",
     };
     mocks.getWallets.mockReturnValue(walletRegistry([]));
     const {

@@ -43,6 +43,7 @@ export function PwaLifecycleNotice({
   if (lifecycle.online && lifecycle.update === "idle") return null;
 
   const activating = lifecycle.update === "activating";
+  const activationFailed = lifecycle.update === "activation-failed";
   const updateAvailable = lifecycle.update !== "idle";
   const refreshDisabled = activating || refreshBlocked || !lifecycle.online;
 
@@ -72,7 +73,9 @@ export function PwaLifecycleNotice({
             <p className="text-xs font-bold">
               {activating
                 ? "Refreshing zKube…"
-                : "A new zKube version is ready."}
+                : activationFailed
+                  ? "The update did not activate."
+                  : "A new zKube version is ready."}
             </p>
             {!activating && refreshBlocked && (
               <p className="mt-0.5 text-[11px] leading-4 text-white/65">
@@ -87,7 +90,7 @@ export function PwaLifecycleNotice({
               onClick={onRefresh}
               className="shrink-0 rounded-lg border border-cyan-200/40 px-3 py-1.5 text-xs font-bold text-cyan-100 transition-colors hover:bg-cyan-200/10 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Refresh
+              {activationFailed ? "Retry refresh" : "Refresh"}
             </button>
           )}
         </div>

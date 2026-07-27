@@ -72,15 +72,7 @@ function recoveryContent(
 ): RecoveryContent {
   switch (error.kind) {
     case "local-network-access":
-      return {
-        title: "Allow local network access",
-        cause:
-          "Android Chrome could not open the private local connection used to reach your wallet.",
-        steps: [
-          "In Android Chrome, open Site settings → Permissions → Local network access.",
-          "Allow access for this site, return to zKube, then retry.",
-        ],
-      };
+      return localNetworkRecovery(platform);
     case "association-failure":
       return {
         title: "Wallet handoff did not finish",
@@ -137,6 +129,39 @@ function recoveryContent(
     case "unknown":
       return unknownRecovery(error.message, platform);
   }
+}
+
+function localNetworkRecovery(platform: PlatformKind): RecoveryContent {
+  const common = {
+    title: "Allow local network access",
+    cause:
+      "This Android surface reported that the private local connection used to reach your wallet was denied.",
+  } as const;
+  if (platform === "twa") {
+    return {
+      ...common,
+      steps: [
+        "Open zKube's Android app or site permissions and allow Local network access if it is listed.",
+        "If that permission is unavailable, open the same trusted HTTPS URL in Android Chrome and retry there.",
+      ],
+    };
+  }
+  if (platform === "android-pwa") {
+    return {
+      ...common,
+      steps: [
+        "Open the installed app's site settings in Chrome → Permissions → Local network access.",
+        "Allow access for this site, return to zKube, then retry.",
+      ],
+    };
+  }
+  return {
+    ...common,
+    steps: [
+      "In Android Chrome, open Site settings → Permissions → Local network access.",
+      "Allow access for this site, return to zKube, then retry.",
+    ],
+  };
 }
 
 function unknownRecovery(

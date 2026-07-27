@@ -59,7 +59,13 @@ export interface WalletConnector {
   wallet: Wallet;
 }
 
-let mobileRegistered = false;
+export type MobileWalletRegistrationState =
+  | Readonly<{ status: "not-attempted" }>
+  | Readonly<{ status: "attempted" }>;
+
+let mobileRegistrationState: MobileWalletRegistrationState = {
+  status: "not-attempted",
+};
 let mobileAuthorizationCache: AuthorizationCache | null = null;
 let walletAvailabilityState: WalletAvailabilityState = {
   status: "unknown",
@@ -78,15 +84,19 @@ export function subscribeWalletAvailability(
   return () => walletAvailabilityListeners.delete(listener);
 }
 
+export function getMobileWalletRegistrationState(): MobileWalletRegistrationState {
+  return mobileRegistrationState;
+}
+
 /** Register MWA before asking Wallet Standard for its first discovery snapshot. */
 function registerMobileWalletStandard(): void {
+  const capabilities = currentPlatformCapabilities();
   if (
-    mobileRegistered ||
-    !currentPlatformCapabilities().mobileWalletAdapterSupported
+    mobileRegistrationState.status === "attempted" ||
+    !capabilities.mobileWalletAdapterSupported
   )
     return;
-  mobileRegistered = true;
-  mobileAuthorizationCache = createDefaultAuthorizationCache();
+  const authorizationCache = createDefaultAuthorizationCache();
   registerMwa({
     appIdentity: {
       name: "zKube",
@@ -96,7 +106,7 @@ function registerMobileWalletStandard(): void {
         window.location.origin,
       ).toString(),
     },
-    authorizationCache: mobileAuthorizationCache,
+    authorizationCache,
     chains: [DEVNET_CHAIN],
     chainSelector: createDefaultChainSelector(),
     onWalletNotFound: async () => {
@@ -105,6 +115,12 @@ function registerMobileWalletStandard(): void {
       throw error;
     },
   });
+  // registerMwa() returns void, so this records only that the pinned,
+  // capability-gated call completed. It deliberately does not claim that the
+  // package reported successful registration. A synchronous failure leaves
+  // the state retryable.
+  mobileAuthorizationCache = authorizationCache;
+  mobileRegistrationState = { status: "attempted" };
 }
 
 export function walletRegistry() {

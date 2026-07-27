@@ -6,6 +6,11 @@ const BUILD_VERSION = "__ZKUBE_BUILD_VERSION__";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_VERSION}`;
 const OFFLINE_SHELL_PATH = "/.zkube/offline-shell";
 export const MAX_CACHE_ENTRIES = 192;
+export const CACHE_PRUNE_INTERVAL = 16;
+// Activation establishes this lower watermark. Each serialized batch can add
+// at most CACHE_PRUNE_INTERVAL entries before pruning back to the target, so
+// the cache never grows past MAX_CACHE_ENTRIES without enumerating per fetch.
+const CACHE_PRUNE_TARGET = MAX_CACHE_ENTRIES - CACHE_PRUNE_INTERVAL;
 
 const STATIC_DESTINATIONS = new Set(["font", "image", "script", "style"]);
 const NETWORK_ONLY_PATH_PREFIXES = [
@@ -62,6 +67,9 @@ interface ServiceWorkerScopeLike extends EventTarget {
   };
   skipWaiting(): Promise<void>;
 }
+
+let cacheMutationQueue: Promise<void> = Promise.resolve();
+let writesSincePrune = 0;
 
 /**
  * The cache is an app-shell convenience, never a data cache. Only navigation
@@ -122,6 +130,33 @@ export async function pruneCacheEntries(
   );
 }
 
+export function responseMatchesDestination(
+  response: Pick<Response, "headers">,
+  destination: string,
+): boolean {
+  const contentType = (
+    response.headers.get("content-type") ?? ""
+  ).toLowerCase();
+  switch (destination) {
+    case "document":
+      return /^text\/html(?:;|$)/.test(contentType);
+    case "script":
+      return /^(?:application|text)\/(?:java|ecma)script(?:;|$)/.test(
+        contentType,
+      );
+    case "style":
+      return /^text\/css(?:;|$)/.test(contentType);
+    case "image":
+      return /^image\/[a-z0-9.+-]+(?:;|$)/.test(contentType);
+    case "font":
+      return /^(?:font\/[a-z0-9.+-]+|application\/(?:font-[a-z0-9.+-]+|vnd\.ms-fontobject|octet-stream))(?:;|$)/.test(
+        contentType,
+      );
+    default:
+      return false;
+  }
+}
+
 export function isLocalNetworkHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
@@ -171,55 +206,144 @@ function offlineShellKey(scopeOrigin: string): string {
   return new URL(OFFLINE_SHELL_PATH, scopeOrigin).href;
 }
 
-async function handleNavigation(
+function handleNavigation(
   request: Request,
   scopeOrigin: string,
+  defer: (promise: Promise<unknown>) => void,
 ): Promise<Response> {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const response = await fetch(request);
-    const contentType = response.headers.get("content-type") ?? "";
-    if (
-      response.ok &&
-      response.type === "basic" &&
-      !response.redirected &&
-      contentType.toLowerCase().includes("text/html")
-    ) {
-      const shellKey = offlineShellKey(scopeOrigin);
-      await cache.put(shellKey, response.clone());
-      await pruneCacheEntries(cache, MAX_CACHE_ENTRIES, new Set([shellKey]));
+  const cachePromise = caches.open(CACHE_NAME);
+  const networkResponse = fetch(request).then((response) => {
+    if (!responseMatchesDestination(response, "document")) {
+      throw destinationMismatch("document", response);
     }
     return response;
-  } catch {
+  });
+  const shellKey = offlineShellKey(scopeOrigin);
+  defer(
+    Promise.all([
+      cachePromise,
+      networkResponse.then((response) => ({
+        response,
+        cachedResponse: response.clone(),
+      })),
+    ])
+      .then(async ([cache, { response, cachedResponse }]) => {
+        if (response.ok && response.type === "basic" && !response.redirected) {
+          await queueCacheMutation(
+            cache,
+            () => cache.put(shellKey, cachedResponse),
+            new Set([shellKey]),
+          );
+        }
+      })
+      .catch(() => undefined),
+  );
+  return networkResponse.catch(async () => {
+    const cache = await cachePromise;
     const cached = await cache.match(offlineShellKey(scopeOrigin));
-    return cached ?? offlineDocument();
+    if (cached && responseMatchesDestination(cached, "document")) return cached;
+    if (cached) await cache.delete(offlineShellKey(scopeOrigin));
+    return offlineDocument();
+  });
+}
+
+function handleAsset(
+  request: Request,
+  scopeOrigin: string,
+  defer: (promise: Promise<unknown>) => void,
+): Promise<Response> {
+  const cachePromise = caches.open(CACHE_NAME);
+  const networkResponse = fetch(request).then((response) => {
+    if (!responseMatchesDestination(response, request.destination)) {
+      throw destinationMismatch(request.destination, response);
+    }
+    return response;
+  });
+  defer(
+    Promise.all([
+      cachePromise,
+      networkResponse.then((response) => ({
+        response,
+        cachedResponse: response.clone(),
+      })),
+    ])
+      .then(async ([cache, { response, cachedResponse }]) => {
+        if (response.ok && response.type === "basic" && !response.redirected) {
+          // Reinsert successful responses so frequently used current-build assets
+          // stay at the retained end of the bounded CacheStorage key order.
+          await queueCacheMutation(
+            cache,
+            async () => {
+              await cache.delete(request);
+              await cache.put(request, cachedResponse);
+            },
+            new Set([offlineShellKey(scopeOrigin)]),
+          );
+        }
+      })
+      .catch(() => undefined),
+  );
+  return networkResponse.catch(async (cause: unknown) => {
+    const cache = await cachePromise;
+    const cached = await cache.match(request);
+    if (cached && responseMatchesDestination(cached, request.destination)) {
+      return cached;
+    }
+    if (cached) {
+      await cache.delete(request);
+    }
+    throw cause;
+  });
+}
+
+function queueCacheMutation(
+  cache: Pick<Cache, "delete" | "keys" | "put">,
+  mutation: () => Promise<unknown>,
+  protectedUrls: ReadonlySet<string>,
+): Promise<void> {
+  const queued = cacheMutationQueue.then(async () => {
+    await mutation();
+    writesSincePrune += 1;
+    if (writesSincePrune < CACHE_PRUNE_INTERVAL) return;
+    writesSincePrune = 0;
+    await pruneCacheEntries(cache, CACHE_PRUNE_TARGET, protectedUrls);
+  });
+  cacheMutationQueue = queued.catch(() => undefined);
+  return queued;
+}
+
+function destinationMismatch(
+  destination: string,
+  response: Pick<Response, "headers">,
+): TypeError {
+  const contentType = response.headers.get("content-type") ?? "missing";
+  return new TypeError(
+    `Service worker rejected ${contentType} for ${destination || "unknown"} request`,
+  );
+}
+
+function notificationTargetUrl(candidate: unknown, scopeOrigin: string): URL {
+  if (typeof candidate !== "string") return new URL("/", scopeOrigin);
+  try {
+    const requestedUrl = new URL(candidate, scopeOrigin);
+    return requestedUrl.origin === scopeOrigin
+      ? requestedUrl
+      : new URL("/", scopeOrigin);
+  } catch {
+    return new URL("/", scopeOrigin);
   }
 }
 
-async function handleAsset(
-  request: Request,
-  scopeOrigin: string,
-): Promise<Response> {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const response = await fetch(request);
-    if (response.ok && response.type === "basic" && !response.redirected) {
-      // Reinsert successful responses so frequently used current-build assets
-      // stay at the retained end of the bounded CacheStorage key order.
-      await cache.delete(request);
-      await cache.put(request, response.clone());
-      await pruneCacheEntries(
-        cache,
-        MAX_CACHE_ENTRIES,
-        new Set([offlineShellKey(scopeOrigin)]),
-      );
-    }
-    return response;
-  } catch (cause) {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    throw cause;
-  }
+function resetCacheMaintenanceAfterActivation(
+  cache: Pick<Cache, "delete" | "keys">,
+  protectedUrls: ReadonlySet<string>,
+): Promise<void> {
+  writesSincePrune = 0;
+  const queued = cacheMutationQueue.then(() =>
+    pruneCacheEntries(cache, CACHE_PRUNE_TARGET, protectedUrls),
+  );
+  cacheMutationQueue = queued.catch(() => undefined);
+  return queued;
 }
 
 function offlineDocument(): Response {
@@ -255,17 +379,28 @@ function offlineDocument(): Response {
   );
 }
 
-function installServiceWorkerHandlers(scope: ServiceWorkerScopeLike): void {
+export function installServiceWorkerHandlers(
+  scope: ServiceWorkerScopeLike,
+): void {
   scope.addEventListener("activate", (rawEvent) => {
     const event = rawEvent as ExtendableEventLike;
     event.waitUntil(
-      caches
-        .keys()
-        .then((names) =>
-          Promise.all(
-            obsoleteZkubeCaches(names).map((name) => caches.delete(name)),
+      Promise.all([
+        caches
+          .keys()
+          .then((names) =>
+            Promise.all(
+              obsoleteZkubeCaches(names).map((name) => caches.delete(name)),
+            ),
           ),
-        ),
+        caches.open(CACHE_NAME).then((cache) => {
+          const shellKey = offlineShellKey(scope.location.origin);
+          return resetCacheMaintenanceAfterActivation(
+            cache,
+            new Set([shellKey]),
+          );
+        }),
+      ]).catch(() => undefined),
     );
   });
 
@@ -290,9 +425,17 @@ function installServiceWorkerHandlers(scope: ServiceWorkerScopeLike): void {
       scope.location.origin,
     );
     if (route === "navigation") {
-      event.respondWith(handleNavigation(event.request, scope.location.origin));
+      event.respondWith(
+        handleNavigation(event.request, scope.location.origin, (promise) =>
+          event.waitUntil(promise),
+        ),
+      );
     } else if (route === "asset") {
-      event.respondWith(handleAsset(event.request, scope.location.origin));
+      event.respondWith(
+        handleAsset(event.request, scope.location.origin, (promise) =>
+          event.waitUntil(promise),
+        ),
+      );
     }
     // Network-only requests are not intercepted at all. In particular, there
     // is no CacheStorage fallback for chain, account, transaction, or wallet
@@ -305,12 +448,7 @@ function installServiceWorkerHandlers(scope: ServiceWorkerScopeLike): void {
     const event = rawEvent as NotificationEventLike;
     event.notification.close();
     const candidate = event.notification.data?.url;
-    const targetPath = typeof candidate === "string" ? candidate : "/";
-    const requestedUrl = new URL(targetPath, scope.location.origin);
-    const targetUrl =
-      requestedUrl.origin === scope.location.origin
-        ? requestedUrl
-        : new URL("/", scope.location.origin);
+    const targetUrl = notificationTargetUrl(candidate, scope.location.origin);
 
     event.waitUntil(
       scope.clients

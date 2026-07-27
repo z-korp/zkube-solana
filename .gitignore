@@ -38,11 +38,16 @@ artifacts/
 magicblock-test-storage/
 .anchor/
 .surfpool/
+.playwright-mcp/
 .yarn/
 test-ledger/
 client/twa/signing/
 *.jks
 *.keystore
+*.pem
+*.key
+*.crt
+*.cer
 **/*.rs.bk
 run_logs.txt
 .vercel

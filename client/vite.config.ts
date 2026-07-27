@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "path";
 import { defineConfig, type Plugin } from "vite";
 import wasm from "vite-plugin-wasm";
@@ -8,6 +9,25 @@ import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 const SERVICE_WORKER_VERSION_PLACEHOLDER = "__ZKUBE_BUILD_VERSION__";
+const HTTPS_CERT_PATH_ENV = "ZKUBE_HTTPS_CERT_PATH";
+const HTTPS_KEY_PATH_ENV = "ZKUBE_HTTPS_KEY_PATH";
+
+function localHttpsOptions():
+  | Readonly<{ cert: Buffer; key: Buffer }>
+  | undefined {
+  const certPath = process.env[HTTPS_CERT_PATH_ENV];
+  const keyPath = process.env[HTTPS_KEY_PATH_ENV];
+  if (!certPath && !keyPath) return undefined;
+  if (!certPath || !keyPath) {
+    throw new Error(
+      `${HTTPS_CERT_PATH_ENV} and ${HTTPS_KEY_PATH_ENV} must be set together`,
+    );
+  }
+  return {
+    cert: readFileSync(certPath),
+    key: readFileSync(keyPath),
+  };
+}
 
 /**
  * Binds CacheStorage to the exact deterministic build output. The worker is a
@@ -63,7 +83,6 @@ export default defineConfig({
     tailwindcss(),
     wasm(),
     topLevelAwait(),
-    // Note: mkcert (local HTTPS) retiré — Vercel gère HTTPS automatiquement
     nodePolyfills({ include: ["buffer", "process", "stream", "util"] }),
     versionServiceWorker(),
   ],
@@ -93,5 +112,6 @@ export default defineConfig({
   server: {
     host: true,
     port: 5175,
+    https: localHttpsOptions(),
   },
 });

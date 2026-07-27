@@ -8,7 +8,7 @@ import {
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import {
   currentPlatformCapabilities,
-  type PlatformKind,
+  type PlatformCapabilities,
 } from "@/platform/capabilities";
 import {
   installPromptAvailable,
@@ -58,7 +58,8 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
   const [busyLocal, setBusyLocal] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [localError, setLocalError] = useState<LocalWalletError | null>(null);
-  const platform = useMemo(() => currentPlatformCapabilities().kind, []);
+  const capabilities = useMemo(() => currentPlatformCapabilities(), []);
+  const platform = capabilities.kind;
   const walletAvailability = useSyncExternalStore(
     subscribeWalletAvailability,
     getWalletAvailabilityState,
@@ -160,7 +161,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
         role="status"
         className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-center font-sans text-xs leading-5 text-amber-100"
       >
-        {noWalletGuidance(platform)}
+        {noWalletGuidance(capabilities)}
       </p>
     );
   }
@@ -256,8 +257,18 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
  * browsers, and unidentified runtimes get honest untested-surface guidance
  * instead of a compatibility claim.
  */
-function noWalletGuidance(kind: PlatformKind): string {
-  switch (kind) {
+function noWalletGuidance(capabilities: PlatformCapabilities): string {
+  if (capabilities.mobileWalletAdapterSupportReason === "insecure-context") {
+    return "Wallet connection requires a trusted HTTPS page. Reopen this zKube build over HTTPS, then retry.";
+  }
+  if (
+    capabilities.mobileWalletAdapterSupportReason ===
+    "unsupported-android-webview"
+  ) {
+    return "This Android WebView cannot register Mobile Wallet Adapter. Open the same trusted HTTPS URL in Android Chrome, an installed Chrome PWA, or the Solana Mobile WebShell.";
+  }
+
+  switch (capabilities.kind) {
     case "desktop":
       return "No wallet extension was found. Install a Wallet Standard wallet such as Phantom or Solflare, then reload this page.";
     case "android-browser":

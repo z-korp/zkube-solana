@@ -25,14 +25,23 @@ interface ErrorShape {
   message?: unknown;
 }
 
-const MWA_ASSOCIATION_CODES = new Set([
+// These codes have concrete throw sites in the browser bundle pinned through
+// wallet-standard-mobile@0.5.3 / mobile-wallet-adapter-protocol@2.2.9.
+const PINNED_MWA_ASSOCIATION_CODES = new Set([
   "ERROR_ASSOCIATION_PORT_OUT_OF_RANGE",
-  "ERROR_BROWSER_NOT_SUPPORTED",
   "ERROR_FORBIDDEN_WALLET_BASE_URL",
   "ERROR_INVALID_PROTOCOL_VERSION",
   "ERROR_SECURE_CONTEXT_REQUIRED",
   "ERROR_SESSION_CLOSED",
   "ERROR_SESSION_TIMEOUT",
+  "ERROR_ASSOCIATION_CANCELLED",
+]);
+
+// Enum members retained for forward compatibility. They are not emitted by
+// the pinned browser bundle and must not be described as pinned evidence.
+const FORWARD_COMPATIBILITY_ASSOCIATION_CODES = new Set([
+  "ERROR_BROWSER_NOT_SUPPORTED",
+  "ERROR_REFLECTOR_ID_OUT_OF_RANGE",
 ]);
 
 /**
@@ -49,11 +58,10 @@ export function isWalletRejection(cause: unknown): boolean {
 }
 
 /**
- * Classifies wallet failures using codes and exact messages emitted by the
- * pinned MWA packages, plus errors emitted at zKube's Wallet Standard
- * boundary. Unknown browser/network failures stay unknown; in particular,
- * absence of a wallet response is not enough evidence to claim Local Network
- * Access was denied.
+ * Classifies wallet failures using grounded pinned-package evidence, explicit
+ * forward-compatibility mappings, and errors emitted at zKube's Wallet
+ * Standard boundary. Unknown browser/network failures stay unknown; absence
+ * of a wallet response is not evidence that Local Network Access was denied.
  */
 export function classifyWalletError(cause: unknown): WalletErrorClassification {
   const chain = errorChain(cause);
@@ -80,12 +88,14 @@ export function classifyWalletError(cause: unknown): WalletErrorClassification {
       ),
   );
 
-  if (
-    codes.has("ERROR_LOOPBACK_ACCESS_BLOCKED") ||
-    messages.some((candidate) =>
-      /^Local Network Access permission (?:denied|unknown)$/i.test(candidate),
-    )
-  ) {
+  const pinnedLocalNetworkDenial = chain.some((candidate) => {
+    const shape = errorShape(candidate);
+    return (
+      shape?.code === "ERROR_LOOPBACK_ACCESS_BLOCKED" &&
+      shapeMessage(candidate) === "Local Network Access permission denied"
+    );
+  });
+  if (pinnedLocalNetworkDenial) {
     return classification("local-network-access", message, sourceCode);
   }
 
@@ -139,7 +149,11 @@ export function classifyWalletError(cause: unknown): WalletErrorClassification {
 
   if (
     [...codes].some(
-      (code) => typeof code === "string" && MWA_ASSOCIATION_CODES.has(code),
+      (code) =>
+        typeof code === "string" &&
+        (PINNED_MWA_ASSOCIATION_CODES.has(code) ||
+          FORWARD_COMPATIBILITY_ASSOCIATION_CODES.has(code) ||
+          code === "ERROR_LOOPBACK_ACCESS_BLOCKED"),
     ) ||
     /wallet session (?:dropped|was closed before connection)|Failed to connect to the wallet websocket|wallet association|intent (?:failed|failure)/i.test(
       combinedMessage,

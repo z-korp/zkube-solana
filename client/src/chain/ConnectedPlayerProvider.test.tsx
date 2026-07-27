@@ -187,7 +187,10 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
 
     const originalSubscription = mocks.subscriptions[0]!;
     act(() => {
-      originalSubscription.listener([walletAccount(owner)]);
+      originalSubscription.listener([
+        walletAccount(Keypair.generate().publicKey),
+        walletAccount(owner),
+      ]);
     });
     await waitFor(() => expect(mocks.subscriptions).toHaveLength(2));
     expect(hook.result.current.publicKey?.equals(owner)).toBe(true);
@@ -277,9 +280,7 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
     mocks.connectWalletStandard.mockReturnValue(pending.promise);
 
     const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
-    await waitFor(() =>
-      expect(result.current.connectionStatus).toBe("connecting"),
-    );
+    expect(result.current.connectionStatus).toBe("disconnected");
 
     await act(async () => {
       await result.current.disconnect();
@@ -302,6 +303,23 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
     expect(
       mocks.disconnectWalletStandard.mock.calls.length,
     ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not disconnect a merely remembered connector", async () => {
+    const owner = Keypair.generate().publicKey;
+    const connector = mocks.connectors[0]!;
+    saveLastWallet({ connectorId: connector.id, address: owner.toBase58() });
+    mocks.connectors = [];
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    expect(mocks.disconnectWalletStandard).not.toHaveBeenCalled();
+    expect(loadLastWallet()).toBeNull();
+    expect(mocks.clearMobileWalletAuthorizationCache).toHaveBeenCalledOnce();
   });
 
   it("deduplicates foreground reconnect events and remains retryable", async () => {
@@ -344,6 +362,39 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
     expect(mocks.connectWalletStandard).toHaveBeenLastCalledWith(connector, {
       silent: true,
     });
+  });
+
+  it("does not clear an unrelated balance error during session refresh", async () => {
+    const now = Math.floor(Date.now() / 1_000);
+    const { owner, session } = sessionFixture(now + 3_600);
+    prepareStoredSession(owner, session);
+    mocks.connection.getBalance.mockRejectedValue(
+      new Error("Balance endpoint unavailable"),
+    );
+    const accountRefresh =
+      deferred<
+        [AccountInfo<Buffer>, AccountInfo<Buffer>, AccountInfo<Buffer>]
+      >();
+    mocks.connection.getMultipleAccountsInfo.mockReturnValue(
+      accountRefresh.promise,
+    );
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/balance endpoint unavailable/i),
+    );
+
+    await act(async () => {
+      accountRefresh.resolve([
+        accountInfo(1),
+        accountInfo(50_000_000),
+        accountInfo(5_000_000),
+      ]);
+      await accountRefresh.promise;
+    });
+
+    await waitFor(() => expect(result.current.sessionStatus).toBe("ready"));
+    expect(result.current.error).toBe("Balance endpoint unavailable");
   });
 });
 

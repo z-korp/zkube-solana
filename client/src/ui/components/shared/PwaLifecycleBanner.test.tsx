@@ -61,4 +61,19 @@ describe("PwaLifecycleNotice", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(onRefresh).not.toHaveBeenCalled();
   });
+
+  it("returns a timed-out activation to a retry action", () => {
+    const onRefresh = vi.fn(() => true);
+    render(
+      <PwaLifecycleNotice
+        lifecycle={{ online: true, update: "activation-failed" }}
+        refreshBlocked={false}
+        onRefresh={onRefresh}
+      />,
+    );
+
+    expect(screen.getByText(/update did not activate/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry refresh/i }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
 });

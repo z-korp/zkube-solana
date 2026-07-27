@@ -267,9 +267,10 @@ instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy schema v10 fingerprints supported archive contracts
-`[1,2]` and requires the Daily archive checkpoint to cover a Weekly's final
-qualified day before planning settlement. It quarantines a typed per-cadence
+Keeper release-policy schema v11 fingerprints supported archive contracts
+`[1,2]` and the keeper's 10,240-byte fail-closed cadence-result encoding bound.
+It requires the Daily archive checkpoint to cover a Weekly's final qualified
+day before planning settlement. It quarantines a typed per-cadence
 archive-integrity failure without blocking an independent Daily, Weekly,
 Season, or Campaign plan. Global chain readiness, policy, materialization,
 storage configuration, and release errors remain fatal. A
@@ -353,28 +354,50 @@ signals and MWA registration follows that classification, so a desktop or iOS
 browser never registers the mobile connector. TWA detection is deliberately
 conservative: Android, standalone display mode, and an `android-app://`
 referrer must all hold, so a plain Android browser or an installed PWA is never
-promoted on user agent alone.
+promoted on user agent alone. The pinned
+`@solana-mobile/wallet-standard-mobile` also requires a secure context and
+declines generic Android WebViews; the capability gate mirrors both constraints
+and permits the package's explicit `Solana Mobile Web Shell` exception.
 
 ### Capability-only diagnostics
 
-The existing dev-preview surface exposes a read-only capability panel:
+The existing dev-preview surface exposes a read-only capability panel. A
+physical device must load it from a trusted HTTPS origin: plain HTTP on a LAN
+address is not a secure context and the pinned MWA package will not register.
+
+For a local-only setup, create a development certificate outside this
+repository with a locally trusted CA such as `mkcert`. Include the workstation's
+LAN IP or test hostname in the certificate, install that CA as trusted on the
+physical test device, and set both `ZKUBE_HTTPS_CERT_PATH` and
+`ZKUBE_HTTPS_KEY_PATH` to the absolute operator-supplied certificate and key
+paths. Vite reads those files without copying them:
 
 ```bash
 cd client
-NO_DNA=1 pnpm dev
+NO_DNA=1 ZKUBE_HTTPS_CERT_PATH=/absolute/path/outside/repo/dev-cert.pem \
+  ZKUBE_HTTPS_KEY_PATH=/absolute/path/outside/repo/dev-key.pem pnpm dev
 ```
 
-Open `http://<lan-ip>:5175/?dev=1` on the device and expand
+Open `https://<certificate-host-or-lan-ip>:5175/?dev=1` on the device and
+confirm there is no certificate warning. A trusted HTTPS tunnel or reverse
+proxy to the Vite port is also valid when local CA installation is impractical.
+Do not use browser flags that weaken secure-context or certificate checks as G1
+evidence.
+
+Expand
 `Capability diagnostics` in the lower-right corner. `?dev=0` clears the
 persisted opt-in. The panel reports the classified platform kind, standalone
-display mode, conservative TWA signal, whether MWA is supported, and for each
-discovered Wallet Standard wallet its name, chains, feature keys, and the
-presence and supported transaction versions of `solana:signTransaction` and
-`solana:signAndSendTransaction`.
+display mode, conservative TWA signal, secure-context and Android WebView /
+Solana WebShell signals, the MWA support reason, registration-attempt state,
+and for each discovered Wallet Standard wallet its name, chains, feature keys,
+and the presence and supported transaction versions of
+`solana:signTransaction` and `solana:signAndSendTransaction`.
 
 It reads public registry metadata only. It never connects, authorizes, reads
 accounts, signs, simulates, or sends, and the whole `src/dev/` harness is
 gated on `import.meta.env.DEV`, so a production build eliminates it.
+Certificate and key suffixes are ignored repository-wide; keep all generated
+TLS material outside the worktree.
 
 ### Gate G1 physical-device matrix
 

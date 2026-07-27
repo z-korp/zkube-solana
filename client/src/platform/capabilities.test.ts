@@ -5,10 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   classifyPlatform,
   hasConservativeTwaSignal,
+  isAndroidWebView,
+  isSolanaMobileWebShell,
+  mobileWalletAdapterSupportReason,
   platformCapabilities,
-  supportsMobileWalletAdapter,
   type PlatformEnvironment,
-  type PlatformKind,
 } from "./capabilities";
 
 const CHROME_DESKTOP =
@@ -17,6 +18,9 @@ const CHROME_ANDROID =
   "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36";
 const FIREFOX_ANDROID =
   "Mozilla/5.0 (Android 14; Mobile; rv:127.0) Gecko/127.0 Firefox/127.0";
+const ANDROID_WEBVIEW =
+  "Mozilla/5.0 (Linux; Android 14; SM-S928B Build/UP1A.231005.007; wv) AppleWebKit/537.36 Version/4.0 Chrome/126.0.6478.122 Mobile Safari/537.36";
+const SOLANA_MOBILE_WEB_SHELL = `${ANDROID_WEBVIEW} Solana Mobile Web Shell`;
 
 function environment(
   overrides: Partial<PlatformEnvironment> = {},
@@ -25,6 +29,7 @@ function environment(
     userAgent: CHROME_DESKTOP,
     navigatorPlatform: "Win32",
     maxTouchPoints: 0,
+    secureContext: true,
     displayModeStandalone: false,
     navigatorStandalone: false,
     referrer: "",
@@ -38,9 +43,13 @@ describe("platform capability classification", () => {
 
     expect(capabilities).toEqual({
       kind: "desktop",
+      secureContext: true,
       displayModeStandalone: false,
       twaSignal: false,
+      androidWebView: false,
+      solanaMobileWebShell: false,
       mobileWalletAdapterSupported: false,
+      mobileWalletAdapterSupportReason: "not-android",
     });
   });
 
@@ -55,9 +64,10 @@ describe("platform capability classification", () => {
 
     expect(capabilities.kind).toBe("android-browser");
     expect(capabilities.mobileWalletAdapterSupported).toBe(true);
+    expect(capabilities.mobileWalletAdapterSupportReason).toBe("available");
   });
 
-  it("does not use an unreliable browser-brand claim to block Android registration", () => {
+  it("keeps browser-brand classification separate from the pinned MWA gate", () => {
     const capabilities = platformCapabilities(
       environment({
         userAgent: FIREFOX_ANDROID,
@@ -81,6 +91,55 @@ describe("platform capability classification", () => {
     expect(capabilities.kind).toBe("android-pwa");
     expect(capabilities.displayModeStandalone).toBe(true);
     expect(capabilities.mobileWalletAdapterSupported).toBe(true);
+  });
+
+  it("blocks an insecure Android origin before the package can silently no-op", () => {
+    const capabilities = platformCapabilities(
+      environment({
+        userAgent: CHROME_ANDROID,
+        secureContext: false,
+      }),
+    );
+
+    expect(capabilities.kind).toBe("android-browser");
+    expect(capabilities.secureContext).toBe(false);
+    expect(capabilities.mobileWalletAdapterSupported).toBe(false);
+    expect(capabilities.mobileWalletAdapterSupportReason).toBe(
+      "insecure-context",
+    );
+  });
+
+  it("blocks generic Android WebViews using the pinned package predicate", () => {
+    const capabilities = platformCapabilities(
+      environment({
+        userAgent: ANDROID_WEBVIEW,
+        displayModeStandalone: true,
+      }),
+    );
+
+    expect(isAndroidWebView(ANDROID_WEBVIEW)).toBe(true);
+    expect(capabilities.kind).toBe("android-pwa");
+    expect(capabilities.androidWebView).toBe(true);
+    expect(capabilities.solanaMobileWebShell).toBe(false);
+    expect(capabilities.mobileWalletAdapterSupported).toBe(false);
+    expect(capabilities.mobileWalletAdapterSupportReason).toBe(
+      "unsupported-android-webview",
+    );
+  });
+
+  it("permits the Solana Mobile WebShell exception used by the pinned package", () => {
+    const capabilities = platformCapabilities(
+      environment({
+        userAgent: SOLANA_MOBILE_WEB_SHELL,
+        displayModeStandalone: true,
+      }),
+    );
+
+    expect(isSolanaMobileWebShell(SOLANA_MOBILE_WEB_SHELL)).toBe(true);
+    expect(capabilities.androidWebView).toBe(true);
+    expect(capabilities.solanaMobileWebShell).toBe(true);
+    expect(capabilities.mobileWalletAdapterSupported).toBe(true);
+    expect(capabilities.mobileWalletAdapterSupportReason).toBe("available");
   });
 
   it("requires a standalone android-app referrer for the TWA signal", () => {
@@ -119,7 +178,7 @@ describe("platform capability classification", () => {
 
     expect(classifyPlatform(iphone)).toBe("ios");
     expect(classifyPlatform(ipad)).toBe("ios");
-    expect(supportsMobileWalletAdapter("ios")).toBe(false);
+    expect(mobileWalletAdapterSupportReason(iphone)).toBe("not-android");
   });
 
   it("uses unknown for environments without a supported platform signal", () => {
@@ -131,18 +190,5 @@ describe("platform capability classification", () => {
         }),
       ),
     ).toBe("unknown");
-  });
-});
-
-describe("Mobile Wallet Adapter support decision", () => {
-  it.each<[PlatformKind, boolean]>([
-    ["desktop", false],
-    ["android-browser", true],
-    ["android-pwa", true],
-    ["twa", true],
-    ["ios", false],
-    ["unknown", false],
-  ])("returns %s => %s", (kind, supported) => {
-    expect(supportsMobileWalletAdapter(kind)).toBe(supported);
   });
 });

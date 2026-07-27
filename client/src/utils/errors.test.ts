@@ -90,6 +90,55 @@ describe("wallet error taxonomy", () => {
       message: "Failed to fetch wallet endpoint",
     });
   });
+
+  it("requires the pinned code and exact denial message for LNA guidance", () => {
+    expect(
+      classifyWalletError(
+        wrapped(
+          mwaError(
+            "ERROR_LOOPBACK_ACCESS_BLOCKED",
+            "An arbitrary loopback failure",
+          ),
+        ),
+      ),
+    ).toMatchObject({
+      kind: "association-failure",
+      sourceCode: "ERROR_LOOPBACK_ACCESS_BLOCKED",
+    });
+    expect(
+      classifyWalletError(
+        wrapped(
+          mwaError(
+            "ERROR_LOOPBACK_ACCESS_BLOCKED",
+            "Local Network Access permission unknown",
+          ),
+        ),
+      ),
+    ).toMatchObject({
+      kind: "association-failure",
+      sourceCode: "ERROR_LOOPBACK_ACCESS_BLOCKED",
+    });
+    expect(
+      classifyWalletError(new Error("Local Network Access permission denied"))
+        .kind,
+    ).toBe("unknown");
+  });
+
+  it.each([
+    "ERROR_ASSOCIATION_PORT_OUT_OF_RANGE",
+    "ERROR_FORBIDDEN_WALLET_BASE_URL",
+    "ERROR_INVALID_PROTOCOL_VERSION",
+    "ERROR_SECURE_CONTEXT_REQUIRED",
+    "ERROR_SESSION_CLOSED",
+    "ERROR_SESSION_TIMEOUT",
+  ])("grounds pinned browser association code %s", (code) => {
+    expect(
+      classifyWalletError(wrapped(mwaError(code, "Association failed"))),
+    ).toMatchObject({
+      kind: "association-failure",
+      sourceCode: code,
+    });
+  });
 });
 
 function mwaError(code: string, message: string): Error {
