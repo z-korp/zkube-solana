@@ -42,13 +42,14 @@ add approval prompts to the shipped product.
 - The cadence-archive upgrade is deployed on Devnet only. Its deployment and
   observed recovery state do not imply Mainnet readiness; Mainnet requires
   counsel, economic, and distribution review.
-- Fresh protocol initialization is paused. Initialization may seed only the
-  first Daily, Weekly, and Season. Separately approved authority top-ups may
-  add any positive lamport amount only to the canonical current or following
-  Daily, Weekly, or Season and must update its accounted seeded balance. Do
-  not unpause or open paid Arcade until the full recovery/settlement keeper is
-  deployed, fingerprinted, read-only verified, and included in an exact
-  approval bundle.
+- Fresh protocol initialization is paused. The approved schema-v11 recovery
+  completed and v11 keeper writes are enabled on Devnet under the approved
+  recurring authority. Initialization may seed only the first Daily, Weekly,
+  and Season. Separately approved authority top-ups may add any positive
+  lamport amount only to the canonical current or following Daily, Weekly, or
+  Season and must update its accounted seeded balance. Recovery does not
+  authorize reinitialization, deployment, funding, governance, or Mainnet
+  actions.
 
 Architecture and operations documentation belongs in code comments and
 `README.md`; do not add new Markdown documents.

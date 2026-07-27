@@ -63,7 +63,7 @@
   },
   "keeper": {
     "signer": "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg",
-    "releaseFingerprint": "5c556fafa130d09e5315ef7c8406dbbda5558ad55275deceb2e02acdaf72175e",
-    "imageDigest": "sha256:a89e5397f6fca1c788cd13c9eea0bd8311bc2f2c363d192dee432d82366d491d"
+    "releaseFingerprint": "9077bf5ee6cbe25f57970e37070e6a25c4be4b1fd13d372838086c9c465063f8",
+    "imageDigest": "sha256:e7dbb9e1bbc285fdfc812791f66dc2930afe350570425641f652cb8c2bcbc1c2"
   }
 }

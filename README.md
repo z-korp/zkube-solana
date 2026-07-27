@@ -282,9 +282,10 @@ and unrelated-cadence work backfills the same pass. The enforced cadence
 ordering is finalize, Daily-to-Season rollup, seal, archive, profile sync, then
 close.
 
-Fresh initialization remains paused. Paid Arcade cannot open until the exact
-program and complete recovery/settlement keeper have passed read-only
-verification and are included in an explicit approval bundle.
+Fresh initialization remains paused. The exact schema-v11 keeper release
+completed Devnet recovery and is write-enabled under the approved recurring
+authority. That recurring authority does not authorize reinitialization,
+deployment, funding, governance, or Mainnet actions.
 
 ## Development and validation
 
@@ -475,10 +476,10 @@ and Season `737` opened atomically with 1/2/3 SOL. The activation signature is
 `A1iaCAkcQDbEdhtQDZjsvH8hWuLQ3N9waycid52rB6UkrS2zDv6tHmhZSkEn6GADawuBkpxR6pEGFUsJCEKjdXS`.
 
 Fly machine `82d371f7d43e38` runs the approved keeper release
-tag `deployment-01KYFMES913DMHBWBN0043DFAR`, image digest
-`sha256:b34643e73f5802bf48c2a092c39dbe777de0711f5f51d2bc8c3ad53cc675c0f0`,
+tag `deployment-01KYJA40TZNE345SEM7VGXJBC8`, image digest
+`sha256:e7dbb9e1bbc285fdfc812791f66dc2930afe350570425641f652cb8c2bcbc1c2`,
 and fingerprint
-`7ea04864e4469b03e6be880083974cf0828adfc3058e0fdd21f3e4cdc7fb2cf4`.
+`9077bf5ee6cbe25f57970e37070e6a25c4be4b1fd13d372838086c9c465063f8`.
 It mounts the encrypted one-GB `zkube_archives` volume, runs every 60 seconds,
 permits at most eight writes and 0.1 SOL simulated spend per pass, and preserves
 a 0.1 SOL signer reserve. Writes are enabled under the approved recurring
@@ -498,23 +499,17 @@ after catch-up. The protocol was then unpaused with signature
 Already-created v2 runs migrate in place and legacy Practice retains only its
 recovery and settlement paths.
 
-The following is a time-sensitive Devnet observation after the approved
-recovery on 2026-07-26, not a Mainnet-readiness claim: Daily `20660` is open,
-Daily `20661` is prepared and preactivated, and Dailies `20657` through `20659`
-are finalized with their Season rollups sealed. Daily `20657` remains
-fail-closed because its archive reread expected
-`7266793f61621c57ed7c76630223e64e80270d8bd2553a0862f437c0e559712b`
-but found stored hash
-`19573534f07de5e120a8d5b1dc04b7affe5f8f5a809ff4676ecca26ee01e5455`.
-A read-only public Devnet derivation on 2026-07-27 reproduced both hashes
-exactly. The stored v1 evidence had zero Season rollups, an unsealed rollup,
-and profile-sync mask zero; the current account has two rollups, a sealed
-rollup, and profile-sync mask three. Its immutable result hash
-`133fc0222f3e0d2499782109fc55b50beb0ab654df23f8d16809f88d4d85f0b4`
-and committed root
-`8494089aa05929470eac2340bf2403568d77097c1ef785386d06c5a8d2676552`
-are unchanged. The deployed release still blocks closure and rent recycling;
-this source-level fix is not deployed.
+The following is a time-sensitive Devnet observation through
+2026-07-27 17:53:27 UTC, not a Mainnet-readiness claim. Weekly `2950` paid
+before the schema-v11 recovery, then archived under v11 with all three winner
+profiles synchronized, profile-sync mask `511`, and its cadence account
+closed; `42,128,880` lamports of rent were recycled. Archive checkpoints are
+Daily `20660`, Weekly `2950`, and Season `736`. The cadence funding PDA is
+restored to `500,000,000` lamports and the keeper balance is `737,673,240`
+lamports. Current and following Daily `20661`/`20662`, Weekly `2951`/`2952`,
+and Season `737`/`738` accounts were present and open. Backlog and quarantine
+counts were zero, followed by five clean zero-write keeper passes through the
+observation time.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
