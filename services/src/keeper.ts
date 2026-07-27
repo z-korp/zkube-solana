@@ -17,9 +17,13 @@ import {
   seasonPda,
   seasonPlayerPda,
   weeklyJackpotPda,
+  type CompetitionKind,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
-import type { KeeperArchiveStore } from "./archiveStore.js";
+import {
+  ArchiveIntegrityError,
+  type KeeperArchiveStore,
+} from "./archiveStore.js";
 import {
   discoverReconciliation,
   type ProtocolSnapshot,
@@ -44,11 +48,16 @@ export interface KeeperLogEvent {
     | "keeper_operation"
     | "keeper_plan"
     | "keeper_readiness"
-    | "keeper_domain_quarantine";
+    | "keeper_domain_quarantine"
+    | "keeper_archive_quarantine"
+    | "keeper_dependency_suppressed";
   traceId: string;
   operation?: string;
   competition?: "daily" | "weekly" | "season";
   cadenceId?: number;
+  archiveIntegrityCode?: string;
+  archiveFailureStage?: "preparation" | "transaction";
+  archiveQuarantines?: number;
   ok: boolean;
   writes?: number;
   plannedWrites?: number;
@@ -67,6 +76,7 @@ export interface KeeperPassResult {
   plannedWrites: number;
   writeEnabled: boolean;
   operationFailures: number;
+  archiveQuarantines: number;
   maxWrites: number;
   backlog: number;
   balanceLamports: number;
@@ -166,9 +176,15 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let writes = 0;
   let plannedWrites = 0;
   let failures = 0;
+  let archiveQuarantines = 0;
   let spentLamports = 0;
-  const selectedPlans = selectBoundedPlans(plans, maxWrites);
-  for (const plan of selectedPlans) {
+  let attemptedWrites = 0;
+  let resolvedPlans = 0;
+  let sessionRevokes = 0;
+  let participantClosures = 0;
+  const quarantinedArchiveDependencies = new Set<string>();
+  for (const plan of plans) {
+    if (attemptedWrites >= maxWrites) break;
     assertKeeperPlanPolicy({
       plan,
       keeper: input.keeper.publicKey,
@@ -176,11 +192,75 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       connection: input.connection,
       nowUnix,
     });
+    const dependentCadence = dependentArchiveCadence(plan);
+    if (dependentCadence &&
+        quarantinedArchiveDependencies.has(cadenceDependencyKey(dependentCadence))) {
+      log({
+        schemaVersion: 1,
+        event: "keeper_dependency_suppressed",
+        traceId,
+        operation: plan.operation,
+        competition: dependentCadence.competition,
+        cadenceId: dependentCadence.cadenceId,
+        ok: false,
+        error: "suppressed after same-cadence archive failure",
+      });
+      resolvedPlans += 1;
+      continue;
+    }
+    if (plan.operation === "revoke_expired_session" &&
+        sessionRevokes >= MAX_EXPIRED_SESSION_REVOKES) {
+      continue;
+    }
+    if (isParticipantClosure(plan.operation) &&
+        participantClosures >= MAX_PARTICIPANT_CLOSURES) {
+      continue;
+    }
     if (usesArchiveStorage(plan.operation)) {
       if (!input.archiveStore) {
         throw new Error("verified cadence archive storage is not configured");
       }
-      await input.archiveStore.prepare(plan);
+      try {
+        await input.archiveStore.prepare(plan);
+      } catch (error) {
+        if (!(error instanceof ArchiveIntegrityError)) throw error;
+        const cadence = requiredArchiveStorageCadence(plan);
+        if (cadence.competition !== error.competition ||
+            cadence.cadenceId !== error.cadenceId) {
+          throw new Error("archive integrity failure identity does not match its plan");
+        }
+        failures += 1;
+        const dependencyKey = cadenceDependencyKey(cadence);
+        if (!quarantinedArchiveDependencies.has(dependencyKey)) {
+          quarantinedArchiveDependencies.add(dependencyKey);
+          archiveQuarantines += 1;
+        }
+        log({
+          schemaVersion: 1,
+          event: "keeper_archive_quarantine",
+          traceId,
+          operation: plan.operation,
+          competition: error.competition,
+          cadenceId: error.cadenceId,
+          archiveIntegrityCode: error.code,
+          archiveFailureStage: "preparation",
+          ok: false,
+          error: safeError(error),
+        });
+        resolvedPlans += 1;
+        continue;
+      }
+    }
+    // Charge every bound only after runtime quarantine and archive preparation
+    // establish that this plan is eligible. A submitted write still owns its
+    // slot even when confirmation or post-write verification later fails.
+    attemptedWrites += 1;
+    resolvedPlans += 1;
+    if (plan.operation === "revoke_expired_session") {
+      sessionRevokes += 1;
+    }
+    if (isParticipantClosure(plan.operation)) {
+      participantClosures += 1;
     }
     const materialized = await materializeKeeperPlan(plan, {
       programId: ZKUBE_PROGRAM_ID,
@@ -293,6 +373,25 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       });
     } catch (error) {
       failures += 1;
+      const archiveCadence = archiveTransactionCadence(plan);
+      if (archiveCadence) {
+        const dependencyKey = cadenceDependencyKey(archiveCadence);
+        if (!quarantinedArchiveDependencies.has(dependencyKey)) {
+          quarantinedArchiveDependencies.add(dependencyKey);
+          archiveQuarantines += 1;
+        }
+        log({
+          schemaVersion: 1,
+          event: "keeper_archive_quarantine",
+          traceId,
+          operation: plan.operation,
+          competition: archiveCadence.competition,
+          cadenceId: archiveCadence.cadenceId,
+          archiveFailureStage: "transaction",
+          ok: false,
+          error: safeError(error),
+        });
+      }
       log({
         schemaVersion: 1,
         event: "keeper_operation",
@@ -311,8 +410,9 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     plannedWrites,
     writeEnabled,
     operationFailures: failures,
+    archiveQuarantines,
     maxWrites,
-    backlog: Math.max(0, plans.length - selectedPlans.length),
+    backlog: Math.max(0, plans.length - resolvedPlans),
     balanceLamports,
     reserveLow: balanceLamports < minimumBalanceLamports,
     spentLamports,
@@ -326,6 +426,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     writes,
     plannedWrites,
     writeEnabled,
+    archiveQuarantines,
     spentLamports,
     maximumSpendLamports,
   });
@@ -556,14 +657,14 @@ export function operationPriority(operation: string): number {
     expire_unresolved_arena_run: 5,
     expire_unresolved_practice_run: 5,
     finalize_arena_daily: 6,
+    finalize_weekly_jackpot: 6,
+    finalize_season: 6,
     initialize_season_player: 7,
     rollup_arena_to_season: 8,
     seal_arena_season_rollups: 9,
     archive_arena_daily: 10,
     archive_weekly_jackpot: 10,
     archive_season: 10,
-    finalize_weekly_jackpot: 11,
-    finalize_season: 12,
     sync_daily_profile: 13,
     sync_weekly_profile: 13,
     sync_season_profile: 13,
@@ -585,25 +686,93 @@ function usesArchiveStorage(operation: string): boolean {
     operation === "close_season";
 }
 
-function selectBoundedPlans<T extends { operation: string }>(
-  plans: T[],
-  maximum: number,
-): T[] {
-  let sessionRevokes = 0;
-  let participantClosures = 0;
-  const selected: T[] = [];
-  for (const plan of plans) {
-    if (selected.length >= maximum) break;
-    if (plan.operation === "revoke_expired_session") {
-      if (sessionRevokes >= MAX_EXPIRED_SESSION_REVOKES) continue;
-      sessionRevokes += 1;
-    }
-    if (plan.operation === "close_arena_player" ||
-        plan.operation === "close_season_player") {
-      if (participantClosures >= MAX_PARTICIPANT_CLOSURES) continue;
-      participantClosures += 1;
-    }
-    selected.push(plan);
+interface CadenceDependency {
+  competition: CompetitionKind;
+  cadenceId: number;
+}
+
+function cadenceDependencyKey(dependency: CadenceDependency): string {
+  return `${dependency.competition}:${dependency.cadenceId}`;
+}
+
+function requiredArchiveStorageCadence(
+  plan: KeeperInstructionPlan,
+): CadenceDependency {
+  const dependency = archiveStorageCadence(plan);
+  if (!dependency) {
+    throw new Error("archive storage operation is missing its cadence identity");
   }
-  return selected;
+  return dependency;
+}
+
+function archiveStorageCadence(
+  plan: KeeperInstructionPlan,
+): CadenceDependency | undefined {
+  switch (plan.operation) {
+    case "archive_arena_daily":
+    case "close_arena_daily":
+      return exactCadence(plan, "daily", plan.context?.dayId);
+    case "archive_weekly_jackpot":
+    case "close_weekly_jackpot":
+      return exactCadence(plan, "weekly", plan.context?.weekId);
+    case "archive_season":
+    case "close_season":
+      return exactCadence(plan, "season", plan.context?.seasonId);
+    default:
+      return undefined;
+  }
+}
+
+function archiveTransactionCadence(
+  plan: KeeperInstructionPlan,
+): CadenceDependency | undefined {
+  switch (plan.operation) {
+    case "archive_arena_daily":
+      return exactCadence(plan, "daily", plan.context?.dayId);
+    case "archive_weekly_jackpot":
+      return exactCadence(plan, "weekly", plan.context?.weekId);
+    case "archive_season":
+      return exactCadence(plan, "season", plan.context?.seasonId);
+    default:
+      return undefined;
+  }
+}
+
+function dependentArchiveCadence(
+  plan: KeeperInstructionPlan,
+): CadenceDependency | undefined {
+  switch (plan.operation) {
+    case "sync_daily_profile":
+    case "close_arena_daily":
+    case "close_arena_player":
+      return exactCadence(plan, "daily", plan.context?.dayId);
+    case "sync_weekly_profile":
+    case "close_weekly_jackpot":
+      return exactCadence(plan, "weekly", plan.context?.weekId);
+    case "sync_season_profile":
+    case "close_season":
+    case "close_season_player":
+      return exactCadence(plan, "season", plan.context?.seasonId);
+    default:
+      return undefined;
+  }
+}
+
+function exactCadence(
+  plan: KeeperInstructionPlan,
+  competition: CompetitionKind,
+  cadenceId: number | undefined,
+): CadenceDependency {
+  if (!Number.isSafeInteger(cadenceId) || cadenceId === undefined ||
+      cadenceId < 0 || cadenceId > 0xffff_ffff ||
+      (plan.context?.competition !== undefined &&
+        plan.context.competition !== competition)) {
+    throw new Error(`${plan.operation} has an invalid cadence dependency`);
+  }
+  return { competition, cadenceId };
+}
+
+function isParticipantClosure(operation: string): boolean {
+  return operation === "close_arena_player" ||
+    operation === "close_season_player";
 }

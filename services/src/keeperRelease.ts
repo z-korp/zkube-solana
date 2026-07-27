@@ -12,6 +12,7 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "./arcadeChain.js";
 import { KEEPER_EXPECTED_IDL_SHA256 } from "./anchorIdlAdapter.js";
+import { SUPPORTED_ARCHIVE_SCHEMA_VERSIONS } from "./archiveContract.js";
 import { SESSION_KEYS_PROGRAM_ID } from "./sessionCleanup.js";
 
 export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
@@ -19,7 +20,7 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v4-sol-keeper-release",
-  schemaVersion: 8,
+  schemaVersion: 9,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),
@@ -43,6 +44,7 @@ export const KEEPER_RELEASE_POLICY = {
   maximumSpendLamportsPerPass: 100_000_000,
   reserveFloorLamports: 100_000_000,
   archiveDirectory: "/data/zkube-archives",
+  supportedArchiveVersions: SUPPORTED_ARCHIVE_SCHEMA_VERSIONS,
   maximumRapidReruns: 4,
   allowlist: [
     "prepare_arena_daily",

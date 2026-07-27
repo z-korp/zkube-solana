@@ -9,6 +9,7 @@ import {
   KEEPER_RECENT_WEEKLY_CADENCES,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
+  arenaDailyPda,
   seasonIdForDay,
   validationOnlyPlan,
   weekIdForDay,
@@ -19,6 +20,10 @@ import {
   arcadeArchivePda,
   weekStartDay,
 } from "../src/arcadeChain";
+import {
+  cadenceResultHash,
+  canonicalArchiveV2,
+} from "../src/archiveContract";
 import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 import { archiveSha256 } from "../src/archiveStore";
 
@@ -241,7 +246,16 @@ describe("v4 keeper semantic policy", () => {
   });
 
   it("pins sequential archive and closure plans to canonical identities and bytes", () => {
-    const canonicalJson = '{"periodId":20651,"schemaVersion":1}';
+    const resultData = Buffer.from("immutable-result");
+    const canonicalJson = canonicalArchiveV2({
+      account: arenaDailyPda(DAY),
+      accountData: Buffer.alloc(16, 2),
+      competition: "daily",
+      periodId: DAY,
+      programId: ZKUBE_PROGRAM_ID,
+      resultData,
+      root: "cd".repeat(32),
+    });
     const archive = validationOnlyPlan("archive_arena_daily", {
       competition: "daily",
       dayId: DAY,
@@ -250,7 +264,7 @@ describe("v4 keeper semantic policy", () => {
       arcadeArchive: arcadeArchivePda(),
       archiveCanonicalJson: canonicalJson,
       archiveFileSha256: archiveSha256(canonicalJson),
-      archiveResultHash: "ab".repeat(32),
+      archiveResultHash: cadenceResultHash("daily", resultData),
       archiveCommitted: false,
       requiredProfileSyncMask: 0,
       closeEligibleAt:

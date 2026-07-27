@@ -872,13 +872,23 @@ describe("v4 keeper reconciliation", () => {
     }));
   });
 
-  it("orders first-time initialization and catch-up seals ahead of archives", () => {
+  it("orders finalize, rollup, seal, archive, profile sync, and close safely", () => {
+    expect(operationPriority("finalize_arena_daily"))
+      .toBeLessThan(operationPriority("initialize_season_player"));
+    expect(operationPriority("finalize_weekly_jackpot"))
+      .toBeLessThan(operationPriority("archive_weekly_jackpot"));
+    expect(operationPriority("finalize_season"))
+      .toBeLessThan(operationPriority("archive_season"));
     expect(operationPriority("initialize_season_player"))
       .toBeLessThan(operationPriority("rollup_arena_to_season"));
     expect(operationPriority("rollup_arena_to_season"))
       .toBeLessThan(operationPriority("seal_arena_season_rollups"));
     expect(operationPriority("seal_arena_season_rollups"))
       .toBeLessThan(operationPriority("archive_arena_daily"));
+    expect(operationPriority("archive_arena_daily"))
+      .toBeLessThan(operationPriority("sync_daily_profile"));
+    expect(operationPriority("sync_daily_profile"))
+      .toBeLessThan(operationPriority("close_arena_daily"));
   });
 
   it("converges a three-day catch-up before recycling archived Daily rent", () => {

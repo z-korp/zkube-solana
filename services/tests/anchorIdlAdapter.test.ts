@@ -587,9 +587,16 @@ describe("exact v4 Anchor IDL keeper adapter", () => {
       seasonEligiblePlayers: 0,
       entries: [],
     };
-    expect(canonicalCadenceResultHash(idl, "daily", daily)).toBe(
+    const dailyResultHash = canonicalCadenceResultHash(idl, "daily", daily);
+    expect(dailyResultHash).toBe(
       "3c7f85e915d5745256cadbc5e3195bea61f4a918402d5f68d49b2faa13a0eb8e",
     );
+    expect(canonicalCadenceResultHash(idl, "daily", {
+      ...daily,
+      profileSyncMask: 0x1f,
+      seasonRollups: 1,
+      seasonRollupSealed: true,
+    })).toBe(dailyResultHash);
 
     expect(canonicalCadenceResultHash(idl, "weekly", {
       version: ARCADE_ACCOUNT_VERSION,

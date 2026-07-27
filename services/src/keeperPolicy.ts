@@ -13,18 +13,23 @@ import {
   PERIOD_SETTLEMENT_DELAY_SECONDS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
+  ZKUBE_PROGRAM_ID,
+  arenaDailyPda,
   assertCadenceId,
   currentDayId,
   arcadeArchivePda,
   cadenceFundingPda,
   playerFundingPda,
   seasonIdForDay,
+  seasonPda,
   seasonStartDay,
   weekIdForDay,
   weekStartDay,
+  weeklyJackpotPda,
   type KeeperInstructionPlan,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
+import { parseCanonicalArchive } from "./archiveContract.js";
 import { deriveSessionPda } from "./sessionCleanup.js";
 
 export interface KeeperPlanPolicyInput {
@@ -383,6 +388,26 @@ function assertCadenceArchive(
     .digest("hex");
   if (actualHash !== context.archiveFileSha256) {
     throw new Error("keeper policy rejects cadence archive file hash");
+  }
+  try {
+    const { contract, resultData } = parseCanonicalArchive(
+      context.archiveCanonicalJson,
+    );
+    const expectedAccount = competition === "daily"
+      ? arenaDailyPda(cadenceId!)
+      : competition === "weekly"
+        ? weeklyJackpotPda(cadenceId!)
+        : seasonPda(cadenceId!);
+    if (contract.schemaVersion !== 2 || !resultData ||
+        contract.competition !== competition ||
+        contract.periodId !== cadenceId ||
+        contract.programId !== ZKUBE_PROGRAM_ID.toBase58() ||
+        contract.account !== expectedAccount.toBase58() ||
+        contract.resultHash !== context.archiveResultHash) {
+      throw new Error("mismatch");
+    }
+  } catch {
+    throw new Error("keeper policy rejects cadence archive v2 commitment");
   }
 }
 

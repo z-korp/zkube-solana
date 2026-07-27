@@ -77,6 +77,10 @@ import {
   type WeeklySnapshot,
   type WinnerSnapshot,
 } from "./arcadeReconciliation.js";
+import {
+  cadenceResultHash,
+  canonicalArchiveV2,
+} from "./archiveContract.js";
 import { type ProtocolInstructionMaterializer } from "./planMaterializer.js";
 import { getDelegationStatus } from "./router.js";
 
@@ -565,10 +569,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     currentRoot: string;
     participantAccountsRemain: boolean;
   }): CadenceArchiveCandidate {
-    const resultHash = this.cadenceResultHash(
+    const resultData = canonicalCadenceResultData(
+      this.idl,
       input.competition,
       input.loaded.value,
     );
+    const resultHash = cadenceResultHash(input.competition, resultData);
     const committed = input.cadenceId <= input.lastCadenceId;
     if (committed && input.cadenceId !== input.lastCadenceId) {
       // Older committed periods should already be closed. Keeping them out of
@@ -587,18 +593,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const closeEligibleAt = input.competition === "daily"
       ? (input.period as DailySnapshot).runsCloseAt
       : (input.period as WeeklySnapshot | SeasonSnapshot).closesAt;
-    const canonicalJson = canonicalJsonString({
-      account: input.loaded.address.toBase58(),
-      accountDataBase64: input.loaded.account.data.toString("base64"),
-      accountDataSha256: createHash("sha256")
-        .update(input.loaded.account.data)
-        .digest("hex"),
+    const canonicalJson = canonicalArchiveV2({
+      account: input.loaded.address,
+      accountData: input.loaded.account.data,
       competition: input.competition,
       periodId: input.cadenceId,
-      programId: ZKUBE_PROGRAM_ID.toBase58(),
-      resultHash,
+      programId: ZKUBE_PROGRAM_ID,
+      resultData,
       root,
-      schemaVersion: 1,
     });
     return {
       competition: input.competition,
@@ -621,11 +623,33 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     };
   }
 
-  private cadenceResultHash(
+  projectArchiveResultData(
     competition: "daily" | "weekly" | "season",
-    value: Record<string, unknown>,
-  ): string {
-    return canonicalCadenceResultHash(this.idl, competition, value);
+    accountData: Buffer,
+  ): Buffer {
+    const name = competition === "daily"
+      ? "arenaDaily"
+      : competition === "weekly"
+        ? "weeklyJackpot"
+        : "season";
+    if (accountData.length < 9 || accountData.length >= MAX_PROGRAM_ACCOUNT_BYTES ||
+        !accountData.subarray(0, 8).equals(
+          this.accountsCoder.accountDiscriminator(name),
+        ) ||
+        accountData[8] !== ARCADE_ACCOUNT_VERSION) {
+      throw new Error("archived cadence account discriminator or version is invalid");
+    }
+    let decoded: unknown;
+    try {
+      decoded = this.accountsCoder.decode(name, accountData);
+    } catch {
+      throw new Error("archived cadence account data is malformed");
+    }
+    return canonicalCadenceResultData(
+      this.idl,
+      competition,
+      record(decoded, name),
+    );
   }
 
   /** Read-only verification gate for the paused carrier before launch seed. */
@@ -2298,6 +2322,17 @@ export function canonicalCadenceResultHash(
   competition: "daily" | "weekly" | "season",
   value: Record<string, unknown>,
 ): string {
+  return cadenceResultHash(
+    competition,
+    canonicalCadenceResultData(idl, competition, value),
+  );
+}
+
+export function canonicalCadenceResultData(
+  idl: Idl,
+  competition: "daily" | "weekly" | "season",
+  value: Record<string, unknown>,
+): Buffer {
   const definitionName = competition === "daily"
     ? "arenaDaily"
     : competition === "weekly"
@@ -2335,10 +2370,7 @@ export function canonicalCadenceResultHash(
     ],
   } as unknown as Idl;
   const encoded = new BorshCoder(synthetic).types.encode(syntheticName, value);
-  return createHash("sha256")
-    .update(Buffer.from(`zkube-arcade-${competition}-result-v1`, "utf8"))
-    .update(encoded)
-    .digest("hex");
+  return Buffer.from(encoded);
 }
 
 function cadenceRoot(
@@ -2372,20 +2404,6 @@ function profileSyncMask(
     mask |= 1 << bit;
   }
   return mask;
-}
-
-function canonicalJsonString(value: unknown): string {
-  return JSON.stringify(sortCanonicalJson(value));
-}
-
-function sortCanonicalJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortCanonicalJson);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, sortCanonicalJson(child)]));
-  }
-  return value;
 }
 
 function practiceCadenceFromDeadline(

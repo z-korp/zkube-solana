@@ -1,19 +1,25 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   lstat,
+  link,
   mkdir,
   open,
   readFile,
   realpath,
-  rename,
   rm,
 } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 import type {
   CompetitionKind,
   KeeperInstructionPlan,
 } from "./arcadeChain.js";
+import {
+  CURRENT_ARCHIVE_SCHEMA_VERSION,
+  cadenceResultHash,
+  parseCanonicalArchive,
+  type CadenceArchiveContract,
+} from "./archiveContract.js";
 
 export const DEFAULT_ARCHIVE_DIRECTORY = "/data/zkube-archives";
 
@@ -21,41 +27,72 @@ export interface KeeperArchiveStore {
   prepare(plan: KeeperInstructionPlan): Promise<void>;
 }
 
+export type ArchiveIntegrityCode =
+  | "existing_archive_invalid"
+  | "immutable_commitment_mismatch"
+  | "missing_committed_archive"
+  | "projection_mismatch"
+  | "reread_verification_failed";
+
+export class ArchiveIntegrityError extends Error {
+  readonly name = "ArchiveIntegrityError";
+
+  constructor(
+    readonly code: ArchiveIntegrityCode,
+    readonly competition: CompetitionKind,
+    readonly cadenceId: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export type ArchiveResultProjector = (
+  competition: CompetitionKind,
+  accountData: Buffer,
+) => Buffer;
+
 export class FileKeeperArchiveStore implements KeeperArchiveStore {
-  constructor(private readonly root: string) {
-    if (!root || !resolve(root).startsWith(sep)) {
+  constructor(
+    private readonly root: string,
+    private readonly projectResultData: ArchiveResultProjector,
+  ) {
+    if (!root || !isAbsolute(root)) {
       throw new Error("keeper archive directory must be absolute");
+    }
+    if (typeof projectResultData !== "function") {
+      throw new Error("keeper archive result projector is required");
     }
   }
 
   async prepare(plan: KeeperInstructionPlan): Promise<void> {
     const identity = archiveIdentity(plan);
-    if (isArchiveOperation(plan.operation)) {
-      const canonicalJson = plan.context?.archiveCanonicalJson;
-      if (canonicalJson === undefined) {
-        throw new Error("archive plan is missing canonical JSON");
-      }
-      assertCanonicalJson(canonicalJson);
-      await this.writeAtomicVerified(
-        identity.kind,
-        identity.id,
-        canonicalJson,
-        identity.sha256,
-      );
-      return;
+    const canonicalJson = plan.context?.archiveCanonicalJson;
+    if (canonicalJson === undefined) {
+      throw new Error("archive plan is missing canonical JSON");
     }
-    await this.verifyExisting(
+    const expected = parseExpectedArchive(
+      canonicalJson,
+      identity,
+      plan.context?.archiveResultHash,
+    );
+    await this.preparePath(
       identity.kind,
       identity.id,
+      canonicalJson,
       identity.sha256,
+      expected,
+      isArchiveOperation(plan.operation),
     );
   }
 
-  private async writeAtomicVerified(
+  private async preparePath(
     kind: CompetitionKind,
     id: number,
     canonicalJson: string,
     expectedSha256: string,
+    expected: CadenceArchiveContract,
+    mayCreate: boolean,
   ): Promise<void> {
     const bytes = Buffer.from(canonicalJson, "utf8");
     if (sha256(bytes) !== expectedSha256) {
@@ -64,10 +101,16 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
     const target = await this.safePath(kind, id);
     const existing = await readExistingRegularFile(target);
     if (existing) {
-      if (!existing.equals(bytes) || sha256(existing) !== expectedSha256) {
-        throw new Error("existing cadence archive does not match canonical bytes");
-      }
+      this.verifyStored(kind, id, existing, expected);
       return;
+    }
+    if (!mayCreate) {
+      throw new ArchiveIntegrityError(
+        "missing_committed_archive",
+        kind,
+        id,
+        "committed cadence archive file is missing",
+      );
     }
 
     const temporary = `${target}.tmp-${process.pid}-${randomUUID()}`;
@@ -81,7 +124,18 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
       } finally {
         await handle.close();
       }
-      await rename(temporary, target);
+      try {
+        // A hard link creates the final name atomically and fails if another
+        // pass won the race. Unlike rename, it can never replace an archive.
+        await link(temporary, target);
+      } catch (error) {
+        if (!isNodeError(error) || error.code !== "EEXIST") throw error;
+        const raced = await readExistingRegularFile(target);
+        if (!raced) throw error;
+        this.verifyStored(kind, id, raced, expected);
+        return;
+      }
+      await rm(temporary);
       temporaryCreated = false;
       const directory = await open(dirname(target), "r");
       try {
@@ -92,20 +146,73 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
     } finally {
       if (temporaryCreated) await rm(temporary, { force: true });
     }
-    await this.verifyExisting(kind, id, expectedSha256, bytes);
+    const reread = await readExistingRegularFile(target);
+    if (!reread || !reread.equals(bytes)) {
+      throw new ArchiveIntegrityError(
+        "reread_verification_failed",
+        kind,
+        id,
+        "new cadence archive reread verification failed",
+      );
+    }
+    this.verifyStored(kind, id, reread, expected);
   }
 
-  private async verifyExisting(
+  private verifyStored(
     kind: CompetitionKind,
     id: number,
-    expectedSha256: string,
-    expectedBytes?: Buffer,
-  ): Promise<void> {
-    const target = await this.safePath(kind, id);
-    const bytes = await readExistingRegularFile(target);
-    if (!bytes || sha256(bytes) !== expectedSha256 ||
-        (expectedBytes && !bytes.equals(expectedBytes))) {
-      throw new Error("cadence archive reread verification failed");
+    bytes: Buffer,
+    expected: CadenceArchiveContract,
+  ): void {
+    let stored: ReturnType<typeof parseCanonicalArchive>;
+    try {
+      stored = parseCanonicalArchive(bytes.toString("utf8"));
+    } catch (error) {
+      throw new ArchiveIntegrityError(
+        "existing_archive_invalid",
+        kind,
+        id,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    const actual = stored.contract;
+    if (actual.account !== expected.account ||
+        actual.competition !== expected.competition ||
+        actual.periodId !== expected.periodId ||
+        actual.programId !== expected.programId ||
+        actual.resultHash !== expected.resultHash ||
+        actual.root !== expected.root) {
+      throw new ArchiveIntegrityError(
+        "immutable_commitment_mismatch",
+        kind,
+        id,
+        "stored cadence archive immutable commitment does not match",
+      );
+    }
+
+    let projected: Buffer;
+    try {
+      projected = this.projectResultData(kind, stored.accountData);
+    } catch (error) {
+      throw new ArchiveIntegrityError(
+        "existing_archive_invalid",
+        kind,
+        id,
+        `stored cadence archive account evidence is invalid: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    const expectedResultData = Buffer.from(expected.resultDataBase64!, "base64");
+    if (!projected.equals(expectedResultData) ||
+        cadenceResultHash(kind, projected) !== actual.resultHash ||
+        (stored.resultData && !stored.resultData.equals(projected))) {
+      throw new ArchiveIntegrityError(
+        "projection_mismatch",
+        kind,
+        id,
+        "stored cadence archive result projection does not match",
+      );
     }
   }
 
@@ -173,6 +280,21 @@ function isArchiveOperation(operation: string): boolean {
   return operation.startsWith("archive_");
 }
 
+function parseExpectedArchive(
+  canonicalJson: string,
+  identity: { kind: CompetitionKind; id: number },
+  contextResultHash: string | undefined,
+): CadenceArchiveContract {
+  const { contract, resultData } = parseCanonicalArchive(canonicalJson);
+  if (contract.schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION || !resultData ||
+      contract.competition !== identity.kind ||
+      contract.periodId !== identity.id ||
+      contract.resultHash !== contextResultHash) {
+    throw new Error("archive plan does not carry the canonical v2 commitment");
+  }
+  return contract;
+}
+
 async function readExistingRegularFile(path: string): Promise<Buffer | undefined> {
   try {
     const status = await lstat(path);
@@ -184,28 +306,6 @@ async function readExistingRegularFile(path: string): Promise<Buffer | undefined
     if (isNodeError(error) && error.code === "ENOENT") return undefined;
     throw error;
   }
-}
-
-function assertCanonicalJson(value: string): void {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error("cadence archive is not valid JSON");
-  }
-  if (JSON.stringify(sortJson(parsed)) !== value) {
-    throw new Error("cadence archive JSON is not canonical");
-  }
-}
-
-function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, sortJson(child)]));
-  }
-  return value;
 }
 
 function sha256(value: Buffer): string {

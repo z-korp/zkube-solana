@@ -16,7 +16,7 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 8,
+      schemaVersion: 9,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "10000000",
@@ -34,6 +34,7 @@ describe("keeper release binding", () => {
       recentCadenceWindow: { dailies: 84, weeklies: 12, seasons: 3 },
       maximumSpendLamportsPerPass: 100_000_000,
       reserveFloorLamports: 100_000_000,
+      supportedArchiveVersions: [1, 2],
     });
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("finalize_season");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_daily_profile");

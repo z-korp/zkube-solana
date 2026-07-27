@@ -259,7 +259,11 @@ async function runConfiguredKeeperPass(
     ),
     protocolSnapshot,
     protocolMaterializer: adapter,
-    archiveStore: new FileKeeperArchiveStore(archiveDirectory),
+    archiveStore: new FileKeeperArchiveStore(
+      archiveDirectory,
+      (competition, accountData) =>
+        adapter.projectArchiveResultData(competition, accountData),
+    ),
     resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
       plan,
       programId: ZKUBE_PROGRAM_ID,

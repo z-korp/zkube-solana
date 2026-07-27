@@ -208,6 +208,17 @@ commitment per Daily, Weekly, and Season. Devnet volume storage is a recovery
 aid, not the Mainnet durability design; Mainnet requires replicated public
 archive storage.
 
+Archive contract v1 files remain append-only and are never rewritten. New
+files use contract v2: `resultDataBase64` carries the exact immutable Borsh
+result projection committed by `resultHash` and the rolling root, while the
+full raw account bytes remain point-in-time evidence. Closure reprojects both
+v1 and v2 evidence through the checked-in IDL and verifies the stored account,
+cadence, program, result hash, root, and immutable projection exactly. It does
+not require current raw-byte equality after permitted metadata changes such as
+winner profile synchronization. A missing or invalid committed file is never
+re-materialized; that cadence archive plan is quarantined while independent
+keeper plans continue.
+
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
 limit and 1,000-micro-lamport unit price before wallet approval. The maximum
 priority fee is therefore 400 lamports. Fully specifying both fields prevents
@@ -256,11 +267,17 @@ instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
 simulated spend ceiling, a separate two-participant-account closure limit, and
 a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy schema v8 removes a cadence planning deadlock by
-quarantining an inconsistent Daily, Weekly, or Season without blocking cadence
-preparation, preactivation, or unrelated Campaign recovery. Dependent writes
-remain fail-closed, and a Daily cannot be archived before its Season rollup is
-sealed.
+Keeper release-policy schema v9 fingerprints supported archive contracts
+`[1,2]`. It quarantines a typed per-cadence archive-integrity failure without
+blocking an independent Daily, Weekly, Season, or Campaign plan. Global chain
+readiness, policy, materialization, storage configuration, and release errors
+remain fatal. A preparation/integrity failure or archive-transaction failure
+suppresses only the same cadence's profile sync, cadence close, and participant
+cleanup writes for that pass. Quarantined and suppressed plans consume neither
+the eight-write window nor its session/participant closure quotas, so later
+eligible recovery and unrelated-cadence work backfills the same pass. The
+enforced cadence ordering is finalize, Daily-to-Season rollup, seal, archive,
+profile sync, then close.
 
 Fresh initialization remains paused. Paid Arcade cannot open until the exact
 program and complete recovery/settlement keeper have passed read-only
@@ -355,7 +372,15 @@ fail-closed because its archive reread expected
 `7266793f61621c57ed7c76630223e64e80270d8bd2553a0862f437c0e559712b`
 but found stored hash
 `19573534f07de5e120a8d5b1dc04b7affe5f8f5a809ff4676ecca26ee01e5455`.
-That mismatch blocks its closure and rent recycling pending diagnosis.
+A read-only public Devnet derivation on 2026-07-27 reproduced both hashes
+exactly. The stored v1 evidence had zero Season rollups, an unsealed rollup,
+and profile-sync mask zero; the current account has two rollups, a sealed
+rollup, and profile-sync mask three. Its immutable result hash
+`133fc0222f3e0d2499782109fc55b50beb0ab654df23f8d16809f88d4d85f0b4`
+and committed root
+`8494089aa05929470eac2340bf2403568d77097c1ef785386d06c5a8d2676552`
+are unchanged. The deployed release still blocks closure and rent recycling;
+this source-level fix is not deployed.
 
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
