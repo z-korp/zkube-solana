@@ -16,6 +16,7 @@ import {
   subscribeInstallPrompt,
 } from "@/platform/installPrompt";
 import {
+  clearMobileWalletAuthorizationCache,
   getWalletAvailabilityState,
   subscribeWalletAvailability,
 } from "@/platform/walletStandard";
@@ -120,10 +121,21 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
     try {
       await player.connectAndEnable(connectorId);
     } catch (cause) {
-      setLocalError({
-        classification: classifyWalletError(cause),
-        connectorId,
-      });
+      const classification = classifyWalletError(cause);
+      // MWA 0.5.3 short-circuits authorization from its cache, so a cached
+      // token the wallet no longer honors makes the wallet open with nothing to
+      // approve and every retry fail identically. Only `disconnect()` cleared
+      // that cache, which a player who never connected cannot reach. Drop it
+      // here so the next attempt performs a fresh authorization. A plain
+      // decline leaves the cache alone: nothing is stale in that case.
+      if (
+        player.connectors.find((candidate) => candidate.id === connectorId)
+          ?.kind === "mobile-wallet-adapter" &&
+        classification.kind !== "user-rejection"
+      ) {
+        await clearMobileWalletAuthorizationCache().catch(() => false);
+      }
+      setLocalError({ classification, connectorId });
     } finally {
       setBusyLocal(false);
     }
@@ -159,7 +171,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
     return (
       <p
         role="status"
-        className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-center font-sans text-xs leading-5 text-amber-100"
+        className="rounded-xl border border-amber-300/45 bg-[#150d02]/95 p-3 text-center font-sans text-xs leading-5 text-amber-50/95 shadow-[0_12px_34px_rgba(0,0,0,0.6)] backdrop-blur-md"
       >
         {noWalletGuidance(capabilities)}
       </p>

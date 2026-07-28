@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 
 import AmbientWeather from "@/ui/components/shared/AmbientWeather";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
-import InfoSheet from "@/ui/components/shared/InfoSheet";
+// import InfoSheet from "@/ui/components/shared/InfoSheet"; // restore with the parked "How it works" sheet below
 import ThemeBackground from "@/ui/components/shared/ThemeBackground";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import ImageAssets from "@/ui/theme/ImageAssets";
@@ -37,13 +37,19 @@ export default function ConnectScreen() {
 
           <div className="absolute bottom-0 left-1/2 z-10 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2.5 px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
             <ConnectCta label="Connect wallet" />
-            <InfoSheet title="How it works">
+            {/*
+             * "How it works" is parked while mobile onboarding is being
+             * validated: the landing should carry the connect action and the
+             * install affordance only. Restore this InfoSheet when the copy is
+             * revisited.
+             */}
+            {/* <InfoSheet title="How it works">
               <p>
                 Connect your Solana wallet to play. You stay signed in on this
                 device, so play stays smooth.
               </p>
               <p>zKube never asks for your seed phrase or private key.</p>
-            </InfoSheet>
+            </InfoSheet> */}
           </div>
         </div>
       </div>
