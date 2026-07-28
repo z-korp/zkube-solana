@@ -65,6 +65,7 @@ const fixtures = vi.hoisted(() => ({
   } as { status: string; error: { message: string } | null },
   installReady: false,
   promptInstall: vi.fn(),
+  clearMobileWalletAuthorizationCache: vi.fn(async () => true),
 }));
 
 vi.mock("@/chain/connectedPlayerContext", async () =>
@@ -104,6 +105,8 @@ vi.mock("@/platform/capabilities", () => ({
 vi.mock("@/platform/walletStandard", () => ({
   getWalletAvailabilityState: () => fixtures.walletAvailability,
   subscribeWalletAvailability: () => () => undefined,
+  clearMobileWalletAuthorizationCache:
+    fixtures.clearMobileWalletAuthorizationCache,
 }));
 
 vi.mock("@/platform/installPrompt", () => ({
@@ -407,9 +410,11 @@ describe("ConnectCta platform guidance", () => {
     expect(
       screen.getByText(/return to android chrome and retry/i),
     ).toBeVisible();
-    expect(
-      screen.queryByText(/session funding failed/i),
-    ).not.toBeInTheDocument();
+    // The raw internal message never replaces the curated guidance; it stays
+    // confined to the collapsed diagnostics disclosure so a physical-device
+    // failure remains traceable in a production build.
+    const raw = screen.getByText(/session funding failed/i);
+    expect(raw.closest("details")).not.toBeNull();
   });
 
   it("explains Local Network Access recovery and safely retries", async () => {
@@ -480,6 +485,56 @@ describe("ConnectCta platform guidance", () => {
     const recovery = await screen.findByRole("alert");
     expect(recovery).toHaveAccessibleName(/wallet handoff did not finish/i);
     expect(recovery).not.toHaveTextContent(/local network access/i);
+  });
+
+  it("drops a stale MWA authorization cache after a failed handoff", async () => {
+    setupAndroid("android-browser");
+    fixtures.player.connectAndEnable.mockRejectedValue(
+      wrappedMwaError("ERROR_SESSION_TIMEOUT", "Wallet connection timed out"),
+    );
+
+    render(<ConnectCta />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /use installed wallet/i }),
+    );
+    await screen.findByRole("alert");
+    await waitFor(() =>
+      expect(
+        fixtures.clearMobileWalletAuthorizationCache,
+      ).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("keeps the MWA authorization cache when the player declines", async () => {
+    setupAndroid("android-browser");
+    fixtures.player.connectAndEnable.mockRejectedValue(
+      new Error("The user rejected the request"),
+    );
+
+    render(<ConnectCta />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /use installed wallet/i }),
+    );
+    await screen.findByRole("alert");
+    expect(
+      fixtures.clearMobileWalletAuthorizationCache,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("keeps a desktop extension failure away from the MWA cache", async () => {
+    fixtures.player.connectAndEnable.mockRejectedValue(
+      new Error("Extension did not respond"),
+    );
+
+    render(<ConnectCta />);
+
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
+    await screen.findByRole("alert");
+    expect(
+      fixtures.clearMobileWalletAuthorizationCache,
+    ).not.toHaveBeenCalled();
   });
 
   it("uses TWA-specific recovery for a grounded LNA denial", async () => {

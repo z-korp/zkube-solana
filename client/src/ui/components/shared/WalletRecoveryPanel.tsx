@@ -30,22 +30,22 @@ const WalletRecoveryPanel: React.FC<WalletRecoveryPanelProps> = ({
     <section
       role="alert"
       aria-labelledby={titleId}
-      className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-3 font-sans text-amber-50"
+      className="rounded-xl border border-amber-300/45 bg-[#150d02]/95 px-3 py-3 font-sans text-amber-50 shadow-[0_12px_34px_rgba(0,0,0,0.6)] backdrop-blur-md"
     >
       <div className="flex items-start gap-2.5">
         <AlertTriangle
           aria-hidden="true"
           size={17}
-          className="mt-0.5 shrink-0 text-amber-200"
+          className="mt-0.5 shrink-0 text-amber-300"
         />
         <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="text-sm font-extrabold">
+          <h2 id={titleId} className="text-sm font-extrabold text-amber-100">
             {content.title}
           </h2>
-          <p className="mt-1 text-xs leading-5 text-amber-50/80">
+          <p className="mt-1 text-xs leading-5 text-amber-50/95">
             {content.cause}
           </p>
-          <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-5 text-amber-50/75">
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-5 text-amber-50/90">
             {content.steps.map((step) => (
               <li key={step}>{step}</li>
             ))}
@@ -55,11 +55,32 @@ const WalletRecoveryPanel: React.FC<WalletRecoveryPanelProps> = ({
             disabled={busy}
             onClick={onRetry}
             aria-label="Try wallet connection again"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-100/25 bg-amber-50/10 px-3 py-2 text-xs font-extrabold text-amber-50 transition-colors hover:bg-amber-50/15 disabled:opacity-45"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-200/45 bg-amber-100/15 px-3 py-2 text-xs font-extrabold text-amber-50 transition-colors hover:bg-amber-100/25 disabled:opacity-45"
           >
             <RotateCcw aria-hidden="true" size={13} />
             {busy ? "Trying…" : "Try again"}
           </button>
+          {/*
+           * The dev capability panel is stripped from production builds, so a
+           * failed physical-device connect would otherwise leave no trace of
+           * which wallet error actually fired. Keep the underlying message and
+           * pinned error code reachable here — collapsed, so normal players
+           * never see it — as Gate G1 evidence.
+           */}
+          <details className="mt-2 text-[11px] leading-4 text-amber-100/70">
+            <summary className="cursor-pointer font-bold text-amber-100/80">
+              Details
+            </summary>
+            <p className="mt-1 break-words font-mono text-[10px] leading-4 text-amber-50/70">
+              {error.kind}
+              {error.sourceCode === undefined ? "" : ` · ${error.sourceCode}`}
+              {" · "}
+              {platform}
+            </p>
+            <p className="mt-1 break-words font-mono text-[10px] leading-4 text-amber-50/70">
+              {error.message}
+            </p>
+          </details>
         </div>
       </div>
     </section>
