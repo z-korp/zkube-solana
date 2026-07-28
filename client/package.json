@@ -16,6 +16,7 @@
     "chain:devnet:extend": "tsx tools/chain/extend-devnet-program.ts",
     "chain:devnet:launch-plan": "tsx tools/chain/plan-devnet-launch.ts",
     "chain:devnet:launch": "tsx tools/chain/launch-devnet.ts",
+    "chain:devnet:top-up": "tsx tools/chain/top-up-prize-pools.ts",
     "chain:manifest": "tsx tools/chain/check-deployment-manifest.ts",
     "chain:local:validator": "mb-test-validator --reset --ledger ../.localnet/ledger --bpf-program Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd ../target/deploy/solana.so",
     "chain:local:test-funded-cpi": "tsx tools/chain/test-funded-self-cpi.ts",

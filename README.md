@@ -511,6 +511,15 @@ and Season `737`/`738` accounts were present and open. Backlog and quarantine
 counts were zero, followed by five clean zero-write keeper passes through the
 observation time.
 
+On 2026-07-28 at 09:36:58 UTC, the separately approved manual top-up command
+atomically added an accounted 1 SOL seed to Daily `20662` and 3 SOL to Weekly
+`2951` on Devnet. Transaction
+`3aGFxRHr97UyfpraZfhzq6CrwD98kh5sDuGmpp6AeUXCETap14NGyeKqNhrZYz9LVauQ1Qk4mdz9cbGCr85QcwDC`
+finalized with a 5,000-lamport fee. Independent account verification observed
+Daily seeded/available balances of 1/1.006 SOL, Weekly seeded/available balances
+of 3/3.032 SOL, and a remaining protocol-authority balance of 1.1079516 SOL.
+This Devnet funding observation is not a Mainnet-readiness or funding approval.
+
 The previous v3 address
 `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a retired legacy artifact;
 its approvals never authorize v4.
@@ -545,6 +554,42 @@ fingerprint. Only `activate` mode can submit transaction 21; it re-verifies the
 bundle hash, Devnet genesis, ProgramData, account contents, cutoff, signer,
 keeper evidence, and exact instruction bytes before the atomic seed/unpause.
 No client or Fly process contains an unconditional launch path.
+
+Manual prize funding uses the separately approval-gated Devnet top-up command;
+never transfer SOL directly to a Daily, Weekly, or Season PDA because that does
+not update its seeded-funds ledger. From `client`, this read-only example
+resolves the confirmed current cadences, validates the approved deployment and
+live accounts, combines both instructions atomically, simulates without a
+signer, and writes a public bundle under `/tmp`:
+
+```bash
+NO_DNA=1 pnpm chain:devnet:top-up -- plan \
+  --top-up daily:current:1SOL \
+  --top-up weekly:current:3SOL
+```
+
+Amounts require an explicit `SOL` or `lamports` suffix, and a cadence may be
+`current`, `following`, or an exact numeric ID. The printed bundle pins Devnet
+genesis, ProgramData hash and allocation, protocol authority, exact pool PDAs,
+instruction bytes, seeded balances, maximum fee and spend, and the post-write
+authority reserve. Execution is a separate command and is valid only after the
+entire printed bundle receives exact approval:
+
+```bash
+ZKUBE_PRIZE_TOP_UP_APPROVAL=<printed-64-hex-fingerprint> \
+ZKUBE_PROTOCOL_AUTHORITY_KEYPAIR=<pinned-authority-path> \
+NO_DNA=1 pnpm chain:devnet:top-up -- execute \
+  --bundle <printed-bundle-path>
+```
+
+The executor loads no keypair until the fingerprint matches. It then rechecks
+the deployment and live cadence window, refuses seeded-balance drift, enforces
+the approved fee and reserve, simulates the signed atomic transaction, persists
+its receipt before relay, confirms it, and verifies each seeded balance. The
+command deliberately rejects Mainnet. Mainnet enablement requires a separately
+reviewed release binding the approved Mainnet genesis, deployment manifest,
+program, authority, economics, distribution decision, and operational policy;
+Devnet approval or this command's existence grants none of those permissions.
 
 Deployment manifest schema v5 binds the deployed ProgramData, allocation,
 content/rules catalogs, exact launch day and seed plan, and keeper release. The
