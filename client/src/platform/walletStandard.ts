@@ -101,10 +101,13 @@ function registerMobileWalletStandard(): void {
     appIdentity: {
       name: "zKube",
       uri: window.location.origin,
-      icon: new URL(
-        "/assets/pwa-512x512.png",
-        window.location.origin,
-      ).toString(),
+      // MWA requires identity.icon to be a URI *relative* to identity.uri, and
+      // the wallet resolves it against that origin itself. Passing an absolute
+      // URL makes the wallet reject `authorize` with JSON-RPC -32602 ("When
+      // specified, identity.icon must be a relative URI") before it can present
+      // an approval prompt, which reads on the device as a wallet that opened
+      // with nothing to sign. Keep this relative and without a leading slash.
+      icon: "assets/pwa-512x512.png",
     },
     authorizationCache,
     chains: [DEVNET_CHAIN],

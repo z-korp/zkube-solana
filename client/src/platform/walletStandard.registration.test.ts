@@ -152,11 +152,14 @@ describe("Mobile Wallet Adapter registration", () => {
     expect(config.appIdentity).toEqual({
       name: "zKube",
       uri: "https://play.zkube.test",
-      icon: "https://play.zkube.test/assets/pwa-512x512.png",
+      icon: "assets/pwa-512x512.png",
     });
-    expect(new URL(config.appIdentity.icon).origin).toBe(
-      window.location.origin,
-    );
+    // MWA rejects `authorize` with -32602 when identity.icon is absolute, so
+    // hold the relative form and assert it still resolves to this origin.
+    expect(config.appIdentity.icon).not.toMatch(/^(?:[a-z][a-z0-9+.-]*:|\/)/i);
+    expect(
+      new URL(config.appIdentity.icon, `${config.appIdentity.uri}/`).toString(),
+    ).toBe("https://play.zkube.test/assets/pwa-512x512.png");
     expect(config.chains).toEqual(["solana:devnet"]);
     expect(config.authorizationCache).toBe(mocks.authorizationCache);
     expect(getMobileWalletRegistrationState()).toEqual({
