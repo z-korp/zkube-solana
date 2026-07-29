@@ -9,7 +9,6 @@ One application, two modes. **Campaign** is a free 100-level world map.
 plays for that period's Daily, Weekly, and Season pots.
 
 - Play: <https://zkube-solana.vercel.app/>
-- Demo: <https://youtu.be/Kx3BbohxvNA>
 - Program: [`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`](https://explorer.solana.com/address/Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd?cluster=devnet)
   on Devnet
 
