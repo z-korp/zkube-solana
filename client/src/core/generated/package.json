@@ -3,7 +3,7 @@
   "type": "module",
   "description": "WASM boundary for deterministic zKube protocol primitives",
   "version": "0.1.0",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "files": [
     "zkube_core_bg.wasm",
     "zkube_core.js",

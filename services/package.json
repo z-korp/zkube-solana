@@ -1,6 +1,7 @@
 {
   "name": "@zkube/fly-services",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=20.19"

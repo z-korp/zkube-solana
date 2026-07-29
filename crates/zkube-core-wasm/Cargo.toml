@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "WASM boundary for deterministic zKube protocol primitives"
 edition = "2024"
 rust-version = "1.89"
-license = "UNLICENSED"
+license = "Apache-2.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

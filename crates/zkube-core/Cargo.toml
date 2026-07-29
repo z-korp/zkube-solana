@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Deterministic, chain-neutral zKube protocol primitives"
 edition = "2024"
 rust-version = "1.89"
-license = "UNLICENSED"
+license = "Apache-2.0"
 
 [dependencies]
 sha2 = { version = "=0.10.9", default-features = false }

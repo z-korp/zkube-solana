@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Deterministic zKube content and protocol generator"
 edition = "2024"
 rust-version = "1.89"
-license = "UNLICENSED"
+license = "Apache-2.0"
 
 [dependencies]
 clap = { version = "=4.5.48", features = ["derive"] }
