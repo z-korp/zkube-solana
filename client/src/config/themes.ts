@@ -168,29 +168,29 @@ const POLYNESIAN_COLORS: ThemeColors = {
   ...uiColors("#A9D8FF", "#7EC8E3"),
   blocks: {
     1: {
-      fill: "#7EC8E3",
-      glow: darken("#7EC8E3", 0.18),
-      highlight: lighten("#7EC8E3", 0.18),
+      fill: "#91989E",
+      glow: darken("#91989E", 0.18),
+      highlight: lighten("#91989E", 0.18),
     },
     2: {
-      fill: "#2ECFB0",
-      glow: darken("#2ECFB0", 0.18),
-      highlight: lighten("#2ECFB0", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#1B3A6B",
-      glow: darken("#1B3A6B", 0.18),
-      highlight: lighten("#1B3A6B", 0.18),
+      fill: "#6FB8D5",
+      glow: darken("#6FB8D5", 0.18),
+      highlight: lighten("#6FB8D5", 0.18),
     },
     4: {
-      fill: "#B0BEC5",
-      glow: darken("#B0BEC5", 0.18),
-      highlight: lighten("#B0BEC5", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#7EC8E3", "#2ECFB0", "#1B3A6B", "#B0BEC5", "#A9D8FF"],
-    explosion: ["#ffffff", "#A9D8FF", "#7EC8E3", "#2ECFB0", "#1B3A6B"],
+    primary: ["#91989E", "#CF8D60", "#6FB8D5", "#DCC98A", "#A9D8FF"],
+    explosion: ["#ffffff", "#A9D8FF", "#91989E", "#CF8D60", "#6FB8D5"],
   },
 };
 
@@ -212,29 +212,29 @@ const ANCIENT_EGYPT_COLORS: ThemeColors = {
   ...uiColors("#D4AF37", "#F0CF7A"),
   blocks: {
     1: {
-      fill: "#F0CF7A",
-      glow: darken("#F0CF7A", 0.18),
-      highlight: lighten("#F0CF7A", 0.18),
+      fill: "#9E9B91",
+      glow: darken("#9E9B91", 0.18),
+      highlight: lighten("#9E9B91", 0.18),
     },
     2: {
-      fill: "#6A4A1F",
-      glow: darken("#6A4A1F", 0.18),
-      highlight: lighten("#6A4A1F", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#B8823A",
-      glow: darken("#B8823A", 0.18),
-      highlight: lighten("#B8823A", 0.18),
+      fill: "#6FA7D5",
+      glow: darken("#6FA7D5", 0.18),
+      highlight: lighten("#6FA7D5", 0.18),
     },
     4: {
-      fill: "#8A7B64",
-      glow: darken("#8A7B64", 0.18),
-      highlight: lighten("#8A7B64", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#F0CF7A", "#6A4A1F", "#B8823A", "#8A7B64", "#D4AF37"],
-    explosion: ["#ffffff", "#D4AF37", "#F0CF7A", "#6A4A1F", "#B8823A"],
+    primary: ["#9E9B91", "#CF8D60", "#6FA7D5", "#DCC98A", "#D4AF37"],
+    explosion: ["#ffffff", "#D4AF37", "#9E9B91", "#CF8D60", "#6FA7D5"],
   },
 };
 
@@ -256,29 +256,29 @@ const NORSE_COLORS: ThemeColors = {
   ...uiColors("#7EB8DA", "#A9C4DF"),
   blocks: {
     1: {
-      fill: "#A9C4DF",
-      glow: darken("#A9C4DF", 0.18),
-      highlight: lighten("#A9C4DF", 0.18),
+      fill: "#91989E",
+      glow: darken("#91989E", 0.18),
+      highlight: lighten("#91989E", 0.18),
     },
     2: {
-      fill: "#2F4760",
-      glow: darken("#2F4760", 0.18),
-      highlight: lighten("#2F4760", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#4C7FA3",
-      glow: darken("#4C7FA3", 0.18),
-      highlight: lighten("#4C7FA3", 0.18),
+      fill: "#6FA2D5",
+      glow: darken("#6FA2D5", 0.18),
+      highlight: lighten("#6FA2D5", 0.18),
     },
     4: {
-      fill: "#7B6FA3",
-      glow: darken("#7B6FA3", 0.18),
-      highlight: lighten("#7B6FA3", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#A9C4DF", "#2F4760", "#4C7FA3", "#7B6FA3", "#7EB8DA"],
-    explosion: ["#ffffff", "#7EB8DA", "#A9C4DF", "#2F4760", "#4C7FA3"],
+    primary: ["#91989E", "#CF8D60", "#6FA2D5", "#DCC98A", "#7EB8DA"],
+    explosion: ["#ffffff", "#7EB8DA", "#91989E", "#CF8D60", "#6FA2D5"],
   },
 };
 
@@ -300,29 +300,29 @@ const ANCIENT_GREECE_COLORS: ThemeColors = {
   ...uiColors("#3B6FA0", "#BFD5E8"),
   blocks: {
     1: {
-      fill: "#BFD5E8",
-      glow: darken("#BFD5E8", 0.18),
-      highlight: lighten("#BFD5E8", 0.18),
+      fill: "#9E9A91",
+      glow: darken("#9E9A91", 0.18),
+      highlight: lighten("#9E9A91", 0.18),
     },
     2: {
-      fill: "#1F3E63",
-      glow: darken("#1F3E63", 0.18),
-      highlight: lighten("#1F3E63", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#3E7FB3",
-      glow: darken("#3E7FB3", 0.18),
-      highlight: lighten("#3E7FB3", 0.18),
+      fill: "#6F9FD5",
+      glow: darken("#6F9FD5", 0.18),
+      highlight: lighten("#6F9FD5", 0.18),
     },
     4: {
-      fill: "#6B86B0",
-      glow: darken("#6B86B0", 0.18),
-      highlight: lighten("#6B86B0", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#BFD5E8", "#1F3E63", "#3E7FB3", "#6B86B0", "#3B6FA0"],
-    explosion: ["#ffffff", "#3B6FA0", "#BFD5E8", "#1F3E63", "#3E7FB3"],
+    primary: ["#9E9A91", "#CF8D60", "#6F9FD5", "#DCC98A", "#3B6FA0"],
+    explosion: ["#ffffff", "#3B6FA0", "#9E9A91", "#CF8D60", "#6F9FD5"],
   },
 };
 
@@ -344,29 +344,29 @@ const FEUDAL_JAPAN_COLORS: ThemeColors = {
   ...uiColors("#C41E3A", "#E19AA3"),
   blocks: {
     1: {
-      fill: "#E19AA3",
-      glow: darken("#E19AA3", 0.18),
-      highlight: lighten("#E19AA3", 0.18),
+      fill: "#9E9591",
+      glow: darken("#9E9591", 0.18),
+      highlight: lighten("#9E9591", 0.18),
     },
     2: {
-      fill: "#4B1821",
-      glow: darken("#4B1821", 0.18),
-      highlight: lighten("#4B1821", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#C45A3A",
-      glow: darken("#C45A3A", 0.18),
-      highlight: lighten("#C45A3A", 0.18),
+      fill: "#6FAAD5",
+      glow: darken("#6FAAD5", 0.18),
+      highlight: lighten("#6FAAD5", 0.18),
     },
     4: {
-      fill: "#7A3E7E",
-      glow: darken("#7A3E7E", 0.18),
-      highlight: lighten("#7A3E7E", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#E19AA3", "#4B1821", "#C45A3A", "#7A3E7E", "#C41E3A"],
-    explosion: ["#ffffff", "#C41E3A", "#E19AA3", "#4B1821", "#C45A3A"],
+    primary: ["#9E9591", "#CF8D60", "#6FAAD5", "#DCC98A", "#C41E3A"],
+    explosion: ["#ffffff", "#C41E3A", "#9E9591", "#CF8D60", "#6FAAD5"],
   },
 };
 
@@ -388,29 +388,29 @@ const ANCIENT_CHINA_COLORS: ThemeColors = {
   ...uiColors("#50C878", "#9CD8B6"),
   blocks: {
     1: {
-      fill: "#9CD8B6",
-      glow: darken("#9CD8B6", 0.18),
-      highlight: lighten("#9CD8B6", 0.18),
+      fill: "#919E98",
+      glow: darken("#919E98", 0.18),
+      highlight: lighten("#919E98", 0.18),
     },
     2: {
-      fill: "#174A33",
-      glow: darken("#174A33", 0.18),
-      highlight: lighten("#174A33", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#7AA34A",
-      glow: darken("#7AA34A", 0.18),
-      highlight: lighten("#7AA34A", 0.18),
+      fill: "#6FC9D5",
+      glow: darken("#6FC9D5", 0.18),
+      highlight: lighten("#6FC9D5", 0.18),
     },
     4: {
-      fill: "#3F7F8C",
-      glow: darken("#3F7F8C", 0.18),
-      highlight: lighten("#3F7F8C", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#9CD8B6", "#174A33", "#7AA34A", "#3F7F8C", "#50C878"],
-    explosion: ["#ffffff", "#50C878", "#9CD8B6", "#174A33", "#7AA34A"],
+    primary: ["#919E98", "#CF8D60", "#6FC9D5", "#DCC98A", "#50C878"],
+    explosion: ["#ffffff", "#50C878", "#919E98", "#CF8D60", "#6FC9D5"],
   },
 };
 
@@ -432,29 +432,29 @@ const ANCIENT_PERSIA_COLORS: ThemeColors = {
   ...uiColors("#1E90FF", "#9EB7DF"),
   blocks: {
     1: {
-      fill: "#9EB7DF",
-      glow: darken("#9EB7DF", 0.18),
-      highlight: lighten("#9EB7DF", 0.18),
+      fill: "#91959E",
+      glow: darken("#91959E", 0.18),
+      highlight: lighten("#91959E", 0.18),
     },
     2: {
-      fill: "#1A2E5A",
-      glow: darken("#1A2E5A", 0.18),
-      highlight: lighten("#1A2E5A", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#3C5FA8",
-      glow: darken("#3C5FA8", 0.18),
-      highlight: lighten("#3C5FA8", 0.18),
+      fill: "#6F9AD5",
+      glow: darken("#6F9AD5", 0.18),
+      highlight: lighten("#6F9AD5", 0.18),
     },
     4: {
-      fill: "#3F8AA2",
-      glow: darken("#3F8AA2", 0.18),
-      highlight: lighten("#3F8AA2", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#9EB7DF", "#1A2E5A", "#3C5FA8", "#3F8AA2", "#1E90FF"],
-    explosion: ["#ffffff", "#1E90FF", "#9EB7DF", "#1A2E5A", "#3C5FA8"],
+    primary: ["#91959E", "#CF8D60", "#6F9AD5", "#DCC98A", "#1E90FF"],
+    explosion: ["#ffffff", "#1E90FF", "#91959E", "#CF8D60", "#6F9AD5"],
   },
 };
 
@@ -476,29 +476,29 @@ const MAYAN_COLORS: ThemeColors = {
   ...uiColors("#4CAF50", "#A9BE72"),
   blocks: {
     1: {
-      fill: "#A9BE72",
-      glow: darken("#A9BE72", 0.18),
-      highlight: lighten("#A9BE72", 0.18),
+      fill: "#989E91",
+      glow: darken("#989E91", 0.18),
+      highlight: lighten("#989E91", 0.18),
     },
     2: {
-      fill: "#2E3B1A",
-      glow: darken("#2E3B1A", 0.18),
-      highlight: lighten("#2E3B1A", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#5E8A3B",
-      glow: darken("#5E8A3B", 0.18),
-      highlight: lighten("#5E8A3B", 0.18),
+      fill: "#6FC0D5",
+      glow: darken("#6FC0D5", 0.18),
+      highlight: lighten("#6FC0D5", 0.18),
     },
     4: {
-      fill: "#8A6A3B",
-      glow: darken("#8A6A3B", 0.18),
-      highlight: lighten("#8A6A3B", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#A9BE72", "#2E3B1A", "#5E8A3B", "#8A6A3B", "#4CAF50"],
-    explosion: ["#ffffff", "#4CAF50", "#A9BE72", "#2E3B1A", "#5E8A3B"],
+    primary: ["#989E91", "#CF8D60", "#6FC0D5", "#DCC98A", "#4CAF50"],
+    explosion: ["#ffffff", "#4CAF50", "#989E91", "#CF8D60", "#6FC0D5"],
   },
 };
 
@@ -520,29 +520,29 @@ const PUEBLO_COLORS: ThemeColors = {
   ...uiColors("#40C8B8", "#E0A07A"),
   blocks: {
     1: {
-      fill: "#E0A07A",
-      glow: darken("#E0A07A", 0.18),
-      highlight: lighten("#E0A07A", 0.18),
+      fill: "#9E9791",
+      glow: darken("#9E9791", 0.18),
+      highlight: lighten("#9E9791", 0.18),
     },
     2: {
-      fill: "#5C2E1D",
-      glow: darken("#5C2E1D", 0.18),
-      highlight: lighten("#5C2E1D", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#B85D3C",
-      glow: darken("#B85D3C", 0.18),
-      highlight: lighten("#B85D3C", 0.18),
+      fill: "#6FB3D5",
+      glow: darken("#6FB3D5", 0.18),
+      highlight: lighten("#6FB3D5", 0.18),
     },
     4: {
-      fill: "#4E8F9B",
-      glow: darken("#4E8F9B", 0.18),
-      highlight: lighten("#4E8F9B", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#E0A07A", "#5C2E1D", "#B85D3C", "#4E8F9B", "#40C8B8"],
-    explosion: ["#ffffff", "#40C8B8", "#E0A07A", "#5C2E1D", "#B85D3C"],
+    primary: ["#9E9791", "#CF8D60", "#6FB3D5", "#DCC98A", "#40C8B8"],
+    explosion: ["#ffffff", "#40C8B8", "#9E9791", "#CF8D60", "#6FB3D5"],
   },
 };
 
@@ -564,29 +564,29 @@ const INCA_COLORS: ThemeColors = {
   ...uiColors("#D4AF37", "#C7BCA9"),
   blocks: {
     1: {
-      fill: "#C7BCA9",
-      glow: darken("#C7BCA9", 0.18),
-      highlight: lighten("#C7BCA9", 0.18),
+      fill: "#9E9C91",
+      glow: darken("#9E9C91", 0.18),
+      highlight: lighten("#9E9C91", 0.18),
     },
     2: {
-      fill: "#4B4438",
-      glow: darken("#4B4438", 0.18),
-      highlight: lighten("#4B4438", 0.18),
+      fill: "#CF8D60",
+      glow: darken("#CF8D60", 0.18),
+      highlight: lighten("#CF8D60", 0.18),
     },
     3: {
-      fill: "#8C8670",
-      glow: darken("#8C8670", 0.18),
-      highlight: lighten("#8C8670", 0.18),
+      fill: "#6FA5D5",
+      glow: darken("#6FA5D5", 0.18),
+      highlight: lighten("#6FA5D5", 0.18),
     },
     4: {
-      fill: "#A08A4E",
-      glow: darken("#A08A4E", 0.18),
-      highlight: lighten("#A08A4E", 0.18),
+      fill: "#DCC98A",
+      glow: darken("#DCC98A", 0.18),
+      highlight: lighten("#DCC98A", 0.18),
     },
   },
   particles: {
-    primary: ["#C7BCA9", "#4B4438", "#8C8670", "#A08A4E", "#D4AF37"],
-    explosion: ["#ffffff", "#D4AF37", "#C7BCA9", "#4B4438", "#8C8670"],
+    primary: ["#9E9C91", "#CF8D60", "#6FA5D5", "#DCC98A", "#D4AF37"],
+    explosion: ["#ffffff", "#D4AF37", "#9E9C91", "#CF8D60", "#6FA5D5"],
   },
 };
 
