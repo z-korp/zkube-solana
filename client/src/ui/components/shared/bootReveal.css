@@ -1,0 +1,80 @@
+/*
+ * Boot reveal — the app icon assembles, completes, and detonates.
+ *
+ * The canvas is full-viewport on purpose: debris has to leave the composition
+ * and fly off screen, so it can never be a small box. The scrim holds a calm
+ * ground under the animation and lifts at the detonation, revealing whatever
+ * mounted underneath (the connect screen, or the app itself for a player who
+ * is already connected).
+ */
+
+.br-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.br-inert {
+  pointer-events: none;
+}
+
+.br-canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+}
+
+.br-scrim {
+  position: fixed;
+  inset: 0;
+  background: #02050d;
+}
+
+.br-wordmark {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.br-wordmark span {
+  color: #fff4d7;
+  letter-spacing: 0.03em;
+  /* cancels the trailing letter-space so the glyph ink centres, not just the box */
+  margin-right: -0.03em;
+  line-height: 1;
+  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.6);
+  will-change: transform, opacity;
+}
+
+/* The settled title on the connect screen: the overlay unmounts once the
+   reveal resolves, so this takes over at the same size and position. */
+.br-title span {
+  color: #fff4d7;
+  letter-spacing: 0.03em;
+  margin-right: -0.03em;
+  line-height: 1;
+  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.6);
+}
+
+.br-rise-in {
+  animation: br-rise-in 0.45s ease-out both;
+}
+@keyframes br-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-rise-in {
+    animation: none;
+  }
+}

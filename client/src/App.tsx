@@ -18,6 +18,7 @@ import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
 import { useNotifications } from "@/hooks/useNotifications";
+import BootReveal from "@/ui/components/shared/BootReveal";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
@@ -91,12 +92,17 @@ export default function App() {
     const timer = setTimeout(() => setTimedOut(true), 5000);
     return () => clearTimeout(timer);
   }, []);
-  // Every cold start opens on the boot reveal (ConnectScreen's mark
-  // animation), which doubles as the mask for silent reconnect and first
-  // chain reads. Once it settles — or is tapped through — a connected player
-  // falls into the app and a disconnected one gets the connect action. Held
-  // here so a later mid-session disconnect never replays the ceremony.
+  // Every cold start opens on the boot reveal, which doubles as the mask for
+  // the silent reconnect and the first chain reads. It plays as an overlay
+  // above whatever mounts underneath, so when the icon detonates a connected
+  // player is already looking at the app and a disconnected one at the connect
+  // screen — the confetti carries over both. Held here so a later mid-session
+  // disconnect never replays the ceremony.
   const [bootRevealDone, setBootRevealDone] = useState(false);
+  // The overlay outlives its own hand-over: the world keeps lifting and debris
+  // keeps falling after the connect action appears, so it is torn down only
+  // once every particle has cleared.
+  const [bootRevealGone, setBootRevealGone] = useState(false);
   // DEV-ONLY: skip the connect gate and render the populated menus from fixture
   // providers. `import.meta.env.DEV` is a literal `false` in production, so this
   // branch (and everything it imports under src/dev/) is dead-code-eliminated.
@@ -111,27 +117,40 @@ export default function App() {
       </DevFixturesProvider>
     );
   }
+  const reveal = bootRevealGone ? null : (
+    <BootReveal
+      onSettled={() => setBootRevealDone(true)}
+      onFinished={() => setBootRevealGone(true)}
+    />
+  );
   if (
-    !bootRevealDone ||
     player.connectionStatus !== "connected" ||
     !player.publicKey ||
     player.sessionStatus !== "ready"
   ) {
     return (
-      <ConnectScreen
-        revealDone={bootRevealDone}
-        onRevealSettled={() => setBootRevealDone(true)}
-      />
+      <>
+        <ConnectScreen revealDone={bootRevealDone} ownsTitle={bootRevealGone} />
+        {reveal}
+      </>
     );
   }
   const gated = currentPage !== "spectate" && currentPage !== "play";
   const ready = campaign !== null || error !== null || loaded || timedOut;
-  if (gated && !ready) return <Loading />;
+  if (gated && !ready) {
+    return (
+      <>
+        <Loading />
+        {reveal}
+      </>
+    );
+  }
 
   return (
     <TooltipProvider>
       <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
       <Toaster position={getToastPlacement()} />
+      {reveal}
     </TooltipProvider>
   );
 }

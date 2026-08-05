@@ -1,7 +1,5 @@
-import { useRef, useState } from "react";
-
 import AmbientWeather from "@/ui/components/shared/AmbientWeather";
-import AnimatedMark from "@/ui/components/shared/AnimatedMark";
+import { BootTitle } from "@/ui/components/shared/BootReveal";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 // import InfoSheet from "@/ui/components/shared/InfoSheet"; // restore with the parked "How it works" sheet below
 import ThemeBackground from "@/ui/components/shared/ThemeBackground";
@@ -10,38 +8,33 @@ import ImageAssets from "@/ui/theme/ImageAssets";
 
 interface ConnectScreenProps {
   /**
-   * True once the boot reveal has settled. App holds this once per cold
-   * start, so a mid-session disconnect shows the settled mark instantly
-   * instead of replaying the ceremony.
+   * The boot reveal has handed over: show the connect action. While false this
+   * screen is mounting behind the reveal overlay.
    */
   revealDone?: boolean;
-  /** Called when the reveal settles or the player taps to skip it. */
-  onRevealSettled?: () => void;
+  /**
+   * The reveal overlay has been torn down, so this screen now owns the title.
+   * Kept separate from `revealDone`: the overlay draws its own title above the
+   * scrim for its whole life, and rendering ours underneath any earlier would
+   * put the wordmark behind a lifting scrim and make it dim, then brighten.
+   */
+  ownsTitle?: boolean;
 }
 
 /**
- * The boot surface: every cold start plays the mark reveal here; once it
- * settles, a connected player falls through into the app and a disconnected
- * one gets the connect action.
+ * The surface for a player who is not connected. On a cold start it mounts
+ * behind the boot reveal and inherits its settled title, so the wordmark the
+ * animation lands is the wordmark that stays.
  */
 export default function ConnectScreen({
   revealDone = true,
-  onRevealSettled,
+  ownsTitle = true,
 }: ConnectScreenProps) {
   const { themeTemplate } = useTheme();
   const images = ImageAssets(themeTemplate);
-  // Any tap during the reveal fast-forwards to the settled state.
-  const [skipped, setSkipped] = useState(false);
-  // The scrim exists only for mounts that actually play the reveal: it holds
-  // a calm ground under the animation, then the zone art fades in behind the
-  // settled mark. A mid-session disconnect (revealDone at mount) never gets it.
-  const scrimRef = useRef(!revealDone);
 
   return (
-    <div
-      className="fixed inset-0 overflow-hidden bg-[#02050d]"
-      onClick={revealDone ? undefined : () => setSkipped(true)}
-    >
+    <div className="fixed inset-0 overflow-hidden bg-[#02050d]">
       <ThemeBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(32,216,255,0.12),rgba(0,0,0,0.3)_48%,rgba(0,0,0,0.82)_100%)]" />
       <div className="relative flex h-full w-full items-center justify-center md:p-5">
@@ -55,24 +48,14 @@ export default function ConnectScreen({
             className="absolute inset-0 z-[1] h-full w-full"
             density={80}
           />
-          {scrimRef.current ? (
-            <div
-              className={`am-scrim absolute inset-0 z-[5] bg-[#02050d] ${
-                revealDone || skipped ? "am-off" : ""
-              }`}
-            />
-          ) : null}
 
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
-            <AnimatedMark
-              instant={revealDone || skipped}
-              onSettled={onRevealSettled}
-            />
+            {ownsTitle ? <BootTitle /> : null}
           </div>
 
           <div className="absolute bottom-0 left-1/2 z-10 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2.5 px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
             {revealDone ? (
-              <div className="am-rise-in flex w-full flex-col items-center">
+              <div className="br-rise-in flex w-full flex-col items-center">
                 <ConnectCta label="Connect wallet" />
               </div>
             ) : null}
