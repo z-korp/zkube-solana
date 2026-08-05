@@ -32,6 +32,19 @@ interface CampaignLevelPublication {
 interface CampaignMapRulesPublication {
   activeMutatorId: number;
   passiveMutatorId: number;
+  /**
+   * Which boss ARCHETYPE the guardian level fights, not which guardian. The ids
+   * index the archetype roster named in `fixtures/game-parity.json` — 1 COMBO
+   * MASTER, 2 DEMOLISHER, 3 DAREDEVIL, 4 PURIST, 5 HARVESTER, 6 TIDECALLER,
+   * 7 STACKER, 8 SURGEON, 9 ASCETIC, 10 PERFECTIONIST — so it deliberately does
+   * NOT track `mapId`: map 5 faces the TIDECALLER, map 7 the HARVESTER. That
+   * pairing is pinned by the Rust/client parity fixture; changing it changes
+   * gameplay and the published catalog.
+   *
+   * Realm identity is a different axis entirely: it comes from the zone id, and
+   * the catalog's realm-named mutators confirm it (map 5 Long's Breath, map 6
+   * Lamassu's Gaze, map 7 Kitsune's Spark). Never read a guardian out of this.
+   */
   bossId: number;
   scoreMultiplierX100: number;
   comboMultiplierX100: number;
