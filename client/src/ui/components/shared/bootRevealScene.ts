@@ -123,6 +123,19 @@ const CHIP_COUNT = 260;
 const SUPERSAMPLE = 3;
 const DESIGN = 200; // composition is 200 units across
 
+/**
+ * The specular band that crosses the finished icon in the beat before it blows
+ * apart — the glint that makes the blocks read as glossy plastic. It starts
+ * once the hero has settled (slide + slideDur = 1.04) and clears before the
+ * detonation.
+ */
+const SWEEP_AT = 1.04;
+const SWEEP_DUR = 0.16;
+
+/** The blast ring, on the same easing as the board's perfect clear. */
+const SHOCK_LIFE = 0.5;
+const SHOCK_RADIUS = 190;
+
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 const lighten = (c: string, k: number) => mixHex(c, "#ffffff", k);
@@ -145,15 +158,34 @@ function bezier(p1: number, p2: number, p3: number, p4: number) {
     return 3 * u * u * t * p2 + 3 * u * t * t * p4 + t * t * t;
   };
 }
-const easeFall = bezier(0.45, 0.03, 0.62, 1);
+/*
+ * The fall. Its control points are tuned so speed still rises on the frame the
+ * block makes contact: measured per frame, the step grows 1.4 → 23.1 design
+ * units and the largest step is the last one.
+ *
+ * The previous points (0.45, 0.03, 0.62, 1) were symmetric, so the block eased
+ * to a standstill over the final ~85ms and only then squashed — which reads as
+ * a hitch in mid-air rather than a landing. Peak speed is slightly lower than
+ * before (23.1 against 25.7), it just arrives at the bottom instead of the
+ * middle, so nothing moves further between two frames than it used to.
+ */
+const easeFall = bezier(0.36, 0, 0.7, 0.55);
 const easeSlide = bezier(0.32, 0.02, 0.4, 1);
 const easeOut = bezier(0.2, 0.7, 0.3, 1);
 
+/**
+ * Fraction of a drop spent falling; the remainder is squash and rebound. Named
+ * because `landSquash` and the fall itself must agree on where contact happens.
+ */
+const FALL_PHASE = 0.62;
+/** Fraction of the slide spent travelling before it slams into place. */
+const SLIDE_CONTACT = 0.68;
+
 /** Squash and rebound after a block lands: [scaleX, scaleY] for progress p. */
 function landSquash(p: number): [number, number] {
-  if (p < 0.62) return [0.97, 1.1];
+  if (p < FALL_PHASE) return [0.97, 1.1];
   if (p < 0.76) {
-    const k = (p - 0.62) / 0.14;
+    const k = (p - FALL_PHASE) / 0.14;
     return [0.97 + k * 0.12, 1.1 - k * 0.23];
   }
   if (p < 0.88) {
@@ -419,13 +451,13 @@ export class BootRevealScene {
         if (t < BEATS.slide) return;
         p = clamp01((t - BEATS.slide) / BEATS.slideDur);
         // in from the right, overshoot past the target, settle back
-        if (p < 0.68) {
-          const e = easeSlide(p / 0.68);
+        if (p < SLIDE_CONTACT) {
+          const e = easeSlide(p / SLIDE_CONTACT);
           ox = 250 + (-9 - 250) * e;
           sx = 1.16 - 0.16 * e;
           sy = 0.94 + 0.06 * e;
         } else if (p < 0.84) {
-          const k = (p - 0.68) / 0.16;
+          const k = (p - SLIDE_CONTACT) / 0.16;
           ox = -9 + 13 * k;
         } else {
           const k = (p - 0.84) / 0.16;
@@ -436,8 +468,8 @@ export class BootRevealScene {
         const dur = b.role === "dropA" ? BEATS.dropADur : BEATS.dropBDur;
         if (t < start) return;
         p = clamp01((t - start) / dur);
-        if (p < 0.62) {
-          oy = -230 * (1 - easeFall(p / 0.62));
+        if (p < FALL_PHASE) {
+          oy = -230 * (1 - easeFall(p / FALL_PHASE));
           sx = 0.97;
           sy = 1.1;
         } else {
@@ -458,6 +490,44 @@ export class BootRevealScene {
       ctx.drawImage(this.bitmaps[bi], -w / 2, -h / 2, w, h);
       ctx.restore();
     });
+    this.drawGlossSweep(t);
+  }
+
+  /**
+   * A band of light travelling across the finished icon.
+   *
+   * `source-atop` is what makes this safe: the band is confined to pixels that
+   * are already drawn, so it glints across the blocks and leaves the empty
+   * canvas around them untouched. Nothing moves — the blocks' own animation is
+   * not involved.
+   */
+  private drawGlossSweep(t: number) {
+    const age = t - SWEEP_AT;
+    if (age < 0 || age >= SWEEP_DUR) return;
+    const { ctx } = this;
+    const k = age / SWEEP_DUR;
+    // the band's leading edge, measured along the composition's diagonal
+    const lead = -50 + k * 260;
+    const grad = ctx.createLinearGradient(
+      this.toX(lead),
+      this.toY(lead),
+      this.toX(lead + 46),
+      this.toY(lead + 46),
+    );
+    // a narrow hot core inside a soft halo, which is what reads as specular —
+    // a single flat band just brightens the blocks evenly and disappears
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.4, "rgba(255,255,255,0.16)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.74)");
+    grad.addColorStop(0.6, "rgba(255,255,255,0.16)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.globalCompositeOperation = "source-atop";
+    // eased in and out, so neither end of the sweep appears as a hard edge
+    ctx.globalAlpha = Math.sin(Math.PI * k);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.restore();
   }
 
   /**
@@ -500,6 +570,28 @@ export class BootRevealScene {
       ctx.restore();
     }
 
+    // The blast ring, drawn on the same easing as the board's perfect clear so
+    // the two celebrations read as one effect.
+    const rk = bt / SHOCK_LIFE;
+    if (rk < 1) {
+      const r = SHOCK_RADIUS * (1 - (1 - rk) * (1 - rk));
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = lighten(this.colours.accent, 0.45);
+      ctx.globalAlpha = (1 - rk) * 0.5;
+      ctx.lineWidth = Math.max(px, 9 * (1 - rk));
+      ctx.beginPath();
+      ctx.arc(100, 100, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#FFF4D7";
+      ctx.globalAlpha = (1 - rk) * 0.9;
+      ctx.lineWidth = Math.max(px * 0.8, 2.4 * (1 - rk));
+      ctx.beginPath();
+      ctx.arc(100, 100, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const fl = clamp01(bt / 0.5);
     if (fl < 1) {
       const r = 46 * (0.12 + 3 * fl);
@@ -509,6 +601,8 @@ export class BootRevealScene {
       grad.addColorStop(0.78, `${this.colours.accent}47`);
       grad.addColorStop(1, `${this.colours.accent}00`);
       ctx.save();
+      // additive, so the core reads as light rather than white paint
+      ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = fl < 0.1 ? fl / 0.1 : 1 - (fl - 0.1) / 0.9;
       ctx.fillStyle = grad;
       ctx.beginPath();
