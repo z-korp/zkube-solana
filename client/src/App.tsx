@@ -134,7 +134,7 @@ export default function App() {
   if (!playerReady) {
     return (
       <>
-        <ConnectScreen revealDone={bootRevealDone} ownsTitle={bootRevealGone} />
+        <ConnectScreen revealDone={bootRevealDone} />
         {reveal}
       </>
     );

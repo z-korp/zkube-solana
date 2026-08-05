@@ -86,9 +86,18 @@ interface BootRevealProps {
    */
   onSettled: () => void;
   /**
-   * Every last particle has cleared and the overlay can be torn down. Kept
-   * separate from `onSettled` because the world's fade outlasts the handoff,
-   * and unmounting mid-fade would drop it in a single frame.
+   * Nothing of the reveal remains to be drawn, so it can be torn down. This is
+   * deliberately NOT the end of the animation: while the title is still wanted
+   * the overlay stays mounted and keeps owning it.
+   *
+   * The alternative — handing the title to the screen underneath — cannot be
+   * made invisible. Two elements at identical geometry still rasterise text
+   * differently, because whether the browser uses subpixel or grayscale
+   * antialiasing depends on the compositing of the layer the glyphs land in,
+   * which is not something the swap can match. Measured across the hand-over,
+   * roughly 2500 pixels of the wordmark changed while the rest of the screen
+   * was pixel-identical, and that is what reads as the title's brightness
+   * shifting when the animation ends.
    */
   onFinished: () => void;
 }
@@ -106,6 +115,12 @@ export default function BootReveal({
   const settledRef = useRef(false);
   const skipRef = useRef(false);
   const [failed, setFailed] = useState(false);
+  /**
+   * The reveal has drawn its last frame. The canvas and scrim come out at that
+   * point — the canvas is a full-viewport layer worth releasing — while the
+   * title stays, owned by this component for as long as it is wanted.
+   */
+  const [drawn, setDrawn] = useState(false);
 
   const settle = useRef(onSettled);
   settle.current = onSettled;
@@ -120,8 +135,10 @@ export default function BootReveal({
     // Reduced motion never plays the ceremony: resolve immediately and let the
     // screen underneath present itself.
     if (reduceMotion) {
+      // No ceremony, but the title is still this component's to hold.
+      setDrawn(true);
       settle.current();
-      finish.current();
+      if (!wantsWordmark.current) finish.current();
       return;
     }
     let raf = 0;
@@ -206,7 +223,12 @@ export default function BootReveal({
         }
         if (t >= BEATS.settle) fire();
         if (t < BEATS.end) raf = requestAnimationFrame(frame);
-        else finish.current();
+        else {
+          setDrawn(true);
+          // Hold the overlay while the title is wanted; the title's own fade
+          // (below) releases it once it is not.
+          if (!wantsWordmark.current) finish.current();
+        }
       };
       raf = requestAnimationFrame(frame);
     })();
@@ -218,31 +240,45 @@ export default function BootReveal({
     };
   }, [reduceMotion, colours.accent]);
 
-  if (reduceMotion || failed) return null;
+  if (failed) return null;
 
   return (
     <div
-      className={handedOver ? "br-root br-inert" : "br-root"}
+      className={handedOver || drawn ? "br-root br-inert" : "br-root"}
       onPointerDown={() => {
         skipRef.current = true;
       }}
     >
-      <div ref={scrimRef} className="br-scrim" />
-      <canvas ref={canvasRef} className="br-canvas" />
+      {/* Released once the reveal has drawn its last frame: a full-viewport
+          canvas and an invisible scrim are not worth keeping around. */}
+      {drawn ? null : (
+        <>
+          <div ref={scrimRef} className="br-scrim" />
+          <canvas ref={canvasRef} className="br-canvas" />
+        </>
+      )}
       <div className="br-wordmark">
-        <span ref={wordRef} className={WORDMARK_CLASS} style={{ opacity: 0 }}>
+        <span
+          ref={wordRef}
+          className={WORDMARK_CLASS}
+          // Once drawn, the title is a plain fading element: it holds while it
+          // is wanted and releases the overlay when it is not, so no other
+          // element ever has to reproduce its exact pixels.
+          style={
+            drawn
+              ? {
+                  opacity: showWordmark ? 1 : 0,
+                  transition: reduceMotion ? undefined : "opacity 0.25s linear",
+                }
+              : { opacity: 0 }
+          }
+          onTransitionEnd={() => {
+            if (!showWordmark) finish.current();
+          }}
+        >
           zKube
         </span>
       </div>
-    </div>
-  );
-}
-
-/** The settled title, shown by the connect screen once the reveal resolves. */
-export function BootTitle() {
-  return (
-    <div className="br-title">
-      <span className={WORDMARK_CLASS}>zKube</span>
     </div>
   );
 }

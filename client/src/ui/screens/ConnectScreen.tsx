@@ -1,5 +1,4 @@
 import AmbientWeather from "@/ui/components/shared/AmbientWeather";
-import { BootTitle } from "@/ui/components/shared/BootReveal";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
 // import InfoSheet from "@/ui/components/shared/InfoSheet"; // restore with the parked "How it works" sheet below
 import ThemeBackground from "@/ui/components/shared/ThemeBackground";
@@ -12,13 +11,6 @@ interface ConnectScreenProps {
    * screen is mounting behind the reveal overlay.
    */
   revealDone?: boolean;
-  /**
-   * The reveal overlay has been torn down, so this screen now owns the title.
-   * Kept separate from `revealDone`: the overlay draws its own title above the
-   * scrim for its whole life, and rendering ours underneath any earlier would
-   * put the wordmark behind a lifting scrim and make it dim, then brighten.
-   */
-  ownsTitle?: boolean;
 }
 
 /**
@@ -28,7 +20,6 @@ interface ConnectScreenProps {
  */
 export default function ConnectScreen({
   revealDone = true,
-  ownsTitle = true,
 }: ConnectScreenProps) {
   const { themeTemplate } = useTheme();
   const images = ImageAssets(themeTemplate);
@@ -49,9 +40,8 @@ export default function ConnectScreen({
             density={80}
           />
 
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
-            {ownsTitle ? <BootTitle /> : null}
-          </div>
+          {/* The wordmark belongs to the boot reveal, which keeps owning it
+              rather than handing it over — see BootReveal's onFinished. */}
 
           <div className="absolute bottom-0 left-1/2 z-10 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2.5 px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
             {revealDone ? (
