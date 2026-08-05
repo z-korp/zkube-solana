@@ -121,18 +121,18 @@
     --theme-block-2-image: url("/assets/theme-1/block-2.png");
     --theme-block-3-image: url("/assets/theme-1/block-3.png");
     --theme-block-4-image: url("/assets/theme-1/block-4.png");
-    --theme-block-1-fill: #91989e;
-    --theme-block-1-glow: #777d82;
-    --theme-block-1-highlight: #a5abaf;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fb8d5;
-    --theme-block-3-glow: #5b97af;
-    --theme-block-3-highlight: #89c5dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #b9c9d1;
+    --theme-block-1-glow: #98a5ab;
+    --theme-block-1-highlight: #c6d3d9;
+    --theme-block-2-fill: #58a4be;
+    --theme-block-2-glow: #48869c;
+    --theme-block-2-highlight: #76b4ca;
+    --theme-block-3-fill: #a6baf6;
+    --theme-block-3-glow: #8899ca;
+    --theme-block-3-highlight: #b6c6f8;
+    --theme-block-4-fill: #2dedb3;
+    --theme-block-4-glow: #25c293;
+    --theme-block-4-highlight: #53f0c1;
   }
 
   [data-theme="theme-2"] {
@@ -154,18 +154,18 @@
     --theme-block-2-image: url("/assets/theme-2/block-2.png");
     --theme-block-3-image: url("/assets/theme-2/block-3.png");
     --theme-block-4-image: url("/assets/theme-2/block-4.png");
-    --theme-block-1-fill: #9e9b91;
-    --theme-block-1-glow: #827f77;
-    --theme-block-1-highlight: #afada5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fa7d5;
-    --theme-block-3-glow: #5b89af;
-    --theme-block-3-highlight: #89b7dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #b7b4aa;
+    --theme-block-1-glow: #96948b;
+    --theme-block-1-highlight: #c4c2b9;
+    --theme-block-2-fill: #df9c6e;
+    --theme-block-2-glow: #b7805a;
+    --theme-block-2-highlight: #e5ae88;
+    --theme-block-3-fill: #78abe9;
+    --theme-block-3-glow: #628cbf;
+    --theme-block-3-highlight: #90baed;
+    --theme-block-4-fill: #f5d12a;
+    --theme-block-4-glow: #c9ab22;
+    --theme-block-4-highlight: #f7d950;
   }
 
   [data-theme="theme-3"] {
@@ -187,18 +187,18 @@
     --theme-block-2-image: url("/assets/theme-3/block-2.png");
     --theme-block-3-image: url("/assets/theme-3/block-3.png");
     --theme-block-4-image: url("/assets/theme-3/block-4.png");
-    --theme-block-1-fill: #91989e;
-    --theme-block-1-glow: #777d82;
-    --theme-block-1-highlight: #a5abaf;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fa2d5;
-    --theme-block-3-glow: #5b85af;
-    --theme-block-3-highlight: #89b3dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #9aa1a7;
+    --theme-block-1-glow: #7e8489;
+    --theme-block-1-highlight: #acb2b7;
+    --theme-block-2-fill: #c89b51;
+    --theme-block-2-glow: #a47f42;
+    --theme-block-2-highlight: #d2ad70;
+    --theme-block-3-fill: #4ba6e0;
+    --theme-block-3-glow: #3e88b8;
+    --theme-block-3-highlight: #6bb6e6;
+    --theme-block-4-fill: #2ae59e;
+    --theme-block-4-glow: #22bc82;
+    --theme-block-4-highlight: #50eaaf;
   }
 
   [data-theme="theme-4"] {
@@ -220,18 +220,18 @@
     --theme-block-2-image: url("/assets/theme-4/block-2.png");
     --theme-block-3-image: url("/assets/theme-4/block-3.png");
     --theme-block-4-image: url("/assets/theme-4/block-4.png");
-    --theme-block-1-fill: #9e9a91;
-    --theme-block-1-glow: #827e77;
-    --theme-block-1-highlight: #afaca5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6f9fd5;
-    --theme-block-3-glow: #5b82af;
-    --theme-block-3-highlight: #89b0dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #a1936c;
+    --theme-block-1-glow: #847959;
+    --theme-block-1-highlight: #b2a686;
+    --theme-block-2-fill: #6392c8;
+    --theme-block-2-glow: #5178a4;
+    --theme-block-2-highlight: #7fa6d2;
+    --theme-block-3-fill: #de7829;
+    --theme-block-3-glow: #b66222;
+    --theme-block-3-highlight: #e49050;
+    --theme-block-4-fill: #dec21a;
+    --theme-block-4-glow: #b69f15;
+    --theme-block-4-highlight: #e4cd43;
   }
 
   [data-theme="theme-5"] {
@@ -253,18 +253,18 @@
     --theme-block-2-image: url("/assets/theme-5/block-2.png");
     --theme-block-3-image: url("/assets/theme-5/block-3.png");
     --theme-block-4-image: url("/assets/theme-5/block-4.png");
-    --theme-block-1-fill: #919e98;
-    --theme-block-1-glow: #77827d;
-    --theme-block-1-highlight: #a5afab;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fc9d5;
-    --theme-block-3-glow: #5ba5af;
-    --theme-block-3-highlight: #89d3dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #ebe8e2;
+    --theme-block-1-glow: #c1beb9;
+    --theme-block-1-highlight: #efece7;
+    --theme-block-2-fill: #628ec8;
+    --theme-block-2-glow: #5074a4;
+    --theme-block-2-highlight: #7ea2d2;
+    --theme-block-3-fill: #d0b339;
+    --theme-block-3-glow: #ab932f;
+    --theme-block-3-highlight: #d8c15d;
+    --theme-block-4-fill: #27d987;
+    --theme-block-4-glow: #20b26f;
+    --theme-block-4-highlight: #4ee09d;
   }
 
   [data-theme="theme-6"] {
@@ -286,18 +286,18 @@
     --theme-block-2-image: url("/assets/theme-6/block-2.png");
     --theme-block-3-image: url("/assets/theme-6/block-3.png");
     --theme-block-4-image: url("/assets/theme-6/block-4.png");
-    --theme-block-1-fill: #91959e;
-    --theme-block-1-glow: #777a82;
-    --theme-block-1-highlight: #a5a8af;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6f9ad5;
-    --theme-block-3-glow: #5b7eaf;
-    --theme-block-3-highlight: #89acdd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #b4a17b;
+    --theme-block-1-glow: #948465;
+    --theme-block-1-highlight: #c2b293;
+    --theme-block-2-fill: #8fa4d8;
+    --theme-block-2-glow: #7586b1;
+    --theme-block-2-highlight: #a3b4df;
+    --theme-block-3-fill: #ec8a9f;
+    --theme-block-3-glow: #c27182;
+    --theme-block-3-highlight: #ef9fb0;
+    --theme-block-4-fill: #3be1e6;
+    --theme-block-4-glow: #30b8bd;
+    --theme-block-4-highlight: #5ee6ea;
   }
 
   [data-theme="theme-7"] {
@@ -319,18 +319,18 @@
     --theme-block-2-image: url("/assets/theme-7/block-2.png");
     --theme-block-3-image: url("/assets/theme-7/block-3.png");
     --theme-block-4-image: url("/assets/theme-7/block-4.png");
-    --theme-block-1-fill: #9e9591;
-    --theme-block-1-glow: #827a77;
-    --theme-block-1-highlight: #afa8a5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6faad5;
-    --theme-block-3-glow: #5b8baf;
-    --theme-block-3-highlight: #89b9dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #ebe8e2;
+    --theme-block-1-glow: #c1beb9;
+    --theme-block-1-highlight: #efece7;
+    --theme-block-2-fill: #7591d0;
+    --theme-block-2-glow: #6077ab;
+    --theme-block-2-highlight: #8ea5d8;
+    --theme-block-3-fill: #d492d7;
+    --theme-block-3-glow: #ae78b0;
+    --theme-block-3-highlight: #dca6de;
+    --theme-block-4-fill: #fed53e;
+    --theme-block-4-glow: #d0af33;
+    --theme-block-4-highlight: #fedd61;
   }
 
   [data-theme="theme-8"] {
@@ -352,18 +352,18 @@
     --theme-block-2-image: url("/assets/theme-8/block-2.png");
     --theme-block-3-image: url("/assets/theme-8/block-3.png");
     --theme-block-4-image: url("/assets/theme-8/block-4.png");
-    --theme-block-1-fill: #989e91;
-    --theme-block-1-glow: #7d8277;
-    --theme-block-1-highlight: #abafa5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fc0d5;
-    --theme-block-3-glow: #5b9daf;
-    --theme-block-3-highlight: #89cbdd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #bfc5b8;
+    --theme-block-1-glow: #9da297;
+    --theme-block-1-highlight: #cbcfc5;
+    --theme-block-2-fill: #7ccae5;
+    --theme-block-2-glow: #66a6bc;
+    --theme-block-2-highlight: #94d4ea;
+    --theme-block-3-fill: #f2cb43;
+    --theme-block-3-glow: #c6a637;
+    --theme-block-3-highlight: #f4d465;
+    --theme-block-4-fill: #3afe74;
+    --theme-block-4-glow: #30d05f;
+    --theme-block-4-highlight: #5dfe8d;
   }
 
   [data-theme="theme-9"] {
@@ -385,18 +385,18 @@
     --theme-block-2-image: url("/assets/theme-9/block-2.png");
     --theme-block-3-image: url("/assets/theme-9/block-3.png");
     --theme-block-4-image: url("/assets/theme-9/block-4.png");
-    --theme-block-1-fill: #9e9791;
-    --theme-block-1-glow: #827c77;
-    --theme-block-1-highlight: #afaaa5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fb3d5;
-    --theme-block-3-glow: #5b93af;
-    --theme-block-3-highlight: #89c1dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #e0cac5;
+    --theme-block-1-glow: #b8a6a2;
+    --theme-block-1-highlight: #e6d4cf;
+    --theme-block-2-fill: #74d18f;
+    --theme-block-2-glow: #5fab75;
+    --theme-block-2-highlight: #8dd9a3;
+    --theme-block-3-fill: #56d2e5;
+    --theme-block-3-glow: #47acbc;
+    --theme-block-3-highlight: #74daea;
+    --theme-block-4-fill: #fed78a;
+    --theme-block-4-glow: #d0b071;
+    --theme-block-4-highlight: #fede9f;
   }
 
   [data-theme="theme-10"] {
@@ -418,18 +418,18 @@
     --theme-block-2-image: url("/assets/theme-10/block-2.png");
     --theme-block-3-image: url("/assets/theme-10/block-3.png");
     --theme-block-4-image: url("/assets/theme-10/block-4.png");
-    --theme-block-1-fill: #9e9c91;
-    --theme-block-1-glow: #828077;
-    --theme-block-1-highlight: #afaea5;
-    --theme-block-2-fill: #cf8d60;
-    --theme-block-2-glow: #aa744f;
-    --theme-block-2-highlight: #d8a27d;
-    --theme-block-3-fill: #6fa5d5;
-    --theme-block-3-glow: #5b87af;
-    --theme-block-3-highlight: #89b5dd;
-    --theme-block-4-fill: #dcc98a;
-    --theme-block-4-glow: #b4a571;
-    --theme-block-4-highlight: #e2d39f;
+    --theme-block-1-fill: #a2a095;
+    --theme-block-1-glow: #85837a;
+    --theme-block-1-highlight: #b3b1a8;
+    --theme-block-2-fill: #62b37a;
+    --theme-block-2-glow: #509364;
+    --theme-block-2-highlight: #7ec192;
+    --theme-block-3-fill: #da9769;
+    --theme-block-3-glow: #b37c56;
+    --theme-block-3-highlight: #e1aa84;
+    --theme-block-4-fill: #f5d11e;
+    --theme-block-4-glow: #c9ab19;
+    --theme-block-4-highlight: #f7d946;
   }
 }
 
