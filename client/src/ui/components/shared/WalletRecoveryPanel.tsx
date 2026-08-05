@@ -141,6 +141,16 @@ function recoveryContent(
           "Your wallet is still your identity, but this device needs a fresh zKube session approval.",
         steps: ["Unlock your wallet, then retry to renew the device session."],
       };
+    case "insufficient-funds":
+      return {
+        title: "This wallet needs Devnet SOL",
+        cause:
+          "Your wallet is connected, but the address cannot cover the account rent, device fee allowance, and network fee that enabling a zKube device session pays.",
+        steps: [
+          "Fund the connected address with Devnet SOL at faucet.solana.com.",
+          "Return to zKube and retry.",
+        ],
+      };
     case "user-rejection":
       return {
         title: "Request declined",

@@ -11,6 +11,7 @@ export type WalletErrorKind =
   | "unsupported-sign-only-v0"
   | "account-mismatch"
   | "session-expired"
+  | "insufficient-funds"
   | "unknown";
 
 export interface WalletErrorClassification {
@@ -141,6 +142,22 @@ export function classifyWalletError(cause: unknown): WalletErrorClassification {
     )
   ) {
     return classification("session-expired", message, sourceCode);
+  }
+
+  // An owner who cannot cover account rent, the device fee allowance, and the
+  // network fee is not a wallet or transport failure. The Devnet RPC credits an
+  // unfunded fee payer with 1 SOL inside `simulateTransaction`, so this
+  // normally survives the client's own simulation and only fails at
+  // `sendTransaction` preflight. Match the agave `TransactionError` display
+  // forms plus the System program's short-debit log, both of which web3.js
+  // embeds in `SendTransactionError.message`. Checked before rejection matching
+  // so an embedded program log cannot be mistaken for a decline.
+  if (
+    /Attempt to debit an account but found no record of a prior credit|insufficient funds for (?:fee|rent)|insufficient lamports/i.test(
+      combinedMessage,
+    )
+  ) {
+    return classification("insufficient-funds", message, sourceCode);
   }
 
   if (isWalletRejection(cause)) {

@@ -1125,8 +1125,15 @@ async function submitOwnerSessionTransaction(args: {
     replaceRecentBlockhash: false,
   });
   if (simulation.value.err) {
+    // Devnet credits an unfunded fee payer with 1 SOL here, so a real shortfall
+    // normally passes this simulation and fails at preflight instead. Retain the
+    // trailing program logs so a shortfall large enough to fail here still
+    // carries the same classifiable evidence as the preflight message.
+    const logs = simulation.value.logs?.slice(-3).join(" · ") ?? "";
     throw new Error(
-      `${args.label} simulation failed: ${JSON.stringify(simulation.value.err)}`,
+      `${args.label} simulation failed: ${JSON.stringify(
+        simulation.value.err,
+      )}${logs === "" ? "" : ` (${logs})`}`,
     );
   }
   const signed = await args.wallet.signTransaction(transaction);

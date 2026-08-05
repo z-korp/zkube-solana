@@ -51,6 +51,28 @@ describe("wallet error taxonomy", () => {
         "The zKube device session expired. Renew it before continuing.",
       ),
     ],
+    [
+      // web3.js 1.98.4 wraps the agave `sendTransaction` preflight failure for
+      // an owner whose address holds no lamports.
+      "insufficient-funds",
+      new Error(
+        "Simulation failed. \nMessage: Transaction simulation failed: Attempt to debit an account but found no record of a prior credit.. \nCatch the `SendTransactionError` and call `getLogs()` on it for full details.",
+      ),
+    ],
+    [
+      // The same shortfall once the owner can pay the fee but not the transfers,
+      // reported through the System program's short-debit log.
+      "insufficient-funds",
+      new Error(
+        'Enable zKube device session simulation failed: {"InstructionError":[2,{"Custom":1}]} (Program 11111111111111111111111111111111 invoke [1] · Transfer: insufficient lamports 999995000, need 2000000000 · Program 11111111111111111111111111111111 failed: custom program error: 0x1)',
+      ),
+    ],
+    [
+      "insufficient-funds",
+      new Error(
+        "Simulation failed. \nMessage: Transaction simulation failed: Insufficient funds for fee. ",
+      ),
+    ],
   ] satisfies ReadonlyArray<readonly [WalletErrorKind, Error]>)(
     "classifies %s from dependency or wallet-boundary evidence",
     (kind, cause) => {
@@ -80,6 +102,16 @@ describe("wallet error taxonomy", () => {
     expect(
       classifyWalletError(new Error("User declined the request")).kind,
     ).toBe("user-rejection");
+  });
+
+  it("does not read an unrelated program failure as a funding shortfall", () => {
+    expect(
+      classifyWalletError(
+        new Error(
+          'Enable zKube device session simulation failed: {"InstructionError":[2,{"Custom":6002}]} (Program log: AnchorError occurred · Program log: Error Code: RunAlreadyActive · Program failed: custom program error: 0x1772)',
+        ),
+      ).kind,
+    ).toBe("unknown");
   });
 
   it("does not infer Local Network Access denial from an ambiguous failure", () => {
