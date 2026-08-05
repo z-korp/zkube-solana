@@ -61,6 +61,18 @@ const BLOCKS = [
 const WORDMARK_CLASS =
   "font-display text-[3.25rem] leading-none sm:text-[3.75rem]";
 
+/**
+ * The boot clock belongs to the page load, not to a mount.
+ *
+ * React remounts the tree in development, which would otherwise restart the
+ * reveal partway through — blocks falling, then snapping back to the beginning.
+ * Production does not double-mount, so the bug is invisible there, which is
+ * precisely why it is worth removing: what is seen locally should be what
+ * ships. Anchoring the clock here also means a remount after the reveal has
+ * finished resumes at the end rather than replaying it.
+ */
+let bootClockStart: number | null = null;
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -179,7 +191,8 @@ export default function BootReveal({
       scene = scenery;
       window.addEventListener("resize", onResize);
 
-      const started = performance.now();
+      bootClockStart ??= performance.now();
+      const started = bootClockStart;
       /*
        * The title is gated, not switched. If the reconnect resolves while the
        * wordmark is already up, snapping it away would read as a glitch;
