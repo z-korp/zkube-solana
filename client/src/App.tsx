@@ -117,17 +117,21 @@ export default function App() {
       </DevFixturesProvider>
     );
   }
+  // Whether this player lands in the app rather than on the connect screen.
+  // The reveal reads it live: the silent reconnect it covers may resolve while
+  // the animation is still running.
+  const playerReady =
+    player.connectionStatus === "connected" &&
+    !!player.publicKey &&
+    player.sessionStatus === "ready";
   const reveal = bootRevealGone ? null : (
     <BootReveal
+      showWordmark={!playerReady}
       onSettled={() => setBootRevealDone(true)}
       onFinished={() => setBootRevealGone(true)}
     />
   );
-  if (
-    player.connectionStatus !== "connected" ||
-    !player.publicKey ||
-    player.sessionStatus !== "ready"
-  ) {
+  if (!playerReady) {
     return (
       <>
         <ConnectScreen revealDone={bootRevealDone} ownsTitle={bootRevealGone} />

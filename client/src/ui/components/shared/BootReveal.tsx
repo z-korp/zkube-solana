@@ -72,6 +72,15 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 interface BootRevealProps {
   /**
+   * Whether the title belongs on screen. A player who is already connected
+   * lands straight in the app and does not need a title card in the way; one
+   * who is not gets the wordmark, which the connect screen then inherits.
+   *
+   * Read live rather than at mount: on the first frame nobody knows yet, since
+   * the silent reconnect this animation covers has not resolved.
+   */
+  showWordmark: boolean;
+  /**
    * The sequence has handed over: show the connect action, or let a connected
    * player through. Debris is still falling at this point.
    */
@@ -84,7 +93,11 @@ interface BootRevealProps {
   onFinished: () => void;
 }
 
-export default function BootReveal({ onSettled, onFinished }: BootRevealProps) {
+export default function BootReveal({
+  showWordmark,
+  onSettled,
+  onFinished,
+}: BootRevealProps) {
   const colours = useThemeColors();
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,6 +109,8 @@ export default function BootReveal({ onSettled, onFinished }: BootRevealProps) {
 
   const settle = useRef(onSettled);
   settle.current = onSettled;
+  const wantsWordmark = useRef(showWordmark);
+  wantsWordmark.current = showWordmark;
   const finish = useRef(onFinished);
   finish.current = onFinished;
   // once handed over, taps must reach the connect action underneath
@@ -148,6 +163,15 @@ export default function BootReveal({ onSettled, onFinished }: BootRevealProps) {
       window.addEventListener("resize", onResize);
 
       const started = performance.now();
+      /*
+       * The title is gated, not switched. If the reconnect resolves while the
+       * wordmark is already up, snapping it away would read as a glitch;
+       * easing it out over a quarter second reads as it stepping aside for the
+       * app underneath.
+       */
+      const gate = { value: wantsWordmark.current ? 1 : 0, from: 0, at: 0 };
+      gate.from = gate.value;
+      let lastWanted = wantsWordmark.current;
       const frame = (now: number) => {
         if (disposed) return;
         // a tap fast-forwards to the resolved moment
@@ -160,12 +184,21 @@ export default function BootReveal({ onSettled, onFinished }: BootRevealProps) {
             BootRevealScene.scrimOpacity(t),
           );
         }
+        if (wantsWordmark.current !== lastWanted) {
+          lastWanted = wantsWordmark.current;
+          gate.from = gate.value;
+          gate.at = t;
+        }
+        gate.value =
+          gate.from +
+          ((lastWanted ? 1 : 0) - gate.from) *
+            Math.min(1, Math.max(0, (t - gate.at) / 0.25));
         if (wordRef.current) {
           const w = BootRevealScene.wordmark(t);
           // This title stays for the overlay's whole life. The screen
           // underneath renders the identical title only once the overlay is
           // gone, so the swap lands at full opacity with no scrim over it.
-          wordRef.current.style.opacity = String(w.opacity);
+          wordRef.current.style.opacity = String(w.opacity * gate.value);
           wordRef.current.style.transform = `scale(${w.scale.toFixed(3)}) translateY(${w.y.toFixed(2)}px)`;
           wordRef.current.style.filter = w.blur
             ? `blur(${w.blur.toFixed(2)}px)`
