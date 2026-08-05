@@ -22,10 +22,7 @@ interface BlockProps {
   outcomeDelayMs?: number;
   /** Map of block width (1-4) → image URL */
   blockImages: Record<number, string>;
-  onPointerDown?: (
-    e: React.PointerEvent<SVGGElement>,
-    block: Block,
-  ) => void;
+  onPointerDown?: (e: React.PointerEvent<SVGGElement>, block: Block) => void;
   onTransitionBlockStart?: (id: number) => void;
   onTransitionBlockEnd?: (id: number) => void;
 }

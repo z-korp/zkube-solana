@@ -188,7 +188,11 @@ describe("Grid move queue", () => {
     });
     const setIsTxProcessing = vi.fn();
     const { container } = render(
-      <Grid {...baseProps} onMove={onMove} setIsTxProcessing={setIsTxProcessing} />,
+      <Grid
+        {...baseProps}
+        onMove={onMove}
+        setIsTxProcessing={setIsTxProcessing}
+      />,
     );
 
     dragBlockTo(container, 50);
@@ -203,9 +207,7 @@ describe("Grid move queue", () => {
     expect(useMoveStore.getState().isQueueProcessing).toBe(false);
     // Recovery unlocks the grid; it does NOT snap back to a stale local
     // snapshot (the idle-resync effect reconciles from authoritative props).
-    await waitFor(() =>
-      expect(setIsTxProcessing).toHaveBeenCalledWith(false),
-    );
+    await waitFor(() => expect(setIsTxProcessing).toHaveBeenCalledWith(false));
     const block = container.querySelector(".svg-block") as SVGGElement;
     expect(block.style.transform).not.toBe("translate(0px, 180px)");
   });

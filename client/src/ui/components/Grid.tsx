@@ -1,5 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import BlockContainer from "./Block";
 import { GameState } from "@/enums/gameEnums";
@@ -96,12 +102,15 @@ const Grid: React.FC<GridProps> = ({
   const activeThemeId = themeIdOverride ?? (themeTemplate as ThemeId);
   const themeColors = getThemeColors(activeThemeId);
   const themeImages = getThemeImages(activeThemeId);
-  const blockImages = useMemo<Record<number, string>>(() => ({
-    1: themeImages.block1,
-    2: themeImages.block2,
-    3: themeImages.block3,
-    4: themeImages.block4,
-  }), [themeImages]);
+  const blockImages = useMemo<Record<number, string>>(
+    () => ({
+      1: themeImages.block1,
+      2: themeImages.block2,
+      3: themeImages.block3,
+      4: themeImages.block4,
+    }),
+    [themeImages],
+  );
 
   // ==================== Refs ====================
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -115,7 +124,8 @@ const Grid: React.FC<GridProps> = ({
   // ==================== State ====================
   const [blocks, setBlocks] = useState<Block[]>(initialData);
   const [nextLine, setNextLine] = useState<Block[]>(nextLineData);
-  const [saveGridStateblocks, setSaveGridStateblocks] = useState<Block[]>(initialData);
+  const [saveGridStateblocks, setSaveGridStateblocks] =
+    useState<Block[]>(initialData);
   const [isMoving, setIsMoving] = useState(true);
   const [currentMove, setcurrentMove] = useState<{
     rowIndex: number;
@@ -165,7 +175,8 @@ const Grid: React.FC<GridProps> = ({
   const frameW = svgW + framePad * 2;
   const frameH = svgH + framePad * 2;
   // Total perimeter for stroke-dasharray
-  const framePerimeter = 2 * (svgW + framePad * 2 - 16) + 2 * (svgH + framePad * 2 - 16); // approximate for rounded rect
+  const framePerimeter =
+    2 * (svgW + framePad * 2 - 16) + 2 * (svgH + framePad * 2 - 16); // approximate for rounded rect
 
   const resetDragRefs = useCallback(() => {
     draggingRef.current = null;
@@ -256,64 +267,92 @@ const Grid: React.FC<GridProps> = ({
   isTxProcessingRef.current = isTxProcessing;
 
   /** Convert screen clientX to grid cell units (0-based, fractional) */
-  const clientXToCellX = useCallback((clientX: number): number => {
-    const svg = svgRef.current;
-    if (!svg) return 0;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return 0;
-    // Convert screen px → SVG viewBox units, subtract frame padding, divide by cell size
-    const svgX = (clientX - ctm.e) / ctm.a;
-    return (svgX - framePad) / gridSize;
-  }, [framePad, gridSize]);
+  const clientXToCellX = useCallback(
+    (clientX: number): number => {
+      const svg = svgRef.current;
+      if (!svg) return 0;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return 0;
+      // Convert screen px → SVG viewBox units, subtract frame padding, divide by cell size
+      const svgX = (clientX - ctm.e) / ctm.a;
+      return (svgX - framePad) / gridSize;
+    },
+    [framePad, gridSize],
+  );
 
   /** Check if moving a block from initialX to newX is blocked by another block in the same row */
-  const checkBlocked = useCallback((initialX: number, newX: number, y: number, width: number, blockId: number): boolean => {
-    const currentBlocks = blocksRef.current;
-    const rowBlocks = currentBlocks.filter(b => b.y === y);
+  const checkBlocked = useCallback(
+    (
+      initialX: number,
+      newX: number,
+      y: number,
+      width: number,
+      blockId: number,
+    ): boolean => {
+      const currentBlocks = blocksRef.current;
+      const rowBlocks = currentBlocks.filter((b) => b.y === y);
 
-    if (newX > initialX) {
-      // Moving right: check if any block sits between old right edge and new right edge
-      for (const b of rowBlocks) {
-        if (b.id !== blockId && b.x >= initialX + width && b.x < newX + width) return true;
+      if (newX > initialX) {
+        // Moving right: check if any block sits between old right edge and new right edge
+        for (const b of rowBlocks) {
+          if (b.id !== blockId && b.x >= initialX + width && b.x < newX + width)
+            return true;
+        }
+      } else {
+        // Moving left: check if any block's right edge is past our new left edge
+        for (const b of rowBlocks) {
+          if (b.id !== blockId && b.x + b.width > newX && b.x <= initialX)
+            return true;
+        }
       }
-    } else {
-      // Moving left: check if any block's right edge is past our new left edge
-      for (const b of rowBlocks) {
-        if (b.id !== blockId && b.x + b.width > newX && b.x <= initialX) return true;
+      return false;
+    },
+    [],
+  );
+
+  const onDragMove = useCallback(
+    (clientX: number) => {
+      const dragging = draggingRef.current;
+      if (!dragging) return;
+      if (gameStateRef.current !== GameState.DRAGGING) return;
+
+      const cellX = clientXToCellX(clientX);
+      const delta = cellX - dragStartXRef.current;
+      const newX = initialXRef.current + delta;
+      const bounded = Math.max(0, Math.min(gridWidth - dragging.width, newX));
+
+      if (
+        !checkBlocked(
+          initialXRef.current,
+          bounded,
+          dragging.y,
+          dragging.width,
+          dragging.id,
+        )
+      ) {
+        draggedXRef.current = bounded;
+        setBlocks((prev) =>
+          prev.map((b) => (b.id === dragging.id ? { ...b, x: bounded } : b)),
+        );
       }
-    }
-    return false;
-  }, []);
-
-  const onDragMove = useCallback((clientX: number) => {
-    const dragging = draggingRef.current;
-    if (!dragging) return;
-    if (gameStateRef.current !== GameState.DRAGGING) return;
-
-    const cellX = clientXToCellX(clientX);
-    const delta = cellX - dragStartXRef.current;
-    const newX = initialXRef.current + delta;
-    const bounded = Math.max(0, Math.min(gridWidth - dragging.width, newX));
-
-    if (!checkBlocked(initialXRef.current, bounded, dragging.y, dragging.width, dragging.id)) {
-      draggedXRef.current = bounded;
-      setBlocks((prev) =>
-        prev.map((b) => b.id === dragging.id ? { ...b, x: bounded } : b),
-      );
-    }
-  }, [clientXToCellX, gridWidth, checkBlocked]);
+    },
+    [clientXToCellX, gridWidth, checkBlocked],
+  );
 
   const onDragMoveRef = useRef(onDragMove);
   onDragMoveRef.current = onDragMove;
 
-  const onDragStart = useCallback((clientX: number, block: Block) => {
-    draggingRef.current = block;
-    dragStartXRef.current = clientXToCellX(clientX);
-    initialXRef.current = block.x;
-    draggedXRef.current = block.x;
-    gameStateRef.current = GameState.DRAGGING;
-    setGameState(GameState.DRAGGING);
-  }, [clientXToCellX]);
+  const onDragStart = useCallback(
+    (clientX: number, block: Block) => {
+      draggingRef.current = block;
+      dragStartXRef.current = clientXToCellX(clientX);
+      initialXRef.current = block.x;
+      draggedXRef.current = block.x;
+      gameStateRef.current = GameState.DRAGGING;
+      setGameState(GameState.DRAGGING);
+    },
+    [clientXToCellX],
+  );
 
   const onDragEnd = useCallback(() => {
     const dragging = draggingRef.current;
@@ -329,7 +368,9 @@ const Grid: React.FC<GridProps> = ({
     const hasMoved = Math.trunc(finalX) !== Math.trunc(startX);
 
     setBlocks((prev) =>
-      prev.map((b) => b.id === dragging.id ? { ...b, x: hasMoved ? finalX : startX } : b),
+      prev.map((b) =>
+        b.id === dragging.id ? { ...b, x: hasMoved ? finalX : startX } : b,
+      ),
     );
 
     if (hasMoved) {
@@ -347,50 +388,71 @@ const Grid: React.FC<GridProps> = ({
     resetDragRefs();
   }, [resetDragRefs]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<SVGGElement>, block: Block) => {
-    if (gameStateRef.current !== GameState.WAITING || isTxProcessingRef.current) return;
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<SVGGElement>, block: Block) => {
+      if (
+        gameStateRef.current !== GameState.WAITING ||
+        isTxProcessingRef.current
+      )
+        return;
 
-    const currentBonus = bonusRef.current;
-    const currentBlocks = blocksRef.current;
+      const currentBonus = bonusRef.current;
+      const currentBlocks = blocksRef.current;
 
-    // Grid bonuses: Hammer, Totem, Wave
-    if (currentBonus === BonusType.Hammer) {
-      setBlockBonus(block);
-      setBlocks(currentBlocks.filter((b) => !(b.x === block.x && b.y === block.y)));
-    } else if (currentBonus === BonusType.Totem) {
-      setBlockBonus(block);
-      setBlocks(removeBlocksSameWidth(block, currentBlocks));
-    } else if (currentBonus === BonusType.Wave) {
-      setBlockBonus(block);
-      const rows: number[] = [block.y];
-      setBlocks(removeBlocksInRows(rows, currentBlocks));
-    }
+      // Grid bonuses: Hammer, Totem, Wave
+      if (currentBonus === BonusType.Hammer) {
+        setBlockBonus(block);
+        setBlocks(
+          currentBlocks.filter((b) => !(b.x === block.x && b.y === block.y)),
+        );
+      } else if (currentBonus === BonusType.Totem) {
+        setBlockBonus(block);
+        setBlocks(removeBlocksSameWidth(block, currentBlocks));
+      } else if (currentBonus === BonusType.Wave) {
+        setBlockBonus(block);
+        const rows: number[] = [block.y];
+        setBlocks(removeBlocksInRows(rows, currentBlocks));
+      }
 
-    if (currentBonus === BonusType.Hammer || currentBonus === BonusType.Totem || currentBonus === BonusType.Wave) {
-      playSfx("bonus-activate");
-      setIsTxProcessing(true);
-      setIsMoving(true);
-      setGameState(GameState.GRAVITY_BONUS);
-      return;
-    }
+      if (
+        currentBonus === BonusType.Hammer ||
+        currentBonus === BonusType.Totem ||
+        currentBonus === BonusType.Wave
+      ) {
+        playSfx("bonus-activate");
+        setIsTxProcessing(true);
+        setIsMoving(true);
+        setGameState(GameState.GRAVITY_BONUS);
+        return;
+      }
 
-    onDragStart(e.clientX, block);
-  }, [onDragStart, playSfx, setIsTxProcessing]);
+      onDragStart(e.clientX, block);
+    },
+    [onDragStart, playSfx, setIsTxProcessing],
+  );
 
   // Stable callback refs — identity never changes so Block's React.memo works.
   const handlePointerDownRef = useRef(handlePointerDown);
   handlePointerDownRef.current = handlePointerDown;
   const stablePointerDown = useCallback(
-    (e: React.PointerEvent<SVGGElement>, block: Block) => handlePointerDownRef.current(e, block), [],
+    (e: React.PointerEvent<SVGGElement>, block: Block) =>
+      handlePointerDownRef.current(e, block),
+    [],
   );
 
   const handleTransitionStartRef = useRef(handleTransitionBlockStart);
   handleTransitionStartRef.current = handleTransitionBlockStart;
-  const stableTransitionStart = useCallback((id: number) => handleTransitionStartRef.current(id), []);
+  const stableTransitionStart = useCallback(
+    (id: number) => handleTransitionStartRef.current(id),
+    [],
+  );
 
   const handleTransitionEndRef = useRef(handleTransitionBlockEnd);
   handleTransitionEndRef.current = handleTransitionBlockEnd;
-  const stableTransitionEnd = useCallback((id: number) => handleTransitionEndRef.current(id), []);
+  const stableTransitionEnd = useCallback(
+    (id: number) => handleTransitionEndRef.current(id),
+    [],
+  );
 
   // Document-level listeners for move and end (works outside SVG bounds)
   useEffect(() => {
@@ -502,11 +564,14 @@ const Grid: React.FC<GridProps> = ({
           }
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Move transaction failed.";
+        const message =
+          error instanceof Error ? error.message : "Move transaction failed.";
         store.markFailed(nextQueuedMove.id, message);
         store.clearQueueForGame(gameId);
         if (!unmountedRef.current) {
-          recoverMoveFailure("Move failed to confirm — syncing with the chain…");
+          recoverMoveFailure(
+            "Move failed to confirm — syncing with the chain…",
+          );
         }
       } finally {
         store.setQueueProcessing(false);
@@ -514,7 +579,13 @@ const Grid: React.FC<GridProps> = ({
     };
 
     processQueuedMove();
-  }, [nextQueuedMove, isQueueProcessing, gameId, resetDragRefs, setIsTxProcessing]);
+  }, [
+    nextQueuedMove,
+    isQueueProcessing,
+    gameId,
+    resetDragRefs,
+    setIsTxProcessing,
+  ]);
 
   useEffect(() => {
     if (currentMove) {
@@ -548,7 +619,11 @@ const Grid: React.FC<GridProps> = ({
     setBlocks((prevBlocks) => {
       let anyChanged = false;
       const newBlocks = prevBlocks.map((block) => {
-        const fallDistance = calculateFallDistance(block, prevBlocks, gridHeight);
+        const fallDistance = calculateFallDistance(
+          block,
+          prevBlocks,
+          gridHeight,
+        );
         if (fallDistance > 0) {
           anyChanged = true;
           return { ...block, y: block.y + 1 };
@@ -562,8 +637,15 @@ const Grid: React.FC<GridProps> = ({
 
   const explosionAnimDuration = 250;
 
-  const clearCompleteLine = (newGravityState: GameState, newStateOnComplete: GameState) => {
-    const { updatedBlocks, completeRows } = removeCompleteRows(blocks, gridWidth, gridHeight);
+  const clearCompleteLine = (
+    newGravityState: GameState,
+    newStateOnComplete: GameState,
+  ) => {
+    const { updatedBlocks, completeRows } = removeCompleteRows(
+      blocks,
+      gridWidth,
+      gridHeight,
+    );
 
     if (updatedBlocks.length < blocks.length) {
       playExplode();
@@ -605,9 +687,15 @@ const Grid: React.FC<GridProps> = ({
       case GameState.GRAVITY_BONUS:
         if (!isMoving && !isTransitioning) {
           switch (gameState) {
-            case GameState.GRAVITY: setGameState(GameState.LINE_CLEAR); break;
-            case GameState.GRAVITY2: setGameState(GameState.LINE_CLEAR2); break;
-            case GameState.GRAVITY_BONUS: setGameState(GameState.LINE_CLEAR_BONUS); break;
+            case GameState.GRAVITY:
+              setGameState(GameState.LINE_CLEAR);
+              break;
+            case GameState.GRAVITY2:
+              setGameState(GameState.LINE_CLEAR2);
+              break;
+            case GameState.GRAVITY_BONUS:
+              setGameState(GameState.LINE_CLEAR_BONUS);
+              break;
           }
         } else {
           applyGravityWithRAF();
@@ -630,7 +718,7 @@ const Grid: React.FC<GridProps> = ({
             break;
           }
           // Grid full after shift? (any block at y=0 would go to y=-1)
-          if (blocks.some(b => b.y === 0)) {
+          if (blocks.some((b) => b.y === 0)) {
             if (onLocalGameOver) {
               triggerLocalGameOver();
               break;
@@ -645,9 +733,9 @@ const Grid: React.FC<GridProps> = ({
             break;
           }
           // Phase 1: Place next-line blocks off-screen (y=gridHeight, clipped by SVG)
-          setBlocks(prev => [
+          setBlocks((prev) => [
             ...prev,
-            ...nextLine.map(b => ({ ...b, y: gridHeight })),
+            ...nextLine.map((b) => ({ ...b, y: gridHeight })),
           ]);
           setNextLineHasBeenConsumed(true);
           setGameState(GameState.ADD_LINE_SHIFT);
@@ -656,12 +744,12 @@ const Grid: React.FC<GridProps> = ({
 
       case GameState.ADD_LINE_SHIFT:
         {
-          const needsShift = blocks.some(b => b.y >= gridHeight);
+          const needsShift = blocks.some((b) => b.y >= gridHeight);
           if (needsShift) {
             // Phase 2: Shift ALL blocks up by 1 — CSS transitions animate the push.
             // Go straight to GRAVITY2 so gravity applies concurrently with the
             // shift animation (blocks settle while sliding up).
-            setBlocks(prev => prev.map(b => ({ ...b, y: b.y - 1 })));
+            setBlocks((prev) => prev.map((b) => ({ ...b, y: b.y - 1 })));
             setIsMoving(true);
             setGameState(GameState.GRAVITY2);
           } else {
@@ -687,7 +775,10 @@ const Grid: React.FC<GridProps> = ({
         clearCompleteLine(GameState.GRAVITY2, GameState.UPDATE_AFTER_MOVE);
         break;
       case GameState.LINE_CLEAR_BONUS:
-        clearCompleteLine(GameState.GRAVITY_BONUS, GameState.UPDATE_AFTER_BONUS);
+        clearCompleteLine(
+          GameState.GRAVITY_BONUS,
+          GameState.UPDATE_AFTER_BONUS,
+        );
         break;
 
       case GameState.UPDATE_AFTER_BONUS:
@@ -731,7 +822,13 @@ const Grid: React.FC<GridProps> = ({
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [gameState, isMoving, isTransitioning, onLocalGameOver, triggerLocalGameOver]);
+  }, [
+    gameState,
+    isMoving,
+    isTransitioning,
+    onLocalGameOver,
+    triggerLocalGameOver,
+  ]);
 
   // =================== RENDER ===================
 
@@ -799,7 +896,13 @@ const Grid: React.FC<GridProps> = ({
             <stop offset="100%" stopColor="#ffffff" stopOpacity="0.06" />
           </linearGradient>
           <filter id="gf-shadow" x="-5%" y="-5%" width="110%" height="110%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.4" />
+            <feDropShadow
+              dx="0"
+              dy="2"
+              stdDeviation="3"
+              floodColor="#000"
+              floodOpacity="0.4"
+            />
           </filter>
           {/* Clip grid area so blocks sliding in/out are hidden beyond edges */}
           <clipPath id="grid-clip">
@@ -809,25 +912,38 @@ const Grid: React.FC<GridProps> = ({
 
         {/* ─── Frame border ─── */}
         <rect
-          x={1} y={1}
-          width={frameW - 2} height={frameH - 2}
-          rx={8} ry={8}
-          fill="none" stroke="url(#gf-border)" strokeWidth={2}
+          x={1}
+          y={1}
+          width={frameW - 2}
+          height={frameH - 2}
+          rx={8}
+          ry={8}
+          fill="none"
+          stroke="url(#gf-border)"
+          strokeWidth={2}
           filter="url(#gf-shadow)"
         />
         <rect
-          x={3} y={3}
-          width={frameW - 6} height={frameH - 6}
-          rx={6} ry={6}
-          fill="none" stroke="url(#gf-inner)" strokeWidth={1}
+          x={3}
+          y={3}
+          width={frameW - 6}
+          height={frameH - 6}
+          rx={6}
+          ry={6}
+          fill="none"
+          stroke="url(#gf-inner)"
+          strokeWidth={1}
         />
 
         {/* ─── Loading animation (rotating sweep, like old conic-gradient) ─── */}
         {isTxProcessing && !outcomeAnimation && (
           <rect
-            x={1} y={1}
-            width={frameW - 2} height={frameH - 2}
-            rx={8} ry={8}
+            x={1}
+            y={1}
+            width={frameW - 2}
+            height={frameH - 2}
+            rx={8}
+            ry={8}
             fill="none"
             stroke={themeColors.accent}
             strokeWidth={5}
@@ -842,21 +958,39 @@ const Grid: React.FC<GridProps> = ({
         {dangerLevel > 0 && (
           <>
             <rect
-              x={1} y={1}
-              width={frameW - 2} height={frameH - 2}
-              rx={8} ry={8}
+              x={1}
+              y={1}
+              width={frameW - 2}
+              height={frameH - 2}
+              rx={8}
+              ry={8}
               fill="none"
-              stroke={dangerLevel === 2 ? "rgb(209, 18, 28)" : "rgb(255, 100, 80)"}
+              stroke={
+                dangerLevel === 2 ? "rgb(209, 18, 28)" : "rgb(255, 100, 80)"
+              }
               strokeWidth={dangerLevel === 2 ? 4 : 3}
-              className={dangerLevel === 2 ? "svg-danger-border-critical" : "svg-danger-border-warning"}
+              className={
+                dangerLevel === 2
+                  ? "svg-danger-border-critical"
+                  : "svg-danger-border-warning"
+              }
             />
             <rect
-              x={1} y={1}
-              width={frameW - 2} height={frameH - 2}
-              rx={8} ry={8}
-              fill={dangerLevel === 2 ? "rgb(209, 18, 28)" : "rgb(255, 100, 80)"}
+              x={1}
+              y={1}
+              width={frameW - 2}
+              height={frameH - 2}
+              rx={8}
+              ry={8}
+              fill={
+                dangerLevel === 2 ? "rgb(209, 18, 28)" : "rgb(255, 100, 80)"
+              }
               stroke="none"
-              className={dangerLevel === 2 ? "svg-danger-fill-critical" : "svg-danger-fill-warning"}
+              className={
+                dangerLevel === 2
+                  ? "svg-danger-fill-critical"
+                  : "svg-danger-fill-warning"
+              }
               pointerEvents="none"
             />
           </>
@@ -874,20 +1008,25 @@ const Grid: React.FC<GridProps> = ({
           {Array.from({ length: gridWidth + 1 }, (_, i) => (
             <line
               key={`v${i}`}
-              x1={i * gridSize} y1={0}
-              x2={i * gridSize} y2={svgH}
-              stroke="rgba(255,255,255,0.07)" strokeWidth={1}
+              x1={i * gridSize}
+              y1={0}
+              x2={i * gridSize}
+              y2={svgH}
+              stroke="rgba(255,255,255,0.07)"
+              strokeWidth={1}
             />
           ))}
           {Array.from({ length: gridHeight + 1 }, (_, i) => (
             <line
               key={`h${i}`}
-              x1={0} y1={i * gridSize}
-              x2={svgW} y2={i * gridSize}
-              stroke="rgba(255,255,255,0.07)" strokeWidth={1}
+              x1={0}
+              y1={i * gridSize}
+              x2={svgW}
+              y2={i * gridSize}
+              stroke="rgba(255,255,255,0.07)"
+              strokeWidth={1}
             />
           ))}
-
 
           {/* Blocks */}
           {blocks.map((block) => (
