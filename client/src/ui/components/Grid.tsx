@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { toast } from "sonner";
 import BlockContainer from "./Block";
+import ClearShatter, { CLEAR_SWEEP_SECONDS } from "./ClearShatter";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
@@ -171,6 +172,27 @@ const Grid: React.FC<GridProps> = ({
   const svgW = gridWidth * gridSize;
   const svgH = gridHeight * gridSize;
   // Frame padding
+  // The wipe crosses the row left to right: a block vanishes as it arrives and
+  // ClearShatter spawns that block's fragments on the same delay.
+  const clearingRows = useMemo(() => [...explodingRows], [explodingRows]);
+  const explodeDelayMs = useCallback(
+    (block: Block) =>
+      (block.x / Math.max(1, gridWidth)) * CLEAR_SWEEP_SECONDS * 1000,
+    [gridWidth],
+  );
+
+  // The confetti carries the zone's own tier colours plus the chrome cream.
+  const clearPalette = useMemo(
+    () => [
+      themeColors.blocks[1].fill,
+      themeColors.blocks[2].fill,
+      themeColors.blocks[3].fill,
+      themeColors.blocks[4].fill,
+      "#FFF4D7",
+    ],
+    [themeColors],
+  );
+
   const framePad = 9;
   const frameW = svgW + framePad * 2;
   const frameH = svgH + framePad * 2;
@@ -1039,6 +1061,7 @@ const Grid: React.FC<GridProps> = ({
               transitionDuration={transitionDuration}
               isGravity={blocksAreFalling}
               isExploding={explodingRows.has(block.y)}
+              explodeDelayMs={explodeDelayMs(block)}
               outcome={outcomeAnimation}
               outcomeDelayMs={outcomeDelayMs(block)}
               blockImages={blockImages}
@@ -1049,6 +1072,19 @@ const Grid: React.FC<GridProps> = ({
           ))}
         </g>
       </svg>
+
+      {/* ─── Line-clear debris (canvas, above the board) ─── */}
+      <ClearShatter
+        rows={clearingRows}
+        blocks={blocks}
+        gridSize={gridSize}
+        gridWidth={gridWidth}
+        gridHeight={gridHeight}
+        offsetX={framePad}
+        offsetY={framePad}
+        blockImages={blockImages}
+        palette={clearPalette}
+      />
 
       {/* Combo text overlay (HTML — complex text effects). Hidden during the
           outcome show so the final move's combo popup can't stack into the

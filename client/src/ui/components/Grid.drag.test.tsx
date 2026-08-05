@@ -16,6 +16,8 @@ vi.mock("motion/react", () => ({
       <div {...props}>{children}</div>
     ),
   },
+  // the board's line-clear debris layer honours reduced motion
+  useReducedMotion: () => false,
 }));
 
 vi.mock("../elements/animatedText", () => ({
@@ -34,9 +36,17 @@ vi.mock("@/config/themes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/config/themes")>();
   return {
     ...actual,
+    // Minimal palette: the board reads explosion particles and the four tier
+    // fills (the line-clear confetti), so the stub has to carry both.
     getThemeColors: () => ({
       particles: {
         explosion: ["#ffffff"],
+      },
+      blocks: {
+        1: { fill: "#91989E" },
+        2: { fill: "#CF8D60" },
+        3: { fill: "#6FB8D5" },
+        4: { fill: "#DCC98A" },
       },
     }),
   };
@@ -188,11 +198,7 @@ describe("Grid move queue", () => {
     });
     const setIsTxProcessing = vi.fn();
     const { container } = render(
-      <Grid
-        {...baseProps}
-        onMove={onMove}
-        setIsTxProcessing={setIsTxProcessing}
-      />,
+      <Grid {...baseProps} onMove={onMove} setIsTxProcessing={setIsTxProcessing} />,
     );
 
     dragBlockTo(container, 50);
@@ -207,7 +213,9 @@ describe("Grid move queue", () => {
     expect(useMoveStore.getState().isQueueProcessing).toBe(false);
     // Recovery unlocks the grid; it does NOT snap back to a stale local
     // snapshot (the idle-resync effect reconciles from authoritative props).
-    await waitFor(() => expect(setIsTxProcessing).toHaveBeenCalledWith(false));
+    await waitFor(() =>
+      expect(setIsTxProcessing).toHaveBeenCalledWith(false),
+    );
     const block = container.querySelector(".svg-block") as SVGGElement;
     expect(block.style.transform).not.toBe("translate(0px, 180px)");
   });

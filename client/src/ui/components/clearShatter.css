@@ -1,0 +1,12 @@
+/*
+ * The line-clear debris layer sits above the board and takes no input. It is a
+ * sibling of the board's SVG rather than part of it, so fragments can keep
+ * falling after the board has already collapsed the cleared rows.
+ */
+.clear-shatter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+}

@@ -16,6 +16,11 @@ interface BlockProps {
    */
   isGravity?: boolean;
   isExploding?: boolean;
+  /**
+   * Delay before this block's clear vanish, matching the wipe's arrival at its
+   * column so the row goes in sequence and its fragments take over on time.
+   */
+  explodeDelayMs?: number;
   /** Terminal board show this block takes part in (win/lose, see Grid). */
   outcome?: OutcomeAnimation | null;
   /** Stagger offset within the outcome show. */
@@ -30,6 +35,7 @@ interface BlockProps {
 const BlockContainer: React.FC<BlockProps> = ({
   block,
   gridSize,
+  explodeDelayMs = 0,
   transitionDuration = 100,
   isTxProcessing = false,
   isGravity = false,
@@ -107,6 +113,7 @@ const BlockContainer: React.FC<BlockProps> = ({
         }
         style={{
           transformOrigin: `${w / 2}px ${h / 2}px`,
+          ...(isExploding ? { animationDelay: `${explodeDelayMs}ms` } : {}),
           ...(outcome
             ? {
                 animationDelay: `${outcomeDelayMs}ms`,
