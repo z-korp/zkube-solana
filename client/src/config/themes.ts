@@ -1,4 +1,4 @@
-import { darken, lighten } from "@/utils/colour";
+import { darken, lighten, withAlpha } from "@/utils/colour";
 
 export const THEME_IDS = [
   "theme-1",
@@ -761,12 +761,21 @@ export interface MapPathTheme {
   lockedStrokeWidth: number;
 }
 
-const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
+/**
+ * Per-realm path STYLE only. Colour is derived in `getMapPathTheme` from the
+ * realm's own palette, because hardcoding it here is what let the map drift:
+ * the colour constants are declared in a different order than `THEME_COLORS`
+ * maps them (Japan is declared fifth, China sixth, Persia seventh), so an
+ * author walking declaration order gave China's map Japan's crimson, Persia's
+ * China's jade and Japan's Persia's blue. Deriving cannot make that mistake.
+ */
+type MapPathStyleSpec = Pick<
+  MapPathTheme,
+  "pathStyle" | "lockedDash" | "branchDash" | "strokeWidth" | "lockedStrokeWidth"
+>;
+
+const MAP_PATH_STYLES: Record<ThemeId, MapPathStyleSpec> = {
   "theme-1": {
-    clearedColor: "#A9D8FF",
-    activeColor: "#2ECFB0",
-    lockedColor: "#031233",
-    branchColor: "rgba(169,216,255,0.24)",
     pathStyle: "solid",
     lockedDash: "6 5",
     branchDash: "3 5",
@@ -774,10 +783,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.8,
   },
   "theme-2": {
-    clearedColor: "#D4AF37",
-    activeColor: "#F0CF7A",
-    lockedColor: "#1f120c",
-    branchColor: "rgba(212,175,55,0.2)",
     pathStyle: "dashed",
     lockedDash: "8 4",
     branchDash: "4 6",
@@ -785,10 +790,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.6,
   },
   "theme-3": {
-    clearedColor: "#7EB8DA",
-    activeColor: "#7B6FA3",
-    lockedColor: "#071019",
-    branchColor: "rgba(126,184,218,0.2)",
     pathStyle: "solid",
     lockedDash: "2 4",
     branchDash: "2 5",
@@ -796,10 +797,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.4,
   },
   "theme-4": {
-    clearedColor: "#BFD5E8",
-    activeColor: "#3E7FB3",
-    lockedColor: "#141a27",
-    branchColor: "rgba(59,111,160,0.2)",
     pathStyle: "dotted",
     lockedDash: "6 4",
     branchDash: "3 4",
@@ -807,10 +804,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.6,
   },
   "theme-5": {
-    clearedColor: "#C41E3A",
-    activeColor: "#E19AA3",
-    lockedColor: "#09090d",
-    branchColor: "rgba(196,30,58,0.2)",
     pathStyle: "solid",
     lockedDash: "5 5",
     branchDash: "4 4",
@@ -818,10 +811,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.6,
   },
   "theme-6": {
-    clearedColor: "#50C878",
-    activeColor: "#9CD8B6",
-    lockedColor: "#081408",
-    branchColor: "rgba(80,200,120,0.22)",
     pathStyle: "solid",
     lockedDash: "7 5",
     branchDash: "4 5",
@@ -829,10 +818,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.8,
   },
   "theme-7": {
-    clearedColor: "#1E90FF",
-    activeColor: "#9EB7DF",
-    lockedColor: "#070b1d",
-    branchColor: "rgba(30,144,255,0.2)",
     pathStyle: "dashed",
     lockedDash: "3 4",
     branchDash: "2 4",
@@ -840,10 +825,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.4,
   },
   "theme-8": {
-    clearedColor: "#4CAF50",
-    activeColor: "#A9BE72",
-    lockedColor: "#071407",
-    branchColor: "rgba(76,175,80,0.2)",
     pathStyle: "solid",
     lockedDash: "5 4",
     branchDash: "3 5",
@@ -851,10 +832,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.6,
   },
   "theme-9": {
-    clearedColor: "#40C8B8",
-    activeColor: "#E0A07A",
-    lockedColor: "#1f170f",
-    branchColor: "rgba(64,200,184,0.2)",
     pathStyle: "dashed",
     lockedDash: "6 4",
     branchDash: "4 5",
@@ -862,10 +839,6 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
     lockedStrokeWidth: 1.6,
   },
   "theme-10": {
-    clearedColor: "#D4AF37",
-    activeColor: "#C7BCA9",
-    lockedColor: "#141421",
-    branchColor: "rgba(212,175,55,0.2)",
     pathStyle: "solid",
     lockedDash: "7 4",
     branchDash: "4 4",
@@ -875,7 +848,17 @@ const MAP_PATH_THEMES: Record<ThemeId, MapPathTheme> = {
 };
 
 export function getMapPathTheme(themeId: ThemeId): MapPathTheme {
-  return MAP_PATH_THEMES[themeId] ?? MAP_PATH_THEMES["theme-1"];
+  const colors = THEME_COLORS[themeId] ?? THEME_COLORS["theme-1"];
+  const style = MAP_PATH_STYLES[themeId] ?? MAP_PATH_STYLES["theme-1"];
+  return {
+    // cleared path carries the realm's accent, the next step its companion, and
+    // a locked step sinks into the realm's own background
+    clearedColor: colors.accent,
+    activeColor: colors.accent2,
+    lockedColor: darken(colors.background, 0.45),
+    branchColor: withAlpha(colors.accent, 0.22),
+    ...style,
+  };
 }
 
 /// Clamp a raw zone id to `[1, 10]` and return the corresponding ThemeId.

@@ -31,3 +31,13 @@ export const lighten = (color: string, amount: number) =>
 
 export const darken = (color: string, amount: number) =>
   mixHex(color, "#000000", amount);
+
+/**
+ * `color` at `alpha`, as an rgba() string. SVG stroke and fill accept it in
+ * every target browser, where an eight-digit hex is less reliably parsed when it
+ * arrives through a presentation attribute.
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+  return `rgba(${r},${g},${b},${alpha})`;
+}
