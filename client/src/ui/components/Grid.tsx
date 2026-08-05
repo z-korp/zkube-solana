@@ -9,6 +9,7 @@ import React, {
 import { toast } from "sonner";
 import BlockContainer from "./Block";
 import ClearShatter, { CLEAR_SWEEP_SECONDS } from "./ClearShatter";
+import PerfectClearBanner from "@/ui/elements/perfectClearBanner";
 import { GameState } from "@/enums/gameEnums";
 import type { Block } from "@/types/types";
 import {
@@ -139,6 +140,8 @@ const Grid: React.FC<GridProps> = ({
   const [lineExplodedCount, setLineExplodedCount] = useState(0);
   const [blockBonus, setBlockBonus] = useState<Block | null>(null);
   const [explodingRows, setExplodingRows] = useState<Set<number>>(new Set());
+  // Bumped per perfect clear so a repeat replays both banner and burst.
+  const [perfectClears, setPerfectClears] = useState(0);
   const { playExplode, playSwipe, playSfx } = useMusicPlayer();
 
   // ==================== Custom Hooks ====================
@@ -809,6 +812,13 @@ const Grid: React.FC<GridProps> = ({
           if (lineExplodedCount > 1) {
             setAnimateText(Object.values(ComboMessages)[lineExplodedCount]);
           }
+          // A cascade that ends with nothing on the board is a perfect clear —
+          // the rarest outcome in play, and the one the chain reseeds a single
+          // row after. Requiring a clear first keeps an already-empty board
+          // from claiming the reward.
+          if (lineExplodedCount > 0 && blocks.length === 0) {
+            setPerfectClears((n) => n + 1);
+          }
           setLineExplodedCount(0);
 
           if (gameState === GameState.UPDATE_AFTER_BONUS) {
@@ -1084,13 +1094,20 @@ const Grid: React.FC<GridProps> = ({
         offsetY={framePad}
         blockImages={blockImages}
         palette={clearPalette}
+        perfect={perfectClears}
       />
 
       {/* Combo text overlay (HTML — complex text effects). Hidden during the
           outcome show so the final move's combo popup can't stack into the
           celebration or the completion card. */}
       {!outcomeAnimation && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-1">
+          {/* Perfect clear outranks the combo and sits above it; with only a
+              combo the column still centres it. */}
+          <PerfectClearBanner
+            nonce={perfectClears}
+            reset={() => setPerfectClears(0)}
+          />
           <AnimatedText textEnum={animateText} reset={resetAnimateText} />
         </div>
       )}
