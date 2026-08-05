@@ -1,3 +1,5 @@
+import { darken, lighten } from "@/utils/colour";
+
 export const THEME_IDS = [
   "theme-1",
   "theme-2",
@@ -105,32 +107,6 @@ export interface ThemeColors {
     primary: string[];
     explosion: string[];
   };
-}
-
-function darken(hexColor: string, amount: number): string {
-  const r = parseInt(hexColor.slice(1, 3), 16);
-  const g = parseInt(hexColor.slice(3, 5), 16);
-  const b = parseInt(hexColor.slice(5, 7), 16);
-  return `#${Math.round(r * (1 - amount))
-    .toString(16)
-    .padStart(2, "0")}${Math.round(g * (1 - amount))
-    .toString(16)
-    .padStart(2, "0")}${Math.round(b * (1 - amount))
-    .toString(16)
-    .padStart(2, "0")}`;
-}
-
-function lighten(hexColor: string, amount: number): string {
-  const r = parseInt(hexColor.slice(1, 3), 16);
-  const g = parseInt(hexColor.slice(3, 5), 16);
-  const b = parseInt(hexColor.slice(5, 7), 16);
-  return `#${Math.round(r + (255 - r) * amount)
-    .toString(16)
-    .padStart(2, "0")}${Math.round(g + (255 - g) * amount)
-    .toString(16)
-    .padStart(2, "0")}${Math.round(b + (255 - b) * amount)
-    .toString(16)
-    .padStart(2, "0")}`;
 }
 
 function uiColors(
@@ -702,7 +678,6 @@ export function getThemeImages(themeId: ThemeId) {
     block3: `${base}/block-3.png`,
     block4: `${base}/block-4.png`,
     loadingBg: `${base}/loading-bg.png`,
-    logo: `${base}/logo.png`,
     background: `${base}/background.png`,
     gridBg: `${base}/grid-bg.png`,
     mapBg: `${base}/map-bg.png`,

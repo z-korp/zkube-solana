@@ -5,6 +5,7 @@ import { useReducedMotion } from "motion/react";
 
 import type { Block } from "@/types/types";
 import {
+  cellTuning,
   drawChip,
   drawFragment,
   spawnChips,
@@ -161,6 +162,8 @@ export default function ClearShatter({
       palette: colours,
     } = live.current;
     const cell = cellPx / CELL_DIVISOR;
+    // the board's profile: every throw a multiple of one fragment's size
+    const tuning = cellTuning(cell);
     const cleared = new Set(rows);
     const frags: Fragment[] = [];
     const chips: Chip[] = [];
@@ -188,6 +191,7 @@ export default function ClearShatter({
             bitmapH: img.naturalHeight,
             rect,
             cell,
+            tuning,
             seed: block.y * 31 + block.x,
             delay,
           }),
@@ -196,7 +200,7 @@ export default function ClearShatter({
       chips.push(
         ...spawnChips({
           rect,
-          cell,
+          tuning,
           count: CHIPS_PER_CELL * block.width,
           palette: [...colours],
           seed: block.y * 17 + block.x + 1,
@@ -235,7 +239,7 @@ export default function ClearShatter({
       frags: [],
       chips: spawnChips({
         rect: board,
-        cell: cellPx / CELL_DIVISOR,
+        tuning: cellTuning(cellPx / CELL_DIVISOR),
         count: PERFECT_CHIPS,
         palette: [...colours],
         seed: perfect * 7919,

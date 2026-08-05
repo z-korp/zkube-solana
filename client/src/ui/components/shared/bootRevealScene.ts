@@ -13,7 +13,60 @@
  *    at any framerate, makes an arbitrary seek exact, and removes drift.
  */
 
-export interface BootRevealColours {
+import {
+  drawChip,
+  drawFragment,
+  hash,
+  spawnChips,
+  spawnFragments,
+  type Chip,
+  type Fragment,
+  type ShatterTuning,
+} from "@/ui/fx/shatter";
+import { mixHex } from "@/utils/colour";
+
+/**
+ * The reveal's throw, in design units per second. It reaches much further than
+ * the board's line clear because the debris has to leave a 200-unit composition
+ * and clear the screen, which is why the tuning is passed per burst rather than
+ * shared: see `ShatterTuning`.
+ */
+const FRAGMENT_THROW: ShatterTuning = {
+  speedMin: 150,
+  speedSpan: 230,
+  jitter: 34,
+  liftMin: 70,
+  liftSpan: 60,
+  gravity: 210,
+  chipGravityScale: 1.25,
+  spin: 9,
+  chipSpin: 15,
+  fragLifeMin: 1.05,
+  fragLifeSpan: 0.4,
+  chipLifeMin: 1.15,
+  chipLifeSpan: 0.55,
+  stagger: 0.05,
+  shrinkTo: 0.5,
+  chipWMin: 0.7,
+  chipWSpan: 1.3,
+  chipHMin: 0.5,
+  chipHSpan: 0.9,
+};
+
+/** The confetti throws a little harder and lives a little longer. */
+const CHIP_THROW: ShatterTuning = {
+  ...FRAGMENT_THROW,
+  speedMin: 170,
+  speedSpan: 260,
+  liftMin: 62,
+  liftSpan: 0,
+  stagger: 0.07,
+};
+
+/** Sparks are weightless embers next to the debris, so they barely fall. */
+const SPARK_GRAVITY = FRAGMENT_THROW.gravity * 0.6;
+
+interface BootRevealColours {
   /** Live zone accent — tints the burst, sparks and ground wash. */
   accent: string;
 }
@@ -68,33 +121,10 @@ export const BEATS = {
 const GRID = 12; // GRID² fragments per block
 const CHIP_COUNT = 260;
 const SUPERSAMPLE = 3;
-const GRAVITY = 210; // design units / s²
 const DESIGN = 200; // composition is 200 units across
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
-/** Deterministic hash — the scatter is identical on every run. */
-const rnd = (i: number, salt = 0) => {
-  const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
-  return v - Math.floor(v);
-};
-
-function mixHex(color: string, target: string, amount: number): string {
-  const ch = (hex: string) =>
-    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const from = ch(color);
-  const to = ch(target);
-  return (
-    "#" +
-    from
-      .map((v, i) =>
-        Math.round(v + (to[i] - v) * amount)
-          .toString(16)
-          .padStart(2, "0"),
-      )
-      .join("")
-  );
-}
 const lighten = (c: string, k: number) => mixHex(c, "#ffffff", k);
 const darken = (c: string, k: number) => mixHex(c, "#000000", k);
 
@@ -233,34 +263,6 @@ function renderBlock(spec: BlockSpec): HTMLCanvasElement {
   return canvas;
 }
 
-interface Fragment {
-  block: number;
-  sx: number;
-  sy: number;
-  src: number;
-  size: number;
-  x: number;
-  y: number;
-  rot: number;
-  vx: number;
-  vy: number;
-  spin: number;
-  delay: number;
-  life: number;
-}
-interface Chip {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  colour: string;
-  vx: number;
-  vy: number;
-  rot: number;
-  spin: number;
-  delay: number;
-  life: number;
-}
 interface Spark {
   r: number;
   cream: boolean;
@@ -316,42 +318,32 @@ export class BootRevealScene {
   private toY = (y: number) =>
     this.height / 2 + (y - this.massY) * this.unit + this.shakeY;
 
+  /**
+   * All particles are built in design units and drawn through the design-space
+   * transform, so the shared engine needs no notion of this scene's scaling.
+   *
+   * The blocks are square, which is why the engine's aspect-normalised throw
+   * direction matches this scene's: dividing both components of the offset by
+   * the same half-extent leaves the direction untouched.
+   */
   private buildParticles() {
     this.blocks.forEach((b, bi) => {
-      const cell = b.s / GRID;
-      const src = this.bitmaps[bi].width / GRID;
-      const a = (b.rot * Math.PI) / 180;
-      const ca = Math.cos(a);
-      const sa = Math.sin(a);
-      for (let row = 0; row < GRID; row++) {
-        for (let col = 0; col < GRID; col++) {
-          const k = bi * 1000 + row * GRID + col;
-          // fragment centre, rotated with its block so the mosaic reconstructs
-          const lx = col * cell + cell / 2 - b.s / 2;
-          const ly = row * cell + cell / 2 - b.s / 2;
-          const cx = b.x + b.s / 2 + lx * ca - ly * sa;
-          const cy = b.y + b.s / 2 + lx * sa + ly * ca;
-          const dx = cx - 100;
-          const dy = cy - 100;
-          const len = Math.hypot(dx, dy) || 1;
-          const speed = 150 + rnd(k, 1) * 230;
-          this.frags.push({
-            block: bi,
-            sx: col * src,
-            sy: row * src,
-            src,
-            size: cell,
-            x: cx,
-            y: cy,
-            rot: a,
-            vx: (dx / len) * speed + (rnd(k, 2) * 2 - 1) * 34,
-            vy: (dy / len) * speed - 70 - rnd(k, 3) * 60,
-            spin: (rnd(k, 4) * 2 - 1) * 9,
-            delay: rnd(k, 5) * 0.05,
-            life: 1.05 + rnd(k, 6) * 0.4,
-          });
-        }
-      }
+      this.frags.push(
+        ...spawnFragments({
+          bitmap: this.bitmaps[bi],
+          bitmapW: this.bitmaps[bi].width,
+          bitmapH: this.bitmaps[bi].height,
+          rect: { x: b.x, y: b.y, w: b.s, h: b.s },
+          cell: b.s / GRID,
+          tuning: FRAGMENT_THROW,
+          // the mosaic starts as the tilted block the assembly just landed
+          rotate: (b.rot * Math.PI) / 180,
+          // debris flies away from the composition's middle, not each block's
+          originX: 100,
+          originY: 100,
+          seed: bi,
+        }),
+      );
     });
 
     const palette = [
@@ -359,33 +351,37 @@ export class BootRevealScene {
       "#FFF4D7",
       this.colours.accent,
     ];
-    for (let i = 0; i < CHIP_COUNT; i++) {
-      const b = this.blocks[i % this.blocks.length];
-      const ang = rnd(i, 9) * Math.PI * 2;
-      const speed = 170 + rnd(i, 10) * 260;
-      this.chips.push({
-        x: b.x + b.s / 2 + (rnd(i, 7) * 2 - 1) * b.s * 0.44,
-        y: b.y + b.s / 2 + (rnd(i, 8) * 2 - 1) * b.s * 0.44,
-        w: 0.7 + rnd(i, 11) * 1.3,
-        h: 0.5 + rnd(i, 12) * 0.9,
-        colour: palette[i % palette.length],
-        vx: Math.cos(ang) * speed,
-        vy: Math.sin(ang) * speed - 62,
-        rot: rnd(i, 13) * Math.PI * 2,
-        spin: (rnd(i, 14) * 2 - 1) * 15,
-        delay: rnd(i, 15) * 0.07,
-        life: 1.15 + rnd(i, 16) * 0.55,
-      });
-    }
+    // One interleaved run of chips across the three blocks. Each block takes
+    // every third ordinal, and `keyOf` hands the engine that ordinal so the
+    // arrangement is the same as a single loop over all of them would give.
+    this.blocks.forEach((b, bi) => {
+      const spread = b.s * 0.44;
+      const count = Math.ceil((CHIP_COUNT - bi) / this.blocks.length);
+      this.chips.push(
+        ...spawnChips({
+          rect: {
+            x: b.x + b.s / 2 - spread,
+            y: b.y + b.s / 2 - spread,
+            w: spread * 2,
+            h: spread * 2,
+          },
+          tuning: CHIP_THROW,
+          count,
+          palette,
+          seed: bi,
+          keyOf: (i) => bi + i * this.blocks.length,
+        }),
+      );
+    });
     for (let i = 0; i < 18; i++) {
       const ang = (i / 18) * Math.PI * 2 + 0.35;
-      const speed = 230 + rnd(i, 17) * 150;
+      const speed = 230 + hash(i, 17) * 150;
       this.sparks.push({
         r: 0.9 + (i % 3) * 0.5,
         cream: i % 3 === 0,
         vx: Math.cos(ang) * speed,
         vy: Math.sin(ang) * speed,
-        life: 0.5 + rnd(i, 18) * 0.22,
+        life: 0.5 + hash(i, 18) * 0.22,
       });
     }
   }
@@ -464,77 +460,50 @@ export class BootRevealScene {
     });
   }
 
+  /**
+   * The burst. One transform puts the canvas into design space — the same
+   * mapping `toX`/`toY`/`toPx` apply one point at a time — so the shared
+   * shatter engine draws its particles straight into the composition.
+   */
   private drawShatter(bt: number) {
     const { ctx } = this;
-    for (const f of this.frags) {
-      const lt = bt - f.delay;
-      if (lt < 0) continue;
-      const fade = 1 - clamp01(lt / f.life);
-      if (fade <= 0) continue;
-      const x = f.x + f.vx * lt;
-      const y = f.y + f.vy * lt + 0.5 * GRAVITY * lt * lt;
-      const scale = 1 - 0.5 * clamp01(lt / f.life);
-      ctx.save();
-      ctx.globalAlpha = fade < 0.35 ? fade / 0.35 : 1;
-      ctx.translate(this.toX(x), this.toY(y));
-      ctx.rotate(f.rot + f.spin * lt);
-      const w = this.toPx(f.size) * scale;
-      ctx.drawImage(
-        this.bitmaps[f.block],
-        f.sx,
-        f.sy,
-        f.src,
-        f.src,
-        -w / 2,
-        -w / 2,
-        w,
-        w,
-      );
-      ctx.restore();
-    }
-    for (const c of this.chips) {
-      const lt = bt - c.delay;
-      if (lt < 0) continue;
-      const fade = 1 - clamp01(lt / c.life);
-      if (fade <= 0) continue;
-      const x = c.x + c.vx * lt;
-      const y = c.y + c.vy * lt + 0.5 * GRAVITY * 1.25 * lt * lt;
-      ctx.save();
-      ctx.globalAlpha = fade < 0.4 ? fade / 0.4 : 1;
-      ctx.translate(this.toX(x), this.toY(y));
-      ctx.rotate(c.rot + c.spin * lt);
-      ctx.fillStyle = c.colour;
-      const w = this.toPx(c.w);
-      const h = this.toPx(c.h);
-      ctx.fillRect(-w / 2, -h / 2, w, h);
-      ctx.restore();
-    }
+    const k = this.dpr * this.unit;
+    ctx.setTransform(
+      k,
+      0,
+      0,
+      k,
+      this.dpr * (this.width / 2 - this.massX * this.unit + this.shakeX),
+      this.dpr * (this.height / 2 - this.massY * this.unit + this.shakeY),
+    );
+    /** One CSS pixel, in design units. */
+    const px = 1 / this.unit;
+
+    for (const f of this.frags) drawFragment(ctx, f, bt);
+    for (const c of this.chips) drawChip(ctx, c, bt);
+
     for (const s of this.sparks) {
       const fade = 1 - clamp01(bt / s.life);
       if (fade <= 0) continue;
-      const x = 100 + s.vx * bt;
-      const y = 100 + s.vy * bt + 0.5 * GRAVITY * 0.6 * bt * bt;
       ctx.save();
       ctx.globalAlpha = fade;
       ctx.fillStyle = s.cream ? "#FFF4D7" : this.colours.accent;
       ctx.beginPath();
       ctx.arc(
-        this.toX(x),
-        this.toY(y),
-        this.toPx(s.r) * (1 - 0.5 * clamp01(bt / s.life)),
+        100 + s.vx * bt,
+        100 + s.vy * bt + 0.5 * SPARK_GRAVITY * bt * bt,
+        s.r * (1 - 0.5 * clamp01(bt / s.life)),
         0,
         Math.PI * 2,
       );
       ctx.fill();
       ctx.restore();
     }
-    // the burst
+
     const fl = clamp01(bt / 0.5);
     if (fl < 1) {
-      const r = this.toPx(46) * (0.12 + 3 * fl);
-      const cx = this.toX(100);
-      const cy = this.toY(100);
-      const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+      const r = 46 * (0.12 + 3 * fl);
+      const grad = ctx.createRadialGradient(100, 100, px, 100, 100, r);
       grad.addColorStop(0, "rgba(255,255,255,1)");
       grad.addColorStop(0.42, `${lighten(this.colours.accent, 0.6)}d9`);
       grad.addColorStop(0.78, `${this.colours.accent}47`);
@@ -543,7 +512,7 @@ export class BootRevealScene {
       ctx.globalAlpha = fl < 0.1 ? fl / 0.1 : 1 - (fl - 0.1) / 0.9;
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.arc(100, 100, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
