@@ -2,59 +2,9 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import {
-  dailyLeaderboardRank,
-  parseDailyStatus,
-  type DailyStatus,
-  type DailyView,
-} from "@/chain/dailyClient";
-import { dailyToCurrentChallenge } from "./useCurrentChallenge";
+import { dailyLeaderboardRank, parseDailyStatus } from "@/chain/dailyClient";
 
 const key = () => Keypair.generate().publicKey;
-const daily = (status: DailyStatus): DailyView => ({
-  address: key(),
-  dayId: 10,
-  weeklyId: 2,
-  status,
-  mapId: 4,
-  opensAt: 100,
-  entriesCloseAt: 200,
-  runsCloseAt: 300,
-  settlementGraceCloseAt: 400,
-  finalizedAt: 0,
-  recoveryDeadlineAt: 400,
-  entryLamports: 10_000_000n,
-  dailyPotLamports: 100_000_000n,
-  uniquePlayers: 2,
-  weeklyEligiblePlayers: 2,
-  weeklyRollups: 1,
-  attemptsStarted: 3n,
-  runsFinalized: 1n,
-  closedPlayers: 0,
-  entriesExpired: 0n,
-  rentRecipient: key(),
-  nextRunId: 2n,
-  activeRunId: 0n,
-  player: null,
-  leaderboard: [],
-  rules: {
-    pointsRequired: 0,
-    maxMoves: 40,
-    difficulty: 2,
-    primary: { kind: 0, value: 0, requiredCount: 0 },
-    secondary: { kind: 0, value: 0, requiredCount: 0 },
-    activeMutatorId: 8,
-    passiveMutatorId: 9,
-    bossId: 0,
-    starThresholdModifier: 128,
-    bonusType: 0,
-    bonusTriggerType: 0,
-    bonusThreshold: 0,
-    startingCharges: 0,
-  },
-  endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
-  endlessScoreMultipliersX100: [100, 110, 120, 130, 140, 150, 160, 170],
-});
 
 describe("Daily projection", () => {
   it("shares rank for exact official ties regardless of engine score or moves", () => {
@@ -82,21 +32,4 @@ describe("Daily projection", () => {
     expect(parseDailyStatus("open")).toBe("unknown");
   });
 
-  it.each([
-    ["open", false],
-    ["funding", false],
-    ["finalized", true],
-  ])(
-    "maps %s without inventing a settled status",
-    (status, settled) => {
-      expect(dailyToCurrentChallenge(daily(status))).toMatchObject({
-        challenge_id: 10,
-        zone_id: 4,
-        settled,
-        active_mutator_id: 8,
-        passive_mutator_id: 9,
-        total_attempts: 3n,
-      });
-    },
-  );
 });

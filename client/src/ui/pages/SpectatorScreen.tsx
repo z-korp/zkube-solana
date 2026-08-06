@@ -115,7 +115,7 @@ export default function SpectatorScreen() {
           <Panel>
             <h2 className="text-xl font-black text-red-300">Cannot spectate</h2>
             <p className="text-center text-sm text-white/60">{parsed.error}</p>
-            <BackButton onClick={() => navigate("ranks")} />
+            <BackButton onClick={() => navigate("arcade")} />
           </Panel>
         )}
 
@@ -126,7 +126,7 @@ export default function SpectatorScreen() {
               This player has no current run on-chain. Finalized results appear
               on the leaderboard.
             </p>
-            <BackButton onClick={() => navigate("ranks")} />
+            <BackButton onClick={() => navigate("arcade")} />
           </Panel>
         )}
 
@@ -138,7 +138,7 @@ export default function SpectatorScreen() {
               accounts were cleaned up. Its results live on in the player's
               progression and the leaderboard.
             </p>
-            <BackButton onClick={() => navigate("ranks")} />
+            <BackButton onClick={() => navigate("arcade")} />
           </Panel>
         )}
 
@@ -152,7 +152,7 @@ export default function SpectatorScreen() {
 
         {activeRun && (
           <>
-            <SpectatorHud run={activeRun} onBack={() => navigate("ranks")} />
+            <SpectatorHud run={activeRun} onBack={() => navigate("arcade")} />
             <div
               ref={boardRef}
               className="flex min-h-0 flex-1 flex-col items-center justify-center p-2"

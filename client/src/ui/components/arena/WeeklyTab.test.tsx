@@ -58,10 +58,6 @@ vi.mock("@/chain/connectedPlayerContext", async () =>
   })),
 );
 
-vi.mock("@/ui/components/arena/useLeaderboardEmblems", () => ({
-  useLeaderboardEmblems: () => new Map(),
-}));
-
 beforeAll(() => {
   vi.stubGlobal("React", React);
 });
@@ -71,19 +67,19 @@ afterAll(() => {
 });
 
 describe("WeeklyTab", () => {
-  it("shows cosmetic labels beside authoritative wallet addresses", () => {
+  it("keeps the full label + wallet on the row title while showing the short name", () => {
     render(<WeeklyTab />);
 
     const owner = fixtures.weekly.weekly.leaderboard[0]!.player.toBase58();
+    const other = fixtures.weekly.weekly.leaderboard[1]!.player.toBase58();
     expect(
-      screen.getByText(
+      screen.getByTitle(
         `You · Wave_Rider7 · ${owner.slice(0, 4)}…${owner.slice(-4)}`,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("You")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        `${fixtures.weekly.weekly.leaderboard[1]!.player.toBase58().slice(0, 4)}…${fixtures.weekly.weekly.leaderboard[1]!.player.toBase58().slice(-4)}`,
-      ),
+      screen.getByTitle(`${other.slice(0, 4)}…${other.slice(-4)}`),
     ).toBeInTheDocument();
   });
 });

@@ -11,8 +11,7 @@ describe("navigation recovery intent", () => {
       isTransitioning: false,
       transitionDirection: null,
       recoveryRunId: null,
-      settingsFocus: null,
-      settingsReturnPage: null,
+      settingsOpen: false,
     });
   });
 
@@ -27,10 +26,10 @@ describe("navigation recovery intent", () => {
       recoveryRunId: 7n,
     });
 
-    useNavigationStore.getState().navigate("settings");
+    useNavigationStore.getState().navigate("profile");
 
     expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "settings",
+      currentPage: "profile",
       recoveryRunId: null,
     });
   });
@@ -49,30 +48,17 @@ describe("navigation recovery intent", () => {
     });
   });
 
-  it("returns to the originating tab after wallet settings", () => {
-    useNavigationStore.getState().openWalletSettings("campaign");
+  it("opens and closes the settings sheet without touching the page", () => {
+    useNavigationStore.getState().openSettings();
     expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "settings",
-      settingsFocus: "wallet",
-      settingsReturnPage: "campaign",
+      currentPage: "arcade",
+      settingsOpen: true,
     });
-    vi.advanceTimersByTime(300);
 
-    useNavigationStore.getState().goBack();
+    useNavigationStore.getState().closeSettings();
     expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "campaign",
-      settingsFocus: null,
-      settingsReturnPage: null,
-    });
-  });
-
-  it("returns from settings to profile when no return page is set", () => {
-    useNavigationStore.setState({ currentPage: "settings" });
-
-    useNavigationStore.getState().goBack();
-
-    expect(useNavigationStore.getState()).toMatchObject({
-      currentPage: "profile",
+      currentPage: "arcade",
+      settingsOpen: false,
     });
   });
 });

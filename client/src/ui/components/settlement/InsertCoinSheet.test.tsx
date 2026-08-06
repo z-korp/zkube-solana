@@ -1,13 +1,22 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/ui/elements/tooltip";
 
 import InsertCoinSheet from "./InsertCoinSheet";
 
+const fixtures = vi.hoisted(() => ({ reduceMotion: false }));
+
+vi.mock("motion/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("motion/react")>()),
+  useReducedMotion: () => fixtures.reduceMotion,
+}));
 vi.mock("@/ui/elements/theme-provider/hooks", async () =>
   (await import("@/test/mocks/theme")).themeHooksMock(),
+);
+vi.mock("@/contexts/hooks", async () =>
+  (await import("@/test/mocks/contexts")).musicPlayerMock(),
 );
 
 beforeAll(() => {
@@ -38,6 +47,7 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
       <InsertCoinSheet
         open
         onClose={vi.fn()}
+        zoneId={2}
         entryLamports={10_000_000n}
         onConfirm={vi.fn()}
         {...props}
@@ -47,12 +57,14 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
 }
 
 describe("InsertCoinSheet", () => {
-  it("shows the heading, the exact gold amount, and a tap-to-open info affordance", () => {
+  it("shows the guardian, the exact amount with the SOL mark, and a tap-to-open info affordance", () => {
     renderSheet();
 
-    expect(screen.getByText("Insert coin")).toBeInTheDocument();
-    expect(screen.getByText("0.01")).toBeInTheDocument();
-    expect(screen.getByText("SOL")).toBeInTheDocument();
+    expect(screen.getByText("0.010")).toBeInTheDocument();
+    // The official Solana logomark replaces the "SOL" text suffix.
+    expect(screen.getByRole("img", { name: "SOL" })).toBeInTheDocument();
+    // Today's guardian hosts the entry — you feed it the coin.
+    expect(screen.getByLabelText(/Feed Sobek/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /how it works/i }),
     ).toBeInTheDocument();
@@ -67,12 +79,39 @@ describe("InsertCoinSheet", () => {
     expect(screen.getByText(/funds tomorrow/i)).toBeInTheDocument();
   });
 
-  it("proceeds via the Sign & enter button", () => {
-    const onConfirm = vi.fn();
-    renderSheet({ onConfirm });
+  it("feeds the guardian, then proceeds to the owner signature", () => {
+    vi.useFakeTimers();
+    try {
+      const onConfirm = vi.fn();
+      renderSheet({ onConfirm });
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign & enter" }));
-    expect(onConfirm).toHaveBeenCalledOnce();
+      fireEvent.click(screen.getByRole("button", { name: "Sign & enter" }));
+      // The feeding ceremony runs first — confirm is not immediate…
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("button", { name: /Feeding Sobek/ }),
+      ).toBeDisabled();
+      // …and hands off once the guardian has swallowed the coin and spoken.
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(onConfirm).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("confirms immediately under reduced motion — the ceremony never gates entry", () => {
+    fixtures.reduceMotion = true;
+    try {
+      const onConfirm = vi.fn();
+      renderSheet({ onConfirm });
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign & enter" }));
+      expect(onConfirm).toHaveBeenCalledOnce();
+    } finally {
+      fixtures.reduceMotion = false;
+    }
   });
 
   it("disables the button and blocks dismissal while a signature is in flight", () => {

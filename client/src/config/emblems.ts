@@ -44,7 +44,7 @@ export interface EmblemState {
 /** Minimal Campaign shape the emblem model needs (a subset of ZoneProgressData). */
 export type EmblemZoneInput = Pick<
   ZoneProgressData,
-  "zoneId" | "stars" | "maxStars" | "cleared"
+  "zoneId" | "stars" | "maxStars" | "cleared" | "unlocked"
 >;
 
 function guardianDescriptor(zoneId: number): EmblemDescriptor {
@@ -92,8 +92,12 @@ function zoneById(
   return zones.find((zone) => zone.zoneId === zoneId);
 }
 
+/**
+ * A guardian's emblem unlocks the moment its realm opens — the RIM carries
+ * mastery (silver when the guardian falls, gold at 30/30), not the unlock.
+ */
 function guardianUnlocked(zone: EmblemZoneInput | undefined): boolean {
-  return Boolean(zone?.cleared);
+  return Boolean(zone?.unlocked);
 }
 
 function guardianGold(zone: EmblemZoneInput | undefined): boolean {
@@ -121,14 +125,18 @@ export function resolveEmblemStates(
     } satisfies EmblemState;
   });
 
-  const allGuardiansUnlocked = guardianStates.every((state) => state.unlocked);
+  // Realm Conqueror is earned by DEFEATING all ten guardians — clears, not
+  // zone visibility, even though guardian emblems themselves unlock at open.
+  const allGuardiansBeaten = GUARDIAN_EMBLEM_IDS.every((zoneId) =>
+    Boolean(zoneById(zones, zoneId)?.cleared),
+  );
   const allGuardiansGold = guardianStates.every((state) => state.gold);
   const stars = totalStars(zones);
 
   const realmState: EmblemState = {
     descriptor: emblemDescriptor(REALM_CONQUEROR_EMBLEM_ID),
-    unlocked: allGuardiansUnlocked,
-    gold: allGuardiansUnlocked && allGuardiansGold,
+    unlocked: allGuardiansBeaten,
+    gold: allGuardiansBeaten && allGuardiansGold,
   };
   const worldState: EmblemState = {
     descriptor: emblemDescriptor(WORLD_PERFECT_EMBLEM_ID),

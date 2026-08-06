@@ -7,12 +7,12 @@ import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
 import HomePage from "@/ui/pages/HomePage";
+import ArcadePage from "@/ui/pages/ArcadePage";
 import CampaignPage from "@/ui/pages/CampaignPage";
-import ArenaPage from "@/ui/pages/ArenaPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
-import SettingsPage from "@/ui/pages/SettingsPage";
+import SettingsSheet from "@/ui/components/settings/SettingsSheet";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -52,18 +52,17 @@ if (spectatePlayer || spectatePda) {
 // Guarded by DEV_BYPASS_ACTIVE (import.meta.env.DEV) — dead-code-eliminated in prod.
 if (DEV_BYPASS_ACTIVE) {
   const devPage = params.get("page");
-  const devPages = ["arcade", "campaign", "ranks", "profile", "settings"];
+  const devPages = ["home", "arcade", "campaign", "profile"];
   if (devPage && devPages.includes(devPage)) {
     useNavigationStore.setState({ currentPage: devPage as PageId });
   }
 }
 
 const pageComponents: Record<PageId, ReactNode> = {
-  arcade: <HomePage />,
+  home: <HomePage />,
+  arcade: <ArcadePage />,
   campaign: <CampaignPage />,
   profile: <ProfilePage />,
-  ranks: <ArenaPage />,
-  settings: <SettingsPage />,
   play: <PlayScreen />,
   map: <MapPage />,
   spectate: <SpectatorScreen />,
@@ -111,6 +110,7 @@ export default function App() {
       <DevFixturesProvider>
         <TooltipProvider>
           <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+          <SettingsSheet />
           <CapabilityDiagnostics />
           <Toaster position={getToastPlacement()} />
         </TooltipProvider>
@@ -126,7 +126,6 @@ export default function App() {
     player.sessionStatus === "ready";
   const reveal = bootRevealGone ? null : (
     <BootReveal
-      showWordmark={!playerReady}
       onSettled={() => setBootRevealDone(true)}
       onFinished={() => setBootRevealGone(true)}
     />
@@ -153,6 +152,7 @@ export default function App() {
   return (
     <TooltipProvider>
       <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+      <SettingsSheet />
       <Toaster position={getToastPlacement()} />
       {reveal}
     </TooltipProvider>

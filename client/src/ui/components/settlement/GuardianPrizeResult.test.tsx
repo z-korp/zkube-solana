@@ -36,7 +36,7 @@ describe("GuardianPrizeResult", () => {
     vi.clearAllMocks();
   });
 
-  it("celebrates the delivered prize with period, amount, and push-only copy", async () => {
+  it("celebrates the delivered prize with period, amount, and the guardian's line", async () => {
     render(
       <GuardianPrizeResult
         open
@@ -48,10 +48,12 @@ describe("GuardianPrizeResult", () => {
     );
 
     expect(screen.getByText("Daily prize")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("+0.5")).toBeInTheDocument());
-    expect(screen.getByText("SOL")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("+0.500")).toBeInTheDocument());
+    // The official Solana logomark replaces the "SOL" text suffix.
+    expect(screen.getByRole("img", { name: "SOL" })).toBeInTheDocument();
+    // The guardian speaks its prize line (fully revealed under reduced motion).
     expect(
-      screen.getByText("Pushed to your wallet · no claim"),
+      screen.getByText(/The tide returns bearing gold\./),
     ).toBeInTheDocument();
     expect(fixtures.playSfx).toHaveBeenCalledWith("coin");
   });
@@ -66,7 +68,7 @@ describe("GuardianPrizeResult", () => {
         periodLabel="Season"
       />,
     );
-    expect(screen.getByText("+1.25")).toBeInTheDocument();
+    expect(screen.getByText("+1.250")).toBeInTheDocument();
     expect(screen.queryByTestId("reward-particle")).not.toBeInTheDocument();
   });
 

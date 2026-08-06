@@ -39,15 +39,15 @@ beforeEach(() => {
 });
 
 describe("BottomNav", () => {
-  it("renders the combined-product tabs with Arcade first", () => {
+  it("renders the four-tab nav with Home first — Ranks is merged into Arcade", () => {
     fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent)).toEqual([
+      "Home",
       "Arcade",
       "Campaign",
-      "Leaderboard",
       "Profile",
     ]);
     expect(buttons.every((button) => !button.hasAttribute("disabled"))).toBe(

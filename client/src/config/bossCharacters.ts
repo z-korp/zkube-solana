@@ -13,6 +13,12 @@ export interface ZoneGuardian {
   twoStar: string;
   threeStar: string;
   incomplete: string;
+  /** Arcade payout ceremony — celebratory, spoken with the celebrate frame. */
+  prizeLine: string;
+  /** Arcade entry — the guardian accepts the fed coin (satisfied frame). */
+  entryLine: string;
+  /** Campaign boss falls — spoken with the defeated frame. */
+  defeatLine: string;
   emoji: string;
 }
 
@@ -36,6 +42,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "Good form. The current carried you well.",
     threeStar: "The ocean itself bows. Perfect rhythm.",
     incomplete: "The tide recedes... but it always returns. Try again.",
+    prizeLine:
+      "The tide returns bearing gold. Take it, rider of currents.",
+    entryLine: "The ocean accepts your offering. Swim.",
+    defeatLine:
+      "The current... flows past me now. Well ridden.",
     emoji: "🐢",
   },
   2: {
@@ -56,6 +67,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "A worthy passage. The sands note your precision.",
     threeStar: "Flawless. The pharaohs would envy your discipline.",
     incomplete: "The sands swallow those who hesitate. Return stronger.",
+    prizeLine:
+      "The Nile pays its debts in gold. Yours, champion.",
+    entryLine: "The river takes its toll. Cross.",
+    defeatLine:
+      "The jaws... close on nothing. You were faster.",
     emoji: "🐊",
   },
   3: {
@@ -76,6 +92,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "Strong. The ice bends to your will.",
     threeStar: "Even the blizzard could not touch you. Legendary.",
     incomplete: "The cold takes the weak. Return with fire in your heart.",
+    prizeLine:
+      "The hunt is yours. Feast on your spoils, packmate.",
+    entryLine: "Your offering steams in the snow. Run.",
+    defeatLine:
+      "The storm breaks... the wolf yields. Lead the pack.",
     emoji: "🐺",
   },
   4: {
@@ -95,6 +116,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "Well reasoned. Your logic holds.",
     threeStar: "A theorem proven without flaw. Brilliant.",
     incomplete: "The equation remains unsolved. Reconsider your approach.",
+    prizeLine:
+      "The proof is complete. Collect what wisdom earned.",
+    entryLine: "A wager placed with reason. Begin.",
+    defeatLine:
+      "Checkmate... elegantly played. The owl bows.",
     emoji: "🦉",
   },
   5: {
@@ -114,6 +140,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "The river bends to your patience. Well done.",
     threeStar: "Even the dragon's torrent could not shake you. Imperial.",
     incomplete: "The current swept you away. Plant your feet deeper next time.",
+    prizeLine:
+      "A dragon honors its debts. Take your jade and gold.",
+    entryLine: "The river accepts your tribute. Endure.",
+    defeatLine:
+      "The storm passes... and you remain. The heavens take note.",
     emoji: "🐲",
   },
   6: {
@@ -136,6 +167,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "The mosaic takes shape under your hands.",
     threeStar: "Every tile in its place. The pattern is complete.",
     incomplete: "The tiles scatter. Gather them and try again.",
+    prizeLine:
+      "The gate opens on a treasury. It is yours.",
+    entryLine: "A tile placed. The mosaic begins.",
+    defeatLine:
+      "The pattern... was you all along. Pass through.",
     emoji: "🦁",
   },
   7: {
@@ -157,6 +193,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "Not bad. You kept your wits when the foxfire flickered.",
     threeStar: "Every illusion shattered. You're sharper than my claws.",
     incomplete: "Lost in the illusion. Find your way back and try again.",
+    prizeLine:
+      "You caught the fox and the purse. Cheeky. I like it.",
+    entryLine: "A shiny thing! I'll hold it. Probably.",
+    defeatLine:
+      "Nine tails, all fooled... you win this round.",
     emoji: "🦊",
   },
   8: {
@@ -178,6 +219,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "The spirits stir. Your offering pleases them.",
     threeStar: "A perfect ritual. The jungle sings your name.",
     incomplete: "The ritual failed. The spirits turn away. Begin anew.",
+    prizeLine:
+      "The ritual bears gold. The jungle shares its bounty.",
+    entryLine: "The jungle accepts your offering. Hunt.",
+    defeatLine:
+      "Three eyes close... the jungle sleeps for you.",
     emoji: "🐆",
   },
   9: {
@@ -198,6 +244,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "Your rhythm is strong. The drums resonate.",
     threeStar: "Thunder itself dances to your beat. Flawless.",
     incomplete: "You lost the rhythm. Listen again, and return.",
+    prizeLine:
+      "The beat drops gold at your feet. Dance on, champion.",
+    entryLine: "Your coin joins the rhythm. Keep time.",
+    defeatLine:
+      "The rhythm... fades. Yours plays louder.",
     emoji: "🐍",
   },
   10: {
@@ -220,6 +271,11 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     twoStar: "The altitude tests you, and you endure.",
     threeStar: "The peak is yours. The sun shines on no one brighter.",
     incomplete: "The mountain rejects the unprepared. Train and return.",
+    prizeLine:
+      "Summit gold, carried on sun wings. It is yours.",
+    entryLine: "The mountain takes its due. Climb.",
+    defeatLine:
+      "The peak... belongs to you. Fly higher than I.",
     emoji: "🦅",
   },
 };
@@ -239,10 +295,25 @@ export function getZoneGuardian(zoneId: number): ZoneGuardian {
 }
 
 /**
- * Returns the path to the guardian's portrait image.
- * Falls back to emoji if the asset doesn't exist yet.
+ * Zones with a generated expression-frame set on disk
+ * (public/assets/theme-N/boss/<frame>.png). Grown as the sprite pipeline
+ * (client/tools/sprites/generate-guardian-rig.mjs) covers more guardians;
+ * uncovered zones fall back to their portrait everywhere.
+ */
+export const GUARDIAN_FRAME_ZONES: ReadonlySet<number> = new Set([
+  1, 2, 3, 5, 6, 10,
+]);
+
+/**
+ * Returns the canonical guardian display art. For zones with a generated
+ * frame set this is the `idle` frame — the same art the talking scenes rest
+ * on, so the guardian looks identical everywhere. The original portrait.png
+ * remains on disk purely as the generation reference and is only served for
+ * zones the sprite pipeline has not covered yet.
  */
 export function getGuardianPortrait(zoneId: number): string {
   const clamped = Math.min(10, Math.max(1, zoneId || 1));
-  return `/assets/theme-${clamped}/boss/portrait.png`;
+  return GUARDIAN_FRAME_ZONES.has(clamped)
+    ? `/assets/theme-${clamped}/boss/idle.png`
+    : `/assets/theme-${clamped}/boss/portrait.png`;
 }

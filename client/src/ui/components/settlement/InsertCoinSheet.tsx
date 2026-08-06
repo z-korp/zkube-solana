@@ -1,14 +1,24 @@
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
-import { Coin, MONEY_GOLD } from "@/ui/components/economy";
+import { getZoneGuardian } from "@/config/bossCharacters";
+import {
+  getGuardianFrame,
+  hasGuardianFrames,
+  type GuardianFrameId,
+} from "@/config/guardianBlocks";
+import { useMusicPlayer } from "@/contexts/hooks";
+import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
-import { formatSolLamports } from "@/utils/currency";
+import { formatSolBalanceLamports } from "@/utils/currency";
 
 interface InsertCoinSheetProps {
   open: boolean;
   onClose: () => void;
+  /** Zone whose guardian hosts today's trial. */
+  zoneId: number;
   /** Exact ranked entry price in lamports (rendered gold + mono). */
   entryLamports: bigint;
   /** Proceeds with the existing daily.enter() owner-signature flow. */
@@ -17,45 +27,67 @@ interface InsertCoinSheetProps {
   busy?: boolean;
 }
 
-/** A static, CSS-only arcade coin slot with a gently bobbing coin. */
-const CoinSlot: React.FC = () => {
-  const reduceMotion = useReducedMotion();
-  return (
-    <div className="relative flex h-[72px] w-28 items-end justify-center">
-      <div
-        className="absolute bottom-0 h-14 w-28 rounded-2xl border border-white/[0.12] bg-black/40"
-        style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" }}
-      >
-        <span className="absolute left-1/2 top-4 h-1.5 w-12 -translate-x-1/2 rounded-full bg-black/70 ring-1 ring-white/10" />
-      </div>
-      <motion.span
-        className="absolute left-1/2 top-0 -translate-x-1/2 drop-shadow-[0_0_9px_rgba(250,204,21,0.45)]"
-        animate={reduceMotion ? undefined : { y: [0, 6, 0] }}
-        transition={
-          reduceMotion
-            ? undefined
-            : { duration: 0.8, ease: "easeOut" }
-        }
-      >
-        <Coin size={36} title="zKube entry coin" />
-      </motion.span>
-    </div>
-  );
-};
+const FEED_JAWS_MS = 480;
+const FEED_DONE_MS = 1_700;
 
 /**
- * Minimal ranked-entry confirm, shown when the player taps the ranked CTA and
- * before the owner signature. A coin-slot visual, the "Insert coin" heading,
- * the exact entry amount in gold mono, exactly one info tooltip, and a single
- * "Sign & enter" button that hands off to the unchanged daily.enter() flow.
+ * Ranked-entry confirm, shown before the owner signature — and the entry IS
+ * the guardian: confirm feeds it the SOL coin. The jaws open (talk-open
+ * frame), the coin arcs in, the guardian settles satisfied, and only then the
+ * unchanged daily.enter() owner-signature flow takes over. Zones without a
+ * frame set (and reduced motion) skip the ceremony and confirm immediately.
  */
 const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
   open,
   onClose,
+  zoneId,
   entryLamports,
   onConfirm,
   busy = false,
 }) => {
+  const reduceMotion = useReducedMotion();
+  const { playSfx } = useMusicPlayer();
+  const guardian = getZoneGuardian(zoneId);
+  const [feeding, setFeeding] = useState(false);
+  const [fed, setFed] = useState(false);
+  const timers = useRef<number[]>([]);
+
+  // A re-opened sheet always starts before the feeding ceremony.
+  useEffect(() => {
+    if (!open) return;
+    setFeeding(false);
+    setFed(false);
+  }, [open]);
+
+  useEffect(
+    () => () => {
+      for (const t of timers.current) window.clearTimeout(t);
+    },
+    [],
+  );
+
+  const startFeed = () => {
+    if (busy || feeding) return;
+    if (reduceMotion || !hasGuardianFrames(zoneId)) {
+      onConfirm();
+      return;
+    }
+    setFeeding(true);
+    timers.current.push(
+      window.setTimeout(() => {
+        setFed(true);
+        playSfx("coin");
+      }, FEED_JAWS_MS),
+      window.setTimeout(onConfirm, FEED_DONE_MS),
+    );
+  };
+
+  const frame: GuardianFrameId = feeding
+    ? fed
+      ? "satisfied"
+      : "talk-open"
+    : "idle";
+
   return (
     <Sheet
       open={open}
@@ -63,25 +95,72 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
       srTitle="Insert coin to enter ranked"
       dismissible={!busy}
     >
-      <div className="flex flex-col items-center gap-5 pt-2">
-        <CoinSlot />
+      <div className="flex flex-col items-center gap-4 pt-1">
+        <div
+          aria-label={`Feed ${guardian.name} one SOL coin to enter`}
+          className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14]"
+          style={{ height: 200 }}
+        >
+          <img
+            src={getGuardianFrame(zoneId, frame)}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: "center 24%" }}
+          />
+          <span
+            className="absolute left-3 top-[-1px] rounded-b-lg px-2.5 py-1 font-display text-sm tracking-[0.06em] text-[#3a2c04]"
+            style={{ background: MONEY_GOLD, boxShadow: "0 2px 0 rgba(138,106,8,0.9)" }}
+          >
+            {guardian.name}
+          </span>
+          {/* The fed coin: bottom of the scene up into the open jaws. */}
+          {feeding && !fed && !reduceMotion && (
+            <motion.span
+              aria-hidden
+              className="absolute bottom-[-14px] left-1/2 z-10 -ml-5 drop-shadow-[0_0_12px_rgba(250,204,21,0.55)]"
+              initial={{ y: 0, scale: 1, opacity: 1 }}
+              animate={{ y: -118, scale: 0.5, opacity: [1, 1, 0.9, 0] }}
+              transition={{ duration: FEED_JAWS_MS / 1000, ease: "easeIn" }}
+            >
+              <Coin size={44} />
+            </motion.span>
+          )}
+          {/* The guardian acknowledges the toll before the wallet takes over. */}
+          {fed && (
+            <motion.span
+              className="absolute inset-x-2 bottom-2 rounded-xl border border-white/[0.18] bg-[#0b0716]/85 px-3 py-2 backdrop-blur-sm"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 6 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            >
+              <span className="font-sans text-[14px] font-medium text-white/95">
+                {guardian.entryLine}
+              </span>
+            </motion.span>
+          )}
+        </div>
 
-        <div className="flex flex-col items-center gap-2">
-          <h2 className="font-display text-2xl font-bold tracking-wide text-white">
-            Insert coin
-          </h2>
-          <div className="flex items-baseline gap-1.5">
+        <div className="flex flex-col items-center gap-3">
+          <motion.span
+            className="drop-shadow-[0_0_12px_rgba(250,204,21,0.4)]"
+            animate={
+              reduceMotion || feeding ? { opacity: feeding ? 0 : 1 } : { y: [0, 6, 0] }
+            }
+            transition={
+              reduceMotion || feeding
+                ? { duration: 0.15 }
+                : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
+            }
+          >
+            <Coin size={44} title="One SOL entry coin" />
+          </motion.span>
+          <div className="flex items-center gap-2">
+            <SolMark size={22} />
             <span
-              className="font-mono text-4xl font-black tabular-nums"
+              className="font-display text-4xl tabular-nums"
               style={{ color: MONEY_GOLD }}
             >
-              {formatSolLamports(entryLamports)}
-            </span>
-            <span
-              className="font-mono text-base font-bold"
-              style={{ color: `${MONEY_GOLD}b0` }}
-            >
-              SOL
+              {formatSolBalanceLamports(entryLamports)}
             </span>
           </div>
           <InfoSheet title="How ranked entry works">
@@ -97,8 +176,16 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
         </div>
 
         <div className="w-full pt-1">
-          <ArcadeButton disabled={busy} onClick={onConfirm}>
-            {busy ? "Preparing signature…" : "Sign & enter"}
+          <ArcadeButton
+            disabled={busy || feeding}
+            onClick={startFeed}
+            accentOverride={MONEY_GOLD}
+          >
+            {busy
+              ? "Preparing signature…"
+              : feeding
+                ? `Feeding ${guardian.name}…`
+                : "Sign & enter"}
           </ArcadeButton>
         </div>
       </div>

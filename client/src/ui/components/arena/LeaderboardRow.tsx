@@ -1,11 +1,9 @@
 import React from "react";
 
 import type { PlayerEmblemView } from "@/chain/playerStateClient";
-import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
-import { EmblemBadge, MONEY_GOLD } from "@/ui/components/economy";
-import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
+import { EmblemBadge, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { cn } from "@/ui/utils";
-import { formatSolLamports } from "@/utils/currency";
+import { formatSolBalanceLamports } from "@/utils/currency";
 
 interface LeaderboardRowProps {
   rank: number;
@@ -28,18 +26,35 @@ interface LeaderboardRowProps {
   className?: string;
 }
 
-function medalBackground(rank: number): string {
-  if (rank === 1) return "rgba(255,215,0,0.16)";
-  if (rank === 2) return "rgba(192,192,192,0.14)";
-  if (rank === 3) return "rgba(205,127,50,0.14)";
-  return "rgba(255,255,255,0.05)";
-}
+const MEDAL_COLORS = ["#FACC15", "#C9D6E4", "#E2955C"] as const;
+
+/** The medal chip every board rank wears — same grammar as the prize ladder. */
+export const RankMedal: React.FC<{ rank: number; size?: number }> = ({
+  rank,
+  size = 20,
+}) => (
+  <span
+    className="flex flex-none items-center justify-center font-mono font-black"
+    style={{
+      width: size,
+      height: size,
+      borderRadius: Math.round(size * 0.3),
+      fontSize: Math.round(size * 0.5),
+      background: MEDAL_COLORS[rank - 1] ?? "rgba(255,255,255,0.18)",
+      color: rank <= 3 ? "#181205" : "rgba(255,255,255,0.75)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4)",
+    }}
+  >
+    {rank}
+  </span>
+);
 
 /**
- * One clean leaderboard row: medal/rank, inline emblem, name (with the "you"
- * pulse), the primary figure, and an optional floored SOL prize. Shared by the
- * Weekly and Season boards and the Daily "your rank" footer so every board
- * reads as one system.
+ * One board row in the opaque grammar: medal chip, inline emblem, name, the
+ * primary figure, and an optional floored SOL prize. Rows render transparent —
+ * the parent panel carries the surface — except the connected player's row,
+ * which wears the gold ring. Shared by the Weekly and Season boards so every
+ * board reads as one system.
  */
 const LeaderboardRow: React.FC<LeaderboardRowProps> = ({
   rank,
@@ -52,26 +67,9 @@ const LeaderboardRow: React.FC<LeaderboardRowProps> = ({
   onClick,
   className,
 }) => {
-  const colors = useThemeColors();
-  const medal = TROPHY_IMAGES[rank];
-
   const inner = (
     <>
-      <div
-        className="flex w-7 shrink-0 items-center justify-center font-sans text-base font-black tabular-nums"
-        style={{ color: rank <= 3 ? colors.accent2 : colors.textMuted }}
-      >
-        {medal ? (
-          <img
-            src={medal}
-            alt={`Rank ${rank}`}
-            className="h-6 w-6"
-            draggable={false}
-          />
-        ) : (
-          rank
-        )}
-      </div>
+      <RankMedal rank={rank} />
 
       {emblem ? (
         <EmblemBadge
@@ -84,27 +82,22 @@ const LeaderboardRow: React.FC<LeaderboardRowProps> = ({
         <span className="h-6 w-6 shrink-0 rounded-lg border border-white/10 bg-white/[0.04]" />
       )}
 
-      <span
-        className="min-w-0 flex-1 truncate font-sans text-sm font-extrabold"
-        style={{ color: isYou ? colors.accent : colors.text }}
-      >
+      <span className="min-w-0 flex-1 truncate font-sans text-[13px] font-bold text-white/90">
         {name}
       </span>
 
       <div className="flex shrink-0 flex-col items-end leading-tight">
-        <span
-          className="font-sans text-[15px] font-black tabular-nums"
-          style={{ color: colors.text }}
-        >
+        <span className="font-mono text-[14px] font-bold tabular-nums text-white">
           {primary}
         </span>
         {prizeLamports !== undefined &&
           (prizeLamports > 0n ? (
             <span
-              className="font-sans text-[11px] font-bold tabular-nums"
+              className="flex items-center gap-1 font-mono text-[11px] font-bold tabular-nums"
               style={{ color: MONEY_GOLD }}
             >
-              {formatSolLamports(prizeLamports)} SOL
+              {formatSolBalanceLamports(prizeLamports)}
+              <SolMark size={8} />
             </span>
           ) : (
             <span className="font-sans text-[11px] font-bold text-white/25">
@@ -115,21 +108,17 @@ const LeaderboardRow: React.FC<LeaderboardRowProps> = ({
     </>
   );
 
-  const style: React.CSSProperties = isYou
-    ? ({
-        "--pulse-base": `${colors.accent}20`,
-        "--pulse-bright": `${colors.accent}40`,
-        borderColor: `${colors.accent}AA`,
-      } as React.CSSProperties)
-    : {
-        backgroundColor: medalBackground(rank),
-        borderColor:
-          rank <= 3 ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)",
-      };
+  const style: React.CSSProperties | undefined = isYou
+    ? {
+        border: "1px solid #FACC15",
+        background: "rgba(250,204,21,0.10)",
+        boxShadow: "0 0 12px rgba(250,204,21,0.25)",
+      }
+    : undefined;
 
   const classes = cn(
-    "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-xl",
-    isYou && "leaderboard-pulse",
+    "flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left",
+    isYou && "rounded-xl",
     dimmed && "opacity-45",
     onClick && "transition-transform active:scale-[0.99]",
     className,

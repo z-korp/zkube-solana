@@ -1,71 +1,62 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Settings } from "lucide-react";
+import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { getThemeId } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
-import { useDailyLeaderboard } from "@/hooks/useDailyLeaderboard";
-import { useMyDailyRank } from "@/hooks/useMyDailyRank";
 import { useNowTick } from "@/hooks/useNowTick";
+import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useNavigationStore } from "@/stores/navigationStore";
-import {
-  DailyChallengeCard,
-  DailyStatusPanel,
-  EntriesCountdown,
-  computeArcadeLifecycle,
-  formatUtcClock,
-} from "@/ui/components/arcade";
-import { DailyPot } from "@/ui/components/economy";
-import {
-  GuardianPrizeResult,
-  InsertCoinSheet,
-  usePrizeDeltaTrigger,
-} from "@/ui/components/settlement";
+import { computeArcadeLifecycle } from "@/ui/components/arcade";
+import CampaignDoor, {
+  type CampaignShelfItem,
+} from "@/ui/components/arcade/CampaignDoor";
+import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
+import { MONEY_GOLD, SolMark } from "@/ui/components/economy";
+import { GuardianPrizeResult } from "@/ui/components/settlement";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-import PageHeader from "@/ui/components/shared/PageHeader";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
-import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { formatSolLamports } from "@/utils/currency";
+import {
+  useTheme,
+  useThemeColors,
+} from "@/ui/elements/theme-provider/hooks";
+import { formatSolBalance } from "@/utils/currency";
 
-const META_CLASS =
-  "font-sans text-xs font-semibold uppercase tracking-[0.14em] text-white/60";
+/** Opaque block furniture — the menu chrome never uses glass blur. */
+const PLATE_STYLE: React.CSSProperties = {
+  background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow: "0 3px 0 #04070F, inset 0 1px 0 rgba(255,255,255,0.08)",
+};
 
 /**
- * Arcade home — the Guardian's Trial. Today's zone art shows through a shared
- * ZoneBackdrop, with glass panels layered over it: the challenge card (guardian
- * + rule on painted art), the simplified Daily pot with the player's rank,
- * and one ranked CTA. The body reshapes across five
- * lifecycle states (the connect-gate is handled globally by App).
+ * Home — the lobby after connection. The same surface as the landing: the
+ * app title large above the guardian, the marquee owning the screen, the
+ * campaign door beneath. Connection put PLAY in the gold slot and lit the
+ * plates. PLAY opens the Arcade — entering a ranked run stays an Arcade act.
  */
 const HomePage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
+  const openSettings = useNavigationStore((state) => state.openSettings);
   const player = useConnectedPlayer();
   const { address } = useAccount();
   const daily = useDaily();
   const activeDaily = useActiveDailyAttempt();
+  const { totalStars, zones } = useZoneProgress(address);
   const { setThemeTemplate } = useTheme();
-
-  // The ranked-entry confirm ("insert coin") sits before the owner signature.
-  const [coinSheetOpen, setCoinSheetOpen] = useState(false);
-  // Data-available celebration for a grown per-period reward record.
-  const { prize, dismiss: dismissPrize } = usePrizeDeltaTrigger();
+  const themeColors = useThemeColors();
 
   const view = daily.daily;
   const zoneId = view?.mapId ?? 1;
 
-  // Tint the whole app surface with today's zone accent (never persisted).
+  // Tint the whole surface with today's zone accent (never persisted).
   useEffect(() => {
     setThemeTemplate(getThemeId(zoneId), false);
   }, [zoneId, setThemeTemplate]);
-
-  // The player's standing in today's Daily — highlights their prize rung.
-  const { entries } = useDailyLeaderboard(view?.dayId);
-  const myRank = useMyDailyRank({
-    entries,
-    address,
-    potLamports: view?.dailyPotLamports ?? null,
-  });
 
   const nowUnix = Math.floor(useNowTick(60_000) / 1_000);
   const lifecycle = computeArcadeLifecycle({
@@ -74,158 +65,144 @@ const HomePage: React.FC = () => {
     nowUnix,
   });
 
-  const scoringRule = view?.scoringRule ?? null;
-  const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
-  const entrySol = view ? formatSolLamports(view.entryLamports) : "0.01";
-  const busy = daily.action !== null;
-  const arcadeDiscoveryReady =
-    daily.run.watchStatus?.phase === "subscribed";
+  // The Campaign door carries the realm the player is currently conquering.
+  const campaignZoneId = useMemo(() => {
+    const unlocked = zones.filter((zone) => zone.unlocked);
+    if (unlocked.length === 0) return 1;
+    return unlocked.reduce((max, zone) => Math.max(max, zone.zoneId), 1);
+  }, [zones]);
 
-  const enterRanked = async () => {
-    const active = await daily.enter();
-    navigate("play", active.runId);
-  };
-  // Confirmed from the coin sheet: success navigates away (the sheet unmounts);
-  // a failure closes the sheet and surfaces the error banner on the home body.
-  const confirmRanked = () =>
-    void enterRanked().catch(() => setCoinSheetOpen(false));
-  // Hero status line per lifecycle state.
-  let meta: ReactNode;
+  // The door's shelf: the realm being conquered and up to two behind it, each
+  // wearing its earned rim.
+  const shelf = useMemo<CampaignShelfItem[]>(
+    () =>
+      [campaignZoneId - 2, campaignZoneId - 1, campaignZoneId]
+        .filter((id) => id >= 1)
+        .map((id) => {
+          const zone = zones.find((candidate) => candidate.zoneId === id);
+          const perfected =
+            zone !== undefined &&
+            (zone.perfectionClaimed || zone.stars >= zone.maxStars);
+          return {
+            zoneId: id,
+            rim: perfected
+              ? ("gold" as const)
+              : zone?.bossCleared
+                ? ("silver" as const)
+                : ("white" as const),
+          };
+        }),
+    [campaignZoneId, zones],
+  );
+
+  // DEV-ONLY prize-ceremony preview (?demo=prize with the wallet bypass):
+  // renders the settlement surface with fixture values and no chain state.
+  // The whole branch folds to null in production builds.
+  const demoSheet =
+    import.meta.env.DEV && DEV_BYPASS_ACTIVE
+      ? new URLSearchParams(window.location.search).get("demo")
+      : null;
+  const [demoPrizeOpen, setDemoPrizeOpen] = useState(demoSheet === "prize");
+
+  // One verb, chosen by lifecycle. Entering (and paying) lives on the Arcade;
+  // Home's key only resumes a live run directly.
+  let playLabel = "Play";
+  let playDisabled = false;
+  let playOnClick: () => void = () => navigate("arcade");
   if (lifecycle === "resume") {
-    meta = (
-      <span className={META_CLASS}>
-        {activeDaily?.mode === "practice"
-          ? "Legacy Practice in progress"
-          : `Run in progress · scores ${runsCloseLabel}`}
-      </span>
-    );
-  } else if (lifecycle === "entries-open" && view) {
-    meta = <EntriesCountdown endsAt={view.entriesCloseAt} />;
-  } else if (lifecycle === "entries-closed") {
-    meta = <span className={META_CLASS}>Entries closed</span>;
-  } else if (lifecycle === "delayed") {
-    meta = <span className={META_CLASS}>Today&apos;s Daily is running late</span>;
-  } else if (lifecycle === "stale") {
-    meta = <span className={META_CLASS}>Waiting for today&apos;s Daily</span>;
-  } else {
-    meta = <span className={META_CLASS}>Opens 00:00 UTC</span>;
-  }
-
-  // Primary CTA per state.
-  let primaryLabel = `Enter ranked · ${entrySol} SOL`;
-  let primaryDisabled = false;
-  let primaryOnClick: () => void = () => {};
-
-  if (lifecycle === "resume") {
-    primaryLabel =
-      activeDaily?.mode === "practice"
-        ? "Resume legacy Practice"
-        : "Resume ranked run";
-    primaryOnClick = () => {
+    playLabel =
+      activeDaily?.mode === "practice" ? "Resume Practice" : "Resume";
+    playOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };
-  } else if (lifecycle === "entries-open") {
-    if (!arcadeDiscoveryReady) {
-      primaryLabel = "Checking active Arcade run…";
-      primaryDisabled = true;
-    } else if (view?.followingDailyLamports === null) {
-      primaryLabel = "Ranked paused · next Daily preparing";
-      primaryDisabled = true;
-    } else {
-      primaryLabel =
-        daily.action === "enter:sol"
-          ? "Preparing owner signature…"
-          : `Enter ranked · ${entrySol} SOL`;
-      primaryDisabled = busy || !player.wallet;
-      // Tap the CTA → confirm sheet → owner signature → play.
-      primaryOnClick = () => setCoinSheetOpen(true);
-    }
-  } else {
-    // Nothing actionable: ranked closed, or the Daily is still being prepared.
-    primaryLabel =
-      lifecycle === "entries-closed"
-        ? "Entries closed"
-        : lifecycle === "delayed" || lifecycle === "stale"
-          ? "Keeper catching up"
-          : "Daily being prepared";
-    primaryDisabled = true;
+  } else if (lifecycle === "entries-closed") {
+    playLabel = "Board";
+  } else if (lifecycle !== "entries-open") {
+    playDisabled = true;
   }
 
+  const balance =
+    player.balanceLamports !== null
+      ? formatSolBalance(player.balanceLamports)
+      : null;
+
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-10">
+    // min-h-full, not h-full: tall screens stretch and the spacers distribute
+    // the free height; short screens grow past the viewport and scroll inside
+    // PageNavigator's page container instead of clipping the door.
+    <div className="relative flex min-h-full flex-col pb-[104px] pt-7">
       <ZoneBackdrop zoneId={zoneId} />
 
-      <div className="relative z-10">
-        <PageHeader title="Arcade" />
-      </div>
-
-      <div className="relative z-10 mx-4 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 hide-scrollbar">
-        <DailyChallengeCard
-          zoneId={zoneId}
-          scoringRule={scoringRule}
-          status={meta}
-        />
-
-        {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
-          <>
-            {lifecycle === "entries-closed" && (
-              <div className="rounded-2xl border border-yellow-400/30 bg-yellow-400/[0.08] px-3 py-2 backdrop-blur-xl">
-                <p className="font-sans text-[11px] font-bold uppercase tracking-[0.12em] text-yellow-200">
-                  Settling
-                </p>
-                <p className="mt-0.5 font-sans text-xs font-semibold text-white/60">
-                  Runs score {runsCloseLabel} · prizes push automatically
-                </p>
-              </div>
-            )}
-            <DailyPot
-              potLamports={view.dailyPotLamports}
-              followingDailyLamports={view.followingDailyLamports}
-              entryLamports={view.entryLamports}
-              myRank={myRank}
-            />
-          </>
-        ) : (
-          <DailyStatusPanel
-            lifecycle={lifecycle}
-            onPlayCampaign={() => navigate("campaign")}
-          />
-        )}
-
-        {daily.error && (
-          <p
-            role="alert"
-            className="text-center text-xs font-semibold text-red-300"
+      {/* The crown row: balance and gear sit on the title's line, centred on
+          the middle of the big zKube. */}
+      <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
+        <span className="justify-self-start">
+          {balance !== null && (
+            <motion.button
+              type="button"
+              onClick={() => navigate("profile")}
+              whileTap={{ y: 2, boxShadow: "0 1px 0 #04070F" }}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 font-mono text-xs font-bold tabular-nums"
+              style={{ ...PLATE_STYLE, color: themeColors.text }}
+            >
+              {balance}
+              <SolMark size={11} />
+            </motion.button>
+          )}
+        </span>
+        <span
+          className="text-center font-display text-[46px] leading-none"
+          style={{
+            color: "#FFF4D7",
+            textShadow: "0 4px 20px rgba(0,0,0,0.7)",
+          }}
+        >
+          zKube
+        </span>
+        <span className="justify-self-end">
+          <motion.button
+            type="button"
+            aria-label="Settings"
+            onClick={openSettings}
+            whileTap={{ y: 2, boxShadow: "0 1px 0 #04070F" }}
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ ...PLATE_STYLE, color: themeColors.text }}
           >
-            {daily.error}
-          </p>
-        )}
+            <Settings size={15} />
+          </motion.button>
+        </span>
       </div>
 
-      <div className="relative z-20 px-4 pb-3">
-        <ArcadeButton disabled={primaryDisabled} onClick={primaryOnClick}>
-          {primaryLabel}
-        </ArcadeButton>
-      </div>
-
-      {view && (
-        <InsertCoinSheet
-          open={coinSheetOpen}
-          onClose={() => setCoinSheetOpen(false)}
-          entryLamports={view.entryLamports}
-          onConfirm={confirmRanked}
-          busy={daily.action === "enter:sol"}
+      {/* The pinned totem. The free height splits 1:2 around it — the room
+          above the guardian scales with the screen while the scenery below
+          keeps the larger share; min-height covers the block's overlap. */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
+        <div className="min-h-[64px] flex-1" />
+        <DailyMarquee zoneId={zoneId} view={view}>
+          <ArcadeButton
+            disabled={playDisabled}
+            onClick={playOnClick}
+            accentOverride={MONEY_GOLD}
+          >
+            {playLabel}
+          </ArcadeButton>
+        </DailyMarquee>
+        <CampaignDoor
+          shelf={shelf}
+          totalStars={totalStars}
+          onClick={() => navigate("campaign")}
         />
-      )}
+        <div className="flex-[2]" />
+      </div>
 
-      {prize && (
+      {import.meta.env.DEV && demoPrizeOpen && (
         <GuardianPrizeResult
           open
-          onDismiss={dismissPrize}
-          zoneId={zoneId}
-          amountLamports={prize.amountLamports}
-          periodLabel={prize.periodLabel}
-          bestPrizeRank={prize.bestPrizeRank}
+          onDismiss={() => setDemoPrizeOpen(false)}
+          zoneId={2}
+          amountLamports={310_000_000n}
+          periodLabel="Daily"
+          bestPrizeRank={2}
         />
       )}
     </div>

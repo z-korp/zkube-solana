@@ -1,15 +1,14 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Share2 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { ConnectedPlayerContext } from "@/chain/connectedPlayerContext";
+import { getZoneGuardian } from "@/config/bossCharacters";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { Coin, GuardianMedallion, MONEY_GOLD } from "@/ui/components/economy";
+import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
+import GuardianTalkScene from "@/ui/components/settlement/GuardianTalkScene";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
-import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
-import { formatSolLamports } from "@/utils/currency";
-import { shareOrCopyWin } from "@/utils/share";
+import { formatSolBalanceLamports } from "@/utils/currency";
 
 interface GuardianPrizeResultProps {
   open: boolean;
@@ -23,7 +22,7 @@ interface GuardianPrizeResultProps {
   /**
    * Best payout-bearing rank on the period record (0 = none, hidden). This is the
    * lifetime-best rank carried on PlayerState, not necessarily this exact
-   * placement, so it is framed as "Best" rather than claiming this win's rank.
+   * placement, so it is framed as "Top" rather than claiming this win's rank.
    */
   bestPrizeRank?: number;
   /**
@@ -34,12 +33,19 @@ interface GuardianPrizeResultProps {
   owner?: string;
 }
 
+/** The X (Twitter) logo glyph. */
+const XLogo: React.FC<{ size?: number }> = ({ size = 15 }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zM17.083 19.77h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
 /**
- * The celebratory "guardian delivers your winnings" moment. A dismissible
- * overlay: the zone guardian medallion, a gold coin that travels down from the
- * guardian into a "+{amount} SOL" catch pill, which period paid, and the
- * push-only / no-claim guarantee. Motion is suppressed under reduced-motion —
- * the pill still shows the amount statically.
+ * The "guardian pays you" ceremony, contained in the bottom sheet (never
+ * full-screen): the guardian speaks its respect line Ace-Attorney style —
+ * with real holds on punctuation — then flips to the celebrate frame while a
+ * SOL coin drops into the amount pill and the figure counts up. Push-only
+ * remains implicit — there is nothing to claim, so nothing says otherwise.
  */
 const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   open,
@@ -50,22 +56,39 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   bestPrizeRank = 0,
   owner,
 }) => {
-  const colors = useThemeColors();
   const reduceMotion = useReducedMotion();
   const { playSfx } = useMusicPlayer();
   const connectedPlayer = useContext(ConnectedPlayerContext);
-  const [copied, setCopied] = useState(false);
-  const [displayAmount, setDisplayAmount] = useState(amountLamports);
-  const copiedTimer = useRef<number | null>(null);
+  const guardian = getZoneGuardian(zoneId);
+  const [paying, setPaying] = useState(false);
+  const [displayAmount, setDisplayAmount] = useState(
+    reduceMotion ? amountLamports : 0n,
+  );
+  const payTimer = useRef<number | null>(null);
+
+  // The line lands, a real beat, then the verdict — Ace Attorney holds the
+  // room. Tapping the scene skips the line for anyone in a hurry.
+  const handleLineDone = useCallback(() => {
+    if (reduceMotion) return;
+    payTimer.current = window.setTimeout(() => setPaying(true), 750);
+  }, [reduceMotion]);
 
   useEffect(() => {
     if (!open) return;
-    playSfx("coin");
     if (reduceMotion) {
+      setPaying(true);
       setDisplayAmount(amountLamports);
-      return;
     }
-    setDisplayAmount(0n);
+  }, [open, reduceMotion, amountLamports]);
+
+  // The coin lands audibly whenever the payment lands — reduced motion mutes
+  // nothing, it only skips the animation.
+  useEffect(() => {
+    if (paying) playSfx("coin");
+  }, [paying, playSfx]);
+
+  useEffect(() => {
+    if (!paying || reduceMotion) return;
     let startedAt: number | null = null;
     let frame = 0;
     const count = (timestamp: number) => {
@@ -79,13 +102,11 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
     };
     frame = window.requestAnimationFrame(count);
     return () => window.cancelAnimationFrame(frame);
-  }, [amountLamports, open, playSfx, reduceMotion]);
+  }, [paying, reduceMotion, amountLamports, playSfx]);
 
   useEffect(
     () => () => {
-      if (copiedTimer.current !== null) {
-        window.clearTimeout(copiedTimer.current);
-      }
+      if (payTimer.current !== null) window.clearTimeout(payTimer.current);
     },
     [],
   );
@@ -94,24 +115,20 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   // Honest content built only from the real props: the delivered amount, the
   // period that paid, and (when we know who won) the spectator deep-link the
   // app already resolves. No fabricated ranks or numbers.
-  const shareText = `I just won ${formatSolLamports(amountLamports)} SOL on the zKube ${periodLabel}.`;
+  const shareText = `${guardian.name} just paid me ${formatSolBalanceLamports(amountLamports)} SOL on the zKube ${periodLabel}. ${guardian.emoji}`;
   const shareUrl = shareOwner
     ? `${window.location.origin}?player=${encodeURIComponent(shareOwner)}`
     : undefined;
 
-  const handleShare = useCallback(async () => {
-    try {
-      const outcome = await shareOrCopyWin({ text: shareText, url: shareUrl });
-      if (outcome === "copied") {
-        setCopied(true);
-        if (copiedTimer.current !== null) {
-          window.clearTimeout(copiedTimer.current);
-        }
-        copiedTimer.current = window.setTimeout(() => setCopied(false), 1_600);
-      }
-    } catch {
-      // Sharing is best-effort; a rejected share/clipboard call stays silent.
-    }
+  // Prefilled X post — the share IS the flex.
+  const handleShare = useCallback(() => {
+    const params = new URLSearchParams({ text: shareText });
+    if (shareUrl) params.set("url", shareUrl);
+    window.open(
+      `https://x.com/intent/post?${params.toString()}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }, [shareText, shareUrl]);
 
   return (
@@ -119,127 +136,131 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
       open={open}
       onClose={onDismiss}
       srTitle={`${periodLabel} prize delivered`}
+      className="md:max-w-[540px]"
     >
-      <div className="flex flex-col items-center gap-4 pb-1 pt-2">
+      <div className="flex flex-col items-center gap-4 pb-1 pt-1">
         <span
-          className="flex items-center gap-2 font-sans text-xs font-bold uppercase tracking-[0.16em]"
-          style={{ color: colors.accent }}
+          className="font-display text-xl tracking-[0.04em]"
+          style={{ color: MONEY_GOLD }}
         >
-          <img
-            src="/assets/common/trophies/gold.png"
-            alt=""
-            className="h-5 w-5 object-contain"
-          />
           {periodLabel} prize
         </span>
 
-        {bestPrizeRank > 0 && (
-          <span
-            className="-mt-2 font-sans text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/50"
-            title="Best payout-bearing finish on this board"
-          >
-            Best #{bestPrizeRank}
-          </span>
-        )}
-
-        <div className="relative flex flex-col items-center">
-          <GuardianMedallion zoneId={zoneId} size={96} glow />
-          {/* One delivery, one landing: no looping money animation. */}
-          <motion.span
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-6 -ml-5 drop-shadow-[0_0_12px_rgba(250,204,21,0.55)]"
-            initial={reduceMotion ? { opacity: 0 } : { y: 0, opacity: 0, scale: 0.6 }}
-            animate={
-              reduceMotion
-                ? { opacity: 0 }
-                : {
-                    y: [0, 116],
-                    opacity: [0, 1, 1],
-                    scale: [0.6, 1.05, 1],
-                    rotateY: [0, 180, 360],
-                  }
-            }
-            transition={
-              reduceMotion
-                ? undefined
-                : {
-                    duration: 0.9,
-                    times: [0, 0.25, 1],
-                    ease: "easeInOut",
-                  }
-            }
-          >
-            <Coin size={40} />
-          </motion.span>
+        <div className="relative w-full">
+          <GuardianTalkScene
+            zoneId={zoneId}
+            line={guardian.prizeLine}
+            height={300}
+            onLineDone={handleLineDone}
+            celebrate={paying}
+          />
+          {/* One coin, one delivery: guardian → amount pill. */}
+          {paying && !reduceMotion && (
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-1/3 z-10 -ml-5 drop-shadow-[0_0_12px_rgba(250,204,21,0.55)]"
+              initial={{ y: 0, opacity: 0, scale: 0.6 }}
+              animate={{
+                y: [0, 220],
+                opacity: [0, 1, 1, 0],
+                scale: [0.6, 1.05, 1, 0.7],
+                rotateY: [0, 180, 360, 420],
+              }}
+              transition={{ duration: 0.9, times: [0, 0.25, 0.85, 1], ease: "easeIn" }}
+            >
+              <Coin size={44} />
+            </motion.span>
+          )}
         </div>
 
-        <motion.div
-          className="relative flex items-baseline gap-1.5 rounded-full border px-5 py-2.5"
-          style={{
-            borderColor: `${MONEY_GOLD}55`,
-            background: `${MONEY_GOLD}14`,
-            boxShadow: `0 0 20px ${MONEY_GOLD}33`,
-          }}
-          animate={reduceMotion ? undefined : { scale: [1, 1.08, 1] }}
-          transition={
-            reduceMotion
-              ? undefined
-              : { duration: 0.45, delay: 0.82, ease: "easeOut" }
-          }
-        >
-          {!reduceMotion && Array.from({ length: 10 }, (_, index) => {
-            const angle = (Math.PI * 2 * index) / 10;
-            return (
-              <motion.span
-                key={index}
-                aria-hidden
-                data-testid="reward-particle"
-                className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-yellow-200"
-                initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
-                animate={{
-                  x: Math.cos(angle) * 58,
-                  y: Math.sin(angle) * 34,
-                  opacity: [0, 1, 0],
-                  scale: [0, 1, 0.4],
-                }}
-                transition={{ duration: 0.55, delay: 0.78, ease: "easeOut" }}
-              />
-            );
-          })}
-          <span
-            className="money font-mono text-3xl font-black"
-            style={{ color: MONEY_GOLD }}
+        {/* The verdict row is empty until the payment beat — no "+0" while the
+            guardian is still talking; the pill pops in with the coin. */}
+        <div className="flex h-[60px] items-center gap-3">
+          {bestPrizeRank > 0 && paying && (
+            <motion.span
+              initial={reduceMotion ? undefined : { opacity: 0, x: 8 }}
+              animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+              transition={{ delay: 0.35 }}
+              className="rounded-xl border px-3 py-2 font-display text-sm"
+              style={{
+                borderColor: `${MONEY_GOLD}45`,
+                color: MONEY_GOLD,
+                background: `${MONEY_GOLD}0d`,
+              }}
+              title="Best payout-bearing finish on this board"
+            >
+              Top {bestPrizeRank}
+            </motion.span>
+          )}
+          {paying && (
+          <motion.div
+            className="relative flex items-center gap-2.5 rounded-full border px-6 py-3"
+            style={{
+              borderColor: `${MONEY_GOLD}55`,
+              background: `${MONEY_GOLD}14`,
+              boxShadow: `0 0 20px ${MONEY_GOLD}33`,
+            }}
+            initial={reduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
+            animate={
+              reduceMotion
+                ? undefined
+                : { scale: [0.5, 1.1, 1], opacity: [0, 1, 1] }
+            }
+            transition={
+              reduceMotion ? undefined : { duration: 0.4, ease: "easeOut" }
+            }
           >
-            +{formatSolLamports(displayAmount)}
-          </span>
-          <span
-            className="font-mono text-sm font-bold"
-            style={{ color: `${MONEY_GOLD}b0` }}
-          >
-            SOL
-          </span>
-        </motion.div>
-
-        <p className="font-sans text-xs font-semibold text-white/60">
-          Pushed to your wallet · no claim
-        </p>
+            {paying &&
+              !reduceMotion &&
+              Array.from({ length: 10 }, (_, index) => {
+                const angle = (Math.PI * 2 * index) / 10;
+                return (
+                  <motion.span
+                    key={index}
+                    aria-hidden
+                    data-testid="reward-particle"
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-yellow-200"
+                    initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
+                    animate={{
+                      x: Math.cos(angle) * 58,
+                      y: Math.sin(angle) * 34,
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0.4],
+                    }}
+                    transition={{ duration: 0.55, delay: 0.78, ease: "easeOut" }}
+                  />
+                );
+              })}
+            <span
+              className="money font-display text-4xl tabular-nums"
+              style={{ color: MONEY_GOLD }}
+            >
+              +{formatSolBalanceLamports(displayAmount)}
+            </span>
+            <SolMark size={20} />
+          </motion.div>
+          )}
+        </div>
 
         <div className="flex w-full items-stretch gap-2 pt-1">
-          <button
+          <motion.button
             type="button"
-            onClick={() => void handleShare()}
-            aria-label="Share this win"
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-sans text-sm font-bold text-white/80 transition-colors hover:bg-white/[0.1]"
+            onClick={handleShare}
+            aria-label="Share this win on X"
+            whileTap={{ y: 4, boxShadow: "0 1px 0 #000000" }}
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 font-sans text-[15px] font-extrabold uppercase tracking-[0.1em] text-white"
+            style={{
+              background: "linear-gradient(160deg, #3a3a46 0%, #1c1c26 55%, #0b0b12 100%)",
+              boxShadow: "0 5px 0 #000000, inset 0 2px 0 rgba(255,255,255,0.14)",
+            }}
           >
-            {copied ? "Copied!" : (
-              <>
-                <Share2 className="h-4 w-4" />
-                Share
-              </>
-            )}
-          </button>
+            <XLogo />
+            Share
+          </motion.button>
           <div className="flex-1">
-            <ArcadeButton onClick={onDismiss}>Nice</ArcadeButton>
+            <ArcadeButton onClick={onDismiss} accentOverride={MONEY_GOLD}>
+              Nice
+            </ArcadeButton>
           </div>
         </div>
       </div>

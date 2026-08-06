@@ -12,8 +12,13 @@ import {
   resolveLeaderboardEmblem,
 } from "./emblems";
 
-function zone(zoneId: number, stars: number, cleared: boolean): EmblemZoneInput {
-  return { zoneId, stars, maxStars: 30, cleared };
+function zone(
+  zoneId: number,
+  stars: number,
+  cleared: boolean,
+  unlocked = cleared || stars > 0,
+): EmblemZoneInput {
+  return { zoneId, stars, maxStars: 30, cleared, unlocked };
 }
 
 function zones(
@@ -32,7 +37,7 @@ function stateById(id: number, input: readonly EmblemZoneInput[]) {
 }
 
 describe("emblem unlock and gold derivation", () => {
-  it("unlocks a guardian on clear and turns it gold at 30/30", () => {
+  it("unlocks a guardian when its realm opens and turns it gold at 30/30", () => {
     const input = zones({
       1: zone(1, 15, true),
       2: zone(2, 30, true),
@@ -40,6 +45,15 @@ describe("emblem unlock and gold derivation", () => {
     expect(stateById(1, input)).toMatchObject({ unlocked: true, gold: false });
     expect(stateById(2, input)).toMatchObject({ unlocked: true, gold: true });
     expect(stateById(3, input)).toMatchObject({ unlocked: false, gold: false });
+  });
+
+  it("unlocks an open realm's guardian before its trial is beaten", () => {
+    // The Sobek case: realm open, stars earned, guardian still standing.
+    const input = zones({
+      1: zone(1, 30, true),
+      2: zone(2, 17, false, true),
+    });
+    expect(stateById(2, input)).toMatchObject({ unlocked: true, gold: false });
   });
 
   it("keeps Realm Conqueror and World Perfect locked until earned", () => {

@@ -653,7 +653,7 @@ export default function PlayScreen() {
         onBack={
           chainTerminal || basePhase || run.busy
             ? undefined
-            : () => navigate(game.mode === 1 ? "ranks" : "map")
+            : () => navigate(game.mode === 1 ? "arcade" : "map")
         }
       />
 

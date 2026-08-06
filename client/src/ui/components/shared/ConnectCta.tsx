@@ -28,6 +28,8 @@ interface ConnectCtaProps {
   /** Disconnected-state label; mirrors the original client's Connect. */
   label?: string;
   pendingLabel?: string;
+  /** Key colour — the landing passes MONEY_GOLD so the slot matches PLAY. */
+  accentOverride?: string;
 }
 
 const SEEKER_WALLET_HINT =
@@ -54,6 +56,7 @@ interface LocalWalletError {
 const ConnectCta: React.FC<ConnectCtaProps> = ({
   label = "CONNECT ACCOUNT",
   pendingLabel = "CONNECTING...",
+  accentOverride,
 }) => {
   const player = useConnectedPlayer();
   const [busyLocal, setBusyLocal] = useState(false);
@@ -188,7 +191,11 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
           onRetry={handleRecoveryRetry}
         />
       )}
-      <ArcadeButton disabled={busy} onClick={handleTap}>
+      <ArcadeButton
+        disabled={busy}
+        onClick={handleTap}
+        accentOverride={accentOverride}
+      >
         <Gamepad2 size={22} strokeWidth={2.5} />
         {busy
           ? connected

@@ -31,29 +31,6 @@
   background: #02050d;
 }
 
-/*
- * One element owns the wordmark for the whole boot. Handing it to the screen
- * underneath cannot be made invisible: identical geometry still rasterises text
- * differently depending on the compositing of the layer the glyphs land in.
- */
-.br-wordmark {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.br-wordmark span {
-  color: #fff4d7;
-  letter-spacing: 0.03em;
-  /* cancels the trailing letter-space so the glyph ink centres, not just the box */
-  margin-right: -0.03em;
-  line-height: 1;
-  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.6);
-  will-change: transform, opacity;
-}
-
 .br-rise-in {
   animation: br-rise-in 0.45s ease-out both;
 }

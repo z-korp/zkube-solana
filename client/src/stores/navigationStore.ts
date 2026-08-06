@@ -1,10 +1,9 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-type TabId = "arcade" | "campaign" | "ranks" | "profile" | "settings";
+type TabId = "home" | "arcade" | "campaign" | "profile";
 type OverlayId = "play" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
-type SettingsFocus = "wallet";
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
@@ -38,11 +37,11 @@ interface NavigationState {
   mapZoneId: number;
   pendingLevelCompletion: PendingLevelCompletion | null;
   greetedZones: Set<number>;
-  settingsFocus: SettingsFocus | null;
-  settingsReturnPage: PageId | null;
+  /** The Settings sheet is an overlay over any page, never a page itself. */
+  settingsOpen: boolean;
   navigate: (page: PageId, gameId?: bigint) => void;
-  openWalletSettings: (returnPage?: PageId | null) => void;
-  clearSettingsFocus: () => void;
+  openSettings: () => void;
+  closeSettings: () => void;
   goBack: () => void;
   setGameId: (id: bigint | null) => void;
   setRecoveryRunId: (id: bigint | null) => void;
@@ -58,18 +57,16 @@ const getBackTarget = (page: PageId): PageId => {
     case "play":
       return "map";
     case "spectate":
-      return "ranks";
+      return "arcade";
     case "map":
       return "campaign";
-    case "settings":
-      return "profile";
     default:
-      return "arcade";
+      return "home";
   }
 };
 
 export const useNavigationStore = create<NavigationState>((set, get) => ({
-  currentPage: "arcade",
+  currentPage: "home",
   previousPage: null,
   isTransitioning: false,
   transitionDirection: null,
@@ -78,8 +75,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   mapZoneId: 1,
   pendingLevelCompletion: null,
   greetedZones: new Set(),
-  settingsFocus: null,
-  settingsReturnPage: null,
+  settingsOpen: false,
 
   navigate: (page, gameId) => {
     const { currentPage, isTransitioning } = get();
@@ -92,9 +88,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       isTransitioning: true,
       ...(gameId !== undefined ? { gameId } : {}),
       ...(page !== "play" ? { recoveryRunId: null } : {}),
-      ...(page !== "settings"
-        ? { settingsFocus: null, settingsReturnPage: null }
-        : {}),
     });
 
     setTimeout(() => {
@@ -102,34 +95,19 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     }, NAV_TRANSITION_LOCK_MS);
   },
 
-  openWalletSettings: (returnPage = "profile") => {
-    set({ settingsFocus: "wallet", settingsReturnPage: returnPage });
-    get().navigate("settings");
-  },
-
-  clearSettingsFocus: () => set({ settingsFocus: null }),
+  openSettings: () => set({ settingsOpen: true }),
+  closeSettings: () => set({ settingsOpen: false }),
 
   goBack: () => {
-    const {
-      currentPage,
-      isTransitioning,
-      settingsReturnPage,
-    } = get();
+    const { currentPage, isTransitioning } = get();
     if (isTransitioning) return;
 
-    const target =
-      currentPage === "settings" && settingsReturnPage
-        ? settingsReturnPage
-        : getBackTarget(currentPage);
     set({
       previousPage: currentPage,
-      currentPage: target,
+      currentPage: getBackTarget(currentPage),
       transitionDirection: "back",
       isTransitioning: true,
       recoveryRunId: null,
-      ...(currentPage === "settings"
-        ? { settingsFocus: null, settingsReturnPage: null }
-        : {}),
     });
 
     setTimeout(() => {
