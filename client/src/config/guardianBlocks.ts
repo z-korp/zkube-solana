@@ -12,17 +12,19 @@
 
 export type FaceCropBox = readonly [x1: number, y1: number, x2: number, y2: number];
 
+// Boxes derived from the v3 bust masters (union of the compositor's eye and
+// mouth masks, expanded for margin — see tools/sprites/composite-flips.py).
 export const GUARDIAN_FACE_CROPS: Record<number, FaceCropBox> = {
-  1: [300, 100, 480, 280], // Mako — turtle head, upper right
-  2: [66, 110, 446, 430], // Sobek — head incl. brow ridges and jaw in water
-  3: [210, 15, 490, 295], // Fenris — snarling head upper right, ears clear
-  4: [165, 20, 370, 225], // Noctua — owl head incl. horn tufts
-  5: [120, 30, 410, 380], // Long — dragon head incl. antlers and beard
-  6: [155, 40, 350, 265], // Lamassu — lion head incl. mane crest
-  7: [150, 20, 390, 260], // Kitsune — fox head incl. both ears
-  8: [130, 95, 400, 365], // Balam — jaguar head
-  9: [220, 10, 438, 228], // Mamba — cobra head incl. hood
-  10: [140, 75, 380, 315], // Kuntur — condor head inside the sun disc
+  1: [70, 71, 435, 354], // Mako
+  2: [38, 64, 472, 512], // Sobek
+  3: [109, 91, 396, 374], // Fenris
+  4: [86, 93, 419, 332], // Noctua
+  5: [117, 121, 388, 404], // Long
+  6: [95, 73, 405, 377], // Lamassu
+  7: [118, 132, 382, 378], // Kitsune
+  8: [95, 111, 405, 394], // Balam
+  9: [58, 65, 462, 485], // Mamba
+  10: [103, 87, 397, 363], // Kuntur
 };
 
 /** One glossy block body colour per realm (the app-icon tier colours). */

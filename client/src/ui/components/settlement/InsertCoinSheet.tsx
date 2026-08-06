@@ -96,7 +96,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
       <div className="flex flex-col items-center gap-4 pt-1">
         <div
           aria-label={`Feed ${guardian.name} one SOL coin to enter`}
-          className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14]"
+          className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716]"
           style={{ height: 200 }}
         >
           <img

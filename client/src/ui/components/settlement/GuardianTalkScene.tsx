@@ -42,7 +42,7 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
       type="button"
       onClick={talk.skip}
       aria-label={`${guardian.name} says: ${line}`}
-      className="relative block w-full cursor-default overflow-hidden rounded-2xl border border-white/[0.14] text-left"
+      className="relative block w-full cursor-default overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716] text-left"
       style={{ height }}
     >
       <motion.img

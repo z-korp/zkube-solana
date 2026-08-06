@@ -89,24 +89,27 @@ const STATES = {
 const ANATOMY = {
   1: "sea-turtle anatomy: a beak-like mouth with no teeth",
   2: "crocodile anatomy: a long armored snout with interlocking teeth",
-  3: "wolf anatomy: a canine muzzle with fangs",
+  3: "wolf anatomy: a canine muzzle with fangs. Its chest and torso are fur with glowing runes only — ice crystals rise ONLY from the shoulders and back behind the head, never from the chest or torso",
   4: "owl anatomy: a beak, never a toothed mouth",
   5: "dragon anatomy: a scaled reptilian muzzle on exactly one head",
   6: "winged-lion anatomy: a feline muzzle and exactly one pair of wings, each wing one connected structure",
   7: "fox anatomy: a slender canine muzzle",
   8: "jaguar anatomy: a feline muzzle with fangs",
-  9: "snake anatomy: a fanged serpent mouth with a forked tongue",
+  9: "snake anatomy: a fanged serpent mouth with a forked tongue. Frame the bust as the hooded head atop ONE single neck column descending out of the bottom of the frame — no coils and no second body segment anywhere in frame",
   10: "condor anatomy: a hooked beak, never a toothed mouth",
 };
 
 const BASE_PROMPT =
-  "Re-render the reference image as a clean master character sprite. Keep the " +
-  "exact same character, identity, pose, composition, framing, colors and " +
-  "crisp cel-shaded style with bold clean outlines and glowing accents — do " +
-  "not restyle, simplify or go painterly. Depict the character exactly once " +
-  "with its exact anatomy — one head, and if winged exactly one pair of " +
-  "wings; never split, add or duplicate body parts. Neutral stance: both " +
-  "eyes open, mouth fully closed. No text, no speech bubbles, no watermarks.";
+  "Re-render the character from the reference image as a bust close-up " +
+  "master sprite: the head and upper chest fill the frame, centered. Keep " +
+  "the exact same character, identity, colors and crisp cel-shaded style " +
+  "with bold clean outlines and glowing accents — do not restyle, simplify " +
+  "or go painterly. Plain solid near-black background with only the " +
+  "character's own subtle aura, ready for clean background removal. Depict " +
+  "the character exactly once with its exact anatomy — one head, and if " +
+  "winged exactly one pair of wings; never split, add or duplicate body " +
+  "parts. Neutral stance: both eyes open, mouth fully closed. No text, no " +
+  "speech bubbles, no watermarks.";
 
 const mapPrompt = (cells, anatomy) =>
   "Create a character expression animation sheet of the exact character in " +
@@ -224,7 +227,7 @@ mkdirSync(out, { recursive: true });
 if (stage === "base") {
   const portrait = join(CLIENT_ROOT, "public", "assets", `theme-${zone}`, "boss", "portrait.png");
   const input = {
-    prompt: BASE_PROMPT,
+    prompt: `${BASE_PROMPT} Respect the character's real ${ANATOMY[zone]}.`,
     image_urls: [dataUri(portrait)],
     image_size: { width: 1024, height: 1024 },
     quality: "high",
