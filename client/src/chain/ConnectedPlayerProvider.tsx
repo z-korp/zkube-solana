@@ -77,6 +77,7 @@ import {
   DeviceSessionExpiredError,
   DEVICE_SESSION_EXPIRED_MESSAGE,
   DEVICE_SESSION_READY_SKEW_SECONDS,
+  withSigningDeadline,
 } from "./deviceSessionLifecycle";
 import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
@@ -1151,7 +1152,10 @@ async function submitOwnerSessionTransaction(args: {
       )}${logs === "" ? "" : ` (${logs})`}`,
     );
   }
-  const signed = await args.wallet.signTransaction(transaction);
+  const signed = await withSigningDeadline(
+    args.wallet.signTransaction(transaction),
+    args.label,
+  );
   args.assertWalletCurrent();
   const signature = await args.connection.sendRawTransaction(
     signed.serialize(),

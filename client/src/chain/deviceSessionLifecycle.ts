@@ -19,6 +19,45 @@ export class DeviceSessionExpiredError extends Error {
   }
 }
 
+// Past the blockhash validity window no approval could confirm anyway, so a
+// signing request still unanswered after a minute has already failed.
+const WALLET_SIGNING_DEADLINE_MS = 60_000;
+
+/**
+ * The pinned MWA browser transport can leave a signing request pending forever:
+ * its 30-second watchdog only guards the pre-launch association phase, and a
+ * wallet that establishes the session but never answers — or closes the socket
+ * with the request in flight — orphans the pending JSON-RPC promise instead of
+ * rejecting it. Without a deadline that reads as an eternal "Connecting…" with
+ * no recovery path. Abandoning the promise is safe under sign-only: submission
+ * stays with this client, so a late signature can never be sent.
+ */
+export async function withSigningDeadline<T>(
+  signing: Promise<T>,
+  label: string,
+): Promise<T> {
+  // A post-deadline wallet failure would otherwise surface as an unhandled
+  // rejection from the abandoned promise.
+  void signing.catch(() => undefined);
+  let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      signing,
+      new Promise<never>((_, reject) => {
+        timer = globalThis.setTimeout(() => {
+          reject(
+            new Error(
+              `${label}: the wallet did not return the signed transaction within 1 minute. Reopen the wallet app and retry.`,
+            ),
+          );
+        }, WALLET_SIGNING_DEADLINE_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) globalThis.clearTimeout(timer);
+  }
+}
+
 /**
  * Returns the remaining wall-clock delay before a device session must stop
  * authorizing writes. A non-positive result is already expired. Keeping this

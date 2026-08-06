@@ -5,7 +5,7 @@ import {
   SystemInstruction,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildDeviceSessionRefillInstructions,
@@ -13,6 +13,7 @@ import {
   deviceSessionExpiryDelayMs,
   DeviceSessionExpiredError,
   DEVICE_SESSION_EXPIRED_MESSAGE,
+  withSigningDeadline,
 } from "./deviceSessionLifecycle";
 
 describe("device session balance lifecycle", () => {
@@ -76,6 +77,39 @@ describe("device session balance lifecycle", () => {
         balanceLamports: 0,
       }),
     ).toBeNull();
+  });
+});
+
+describe("withSigningDeadline", () => {
+  it("passes a timely signature through and clears its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const signed = await withSigningDeadline(
+        Promise.resolve("signed"),
+        "Enable zKube device session",
+      );
+      expect(signed).toBe("signed");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects a signing request the wallet never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = withSigningDeadline(
+        new Promise<never>(() => undefined),
+        "Enable zKube device session",
+      );
+      const assertion = expect(pending).rejects.toThrow(
+        /did not return the signed transaction within 1 minute/i,
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
