@@ -22,9 +22,7 @@ import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import { Constraint, ConstraintType } from "@/game/constraint";
-import { getThemeImages } from "@/config/themes";
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
-import type { ThemeId } from "@/config/themes";
 import {
   HudBarSvg,
   HUD_BAR,
@@ -554,11 +552,9 @@ const GameHud: React.FC<GameHudProps> = ({
     transform: "translate(-50%, -50%)",
   };
 
-  // Theme image for regular levels, guardian portrait for boss only
-  const themeId = `theme-${Math.min(10, Math.max(1, zoneId))}` as ThemeId;
-  const leftSocketSrc = isBoss
-    ? portraitSrc
-    : getThemeImages(themeId).themeIcon;
+  // The realm's guardian watches every level, not just its own trial — theme
+  // icons are retired.
+  const leftSocketSrc = portraitSrc;
 
   const regularTooltip =
     !isBoss && activeMutatorId > 0 ? (

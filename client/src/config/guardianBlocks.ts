@@ -77,7 +77,8 @@ export type GuardianFrameId =
   | "celebrate"
   | "satisfied"
   | "greeting"
-  | "defeated";
+  | "defeated"
+  | "surprised";
 
 export { GUARDIAN_FRAME_ZONES };
 

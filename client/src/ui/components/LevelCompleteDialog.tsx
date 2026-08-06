@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 
-import {
-  getGuardianPortrait,
-  getGuardianStarText,
-  getZoneGuardian,
-} from "@/config/bossCharacters";
+import { getGuardianStarText, getZoneGuardian } from "@/config/bossCharacters";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { calculateLevelStars } from "@/game/level";
@@ -91,8 +88,23 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   const guardianLine = isIncomplete
     ? guardian.incomplete
     : isBossLevel
-      ? guardian.respectLine
+      ? guardian.defeatLine
       : getGuardianStarText(guardian, starsEarned);
+
+  // Ace-Attorney beat: the guardian speaks the verdict, then rests on the
+  // frame the result earned — humbled on a fallen trial, celebrating a
+  // three-star run, content otherwise, watchful on a failed level.
+  const talk = useGuardianTalk(
+    zoneId,
+    guardianLine,
+    isIncomplete
+      ? "idle"
+      : isBossLevel
+        ? "defeated"
+        : starsEarned >= 3
+          ? "celebrate"
+          : "satisfied",
+  );
 
   const title = isIncomplete
     ? "Level Incomplete"
@@ -131,7 +143,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
             }}
           >
             <img
-              src={getGuardianPortrait(zoneId)}
+              src={talk.src}
               alt={guardian.name}
               className="h-full w-auto object-contain"
               style={{
@@ -179,9 +191,18 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               {title}
             </p>
 
-            {/* Guardian quote */}
-            <p className="mt-1 font-sans text-[14px] italic leading-relaxed text-white/85">
-              &quot;{guardianLine}&quot;
+            {/* Guardian quote — typed letter by letter; tap skips ahead */}
+            <p
+              className="mt-1 min-h-[2.6em] font-sans text-[14px] italic leading-relaxed text-white/85"
+              onClick={talk.typing ? talk.skip : undefined}
+            >
+              &quot;{guardianLine.slice(0, talk.typed)}&quot;
+              {talk.typing && (
+                <span
+                  aria-hidden
+                  className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
+                />
+              )}
             </p>
 
             {/* Stars + stats — only for complete */}

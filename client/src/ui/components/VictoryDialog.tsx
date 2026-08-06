@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Share2 } from "lucide-react";
 import { motion } from "motion/react";
 
-import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { getZoneGuardian } from "@/config/bossCharacters";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { Game } from "@/game/model";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -36,6 +37,8 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
 }) => {
   const [phase, setPhase] = useState(0);
   const guardian = getZoneGuardian(game.zoneId);
+  // Ace-Attorney beat: the guardian speaks its respect, then celebrates.
+  const talk = useGuardianTalk(game.zoneId, guardian.respectLine, "celebrate");
   const campaignComplete = game.zoneId === finalCampaignMapId;
 
   useEffect(() => {
@@ -92,7 +95,7 @@ Play now: app.zkube.xyz
           transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
         >
           <img
-            src={getGuardianPortrait(game.zoneId)}
+            src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
             style={{
@@ -134,9 +137,18 @@ Play now: app.zkube.xyz
             {campaignComplete ? "Campaign Complete!" : "Trial Passed!"}
           </p>
 
-          {/* Guardian respect line */}
-          <p className="mt-1 font-sans text-[14px] italic leading-relaxed text-white/85">
-            &quot;{guardian.respectLine}&quot;
+          {/* Guardian respect line — typed letter by letter; tap skips */}
+          <p
+            className="mt-1 min-h-[2.6em] font-sans text-[14px] italic leading-relaxed text-white/85"
+            onClick={talk.typing ? talk.skip : undefined}
+          >
+            &quot;{guardian.respectLine.slice(0, talk.typed)}&quot;
+            {talk.typing && (
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
+              />
+            )}
           </p>
 
           {/* Run totals */}

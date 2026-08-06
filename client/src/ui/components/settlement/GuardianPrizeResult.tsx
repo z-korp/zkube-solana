@@ -152,7 +152,7 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
             line={guardian.prizeLine}
             height={300}
             onLineDone={handleLineDone}
-            celebrate={paying}
+            mood={paying ? "celebrate" : "idle"}
           />
           {/* One coin, one delivery: guardian → amount pill. */}
           {paying && !reduceMotion && (

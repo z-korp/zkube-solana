@@ -3,7 +3,8 @@ import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { dailyLeaderboardRank } from "@/chain/dailyClient";
-import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { getZoneGuardian } from "@/config/bossCharacters";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import { Game } from "@/game/model";
@@ -100,7 +101,19 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
     ? (daily.practiceDaily?.player?.bestDailyScore ?? 0)
     : (daily.daily?.player?.bestDailyScore ?? 0);
   const isNewBest = game.totalScore > previousBest;
-  const guardianLine = isNewBest ? guardian.threeStar : guardian.dailyGreeting;
+  // A personal best genuinely startles the guardian; a ranked run outside the
+  // Daily's five paid places gets the consolation, anything else the
+  // even-handed daily line.
+  const guardianLine = isNewBest
+    ? guardian.newBestLine
+    : !isPractice && rank !== null && rank > 5
+      ? guardian.noPrizeLine
+      : guardian.dailyGreeting;
+  const talk = useGuardianTalk(
+    game.zoneId,
+    guardianLine,
+    isNewBest ? "surprised" : "idle",
+  );
 
   if (!isOpen) return null;
 
@@ -129,7 +142,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
           transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
         >
           <img
-            src={getGuardianPortrait(game.zoneId)}
+            src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
             style={{
@@ -162,9 +175,18 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
             boxShadow: "0 -4px 32px rgba(0,0,0,0.5)",
           }}
         >
-          {/* Guardian line */}
-          <p className="font-sans text-[14px] italic leading-relaxed text-white/70">
-            &quot;{guardianLine}&quot;
+          {/* Guardian line — typed letter by letter; tap skips */}
+          <p
+            className="min-h-[2.6em] font-sans text-[14px] italic leading-relaxed text-white/70"
+            onClick={talk.typing ? talk.skip : undefined}
+          >
+            &quot;{guardianLine.slice(0, talk.typed)}&quot;
+            {talk.typing && (
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
+              />
+            )}
           </p>
 
           {/* Hero: best + score + rank chip */}

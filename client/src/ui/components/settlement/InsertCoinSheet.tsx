@@ -9,6 +9,7 @@ import {
 } from "@/config/guardianBlocks";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
@@ -82,11 +83,10 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
     );
   };
 
-  const frame: GuardianFrameId = feeding
-    ? fed
-      ? "satisfied"
-      : "talk-open"
-    : "idle";
+  // The arcade host works the room until a coin interrupts the pitch.
+  const talk = useGuardianTalk(zoneId, guardian.arcadeGreeting, "idle");
+  const feedFrame: GuardianFrameId = fed ? "satisfied" : "talk-open";
+  const frameSrc = feeding ? getGuardianFrame(zoneId, feedFrame) : talk.src;
 
   return (
     <Sheet
@@ -102,7 +102,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
           style={{ height: 200 }}
         >
           <img
-            src={getGuardianFrame(zoneId, frame)}
+            src={frameSrc}
             alt=""
             draggable={false}
             className="absolute inset-0 h-full w-full object-cover"
@@ -114,6 +114,23 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
           >
             {guardian.name}
           </span>
+          {/* The host's pitch — typed letter by letter until the coin drops. */}
+          {!feeding && (
+            <span
+              className="absolute inset-x-2 bottom-2 rounded-xl border border-white/[0.18] bg-[#0b0716]/85 px-3 py-2 backdrop-blur-sm"
+              onClick={talk.typing ? talk.skip : undefined}
+            >
+              <span className="font-sans text-[14px] font-medium text-white/95">
+                {guardian.arcadeGreeting.slice(0, talk.typed)}
+                {talk.typing && (
+                  <span
+                    aria-hidden
+                    className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
+                  />
+                )}
+              </span>
+            </span>
+          )}
           {/* The fed coin: bottom of the scene up into the open jaws. */}
           {feeding && !fed && !reduceMotion && (
             <motion.span

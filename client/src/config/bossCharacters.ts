@@ -19,6 +19,12 @@ export interface ZoneGuardian {
   entryLine: string;
   /** Campaign boss falls — spoken with the defeated frame. */
   defeatLine: string;
+  /** Arcade insert-coin idle — the guardian as arcade host, not zone master. */
+  arcadeGreeting: string;
+  /** Arcade run scored but out of the money. */
+  noPrizeLine: string;
+  /** Arcade personal best — spoken with the surprised frame. */
+  newBestLine: string;
   emoji: string;
 }
 
@@ -47,6 +53,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "The ocean accepts your offering. Swim.",
     defeatLine:
       "The current... flows past me now. Well ridden.",
+    arcadeGreeting:
+      "The tide pool glitters tonight. Add your coin to the current.",
+    noPrizeLine:
+      "The tide went out without you. It always returns.",
+    newBestLine:
+      "...The ocean itself just shifted. Your finest swim.",
     emoji: "🐢",
   },
   2: {
@@ -72,6 +84,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "The river takes its toll. Cross.",
     defeatLine:
       "The jaws... close on nothing. You were faster.",
+    arcadeGreeting:
+      "The river runs rich today. Feed it.",
+    noPrizeLine:
+      "The Nile keeps what it takes. Return hungrier.",
+    newBestLine:
+      "...Even the old river is impressed. Again.",
     emoji: "🐊",
   },
   3: {
@@ -97,6 +115,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "Your offering steams in the snow. Run.",
     defeatLine:
       "The storm breaks... the wolf yields. Lead the pack.",
+    arcadeGreeting:
+      "The hunt pays in gold tonight. Run with the pack.",
+    noPrizeLine:
+      "The kill went to faster jaws. Sharpen yours.",
+    newBestLine:
+      "...A new howl echoes off the ice. Yours.",
     emoji: "🐺",
   },
   4: {
@@ -121,6 +145,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "A wager placed with reason. Begin.",
     defeatLine:
       "Checkmate... elegantly played. The owl bows.",
+    arcadeGreeting:
+      "The arena rewards proofs in gold. Present yours.",
+    noPrizeLine:
+      "A sound argument, but not the winning one. Revise.",
+    newBestLine:
+      "...Remarkable. A theorem I had not foreseen.",
     emoji: "🦉",
   },
   5: {
@@ -145,6 +175,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "The river accepts your tribute. Endure.",
     defeatLine:
       "The storm passes... and you remain. The heavens take note.",
+    arcadeGreeting:
+      "The river of fortune flows through this hall. Step in.",
+    noPrizeLine:
+      "The current carried the jade elsewhere. Endure.",
+    newBestLine:
+      "...The heavens take note. So does the dragon.",
     emoji: "🐲",
   },
   6: {
@@ -172,6 +208,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "A tile placed. The mosaic begins.",
     defeatLine:
       "The pattern... was you all along. Pass through.",
+    arcadeGreeting:
+      "Beyond this gate lies treasure. Pay the toll.",
+    noPrizeLine:
+      "The gate stayed shut this time. Knock harder.",
+    newBestLine:
+      "...The pattern rearranged itself. Astonishing.",
     emoji: "🦁",
   },
   7: {
@@ -198,6 +240,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "A shiny thing! I'll hold it. Probably.",
     defeatLine:
       "Nine tails, all fooled... you win this round.",
+    arcadeGreeting:
+      "Shiny coin, shinier prizes. Care to out-trick fate?",
+    noPrizeLine:
+      "Fate tricked you first. Delicious. Go again.",
+    newBestLine:
+      "...Wait. THAT was not an illusion?!",
     emoji: "🦊",
   },
   8: {
@@ -224,6 +272,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "The jungle accepts your offering. Hunt.",
     defeatLine:
       "Three eyes close... the jungle sleeps for you.",
+    arcadeGreeting:
+      "The jungle trades gold for offerings. Make yours.",
+    noPrizeLine:
+      "The spirits fed elsewhere tonight. Offer again.",
+    newBestLine:
+      "...Three eyes widen. The jungle will remember this.",
     emoji: "🐆",
   },
   9: {
@@ -249,6 +303,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "Your coin joins the rhythm. Keep time.",
     defeatLine:
       "The rhythm... fades. Yours plays louder.",
+    arcadeGreeting:
+      "Tonight the beat drops gold. Buy in and keep time.",
+    noPrizeLine:
+      "The rhythm paid another dancer. Find the beat.",
+    newBestLine:
+      "...The drums skipped. You broke your own record.",
     emoji: "🐍",
   },
   10: {
@@ -276,6 +336,12 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     entryLine: "The mountain takes its due. Climb.",
     defeatLine:
       "The peak... belongs to you. Fly higher than I.",
+    arcadeGreeting:
+      "Gold waits at the summit. The climb costs one coin.",
+    noPrizeLine:
+      "The summit stayed above you. Climb again.",
+    newBestLine:
+      "...Higher than your highest. The sun saw it.",
     emoji: "🦅",
   },
 };
@@ -301,7 +367,7 @@ export function getZoneGuardian(zoneId: number): ZoneGuardian {
  * uncovered zones fall back to their portrait everywhere.
  */
 export const GUARDIAN_FRAME_ZONES: ReadonlySet<number> = new Set([
-  1, 2, 3, 5, 6, 10,
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
 ]);
 
 /**

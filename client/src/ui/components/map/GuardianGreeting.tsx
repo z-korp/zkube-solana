@@ -1,12 +1,10 @@
 import { Swords } from "lucide-react";
 import { motion } from "motion/react";
 
-import {
-  getGuardianPortrait,
-  type ZoneGuardian,
-} from "@/config/bossCharacters";
+import { type ZoneGuardian } from "@/config/bossCharacters";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import type { ThemeColors } from "@/config/themes";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 
 interface GuardianGreetingProps {
   colors: ThemeColors;
@@ -27,7 +25,9 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   bossCleared = false,
   onClose,
 }) => {
-  const portraitSrc = getGuardianPortrait(guardian.zoneId);
+  // Ace-Attorney beat: talk frames flap while the greeting types, then the
+  // guardian rests on its bowed greeting expression.
+  const talk = useGuardianTalk(guardian.zoneId, guardian.greeting, "greeting");
   const activeMutator =
     activeMutatorId && activeMutatorId > 0
       ? getMutatorDef(activeMutatorId)
@@ -37,15 +37,13 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
       ? getMutatorDef(passiveMutatorId)
       : null;
 
-  const greeting = guardian.greeting;
-
   return (
     <motion.div
       className="absolute inset-0 z-40 flex flex-col bg-black/70"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
+      onClick={talk.typing ? talk.skip : onClose}
     >
       {/* Full-height portrait — seamlessly fading into background */}
       <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden">
@@ -61,7 +59,7 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
           }}
         >
           <img
-            src={portraitSrc}
+            src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
             style={{
@@ -114,9 +112,23 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             </div>
           </div>
 
-          {/* Greeting — same style as LevelPreview quote */}
-          <p className="mt-1 font-sans text-[14px] italic text-white/60">
-            &quot;{greeting}&quot;
+          {/* Greeting — typed letter by letter; tap skips ahead */}
+          <p
+            className="mt-1 min-h-[2.6em] font-sans text-[14px] italic text-white/60"
+            onClick={talk.typing ? talk.skip : undefined}
+          >
+            &quot;{guardian.greeting.slice(0, talk.typed)}&quot;
+            {talk.typing && (
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
+              />
+            )}
+          </p>
+
+          {/* The guardian's own scoring hint for its realm. */}
+          <p className="mt-2 font-sans text-[13px] leading-relaxed text-white/70">
+            {guardian.zoneHint}
           </p>
 
           {/* Mutators — the guardian explains each rule in prose; stat lines
