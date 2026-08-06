@@ -105,8 +105,6 @@ export const BEATS = {
    */
   reveal: 1.34,
   revealDur: 1.1,
-  word: 1.42,
-  wordDur: 0.5,
   /**
    * Hand-over: the connect action may appear and a connected player is already
    * looking at the app. This deliberately waits for the scrim to reach zero
@@ -171,7 +169,6 @@ function bezier(p1: number, p2: number, p3: number, p4: number) {
  */
 const easeFall = bezier(0.36, 0, 0.7, 0.55);
 const easeSlide = bezier(0.32, 0.02, 0.4, 1);
-const easeOut = bezier(0.2, 0.7, 0.3, 1);
 
 /**
  * Fraction of a drop spent falling; the remainder is squash and rebound. Named
@@ -618,17 +615,5 @@ export class BootRevealScene {
    */
   static scrimOpacity(t: number) {
     return 1 - clamp01((t - BEATS.reveal) / BEATS.revealDur);
-  }
-
-  /** Wordmark transform/opacity, landing with weight. */
-  static wordmark(t: number) {
-    const p = clamp01((t - BEATS.word) / BEATS.wordDur);
-    const e = easeOut(p);
-    return {
-      opacity: clamp01(p / 0.55),
-      scale: 1.22 - 0.22 * e,
-      y: (1 - e) * -8,
-      blur: p < 1 ? (1 - e) * 2 : 0,
-    };
   }
 }

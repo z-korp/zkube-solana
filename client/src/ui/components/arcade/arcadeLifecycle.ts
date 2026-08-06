@@ -1,7 +1,7 @@
 import type { DailyStatus } from "@/chain/dailyClient";
 
 /**
- * The presentational lifecycle states of the Guardian's Trial home. The
+ * The presentational lifecycle states of the Arcade home. The
  * connect-gate is handled globally by App/ConnectScreen and is never computed
  * here.
  */
@@ -21,7 +21,7 @@ interface DailyTiming {
 }
 
 /**
- * Resolve which Trial surface to render from today's Daily view, the player's
+ * Resolve which Arcade surface to render from today's Daily view, the player's
  * live run, and the current time.
  *
  * Precedence:

@@ -1,11 +1,3 @@
-export function bigintToSafeNumber(value: bigint): number {
-  const max = BigInt(Number.MAX_SAFE_INTEGER);
-  const min = BigInt(Number.MIN_SAFE_INTEGER);
-  if (value > max) return Number.MAX_SAFE_INTEGER;
-  if (value < min) return Number.MIN_SAFE_INTEGER;
-  return Number(value);
-}
-
 export function truncatePublicKey(
   value: string,
   { head = 4, tail = 4 }: { head?: number; tail?: number } = {},

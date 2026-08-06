@@ -41,8 +41,9 @@ interface LocalWalletError {
 }
 
 /**
- * The one onboarding button, used by Home ("PLAY NOW") and Settings
- * ("CONNECT ACCOUNT"). One tap connects directly when a single compatible
+ * The one onboarding button, used by the landing ConnectScreen ("Connect
+ * wallet") and the Settings sheet ("CONNECT ACCOUNT"). One tap connects
+ * directly when a single compatible
  * wallet is installed, otherwise opens the wallet picker sheet; once a wallet
  * is connected the same tap enables (or renews) the device session, always
  * under the one label. Renders nothing when the player is fully ready.
@@ -235,7 +236,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
                 setPickerOpen(false);
                 void onboard(connector.id);
               }}
-              className="flex items-center gap-3 rounded-2xl border border-white/[0.12] bg-white/[0.06] px-4 py-3 text-left backdrop-blur-xl transition-colors hover:bg-white/[0.1] disabled:opacity-45"
+              className="flex items-center gap-3 rounded-2xl border border-white/[0.12] bg-white/[0.06] px-4 py-3 text-left transition-colors hover:bg-white/[0.1] disabled:opacity-45"
             >
               {connector.icon ? (
                 <img

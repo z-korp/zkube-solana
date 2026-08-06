@@ -28,7 +28,7 @@ interface LeaderboardRowProps {
 
 const MEDAL_COLORS = ["#FACC15", "#C9D6E4", "#E2955C"] as const;
 
-/** The medal chip every board rank wears — same grammar as the prize ladder. */
+/** The medal chip every board rank wears. */
 export const RankMedal: React.FC<{ rank: number; size?: number }> = ({
   rank,
   size = 20,

@@ -17,64 +17,6 @@ export type ThemeId = (typeof THEME_IDS)[number];
 
 export type MusicContext = "main" | "level" | "boss";
 
-export interface ThemeMeta {
-  name: string;
-  description: string;
-}
-
-export const THEME_META: Record<ThemeId, ThemeMeta> = {
-  "theme-1": {
-    name: "Tiki",
-    description:
-      "Moonlit coast in deep cobalt tones, silver surf, and quiet lunar haze with tiki presence",
-  },
-  "theme-2": {
-    name: "Ancient Egypt",
-    description:
-      "Golden pyramids at dusk with hieroglyph-covered obelisks and sun-drenched sandstone",
-  },
-  "theme-3": {
-    name: "Norse",
-    description:
-      "Frost-covered viking realm with heavy rune stones, iron-clad shields, and aurora-lit skies",
-  },
-  "theme-4": {
-    name: "Ancient Greece",
-    description:
-      "White marble temples overlooking the Aegean Sea with elegant Greek-key borders and clean architecture",
-  },
-  "theme-5": {
-    name: "Ancient China",
-    description:
-      "Imperial jade palace with dragon-scale overlays, golden calligraphy, and mystical mist",
-  },
-  "theme-6": {
-    name: "Ancient Persia",
-    description:
-      "Regal Persian palace with blue geometric tile mosaics, golden relief carvings, and luminous symmetry",
-  },
-  "theme-7": {
-    name: "Feudal Japan",
-    description:
-      "Black lacquer dojo with red trim, brushstroke calligraphy, and cherry blossom petals",
-  },
-  "theme-8": {
-    name: "Mayan",
-    description:
-      "Dense jungle temple ruins with carved stone, calendar glyphs, and moss-covered ancient masonry",
-  },
-  "theme-9": {
-    name: "Tribal",
-    description:
-      "Earthy savanna ritual grounds with painted patterns, drums, feathers, and tribal symbols",
-  },
-  "theme-10": {
-    name: "Inca",
-    description:
-      "Mountainous stone citadel with interlocking polygonal masonry, sun-god gold highlights, and rope textile accents",
-  },
-};
-
 interface BlockColors {
   fill: string;
   glow: string;

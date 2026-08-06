@@ -43,13 +43,11 @@ interface NavigationState {
   openSettings: () => void;
   closeSettings: () => void;
   goBack: () => void;
-  setGameId: (id: bigint | null) => void;
   setRecoveryRunId: (id: bigint | null) => void;
   setMapZoneId: (zoneId: number) => void;
   setPendingLevelCompletion: (data: PendingLevelCompletion | null) => void;
   markZoneGreeted: (zoneId: number) => void;
   spectateTarget: SpectateTargetParams | null;
-  setSpectateTarget: (target: SpectateTargetParams | null) => void;
 }
 
 const getBackTarget = (page: PageId): PageId => {
@@ -115,11 +113,9 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     }, NAV_TRANSITION_LOCK_MS);
   },
 
-  setGameId: (id) => set({ gameId: id }),
   setRecoveryRunId: (id) => set({ recoveryRunId: id }),
   setMapZoneId: (zoneId) => set({ mapZoneId: zoneId }),
   spectateTarget: null,
-  setSpectateTarget: (target) => set({ spectateTarget: target }),
   setPendingLevelCompletion: (data) => set({ pendingLevelCompletion: data }),
   markZoneGreeted: (zoneId) =>
     set((state) => {

@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 
 describe("BottomNav", () => {
-  it("renders the four-tab nav with Home first — Ranks is merged into Arcade", () => {
+  it("renders the four-tab nav with Home first", () => {
     fixtures.publicKey = PublicKey.default;
     render(<BottomNav />);
 

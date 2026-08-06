@@ -47,6 +47,7 @@ import {
 } from "./dailyRules.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import type { WalletLike } from "./sessionWallet.js";
+import { formatSolBalanceLamports } from "@/utils/currency";
 import { IDL } from "./idl/index.js";
 import {
   ARCADE_ACCOUNT_VERSION,
@@ -295,7 +296,7 @@ export async function buildPrepareDailyRunPlan(args: {
     sessionToken: args.sessionToken,
     sessionValidUntil: args.sessionValidUntil,
     transactionPlan: basePlan(
-      `Enter Arena · exact ${(Number(args.daily.entryLamports) / 1_000_000_000).toFixed(2)} SOL + network fee`,
+      `Enter Arena · exact ${formatSolBalanceLamports(args.daily.entryLamports)} SOL + network fee`,
       args.connection,
       owner,
       [instruction],
@@ -705,19 +706,6 @@ export async function buildFinalizeDailyChallengePlan(args: {
   return basePlan("Push Arena prizes", args.connection, args.wallet.publicKey, [
     instruction,
   ]);
-}
-
-export async function fetchDailyPlayerRecords(): Promise<[]> {
-  return [];
-}
-export async function fetchDailyChallengeIds(): Promise<number[]> {
-  return [];
-}
-export async function buildCloseDailyPlayerPlan(): Promise<TransactionPlan> {
-  throw new Error("Arena player records are durable");
-}
-export async function buildCloseDailyChallengePlan(): Promise<TransactionPlan> {
-  throw new Error("Funded Arena results are durable");
 }
 
 export function availablePoolLamports(ledger: {

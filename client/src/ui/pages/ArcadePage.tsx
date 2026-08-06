@@ -52,7 +52,7 @@ const BOARDS = ["Daily", "Weekly", "Season"] as const;
 
 /**
  * The Arcade — pot and boards on one scroll. Today's zone art shows through a
- * shared ZoneBackdrop, with glass panels layered over it: the challenge card
+ * shared ZoneBackdrop, with opaque block panels layered over it: the challenge card
  * (guardian + rule), the Daily pot with the player's rank, then the Daily /
  * Weekly / Season boards inline behind one segmented switch. The ranked entry
  * CTA stays pinned at the bottom on every board — the board is the sales

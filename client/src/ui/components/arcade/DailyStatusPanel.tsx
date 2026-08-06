@@ -5,12 +5,20 @@ import { cn } from "@/ui/utils";
 import type { ArcadeLifecycle } from "./arcadeLifecycle";
 
 interface DailyStatusPanelProps {
-  /** Current Trial lifecycle; only non-playable states reach this panel. */
+  /** Current Arcade lifecycle; only non-playable states reach this panel. */
   lifecycle: ArcadeLifecycle;
   /** Navigate to the Campaign tab (same destination as the bottom nav). */
   onPlayCampaign: () => void;
   className?: string;
 }
+
+/** Opaque block furniture — same recipe as every menu panel, no glass. */
+const PANEL_STYLE: React.CSSProperties = {
+  background: "linear-gradient(180deg, #131F35 0%, #0D1626 100%)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow:
+    "0 12px 30px rgba(0,0,0,0.4), inset 0 1.5px 0 rgba(255,255,255,0.09)",
+};
 
 /**
  * The Arcade home's pot placeholder while today's Daily is not playable.
@@ -18,7 +26,7 @@ interface DailyStatusPanelProps {
  * `delayed` and `stale` mean the keeper is running late; settlement is
  * push-only and never cancelled, so the panel stays calm and offers Campaign
  * — free, and never a gate on ranked play — as something to do while waiting.
- * That offer stays in the quiet glass register, secondary to the page's
+ * That offer stays in the quiet secondary register, under the page's
  * disabled primary keeper-status button, and never appears during normal
  * preparation or an open Daily.
  */
@@ -30,12 +38,7 @@ const DailyStatusPanel: React.FC<DailyStatusPanelProps> = ({
   const keeperLate = lifecycle === "delayed" || lifecycle === "stale";
 
   return (
-    <div
-      className={cn(
-        "rounded-3xl border border-white/[0.1] bg-black/30 p-5 backdrop-blur-xl",
-        className,
-      )}
-    >
+    <div className={cn("rounded-2xl p-5", className)} style={PANEL_STYLE}>
       <p className="font-sans text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
         Today&apos;s pot
       </p>

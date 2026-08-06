@@ -72,13 +72,13 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="mt-1 flex items-center justify-center gap-2.5">
-              <SolMark size={26} />
               <span
                 className="money font-display text-[52px] leading-none tabular-nums"
                 style={{ color: MONEY_GOLD }}
               >
                 {formatSolBalanceLamports(view.dailyPotLamports)}
               </span>
+              <SolMark size={26} />
             </div>
             <p className="mt-1.5 font-sans text-[10px] font-bold uppercase tracking-[0.24em] text-white/40">
               Today's pot

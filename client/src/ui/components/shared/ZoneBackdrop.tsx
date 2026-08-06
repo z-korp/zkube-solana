@@ -5,8 +5,8 @@ interface ZoneBackdropProps {
   /** Zone whose painted background art is revealed (1..10). */
   zoneId: number;
   /**
-   * Opacity of the painted zone image over the solid base. Tuned so glass
-   * panels clearly reveal the art; defaults to a mid value in the 0.55–0.7 band.
+   * Opacity of the painted zone image over the solid base. Tuned so the menu
+   * panels sit on clearly visible art; defaults to the 0.55–0.7 band.
    */
   imageOpacity?: number;
   className?: string;
@@ -14,10 +14,11 @@ interface ZoneBackdropProps {
 
 /**
  * Shared menu-page background layer. Renders the active zone's painted art over
- * a solid base, then a LIGHT gradient veil — so translucent glass panels stack
- * on top and clearly reveal the painting behind them. This replaces the old
- * HomePage approach (a dim opacity-25 image under a near-opaque veil that buried
- * the art). The in-run play board never uses this; it keeps its own chrome.
+ * a solid base, then a LIGHT gradient veil — so the opaque menu panels stack on
+ * top of a painting that stays clearly visible around them. This replaces the
+ * old HomePage approach (a dim opacity-25 image under a near-opaque veil that
+ * buried the art). The in-run play board never uses this; it keeps its own
+ * chrome.
  *
  * The solid base is opaque so this reads identically wherever it is dropped —
  * it does not depend on, and never double-exposes, the global ThemeBackground.

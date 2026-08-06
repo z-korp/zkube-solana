@@ -55,7 +55,7 @@ const Sheet: React.FC<SheetProps> = ({
             dismissible ? undefined : (event) => event.preventDefault()
           }
           className={cn(
-            "fixed inset-x-0 bottom-0 z-[1000] mx-auto w-full max-w-[560px] rounded-t-3xl border border-white/[0.16] bg-slate-950/95 shadow-[0_-24px_60px_rgba(0,0,0,0.55)] backdrop-blur-2xl outline-none",
+            "fixed inset-x-0 bottom-0 z-[1000] mx-auto w-full max-w-[560px] rounded-t-3xl border border-white/[0.16] bg-slate-950/95 shadow-[0_-24px_60px_rgba(0,0,0,0.55)] outline-none",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom data-[state=open]:duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom",
             "md:inset-x-auto md:bottom-auto md:left-[50%] md:top-[50%] md:max-w-[480px] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-3xl",
             "md:data-[state=open]:zoom-in-95 md:data-[state=open]:slide-in-from-left-1/2 md:data-[state=open]:slide-in-from-top-[48%] md:data-[state=closed]:zoom-out-95 md:data-[state=closed]:slide-out-to-left-1/2 md:data-[state=closed]:slide-out-to-top-[48%]",

@@ -8,7 +8,7 @@ import {
   browserLocalStorage,
   type StorageLike,
 } from "@/platform/browserStorage";
-import { formatSolLamports } from "@/utils/currency";
+import { formatSolBalanceLamports } from "@/utils/currency";
 
 /**
  * useNotifications — opt-in, LOCAL / in-session browser notifications.
@@ -36,11 +36,9 @@ import { formatSolLamports } from "@/utils/currency";
  * handler in `public/sw.js`, and register the subscription with that server.
  *
  * SCOPE NOTE: the reward + Daily-open observers below only run while THIS hook
- * is mounted. It is currently mounted by the Settings page (for the opt-out
- * toggle), so events fire while Settings is open. To extend firing across the
- * whole in-session app lifetime, mount `useNotifications()` once near the app
- * root — that is a one-line change intentionally left out of this client-only,
- * file-scoped edit. Either way it remains local/in-session (see above).
+ * is mounted. It is mounted once at the app root (App.tsx), so events fire for
+ * the whole in-session lifetime; the Settings sheet mounts it again only for
+ * the opt-out toggle. Either way it remains local/in-session (see above).
  */
 
 export type NotificationPermissionState =
@@ -258,7 +256,7 @@ export function useNotifications(): NotificationsController {
 
     // Persist before firing so a re-render or reload never re-announces it.
     writeSeen(storage, key, next);
-    notify(`You won ${formatSolLamports(bestDelta)} SOL`, {
+    notify(`You won ${formatSolBalanceLamports(bestDelta)} SOL`, {
       body: `${PERIOD_LABELS[bestKind]} prize settled to your wallet.`,
       // OS-level dedupe key, independent of our storage baseline.
       tag: `zkube-prize-${bestKind}-${current[bestKind].toString()}`,

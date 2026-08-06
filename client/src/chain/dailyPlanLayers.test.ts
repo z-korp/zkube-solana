@@ -132,7 +132,7 @@ describe("Daily transaction layer boundaries", () => {
     });
     expect(prepared.transactionPlan.layer).toBe("solana-base");
     expect(prepared.transactionPlan.connection).toBe(connection);
-    expect(prepared.transactionPlan.label).toContain("exact 0.01 SOL");
+    expect(prepared.transactionPlan.label).toContain("exact 0.010 SOL");
     const enterAccounts =
       prepared.transactionPlan.transaction.instructions[0].keys;
     const playerFunding = enterAccounts.find(({ pubkey }) =>

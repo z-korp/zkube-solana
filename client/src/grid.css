@@ -188,43 +188,6 @@
   animation: guardianPulse 4s ease-in-out infinite;
 }
 
-/* ─── Leaderboard "you" row pulse (background only, no glow) ─── */
-@keyframes leaderboardPulse {
-  0%,
-  100% {
-    background-color: var(--pulse-base);
-  }
-  50% {
-    background-color: var(--pulse-bright);
-  }
-}
-.leaderboard-pulse {
-  animation: leaderboardPulse 3.5s ease-in-out infinite;
-}
-
-/* ─── Home page falling blocks (CSS, not JS) ─── */
-@keyframes fallingBlock {
-  0% {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  3% {
-    opacity: 0.85;
-  }
-  35% {
-    transform: translateY(280px);
-    opacity: 0.7;
-  }
-  36% {
-    transform: translateY(280px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-}
-
 /* ─── Combo text shine ─── */
 /* A single text-stroke gives the same black outline as the old 8-layer
    text-shadow but at a fraction of the paint cost — critical because this text
@@ -439,7 +402,6 @@
   .map-current-pulse,
   .map-guardian-pulse,
   .guardian-pulse,
-  .leaderboard-pulse,
   .bonus-earn-swirl,
   .bonus-badge-pop,
   .bonus-earn-ring {
