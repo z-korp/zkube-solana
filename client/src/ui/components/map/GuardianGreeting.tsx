@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { type ZoneGuardian } from "@/config/bossCharacters";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import type { ThemeColors } from "@/config/themes";
+import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 
 interface GuardianGreetingProps {
@@ -27,7 +28,9 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
 }) => {
   // Ace-Attorney beat: talk frames flap while the greeting types, then the
   // guardian rests on its bowed greeting expression.
-  const talk = useGuardianTalk(guardian.zoneId, guardian.greeting, "greeting");
+  const talk = useGuardianTalk(guardian.zoneId, guardian.greeting, {
+    mood: "greeting",
+  });
   const activeMutator =
     activeMutatorId && activeMutatorId > 0
       ? getMutatorDef(activeMutatorId)
@@ -112,19 +115,11 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             </div>
           </div>
 
-          {/* Greeting — typed letter by letter; tap skips ahead */}
-          <p
+          <GuardianQuote
+            talk={talk}
+            quoted
             className="mt-1 min-h-[2.6em] font-sans text-[14px] italic text-white/60"
-            onClick={talk.typing ? talk.skip : undefined}
-          >
-            &quot;{guardian.greeting.slice(0, talk.typed)}&quot;
-            {talk.typing && (
-              <span
-                aria-hidden
-                className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
-              />
-            )}
-          </p>
+          />
 
           {/* The guardian's own scoring hint for its realm. */}
           <p className="mt-2 font-sans text-[13px] leading-relaxed text-white/70">

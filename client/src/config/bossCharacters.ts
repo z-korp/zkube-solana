@@ -360,26 +360,17 @@ export function getZoneGuardian(zoneId: number): ZoneGuardian {
   return ZONE_GUARDIANS[zoneId] ?? ZONE_GUARDIANS[1];
 }
 
-/**
- * Zones with a generated expression-frame set on disk
- * (public/assets/theme-N/boss/<frame>.png). Grown as the sprite pipeline
- * (client/tools/sprites/generate-guardian-rig.mjs) covers more guardians;
- * uncovered zones fall back to their portrait everywhere.
- */
-export const GUARDIAN_FRAME_ZONES: ReadonlySet<number> = new Set([
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-]);
+// All ten zones ship a full expression-frame set
+// (public/assets/theme-N/boss/<frame>.png) from the sprite pipeline
+// (client/tools/sprites/generate-guardian-rig.mjs).
 
 /**
- * Returns the canonical guardian display art. For zones with a generated
- * frame set this is the `idle` frame — the same art the talking scenes rest
- * on, so the guardian looks identical everywhere. The original portrait.png
- * remains on disk purely as the generation reference and is only served for
- * zones the sprite pipeline has not covered yet.
+ * Returns the canonical guardian display art: the `idle` frame — the same
+ * art the talking scenes rest on, so the guardian looks identical
+ * everywhere. portrait.png remains on disk purely as the generation
+ * reference for the sprite pipeline.
  */
 export function getGuardianPortrait(zoneId: number): string {
   const clamped = Math.min(10, Math.max(1, zoneId || 1));
-  return GUARDIAN_FRAME_ZONES.has(clamped)
-    ? `/assets/theme-${clamped}/boss/idle.png`
-    : `/assets/theme-${clamped}/boss/portrait.png`;
+  return `/assets/theme-${clamped}/boss/idle.png`;
 }

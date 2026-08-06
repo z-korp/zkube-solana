@@ -3,6 +3,7 @@ import { Share2 } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
+import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { Game } from "@/game/model";
@@ -38,7 +39,9 @@ const VictoryDialog: React.FC<VictoryDialogProps> = ({
   const [phase, setPhase] = useState(0);
   const guardian = getZoneGuardian(game.zoneId);
   // Ace-Attorney beat: the guardian speaks its respect, then celebrates.
-  const talk = useGuardianTalk(game.zoneId, guardian.respectLine, "celebrate");
+  const talk = useGuardianTalk(game.zoneId, guardian.respectLine, {
+    mood: "celebrate",
+  });
   const campaignComplete = game.zoneId === finalCampaignMapId;
 
   useEffect(() => {
@@ -137,19 +140,11 @@ Play now: app.zkube.xyz
             {campaignComplete ? "Campaign Complete!" : "Trial Passed!"}
           </p>
 
-          {/* Guardian respect line — typed letter by letter; tap skips */}
-          <p
+          <GuardianQuote
+            talk={talk}
+            quoted
             className="mt-1 min-h-[2.6em] font-sans text-[14px] italic leading-relaxed text-white/85"
-            onClick={talk.typing ? talk.skip : undefined}
-          >
-            &quot;{guardian.respectLine.slice(0, talk.typed)}&quot;
-            {talk.typing && (
-              <span
-                aria-hidden
-                className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
-              />
-            )}
-          </p>
+          />
 
           {/* Run totals */}
           <motion.div

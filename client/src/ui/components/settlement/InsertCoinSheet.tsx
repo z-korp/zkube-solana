@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
-import {
-  getGuardianFrame,
-  hasGuardianFrames,
-  type GuardianFrameId,
-} from "@/config/guardianBlocks";
+import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
@@ -69,7 +65,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
 
   const startFeed = () => {
     if (busy || feeding) return;
-    if (reduceMotion || !hasGuardianFrames(zoneId)) {
+    if (reduceMotion) {
       onConfirm();
       return;
     }
@@ -83,10 +79,12 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
     );
   };
 
-  // The arcade host works the room until a coin interrupts the pitch.
-  const talk = useGuardianTalk(zoneId, guardian.arcadeGreeting, "idle");
-  const feedFrame: GuardianFrameId = fed ? "satisfied" : "talk-open";
-  const frameSrc = feeding ? getGuardianFrame(zoneId, feedFrame) : talk.src;
+  // The arcade host works the room until a coin interrupts the pitch; the
+  // feed sequence overrides the talk machine outright.
+  const talk = useGuardianTalk(zoneId, guardian.arcadeGreeting, {
+    enabled: open,
+    overrideFrame: feeding ? (fed ? "satisfied" : "talk-open") : undefined,
+  });
 
   return (
     <Sheet
@@ -102,7 +100,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
           style={{ height: 200 }}
         >
           <img
-            src={frameSrc}
+            src={talk.src}
             alt=""
             draggable={false}
             className="absolute inset-0 h-full w-full object-cover"
@@ -121,13 +119,8 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
               onClick={talk.typing ? talk.skip : undefined}
             >
               <span className="font-sans text-[14px] font-medium text-white/95">
-                {guardian.arcadeGreeting.slice(0, talk.typed)}
-                {talk.typing && (
-                  <span
-                    aria-hidden
-                    className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-yellow-400 align-middle"
-                  />
-                )}
+                {talk.text}
+                <TalkCaret talk={talk} />
               </span>
             </span>
           )}

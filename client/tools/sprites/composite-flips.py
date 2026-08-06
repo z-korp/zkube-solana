@@ -9,8 +9,9 @@ onto the base. Everything outside the region is copied from the base, which
 is what makes the talk/blink flip rock-solid. The API's mask_url cannot do
 this — it regenerates the whole canvas and treats the mask as advisory.
 
-Build a mask (regions eyeballed from the guardian's base.png, one or more
-x1,y1,x2,y2 ellipses in 1024-space):
+Emit a zone's committed masks (see MASKS below) into a rig dir:
+  composite-flips.py --emit-masks 6 <dir>
+Or build an ad-hoc mask (one or more x1,y1,x2,y2 ellipses in 1024-space):
   composite-flips.py --make-mask 405,215,615,305 <dir>/mask-eyes.png
 Composite a frame:
   composite-flips.py <dir> <frame> <mask-name> <out-name>
@@ -30,6 +31,19 @@ from PIL import Image, ImageDraw, ImageFilter
 
 SCALES = [0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3]
 FEATHER = 14
+
+# Per-guardian mask ellipses in 1024-space, eyeballed from each zone's
+# base.png master; emit them into a rig dir with --emit-masks. Re-eyeball a
+# zone's boxes after any portrait or base redo that moves the face. Zones
+# 1/2/3/10 predate the compositor and get boxes on their next regeneration.
+MASKS = {
+    4: {"eyes": (395, 145, 655, 260), "mouth": (445, 205, 620, 340)},
+    5: {"eyes": (360, 430, 620, 525), "mouth": (350, 580, 640, 800)},
+    6: {"eyes": (405, 215, 615, 305), "mouth": (420, 300, 605, 450)},
+    7: {"eyes": (530, 300, 690, 375), "mouth": (540, 355, 700, 500)},
+    8: {"eyes": (400, 455, 650, 555), "mouth": (420, 570, 630, 760)},
+    9: {"eyes": (560, 90, 700, 170), "mouth": (550, 120, 800, 320)},
+}
 
 
 def make_mask(spec: str, out_path: str) -> None:
@@ -92,6 +106,9 @@ def composite(rig_dir: str, frame: str, mask_name: str, out_name: str) -> None:
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "--make-mask":
         make_mask(sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 4 and sys.argv[1] == "--emit-masks":
+        for name, box in MASKS[int(sys.argv[2])].items():
+            make_mask(",".join(str(v) for v in box), f"{sys.argv[3]}/mask-{name}.png")
     elif len(sys.argv) == 5:
         composite(*sys.argv[1:5])
     else:

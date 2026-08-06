@@ -1,7 +1,3 @@
-import {
-  GUARDIAN_FRAME_ZONES,
-  getGuardianPortrait,
-} from "@/config/bossCharacters";
 
 /**
  * Face crops, tier colours, and expression frames for the guardian block
@@ -80,17 +76,10 @@ export type GuardianFrameId =
   | "defeated"
   | "surprised";
 
-export { GUARDIAN_FRAME_ZONES };
-
-export function hasGuardianFrames(zoneId: number): boolean {
-  return GUARDIAN_FRAME_ZONES.has(zoneId);
-}
-
 export function getGuardianFrame(
   zoneId: number,
   frame: GuardianFrameId,
 ): string {
-  if (!hasGuardianFrames(zoneId)) return getGuardianPortrait(zoneId);
   const clamped = Math.min(10, Math.max(1, zoneId || 1));
   return `/assets/theme-${clamped}/boss/${frame}.png`;
 }

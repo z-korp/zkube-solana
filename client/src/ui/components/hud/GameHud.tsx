@@ -552,9 +552,6 @@ const GameHud: React.FC<GameHudProps> = ({
     transform: "translate(-50%, -50%)",
   };
 
-  // The realm's guardian watches every level, not just its own trial — theme
-  // icons are retired.
-  const leftSocketSrc = portraitSrc;
 
   const regularTooltip =
     !isBoss && activeMutatorId > 0 ? (
@@ -635,7 +632,7 @@ const GameHud: React.FC<GameHudProps> = ({
                   }
                 >
                   <img
-                    src={leftSocketSrc}
+                    src={portraitSrc}
                     alt={isBoss ? guardian.name : "Zone"}
                     className="absolute inset-0 w-full h-full rounded-full object-cover overflow-hidden"
                   />

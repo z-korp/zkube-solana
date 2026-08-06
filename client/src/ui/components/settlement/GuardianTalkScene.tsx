@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import {
   useGuardianTalk,
   type GuardianTalkMood,
@@ -33,7 +34,7 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
   mood = "idle",
 }) => {
   const guardian = getZoneGuardian(zoneId);
-  const talk = useGuardianTalk(zoneId, line, mood, onLineDone);
+  const talk = useGuardianTalk(zoneId, line, { mood, onLineDone });
   const celebrate = mood === "celebrate" && !talk.typing;
 
   return (
@@ -74,13 +75,8 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
       </span>
       <span className="absolute inset-x-2 bottom-2 rounded-xl border border-white/[0.18] bg-[#0b0716]/85 px-3 py-2.5 backdrop-blur-sm">
         <span className="block pr-5 font-sans text-[15px] font-medium leading-snug text-white/95">
-          {line.slice(0, talk.typed)}
-          {talk.typing && (
-            <span
-              aria-hidden
-              className="ml-0.5 inline-block h-3.5 w-2 animate-pulse bg-yellow-400 align-middle"
-            />
-          )}
+          {talk.text}
+          <TalkCaret talk={talk} />
         </span>
       </span>
     </button>

@@ -12,7 +12,7 @@
  * leaves the model nothing to reconcile framing against. Generated frames
  * are NOT pixel-stable on their own: after the rig stage, flip and
  * face-only frames must go through the scale-aware feathered-ellipse
- * compositor (composite2.py) against base.png before install, and every
+ * compositor (composite-flips.py) against base.png before install, and every
  * frame is verified at full resolution by eye. Never slice map cells as
  * frames; never trust the API's mask_url for stability.
  *
@@ -34,10 +34,10 @@ const CLIENT_ROOT = join(HERE, "..", "..");
 const GPT_EDIT = "openai/gpt-image-2/edit";
 
 /**
- * Rig states — the 8 the client's GuardianFrameId union consumes, plus
- * `surprised` banked for future wiring. `map` is the cell label lettered onto
- * the expression sheet; `change` is the one edit applied to the base when
- * rendering the frame. Order here is the 3x3 sheet's reading order.
+ * Rig states — the nine the client's GuardianFrameId union consumes. `map`
+ * is the cell label lettered onto the expression sheet; `change` is the one
+ * edit applied to the base when rendering the frame. Order here is the 3x3
+ * sheet's reading order.
  */
 const STATES = {
   idle: {
