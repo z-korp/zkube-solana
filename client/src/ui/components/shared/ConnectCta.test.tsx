@@ -238,7 +238,7 @@ describe("ConnectCta", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enable zkube/i }));
     expect(await screen.findByRole("alert")).toHaveAccessibleName(
       /request declined/i,
     );
@@ -272,7 +272,7 @@ describe("ConnectCta", () => {
       screen.getByText(/needs a fresh zKube session approval/i),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /connect account/i }),
+      screen.getByRole("button", { name: /enable zkube/i }),
     ).toBeEnabled();
     fireEvent.click(
       screen.getByRole("button", { name: /try wallet connection again/i }),
@@ -288,7 +288,7 @@ describe("ConnectCta", () => {
     fixtures.player.sessionStatus = "needsRenewal";
     render(<ConnectCta />);
     expect(
-      screen.getByRole("button", { name: /connect account/i }),
+      screen.getByRole("button", { name: /enable zkube/i }),
     ).toBeEnabled();
   });
 
@@ -340,19 +340,13 @@ describe("ConnectCta", () => {
 });
 
 describe("ConnectCta platform guidance", () => {
-  it("leads with Use Installed Wallet and the Seeker wallet hint on Android", async () => {
+  it("keeps the caller label and shows no Seeker copy on Android", async () => {
     setupAndroid("twa");
 
     render(<ConnectCta label="Connect wallet" />);
 
-    const button = screen.getByRole("button", {
-      name: /use installed wallet/i,
-    });
-    expect(
-      screen.getByText(
-        /Seeker includes Seed Vault Wallet, and other installed compatible wallets may be used\. Phantom and Solflare are optional\./,
-      ),
-    ).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /connect wallet/i });
+    expect(screen.queryByText(/seed vault/i)).not.toBeInTheDocument();
 
     fireEvent.click(button);
     await waitFor(() =>
@@ -401,9 +395,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     expect(await screen.findByRole("alert")).toHaveAccessibleName(
       /wallet connection did not finish/i,
     );
@@ -428,9 +420,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     const recovery = await screen.findByRole("alert");
     expect(recovery).toHaveAccessibleName(/allow local network access/i);
     expect(recovery).toHaveTextContent(
@@ -456,9 +446,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     const recovery = await screen.findByRole("alert");
     expect(recovery).toHaveAccessibleName(/wallet handoff did not finish/i);
     expect(recovery).toHaveTextContent(
@@ -479,9 +467,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     const recovery = await screen.findByRole("alert");
     expect(recovery).toHaveAccessibleName(/wallet handoff did not finish/i);
     expect(recovery).not.toHaveTextContent(/local network access/i);
@@ -495,9 +481,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     await screen.findByRole("alert");
     await waitFor(() =>
       expect(
@@ -514,9 +498,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     await screen.findByRole("alert");
     expect(
       fixtures.clearMobileWalletAuthorizationCache,
@@ -548,9 +530,7 @@ describe("ConnectCta platform guidance", () => {
 
     render(<ConnectCta />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /use installed wallet/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /connect account/i }));
     const recovery = await screen.findByRole("alert");
     expect(recovery).toHaveTextContent(
       /zkube's android app or site permissions/i,

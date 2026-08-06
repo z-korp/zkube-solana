@@ -529,6 +529,59 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
     await waitFor(() => expect(result.current.sessionStatus).toBe("ready"));
     expect(result.current.error).toBe("Balance endpoint unavailable");
   });
+
+  it("stops after a fresh Mobile Wallet Adapter connect so the enable spends its own gesture", async () => {
+    const owner = Keypair.generate().publicKey;
+    const connector = mocks.connectors[0]!;
+    mocks.connectWalletStandard.mockResolvedValue({
+      account: walletAccount(owner),
+      wallet: walletLike(owner),
+    });
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+    let connect!: Promise<void>;
+    act(() => {
+      connect = result.current.connectAndEnable(connector.id);
+    });
+    await act(async () => {
+      await connect;
+    });
+
+    expect(result.current.connectionStatus).toBe("connected");
+    expect(result.current.publicKey?.equals(owner)).toBe(true);
+    expect(result.current.sessionStatus).toBe("missing");
+    expect(mocks.protocolFetch).not.toHaveBeenCalled();
+    expect(result.current.wallet?.signTransaction).not.toHaveBeenCalled();
+  });
+
+  it("still chains straight into the enable for a desktop Wallet Standard connect", async () => {
+    const owner = Keypair.generate().publicKey;
+    mocks.connectors = [
+      {
+        ...connectorFixture(),
+        id: "desktop-wallet",
+        name: "Phantom",
+        kind: "wallet-standard",
+      },
+    ];
+    mocks.connectWalletStandard.mockResolvedValue({
+      account: walletAccount(owner),
+      wallet: walletLike(owner),
+    });
+
+    const { result } = renderHook(() => useConnectedPlayer(), { wrapper });
+    let connect!: Promise<void>;
+    act(() => {
+      connect = result.current.connectAndEnable("desktop-wallet");
+    });
+    // The harness mocks no transaction path, so reaching the enable throws;
+    // what this pins is that the desktop flow attempts it in the same call.
+    await act(async () => {
+      await expect(connect).rejects.toThrow();
+    });
+
+    expect(mocks.protocolFetch).toHaveBeenCalled();
+  });
 });
 
 describe("ConnectedPlayerProvider device-session expiry", () => {

@@ -994,6 +994,21 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           sessionResult = await refreshSession(current.publicKey);
         } else {
           sessionResult = await connectWallet(connectorId);
+          // Mobile Wallet Adapter opens the wallet app through an `intent://`
+          // navigation, and Chromium only permits that with a live user
+          // gesture. A fresh connect already spent this tap's gesture on the
+          // authorization launch, so a chained enable would try to open the
+          // wallet again with no activation left: the navigation is silently
+          // blocked, no sign prompt ever appears, and the association timeout
+          // surfaces as a bogus ERROR_WALLET_NOT_FOUND. Stop after connecting;
+          // the CTA re-renders as the Enable zKube action and the next tap
+          // funds this same path with its own gesture.
+          if (
+            sessionResult !== "ready" &&
+            connectedRef.current?.connector.kind === "mobile-wallet-adapter"
+          ) {
+            return;
+          }
         }
         if (sessionResult === "ready") return;
         await authorizeDeviceSession();

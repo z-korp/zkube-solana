@@ -43,16 +43,17 @@ interface LocalWalletError {
 /**
  * The one onboarding button, used by the landing ConnectScreen ("Connect
  * wallet") and the Settings sheet ("CONNECT ACCOUNT"). One tap connects
- * directly when a single compatible
- * wallet is installed, otherwise opens the wallet picker sheet; once a wallet
- * is connected the same tap enables (or renews) the device session, always
- * under the one label. Renders nothing when the player is fully ready.
+ * directly when a single compatible wallet is installed, otherwise opens the
+ * wallet picker sheet; once a wallet is connected the same button becomes the
+ * "Enable zKube" action that requests (or renews) the device session. That
+ * connected resting state is load-bearing on Android: each Mobile Wallet
+ * Adapter launch must spend its own user gesture, so connect and enable are
+ * separate taps there. Renders nothing when the player is fully ready.
  *
- * Guidance adapts to the classified platform: Android surfaces lead with
- * "Use Installed Wallet" (the Mobile Wallet Adapter connector), iOS and
+ * Zero-connector guidance adapts to the classified platform: iOS and
  * unidentified browsers get honest no-wallet copy instead of a dead mobile
  * option, and an Android browser holding a captured `beforeinstallprompt`
- * offers PWA installation. Desktop discovery and the picker are unchanged.
+ * offers PWA installation.
  */
 const ConnectCta: React.FC<ConnectCtaProps> = ({
   label = "CONNECT ACCOUNT",
@@ -74,19 +75,12 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
     installPromptAvailable,
   );
 
-  const mobilePlatform =
-    platform === "android-browser" ||
-    platform === "android-pwa" ||
-    platform === "twa";
   const connected =
     player.connectionStatus === "connected" && player.publicKey !== null;
   const ready = connected && player.sessionStatus === "ready";
   const busy = busyLocal || player.connectionStatus === "connecting";
   const supportedConnectors = player.connectors.filter(
     (connector) => connector.supportsV0Signing,
-  );
-  const mwaAvailable = player.connectors.some(
-    (connector) => connector.kind === "mobile-wallet-adapter",
   );
   const availabilityError =
     walletAvailability.status === "unavailable"
@@ -202,15 +196,10 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
           ? connected
             ? "Connecting…"
             : pendingLabel
-          : !connected && mwaAvailable
-            ? "Use Installed Wallet"
+          : connected
+            ? "Enable zKube"
             : label}
       </ArcadeButton>
-      {!connected && mobilePlatform && !recoveryError && (
-        <p className="px-2 text-center font-sans text-[11px] leading-4 text-white/60">
-          {SEEKER_WALLET_HINT}
-        </p>
-      )}
       {!connected && platform === "android-browser" && installReady && (
         <button
           type="button"
@@ -260,11 +249,6 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
               <ChevronRight size={16} className="text-white/40" />
             </button>
           ))}
-          {mobilePlatform && (
-            <p className="pt-1 text-center font-sans text-[11px] leading-4 text-white/55">
-              {SEEKER_WALLET_HINT}
-            </p>
-          )}
         </div>
       </Sheet>
     </div>
