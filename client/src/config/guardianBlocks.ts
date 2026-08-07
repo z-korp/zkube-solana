@@ -41,6 +41,23 @@ export const GUARDIAN_TIER_COLORS: Record<number, string> = {
   10: "#E89A3C",
 };
 
+/**
+ * Soft edge bleed for full-height bust art. Transparent cutouts need no
+ * heavy vignette, but a bust taller than its slot still meets the dialog
+ * panel as a hard horizontal cut — this feathers only the last sliver of
+ * each edge so the chest dissolves instead of being sliced.
+ */
+const BUST_FADE =
+  "linear-gradient(to bottom, black 84%, transparent 100%), " +
+  "linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)";
+
+export const GUARDIAN_BUST_FADE_STYLE = {
+  maskImage: BUST_FADE,
+  WebkitMaskImage: BUST_FADE,
+  maskComposite: "intersect",
+  WebkitMaskComposite: "source-in",
+} as const;
+
 const PORTRAIT_SPACE = 512;
 
 /**
