@@ -41,24 +41,6 @@ export const GUARDIAN_TIER_COLORS: Record<number, string> = {
   10: "#E89A3C",
 };
 
-/**
- * Soft edge bleed for bust art. A bust drawn to the bottom of its own PNG
- * meets the dialogue box as a hard horizontal slice through the chest, so
- * the last third dissolves instead. Deliberately ONE gradient layer: a
- * multi-layer mask needs mask-composite, which silently no-ops in enough
- * engines to have shipped the hard cut twice.
- */
-const BUST_FADE = "linear-gradient(to bottom, black 62%, transparent 98%)";
-
-export const GUARDIAN_BUST_FADE_STYLE = {
-  maskImage: BUST_FADE,
-  WebkitMaskImage: BUST_FADE,
-  maskSize: "100% 100%",
-  WebkitMaskSize: "100% 100%",
-  maskRepeat: "no-repeat",
-  WebkitMaskRepeat: "no-repeat",
-} as const;
-
 const PORTRAIT_SPACE = 512;
 
 /**

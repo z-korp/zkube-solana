@@ -2,7 +2,6 @@ import { Swords } from "lucide-react";
 import { motion } from "motion/react";
 
 import { type ZoneGuardian } from "@/config/bossCharacters";
-import { GUARDIAN_BUST_FADE_STYLE } from "@/config/guardianBlocks";
 import { getMutatorDef } from "@/config/mutatorConfig";
 import type { ThemeColors } from "@/config/themes";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
@@ -66,7 +65,14 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
-            style={GUARDIAN_BUST_FADE_STYLE}
+            style={{
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
+              maskComposite: "intersect",
+              WebkitMaskComposite: "source-in",
+            }}
             draggable={false}
             onError={(event) => {
               (event.target as HTMLImageElement).style.display = "none";

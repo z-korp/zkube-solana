@@ -7,7 +7,6 @@ import { getZoneGuardian } from "@/config/bossCharacters";
 import { DAILY_WEIGHTS } from "@/ui/components/economy/payout";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
-import { GUARDIAN_BUST_FADE_STYLE } from "@/config/guardianBlocks";
 import type { ThemeColors } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import { Game } from "@/game/model";
@@ -144,7 +143,6 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
             src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
-            style={GUARDIAN_BUST_FADE_STYLE}
             draggable={false}
           />
         </motion.div>

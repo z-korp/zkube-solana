@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import { getGuardianStarText, getZoneGuardian } from "@/config/bossCharacters";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
-import { GUARDIAN_BUST_FADE_STYLE } from "@/config/guardianBlocks";
 import type { ThemeColors } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { calculateLevelStars } from "@/game/level";
@@ -146,7 +145,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               src={talk.src}
               alt={guardian.name}
               className="h-full w-auto object-contain"
-              style={GUARDIAN_BUST_FADE_STYLE}
               draggable={false}
             />
           </motion.div>

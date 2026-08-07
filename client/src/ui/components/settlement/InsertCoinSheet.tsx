@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
-import { GUARDIAN_BUST_FADE_STYLE } from "@/config/guardianBlocks";
 import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
@@ -105,8 +104,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
             src={talk.src}
             alt=""
             draggable={false}
-            className="absolute inset-x-1 bottom-14 top-1 object-contain"
-            style={GUARDIAN_BUST_FADE_STYLE}
+            className="absolute inset-0 h-full w-full object-contain p-1 pb-14"
           />
           <span
             className="absolute left-3 top-[-1px] rounded-b-lg px-2.5 py-1 font-display text-sm tracking-[0.06em] text-[#3a2c04]"
