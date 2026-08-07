@@ -105,7 +105,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
             src={talk.src}
             alt=""
             draggable={false}
-            className="absolute inset-0 h-full w-full object-contain p-1 pb-14"
+            className="absolute inset-x-1 bottom-14 top-1 object-contain"
             style={GUARDIAN_BUST_FADE_STYLE}
           />
           <span
