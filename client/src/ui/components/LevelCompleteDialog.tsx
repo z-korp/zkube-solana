@@ -145,14 +145,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               src={talk.src}
               alt={guardian.name}
               className="h-full w-auto object-contain"
-              style={{
-                maskImage:
-                  "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
-                WebkitMaskImage:
-                  "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
-                maskComposite: "intersect",
-                WebkitMaskComposite: "source-in",
-              }}
               draggable={false}
             />
           </motion.div>

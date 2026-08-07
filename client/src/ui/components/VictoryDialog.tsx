@@ -19,8 +19,6 @@ interface VictoryDialogProps {
   colors?: ThemeColors;
 }
 
-const PORTRAIT_MASK =
-  "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)";
 
 /**
  * Guardian-trial victory card — the boss counterpart to LevelCompleteDialog,
@@ -101,12 +99,6 @@ Play now: app.zkube.xyz
             src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
-            style={{
-              maskImage: PORTRAIT_MASK,
-              WebkitMaskImage: PORTRAIT_MASK,
-              maskComposite: "intersect",
-              WebkitMaskComposite: "source-in",
-            }}
             draggable={false}
           />
         </motion.div>

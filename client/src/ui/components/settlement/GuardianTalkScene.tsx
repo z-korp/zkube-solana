@@ -42,15 +42,16 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
       type="button"
       onClick={talk.skip}
       aria-label={`${guardian.name} says: ${line}`}
-      className="relative block w-full cursor-default overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716] text-left"
+      className="relative flex w-full cursor-default flex-col overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716] text-left"
       style={{ height }}
     >
+      {/* The whole bust stays in frame — the line sits below it, never over
+          the face (the campaign preview's arrangement). */}
       <motion.img
         src={talk.src}
         alt=""
         draggable={false}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ objectPosition: "center 24%" }}
+        className="min-h-0 w-full flex-1 object-contain"
         animate={celebrate ? { x: [0, -5, 5, -3, 3, 0] } : undefined}
         transition={celebrate ? { duration: 0.4, ease: "easeOut" } : undefined}
       />
@@ -73,7 +74,7 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
       >
         {guardian.name}
       </span>
-      <span className="absolute inset-x-2 bottom-2 rounded-xl border border-white/[0.18] bg-[#0b0716]/85 px-3 py-2.5 backdrop-blur-sm">
+      <span className="m-2 mt-0 shrink-0 rounded-xl border border-white/[0.18] bg-[#0b0716]/85 px-3 py-2.5 backdrop-blur-sm">
         <span className="block pr-5 font-sans text-[15px] font-medium leading-snug text-white/95">
           {talk.text}
           <TalkCaret talk={talk} />

@@ -3,11 +3,9 @@ import { motion } from "motion/react";
 
 import type { Game } from "@/game/model";
 import { Constraint, ConstraintType } from "@/game/constraint";
-import {
-  getGuardianPortrait,
-  getGuardianStarText,
-  getZoneGuardian,
-} from "@/config/bossCharacters";
+import { getGuardianStarText, getZoneGuardian } from "@/config/bossCharacters";
+import GuardianQuote from "@/ui/components/shared/GuardianQuote";
+import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import type { MapNodeData } from "@/hooks/useMapData";
@@ -113,6 +111,12 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
       ? getGuardianStarText(guardian, stars)
       : guardian.encouragement;
 
+  // Ace-Attorney beat: the guardian speaks the level's line, then rests —
+  // celebrating a cleared trial, watchful on anything still to prove.
+  const talk = useGuardianTalk(zoneId, guardianLine, {
+    mood: isBossLevel && isCleared ? "celebrate" : "idle",
+  });
+
   const starRows = levelData
     ? [
         { stars: 3, moves: levelData.star3Threshold },
@@ -143,17 +147,9 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
           }}
         >
           <img
-            src={getGuardianPortrait(zoneId)}
+            src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
-            style={{
-              maskImage:
-                "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
-              WebkitMaskImage:
-                "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)",
-              maskComposite: "intersect",
-              WebkitMaskComposite: "source-in",
-            }}
             draggable={false}
           />
         </motion.div>
@@ -198,10 +194,11 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
             )}
           </div>
 
-          {/* Guardian quote */}
-          <p className="mt-1 font-sans text-[14px] italic text-white/60">
-            &quot;{guardianLine}&quot;
-          </p>
+          <GuardianQuote
+            talk={talk}
+            quoted
+            className="mt-1 min-h-[2.6em] font-sans text-[14px] italic text-white/60"
+          />
 
           {/* Cleared badge */}
           {isCleared && (

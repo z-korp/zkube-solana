@@ -97,14 +97,14 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
         <div
           aria-label={`Feed ${guardian.name} one SOL coin to enter`}
           className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716]"
-          style={{ height: 200 }}
+          style={{ height: 260 }}
         >
+          {/* Padded so the whole bust reads above the line, never behind it. */}
           <img
             src={talk.src}
             alt=""
             draggable={false}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ objectPosition: "center 24%" }}
+            className="absolute inset-0 h-full w-full object-contain p-1 pb-14"
           />
           <span
             className="absolute left-3 top-[-1px] rounded-b-lg px-2.5 py-1 font-display text-sm tracking-[0.06em] text-[#3a2c04]"

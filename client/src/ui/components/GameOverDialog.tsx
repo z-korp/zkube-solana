@@ -13,8 +13,6 @@ import { Game } from "@/game/model";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
-const PORTRAIT_MASK =
-  "linear-gradient(to bottom, transparent 0%, black 15%, black 70%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)";
 
 interface GameOverDialogProps {
   isOpen: boolean;
@@ -145,12 +143,6 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
             src={talk.src}
             alt={guardian.name}
             className="h-full w-auto object-contain"
-            style={{
-              maskImage: PORTRAIT_MASK,
-              WebkitMaskImage: PORTRAIT_MASK,
-              maskComposite: "intersect",
-              WebkitMaskComposite: "source-in",
-            }}
             draggable={false}
           />
         </motion.div>
