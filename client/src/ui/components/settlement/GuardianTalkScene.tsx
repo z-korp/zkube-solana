@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { GUARDIAN_BUST_FADE_STYLE } from "@/config/guardianBlocks";
 import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import {
   useGuardianTalk,
@@ -52,6 +53,7 @@ const GuardianTalkScene: React.FC<GuardianTalkSceneProps> = ({
         alt=""
         draggable={false}
         className="min-h-0 w-full flex-1 object-contain"
+        style={GUARDIAN_BUST_FADE_STYLE}
         animate={celebrate ? { x: [0, -5, 5, -3, 3, 0] } : undefined}
         transition={celebrate ? { duration: 0.4, ease: "easeOut" } : undefined}
       />
