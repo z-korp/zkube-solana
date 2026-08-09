@@ -65,7 +65,7 @@ pub use economics::{
 };
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};
-pub use ladder::{LadderError, ladder_points};
+pub use ladder::{LADDER_QUALIFY_POINTS, LadderError, ladder_points};
 pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{
     BoardWidth, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,

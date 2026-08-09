@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::state::arena_rules::{DailyPressureProfile, DailyRulesCatalog, DailyScoringRule};
-use crate::state::protocol::LevelRuleSnapshot;
+use crate::state::protocol::{LevelRuleSnapshot, PlayerState};
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
@@ -15,6 +15,8 @@ pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
 pub const ARENA_BOARD_SEED: &[u8] = b"arena_board";
 pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
+
+pub const LADDER_QUALIFY_POINTS: u32 = zkube_core::LADDER_QUALIFY_POINTS;
 
 pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
 pub const ENTRY_DAILY_LAMPORTS: u64 = zkube_core::ENTRY_DAILY_LAMPORTS;
@@ -458,9 +460,15 @@ pub struct ArenaDaily {
 }
 
 impl ArenaDaily {
+    /// A first qualification on a board is exactly one transition per player,
+    /// per board, per day, so the flat ladder credit rides it rather than
+    /// carrying its own idempotence marker. It is never per entry: further
+    /// entries may improve the retained row but report no new qualification, so
+    /// the ladder cannot be bought.
     pub fn record_scored_entry(
         &mut self,
         player: &mut ArenaPlayer,
+        player_state: &mut PlayerState,
         candidate: ArenaBoardEntry,
         run_id: u64,
     ) -> Result<()> {
@@ -469,6 +477,7 @@ impl ArenaDaily {
                 .score_qualified_players
                 .checked_add(1)
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
+            player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
         if candidate.objective_total > 0
             && player.record_score(DailyBoardKind::Theme, candidate, run_id)
@@ -477,6 +486,7 @@ impl ArenaDaily {
                 .theme_qualified_players
                 .checked_add(1)
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
+            player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
         Ok(())
     }
@@ -1244,9 +1254,11 @@ mod tests {
         let wallet = Pubkey::new_unique();
         let mut daily = ArenaDaily::default();
         let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        let mut state = PlayerState::initialize(wallet, 1);
         daily
             .record_scored_entry(
                 &mut player,
+                &mut state,
                 ArenaBoardEntry {
                     player: wallet,
                     score: 0,
@@ -1260,6 +1272,82 @@ mod tests {
         assert_eq!(daily.theme_qualified_players, 0);
         assert!(!player.has_score_best);
         assert!(!player.has_theme_best);
+        assert_eq!(state.ladder_points, 0);
+    }
+
+    /// Scores each `(score, objective_total)` entry as one paid run by the same
+    /// player on the same day.
+    fn score_entries(entries: &[(u32, u64)]) -> (ArenaDaily, ArenaPlayer, PlayerState) {
+        let wallet = Pubkey::new_unique();
+        let mut daily = ArenaDaily::default();
+        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        let mut state = PlayerState::initialize(wallet, 1);
+        for (index, (score, objective_total)) in entries.iter().enumerate() {
+            daily
+                .record_scored_entry(
+                    &mut player,
+                    &mut state,
+                    ArenaBoardEntry {
+                        player: wallet,
+                        score: *score,
+                        objective_total: *objective_total,
+                        finalized_at: i64::try_from(index).unwrap(),
+                        ..ArenaBoardEntry::default()
+                    },
+                    u64::try_from(index).unwrap() + 1,
+                )
+                .unwrap();
+        }
+        (daily, player, state)
+    }
+
+    #[test]
+    fn qualifying_on_both_boards_credits_the_ladder_twice() {
+        let (daily, _, state) = score_entries(&[(100, 40)]);
+        assert_eq!(daily.score_qualified_players, 1);
+        assert_eq!(daily.theme_qualified_players, 1);
+        assert_eq!(state.ladder_points, u64::from(LADDER_QUALIFY_POINTS) * 2);
+    }
+
+    #[test]
+    fn qualifying_on_one_board_credits_the_ladder_once() {
+        let (daily, _, state) = score_entries(&[(100, 0)]);
+        assert_eq!(daily.score_qualified_players, 1);
+        assert_eq!(daily.theme_qualified_players, 0);
+        assert_eq!(state.ladder_points, u64::from(LADDER_QUALIFY_POINTS));
+        // A Classic day yields no objective points at all, so its Theme board
+        // credits nobody and the ladder still moves for the Score board.
+    }
+
+    #[test]
+    fn the_flat_credit_is_per_board_per_day_and_never_per_entry() {
+        let entries = [(10, 1), (500, 900), (20, 2), (5, 0)];
+        let (daily, player, state) = score_entries(&entries);
+        assert_eq!(daily.score_qualified_players, 1);
+        assert_eq!(daily.theme_qualified_players, 1);
+        // Twenty entries would credit no more than these four: only the first
+        // qualification on each board pays, so the ladder cannot be bought.
+        assert_eq!(state.ladder_points, u64::from(LADDER_QUALIFY_POINTS) * 2);
+        assert_eq!(player.score_best_entry.score, 500);
+        assert_eq!(player.theme_best_entry.objective_total, 900);
+    }
+
+    #[test]
+    fn a_qualifier_who_never_places_still_leaves_with_a_ladder_total() {
+        let (_, _, state) = score_entries(&[(1, 1)]);
+        assert!(state.ladder_points > 0);
+        assert_eq!(
+            state.highest_ladder_tier,
+            crate::state::protocol::ladder_tier_for_points(state.ladder_points)
+        );
+    }
+
+    #[test]
+    fn theme_only_qualification_credits_the_theme_board_alone() {
+        let (daily, _, state) = score_entries(&[(0, 25)]);
+        assert_eq!(daily.score_qualified_players, 0);
+        assert_eq!(daily.theme_qualified_players, 1);
+        assert_eq!(state.ladder_points, u64::from(LADDER_QUALIFY_POINTS));
     }
 
     #[test]

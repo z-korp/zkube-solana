@@ -976,6 +976,7 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         };
         ctx.accounts.arena_daily.record_scored_entry(
             &mut ctx.accounts.arena_player,
+            &mut ctx.accounts.player_state,
             candidate,
             active.run_id,
         )?;

@@ -4,6 +4,25 @@ const LN_FRACTION_BITS: u32 = 64;
 /// `floor(ln(2) * 2^64)`.
 const LN_2_Q64: u128 = 0xb172_17f7_d1cf_79ab;
 
+/// Flat ladder credit for qualifying on a board, awarded once per player, per
+/// board, per day.
+///
+/// A board materializes only payout-bearing rows, so [`ladder_points`] alone
+/// reaches a share of the field that shrinks as the game grows — under six
+/// percent per board at twenty thousand entries. The flat credit is what keeps
+/// the ladder reachable without widening a board to carry non-paying rows.
+///
+/// It is deliberately independent of field size, rank and pot: everyone
+/// receives the same amount on any day, so no day is worth farming. Placeholder
+/// value — the systems contract is that qualifying scores something and placing
+/// scores more, while the number itself remains a balance pass.
+pub const LADDER_QUALIFY_POINTS: u32 = 10;
+
+/// The flat credit exists so the ladder reaches players a board never
+/// materializes. A zero would put them back where they started, so the balance
+/// pass may retune this number but may not remove it.
+const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LadderError {
     InvalidRank,
@@ -62,6 +81,17 @@ mod tests {
             let expected = u32::try_from(vector["points"].as_u64().unwrap()).unwrap();
             assert_eq!(ladder_points(qualified, rank), Ok(expected));
         }
+    }
+
+    #[test]
+    fn the_log_rank_half_still_reaches_far_less_of_a_large_field() {
+        // Why the flat half exists: at twenty thousand entries a board pays
+        // 1,176 places, so log-rank alone reaches under six percent of them.
+        let qualified = 20_000;
+        let paid = 1_176;
+        assert!(ladder_points(qualified, paid).unwrap() > 0);
+        assert!(ladder_points(qualified, paid + 1).is_ok());
+        assert!(f64::from(paid) / f64::from(qualified) < 0.06);
     }
 
     #[test]
