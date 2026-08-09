@@ -32,6 +32,10 @@ export interface PlayerProfile {
   ladderPoints: bigint;
   /** Highest tier ever reached, which a later reset cannot take away. */
   highestLadderTier: number;
+  /** Best daily score ever recorded on a scored ranked run. */
+  bestDailyScore: number;
+  /** Consecutive days carrying at least one paid entry. */
+  entryStreakDays: number;
   /** Campaign stars, reused from useZoneProgress rather than re-read. */
   totalStars: number;
 }
@@ -98,6 +102,8 @@ export function usePlayerProfile(): PlayerProfileResult {
       totalRewardsLamports: daily.rewardsLamports,
       ladderPoints: state?.ladderPoints ?? 0n,
       highestLadderTier: state?.highestLadderTier ?? 0,
+      bestDailyScore: state?.bestDailyScore ?? 0,
+      entryStreakDays: state?.entryStreakDays ?? 0,
       totalStars,
     };
   }, [state, totalStars]);

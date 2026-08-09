@@ -472,6 +472,7 @@ impl ArenaDaily {
         candidate: ArenaBoardEntry,
         run_id: u64,
     ) -> Result<()> {
+        player_state.record_best_daily_score(candidate.score)?;
         if candidate.score > 0 && player.record_score(DailyBoardKind::Score, candidate, run_id) {
             self.score_qualified_players = self
                 .score_qualified_players

@@ -7526,6 +7526,30 @@ export type Solana = {
             "type": "u8"
           },
           {
+            "name": "bestDailyScore",
+            "docs": [
+              "Best `daily_score` ever recorded on a scored ranked run. A board keeps",
+              "only payout-bearing rows and its accounts are recycled, so a personal",
+              "best has nowhere else to survive."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "lastEntryDayId",
+            "docs": [
+              "Day identifier of the most recent paid entry, which the streak below",
+              "is measured against."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "entryStreakDays",
+            "docs": [
+              "Consecutive days carrying at least one paid entry."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "reserved",
             "docs": [
               "Explicit zeroed expansion space for future profile fields."
@@ -7533,7 +7557,7 @@ export type Solana = {
             "type": {
               "array": [
                 "u8",
-                47
+                37
               ]
             }
           },

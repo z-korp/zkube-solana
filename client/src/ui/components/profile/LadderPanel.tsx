@@ -22,7 +22,18 @@ interface LadderPanelProps {
   points: bigint;
   /** Highest tier ever reached, which a later reset cannot take away. */
   highestTier: number;
+  /** Best daily score ever recorded on a scored ranked run. */
+  bestScore: number;
+  /** Consecutive days carrying at least one paid entry. */
+  streakDays: number;
+  /** Lifetime paid entries. */
+  entries: bigint;
 }
+
+const STAT_LABEL =
+  "block font-sans text-[8px] font-bold uppercase tracking-[0.16em] text-white/40";
+const STAT_VALUE =
+  "block font-mono text-[15px] font-bold tabular-nums text-white";
 
 /**
  * The ladder rack — every tier at once, so the climb is visible rather than
@@ -34,7 +45,13 @@ interface LadderPanelProps {
  * field, but every qualifying run moves this, so a player outside the money
  * still watches something climb.
  */
-const LadderPanel: React.FC<LadderPanelProps> = ({ points, highestTier }) => {
+const LadderPanel: React.FC<LadderPanelProps> = ({
+  points,
+  highestTier,
+  bestScore,
+  streakDays,
+  entries,
+}) => {
   const tier =
     LADDER_TIER_THRESHOLDS.filter((threshold) => points >= threshold).length - 1;
   const current = Math.max(0, tier);
@@ -102,10 +119,33 @@ const LadderPanel: React.FC<LadderPanelProps> = ({ points, highestTier }) => {
       </div>
 
       {highestTier > current && (
-        <p className="mt-2 border-t border-white/[0.05] pt-2 font-mono text-[11px] font-semibold text-white/50">
+        <p className="mt-2 font-mono text-[11px] font-semibold text-white/50">
           Best ever · {ladderTierName(highestTier)}
         </p>
       )}
+
+      {/* The three figures a board cannot keep: its rows hold only payout
+          places and its accounts are recycled, so these live on the profile. */}
+      <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-white/[0.07] pt-3">
+        <span>
+          <span className={STAT_LABEL}>Best run</span>
+          <span className={STAT_VALUE}>{bestScore.toLocaleString()}</span>
+        </span>
+        <span className="text-center">
+          <span className={STAT_LABEL}>Streak</span>
+          <span
+            className={STAT_VALUE}
+            style={streakDays > 1 ? { color: MONEY_GOLD } : undefined}
+          >
+            {streakDays}
+            <span className="ml-0.5 text-[11px] text-white/45">d</span>
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={STAT_LABEL}>Entries</span>
+          <span className={STAT_VALUE}>{entries.toLocaleString()}</span>
+        </span>
+      </div>
     </section>
   );
 };

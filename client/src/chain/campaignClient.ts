@@ -62,6 +62,12 @@ export interface PlayerStateView {
   kreditBalance: bigint;
   ladderPoints: bigint;
   highestLadderTier: number;
+  /** Best daily score ever recorded on a scored ranked run. */
+  bestDailyScore: number;
+  /** Day identifier of the most recent paid entry. */
+  lastEntryDayId: number;
+  /** Consecutive days carrying at least one paid entry. */
+  entryStreakDays: number;
   dailyRecord: CompetitionRecord;
 }
 
@@ -220,6 +226,9 @@ interface RawPlayerState {
   kreditBalance: { toString(): string } | number | bigint;
   ladderPoints: { toString(): string } | number | bigint;
   highestLadderTier: number | bigint;
+  bestDailyScore: number | bigint;
+  lastEntryDayId: number | bigint;
+  entryStreakDays: number | bigint;
   reserved: readonly number[];
 }
 
@@ -273,7 +282,7 @@ export function decodePlayerStateAccount(
     !address.equals(derivePlayerStatePda(owner)) ||
     campaignStars.length !== CAMPAIGN_STAR_BYTES ||
     Number(raw.highestLadderTier) > 4 ||
-    reserved.length !== 47 ||
+    reserved.length !== 37 ||
     reserved.some((byte) => byte !== 0)
   ) {
     throw new Error("PlayerState relationship is invalid");
@@ -287,6 +296,9 @@ export function decodePlayerStateAccount(
     kreditBalance: toBigint(raw.kreditBalance),
     ladderPoints: toBigint(raw.ladderPoints),
     highestLadderTier: Number(raw.highestLadderTier),
+    bestDailyScore: Number(raw.bestDailyScore),
+    lastEntryDayId: Number(raw.lastEntryDayId),
+    entryStreakDays: Number(raw.entryStreakDays),
     dailyRecord: mapCompetitionRecord(raw.dailyRecord),
   };
 }

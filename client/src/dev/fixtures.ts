@@ -259,6 +259,8 @@ export function applyDevPlayerProfile(
     // empty or complete one.
     ladderPoints: 7_480n,
     highestLadderTier: 2,
+    bestDailyScore: 18_940,
+    entryStreakDays: 6,
     loading: false,
     error: null,
   };

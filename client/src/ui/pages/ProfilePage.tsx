@@ -262,6 +262,9 @@ const ProfilePage: React.FC = () => {
       <LadderPanel
         points={profile.ladderPoints}
         highestTier={profile.highestLadderTier}
+        bestScore={profile.bestDailyScore}
+        streakDays={profile.entryStreakDays}
+        entries={profile.lifetimePaidEntries}
       />
 
       {/* Competition records — did last night pay? */}

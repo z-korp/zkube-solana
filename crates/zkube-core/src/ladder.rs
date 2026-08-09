@@ -32,7 +32,14 @@ const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_000, 5_000, 20_000, 50_000];
 
 /// Number of named tiers.
-pub const LADDER_TIER_COUNT: u8 = LADDER_TIER_POINT_THRESHOLDS.len() as u8;
+pub const LADDER_TIER_COUNT: u8 = {
+    let count = LADDER_TIER_POINT_THRESHOLDS.len();
+    assert!(count <= u8::MAX as usize, "tier count must fit a byte");
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        count as u8
+    }
+};
 
 /// The tier index a cumulative total has reached.
 #[must_use]

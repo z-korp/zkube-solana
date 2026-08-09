@@ -7520,6 +7520,30 @@
             "type": "u8"
           },
           {
+            "name": "best_daily_score",
+            "docs": [
+              "Best `daily_score` ever recorded on a scored ranked run. A board keeps",
+              "only payout-bearing rows and its accounts are recycled, so a personal",
+              "best has nowhere else to survive."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "last_entry_day_id",
+            "docs": [
+              "Day identifier of the most recent paid entry, which the streak below",
+              "is measured against."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "entry_streak_days",
+            "docs": [
+              "Consecutive days carrying at least one paid entry."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "reserved",
             "docs": [
               "Explicit zeroed expansion space for future profile fields."
@@ -7527,7 +7551,7 @@
             "type": {
               "array": [
                 "u8",
-                47
+                37
               ]
             }
           },

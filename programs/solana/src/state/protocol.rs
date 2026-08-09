@@ -85,8 +85,17 @@ pub struct PlayerState {
     pub ladder_points: u64,
     /// Highest placeholder tier ever reached; it never decreases.
     pub highest_ladder_tier: u8,
+    /// Best `daily_score` ever recorded on a scored ranked run. A board keeps
+    /// only payout-bearing rows and its accounts are recycled, so a personal
+    /// best has nowhere else to survive.
+    pub best_daily_score: u32,
+    /// Day identifier of the most recent paid entry, which the streak below
+    /// is measured against.
+    pub last_entry_day_id: u32,
+    /// Consecutive days carrying at least one paid entry.
+    pub entry_streak_days: u16,
     /// Explicit zeroed expansion space for future profile fields.
-    pub reserved: [u8; 47],
+    pub reserved: [u8; 37],
     pub bump: u8,
 }
 
@@ -109,7 +118,10 @@ impl PlayerState {
             kredit_balance: 0,
             ladder_points: 0,
             highest_ladder_tier: 0,
-            reserved: [0; 47],
+            best_daily_score: 0,
+            last_entry_day_id: 0,
+            entry_streak_days: 0,
+            reserved: [0; 37],
             bump,
         }
     }
@@ -117,7 +129,7 @@ impl PlayerState {
     pub fn schema_valid(&self) -> bool {
         self.version == PLAYER_STATE_VERSION
             && self.highest_ladder_tier == ladder_tier_for_points(self.ladder_points)
-            && self.reserved == [0; 47]
+            && self.reserved == [0; 37]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -291,7 +303,12 @@ impl PlayerState {
         }
     }
 
-    pub fn record_paid_entry(&mut self) -> Result<()> {
+    /// Spend one prepaid Kredit and advance the entry streak.
+    ///
+    /// The streak counts consecutive days carrying at least one paid entry, so
+    /// a second entry on the same day leaves it untouched, the day after
+    /// extends it, and any longer gap restarts it at one.
+    pub fn record_paid_entry(&mut self, day_id: u32) -> Result<()> {
         self.require_schema()?;
         self.kredit_balance = self
             .kredit_balance
@@ -301,6 +318,16 @@ impl PlayerState {
             .lifetime_paid_entries
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
+        if day_id != self.last_entry_day_id {
+            let extends =
+                self.entry_streak_days > 0 && day_id == self.last_entry_day_id.saturating_add(1);
+            self.entry_streak_days = if extends {
+                self.entry_streak_days.saturating_add(1)
+            } else {
+                1
+            };
+            self.last_entry_day_id = day_id;
+        }
         Ok(())
     }
 
@@ -311,6 +338,14 @@ impl PlayerState {
             .kredit_balance
             .checked_add(count)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
+
+    /// Raise the lifetime best score. A max is idempotent, so replaying a
+    /// result can never inflate it.
+    pub fn record_best_daily_score(&mut self, score: u32) -> Result<()> {
+        self.require_schema()?;
+        self.best_daily_score = self.best_daily_score.max(score);
         Ok(())
     }
 
@@ -659,7 +694,7 @@ mod tests {
     fn player_state_rejects_nonzero_reserved_bytes() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert!(player.schema_valid());
-        player.reserved[46] = 1;
+        player.reserved[36] = 1;
         assert!(!player.schema_valid());
         assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
     }
@@ -672,7 +707,7 @@ mod tests {
         assert_eq!(player.highest_ladder_tier, 0);
         player.record_ladder_points(1).unwrap();
         assert_eq!(player.highest_ladder_tier, 1);
-        assert_eq!(player.reserved, [0; 47]);
+        assert_eq!(player.reserved, [0; 37]);
         assert!(player.schema_valid());
     }
 
@@ -683,11 +718,50 @@ mod tests {
         assert_eq!(player.kredit_balance, 3);
         assert_eq!(player.lifetime_paid_entries, 0);
 
-        player.record_paid_entry().unwrap();
+        player.record_paid_entry(20_000).unwrap();
         assert_eq!(player.kredit_balance, 2);
         assert_eq!(player.lifetime_paid_entries, 1);
         player.kredit_balance = 0;
-        assert!(player.record_paid_entry().is_err());
+        assert!(player.record_paid_entry(20_000).is_err());
+    }
+
+    #[test]
+    fn a_streak_counts_days_rather_than_entries() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(10).unwrap();
+
+        player.record_paid_entry(20_000).unwrap();
+        assert_eq!(player.entry_streak_days, 1);
+        // A second entry the same day is still one day of play.
+        player.record_paid_entry(20_000).unwrap();
+        assert_eq!(player.entry_streak_days, 1);
+        player.record_paid_entry(20_001).unwrap();
+        assert_eq!(player.entry_streak_days, 2);
+        player.record_paid_entry(20_002).unwrap();
+        assert_eq!(player.entry_streak_days, 3);
+    }
+
+    #[test]
+    fn a_missed_day_restarts_the_streak_at_one() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(10).unwrap();
+        player.record_paid_entry(20_000).unwrap();
+        player.record_paid_entry(20_001).unwrap();
+        assert_eq!(player.entry_streak_days, 2);
+        player.record_paid_entry(20_003).unwrap();
+        assert_eq!(player.entry_streak_days, 1);
+        assert_eq!(player.last_entry_day_id, 20_003);
+    }
+
+    #[test]
+    fn a_personal_best_only_rises() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_best_daily_score(1_200).unwrap();
+        assert_eq!(player.best_daily_score, 1_200);
+        player.record_best_daily_score(400).unwrap();
+        assert_eq!(player.best_daily_score, 1_200);
+        player.record_best_daily_score(5_000).unwrap();
+        assert_eq!(player.best_daily_score, 5_000);
     }
 
     #[test]

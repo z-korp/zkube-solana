@@ -726,7 +726,9 @@ pub fn handler_enter_arena<'info>(
         checked_add_u64(ctx.accounts.current_daily.entries_paid, 1)?;
     ctx.accounts.arena_player.paid_entries =
         checked_add_u32(ctx.accounts.arena_player.paid_entries, 1)?;
-    ctx.accounts.player_state.record_paid_entry()?;
+    ctx.accounts
+        .player_state
+        .record_paid_entry(ctx.accounts.current_daily.day_id)?;
     ctx.accounts.arena_player.active_paid_run_id = run_id;
     let daily_key = ctx.accounts.current_daily.key();
     initialize_arena_run(
