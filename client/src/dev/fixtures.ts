@@ -135,6 +135,10 @@ export function buildDevDailyView(): DailyView {
     entryLamports: 10_000_000n,
     dailyPotLamports: 3_200_000_000n,
     followingDailyLamports: 1_860_000_000n,
+    // Tomorrow: a different realm and a different objective, so the Home
+    // preview shows a real change rather than a repeat of today.
+    followingMapId: 3,
+    followingScoringRule: CANONICAL_DAILY_SCORING_RULES[4]!,
     kreditBalance: 3n,
     uniquePlayers: 6,
     attemptsStarted: 9n,

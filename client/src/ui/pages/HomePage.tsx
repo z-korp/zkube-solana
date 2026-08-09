@@ -16,6 +16,7 @@ import CampaignDoor, {
   type CampaignShelfItem,
 } from "@/ui/components/arcade/CampaignDoor";
 import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
+import TomorrowStrip from "@/ui/components/arcade/TomorrowStrip";
 import { MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { GuardianPrizeResult } from "@/ui/components/settlement";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -191,6 +192,15 @@ const HomePage: React.FC = () => {
           totalStars={totalStars}
           onClick={() => navigate("campaign")}
         />
+        {/* The evening hook: tomorrow's realm is already knowable, and the
+            only actionable thing to do with it is practise it for free. */}
+        {view?.followingMapId != null && view.followingScoringRule && (
+          <TomorrowStrip
+            mapId={view.followingMapId}
+            scoringRule={view.followingScoringRule}
+            onClick={() => navigate("campaign")}
+          />
+        )}
         <div className="flex-[2]" />
       </div>
 

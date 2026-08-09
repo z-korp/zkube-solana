@@ -119,6 +119,10 @@ export interface DailyView extends EndlessRulesView {
   rulesCatalog: PublicKey;
   dayId: number;
   followingDayId: number | null;
+  /** Tomorrow's realm, derived from the published pool rather than fetched. */
+  followingMapId: number | null;
+  /** Tomorrow's objective, knowable today so an evening has a hook. */
+  followingScoringRule: DailyScoringRuleView | null;
   status: DailyStatus;
   mapId: number;
   opensAt: number;
@@ -204,6 +208,19 @@ export async function fetchDailyView(args: {
     : await program.account.arenaDaily.fetchNullable(
         deriveArenaDailyPda(followingDayId),
       );
+  // Tomorrow's entry is derived from the catalog already in hand, so the
+  // published draw costs no extra read. A selection failure is never fatal:
+  // the following day simply has nothing to preview yet.
+  const followingEntry = followingDayId === null
+    ? null
+    : await dailyContentSelection(
+        Uint8Array.from(catalog.selectionSeed),
+        Number(catalog.startsDay),
+        followingDayId,
+        poolEntryCount,
+      )
+        .then(({ poolIndex }) => catalog.poolEntries[poolIndex] ?? null)
+        .catch(() => null);
   const [rows, themeRows] = boardRows;
   const labels = await fetchPlayerLabels({
     connection: args.connection,
@@ -230,6 +247,10 @@ export async function fetchDailyView(args: {
     dailyPotLamports: availablePoolLamports(challenge.ledger),
     followingDailyLamports: following
       ? availablePoolLamports(following.ledger)
+      : null,
+    followingMapId: followingEntry ? Number(followingEntry.realmMapId) : null,
+    followingScoringRule: followingEntry
+      ? mapDailyScoringRule(followingEntry.scoringRule)
       : null,
     kreditBalance: profile ? BigInt(profile.kreditBalance.toString()) : 0n,
     uniquePlayers: Number(challenge.uniquePlayers),
