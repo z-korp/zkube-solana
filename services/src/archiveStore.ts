@@ -19,7 +19,6 @@ import {
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
 import {
-  CURRENT_ARCHIVE_SCHEMA_VERSION,
   cadenceRoot,
   cadenceResultHash,
   parseCanonicalArchive,
@@ -265,7 +264,7 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
       kind,
       id,
       stored,
-      Buffer.from(expected.resultDataBase64!, "base64"),
+      Buffer.from(expected.resultDataBase64, "base64"),
     );
   }
 
@@ -311,9 +310,8 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
     if (actual.competition !== kind || actual.periodId !== id ||
         actual.programId !== ZKUBE_PROGRAM_ID.toBase58() ||
         actual.account !== arenaDailyPda(id).toBase58() ||
-        (actual.schemaVersion === 3 &&
-          (actual.scoreBoard !== arenaBoardPda(arenaDailyPda(id), "score").toBase58() ||
-           actual.themeBoard !== arenaBoardPda(arenaDailyPda(id), "theme").toBase58()))) {
+        actual.scoreBoard !== arenaBoardPda(arenaDailyPda(id), "score").toBase58() ||
+        actual.themeBoard !== arenaBoardPda(arenaDailyPda(id), "theme").toBase58()) {
       throw new ArchiveIntegrityError(
         "immutable_commitment_mismatch",
         kind,
@@ -423,15 +421,12 @@ function parseExpectedArchive(
   identity: { kind: CompetitionKind; id: number },
   contextResultHash: string | undefined,
 ): CadenceArchiveContract {
-  const { contract, resultData, scoreBoardData, themeBoardData } =
-    parseCanonicalArchive(canonicalJson);
-  if ((contract.schemaVersion !== 2 &&
-       contract.schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) || !resultData ||
-      (contract.schemaVersion === 3 && (!scoreBoardData || !themeBoardData)) ||
+  const { contract } = parseCanonicalArchive(canonicalJson);
+  if (
       contract.competition !== identity.kind ||
       contract.periodId !== identity.id ||
       contract.resultHash !== contextResultHash) {
-    throw new Error("archive plan does not carry the canonical v3 commitment");
+    throw new Error("archive plan does not carry the canonical commitment");
   }
   return contract;
 }

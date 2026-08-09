@@ -285,7 +285,8 @@ pub struct FundedEnterArena<'info> {
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
     #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()], bump)]
     pub player_funding: UncheckedAccount<'info>,
-    /// CHECK: Immutable wallet identity checked by the inner instruction.
+    /// CHECK: Durable reward destination checked by the inner instruction.
+    #[account(mut)]
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Account<'info, SessionTokenV2>,
     pub actor: Signer<'info>,
@@ -293,8 +294,8 @@ pub struct FundedEnterArena<'info> {
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-pub fn handler_funded_enter_arena(
-    ctx: Context<FundedEnterArena>,
+pub fn handler_funded_enter_arena<'info>(
+    ctx: Context<'info, FundedEnterArena<'info>>,
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
@@ -336,8 +337,9 @@ pub fn handler_funded_enter_arena(
         session_token: Some(ctx.accounts.session_token.key()),
         actor: ctx.accounts.actor.key(),
         system_program: ctx.accounts.system_program.key(),
+        zkube_program: ctx.accounts.zkube_program.key(),
     };
-    let instruction = Instruction {
+    let mut instruction = Instruction {
         program_id: crate::ID,
         accounts: accounts.to_account_metas(None),
         data: crate::instruction::EnterArena {
@@ -346,7 +348,16 @@ pub fn handler_funded_enter_arena(
         }
         .data(),
     };
-    let infos = [
+    instruction
+        .accounts
+        .extend(ctx.remaining_accounts.iter().map(|account| {
+            if account.is_writable {
+                AccountMeta::new(*account.key, account.is_signer)
+            } else {
+                AccountMeta::new_readonly(*account.key, account.is_signer)
+            }
+        }));
+    let mut infos = vec![
         ctx.accounts.protocol.to_account_info(),
         ctx.accounts.arcade_config.to_account_info(),
         ctx.accounts.player_state.to_account_info(),
@@ -362,6 +373,7 @@ pub fn handler_funded_enter_arena(
         ctx.accounts.system_program.to_account_info(),
         ctx.accounts.zkube_program.to_account_info(),
     ];
+    infos.extend_from_slice(ctx.remaining_accounts);
     invoke_with_player_funding(
         ctx.accounts.owner_authority.key(),
         &ctx.accounts.player_funding.to_account_info(),

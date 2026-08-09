@@ -241,13 +241,16 @@ mod tests {
             session_token: Some(token_address(owner, actor)),
             actor,
             system_program: anchor_lang::system_program::ID,
+            zkube_program: crate::ID,
         }
         .to_account_metas(None);
-        assert_eq!(entry.len(), 13);
+        assert_eq!(entry.len(), 14);
         assert_eq!(entry[9].pubkey, owner);
+        assert!(entry[9].is_writable);
         assert!(!entry[9].is_signer);
         assert_eq!(entry[11].pubkey, actor);
         assert!(entry[11].is_signer);
+        assert_eq!(entry[13].pubkey, crate::ID);
     }
 
     #[test]

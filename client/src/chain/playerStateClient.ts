@@ -22,6 +22,7 @@ export interface PlayerEmblemView {
   address: PublicKey;
   featuredEmblem: number;
   totalStars: number;
+  highestLadderTier: number;
 }
 
 const PLAYER_STATE_CACHE_MS = 60_000;
@@ -144,6 +145,7 @@ function toEmblemView(view: PlayerStateView): PlayerEmblemView {
     address: view.owner,
     featuredEmblem: view.featuredEmblem,
     totalStars: campaignTotalStars(view.campaignStars),
+    highestLadderTier: view.highestLadderTier,
   };
 }
 

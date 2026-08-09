@@ -17,7 +17,7 @@ interface DailyTiming {
   dayId: number;
   status: DailyStatus;
   opensAt: number;
-  entriesCloseAt: number;
+  runsCloseAt: number;
 }
 
 /**
@@ -52,7 +52,7 @@ export function computeArcadeLifecycle(args: {
   const entriesOpen =
     view.status === "open" &&
     view.opensAt <= nowUnix &&
-    nowUnix < view.entriesCloseAt;
+    nowUnix < view.runsCloseAt;
   return entriesOpen ? "entries-open" : "entries-closed";
 }
 

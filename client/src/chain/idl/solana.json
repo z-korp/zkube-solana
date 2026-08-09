@@ -1920,7 +1920,8 @@
           "signer": true
         },
         {
-          "name": "owner_authority"
+          "name": "owner_authority",
+          "writable": true
         },
         {
           "name": "session_token",
@@ -1933,6 +1934,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkube_program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
         }
       ],
       "args": [
@@ -2776,7 +2781,8 @@
           }
         },
         {
-          "name": "owner_authority"
+          "name": "owner_authority",
+          "writable": true
         },
         {
           "name": "session_token"
@@ -6147,6 +6153,13 @@
             "type": "bool"
           },
           {
+            "name": "sealed_at",
+            "docs": [
+              "Starts this board's independent reward-claim window."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "claimed_lamports",
             "type": "u64"
           },
@@ -6287,10 +6300,6 @@
           },
           {
             "name": "opens_at",
-            "type": "i64"
-          },
-          {
-            "name": "entries_close_at",
             "type": "i64"
           },
           {
@@ -6617,6 +6626,18 @@
           {
             "name": "reward_lamports",
             "type": "u64"
+          },
+          {
+            "name": "points_earned",
+            "type": "u32"
+          },
+          {
+            "name": "ladder_points",
+            "type": "u64"
+          },
+          {
+            "name": "highest_ladder_tier",
+            "type": "u8"
           }
         ]
       }
@@ -7485,15 +7506,28 @@
             "type": "u64"
           },
           {
+            "name": "ladder_points",
+            "docs": [
+              "Monotonic, non-monetary points accumulated by Daily profile sync."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "highest_ladder_tier",
+            "docs": [
+              "Highest placeholder tier ever reached; it never decreases."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "reserved",
             "docs": [
-              "Reserved for later versioned profile fields such as the ladder. Readers",
-              "reject nonzero bytes until an explicitly versioned schema consumes them."
+              "Explicit zeroed expansion space for future profile fields."
             ],
             "type": {
               "array": [
                 "u8",
-                56
+                47
               ]
             }
           },

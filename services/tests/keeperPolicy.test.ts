@@ -20,7 +20,7 @@ import {
   type KeeperInstructionPlan,
   type KeeperPlanContext,
 } from "../src/arcadeChain";
-import { cadenceResultHash, canonicalArchiveV3 } from "../src/archiveContract";
+import { cadenceResultHash, canonicalArchive } from "../src/archiveContract";
 import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 
 const DAY = 20_651;
@@ -194,13 +194,13 @@ function rankedContext(): KeeperPlanContext {
 function archiveContext(committed: boolean): KeeperPlanContext {
   const resultData = Buffer.from("daily-result");
   const daily = arenaDailyPda(DAY);
-  const canonicalJson = canonicalArchiveV3({
+  const canonicalJson = canonicalArchive({
     account: daily,
     accountData: Buffer.alloc(10, 1),
     scoreBoard: arenaBoardPda(daily, "score"),
-    scoreBoardData: Buffer.alloc(121, 2),
+    scoreBoardData: Buffer.alloc(129, 2),
     themeBoard: arenaBoardPda(daily, "theme"),
-    themeBoardData: Buffer.alloc(121, 3),
+    themeBoardData: Buffer.alloc(129, 3),
     competition: "daily",
     periodId: DAY,
     programId: ZKUBE_PROGRAM_ID,

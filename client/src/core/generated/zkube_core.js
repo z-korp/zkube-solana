@@ -233,6 +233,19 @@ export function initializeDailySimulation(config, request_counter, vrf_output) {
 }
 
 /**
+ * @param {number} qualified_entrants
+ * @param {number} rank
+ * @returns {number}
+ */
+export function ladderPoints(qualified_entrants, rank) {
+    const ret = wasm.ladderPoints(qualified_entrants, rank);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] >>> 0;
+}
+
+/**
  * @param {Uint8Array} config
  * @param {Uint8Array} state
  * @param {number} expected_move

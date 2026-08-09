@@ -23,6 +23,7 @@ mod economics;
 #[allow(clippy::pedantic)]
 mod grid;
 mod hash;
+mod ladder;
 mod metrics;
 #[allow(clippy::missing_errors_doc)]
 mod payouts;
@@ -38,10 +39,10 @@ mod simulation;
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries. Rules and public labels intentionally
 /// retain their independent v1 schemas.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
-pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 6;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 8;
-pub const RULES_ACCOUNT_VERSION: u8 = 4;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 1;
+pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 1;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 1;
+pub const RULES_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -64,6 +65,7 @@ pub use economics::{
 };
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};
+pub use ladder::{LadderError, ladder_points};
 pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{
     BoardWidth, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,

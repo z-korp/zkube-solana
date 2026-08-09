@@ -4,9 +4,9 @@ import { PublicKey, type Connection } from "@solana/web3.js";
 
 import {
   ARENA_BOARD_CAPACITY,
-  DAILY_ENTRY_CLOSE_OFFSET,
   DAILY_POOL_SELECTION_SEED,
   DAILY_RECOVERY_DEADLINE_OFFSET,
+  DAILY_RUN_CLOSE_OFFSET,
   KEEPER_RECENT_DAILY_CADENCES,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
@@ -217,12 +217,9 @@ function assertCadenceArchive(
     throw new Error("keeper policy rejects cadence archive file hash");
   }
   try {
-    const { contract, resultData, scoreBoardData, themeBoardData } =
-      parseCanonicalArchive(context.archiveCanonicalJson);
+    const { contract } = parseCanonicalArchive(context.archiveCanonicalJson);
     const daily = arenaDailyPda(context.dayId!);
-    if (contract.schemaVersion !== 3 || !resultData ||
-        !scoreBoardData || !themeBoardData ||
-        contract.competition !== "daily" ||
+    if (contract.competition !== "daily" ||
         contract.periodId !== context.dayId ||
         contract.programId !== ZKUBE_PROGRAM_ID.toBase58() ||
         contract.account !== daily.toBase58() ||
@@ -232,7 +229,7 @@ function assertCadenceArchive(
       throw new Error("mismatch");
     }
   } catch {
-    throw new Error("keeper policy rejects cadence archive v3 commitment");
+    throw new Error("keeper policy rejects cadence archive commitment");
   }
 }
 
@@ -247,7 +244,7 @@ function assertExpiryTarget(
   if (startsDay === undefined || entryCount === undefined ||
       context.followingDayId !== nextScheduledDaily(today, startsDay, entryCount) ||
       context.claimCloseAt !== context.closeEligibleAt ||
-      context.claimCloseAt === undefined || context.claimCloseAt > nowUnix) {
+      context.claimCloseAt === undefined || context.claimCloseAt >= nowUnix) {
     throw new Error("keeper policy rejects Daily claim-expiry target");
   }
   assertCadenceId(startsDay, "catalog start day");
@@ -407,7 +404,7 @@ function assertActivation(
   );
   if (dayId === currentScheduled) {
     if (context.recoveryActivation || context.preactivation ||
-        nowUnix >= today * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
+        nowUnix >= today * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET) {
       throw new Error("keeper policy rejects Daily activation");
     }
     return;

@@ -128,7 +128,6 @@ export function buildDevDailyView(): DailyView {
     status: "open",
     mapId: 8,
     opensAt: now - HOUR,
-    entriesCloseAt: now + 5 * HOUR,
     runsCloseAt,
     settlementGraceCloseAt: runsCloseAt + 30 * 60,
     recoveryDeadlineAt: runsCloseAt + HOUR,

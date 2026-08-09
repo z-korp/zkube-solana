@@ -3,6 +3,7 @@ import {
   initSync,
   emptyContinuationRows,
   initialReplayCommitment,
+  ladderPoints,
   qualifiedPlayerId,
 } from "./generated/zkube_core";
 import wasmUrl from "./generated/zkube_core_bg.wasm?url";
@@ -79,6 +80,13 @@ export function corePlayerId(
   return qualifiedPlayerId(chainDomain, rawAccount);
 }
 
+export function coreLadderPoints(qualifiedEntrants: number, rank: number): number {
+  assertInitialized();
+  assertU32(qualifiedEntrants, "qualifiedEntrants");
+  assertU32(rank, "rank");
+  return ladderPoints(qualifiedEntrants, rank);
+}
+
 export function coreInitialReplayCommitment(args: {
   chainDomain: Uint8Array;
   challengeId: Uint8Array;
@@ -119,6 +127,12 @@ export function encodeHex(value: Uint8Array): string {
 
 function assertBytes32(value: Uint8Array, label: string): void {
   if (value.length !== 32) throw new Error(`${label} must contain 32 bytes`);
+}
+
+function assertU32(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new Error(`${label} must be a u32`);
+  }
 }
 
 function assertInitialized(): void {

@@ -98,10 +98,16 @@ pub fn handler_sync_daily_profile(
         )?,
         ErrorCode::AlreadySubmitted
     );
+    let points = zkube_core::ladder_points(
+        ctx.accounts.arena_board.qualified_count,
+        u32::from(prize.rank),
+    )
+    .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     ctx.accounts
         .player_state
         .daily_record
         .record_prize(prize.rank, prize.amount)?;
+    ctx.accounts.player_state.record_ladder_points(points)?;
     set_board_bitmap(
         &board_info,
         &ctx.accounts.arena_board,
@@ -119,6 +125,9 @@ pub fn handler_sync_daily_profile(
         board,
         rank: prize.rank,
         reward_lamports: prize.amount,
+        points_earned: points,
+        ladder_points: ctx.accounts.player_state.ladder_points,
+        highest_ladder_tier: ctx.accounts.player_state.highest_ladder_tier,
     });
     Ok(())
 }
@@ -135,4 +144,7 @@ pub struct CompetitionProfileSynced {
     pub board: DailyBoardKind,
     pub rank: u16,
     pub reward_lamports: u64,
+    pub points_earned: u32,
+    pub ladder_points: u64,
+    pub highest_ladder_tier: u8,
 }

@@ -15,7 +15,7 @@ type DeploymentApprovalStatus = "candidate" | "approved";
 type ManifestCheckStatus = "pass" | "fail";
 
 export const LAUNCH_DAILY_SEED_LAMPORTS = "1000000000";
-const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60 + 45 * 60;
+const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
@@ -363,9 +363,9 @@ export function validateDeploymentManifest(
         positiveInteger(launch?.cutoffUnixTimestamp) &&
         Number(launch?.cutoffUnixTimestamp) > dayOpensAt &&
         Number(launch?.cutoffUnixTimestamp) <=
-          dayOpensAt + ENTRY_CUTOFF_OFFSET_SECONDS &&
+          dayOpensAt + RUN_FREEZE_OFFSET_SECONDS &&
         RELEASE_FINGERPRINT_PATTERN.test(string(launch?.planFingerprint) ?? ""),
-      "Launch day must have a pre-entry cutoff and 64-hex plan fingerprint",
+      "Launch day must have a pre-freeze cutoff and 64-hex plan fingerprint",
     ),
     check(
       "launch-seeds",

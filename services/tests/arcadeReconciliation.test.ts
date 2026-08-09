@@ -355,8 +355,8 @@ function daily(
     themeProfileSyncMask: 0n,
     claimsExpired: false,
     ...(status === "finalized" ? {
-      scoreBoard: board("score", owners.length),
-      themeBoard: board("theme", 0),
+      scoreBoard: board("score", owners.length, dayId),
+      themeBoard: board("theme", 0, dayId),
     } : {}),
     ...(status !== "funding" ? {
       settlement: {
@@ -378,13 +378,14 @@ function daily(
   };
 }
 
-function board(kind: "score" | "theme", payoutCount: number) {
+function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
   return {
     kind,
     payoutCount,
     widthCount: payoutCount,
     cursor: payoutCount,
     sealed: true,
+    sealedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
     claimedLamports: 0n,
     claimedCount: 0,
     profileSyncCount: 0,

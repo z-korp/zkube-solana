@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.0.0",
+  "formula": "floor(50 * ln(qualifiedEntrants / rank))",
+  "vectors": [
+    { "qualifiedEntrants": 1, "rank": 1, "points": 0 },
+    { "qualifiedEntrants": 2, "rank": 1, "points": 34 },
+    { "qualifiedEntrants": 30, "rank": 1, "points": 170 },
+    { "qualifiedEntrants": 30, "rank": 30, "points": 0 },
+    { "qualifiedEntrants": 1536, "rank": 1, "points": 366 },
+    { "qualifiedEntrants": 1536, "rank": 2, "points": 332 },
+    { "qualifiedEntrants": 1536, "rank": 1536, "points": 0 },
+    { "qualifiedEntrants": 5000, "rank": 1, "points": 425 },
+    { "qualifiedEntrants": 5000, "rank": 2500, "points": 34 },
+    { "qualifiedEntrants": 4294967295, "rank": 1, "points": 1109 },
+    { "qualifiedEntrants": 4294967295, "rank": 4294967295, "points": 0 }
+  ]
+}

@@ -6,6 +6,7 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  type AccountMeta,
   type AccountInfo,
   type Connection,
   type TransactionInstruction,
@@ -55,6 +56,7 @@ import { formatSolBalanceLamports } from "@/utils/currency";
 import { IDL } from "./idl/index.js";
 import {
   ARCADE_ACCOUNT_VERSION,
+  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PROTOCOL_ACCOUNT_VERSION,
 } from "./protocolVersions.generated.js";
 
@@ -120,7 +122,6 @@ export interface DailyView extends EndlessRulesView {
   status: DailyStatus;
   mapId: number;
   opensAt: number;
-  entriesCloseAt: number;
   runsCloseAt: number;
   settlementGraceCloseAt: number;
   recoveryDeadlineAt: number;
@@ -221,7 +222,6 @@ export async function fetchDailyView(args: {
     status,
     mapId: Number(challenge.mapId),
     opensAt: Number(challenge.opensAt),
-    entriesCloseAt: Number(challenge.entriesCloseAt),
     runsCloseAt: Number(challenge.runsCloseAt),
     settlementGraceCloseAt: Number(challenge.recoveryDeadlineAt),
     recoveryDeadlineAt: Number(challenge.recoveryDeadlineAt),
@@ -273,9 +273,11 @@ export async function fetchDailyView(args: {
   };
 }
 
-const ARENA_BOARD_HEADER_BYTES = 121;
+const ARENA_BOARD_HEADER_BYTES = 129;
 const ARENA_BOARD_ENTRY_BYTES = 84;
 const ARENA_BOARD_CAPACITY = 1_536;
+const MAX_AUTO_CLAIMS_PER_ENTRY = 2;
+const AUTO_CLAIM_LOOKBACK_DAYS = 30;
 
 async function fetchDailyBoardEntries(
   connection: Connection,
@@ -303,6 +305,7 @@ async function fetchDailyBoardEntries(
   const payoutCount = data.readUInt32LE(54);
   const cursor = data.readUInt32LE(99);
   const sealed = data.readUInt8(103) !== 0;
+  const sealedAt = Number(data.readBigInt64LE(104));
   const bitmapBytes = Math.ceil(payoutCount / 8);
   const expectedSize =
     ARENA_BOARD_HEADER_BYTES +
@@ -311,6 +314,7 @@ async function fetchDailyBoardEntries(
   if (
     payoutCount > ARENA_BOARD_CAPACITY ||
     cursor > payoutCount ||
+    sealed !== (sealedAt > 0) ||
     data.length !== expectedSize
   ) {
     throw new Error(`${kind} Daily board allocation is invalid`);
@@ -365,6 +369,11 @@ export async function buildPrepareDailyRunPlan(args: {
     args.daily.nextRunId,
     addresses,
   );
+  const autoClaimAccounts = await discoverAutoClaimAccounts({
+    connection: args.connection,
+    owner,
+    currentDayId: args.daily.dayId,
+  }).catch(() => []);
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.fundedEnterArena(
       new BN(args.daily.nextRunId.toString()),
@@ -386,6 +395,7 @@ export async function buildPrepareDailyRunPlan(args: {
       systemProgram: SystemProgram.programId,
       zkubeProgram: ZKUBE_PROGRAM_ID,
     })
+    .remainingAccounts(autoClaimAccounts)
     .instruction();
   return {
     runId: args.daily.nextRunId,
@@ -399,6 +409,101 @@ export async function buildPrepareDailyRunPlan(args: {
       [instruction],
     ),
   };
+}
+
+async function discoverAutoClaimAccounts(args: {
+  connection: Pick<Connection, "getMultipleAccountsInfo">;
+  owner: PublicKey;
+  currentDayId: number;
+  nowUnix?: number;
+}): Promise<AccountMeta[]> {
+  const firstDay = Math.max(0, args.currentDayId - AUTO_CLAIM_LOOKBACK_DAYS);
+  const identities = Array.from(
+    { length: Math.max(0, args.currentDayId - firstDay) },
+    (_, offset) => firstDay + offset,
+  ).flatMap((dayId) => {
+    const daily = deriveArenaDailyPda(dayId);
+    return (["score", "theme"] as const).map((kind) => ({
+      dayId,
+      daily,
+      kind,
+      board: deriveArenaBoardPda(daily, kind),
+    }));
+  });
+  if (identities.length === 0) return [];
+  const infos = await args.connection.getMultipleAccountsInfo(
+    identities.map(({ board }) => board),
+    "confirmed",
+  );
+  if (infos.length !== identities.length) return [];
+  const nowUnix = args.nowUnix ?? Math.floor(Date.now() / 1_000);
+  const candidates = identities.flatMap((identity, index) => {
+    const info = infos[index];
+    if (!info) return [];
+    const sealedAt = unclaimedBoardSealTime(
+      info,
+      identity.daily,
+      identity.dayId,
+      identity.kind,
+      args.owner,
+      nowUnix,
+    );
+    return sealedAt === null ? [] : [{ ...identity, sealedAt }];
+  });
+  candidates.sort((left, right) =>
+    left.sealedAt - right.sealedAt ||
+    left.dayId - right.dayId ||
+    left.kind.localeCompare(right.kind)
+  );
+  return candidates.slice(0, MAX_AUTO_CLAIMS_PER_ENTRY).flatMap(({ daily, board }) => [
+    { pubkey: daily, isSigner: false, isWritable: true },
+    { pubkey: board, isSigner: false, isWritable: true },
+  ]);
+}
+
+function unclaimedBoardSealTime(
+  info: AccountInfo<Buffer>,
+  daily: PublicKey,
+  dayId: number,
+  kind: "score" | "theme",
+  owner: PublicKey,
+  nowUnix: number,
+): number | null {
+  const data = Buffer.from(info.data);
+  const discriminator = rankedDependencyCoder.accountDiscriminator("arenaBoard");
+  if (
+    info.executable ||
+    !info.owner.equals(ZKUBE_PROGRAM_ID) ||
+    data.length < ARENA_BOARD_HEADER_BYTES ||
+    !data.subarray(0, discriminator.length).equals(discriminator) ||
+    data.readUInt8(8) !== ARCADE_ACCOUNT_VERSION ||
+    !new PublicKey(data.subarray(9, 41)).equals(daily) ||
+    data.readUInt32LE(41) !== dayId ||
+    data.readUInt8(45) !== (kind === "score" ? 0 : 1)
+  ) return null;
+  const payoutCount = data.readUInt32LE(54);
+  const cursor = data.readUInt32LE(99);
+  const sealed = data.readUInt8(103) !== 0;
+  const sealedAt = Number(data.readBigInt64LE(104));
+  const bitmapBytes = Math.ceil(payoutCount / 8);
+  const rowsEnd = ARENA_BOARD_HEADER_BYTES + payoutCount * ARENA_BOARD_ENTRY_BYTES;
+  if (
+    payoutCount > ARENA_BOARD_CAPACITY ||
+    cursor !== payoutCount ||
+    !sealed ||
+    sealedAt <= 0 ||
+    nowUnix > sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS ||
+    data.length !== rowsEnd + 2 * bitmapBytes
+  ) return null;
+  const position = Array.from({ length: payoutCount }, (_, index) => index)
+    .find((index) => {
+      const offset = ARENA_BOARD_HEADER_BYTES + index * ARENA_BOARD_ENTRY_BYTES;
+      return new PublicKey(data.subarray(offset, offset + 32)).equals(owner);
+    });
+  if (position === undefined) return null;
+  const claimed = (data[rowsEnd + Math.floor(position / 8)] ?? 0) &
+    (1 << (position % 8));
+  return claimed === 0 ? sealedAt : null;
 }
 
 export async function buildPurchaseKreditsPlan(args: {
@@ -443,7 +548,7 @@ const rankedDependencyCoder = new BorshAccountsCoder(
 const RANKED_ACCOUNT_SPACES = {
   protocolConfig: 156,
   arcadeConfig: 103,
-  arenaDaily: 414,
+  arenaDaily: 406,
   creditVault: 58,
 } as const;
 

@@ -304,9 +304,9 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.contains("CAMPAIGN_CONTENT_HASH_HEX"));
         let versions = render_protocol_constants();
-        assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 2"));
-        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 6"));
-        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 8"));
+        assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 1"));
+        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 1"));
+        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 1"));
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
     }

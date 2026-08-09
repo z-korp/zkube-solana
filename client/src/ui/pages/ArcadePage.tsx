@@ -107,7 +107,7 @@ const ArcadePage: React.FC = () => {
   // a failure closes the sheet and surfaces the error banner on the home body.
   const confirmRanked = () =>
     void enterRanked().catch(() => setCoinSheetOpen(false));
-  const entrySeconds = useCountdown(view?.entriesCloseAt);
+  const entrySeconds = useCountdown(view?.runsCloseAt);
 
   // The pinned key: one verb per lifecycle; only "Enter" carries the coin.
   let primaryLabel = "Enter";

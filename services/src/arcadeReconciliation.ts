@@ -1,7 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
 import {
-  DAILY_ENTRY_CLOSE_OFFSET,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_POOL_SELECTION_SEED,
@@ -69,6 +68,7 @@ export interface BoardConstructionSnapshot {
   widthCount: number;
   cursor: number;
   sealed: boolean;
+  sealedAt: number;
   claimedLamports: bigint;
   claimedCount: number;
   profileSyncCount: number;
@@ -238,7 +238,7 @@ export function discoverReconciliation(args: {
     for (const daily of args.snapshot.dailies) {
       if (daily.status !== "funding") continue;
       if (daily.dayId === activationCurrent &&
-          args.nowUnix < today * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
+          args.nowUnix < today * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET) {
         plans.push(validationOnlyPlan("activate_arena_daily", {
           dayId: daily.dayId,
           rulesCatalog: args.snapshot.rulesCatalog,
@@ -431,7 +431,7 @@ function appendCadenceArchivePlan(
     if (!candidate.committed || candidate.cadenceId > today ||
         isQuarantined(candidate.cadenceId)) continue;
     const context = contextFor(candidate);
-    if (!candidate.claimsExpired && nowUnix >= candidate.closeEligibleAt) {
+    if (!candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
       if (snapshot.poolEntries.length === 0) continue;
       const followingDayId = nextScheduledDaily(
         today,
@@ -586,6 +586,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
         if (!board || board.payoutCount > ARENA_BOARD_CAPACITY ||
             board.cursor > board.payoutCount ||
             board.sealed !== (board.cursor === board.payoutCount) ||
+            board.sealed !== (board.sealedAt > 0) ||
             board.claimedCount > board.payoutCount ||
             board.profileSyncCount > board.payoutCount) {
           throw new Error(`Daily ${label} board construction is invalid`);
@@ -691,8 +692,11 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("cadence archive candidate is not terminal");
     }
     assertSafeTimestamp(candidate.closeEligibleAt);
-    if (candidate.closeEligibleAt !==
-        daily.finalizedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS) {
+    const boardClaimCloseAt = Math.max(
+      daily.scoreBoard!.sealedAt,
+      daily.themeBoard!.sealedAt,
+    ) + DAILY_REWARD_CLAIM_WINDOW_SECONDS;
+    if (candidate.closeEligibleAt !== boardClaimCloseAt) {
       throw new Error("Daily archive claim-close time is invalid");
     }
     if (candidate.closeEligible && (!candidate.committed ||

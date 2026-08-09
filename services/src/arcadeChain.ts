@@ -33,7 +33,6 @@ export {
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60 + 45 * 60;
 export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 59 * 60;
 export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
 export const DAILY_RECOVERY_DEADLINE_OFFSET =

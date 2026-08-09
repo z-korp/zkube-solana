@@ -60,6 +60,8 @@ export interface PlayerStateView {
   featuredEmblem: number;
   lifetimePaidEntries: bigint;
   kreditBalance: bigint;
+  ladderPoints: bigint;
+  highestLadderTier: number;
   dailyRecord: CompetitionRecord;
 }
 
@@ -216,6 +218,8 @@ interface RawPlayerState {
   lifetimePaidEntries: { toString(): string } | number | bigint;
   dailyRecord: RawCompetitionRecord;
   kreditBalance: { toString(): string } | number | bigint;
+  ladderPoints: { toString(): string } | number | bigint;
+  highestLadderTier: number | bigint;
   reserved: readonly number[];
 }
 
@@ -268,7 +272,8 @@ export function decodePlayerStateAccount(
     !raw.owner.equals(owner) ||
     !address.equals(derivePlayerStatePda(owner)) ||
     campaignStars.length !== CAMPAIGN_STAR_BYTES ||
-    reserved.length !== 56 ||
+    Number(raw.highestLadderTier) > 4 ||
+    reserved.length !== 47 ||
     reserved.some((byte) => byte !== 0)
   ) {
     throw new Error("PlayerState relationship is invalid");
@@ -280,6 +285,8 @@ export function decodePlayerStateAccount(
     featuredEmblem: Number(raw.featuredEmblem),
     lifetimePaidEntries: toBigint(raw.lifetimePaidEntries),
     kreditBalance: toBigint(raw.kreditBalance),
+    ladderPoints: toBigint(raw.ladderPoints),
+    highestLadderTier: Number(raw.highestLadderTier),
     dailyRecord: mapCompetitionRecord(raw.dailyRecord),
   };
 }

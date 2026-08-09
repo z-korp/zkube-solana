@@ -21,7 +21,7 @@ pub use simulation::{
 
 use zkube_core::{
     BlockWeights, ChainDomain, ChallengeId, ReplayCommitment, ReplayMode, RulesHash,
-    continuation_from_vrf, derive_player_id,
+    continuation_from_vrf, derive_player_id, ladder_points as core_ladder_points,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +32,7 @@ pub enum BoundaryError {
     Simulation(zkube_core::SimulationError),
     Campaign(zkube_core::CampaignError),
     Randomness(zkube_core::RandomnessError),
+    Ladder(zkube_core::LadderError),
 }
 
 impl From<zkube_core::SimulationError> for BoundaryError {
@@ -49,6 +50,12 @@ impl From<zkube_core::CampaignError> for BoundaryError {
 impl From<zkube_core::RandomnessError> for BoundaryError {
     fn from(error: zkube_core::RandomnessError) -> Self {
         Self::Randomness(error)
+    }
+}
+
+impl From<zkube_core::LadderError> for BoundaryError {
+    fn from(error: zkube_core::LadderError) -> Self {
+        Self::Ladder(error)
     }
 }
 
@@ -127,15 +134,25 @@ pub fn empty_continuation_rows(
     Ok(rows)
 }
 
+/// Host-compilable form of the deterministic ladder boundary.
+///
+/// # Errors
+///
+/// Rejects rank zero, an empty qualified field, or a rank beyond the field.
+pub fn ladder_points(qualified_entrants: u32, rank: u32) -> Result<u32, BoundaryError> {
+    core_ladder_points(qualified_entrants, rank).map_err(Into::into)
+}
+
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm {
     use super::{
         BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
         campaign_simulation_earned_stars, campaign_simulation_end_reason,
         campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
-        initialize_campaign_simulation, initialize_daily_simulation, qualified_player_id,
-        simulation_apply_bonus, simulation_apply_vrf, simulation_finish_deadline,
-        simulation_play_move, simulation_request_reroll, simulation_score_eligible,
+        initialize_campaign_simulation, initialize_daily_simulation, ladder_points,
+        qualified_player_id, simulation_apply_bonus, simulation_apply_vrf,
+        simulation_finish_deadline, simulation_play_move, simulation_request_reroll,
+        simulation_score_eligible,
     };
     use wasm_bindgen::prelude::*;
 
@@ -147,6 +164,7 @@ mod wasm {
             BoundaryError::Simulation(_) => JsError::new("simulation transition rejected"),
             BoundaryError::Campaign(_) => JsError::new("Campaign transition rejected"),
             BoundaryError::Randomness(_) => JsError::new("randomness transition rejected"),
+            BoundaryError::Ladder(_) => JsError::new("ladder rank is invalid"),
         }
     }
 
@@ -192,6 +210,11 @@ mod wasm {
         empty_continuation_rows(request_counter, vrf_output, rules_hash, weights)
             .map(|rows| rows.to_vec())
             .map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = ladderPoints)]
+    pub fn js_ladder_points(qualified_entrants: u32, rank: u32) -> Result<u32, JsError> {
+        ladder_points(qualified_entrants, rank).map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = initializeDailySimulation)]
@@ -334,6 +357,7 @@ mod tests {
             qualified_player_id(&domain, &account).unwrap(),
             derive_player_id(ChainDomain(domain), account).to_bytes()
         );
+        assert_eq!(ladder_points(30, 1).unwrap(), 170);
     }
 
     #[test]

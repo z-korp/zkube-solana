@@ -184,7 +184,7 @@
     { "mapId": 10, "themeId": 10, "bossId": 10, "bossName": "PERFECTIONIST" }
   ],
   "phase1Core": {
-    "coreVersion": "0.6.0",
+    "coreVersion": "1.0.0",
     "dailyPoolDraw": {
       "selectionSeedHex": "7a6b7562652d6461696c792d706f6f6c2d7630312d7075626c69632d73656564",
       "startsDay": 20000,

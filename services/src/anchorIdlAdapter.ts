@@ -24,7 +24,6 @@ import {
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   ARENA_ENTRY_LAMPORTS,
-  DAILY_ENTRY_CLOSE_OFFSET,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
@@ -71,13 +70,13 @@ import {
 import {
   cadenceRoot,
   cadenceResultHash,
-  canonicalArchiveV3,
+  canonicalArchive,
 } from "./archiveContract.js";
 import { type ProtocolInstructionMaterializer } from "./planMaterializer.js";
 import { getDelegationStatus } from "./router.js";
 
-const ARENA_BOARD_HEADER_BYTES = 121;
-const MAX_PROGRAM_ACCOUNT_BYTES = 129_530;
+const ARENA_BOARD_HEADER_BYTES = 129;
+const MAX_PROGRAM_ACCOUNT_BYTES = 129_538;
 // Anchor 1.0.2's public type encoder hardcodes a 1,000-byte scratch buffer.
 // Build the same pinned IDL layout directly so production-sized cadence
 // results remain byte-identical while the keeper owns an explicit hard bound.
@@ -521,11 +520,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       );
     const requiredScoreProfileSyncMask = profileSyncMask(input.period, "score");
     const requiredThemeProfileSyncMask = profileSyncMask(input.period, "theme");
-    const closeEligibleAt = input.period.finalizedAt +
-      DAILY_REWARD_CLAIM_WINDOW_SECONDS;
+    const closeEligibleAt = Math.max(
+      input.period.scoreBoard!.sealedAt,
+      input.period.themeBoard!.sealedAt,
+    ) + DAILY_REWARD_CLAIM_WINDOW_SECONDS;
     const canonicalJson = root === undefined
       ? undefined
-      : canonicalArchiveV3({
+      : canonicalArchive({
         account: input.loaded.address,
         accountData: input.loaded.account.data,
         scoreBoard: input.scoreBoard.address,
@@ -555,7 +556,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       closeEligible:
         committed &&
         input.period.claimsExpired &&
-        this.input.nowUnix >= closeEligibleAt &&
+        this.input.nowUnix > closeEligibleAt &&
         input.period.scoreProfileSyncMask === requiredScoreProfileSyncMask &&
         input.period.themeProfileSyncMask === requiredThemeProfileSyncMask &&
         !input.participantAccountsRemain,
@@ -1099,14 +1100,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (const item of loaded) {
       const dayId = u32(item.value.dayId, "ArenaDaily day id");
       const dayStart = dayId * SECONDS_PER_DAY;
-      const entriesCloseAt = timestamp(
-        item.value.entriesCloseAt,
-        "ArenaDaily entry close",
-      );
       const runsCloseAt = timestamp(item.value.runsCloseAt, "ArenaDaily run close");
       if (!item.address.equals(arenaDailyPda(dayId)) ||
           timestamp(item.value.opensAt, "ArenaDaily open") !== dayStart ||
-          !validDailyWindow(dayStart, entriesCloseAt, runsCloseAt)) {
+          !validDailyWindow(dayStart, runsCloseAt)) {
         throw new Error("ArenaDaily PDA or cadence relationship is invalid");
       }
       requirePublicKey(
@@ -1310,7 +1307,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error(`${kind} ArenaBoard bitmap counters do not match`);
     }
     const sealed = boolean(loaded.value.sealed, `ArenaBoard ${kind} sealed`);
-    if (sealed !== (cursor === payoutCount)) {
+    const sealedAt = signedTimestamp(
+      loaded.value.sealedAt,
+      `ArenaBoard ${kind} seal time`,
+    );
+    if (sealed !== (cursor === payoutCount) || sealed !== (sealedAt > 0)) {
       throw new Error(`${kind} ArenaBoard seal does not match its cursor`);
     }
     const claimedLamports = bigint(
@@ -1333,6 +1334,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         widthCount,
         cursor,
         sealed,
+        sealedAt,
         claimedLamports,
         claimedCount,
         profileSyncCount,
@@ -1458,8 +1460,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         loaded.value.activeRunDeadlineAt,
         "PlayerState active run deadline",
       );
+      bigint(loaded.value.ladderPoints, "PlayerState ladder points");
+      const highestLadderTier = u8(
+        loaded.value.highestLadderTier,
+        "PlayerState highest ladder tier",
+      );
       const reserved = array(loaded.value.reserved, "PlayerState reserved bytes");
-      if (reserved.length !== 56 ||
+      if (highestLadderTier > 4 || reserved.length !== 47 ||
           reserved.some((value) => u8(value, "PlayerState reserved byte") !== 0)) {
         throw new Error("PlayerState reserved bytes are nonzero");
       }
@@ -1923,7 +1930,6 @@ const RESULT_FIELDS = {
     "rules",
     "pressure",
     "opensAt",
-    "entriesCloseAt",
     "runsCloseAt",
     "finalizedAt",
     "ledger",
@@ -1949,6 +1955,7 @@ const BOARD_RESULT_FIELDS = [
   "paidLamports",
   "rolloverLamports",
   "capacityLimited",
+  "sealedAt",
 ] as const;
 
 export interface CanonicalBoardResultInput {
@@ -2094,11 +2101,9 @@ function rankedCadenceFromDeadline(
 
 function validDailyWindow(
   dayStart: number,
-  entriesCloseAt: number,
   runsCloseAt: number,
 ): boolean {
-  return entriesCloseAt === dayStart + DAILY_ENTRY_CLOSE_OFFSET &&
-    runsCloseAt === dayStart + DAILY_RUN_CLOSE_OFFSET;
+  return runsCloseAt === dayStart + DAILY_RUN_CLOSE_OFFSET;
 }
 
 function instructionRecord(idl: Idl, name: string): {

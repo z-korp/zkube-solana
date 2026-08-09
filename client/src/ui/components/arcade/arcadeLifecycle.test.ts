@@ -13,7 +13,7 @@ const daily = (
   dayId,
   status,
   opensAt: START,
-  entriesCloseAt: START + 23 * 60 * 60 + 45 * 60,
+  runsCloseAt: START + 23 * 60 * 60 + 59 * 60,
 });
 
 describe("Arcade Daily lifecycle", () => {

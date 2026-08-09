@@ -7,8 +7,15 @@ use crate::instructions::player_authorization::{
 };
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{program::invoke, system_instruction, system_program};
+use anchor_lang::solana_program::{
+    instruction::Instruction, program::invoke, system_instruction, system_program,
+};
+use anchor_lang::{InstructionData, ToAccountMetas};
 use session_keys::SessionTokenV2;
+
+/// An entry may opportunistically settle at most two board rewards. Callers
+/// rotate any additional history through later entries or explicit claims.
+pub const MAX_AUTO_CLAIMS_PER_ENTRY: usize = 2;
 
 #[derive(Accounts)]
 pub struct InitializeArcade<'info> {
@@ -274,7 +281,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         ErrorCode::InvalidPeriod
     );
     ctx.accounts.daily_rules_catalog.validate()?;
-    let (opens_at, entries_close_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
+    let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
     let content = ctx.accounts.daily_rules_catalog.content_for_day(day_id)?;
     let entry = content.entry;
     let realm_account_id = entry.realm_map_id.max(1);
@@ -318,7 +325,6 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         rules,
         pressure: content.pressure,
         opens_at,
-        entries_close_at,
         runs_close_at,
         recovery_deadline_at,
         finalized_at: 0,
@@ -620,14 +626,16 @@ pub struct EnterArena<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: Durable identity pinned by PlayerState and all player PDAs.
+    #[account(mut)]
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
+    pub zkube_program: Program<'info, crate::program::Solana>,
 }
 
-pub fn handler_enter_arena(
-    ctx: Context<EnterArena>,
+pub fn handler_enter_arena<'info>(
+    ctx: Context<'info, EnterArena<'info>>,
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
@@ -664,7 +672,7 @@ pub fn handler_enter_arena(
                 PeriodStatus::Funding | PeriodStatus::Open
             )
             && now >= ctx.accounts.current_daily.opens_at
-            && now < ctx.accounts.current_daily.entries_close_at,
+            && now < ctx.accounts.current_daily.runs_close_at,
         ErrorCode::ChallengeEnded
     );
     if ctx.accounts.arena_player.version == 0 {
@@ -732,7 +740,116 @@ pub fn handler_enter_arena(
         RunMode::Daily,
         ctx.accounts.current_daily.runs_close_at,
         ctx.accounts.protocol.replay_domain,
-    )
+    )?;
+    best_effort_auto_claims(&ctx);
+    Ok(())
+}
+
+fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>) {
+    for pair in ctx
+        .remaining_accounts
+        .chunks_exact(2)
+        .take(MAX_AUTO_CLAIMS_PER_ENTRY)
+    {
+        let daily = &pair[0];
+        let board = &pair[1];
+        let Some(kind) = attached_board_kind(board) else {
+            continue;
+        };
+        if attached_claim_is_eligible(ctx, daily, board, kind).is_err() {
+            continue;
+        }
+        let accounts = crate::accounts::ClaimDailyPrize {
+            arena_daily: *daily.key,
+            arena_board: *board.key,
+            player_state: ctx.accounts.player_state.key(),
+            owner_authority: ctx.accounts.owner_authority.key(),
+            session_token: ctx
+                .accounts
+                .session_token
+                .as_ref()
+                .map(|account| account.key()),
+            actor: ctx.accounts.actor.key(),
+        };
+        let instruction = Instruction {
+            program_id: crate::ID,
+            accounts: accounts.to_account_metas(None),
+            data: crate::instruction::ClaimDailyPrize { board: kind }.data(),
+        };
+        let mut infos = Vec::with_capacity(7);
+        infos.push(daily.clone());
+        infos.push(board.clone());
+        infos.push(ctx.accounts.player_state.to_account_info());
+        infos.push(ctx.accounts.owner_authority.to_account_info());
+        if let Some(session_token) = ctx.accounts.session_token.as_ref() {
+            infos.push(session_token.to_account_info());
+        }
+        infos.push(ctx.accounts.actor.to_account_info());
+        infos.push(ctx.accounts.zkube_program.to_account_info());
+        // A failed CPI rolls back its own writes. Entry deliberately ignores
+        // the error so absent, stale, unsealed, expired, or duplicate claims
+        // can never block spending the Kredit.
+        let _ = invoke(&instruction, &infos);
+    }
+}
+
+fn attached_board_kind(info: &AccountInfo<'_>) -> Option<DailyBoardKind> {
+    let data = info.try_borrow_data().ok()?;
+    match data.get(45).copied()? {
+        0 => Some(DailyBoardKind::Score),
+        1 => Some(DailyBoardKind::Theme),
+        _ => None,
+    }
+}
+
+fn attached_claim_is_eligible<'info>(
+    ctx: &Context<'info, EnterArena<'info>>,
+    daily_info: &'info AccountInfo<'info>,
+    board_info: &'info AccountInfo<'info>,
+    kind: DailyBoardKind,
+) -> Result<()> {
+    let daily = Account::<ArenaDaily>::try_from(daily_info)?;
+    let board = Account::<ArenaBoard>::try_from(board_info)?;
+    let (daily_key, daily_bump) =
+        Pubkey::find_program_address(&[ARENA_DAILY_SEED, &daily.day_id.to_le_bytes()], &crate::ID);
+    require_keys_eq!(daily.key(), daily_key, ErrorCode::InvalidPeriod);
+    require!(daily.bump == daily_bump, ErrorCode::InvalidPeriod);
+    let (board_key, board_bump) = Pubkey::find_program_address(
+        &[ARENA_BOARD_SEED, daily.key().as_ref(), kind.seed()],
+        &crate::ID,
+    );
+    require_keys_eq!(board.key(), board_key, ErrorCode::InvalidOwner);
+    require!(board.bump == board_bump, ErrorCode::InvalidOwner);
+    validate_finalized_board(&daily, daily.key(), &board, board_info.data_len(), kind)?;
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        !daily.claims_expired && now <= board_claim_deadline(board.sealed_at)?,
+        ErrorCode::ClaimWindowClosed
+    );
+    let prize = ranked_prize(&board, board_info, ctx.accounts.owner_authority.key())?;
+    require!(
+        !board_bitmap_is_set(board_info, &board, BoardBitmap::Claimed, prize.position)?,
+        ErrorCode::PrizeAlreadyClaimed
+    );
+    validate_wallet(
+        &ctx.accounts.owner_authority.to_account_info(),
+        ctx.accounts.player_state.owner,
+    )?;
+    require_spendable(daily_info, prize.amount)?;
+    board
+        .claimed_lamports
+        .checked_add(prize.amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    board
+        .claimed_count
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts
+        .owner_authority
+        .lamports()
+        .checked_add(prize.amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1111,6 +1228,7 @@ fn settle_daily_period(
             qualified_count: source.score_qualified_players,
             pool_lamports: pools.score,
             plan: score_plan,
+            finalized_at,
             bump: score_bump,
         },
     );
@@ -1123,6 +1241,7 @@ fn settle_daily_period(
             qualified_count: source.theme_qualified_players,
             pool_lamports: pools.theme,
             plan: theme_plan,
+            finalized_at,
             bump: theme_bump,
         },
     );
@@ -1235,6 +1354,7 @@ pub fn handler_submit_arena_board_chunk<'info>(
     ctx.accounts.arena_board.cursor = next_cursor;
     if seal {
         ctx.accounts.arena_board.sealed = true;
+        ctx.accounts.arena_board.sealed_at = Clock::get()?.unix_timestamp;
     }
     Ok(())
 }
@@ -1281,12 +1401,6 @@ pub fn handler_claim_daily_prize(
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
-    let now = Clock::get()?.unix_timestamp;
-    require!(
-        !ctx.accounts.arena_daily.claims_expired
-            && now < daily_claim_deadline(ctx.accounts.arena_daily.finalized_at)?,
-        ErrorCode::ClaimWindowClosed
-    );
     let board_info = ctx.accounts.arena_board.to_account_info();
     validate_finalized_board(
         &ctx.accounts.arena_daily,
@@ -1295,6 +1409,12 @@ pub fn handler_claim_daily_prize(
         board_info.data_len(),
         board,
     )?;
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        !ctx.accounts.arena_daily.claims_expired
+            && now <= board_claim_deadline(ctx.accounts.arena_board.sealed_at)?,
+        ErrorCode::ClaimWindowClosed
+    );
     let prize = ranked_prize(
         &ctx.accounts.arena_board,
         &board_info,
@@ -1396,20 +1516,9 @@ pub struct ExpireDailyClaims<'info> {
 }
 
 pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
     require!(
         !ctx.accounts.arena_daily.claims_expired,
         ErrorCode::AlreadySubmitted
-    );
-    require!(
-        now >= daily_claim_deadline(ctx.accounts.arena_daily.finalized_at)?,
-        ErrorCode::ClaimWindowOpen
-    );
-    let current_day = day_id_at(now)?;
-    require!(
-        ctx.accounts.following_daily.day_id
-            == next_scheduled_daily(&ctx.accounts.daily_rules_catalog, current_day)?,
-        ErrorCode::InvalidPeriod
     );
     let score_info = ctx.accounts.score_board.to_account_info();
     let theme_info = ctx.accounts.theme_board.to_account_info();
@@ -1433,6 +1542,17 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
             && ctx.accounts.score_board.claimed_lamports <= ctx.accounts.score_board.paid_lamports
             && ctx.accounts.theme_board.claimed_lamports <= ctx.accounts.theme_board.paid_lamports,
         ErrorCode::BoardIncomplete
+    );
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        now > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?,
+        ErrorCode::ClaimWindowOpen
+    );
+    let current_day = day_id_at(now)?;
+    require!(
+        ctx.accounts.following_daily.day_id
+            == next_scheduled_daily(&ctx.accounts.daily_rules_catalog, current_day)?,
+        ErrorCode::InvalidPeriod
     );
     let claimed = ctx
         .accounts
@@ -1610,7 +1730,8 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
     require!(
         daily.resolved()
             && daily.claims_expired
-            && Clock::get()?.unix_timestamp >= daily_claim_deadline(daily.finalized_at)?
+            && Clock::get()?.unix_timestamp
+                > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?
             && ctx.accounts.score_board.sealed
             && ctx.accounts.theme_board.sealed
             && ctx.accounts.score_board.profile_sync_count == ctx.accounts.score_board.payout_count

@@ -21,7 +21,7 @@ import {
   cadenceFundingPda,
   playerFundingPda,
 } from "../src/arcadeChain";
-import { canonicalArchiveV3, cadenceResultHash } from "../src/archiveContract";
+import { canonicalArchive, cadenceResultHash } from "../src/archiveContract";
 import { ArchiveIntegrityError } from "../src/archiveStore";
 import type { DailySnapshot, ProtocolSnapshot } from "../src/arcadeReconciliation";
 import { runKeeperPass } from "../src/keeper";
@@ -192,8 +192,8 @@ function finalizedDaily(
     scoreProfileSyncMask: 0n,
     themeProfileSyncMask: 0n,
     claimsExpired: false,
-    scoreBoard: board("score", owner ? 1 : 0),
-    themeBoard: board("theme", 0),
+    scoreBoard: board("score", owner ? 1 : 0, dayId),
+    themeBoard: board("theme", 0, dayId),
     settlement: {
       winners: owner ? [{
         board: "score",
@@ -208,13 +208,14 @@ function finalizedDaily(
   };
 }
 
-function board(kind: "score" | "theme", payoutCount: number) {
+function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
   return {
     kind,
     payoutCount,
     widthCount: payoutCount,
     cursor: payoutCount,
     sealed: true,
+    sealedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
     claimedLamports: 0n,
     claimedCount: 0,
     profileSyncCount: 0,
@@ -248,13 +249,13 @@ function fundingDaily(dayId: number, launchDayId: number): DailySnapshot {
 function archiveCandidate(cadenceId: number, committed: boolean, closeEligible: boolean) {
   const resultData = Buffer.from(`daily-${cadenceId}`);
   const daily = arenaDailyPda(cadenceId);
-  const canonicalJson = canonicalArchiveV3({
+  const canonicalJson = canonicalArchive({
     account: daily,
     accountData: Buffer.alloc(10, 1),
     scoreBoard: arenaBoardPda(daily, "score"),
-    scoreBoardData: Buffer.alloc(121, 2),
+    scoreBoardData: Buffer.alloc(129, 2),
     themeBoard: arenaBoardPda(daily, "theme"),
-    themeBoardData: Buffer.alloc(121, 3),
+    themeBoardData: Buffer.alloc(129, 3),
     competition: "daily",
     periodId: cadenceId,
     programId: ZKUBE_PROGRAM_ID,

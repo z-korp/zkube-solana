@@ -33,6 +33,9 @@ pub const INITIAL_RUN_ID: u64 = 1;
 /// Reusable owner-funded float: current maximum run/delegation rent plus a
 /// 20% safety margin, rounded up to the next 0.001 SOL.
 pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 50_000_000;
+/// Placeholder balance values. The systems contract is one monotonic total
+/// and a permanent highest tier; final tier thresholds remain a balance pass.
+pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_000, 5_000, 20_000, 50_000];
 
 #[account]
 #[derive(InitSpace)]
@@ -80,9 +83,12 @@ pub struct PlayerState {
     pub campaign_active_run_id: u64,
     /// One-way prepaid entries owned by this wallet identity.
     pub kredit_balance: u64,
-    /// Reserved for later versioned profile fields such as the ladder. Readers
-    /// reject nonzero bytes until an explicitly versioned schema consumes them.
-    pub reserved: [u8; 56],
+    /// Monotonic, non-monetary points accumulated by Daily profile sync.
+    pub ladder_points: u64,
+    /// Highest placeholder tier ever reached; it never decreases.
+    pub highest_ladder_tier: u8,
+    /// Explicit zeroed expansion space for future profile fields.
+    pub reserved: [u8; 47],
     pub bump: u8,
 }
 
@@ -103,13 +109,17 @@ impl PlayerState {
             daily_record: CompetitionRecord::default(),
             campaign_active_run_id: 0,
             kredit_balance: 0,
-            reserved: [0; 56],
+            ladder_points: 0,
+            highest_ladder_tier: 0,
+            reserved: [0; 47],
             bump,
         }
     }
 
     pub fn schema_valid(&self) -> bool {
-        self.version == PLAYER_STATE_VERSION && self.reserved == [0; 56]
+        self.version == PLAYER_STATE_VERSION
+            && self.highest_ladder_tier == ladder_tier_for_points(self.ladder_points)
+            && self.reserved == [0; 47]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -305,6 +315,26 @@ impl PlayerState {
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
     }
+
+    pub fn record_ladder_points(&mut self, points: u32) -> Result<()> {
+        self.require_schema()?;
+        self.ladder_points = self
+            .ladder_points
+            .checked_add(u64::from(points))
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        self.highest_ladder_tier = self
+            .highest_ladder_tier
+            .max(ladder_tier_for_points(self.ladder_points));
+        Ok(())
+    }
+}
+
+pub fn ladder_tier_for_points(points: u64) -> u8 {
+    LADDER_TIER_POINT_THRESHOLDS
+        .iter()
+        .rposition(|threshold| points >= *threshold)
+        .and_then(|index| u8::try_from(index).ok())
+        .unwrap_or(0)
 }
 
 #[derive(
@@ -637,9 +667,21 @@ mod tests {
     fn player_state_rejects_nonzero_reserved_bytes() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert!(player.schema_valid());
-        player.reserved[47] = 1;
+        player.reserved[46] = 1;
         assert!(!player.schema_valid());
         assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
+    }
+
+    #[test]
+    fn ladder_points_accumulate_and_promote_without_consuming_padding() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_ladder_points(999).unwrap();
+        assert_eq!(player.ladder_points, 999);
+        assert_eq!(player.highest_ladder_tier, 0);
+        player.record_ladder_points(1).unwrap();
+        assert_eq!(player.highest_ladder_tier, 1);
+        assert_eq!(player.reserved, [0; 47]);
+        assert!(player.schema_valid());
     }
 
     #[test]

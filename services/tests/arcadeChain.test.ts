@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARCADE_ACCOUNT_VERSION,
-  DAILY_ENTRY_CLOSE_OFFSET,
   DAILY_POOL_CAPACITY,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
@@ -18,13 +17,12 @@ import {
 
 describe("v5 Daily cadence constants", () => {
   it("pins fresh-bootstrap account versions", () => {
-    expect(PROTOCOL_ACCOUNT_VERSION).toBe(2);
-    expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(6);
-    expect(ARCADE_ACCOUNT_VERSION).toBe(8);
+    expect(PROTOCOL_ACCOUNT_VERSION).toBe(1);
+    expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(1);
+    expect(ARCADE_ACCOUNT_VERSION).toBe(1);
   });
 
-  it("pins the 23:45 entry and 23:59 run deadlines", () => {
-    expect(DAILY_ENTRY_CLOSE_OFFSET).toBe(23 * 60 * 60 + 45 * 60);
+  it("pins the single 23:59 run and entry deadline", () => {
     expect(DAILY_RUN_CLOSE_OFFSET).toBe(23 * 60 * 60 + 59 * 60);
     expect(DAILY_RECOVERY_DEADLINE_OFFSET).toBe(
       DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS,

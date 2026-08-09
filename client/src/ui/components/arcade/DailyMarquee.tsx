@@ -17,7 +17,7 @@ import { formatCountdown } from "@/utils/time";
 /** The public face of today's Daily — every field readable without a wallet. */
 export interface DailyMarqueeView {
   dailyPotLamports: bigint;
-  entriesCloseAt: number;
+  runsCloseAt: number;
   uniquePlayers: number;
   leaderboard: readonly DailyLeaderboardView[];
 }
@@ -42,7 +42,7 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
   children,
 }) => {
   const guardian = getZoneGuardian(zoneId);
-  const entrySeconds = useCountdown(view?.entriesCloseAt);
+  const entrySeconds = useCountdown(view?.runsCloseAt);
   const podium = view?.leaderboard.slice(0, 3) ?? [];
 
   return (

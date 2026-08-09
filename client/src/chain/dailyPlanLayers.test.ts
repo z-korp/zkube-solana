@@ -21,6 +21,7 @@ import { ZKUBE_PROGRAM_ID } from "./constants";
 import { IDL } from "./idl";
 import {
   deriveArcadeConfigPda,
+  deriveArenaBoardPda,
   deriveArenaDailyPda,
   deriveCreditVaultPda,
   deriveOperatorRevenueVaultPda,
@@ -64,7 +65,7 @@ function rankedDependencyInfos(
   const protocol = deriveProtocolConfigPda();
   const arcadeConfig = deriveArcadeConfigPda();
   const dailyAccount = (dayId: number) =>
-    account("arenaDaily", 414, (data) => {
+    account("arenaDaily", 406, (data) => {
       data.writeUInt32LE(dayId, 9);
       writePublicKey(data, 13, arcadeConfig);
     });
@@ -81,6 +82,33 @@ function rankedDependencyInfos(
       writePublicKey(data, 9, protocol),
     ),
   ];
+}
+
+function claimableBoard(
+  daily: PublicKey,
+  dayId: number,
+  owner: PublicKey,
+): AccountInfo<Buffer> {
+  const data = Buffer.alloc(129 + 84 + 2);
+  coder.accountDiscriminator("arenaBoard").copy(data);
+  data.writeUInt8(ARCADE_ACCOUNT_VERSION, 8);
+  writePublicKey(data, 9, daily);
+  data.writeUInt32LE(dayId, 41);
+  data.writeUInt8(0, 45);
+  data.writeUInt32LE(1, 46);
+  data.writeUInt32LE(1, 50);
+  data.writeUInt32LE(1, 54);
+  data.writeUInt32LE(1, 99);
+  data.writeUInt8(1, 103);
+  data.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1_000)), 104);
+  writePublicKey(data, 129, owner);
+  return {
+    data,
+    executable: false,
+    lamports: 1,
+    owner: ZKUBE_PROGRAM_ID,
+    rentEpoch: 0,
+  };
 }
 
 describe("Daily transaction layer boundaries", () => {
@@ -107,9 +135,13 @@ describe("Daily transaction layer boundaries", () => {
       scoreQualifiedPlayers: 0,
       themeQualifiedPlayers: 0,
     } as DailyView;
+    const claimDaily = deriveArenaDailyPda(19);
+    const claimBoards = Array<AccountInfo<Buffer> | null>(40).fill(null);
+    claimBoards[38] = claimableBoard(claimDaily, 19, owner.publicKey);
     vi.spyOn(connection, "getMultipleAccountsInfo")
       .mockResolvedValueOnce(rankedDependencyInfos(daily))
-      .mockResolvedValueOnce([null]);
+      .mockResolvedValueOnce([null])
+      .mockResolvedValueOnce(claimBoards);
 
     const prepared = await buildPrepareDailyRunPlan({
       connection,
@@ -134,8 +166,13 @@ describe("Daily transaction layer boundaries", () => {
       pubkey.equals(device.publicKey),
     );
     expect(playerFunding).toMatchObject({ isWritable: true, isSigner: false });
-    expect(ownerAccount).toMatchObject({ isWritable: false, isSigner: false });
+    expect(ownerAccount).toMatchObject({ isWritable: true, isSigner: false });
     expect(actor).toMatchObject({ isSigner: true });
+    expect(enterAccounts.find(({ pubkey }) => pubkey.equals(claimDaily)))
+      .toMatchObject({ isWritable: true, isSigner: false });
+    expect(enterAccounts.find(({ pubkey }) =>
+      pubkey.equals(deriveArenaBoardPda(claimDaily, "score"))))
+      .toMatchObject({ isWritable: true, isSigner: false });
     expect(prepared.transactionPlan.feePayer.equals(device.publicKey)).toBe(true);
 
     const finalized = await buildFinalizeDailyChallengePlan({

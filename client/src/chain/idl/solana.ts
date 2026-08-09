@@ -1926,7 +1926,8 @@ export type Solana = {
           "signer": true
         },
         {
-          "name": "ownerAuthority"
+          "name": "ownerAuthority",
+          "writable": true
         },
         {
           "name": "sessionToken",
@@ -1939,6 +1940,10 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "zkubeProgram",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
         }
       ],
       "args": [
@@ -2782,7 +2787,8 @@ export type Solana = {
           }
         },
         {
-          "name": "ownerAuthority"
+          "name": "ownerAuthority",
+          "writable": true
         },
         {
           "name": "sessionToken"
@@ -6153,6 +6159,13 @@ export type Solana = {
             "type": "bool"
           },
           {
+            "name": "sealedAt",
+            "docs": [
+              "Starts this board's independent reward-claim window."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "claimedLamports",
             "type": "u64"
           },
@@ -6293,10 +6306,6 @@ export type Solana = {
           },
           {
             "name": "opensAt",
-            "type": "i64"
-          },
-          {
-            "name": "entriesCloseAt",
             "type": "i64"
           },
           {
@@ -6623,6 +6632,18 @@ export type Solana = {
           {
             "name": "rewardLamports",
             "type": "u64"
+          },
+          {
+            "name": "pointsEarned",
+            "type": "u32"
+          },
+          {
+            "name": "ladderPoints",
+            "type": "u64"
+          },
+          {
+            "name": "highestLadderTier",
+            "type": "u8"
           }
         ]
       }
@@ -7491,15 +7512,28 @@ export type Solana = {
             "type": "u64"
           },
           {
+            "name": "ladderPoints",
+            "docs": [
+              "Monotonic, non-monetary points accumulated by Daily profile sync."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "highestLadderTier",
+            "docs": [
+              "Highest placeholder tier ever reached; it never decreases."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "reserved",
             "docs": [
-              "Reserved for later versioned profile fields such as the ladder. Readers",
-              "reject nonzero bytes until an explicitly versioned schema consumes them."
+              "Explicit zeroed expansion space for future profile fields."
             ],
             "type": {
               "array": [
                 "u8",
-                56
+                47
               ]
             }
           },

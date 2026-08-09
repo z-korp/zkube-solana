@@ -25,7 +25,6 @@ pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
 pub const ARENA_BOARD_CAPACITY: usize = 1_536;
 pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
 pub const ARENA_BOARD_ENTRY_SIZE: usize = 84;
-pub const ARENA_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 45 * 60;
 pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 59 * 60;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = 6 * 60 * 60;
 pub const ARCADE_SECONDS_PER_DAY: i64 = 86_400;
@@ -324,6 +323,8 @@ pub struct ArenaBoard {
     /// Number of verified rows already appended.
     pub cursor: u32,
     pub sealed: bool,
+    /// Starts this board's independent reward-claim window.
+    pub sealed_at: i64,
     pub claimed_lamports: u64,
     pub claimed_count: u32,
     pub profile_sync_count: u32,
@@ -377,6 +378,8 @@ impl ArenaBoard {
                     .is_ok_and(|count| count <= ARENA_BOARD_CAPACITY)
                 && self.capacity_limited == (self.payout_count < self.width_count)
                 && self.cursor <= self.payout_count
+                && self.sealed == (self.cursor == self.payout_count)
+                && ((!self.sealed && self.sealed_at == 0) || (self.sealed && self.sealed_at > 0))
                 && self.claimed_count <= self.payout_count
                 && self.profile_sync_count <= self.payout_count
                 && data_len == Self::account_space(self.payout_count)?,
@@ -439,7 +442,6 @@ pub struct ArenaDaily {
     pub rules: LevelRuleSnapshot,
     pub pressure: DailyPressureProfile,
     pub opens_at: i64,
-    pub entries_close_at: i64,
     pub runs_close_at: i64,
     pub recovery_deadline_at: i64,
     pub finalized_at: i64,
@@ -692,6 +694,7 @@ pub(crate) struct ArenaBoardInitialization {
     pub qualified_count: u32,
     pub pool_lamports: u64,
     pub plan: BoardPayoutPlan,
+    pub finalized_at: i64,
     pub bump: u8,
 }
 
@@ -706,6 +709,7 @@ pub(crate) fn initialize_arena_board(
         qualified_count,
         pool_lamports,
         plan,
+        finalized_at,
         bump,
     } = initialization;
     *board = ArenaBoard {
@@ -723,6 +727,7 @@ pub(crate) fn initialize_arena_board(
         capacity_limited: plan.capacity_limited,
         cursor: 0,
         sealed: plan.count == 0,
+        sealed_at: if plan.count == 0 { finalized_at } else { 0 },
         claimed_lamports: 0,
         claimed_count: 0,
         profile_sync_count: 0,
@@ -919,15 +924,12 @@ pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool 
     successor_day_id > source_day_id
 }
 
-pub fn day_window(day_id: u32) -> Result<(i64, i64, i64, i64)> {
+pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
     let opens_at = i64::from(day_id)
         .checked_mul(ARCADE_SECONDS_PER_DAY)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     Ok((
         opens_at,
-        opens_at
-            .checked_add(ARENA_ENTRIES_CLOSE_OFFSET)
-            .ok_or(ErrorCode::ArithmeticOverflow)?,
         opens_at
             .checked_add(ARENA_RUNS_CLOSE_OFFSET)
             .ok_or(ErrorCode::ArithmeticOverflow)?,
@@ -937,10 +939,16 @@ pub fn day_window(day_id: u32) -> Result<(i64, i64, i64, i64)> {
     ))
 }
 
-pub fn daily_claim_deadline(finalized_at: i64) -> Result<i64> {
-    finalized_at
+pub fn board_claim_deadline(sealed_at: i64) -> Result<i64> {
+    require!(sealed_at > 0, ErrorCode::BoardIncomplete);
+    sealed_at
         .checked_add(zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS)
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+}
+
+pub fn daily_claim_deadline(score_board: &ArenaBoard, theme_board: &ArenaBoard) -> Result<i64> {
+    Ok(board_claim_deadline(score_board.sealed_at)?
+        .max(board_claim_deadline(theme_board.sealed_at)?))
 }
 
 /// Canonical finalized Daily result commitment. Mutable claim/profile state,
@@ -974,7 +982,6 @@ pub fn daily_result_hash(
     daily.rules.serialize(&mut bytes)?;
     daily.pressure.serialize(&mut bytes)?;
     daily.opens_at.serialize(&mut bytes)?;
-    daily.entries_close_at.serialize(&mut bytes)?;
     daily.runs_close_at.serialize(&mut bytes)?;
     daily.finalized_at.serialize(&mut bytes)?;
     daily.ledger.serialize(&mut bytes)?;
@@ -1020,6 +1027,7 @@ pub fn immutable_board_header(board: &ArenaBoard) -> Result<Vec<u8>> {
     board.paid_lamports.serialize(&mut bytes)?;
     board.rollover_lamports.serialize(&mut bytes)?;
     board.capacity_limited.serialize(&mut bytes)?;
+    board.sealed_at.serialize(&mut bytes)?;
     Ok(bytes)
 }
 
@@ -1142,14 +1150,40 @@ mod tests {
     }
 
     #[test]
-    fn newly_prepared_daily_closes_entries_at_2345_and_runs_at_2359() {
-        let (opens_at, entries_close_at, runs_close_at, recovery_deadline_at) =
-            day_window(20_658).unwrap();
-        assert_eq!(entries_close_at - opens_at, 23 * 60 * 60 + 45 * 60);
+    fn newly_prepared_daily_has_one_run_freeze_at_2359() {
+        let (opens_at, runs_close_at, recovery_deadline_at) = day_window(20_658).unwrap();
         assert_eq!(runs_close_at - opens_at, 23 * 60 * 60 + 59 * 60);
         assert_eq!(
             recovery_deadline_at - runs_close_at,
             STUCK_RUN_RECOVERY_SECONDS
+        );
+    }
+
+    #[test]
+    fn boards_sealed_a_day_apart_each_receive_the_full_claim_window() {
+        let score_sealed_at = 1_800_000_000;
+        let theme_sealed_at = score_sealed_at + zkube_core::SECONDS_PER_DAY;
+        let score = ArenaBoard {
+            sealed: true,
+            sealed_at: score_sealed_at,
+            ..ArenaBoard::default()
+        };
+        let theme = ArenaBoard {
+            sealed: true,
+            sealed_at: theme_sealed_at,
+            ..ArenaBoard::default()
+        };
+        assert_eq!(
+            board_claim_deadline(score.sealed_at).unwrap(),
+            score_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
+        );
+        assert_eq!(
+            board_claim_deadline(theme.sealed_at).unwrap(),
+            theme_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
+        );
+        assert_eq!(
+            daily_claim_deadline(&score, &theme).unwrap(),
+            theme_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
         );
     }
 
@@ -1258,15 +1292,15 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 414);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 406);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 406);
-        assert_eq!(ArenaBoard::INIT_SPACE, 113);
-        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_529);
+        assert_eq!(daily_bytes.len(), 398);
+        assert_eq!(ArenaBoard::INIT_SPACE, 121);
+        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_537);
         assert_eq!(
             Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
-            902_412_720
+            902_468_400
         );
         for size in [
             ArcadeConfig::INIT_SPACE,
@@ -1294,11 +1328,13 @@ mod tests {
                 qualified_count: count,
                 pool_lamports: u64::MAX / 4,
                 plan: BoardPayoutPlan { count, ..plan },
+                finalized_at: 1,
                 bump: 1,
             },
         );
         board.cursor = count;
         board.sealed = true;
+        board.sealed_at = 1;
         let key = Pubkey::new_unique();
         let owner = crate::ID;
         let mut lamports = 0;

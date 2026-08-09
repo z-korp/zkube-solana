@@ -4,9 +4,11 @@ import { readFileSync } from "node:fs";
 
 import golden from "../../../fixtures/replays/golden-daily-run-v1.json";
 import continuation from "../../../fixtures/replays/golden-perfect-clear-continuation-v1.json";
+import ladder from "../../../fixtures/ladder-points.json";
 import {
   coreEmptyContinuationRows,
   coreInitialReplayCommitment,
+  coreLadderPoints,
   corePlayerId,
   decodeHex,
   encodeHex,
@@ -50,6 +52,14 @@ describe("generated zkube-core WASM boundary", () => {
       seedRow: continuation.seed_row,
       previewRow: continuation.preview_row,
     });
+  });
+
+  it("matches every committed integer ladder vector", () => {
+    for (const vector of ladder.vectors) {
+      expect(coreLadderPoints(vector.qualifiedEntrants, vector.rank)).toBe(
+        vector.points,
+      );
+    }
   });
 
   it("rejects malformed inputs before crossing into WASM", () => {

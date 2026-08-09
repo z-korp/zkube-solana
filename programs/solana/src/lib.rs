@@ -151,16 +151,16 @@ pub mod solana {
         )
     }
 
-    pub fn enter_arena(
-        ctx: Context<EnterArena>,
+    pub fn enter_arena<'info>(
+        ctx: Context<'info, EnterArena<'info>>,
         run_id: u64,
         expected_entry_lamports: u64,
     ) -> Result<()> {
         instructions::arcade_instructions::handler_enter_arena(ctx, run_id, expected_entry_lamports)
     }
 
-    pub fn funded_enter_arena(
-        ctx: Context<FundedEnterArena>,
+    pub fn funded_enter_arena<'info>(
+        ctx: Context<'info, FundedEnterArena<'info>>,
         run_id: u64,
         expected_entry_lamports: u64,
     ) -> Result<()> {

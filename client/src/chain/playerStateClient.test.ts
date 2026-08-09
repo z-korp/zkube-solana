@@ -15,7 +15,6 @@ import {
 } from "./playerStateClient";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
-  PROTOCOL_ACCOUNT_VERSION,
 } from "./protocolVersions.generated";
 import { zkubeProgram } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
@@ -41,7 +40,9 @@ const OFFSET = {
   dailyRecord: 140,
   campaignActiveRunId: 158,
   kreditBalance: 166,
-  reserved: 174,
+  ladderPoints: 174,
+  highestLadderTier: 182,
+  reserved: 183,
   bump: 230,
 } as const;
 
@@ -96,6 +97,8 @@ function playerStateBuffer(
   data.writeBigUInt64LE(42n, OFFSET.lifetimePaidEntries);
   writeRecord(data, OFFSET.dailyRecord, 1, 2, 3, 1_000n);
   data.writeBigUInt64LE(9n, OFFSET.kreditBalance);
+  data.writeBigUInt64LE(1_234n, OFFSET.ladderPoints);
+  data.writeUInt8(1, OFFSET.highestLadderTier);
   data.writeUInt8(254, OFFSET.bump);
   return data;
 }
@@ -134,6 +137,8 @@ describe("decodePlayerStateAccount", () => {
     expect(view.featuredEmblem).toBe(5);
     expect(view.lifetimePaidEntries).toBe(42n);
     expect(view.kreditBalance).toBe(9n);
+    expect(view.ladderPoints).toBe(1_234n);
+    expect(view.highestLadderTier).toBe(1);
     expect(view.dailyRecord).toEqual({
       bestPrizeRank: 1,
       podiums: 2,
@@ -142,14 +147,14 @@ describe("decodePlayerStateAccount", () => {
     });
   });
 
-  it("rejects the old protocol account version", () => {
+  it("rejects any noncurrent PlayerState account version", () => {
     const owner = Keypair.generate();
     expect(() =>
       decodePlayerStateAccount(
         program(),
         derivePlayerStatePda(owner.publicKey),
         owner.publicKey,
-        accountInfo(playerStateBuffer(owner, [0x03], PROTOCOL_ACCOUNT_VERSION)),
+        accountInfo(playerStateBuffer(owner, [0x03], PLAYER_STATE_ACCOUNT_VERSION + 1)),
       ),
     ).toThrow(/relationship is invalid/);
   });
@@ -157,7 +162,7 @@ describe("decodePlayerStateAccount", () => {
   it("rejects nonzero reserved padding", () => {
     const owner = Keypair.generate();
     const data = playerStateBuffer(owner);
-    data[OFFSET.reserved + 55] = 1;
+    data[OFFSET.reserved + 46] = 1;
     expect(() =>
       decodePlayerStateAccount(
         program(),
@@ -256,6 +261,7 @@ describe("fetchPlayerEmblems", () => {
     expect(emblems[0]!.address.equals(owner.publicKey)).toBe(true);
     expect(emblems[0]!.featuredEmblem).toBe(5);
     expect(emblems[0]!.totalStars).toBe(30);
+    expect(emblems[0]!.highestLadderTier).toBe(1);
   });
 
   it("omits wallets with no account rather than fabricating an emblem", async () => {

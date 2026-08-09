@@ -23,7 +23,7 @@ import {
 import {
   cadenceRoot,
   cadenceResultHash,
-  canonicalArchiveV3,
+  canonicalArchive,
 } from "../src/archiveContract";
 import { FileKeeperArchiveStore, archiveSha256 } from "../src/archiveStore";
 
@@ -57,7 +57,7 @@ const idl = convertIdlToCamelCase(JSON.parse(readFileSync(
 const coder = new BorshAccountsCoder(idl);
 const temporaryRoots: string[] = [];
 const SOURCE_IDL_SHA256 =
-  "2a600464891bf7b31703a99c282fdc9d3d8410318837df29ece22233ebe47ef9";
+  "1c304575680e65d6d43ca8e3f784daa5c14295bb769e0abc25cfde16ab3cfb6d";
 let adapter: AnchorKeeperAdapter;
 
 beforeAll(async () => {
@@ -78,19 +78,19 @@ describe("v5 bounded Daily result encoding", () => {
   it("pins the regenerated fresh-bootstrap Daily projection", () => {
     expect(fixture).toMatchObject({
       schema: "zkube-keeper-v5-cadence-fixture",
-      schemaVersion: 3,
+      schemaVersion: 1,
       source: "synthetic-fresh-bootstrap",
       programId: ZKUBE_PROGRAM_ID.toBase58(),
     });
     expect(fixture.accounts).toHaveLength(1);
     const { daily, score, theme } = fixtureAccounts();
     const result = adapter.projectArchiveResultData("daily", daily, score, theme);
-    expect(result).toHaveLength(576);
+    expect(result).toHaveLength(584);
     expect(sha256(result)).toBe(
-      "04ff5ddabc83130cf3e7d4326f654c2e3479b2e0c5ec86c8a5f7fcdbd9d9a12f",
+      "ca21c22c7f503d47b803d18a98ae29088d7ea71a06d0fdeb285a246332e138b4",
     );
     expect(cadenceResultHash("daily", result)).toBe(
-      "f330744a9e255fd9b3cb4934437195f52a804495ce0d1aec9c621e3a380f6a12",
+      "f51d4b3e7720210d4b97378a86c6cfffa8eaa9fd1c308bc12249505da9a99ed2",
     );
   });
 
@@ -100,7 +100,7 @@ describe("v5 bounded Daily result encoding", () => {
     const score = maximumBoard(fixture.score, 1_536);
     const theme = maximumBoard(fixture.theme, 1_536);
     const result = canonicalCadenceResultData(idl, "daily", daily, { score, theme });
-    expect(result).toHaveLength(258_624);
+    expect(result).toHaveLength(258_632);
     expect(result.length).toBeLessThan(MAX_CADENCE_RESULT_BYTES);
     expect(() => canonicalCadenceResultData(idl, "daily", daily, {
       score: maximumBoard(fixture.score, 2_000),
@@ -134,7 +134,7 @@ describe("v5 bounded Daily result encoding", () => {
       resultHash,
     );
     const dailyAddress = new PublicKey(account.address);
-    const canonicalJson = canonicalArchiveV3({
+    const canonicalJson = canonicalArchive({
       account: dailyAddress,
       accountData: raw,
       scoreBoard: arenaBoardPda(dailyAddress, "score"),
@@ -206,7 +206,7 @@ function maximumBoard(header: Buffer, payoutCount: number) {
   value.sealed = true;
   return {
     value,
-    data: Buffer.alloc(121 + payoutCount * 84 + 2 * Math.ceil(payoutCount / 8)),
+    data: Buffer.alloc(129 + payoutCount * 84 + 2 * Math.ceil(payoutCount / 8)),
   };
 }
 

@@ -24,13 +24,13 @@ Source implements v5 partially. Current state:
 
 | Area | Status |
 | --- | --- |
-| Deterministic core 0.6.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
+| Deterministic core 1.0.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — Campaign stars, one Daily record, Kredit balance, and 56 reserved bytes validated as zero |
-| Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, thirty-day expiry, and exact rollover |
+| `PlayerState` | Built — Campaign stars, one Daily record, Kredit balance, ladder total and highest tier, and 47 reserved bytes validated as zero |
+| Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
-| Elo ladder | **Not started** |
+| Points ladder | Built — integer Q64 `ln` in the core, points applied in the Daily profile-sync pass |
 
 ## Product truth
 
@@ -54,17 +54,17 @@ Source implements v5 partially. Current state:
   `1/rank` and a board pays down to the last place still meeting the entry
   price, floored at four places, with trailing zero-lamport places dropped.
   Payouts floor to 0.001 SOL and dust rolls forward.
-- Settlement is claim-based. A reward stays claimable for thirty days from
-  finalization and then expires into the next daily pot, never into operator
-  revenue.
-- Paid entries close at 23:45 UTC. At 23:59 UTC a run with an accepted action
+- Settlement is claim-based. Each board's reward stays claimable for thirty
+  days from that board's sealing and then expires into the next daily pot,
+  never into operator revenue.
+- Entries remain open until the single 23:59 UTC freeze. At that time a run with an accepted action
   scores its last committed state; an untouched or unrecoverable run expires and
   can never score late.
 - Content is a pool of authored dailies, not a calendar. Each day draws one
   entry by a derived, independently recomputable selection; the pool may be
-  edited and dailies suspended at any time. The ladder is Elo, pays no SOL,
-  never decays, and resets only by an announced decision. Neither mode grants
-  SOL, entries, prize eligibility, or mint odds.
+  edited and dailies suspended at any time. The ladder is cumulative log-rank
+  points, pays no SOL, never decays, and resets only by an announced decision.
+  Neither mode grants SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
   recyclable device fee allowance. A separately seeded System-owned zero-data
   cadence funding PDA recycles Daily account rent after finalized results are
@@ -90,7 +90,7 @@ Specification approval is not implementation, deployment, rules-change, or
 economics approval; each of those still requires its own exact enumerated
 approval under the transaction policy below.
 
-Three deliberate reversals of earlier product truth — a persistent rating, a
+Three deliberate reversals of earlier product truth — a persistent ladder, a
 purchasable soft currency, and claim-based settlement — were reviewed together
 and approved on 2026-08-08.
 
@@ -99,7 +99,7 @@ this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
 open: how many entries the pool ships with and what each carries, per-entry
 difficulty bands and thresholds, starting heights, `DailyPressureRules` values,
-Elo K-factor and tier boundaries, and Kredit pack sizes and prices.
+ladder tier boundaries, and Kredit pack sizes and prices.
 
 - **The pool is the content unit, and there is no calendar.** Every authored
   daily is a pool entry carrying its realm, active mutator, objective family,
@@ -201,6 +201,18 @@ Elo K-factor and tier boundaries, and Kredit pack sizes and prices.
   approximation, and no large-rank underflow edge.
   Existing renormalization, the 1,000,000-lamport payout floor, and dust
   rollover are unchanged.
+- **One row per player per board, and entries per player are never capped.**
+  A row carries that player's best qualifying run, so rank one is a ceiling
+  however much anyone spends and every other paid place necessarily belongs to
+  somebody else. That is what makes the curve self-limiting: a take is bounded
+  by rank one while a contribution scales linearly with entries, so a player
+  holding share `s` of all entries stops profiting above `s = 0.9 / H_W` for a
+  board of width `W` — 43% at the four-place floor, 12% at 1,176 places. Whaling
+  therefore gets less attractive as the field grows. Do not add an entry cap: it
+  would bind only honest players, since twenty wallets at five entries each
+  defeats it, and it would suppress pot growth exactly where pot growth is
+  scarcest. Do not make every entry place separately either — a take would then
+  scale with entries and no break-even would exist.
 - **Settlement is claim-based without an off-chain proof dependency.**
   Finalization allocates one exact-sized account for each of the Score and Theme
   boards. The keeper submits at most ten sorted rows per write, and the program
@@ -209,18 +221,60 @@ Elo K-factor and tier boundaries, and Kredit pack sizes and prices.
   remain disabled until sealing, then locate the owner's position and recompute
   its payout directly. Dynamic claimed and profile-sync bitmaps live beside the
   rows in each board account. A reward stays claimable for **thirty days from
-  finalization**; after archival, unclaimed rewards expire into the next daily
-  pot, never into operator revenue.
-- **The ladder is Elo, pays nothing, and runs on no timer.** The keeper
-  computes ratings from finalized on-chain daily boards, publishes them with a
-  commitment hash, and anyone may recompute and verify from chain data; the
-  rating itself is never a money path. It does not decay. Its payoff is
-  cosmetic: a named tier shown beside the player's identity on every
-  leaderboard. The approved fallback if true Elo is deferred is log-rank
-  scoring, `points = 50 * ln(entrants / rank)`.
+  its board's sealing**; after archival and both independent windows, unclaimed
+  rewards expire into the next daily pot, never into operator revenue.
+- **Spending a Kredit settles what that player is already owed.** Any unclaimed
+  reward on a sealed, unexpired board is claimed in the same transaction as the
+  entry, so a returning player never makes a second trip and never forfeits
+  through inattention. It composes the existing claim by self-CPI rather than
+  reimplementing it, and settles at most two attached boards per entry, so the
+  work stays bounded rather than looping over an unbounded history. An entry
+  must never fail because an attached claim could not be made: if the board is
+  unsealed, the account absent, the window past, or the reward already taken,
+  the attachment is skipped and the entry proceeds. Explicit claiming remains
+  available and unchanged, and expiry into the next daily pot is unchanged.
+- **The ladder is cumulative log-rank points, pays nothing, and runs on no
+  timer.** A player who placed on a board scores
+  `floor(50 * ln(qualified_entrants / rank))` for it, where the denominator is
+  that board's own qualified count rather than the day's entries. Both boards
+  sum, the total accumulates forever and never subtracts. It does not decay. Its
+  payoff is cosmetic: a named tier shown beside the player's identity on every
+  leaderboard, and never a money path.
+- **The ladder pays for qualifying and again for placing.** Qualifying on a
+  board earns a flat credit, and placing on it earns the log-rank amount above.
+  Both halves are required: a board materializes only payout-bearing rows, so
+  the log-rank half alone would reach a share of the field that *falls* as the
+  game grows — under six percent per board at twenty thousand entries — leaving
+  the ladder unable to do the one job it has. Do not widen a board to carry
+  non-paying rows; at 84 bytes a row that is megabytes of account and multiple
+  SOL of daily rent for a system that pays nothing.
+- **The flat credit is awarded once per player, per board, per day, by
+  construction.** It rides the same first-qualification transition that already
+  increments the board's qualified-player count when a result is recorded, so it
+  needs no new instruction, no new idempotence marker, and no coupling to
+  participant-account cleanup. It is never per entry: buying twenty entries
+  earns it exactly once, so the ladder cannot be bought. Its value is balance
+  and belongs in a named constant.
+- **Elo was cut on 2026-08-09, and log-rank replaced it rather than standing in
+  for it.** Elo's one advantage over a running total is that a rating can fall,
+  and the no-decay rule had already removed that; a rating also rewards playing
+  well whenever a player happens to appear, where a total rewards appearing.
+  Log-rank additionally closes the hole a plain percentile would open — rank one
+  of a thirty-player board is 170 points against 425 for rank one of five
+  thousand, so farming the quietest days does not pay. Do not reintroduce Elo,
+  a keeper-computed rating, a published commitment hash, or a K-factor.
+- **The ladder is computed on chain, not by the keeper.** Points are a pure
+  function of a sealed board, so the existing Daily profile-sync instruction
+  that already recomputes a rank from its board position adds them in the same
+  pass, riding the same per-period winner-position bitmask for idempotence.
+  Integer Q64 `ln` lives in `zkube-core` with its own golden vectors because the
+  value must be identical in native Rust, WASM, and the program; floating point
+  is prohibited there as everywhere else in the payout and metric paths. Points
+  may never be added twice, and a failed or missing profile sync may never
+  delay, cancel, repeat, or affect a SOL transfer.
 - **A ladder reset is a decision, not a date, and is always announced weeks
-  ahead.** A reset compresses toward the mean at roughly k=0.6 rather than
-  wiping, and a player's highest tier ever achieved is permanent on their
+  ahead.** A reset compresses totals toward the mean at roughly k=0.6 rather
+  than wiping, and a player's highest tier ever achieved is permanent on their
   profile. Never reset by surprise: a ladder that might vanish at any moment
   cannot be climbed toward, and one that never resets entrenches the top so
   newcomers cannot climb at all.
@@ -268,9 +322,9 @@ deposits, prize claims, and ratings.
   genesis, deployed ProgramData hash, exact signer, current/recent cadence PDAs,
   canonical instruction allowlist, the release's own declared write and closure
   ceilings, 0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The
-  schema-15 source release currently declares six general writes, thirty-two
+  schema-1 source release currently declares six general writes, thirty-two
   board-construction writes, one participant closure, two expired-session
-  closures, and at most 1,804,825,440 lamports of recyclable board rent per
+  closures, and at most 1,804,936,800 lamports of recyclable board rent per
   pass; those numbers are a proposal until approved, not inherited permission.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
@@ -300,18 +354,15 @@ deposits, prize claims, and ratings.
 
 ## Versioning
 
-`zkube-core` is not published and has no independently-upgrading consumer: the
-program, keeper, and client all move in one commit, so the compiler is the
-compatibility check and a crate version communicates nothing semver was designed
-to communicate. Do not bump it per change or per phase. The `coreVersion`
-assertion in the fixtures only fires when the version moves and the vectors are
-not regenerated; it does not catch a logic change made without a bump, because
-the golden vector values already do that. Leave the version alone through
-development and cut `1.0.0` at the first bootstrap, where a deployed binary
-becomes a consumer that cannot be recompiled in lockstep and the number is
-pinned in the deployment manifest. Protocol identity is carried by the rules
-account version, keeper release schema, and archive contract version — those are
-the numbers that must stay truthful.
+`zkube-core` starts at `1.0.0`. It is not published and has no
+independently-upgrading consumer during fresh-bootstrap development: the program,
+keeper, and client move in one commit, so the compiler is the compatibility
+check. Do not bump it per change or per phase. The `coreVersion` assertion in
+the fixtures only fires when the version moves and the vectors are not
+regenerated; the golden vector values catch logic changes. Keep `1.0.0` until a
+deployment or a genuine compatibility boundary requires a version change.
+Protocol identity is carried by the account versions, keeper release schema,
+and archive contract version — those numbers must stay truthful.
 
 ## Validation gates
 
@@ -412,9 +463,9 @@ become scoreable later.
 Player state keeps lifetime paid entries and one compact Daily record holding
 best payout-bearing rank, podiums, wins, and awarded rewards in lamports. A
 non-paying leaderboard place stays visible on the period board but is not a
-profile best rank. The Weekly and Season records are gone; the Kredit balance is
-live and fifty-six reserved bytes, validated as zero, remain for later profile
-fields.
+profile best rank. The Weekly and Season records are gone; the Kredit balance,
+the cumulative ladder total, and the highest tier ever reached are live, and
+forty-seven reserved bytes, validated as zero, remain for later profile fields.
 
 Payouts are settled before profile metadata synchronizes. A permissionless Daily
 profile-sync instruction recomputes the exact settled payout from the finalized
@@ -490,6 +541,31 @@ It does not require current raw-byte equality after permitted metadata changes.
 A missing or invalid committed file is never re-materialized; that cadence
 archive plan is quarantined while independent keeper plans continue.
 
+### Keeper scope
+
+The keeper is not privileged for most of what it does. Board construction,
+claims, and profile synchronization take a plain `caller: Signer` with no
+authority constraint, so anyone may drive them. The instructions that do take an
+`authority` are governance — initialization, rules publication, revenue
+withdrawal — and are owner work, not keeper work.
+
+That leaves the keeper two irreducible jobs and one role:
+
+- **Prepare and activate the next Daily**, funded from the cadence PDA.
+- **Write the durable archive** to its volume before an account is committed and
+  closed. This is the only responsibility that touches storage off chain and the
+  only one nobody else can perform.
+- **Be the actor of last resort** for permissionless work no one is motivated to
+  pay for: expiring unclaimed rewards, closing finalized accounts, recovering
+  expired or orphaned runs, cleaning up participants, and building a board when
+  no winner bothers to.
+
+The consequence worth designing around: a keeper outage is a degradation, not a
+stoppage. Winners can still claim, and an interested party can still seal a
+board. Only preparation and archival genuinely stop. Resist moving work into the
+keeper's privileged set — every addition is a write ceiling, an allowlist entry,
+a policy line, and a new way for one worker's failure to become everyone's.
+
 ### Keeper safety
 
 The keeper validates cluster genesis, program and ProgramData identity, account
@@ -514,12 +590,13 @@ write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
 program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
 instruction allowlist, a six-write general limit, a separate 32-write board
 construction limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling,
-a separate 1,804,825,440-lamport recyclable board-rent ceiling, a separate
+  a separate 1,804,936,800-lamport recyclable board-rent ceiling, a separate
 one-participant-account closure limit, and a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy source schema v15 fingerprints supported archive contracts
-`[1,2,3]`, the 1,536-row board bound, and the keeper's 300,000-byte fail-closed
-cadence-result encoding bound.
+Keeper release-policy source schema v1 fingerprints the single archive contract
+v1, the 1,536-row board bound, and the keeper's 300,000-byte fail-closed
+cadence-result encoding bound. There is no legacy archive reader or
+supported-contract list.
 It quarantines a typed per-cadence
 archive-integrity failure without blocking an independent Daily or Campaign
 plan. Global chain readiness, policy, materialization, storage

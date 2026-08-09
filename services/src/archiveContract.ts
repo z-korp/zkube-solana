@@ -4,8 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import type { CompetitionKind } from "./arcadeChain.js";
 
-export const SUPPORTED_ARCHIVE_SCHEMA_VERSIONS = [1, 2, 3] as const;
-export const CURRENT_ARCHIVE_SCHEMA_VERSION = 3;
+export const CURRENT_ARCHIVE_SCHEMA_VERSION = 1;
 const MAX_ARCHIVE_DATA_BYTES = 130_000;
 const MAX_ARCHIVE_RESULT_BYTES = 300_000;
 const COMMON_FIELDS = [
@@ -21,20 +20,20 @@ const COMMON_FIELDS = [
 ] as const;
 
 export interface CadenceArchiveContract {
-  schemaVersion: 1 | 2 | 3;
+  schemaVersion: 1;
   account: string;
   accountDataBase64: string;
   accountDataSha256: string;
   competition: CompetitionKind;
   periodId: number;
   programId: string;
-  resultDataBase64?: string;
-  scoreBoard?: string;
-  scoreBoardDataBase64?: string;
-  scoreBoardDataSha256?: string;
-  themeBoard?: string;
-  themeBoardDataBase64?: string;
-  themeBoardDataSha256?: string;
+  resultDataBase64: string;
+  scoreBoard: string;
+  scoreBoardDataBase64: string;
+  scoreBoardDataSha256: string;
+  themeBoard: string;
+  themeBoardDataBase64: string;
+  themeBoardDataSha256: string;
   resultHash: string;
   root: string;
 }
@@ -65,30 +64,7 @@ export function cadenceRoot(
     .digest("hex");
 }
 
-export function canonicalArchiveV2(input: {
-  account: PublicKey;
-  accountData: Buffer;
-  competition: CompetitionKind;
-  periodId: number;
-  programId: PublicKey;
-  resultData: Buffer;
-  root: string;
-}): string {
-  return canonicalJson({
-    account: input.account.toBase58(),
-    accountDataBase64: input.accountData.toString("base64"),
-    accountDataSha256: sha256(input.accountData),
-    competition: input.competition,
-    periodId: input.periodId,
-    programId: input.programId.toBase58(),
-    resultDataBase64: input.resultData.toString("base64"),
-    resultHash: cadenceResultHash(input.competition, input.resultData),
-    root: input.root,
-    schemaVersion: 2,
-  });
-}
-
-export function canonicalArchiveV3(input: {
+export function canonicalArchive(input: {
   account: PublicKey;
   accountData: Buffer;
   scoreBoard: PublicKey;
@@ -124,9 +100,9 @@ export function canonicalArchiveV3(input: {
 export function parseCanonicalArchive(value: string): {
   contract: CadenceArchiveContract;
   accountData: Buffer;
-  resultData?: Buffer;
-  scoreBoardData?: Buffer;
-  themeBoardData?: Buffer;
+  resultData: Buffer;
+  scoreBoardData: Buffer;
+  themeBoardData: Buffer;
 } {
   let parsed: unknown;
   try {
@@ -138,23 +114,19 @@ export function parseCanonicalArchive(value: string): {
     throw new Error("cadence archive JSON is not canonical");
   }
   const schemaVersion = parsed.schemaVersion;
-  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
+  if (schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) {
     throw new Error("cadence archive schema version is unsupported");
   }
-  const expectedFields = schemaVersion === 3
-    ? [
-      ...COMMON_FIELDS,
-      "resultDataBase64",
-      "scoreBoard",
-      "scoreBoardDataBase64",
-      "scoreBoardDataSha256",
-      "themeBoard",
-      "themeBoardDataBase64",
-      "themeBoardDataSha256",
-    ]
-    : schemaVersion === 2
-      ? [...COMMON_FIELDS, "resultDataBase64"]
-      : [...COMMON_FIELDS];
+  const expectedFields = [
+    ...COMMON_FIELDS,
+    "resultDataBase64",
+    "scoreBoard",
+    "scoreBoardDataBase64",
+    "scoreBoardDataSha256",
+    "themeBoard",
+    "themeBoardDataBase64",
+    "themeBoardDataSha256",
+  ];
   const actualFields = Object.keys(parsed).sort();
   if (actualFields.length !== expectedFields.length ||
       actualFields.some((field, index) =>
@@ -185,40 +157,32 @@ export function parseCanonicalArchive(value: string): {
   }
   const resultHash = lowerHex(parsed.resultHash, "result hash");
   const root = lowerHex(parsed.root, "root");
-  const resultData = schemaVersion >= 2
-    ? strictBase64(parsed.resultDataBase64, "result data")
-    : undefined;
-  if (resultData && (resultData.length === 0 ||
-      resultData.length >= MAX_ARCHIVE_RESULT_BYTES)) {
+  const resultData = strictBase64(parsed.resultDataBase64, "result data");
+  if (resultData.length === 0 ||
+      resultData.length >= MAX_ARCHIVE_RESULT_BYTES) {
     throw new Error("cadence archive result data length is invalid");
   }
-  if (resultData && cadenceResultHash(competition, resultData) !== resultHash) {
+  if (cadenceResultHash(competition, resultData) !== resultHash) {
     throw new Error("cadence archive result data does not match its result hash");
   }
-  const scoreBoard = schemaVersion === 3
-    ? canonicalPublicKey(parsed.scoreBoard, "Score board")
-    : undefined;
-  const themeBoard = schemaVersion === 3
-    ? canonicalPublicKey(parsed.themeBoard, "Theme board")
-    : undefined;
-  const scoreBoardData = schemaVersion === 3
-    ? strictBase64(parsed.scoreBoardDataBase64, "Score board data")
-    : undefined;
-  const themeBoardData = schemaVersion === 3
-    ? strictBase64(parsed.themeBoardDataBase64, "Theme board data")
-    : undefined;
-  const scoreBoardDataSha256 = schemaVersion === 3
-    ? lowerHex(parsed.scoreBoardDataSha256, "Score board data SHA-256")
-    : undefined;
-  const themeBoardDataSha256 = schemaVersion === 3
-    ? lowerHex(parsed.themeBoardDataSha256, "Theme board data SHA-256")
-    : undefined;
-  if ((scoreBoardData && (scoreBoardData.length < 9 ||
+  const scoreBoard = canonicalPublicKey(parsed.scoreBoard, "Score board");
+  const themeBoard = canonicalPublicKey(parsed.themeBoard, "Theme board");
+  const scoreBoardData = strictBase64(parsed.scoreBoardDataBase64, "Score board data");
+  const themeBoardData = strictBase64(parsed.themeBoardDataBase64, "Theme board data");
+  const scoreBoardDataSha256 = lowerHex(
+    parsed.scoreBoardDataSha256,
+    "Score board data SHA-256",
+  );
+  const themeBoardDataSha256 = lowerHex(
+    parsed.themeBoardDataSha256,
+    "Theme board data SHA-256",
+  );
+  if ((scoreBoardData.length < 9 ||
       scoreBoardData.length >= MAX_ARCHIVE_DATA_BYTES ||
-      sha256(scoreBoardData) !== scoreBoardDataSha256)) ||
-      (themeBoardData && (themeBoardData.length < 9 ||
+      sha256(scoreBoardData) !== scoreBoardDataSha256) ||
+      (themeBoardData.length < 9 ||
         themeBoardData.length >= MAX_ARCHIVE_DATA_BYTES ||
-        sha256(themeBoardData) !== themeBoardDataSha256))) {
+        sha256(themeBoardData) !== themeBoardDataSha256)) {
     throw new Error("cadence archive board data is invalid");
   }
   return {
@@ -230,19 +194,13 @@ export function parseCanonicalArchive(value: string): {
       competition: "daily",
       periodId: Number(periodId),
       programId,
-      ...(resultData
-        ? { resultDataBase64: parsed.resultDataBase64 as string }
-        : {}),
-      ...(scoreBoard ? {
-        scoreBoard,
-        scoreBoardDataBase64: parsed.scoreBoardDataBase64 as string,
-        scoreBoardDataSha256,
-      } : {}),
-      ...(themeBoard ? {
-        themeBoard,
-        themeBoardDataBase64: parsed.themeBoardDataBase64 as string,
-        themeBoardDataSha256,
-      } : {}),
+      resultDataBase64: parsed.resultDataBase64 as string,
+      scoreBoard,
+      scoreBoardDataBase64: parsed.scoreBoardDataBase64 as string,
+      scoreBoardDataSha256,
+      themeBoard,
+      themeBoardDataBase64: parsed.themeBoardDataBase64 as string,
+      themeBoardDataSha256,
       resultHash,
       root,
     },

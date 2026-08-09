@@ -38,7 +38,7 @@ import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 const BASE_CONTENT_VERSION = 1;
 const ARENA_RULES_VERSION = 1;
-const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60 + 45 * 60;
+const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
 const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
@@ -511,14 +511,14 @@ function assertLaunchWindow(
   observedUnixTimestamp: number,
 ): void {
   const opensAt = multiplySafe(dayId, SECONDS_PER_DAY, "launch day clock");
-  const entriesCloseAt = sumSafe(
-    [opensAt, ENTRY_CUTOFF_OFFSET_SECONDS],
-    "entry cutoff",
+  const runsCloseAt = sumSafe(
+    [opensAt, RUN_FREEZE_OFFSET_SECONDS],
+    "run freeze",
   );
   if (
     !Number.isSafeInteger(cutoffUnixTimestamp) ||
     cutoffUnixTimestamp <= opensAt ||
-    cutoffUnixTimestamp > entriesCloseAt
+    cutoffUnixTimestamp > runsCloseAt
   ) {
     throw new Error("launch cutoff must be inside that UTC day's entry window");
   }

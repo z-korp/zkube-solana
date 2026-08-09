@@ -42,8 +42,8 @@ and Campaign never grants SOL, entries, or prize eligibility.
 | Operator revenue | 10% |
 
 Entries fund the *next paid Daily*, even across a suspension, so every pot is
-prepaid before anyone can play for it. Days run on UTC: entries close at 23:45
-and live runs freeze at 23:59. A paid entry becomes exactly one scored or
+prepaid before anyone can play for it. Days run on UTC: entries remain open
+until live runs freeze at 23:59. A paid entry becomes exactly one scored or
 expired entry, with no refund path, and the on-chain invariant is
 `entries_scored + entries_expired == entries_paid`.
 
@@ -65,8 +65,7 @@ rows.
 ## What's changing
 
 Approved 2026-08-08 and partially built. Kredits, the content pool, the two
-Daily boards, and direct claim settlement are in source; the Elo ladder remains
-future work.
+Daily boards, direct claim settlement, and the points ladder are in source.
 
 | Unit | Length | Carries |
 | --- | --- | --- |
@@ -104,15 +103,18 @@ exact-sized account for each board. The keeper submits the sorted rows in small
 chunks, and the program verifies each row against that player's result, the full
 ordering, uniqueness, and the program-computed winner count before sealing the
 board. Claims stay disabled until sealing; afterwards the program looks up the
-owner's position and recomputes that rank's payout directly. A reward stays
-claimable for thirty days from finalization; anything unclaimed then returns to
-the next Daily pot, never to operator revenue.
+owner's position and recomputes that rank's payout directly. Each board's reward
+stays claimable for thirty days from its sealing, and anything you are still
+owed is collected automatically the next time you spend a Kredit, so returning
+players never make a separate trip. After both windows, anything unclaimed
+returns to the next Daily pot, never to operator revenue.
 
-**A persistent Elo ladder replaces the season bands.** It is fed by daily
-placements, pays no SOL, and resets only through an announced decision; its
-reward is a named tier shown beside you on every leaderboard. Ratings are
-computed from finalized on-chain boards and published with a commitment, so
-anyone can recompute and verify them. A championship is discretionary,
+**A persistent points ladder replaces the season bands.** Placing on a board
+earns `50 · ln(entrants / rank)`, so a strong finish in a deep field is worth
+more than the same rank in a thin one. Points only ever accumulate, never decay,
+and pay no SOL; the reward is a named tier shown beside you on every
+leaderboard. They are computed on chain from the finalized board, so anyone can
+recompute and verify them. A championship is discretionary,
 unscheduled, and funded separately rather than skimmed from Daily pots.
 
 Bonuses gain a fourth type, a reroll of the incoming row, and each pool entry

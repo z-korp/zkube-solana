@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "initialRunId": 1,
-  "coreVersion": "0.6.0",
+  "coreVersion": "1.0.0",
   "replayEventTags": {
     "vrf": 1,
     "move": 2,

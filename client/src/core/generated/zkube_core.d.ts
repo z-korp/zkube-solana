@@ -25,6 +25,8 @@ export function initializeCampaignSimulation(config: Uint8Array): Uint8Array;
 
 export function initializeDailySimulation(config: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
 
+export function ladderPoints(qualified_entrants: number, rank: number): number;
+
 export function playCampaignMove(config: Uint8Array, state: Uint8Array, expected_move: number, row: number, start: number, destination: number): Uint8Array;
 
 export function playDailySimulationMove(config: Uint8Array, state: Uint8Array, action: number, expected_move: number, row: number, start: number, destination: number): Uint8Array;
@@ -40,6 +42,7 @@ export interface InitOutput {
     readonly qualifiedPlayerId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly initialReplayCommitment: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number) => [number, number, number, number];
     readonly emptyContinuationRows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly ladderPoints: (a: number, b: number) => [number, number, number];
     readonly initializeDailySimulation: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly applyDailySimulationVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly playDailySimulationMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
