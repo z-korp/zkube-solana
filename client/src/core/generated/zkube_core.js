@@ -246,6 +246,32 @@ export function ladderPoints(qualified_entrants, rank) {
 }
 
 /**
+ * @param {bigint} points
+ * @returns {number}
+ */
+export function ladderTier(points) {
+    const ret = wasm.ladderTier(points);
+    return ret;
+}
+
+/**
+ * @returns {number}
+ */
+export function ladderTierCount() {
+    const ret = wasm.ladderTierCount();
+    return ret;
+}
+
+/**
+ * @param {number} tier
+ * @returns {bigint}
+ */
+export function ladderTierFloor(tier) {
+    const ret = wasm.ladderTierFloor(tier);
+    return BigInt.asUintN(64, ret);
+}
+
+/**
  * @param {Uint8Array} config
  * @param {Uint8Array} state
  * @param {number} expected_move

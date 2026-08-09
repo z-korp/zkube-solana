@@ -15,6 +15,7 @@ import type { ZoneProgressData } from "@/config/profileData";
 import { useDaily } from "@/contexts/daily";
 import { usePlayerProfile } from "@/hooks/usePlayerProfile";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
+import LadderPanel from "@/ui/components/profile/LadderPanel";
 import ShareCardSheet from "@/ui/components/profile/ShareCardSheet";
 import {
   EmblemBadge,
@@ -255,6 +256,13 @@ const ProfilePage: React.FC = () => {
           </p>
         )}
       </section>
+
+      {/* The climb, before the money: every qualifying run moves this, so a
+          player who never places still has something that rises. */}
+      <LadderPanel
+        points={profile.ladderPoints}
+        highestTier={profile.highestLadderTier}
+      />
 
       {/* Competition records — did last night pay? */}
       <section className="relative z-10 rounded-2xl p-4" style={PANEL_STYLE}>

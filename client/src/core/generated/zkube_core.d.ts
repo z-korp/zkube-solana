@@ -27,6 +27,12 @@ export function initializeDailySimulation(config: Uint8Array, request_counter: n
 
 export function ladderPoints(qualified_entrants: number, rank: number): number;
 
+export function ladderTier(points: bigint): number;
+
+export function ladderTierCount(): number;
+
+export function ladderTierFloor(tier: number): bigint;
+
 export function playCampaignMove(config: Uint8Array, state: Uint8Array, expected_move: number, row: number, start: number, destination: number): Uint8Array;
 
 export function playDailySimulationMove(config: Uint8Array, state: Uint8Array, action: number, expected_move: number, row: number, start: number, destination: number): Uint8Array;
@@ -43,6 +49,9 @@ export interface InitOutput {
     readonly initialReplayCommitment: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number) => [number, number, number, number];
     readonly emptyContinuationRows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly ladderPoints: (a: number, b: number) => [number, number, number];
+    readonly ladderTier: (a: bigint) => number;
+    readonly ladderTierFloor: (a: number) => bigint;
+    readonly ladderTierCount: () => number;
     readonly initializeDailySimulation: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly applyDailySimulationVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly playDailySimulationMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];

@@ -255,6 +255,10 @@ export function applyDevPlayerProfile(
     dailyRecord,
     totalWins: dailyRecord.wins,
     totalRewardsLamports: dailyRecord.rewardsLamports,
+    // Mid-Jade: far enough in to show a partly filled bar rather than an
+    // empty or complete one.
+    ladderPoints: 7_480n,
+    highestLadderTier: 2,
     loading: false,
     error: null,
   };

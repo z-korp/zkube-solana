@@ -33,9 +33,7 @@ pub const INITIAL_RUN_ID: u64 = 1;
 /// Reusable owner-funded float: current maximum run/delegation rent plus a
 /// 20% safety margin, rounded up to the next 0.001 SOL.
 pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 50_000_000;
-/// Placeholder balance values. The systems contract is one monotonic total
-/// and a permanent highest tier; final tier thresholds remain a balance pass.
-pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_000, 5_000, 20_000, 50_000];
+pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = zkube_core::LADDER_TIER_POINT_THRESHOLDS;
 
 #[account]
 #[derive(InitSpace)]
@@ -329,13 +327,7 @@ impl PlayerState {
     }
 }
 
-pub fn ladder_tier_for_points(points: u64) -> u8 {
-    LADDER_TIER_POINT_THRESHOLDS
-        .iter()
-        .rposition(|threshold| points >= *threshold)
-        .and_then(|index| u8::try_from(index).ok())
-        .unwrap_or(0)
-}
+pub use zkube_core::ladder_tier_for_points;
 
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,

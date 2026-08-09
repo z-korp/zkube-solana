@@ -28,6 +28,10 @@ export interface PlayerProfile {
   totalWins: number;
   /** Display-time sum of rewards (lamports) across competition records. */
   totalRewardsLamports: bigint;
+  /** Cumulative ladder total. Only ever increases. */
+  ladderPoints: bigint;
+  /** Highest tier ever reached, which a later reset cannot take away. */
+  highestLadderTier: number;
   /** Campaign stars, reused from useZoneProgress rather than re-read. */
   totalStars: number;
 }
@@ -92,6 +96,8 @@ export function usePlayerProfile(): PlayerProfileResult {
       dailyRecord: daily,
       totalWins: daily.wins,
       totalRewardsLamports: daily.rewardsLamports,
+      ladderPoints: state?.ladderPoints ?? 0n,
+      highestLadderTier: state?.highestLadderTier ?? 0,
       totalStars,
     };
   }, [state, totalStars]);

@@ -143,16 +143,37 @@ pub fn ladder_points(qualified_entrants: u32, rank: u32) -> Result<u32, Boundary
     core_ladder_points(qualified_entrants, rank).map_err(Into::into)
 }
 
+/// Host-compilable form of the tier boundary.
+///
+/// The program stores a tier and the client draws one, so both read it here
+/// rather than each carrying its own copy of the thresholds.
+#[must_use]
+pub fn ladder_tier(points: u64) -> u8 {
+    zkube_core::ladder_tier_for_points(points)
+}
+
+/// Cumulative-point floor of `tier`, saturating at the highest tier.
+#[must_use]
+pub fn ladder_tier_floor(tier: u8) -> u64 {
+    zkube_core::ladder_tier_floor(tier)
+}
+
+/// Number of named tiers.
+#[must_use]
+pub fn ladder_tier_count() -> u8 {
+    zkube_core::LADDER_TIER_COUNT
+}
+
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm {
     use super::{
         BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
         campaign_simulation_earned_stars, campaign_simulation_end_reason,
         campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
-        initialize_campaign_simulation, initialize_daily_simulation, ladder_points,
-        qualified_player_id, simulation_apply_bonus, simulation_apply_vrf,
-        simulation_finish_deadline, simulation_play_move, simulation_request_reroll,
-        simulation_score_eligible,
+        initialize_campaign_simulation, initialize_daily_simulation, ladder_points, ladder_tier,
+        ladder_tier_count, ladder_tier_floor, qualified_player_id, simulation_apply_bonus,
+        simulation_apply_vrf, simulation_finish_deadline, simulation_play_move,
+        simulation_request_reroll, simulation_score_eligible,
     };
     use wasm_bindgen::prelude::*;
 
@@ -215,6 +236,24 @@ mod wasm {
     #[wasm_bindgen(js_name = ladderPoints)]
     pub fn js_ladder_points(qualified_entrants: u32, rank: u32) -> Result<u32, JsError> {
         ladder_points(qualified_entrants, rank).map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = ladderTier)]
+    #[must_use]
+    pub fn js_ladder_tier(points: u64) -> u8 {
+        ladder_tier(points)
+    }
+
+    #[wasm_bindgen(js_name = ladderTierFloor)]
+    #[must_use]
+    pub fn js_ladder_tier_floor(tier: u8) -> u64 {
+        ladder_tier_floor(tier)
+    }
+
+    #[wasm_bindgen(js_name = ladderTierCount)]
+    #[must_use]
+    pub fn js_ladder_tier_count() -> u8 {
+        ladder_tier_count()
     }
 
     #[wasm_bindgen(js_name = initializeDailySimulation)]

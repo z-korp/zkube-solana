@@ -23,6 +23,34 @@ pub const LADDER_QUALIFY_POINTS: u32 = 10;
 /// pass may retune this number but may not remove it.
 const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 
+/// Cumulative-point floor of each named tier, ascending.
+///
+/// Placeholder balance values. The systems contract is one monotonic total and
+/// a permanent highest tier; the boundaries themselves remain a balance pass.
+/// They live here rather than in the program because the program stores a tier
+/// and the client displays one, and the two may never disagree.
+pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_000, 5_000, 20_000, 50_000];
+
+/// Number of named tiers.
+pub const LADDER_TIER_COUNT: u8 = LADDER_TIER_POINT_THRESHOLDS.len() as u8;
+
+/// The tier index a cumulative total has reached.
+#[must_use]
+pub fn ladder_tier_for_points(points: u64) -> u8 {
+    LADDER_TIER_POINT_THRESHOLDS
+        .iter()
+        .rposition(|threshold| points >= *threshold)
+        .and_then(|index| u8::try_from(index).ok())
+        .unwrap_or(0)
+}
+
+/// Cumulative-point floor of `tier`, saturating at the highest tier.
+#[must_use]
+pub fn ladder_tier_floor(tier: u8) -> u64 {
+    let index = usize::from(tier).min(LADDER_TIER_POINT_THRESHOLDS.len() - 1);
+    LADDER_TIER_POINT_THRESHOLDS[index]
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LadderError {
     InvalidRank,

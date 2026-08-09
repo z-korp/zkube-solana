@@ -4,6 +4,9 @@ import {
   emptyContinuationRows,
   initialReplayCommitment,
   ladderPoints,
+  ladderTier,
+  ladderTierCount,
+  ladderTierFloor,
   qualifiedPlayerId,
 } from "./generated/zkube_core";
 import wasmUrl from "./generated/zkube_core_bg.wasm?url";
@@ -85,6 +88,30 @@ export function coreLadderPoints(qualifiedEntrants: number, rank: number): numbe
   assertU32(qualifiedEntrants, "qualifiedEntrants");
   assertU32(rank, "rank");
   return ladderPoints(qualifiedEntrants, rank);
+}
+
+/**
+ * Tier boundary, read from the core rather than restated here: the program
+ * stores the tier it computes and this draws the same one, so a divergence
+ * would show the player a rank they do not hold.
+ */
+export function coreLadderTier(points: bigint): number {
+  assertInitialized();
+  if (points < 0n) throw new Error("ladder points cannot be negative");
+  return ladderTier(points);
+}
+
+/** Cumulative-point floor of a tier, saturating at the highest. */
+export function coreLadderTierFloor(tier: number): bigint {
+  assertInitialized();
+  assertU32(tier, "tier");
+  return ladderTierFloor(tier);
+}
+
+/** Number of named tiers the protocol defines. */
+export function coreLadderTierCount(): number {
+  assertInitialized();
+  return ladderTierCount();
 }
 
 export function coreInitialReplayCommitment(args: {
