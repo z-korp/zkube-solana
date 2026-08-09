@@ -13,7 +13,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const TABS = ["Alpha", "Daily", "Weekly"] as const;
+const TABS = ["Alpha", "Daily", "Beta"] as const;
 
 describe("SegmentedTabs", () => {
   it("renders every tab and reports switches", () => {
@@ -31,8 +31,8 @@ describe("SegmentedTabs", () => {
       expect(screen.getByRole("button", { name: tab })).toBeInTheDocument();
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
-    expect(onChange).toHaveBeenCalledWith("Weekly");
+    fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+    expect(onChange).toHaveBeenCalledWith("Beta");
   });
 
   it("shows a badge count on the flagged tab", () => {

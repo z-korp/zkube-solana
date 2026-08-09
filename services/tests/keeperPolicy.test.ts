@@ -1,304 +1,229 @@
-// @vitest-environment node
-import { Connection, Keypair } from "@solana/web3.js";
+import { createHash } from "node:crypto";
+
+import { Keypair, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
   DAILY_RECOVERY_DEADLINE_OFFSET,
-  KEEPER_RECENT_DAILY_CADENCES,
-  KEEPER_RECENT_SEASON_CADENCES,
-  KEEPER_RECENT_WEEKLY_CADENCES,
+  DAILY_POOL_SELECTION_SEED,
+  DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
-  arenaDailyPda,
-  seasonIdForDay,
-  validationOnlyPlan,
-  weekIdForDay,
-  rulesCatalogPda,
-  playerFundingPda,
-  seasonStartDay,
-  cadenceFundingPda,
   arcadeArchivePda,
-  weekStartDay,
+  arenaDailyPda,
+  arenaBoardPda,
+  cadenceFundingPda,
+  dailyContentSelection,
+  playerFundingPda,
+  rulesCatalogPda,
+  validationOnlyPlan,
+  type KeeperInstructionPlan,
+  type KeeperPlanContext,
 } from "../src/arcadeChain";
-import {
-  cadenceResultHash,
-  canonicalArchiveV2,
-} from "../src/archiveContract";
+import { cadenceResultHash, canonicalArchiveV3 } from "../src/archiveContract";
 import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
-import { archiveSha256 } from "../src/archiveStore";
 
 const DAY = 20_651;
-const NOW = DAY * SECONDS_PER_DAY + 10;
+const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
+const KEEPER = Keypair.generate().publicKey;
 
-describe("v4 keeper semantic policy", () => {
-  it("uses the Monday cadence without an off-by-one epoch", () => {
-    expect(weekIdForDay(4)).toBe(0);
-    expect(weekIdForDay(10)).toBe(0);
-    expect(weekIdForDay(11)).toBe(1);
-  });
-
-  it("accepts only an exact missing successor inside launch-to-current recovery", () => {
+describe("v5 keeper semantic policy", () => {
+  it("accepts only the exact missing Daily successor", () => {
+    const selectionSeed = Uint8Array.from(DAILY_POOL_SELECTION_SEED);
+    const catalogStartsDay = DAY - 10;
+    const poolEntries = Array.from({ length: 10 }, (_, index) => ({
+      realmMapId: index + 1,
+      passiveMapId: index + 1,
+    }));
+    const content = dailyContentSelection(
+      selectionSeed,
+      catalogStartsDay,
+      DAY,
+      poolEntries.length,
+    );
+    const selected = poolEntries[content.poolIndex]!;
     const plan = validationOnlyPlan("prepare_arena_daily", {
-      dayId: DAY,
-      followingDayId: DAY + 1,
+      dayId: DAY - 1,
+      followingDayId: DAY,
       launchCadenceId: DAY - 10,
       rulesCatalog: rulesCatalogPda(1),
+      contentVersion: 2,
+      selectionSeed,
+      catalogStartsDay,
+      poolEntryCount: poolEntries.length,
+      poolEntries,
+      realmMapId: selected.realmMapId,
+      passiveMapId: selected.passiveMapId,
+      ...content,
       cadenceFunding: cadenceFundingPda(),
     });
-    expect(() => policy(plan)).not.toThrow();
-    plan.context!.followingDayId = DAY + 2;
-    expect(() => policy(plan)).toThrow("following Daily");
-    plan.context!.dayId = DAY - 11;
-    plan.context!.followingDayId = DAY - 10;
-    expect(() => policy(plan)).toThrow("following Daily");
+    expect(() => policy(plan, DAY * SECONDS_PER_DAY + 1)).not.toThrow();
+    plan.context!.followingDayId = DAY + 1;
+    expect(() => policy(plan, DAY * SECONDS_PER_DAY + 1)).toThrow("preparation");
   });
 
-  it("pins recurring catch-up to the trailing three-Season window", () => {
-    const currentWeek = weekIdForDay(DAY);
-    const currentSeason = seasonIdForDay(DAY);
-    const cases = [
-      {
-        operation: "prepare_arena_daily" as const,
-        current: DAY,
-        window: KEEPER_RECENT_DAILY_CADENCES,
-        context: (source: number, target: number) => ({
-          dayId: source,
-          followingDayId: target,
-          launchCadenceId: source - 10,
-          rulesCatalog: rulesCatalogPda(1),
-          cadenceFunding: cadenceFundingPda(),
-        }),
-      },
-      {
-        operation: "prepare_weekly_jackpot" as const,
-        current: currentWeek,
-        window: KEEPER_RECENT_WEEKLY_CADENCES,
-        context: (source: number, target: number) => ({
-          weekId: source,
-          followingWeekId: target,
-          launchCadenceId: source - 10,
-          rulesCatalog: rulesCatalogPda(1),
-          cadenceFunding: cadenceFundingPda(),
-        }),
-      },
-      {
-        operation: "prepare_season" as const,
-        current: currentSeason,
-        window: KEEPER_RECENT_SEASON_CADENCES,
-        context: (source: number, target: number) => ({
-          seasonId: source,
-          followingSeasonId: target,
-          launchCadenceId: Math.max(0, source - 10),
-          cadenceFunding: cadenceFundingPda(),
-        }),
-      },
-    ];
-    for (const fixture of cases) {
-      const oldest = fixture.current - fixture.window;
-      expect(() => policy(validationOnlyPlan(
-        fixture.operation,
-        fixture.context(oldest - 1, oldest),
-      ))).not.toThrow();
-      expect(() => policy(validationOnlyPlan(
-        fixture.operation,
-        fixture.context(oldest - 2, oldest - 1),
-      ))).toThrow("following");
-    }
-
-    const oldestDay = DAY - KEEPER_RECENT_DAILY_CADENCES;
-    const recovery = validationOnlyPlan("activate_arena_daily", {
-      dayId: oldestDay,
-      predecessorRolloverApplied: true,
-      recoveryActivation: true,
-      recoveryDeadlineAt:
-        oldestDay * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
-    });
-    expect(() => policy(recovery)).not.toThrow();
-    recovery.context!.dayId = oldestDay - 1;
-    recovery.context!.recoveryDeadlineAt =
-      (oldestDay - 1) * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET;
-    expect(() => policy(recovery)).toThrow("recovery activation");
+  it("allows current activation before close and exact following preactivation", () => {
+    expect(() => policy(validationOnlyPlan("activate_arena_daily", {
+      dayId: DAY,
+      rulesCatalog: rulesCatalogPda(1),
+      catalogStartsDay: DAY - 10,
+      poolEntryCount: 10,
+    }), DAY * SECONDS_PER_DAY + 1)).not.toThrow();
+    expect(() => policy(validationOnlyPlan("activate_arena_daily", {
+      dayId: DAY + 1,
+      rulesCatalog: rulesCatalogPda(1),
+      preactivation: true,
+      catalogStartsDay: DAY - 10,
+      poolEntryCount: 10,
+    }), DAY * SECONDS_PER_DAY + 1)).not.toThrow();
+    expect(() => policy(validationOnlyPlan("activate_arena_daily", {
+      dayId: DAY + 1,
+      rulesCatalog: rulesCatalogPda(1),
+      catalogStartsDay: DAY - 10,
+      poolEntryCount: 10,
+    }), DAY * SECONDS_PER_DAY + 1)).toThrow("preactivation");
   });
 
-  it("rejects non-floored or non-conserving payout plans", () => {
-    const owner = Keypair.generate().publicKey;
-    const plan = validationOnlyPlan("finalize_arena_daily", {
+  it("pins ranked run routing and deadlines", () => {
+    const context = rankedContext();
+    expect(() => policy(validationOnlyPlan("force_finish_deadline", context)))
+      .not.toThrow();
+    context.runLocation = "base";
+    expect(() => policy(validationOnlyPlan("force_finish_deadline", context)))
+      .toThrow("routing");
+  });
+
+  it("rejects non-floored or non-conserving Daily payouts", () => {
+    const context: KeeperPlanContext = {
       competition: "daily",
       dayId: DAY,
       followingDayId: DAY + 1,
-      owners: [owner],
-      payoutLamports: [10_000_000n],
-      payoutTotalLamports: 10_000_000n,
-      potLamports: 10_000_001n,
-      rolloverLamports: 1n,
-    });
-    expect(() => policy(plan)).not.toThrow();
-    plan.context!.payoutLamports = [9_999_999n];
-    expect(() => policy(plan)).toThrow("noncanonical SOL payout");
+      scorePayoutCount: 1,
+      themePayoutCount: 0,
+      scoreCapacityLimited: false,
+      themeCapacityLimited: false,
+      payoutTotalLamports: 9_000_000n,
+      rolloverLamports: 1_000_000n,
+      potLamports: 10_000_000n,
+      cadenceFunding: cadenceFundingPda(),
+    };
+    expect(() => policy(validationOnlyPlan("finalize_arena_daily", context)))
+      .not.toThrow();
+    context.payoutTotalLamports = 9_500_000n;
+    context.rolloverLamports = 500_000n;
+    expect(() => policy(validationOnlyPlan("finalize_arena_daily", context)))
+      .toThrow("conservation");
   });
 
-  it("pins deadline run routing to the Router-resolved ER", () => {
-    const plan = validationOnlyPlan("force_finish_deadline", {
-      challengeDayId: DAY,
-      deadlineDayId: DAY,
-      owner: Keypair.generate().publicKey,
-      runId: 7n,
-      runMode: "ranked",
-      runLocation: "ephemeral_rollup",
-      includeArenaPlayer: true,
-      deadlineAt: DAY * SECONDS_PER_DAY,
-      recoveryDeadlineAt: DAY * SECONDS_PER_DAY + 1,
-    });
-    expect(() => policy(plan)).not.toThrow();
-    plan.context!.runLocation = "base";
-    expect(() => policy(plan)).toThrow("routing");
-  });
-
-  it("allows only the exact following cadence to pre-activate", () => {
-    const plan = validationOnlyPlan("activate_arena_daily", {
-      dayId: DAY + 1,
-      preactivation: true,
-    });
-    expect(() => policy(plan)).not.toThrow();
-    plan.context!.dayId = DAY + 2;
-    expect(() => policy(plan)).toThrow("recovery activation");
-  });
-
-  it("limits permissionless profile sync to recent canonical winner positions", () => {
+  it("limits profile sync to canonical Daily winner bits", () => {
     const owner = Keypair.generate().publicKey;
-    const daily = validationOnlyPlan("sync_daily_profile", {
+    expect(() => policy(validationOnlyPlan("sync_daily_profile", {
       competition: "daily",
       dayId: DAY,
       owner,
-      winnerPositionMask: 0b00101,
-    });
-    expect(() => policy(daily)).not.toThrow();
-    daily.context!.winnerPositionMask = 0b100000;
-    expect(() => policy(daily)).toThrow("profile sync");
-
-    const weekly = validationOnlyPlan("sync_weekly_profile", {
-      competition: "weekly",
-      weekId: weekIdForDay(DAY),
+      boardKind: "score",
+      winnerPositionMask: 0x10n,
+    }))).not.toThrow();
+    expect(() => policy(validationOnlyPlan("sync_daily_profile", {
+      competition: "daily",
+      dayId: DAY,
       owner,
-      winnerPositionMask: 0x0101,
-    });
-    expect(() => policy(weekly)).not.toThrow();
-    weekly.context!.competition = "season";
-    expect(() => policy(weekly)).toThrow("profile sync");
+      boardKind: "score",
+      winnerPositionMask: 1n << 1_536n,
+    }))).toThrow("profile sync");
   });
 
-  it("pins partial-period qualification and participant cleanup identities", () => {
+  it("pins sequential Daily archive and closure bytes", () => {
+    const archive = archiveContext(false);
+    expect(() => policy(validationOnlyPlan("archive_arena_daily", archive)))
+      .not.toThrow();
+    const closing = archiveContext(true);
+    expect(() => policy(validationOnlyPlan("close_arena_daily", closing)))
+      .not.toThrow();
+    archive.archiveFileSha256 = "00".repeat(32);
+    expect(() => policy(validationOnlyPlan("archive_arena_daily", archive)))
+      .toThrow("file hash");
+  });
+
+  it("pins ArenaPlayer cleanup to the owner funding PDA", () => {
     const owner = Keypair.generate().publicKey;
-    const weekId = weekIdForDay(DAY);
-    const weekEnd = weekStartDay(weekId) + 6;
-    const weekly = validationOnlyPlan("finalize_weekly_jackpot", {
-      competition: "weekly",
-      weekId,
-      followingWeekId: weekId + 1,
-      finalDayId: weekEnd,
-      qualificationStartDay: DAY,
-      qualificationDayIds: Array.from(
-        { length: weekEnd - DAY + 1 },
-        (_, offset) => DAY + offset,
-      ),
-      archiveLastDailyId: weekEnd,
-      owners: [],
-      payoutLamports: [],
-      payoutTotalLamports: 0n,
-      potLamports: 0n,
-      rolloverLamports: 0n,
-    });
-    expect(() => policy(weekly)).not.toThrow();
-    weekly.context!.qualificationDayIds = [DAY + 1];
-    expect(() => policy(weekly)).toThrow("qualification accounts");
-    weekly.context!.qualificationDayIds = Array.from(
-      { length: weekEnd - DAY + 1 },
-      (_, offset) => DAY + offset,
-    );
-    weekly.context!.archiveLastDailyId = weekEnd - 1;
-    expect(() => policy(weekly)).toThrow("archive checkpoint");
-
-    const seasonId = seasonIdForDay(DAY);
-    const seasonEnd = seasonStartDay(seasonId) + 27;
-    const season = validationOnlyPlan("finalize_season", {
-      competition: "season",
-      seasonId,
-      followingSeasonId: seasonId + 1,
-      qualificationStartDay: DAY,
-      sealedDailies: seasonEnd - DAY + 1,
-      owners: [],
-      payoutLamports: [],
-      payoutTotalLamports: 0n,
-      potLamports: 0n,
-      rolloverLamports: 0n,
-    });
-    expect(() => policy(season)).not.toThrow();
-    season.context!.sealedDailies! += 1;
-    expect(() => policy(season)).toThrow("Season sealing");
-
-    const close = validationOnlyPlan("close_arena_player", {
+    const context: KeeperPlanContext = {
+      competition: "daily",
       dayId: DAY,
       owner,
       rentRecipient: playerFundingPda(owner),
-    });
-    expect(() => policy(close)).not.toThrow();
-    close.context!.rentRecipient = Keypair.generate().publicKey;
-    expect(() => policy(close)).toThrow("cleanup recipient");
+    };
+    expect(() => policy(validationOnlyPlan("close_arena_player", context)))
+      .not.toThrow();
+    context.rentRecipient = Keypair.generate().publicKey;
+    expect(() => policy(validationOnlyPlan("close_arena_player", context)))
+      .toThrow("cleanup recipient");
   });
 
   it("rejects executable bytes before generated-IDL materialization", () => {
     const plan = validationOnlyPlan("activate_arena_daily", { dayId: DAY });
-    plan.instruction = {} as never;
-    expect(() => policy(plan)).toThrow("instruction bytes");
-  });
-
-  it("pins sequential archive and closure plans to canonical identities and bytes", () => {
-    const resultData = Buffer.from("immutable-result");
-    const canonicalJson = canonicalArchiveV2({
-      account: arenaDailyPda(DAY),
-      accountData: Buffer.alloc(16, 2),
-      competition: "daily",
-      periodId: DAY,
-      programId: ZKUBE_PROGRAM_ID,
-      resultData,
-      root: "cd".repeat(32),
-    });
-    const archive = validationOnlyPlan("archive_arena_daily", {
-      competition: "daily",
-      dayId: DAY,
-      previousCadenceId: DAY - 1,
-      cadenceFunding: cadenceFundingPda(),
-      arcadeArchive: arcadeArchivePda(),
-      archiveCanonicalJson: canonicalJson,
-      archiveFileSha256: archiveSha256(canonicalJson),
-      archiveResultHash: cadenceResultHash("daily", resultData),
-      archiveCommitted: false,
-      requiredProfileSyncMask: 0,
-      closeEligibleAt:
-        (DAY + 1) * SECONDS_PER_DAY + 23 * 60 * 60 + 45 * 60,
-    });
-    expect(() => policy(archive)).not.toThrow();
-    archive.context!.previousCadenceId = DAY - 2;
-    expect(() => policy(archive)).toThrow("non-sequential");
-
-    const close = validationOnlyPlan("close_arena_daily", {
-      ...archive.context!,
-      previousCadenceId: DAY,
-      archiveCommitted: true,
-      closeEligibleAt: NOW,
-    });
-    expect(() => policy(close)).not.toThrow();
-    close.context!.cadenceFunding = Keypair.generate().publicKey;
-    expect(() => policy(close)).toThrow("archive identity");
+    plan.execution = "instruction";
+    expect(() => policy(plan)).toThrow("unvalidated instruction bytes");
   });
 });
 
-function policy(plan: ReturnType<typeof validationOnlyPlan>): void {
+function policy(plan: KeeperInstructionPlan, nowUnix = NOW): void {
   assertKeeperPlanPolicy({
     plan,
-    keeper: Keypair.generate().publicKey,
+    keeper: KEEPER,
     programId: ZKUBE_PROGRAM_ID,
-    connection: new Connection("https://api.devnet.solana.com"),
-    nowUnix: NOW,
+    connection: {} as Connection,
+    nowUnix,
   });
+}
+
+function rankedContext(): KeeperPlanContext {
+  return {
+    owner: Keypair.generate().publicKey,
+    runId: 1n,
+    runMode: "ranked",
+    runLocation: "ephemeral_rollup",
+    includeArenaPlayer: true,
+    challengeDayId: DAY,
+    deadlineDayId: DAY,
+    deadlineAt: DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+    recoveryDeadlineAt: DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
+  };
+}
+
+function archiveContext(committed: boolean): KeeperPlanContext {
+  const resultData = Buffer.from("daily-result");
+  const daily = arenaDailyPda(DAY);
+  const canonicalJson = canonicalArchiveV3({
+    account: daily,
+    accountData: Buffer.alloc(10, 1),
+    scoreBoard: arenaBoardPda(daily, "score"),
+    scoreBoardData: Buffer.alloc(121, 2),
+    themeBoard: arenaBoardPda(daily, "theme"),
+    themeBoardData: Buffer.alloc(121, 3),
+    competition: "daily",
+    periodId: DAY,
+    programId: ZKUBE_PROGRAM_ID,
+    resultData,
+    root: "02".repeat(32),
+  });
+  return {
+    competition: "daily",
+    dayId: DAY,
+    archiveFirstCadenceId: DAY,
+    previousCadenceId: committed ? DAY : DAY - 1,
+    archiveCurrentRoot: committed ? "02".repeat(32) : "00".repeat(32),
+    cadenceFunding: cadenceFundingPda(),
+    arcadeArchive: arcadeArchivePda(),
+    ...(committed ? {} : {
+      archiveCanonicalJson: canonicalJson,
+      archiveFileSha256: createHash("sha256").update(canonicalJson).digest("hex"),
+    }),
+    archiveResultHash: cadenceResultHash("daily", resultData),
+    archiveCommitted: committed,
+    claimsExpired: committed,
+    requiredScoreProfileSyncMask: 0n,
+    requiredThemeProfileSyncMask: 0n,
+    closeEligibleAt: DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+  };
 }

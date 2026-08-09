@@ -21,124 +21,101 @@ import {
 
 import {
   ARCADE_ACCOUNT_VERSION,
+  ARENA_BOARD_CAPACITY,
+  ARENA_BOARD_ENTRY_SIZE,
   ARENA_ENTRY_LAMPORTS,
   DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
+  DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
-  DAILY_PRIZE_WEIGHTS,
-  DAYS_PER_SEASON,
-  DAYS_PER_WEEK,
   ENTRY_SPLIT_LAMPORTS,
-  MONDAY_EPOCH_DAY_ID,
   KEEPER_RECENT_DAILY_CADENCES,
-  KEEPER_RECENT_SEASON_CADENCES,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   RULES_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
-  WEEKLY_PRIZE_WEIGHTS,
   activeRunPda,
   arcadeArchivePda,
   arcadeConfigPda,
   arenaDailyPda,
+  arenaBoardPda,
   arenaPlayerPda,
   assertCadenceId,
   currentDayId,
   cadenceFundingPda,
   mapCatalogPda,
+  nextScheduledDaily,
   playerFundingPda,
   playerStatePda,
   protocolPda,
   rulesCatalogPda,
-  seasonIdForDay,
-  seasonPda,
-  seasonPlayerPda,
-  seasonStartDay,
-  weekIdForDay,
-  weekStartDay,
-  weeklyJackpotPda,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
-import { equalBudgetPlan, payoutPlan } from "./arcadeEconomy.js";
+import { dailyBoardPools, rankWeightedPayoutPlan } from "./arcadeEconomy.js";
 import {
-  type DailySeasonPlayerSnapshot,
   type DailySnapshot,
   type ArenaPlayerClosureSnapshot,
   type PeriodStatus,
   type ProtocolSnapshot,
   type RunLifecycle,
   type RunSnapshot,
-  type SeasonSnapshot,
   type ArcadeArchiveSnapshot,
   type CadenceArchiveCandidate,
-  type SeasonPlayerClosureSnapshot,
   type SettlementSnapshot,
-  type WeeklySnapshot,
-  type WinnerSnapshot,
+  type BoardSourceSnapshot,
+  type BoardConstructionSnapshot,
 } from "./arcadeReconciliation.js";
 import {
+  cadenceRoot,
   cadenceResultHash,
-  canonicalArchiveV2,
+  canonicalArchiveV3,
 } from "./archiveContract.js";
 import { type ProtocolInstructionMaterializer } from "./planMaterializer.js";
 import { getDelegationStatus } from "./router.js";
 
-const MAX_PROGRAM_ACCOUNT_BYTES = 10_240;
+const ARENA_BOARD_HEADER_BYTES = 121;
+const MAX_PROGRAM_ACCOUNT_BYTES = 129_530;
 // Anchor 1.0.2's public type encoder hardcodes a 1,000-byte scratch buffer.
 // Build the same pinned IDL layout directly so production-sized cadence
 // results remain byte-identical while the keeper owns an explicit hard bound.
-export const MAX_CADENCE_RESULT_BYTES = 10_240;
+export const MAX_CADENCE_RESULT_BYTES = 300_000;
 const MAX_CADENCE_PERIODS = 10_000;
 const MAX_DISCOVERED_PLAYER_STATES = 10_000;
-const MAX_ARENA_PLAYERS_PER_DAILY = 5_000;
-const MAX_SEASON_PLAYERS_PER_SEASON = 10_000;
+const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
-const LEGACY_DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60;
-const LEGACY_DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 30 * 60;
+const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "8f22022034d137de95b8e44be24182512f00103ca18c7c58f601f92b6454491a";
+  "c0d8777218bc5f5b541d1beb461a73058a6991937ea06c29630d3230521bfdfb";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
   "arenaDaily",
+  "arenaBoard",
   "arenaPlayer",
   "dailyRulesCatalog",
   "mapCatalog",
   "playerState",
   "protocolConfig",
-  "season",
-  "seasonPlayer",
-  "weeklyJackpot",
 ] as const;
 const REQUIRED_INSTRUCTIONS = [
   "activateArenaDaily",
-  "activateWeeklyJackpot",
-  "activateSeason",
   "forceFinishDeadline",
   "commitRun",
   "consumeCampaignRun",
   "consumeArenaRun",
-  "consumePracticeRun",
   "expireUnresolvedArenaRun",
   "cleanupOrphanActiveRun",
-  "initializeSeasonPlayer",
-  "rollupArenaToSeason",
-  "sealArenaSeasonRollups",
-  "finalizeArenaDaily",
-  "finalizeWeeklyJackpot",
-  "finalizeSeason",
+  "fundedFinalizeArenaDaily",
+  "submitArenaBoardChunk",
+  "expireDailyClaims",
   "syncDailyProfile",
-  "syncWeeklyProfile",
-  "syncSeasonProfile",
   "closeArenaPlayer",
-  "closeSeasonPlayer",
 ] as const;
 const REQUIRED_INSTRUCTION_ALTERNATIVES = [
   ["fundedPrepareArenaDaily", "prepareArenaDaily"],
-  ["fundedPrepareWeeklyJackpot", "prepareWeeklyJackpot"],
-  ["fundedPrepareSeason", "prepareSeason"],
 ] as const;
 
 interface RemainingAccountMeta {
@@ -152,15 +129,29 @@ interface LoadedAccount {
   value: Record<string, unknown>;
 }
 
+interface LoadedDaily {
+  loaded: LoadedAccount;
+  snapshot: DailySnapshot;
+  scoreBoard?: LoadedAccount;
+  themeBoard?: LoadedAccount;
+}
+
+interface LoadedBoardSnapshot {
+  loaded: LoadedAccount;
+  construction: BoardConstructionSnapshot;
+  entries: BoardSourceSnapshot[];
+  claimedMask: bigint;
+  profileSyncMask: bigint;
+}
+
 interface PlayerStateRecord {
   address: PublicKey;
   owner: PublicKey;
   nextRunId: bigint;
-  version: number;
   activeRunId: bigint;
   campaignActiveRunId: bigint;
   activeRunDaily: PublicKey;
-  activeRunMode: "campaign" | "ranked" | "practice";
+  activeRunMode: "campaign" | "ranked";
   activeRunDeadlineAt: number;
   orphanRunId: bigint;
 }
@@ -172,6 +163,8 @@ export interface AnchorKeeperAdapterInput {
   fetcher?: typeof fetch;
   connectionFactory?: (endpoint: string) => Connection;
   idlPath?: URL;
+  /** Permits source-contract tests without changing the unapproved release fingerprint. */
+  testExpectedIdlSha256?: string;
   release?: KeeperReleaseExpectation;
 }
 
@@ -199,7 +192,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     this.accountsCoder = new BorshAccountsCoder(idl);
     this.instructionCoder = new BorshInstructionCoder(idl);
     this.idlHash = createHash("sha256").update(idlBytes).digest("hex");
-    if (this.idlHash !== KEEPER_EXPECTED_IDL_SHA256) {
+    if (input.testExpectedIdlSha256 && process.env.NODE_ENV !== "test") {
+      throw new Error("test IDL expectation is unavailable outside tests");
+    }
+    const expectedIdlSha256 = input.testExpectedIdlSha256 ??
+      KEEPER_EXPECTED_IDL_SHA256;
+    if (this.idlHash !== expectedIdlSha256) {
       throw new Error("checked-in Anchor IDL hash does not match the keeper release");
     }
     assertIdlInterface(idl);
@@ -247,18 +245,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     requireBigInt(
       config.value,
-      "weeklyLamports",
-      ENTRY_SPLIT_LAMPORTS.followingWeekly,
-      "Weekly split",
-    );
-    requireBigInt(
-      config.value,
-      "seasonLamports",
-      ENTRY_SPLIT_LAMPORTS.followingSeason,
-      "Season split",
-    );
-    requireBigInt(
-      config.value,
       "operatorLamports",
       ENTRY_SPLIT_LAMPORTS.operator,
       "operator split",
@@ -267,7 +253,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("keeper rejects an unseeded Arcade launch");
     }
     const launchDayId = u32(config.value.launchDayId, "launch day id");
-    if (launchDayId < MONDAY_EPOCH_DAY_ID ||
+    if (launchDayId < MIN_SUPPORTED_DAY_ID ||
         launchDayId > currentDayId(this.input.nowUnix)) {
       throw new Error("keeper rejects invalid launch cadence");
     }
@@ -282,6 +268,23 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       RULES_ACCOUNT_VERSION,
     );
     this.requireReleaseCatalog(catalog.value, rulesVersion);
+    const contentVersion = u32(catalog.value.contentVersion, "rules content version");
+    const selectionSeed = bytes32(catalog.value.selectionSeed, "rules selection seed");
+    if (selectionSeed.some((byte, index) =>
+      byte !== DAILY_POOL_SELECTION_SEED[index])) {
+      throw new Error("keeper rejects a publisher-chosen Daily selection seed");
+    }
+    const catalogStartsDay = u32(catalog.value.startsDay, "rules start day");
+    const poolEntryCount = u8(catalog.value.poolEntryCount, "rules pool entry count");
+    const poolEntries = array(catalog.value.poolEntries, "rules pool entries")
+      .slice(0, poolEntryCount)
+      .map((value, index) => {
+        const entry = record(value, `rules pool entry ${index}`);
+        return {
+          realmMapId: u8(entry.realmMapId, `rules pool entry ${index} realm`),
+          passiveMapId: u8(entry.passiveMapId, `rules pool entry ${index} passive`),
+        };
+      });
     requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
     if (u32(catalog.value.rulesVersion, "rules catalog version") !== rulesVersion) {
       throw new Error("rules catalog version relationship is invalid");
@@ -290,85 +293,60 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const archiveCheckpoint = await this.loadArchiveCheckpoint();
 
     const today = currentDayId(this.input.nowUnix);
-    const currentSeason = seasonIdForDay(today);
-    const firstSeason = seasonIdForDay(launchDayId);
     const firstDay = launchDayId;
-    const dailyIds = range(firstDay, checkedNext(today, "day id"));
-    const weeklyIds = range(
-      weekIdForDay(firstDay),
-      checkedNext(weekIdForDay(today), "week id"),
-    );
-    const seasonIds = range(firstSeason, checkedNext(currentSeason, "Season id"));
+    const lastDay = poolEntryCount === 0
+      ? today
+      : nextScheduledDaily(today, catalogStartsDay, poolEntryCount);
+    const dailyIds = range(firstDay, lastDay);
     const dailies = await this.loadDailies(dailyIds, launchDayId);
-    const weeklies = await this.loadWeeklies(
-      weeklyIds,
-      weekIdForDay(launchDayId),
-      launchDayId,
-      dailies,
-    );
-    const seasons = await this.loadSeasons(
-      seasonIds,
-      seasonIdForDay(launchDayId),
-      launchDayId,
-      dailies,
-    );
     const launchDailyPresent =
       dailies.some(({ snapshot }) => snapshot.dayId === launchDayId) ||
       (archiveCheckpoint?.lastDailyId ?? -1) >= launchDayId;
-    const launchWeeklyId = weekIdForDay(launchDayId);
-    const launchWeeklyPresent =
-      weeklies.some(({ weekId }) => weekId === launchWeeklyId) ||
-      (archiveCheckpoint?.lastWeeklyId ?? -1) >= launchWeeklyId;
-    const launchSeasonId = seasonIdForDay(launchDayId);
-    const launchSeasonPresent =
-      seasons.some(({ seasonId }) => seasonId === launchSeasonId) ||
-      (archiveCheckpoint?.lastSeasonId ?? -1) >= launchSeasonId;
-    if (!launchDailyPresent || !launchWeeklyPresent || !launchSeasonPresent) {
+    if (!launchDailyPresent) {
       throw new Error("seeded Arcade launch cadence is incomplete");
     }
-    const dailySeasonPlayers = await this.loadDailySeasonPlayers(dailies, seasons);
     const playerStates = await this.loadPlayerStates();
     const runs = await this.loadRuns(playerStates, dailies);
     const participantClosures = await this.loadParticipantClosures(
       dailies,
-      seasons,
       archiveCheckpoint,
     );
+    for (const daily of dailies) {
+      const sources = participantClosures.boardSources.get(daily.snapshot.dayId) ?? {
+        score: [],
+        theme: [],
+      };
+      daily.snapshot.scoreSources = sources.score;
+      daily.snapshot.themeSources = sources.theme;
+      const sourceSettlement = this.rankedSettlement(
+        sources.score,
+        sources.theme,
+        daily.snapshot.scoreQualifiedPlayers,
+        daily.snapshot.themeQualifiedPlayers,
+        daily.snapshot.potLamports,
+      );
+      if (daily.snapshot.settlement &&
+          !sameSettlementOwners(daily.snapshot.settlement, sourceSettlement)) {
+        throw new Error("sealed ArenaBoard rows do not match canonical ArenaPlayer ordering");
+      }
+      daily.snapshot.settlement = sourceSettlement;
+    }
     const archive = await this.loadArchiveSnapshot(
       dailies,
-      weeklies,
-      seasons,
       participantClosures.arenaCadenceBlockers,
-      participantClosures.seasonCadenceBlockers,
     );
-    if (archive) {
-      const dailyById = new Map(
-        dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
-      );
-      for (const weekly of weeklies) {
-        const finalDay = weekStartDay(weekly.weekId) + DAYS_PER_WEEK - 1;
-        const archivedThrough = archive.state.lastDailyId;
-        if (range(weekly.qualificationStartDay, finalDay).every((dayId) => {
-          const daily = dailyById.get(dayId);
-          return daily?.status === "finalized" ||
-            (!daily && archivedThrough !== undefined && dayId <= archivedThrough);
-        })) {
-          weekly.qualificationDailiesComplete = true;
-        }
-      }
-    }
     return {
       paused,
       launchDayId,
       rulesCatalog,
+      contentVersion,
+      selectionSeed,
+      catalogStartsDay,
+      poolEntries,
       dailies: dailies.map(({ snapshot }) => snapshot),
-      weeklies,
-      seasons,
       runs,
-      dailySeasonPlayers,
       playerStateOwners: playerStates.map(({ owner }) => owner),
       arenaPlayerClosures: participantClosures.arenaPlayers,
-      seasonPlayerClosures: participantClosures.seasonPlayers,
       ...(archive ? {
         archiveState: archive.state,
         archiveCandidates: archive.candidates,
@@ -395,14 +373,18 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const release = this.requiredRelease();
     const firstDailyId = u32(archive.value.firstDailyId,
       "ArcadeArchive first Daily id");
-    const firstWeeklyId = u32(archive.value.firstWeeklyId,
-      "ArcadeArchive first Weekly id");
-    const firstSeasonId = u32(archive.value.firstSeasonId,
-      "ArcadeArchive first Season id");
-    if (firstDailyId !== release.launchDayId ||
-        firstWeeklyId !== weekIdForDay(release.launchDayId) ||
-        firstSeasonId !== seasonIdForDay(release.launchDayId)) {
+    if (firstDailyId !== release.launchDayId) {
       throw new Error("ArcadeArchive first cadence identities are invalid");
+    }
+    const lastDailyId = u32(archive.value.lastDailyId,
+      "ArcadeArchive last Daily id");
+    const dailyRoot = bytes32Hex(archive.value.dailyRoot,
+      "ArcadeArchive Daily root");
+    const today = currentDayId(this.input.nowUnix);
+    if (lastDailyId < firstDailyId - 1 ||
+        lastDailyId > today ||
+        (lastDailyId === firstDailyId - 1) !== /^0{64}$/.test(dailyRoot)) {
+      throw new Error("ArcadeArchive checkpoint or root is invalid");
     }
     const fundingAddress = cadenceFundingPda();
     const funding = await this.input.connection.getAccountInfo(
@@ -417,21 +399,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return {
       address: archive.address,
       cadenceFunding: fundingAddress,
-      lastDailyId: u32(archive.value.lastDailyId,
-        "ArcadeArchive last Daily id"),
-      lastWeeklyId: u32(archive.value.lastWeeklyId,
-        "ArcadeArchive last Weekly id"),
-      lastSeasonId: u32(archive.value.lastSeasonId,
-        "ArcadeArchive last Season id"),
+      firstDailyId,
+      lastDailyId,
+      dailyRoot,
     };
   }
 
   private async loadArchiveSnapshot(
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
-    weeklies: readonly WeeklySnapshot[],
-    seasons: readonly SeasonSnapshot[],
+    dailies: readonly LoadedDaily[],
     arenaCadenceBlockers: ReadonlySet<number>,
-    seasonCadenceBlockers: ReadonlySet<number>,
   ): Promise<{
     state: ArcadeArchiveSnapshot;
     candidates: CadenceArchiveCandidate[];
@@ -453,24 +429,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     const firstDailyId = u32(loadedArchive.value.firstDailyId,
       "ArcadeArchive first Daily id");
-    const firstWeeklyId = u32(loadedArchive.value.firstWeeklyId,
-      "ArcadeArchive first Weekly id");
-    const firstSeasonId = u32(loadedArchive.value.firstSeasonId,
-      "ArcadeArchive first Season id");
     const release = this.requiredRelease();
-    if (firstDailyId !== release.launchDayId ||
-        firstWeeklyId !== weekIdForDay(release.launchDayId) ||
-        firstSeasonId !== seasonIdForDay(release.launchDayId)) {
+    if (firstDailyId !== release.launchDayId) {
       throw new Error("ArcadeArchive first cadence identities are invalid");
     }
     const lastDailyId = u32(loadedArchive.value.lastDailyId,
       "ArcadeArchive last Daily id");
-    const lastWeeklyId = u32(loadedArchive.value.lastWeeklyId,
-      "ArcadeArchive last Weekly id");
-    const lastSeasonId = u32(loadedArchive.value.lastSeasonId,
-      "ArcadeArchive last Season id");
-    if (lastDailyId < firstDailyId - 1 || lastWeeklyId < firstWeeklyId - 1 ||
-        lastSeasonId < firstSeasonId - 1) {
+    if (lastDailyId < firstDailyId - 1) {
       throw new Error("ArcadeArchive sequence is invalid");
     }
     const fundingAddress = cadenceFundingPda();
@@ -485,39 +450,29 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }
     const dailyRoot = bytes32Hex(loadedArchive.value.dailyRoot,
       "ArcadeArchive Daily root");
-    const weeklyRoot = bytes32Hex(loadedArchive.value.weeklyRoot,
-      "ArcadeArchive Weekly root");
-    const seasonRoot = bytes32Hex(loadedArchive.value.seasonRoot,
-      "ArcadeArchive Season root");
     const today = currentDayId(this.input.nowUnix);
     if (lastDailyId > today ||
-        lastWeeklyId > weekIdForDay(today) ||
-        lastSeasonId > seasonIdForDay(today) ||
-        (lastDailyId === firstDailyId - 1) !== /^0{64}$/.test(dailyRoot) ||
-        (lastWeeklyId === firstWeeklyId - 1) !== /^0{64}$/.test(weeklyRoot) ||
-        (lastSeasonId === firstSeasonId - 1) !== /^0{64}$/.test(seasonRoot)) {
+        (lastDailyId === firstDailyId - 1) !== /^0{64}$/.test(dailyRoot)) {
       throw new Error("ArcadeArchive checkpoint or root is invalid");
     }
     const state: ArcadeArchiveSnapshot = {
       address: loadedArchive.address,
       cadenceFunding: fundingAddress,
+      firstDailyId,
       lastDailyId,
-      lastWeeklyId,
-      lastSeasonId,
+      dailyRoot,
     };
     const candidates: CadenceArchiveCandidate[] = [];
     for (const daily of dailies) {
       if (daily.snapshot.status !== "finalized") continue;
-      if (daily.snapshot.dayId > lastDailyId + 1) continue;
-      // Archive is intentionally after Season rollup sealing. A committed
-      // candidate still passes through so an already archived account can be
-      // closed after the remaining rollup/seal work catches up.
-      if (daily.snapshot.dayId > lastDailyId &&
-          !daily.snapshot.seasonRollupSealed) continue;
+      if (!daily.snapshot.scoreBoard?.sealed || !daily.snapshot.themeBoard?.sealed ||
+          !daily.scoreBoard || !daily.themeBoard) continue;
       candidates.push(this.archiveCandidate({
         competition: "daily",
         cadenceId: daily.snapshot.dayId,
         loaded: daily.loaded,
+        scoreBoard: daily.scoreBoard,
+        themeBoard: daily.themeBoard,
         period: daily.snapshot,
         lastCadenceId: lastDailyId,
         currentRoot: dailyRoot,
@@ -525,51 +480,16 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           arenaCadenceBlockers.has(daily.snapshot.dayId),
       }));
     }
-    for (const weekly of weeklies) {
-      if (weekly.status !== "finalized") continue;
-      if (weekly.weekId > lastWeeklyId + 1) continue;
-      const loaded = await this.loadRequired(
-        "weeklyJackpot",
-        weeklyJackpotPda(weekly.weekId),
-        ARCADE_ACCOUNT_VERSION,
-      );
-      candidates.push(this.archiveCandidate({
-        competition: "weekly",
-        cadenceId: weekly.weekId,
-        loaded,
-        period: weekly,
-        lastCadenceId: lastWeeklyId,
-        currentRoot: weeklyRoot,
-        participantAccountsRemain: false,
-      }));
-    }
-    for (const season of seasons) {
-      if (season.status !== "finalized") continue;
-      if (season.seasonId > lastSeasonId + 1) continue;
-      const loaded = await this.loadRequired(
-        "season",
-        seasonPda(season.seasonId),
-        ARCADE_ACCOUNT_VERSION,
-      );
-      candidates.push(this.archiveCandidate({
-        competition: "season",
-        cadenceId: season.seasonId,
-        loaded,
-        period: season,
-        lastCadenceId: lastSeasonId,
-        currentRoot: seasonRoot,
-        participantAccountsRemain:
-          seasonCadenceBlockers.has(season.seasonId),
-      }));
-    }
     return { state, candidates };
   }
 
   private archiveCandidate(input: {
-    competition: "daily" | "weekly" | "season";
+    competition: "daily";
     cadenceId: number;
     loaded: LoadedAccount;
-    period: DailySnapshot | WeeklySnapshot | SeasonSnapshot;
+    scoreBoard: LoadedAccount;
+    themeBoard: LoadedAccount;
+    period: DailySnapshot;
     lastCadenceId: number;
     currentRoot: string;
     participantAccountsRemain: boolean;
@@ -578,65 +498,78 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       this.idl,
       input.competition,
       input.loaded.value,
+      {
+        score: {
+          value: input.scoreBoard.value,
+          data: input.scoreBoard.account.data,
+        },
+        theme: {
+          value: input.themeBoard.value,
+          data: input.themeBoard.account.data,
+        },
+      },
     );
     const resultHash = cadenceResultHash(input.competition, resultData);
     const committed = input.cadenceId <= input.lastCadenceId;
-    if (committed && input.cadenceId !== input.lastCadenceId) {
-      // Older committed periods should already be closed. Keeping them out of
-      // discovery avoids reconstructing an historical intermediate root.
-      throw new Error("ArcadeArchive retains an obsolete cadence account");
-    }
     const root = committed
-      ? input.currentRoot
+      ? undefined
       : cadenceRoot(
         input.competition,
         input.currentRoot,
         input.cadenceId,
         resultHash,
-    );
-    const requiredProfileSyncMask = profileSyncMask(input.period);
-    const closeEligibleAt = input.competition === "daily"
-      ? (input.period as DailySnapshot).runsCloseAt
-      : (input.period as WeeklySnapshot | SeasonSnapshot).closesAt;
-    const canonicalJson = canonicalArchiveV2({
-      account: input.loaded.address,
-      accountData: input.loaded.account.data,
-      competition: input.competition,
-      periodId: input.cadenceId,
-      programId: ZKUBE_PROGRAM_ID,
-      resultData,
-      root,
-    });
+      );
+    const requiredScoreProfileSyncMask = profileSyncMask(input.period, "score");
+    const requiredThemeProfileSyncMask = profileSyncMask(input.period, "theme");
+    const closeEligibleAt = input.period.finalizedAt +
+      DAILY_REWARD_CLAIM_WINDOW_SECONDS;
+    const canonicalJson = root === undefined
+      ? undefined
+      : canonicalArchiveV3({
+        account: input.loaded.address,
+        accountData: input.loaded.account.data,
+        scoreBoard: input.scoreBoard.address,
+        scoreBoardData: input.scoreBoard.account.data,
+        themeBoard: input.themeBoard.address,
+        themeBoardData: input.themeBoard.account.data,
+        competition: input.competition,
+        periodId: input.cadenceId,
+        programId: ZKUBE_PROGRAM_ID,
+        resultData,
+        root,
+      });
     return {
       competition: input.competition,
       cadenceId: input.cadenceId,
-      canonicalJson,
-      fileSha256: createHash("sha256")
-        .update(Buffer.from(canonicalJson, "utf8"))
-        .digest("hex"),
+      ...(canonicalJson === undefined ? {} : {
+        canonicalJson,
+        fileSha256: createHash("sha256")
+          .update(Buffer.from(canonicalJson, "utf8"))
+          .digest("hex"),
+      }),
       resultHash,
-      requiredProfileSyncMask,
+      requiredScoreProfileSyncMask,
+      requiredThemeProfileSyncMask,
+      claimsExpired: input.period.claimsExpired,
       committed,
       closeEligible:
         committed &&
+        input.period.claimsExpired &&
         this.input.nowUnix >= closeEligibleAt &&
-        input.period.profileSyncMask === requiredProfileSyncMask &&
-        !input.participantAccountsRemain &&
-        (input.competition !== "daily" ||
-          (input.period as DailySnapshot).seasonRollupSealed),
+        input.period.scoreProfileSyncMask === requiredScoreProfileSyncMask &&
+        input.period.themeProfileSyncMask === requiredThemeProfileSyncMask &&
+        !input.participantAccountsRemain,
       closeEligibleAt,
     };
   }
 
   projectArchiveResultData(
-    competition: "daily" | "weekly" | "season",
+    competition: "daily",
     accountData: Buffer,
+    scoreBoardData?: Buffer,
+    themeBoardData?: Buffer,
   ): Buffer {
-    const name = competition === "daily"
-      ? "arenaDaily"
-      : competition === "weekly"
-        ? "weeklyJackpot"
-        : "season";
+    const name = "arenaDaily";
     if (accountData.length < 9 || accountData.length >= MAX_PROGRAM_ACCOUNT_BYTES ||
         !accountData.subarray(0, 8).equals(
           this.accountsCoder.accountDiscriminator(name),
@@ -650,10 +583,31 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     } catch {
       throw new Error("archived cadence account data is malformed");
     }
+    if (!scoreBoardData || !themeBoardData) {
+      throw new Error("archived cadence board evidence is missing");
+    }
+    const decodeBoard = (data: Buffer, kind: "score" | "theme") => {
+      if (data.length < ARENA_BOARD_HEADER_BYTES ||
+          data.length >= MAX_PROGRAM_ACCOUNT_BYTES ||
+          !data.subarray(0, 8).equals(
+            this.accountsCoder.accountDiscriminator("arenaBoard"),
+          ) || data[8] !== ARCADE_ACCOUNT_VERSION) {
+        throw new Error(`archived ${kind} board discriminator or version is invalid`);
+      }
+      try {
+        return record(this.accountsCoder.decode("arenaBoard", data), `${kind} board`);
+      } catch {
+        throw new Error(`archived ${kind} board data is malformed`);
+      }
+    };
     return canonicalCadenceResultData(
       this.idl,
       competition,
       record(decoded, name),
+      {
+        score: { value: decodeBoard(scoreBoardData, "score"), data: scoreBoardData },
+        theme: { value: decodeBoard(themeBoardData, "theme"), data: themeBoardData },
+      },
     );
   }
 
@@ -706,7 +660,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         !/^[0-9a-f]{64}$/.test(release.rulesCatalogHash) ||
         !Number.isSafeInteger(release.rulesVersion) || release.rulesVersion < 1 ||
         !Number.isSafeInteger(release.launchDayId) ||
-        release.launchDayId < MONDAY_EPOCH_DAY_ID) {
+        release.launchDayId < MIN_SUPPORTED_DAY_ID) {
       throw new Error("keeper release expectation is missing or malformed");
     }
     return release;
@@ -756,49 +710,16 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   }
 
   private async loadStagedLaunchPeriods(launchDayId: number): Promise<void> {
-    const launchWeekId = weekIdForDay(launchDayId);
-    const launchSeasonId = seasonIdForDay(launchDayId);
-    for (const dayId of [launchDayId, checkedNext(launchDayId, "launch day")]) {
+    for (const dayId of [launchDayId, launchDayId + 1]) {
       const daily = await this.loadRequired(
         "arenaDaily",
         arenaDailyPda(dayId),
         ARCADE_ACCOUNT_VERSION,
       );
-      if (u32(daily.value.dayId, "ArenaDaily day id") !== dayId ||
-          u32(daily.value.weekId, "ArenaDaily week id") !== weekIdForDay(dayId) ||
-          u32(daily.value.seasonId, "ArenaDaily Season id") !== seasonIdForDay(dayId)) {
+      if (u32(daily.value.dayId, "ArenaDaily day id") !== dayId) {
         throw new Error("staged Daily cadence is invalid");
       }
       this.requireUnfundedPeriod(daily.value, "ArenaDaily");
-    }
-    for (const weekId of [launchWeekId, checkedNext(launchWeekId, "launch week")]) {
-      const weekly = await this.loadRequired(
-        "weeklyJackpot",
-        weeklyJackpotPda(weekId),
-        ARCADE_ACCOUNT_VERSION,
-      );
-      if (u32(weekly.value.weekId, "WeeklyJackpot week id") !== weekId ||
-          u32(weekly.value.qualificationStartDay, "Weekly qualification start") !==
-            weekStartDay(weekId)) {
-        throw new Error("staged Weekly cadence is invalid");
-      }
-      this.requireUnfundedPeriod(weekly.value, "WeeklyJackpot");
-    }
-    for (const seasonId of [
-      launchSeasonId,
-      checkedNext(launchSeasonId, "launch Season"),
-    ]) {
-      const season = await this.loadRequired(
-        "season",
-        seasonPda(seasonId),
-        ARCADE_ACCOUNT_VERSION,
-      );
-      if (u32(season.value.seasonId, "Season id") !== seasonId ||
-          u32(season.value.qualificationStartDay, "Season qualification start") !==
-            seasonStartDay(seasonId)) {
-        throw new Error("staged Season cadence is invalid");
-      }
-      this.requireUnfundedPeriod(season.value, "Season");
     }
   }
 
@@ -841,12 +762,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const owner = context.owner;
     const runId = context.runId;
     const dayId = context.dayId ?? context.challengeDayId;
-    const weekId = context.weekId;
-    const seasonId = context.seasonId;
     const base = { caller: keeper, payer: keeper, systemProgram: SystemProgram.programId };
     switch (input.operation) {
       case "prepare_arena_daily": {
         const following = requiredNumber(context.followingDayId, "following day id");
+        const contentVersion = requiredNumber(context.contentVersion, "content version");
+        const realmMapId = requiredMapId(context.realmMapId, true, "realm map id");
+        const passiveMapId = requiredMapId(context.passiveMapId, false, "passive map id");
         return {
           name: this.preferredInstructionName(
             "fundedPrepareArenaDaily",
@@ -859,43 +781,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             arcadeConfig: arcadeConfigPda(),
             arcadeArchive: arcadeArchivePda(),
             dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
+            realmMapCatalog: mapCatalogPda(contentVersion, Math.max(realmMapId, 1)),
+            passiveMapCatalog: mapCatalogPda(contentVersion, passiveMapId),
             arenaDaily: arenaDailyPda(following),
-            cadenceFunding: cadenceFundingPda(),
-            zkubeProgram: ZKUBE_PROGRAM_ID,
-          },
-        };
-      }
-      case "prepare_weekly_jackpot": {
-        const following = requiredNumber(context.followingWeekId, "following week id");
-        return {
-          name: this.preferredInstructionName(
-            "fundedPrepareWeeklyJackpot",
-            "prepareWeeklyJackpot",
-          ),
-          args: { weekId: following },
-          accounts: {
-            ...base,
-            protocol: protocolPda(),
-            arcadeConfig: arcadeConfigPda(),
-            arcadeArchive: arcadeArchivePda(),
-            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
-            weeklyJackpot: weeklyJackpotPda(following),
-            cadenceFunding: cadenceFundingPda(),
-            zkubeProgram: ZKUBE_PROGRAM_ID,
-          },
-        };
-      }
-      case "prepare_season": {
-        const following = requiredNumber(context.followingSeasonId, "following Season id");
-        return {
-          name: this.preferredInstructionName("fundedPrepareSeason", "prepareSeason"),
-          args: { seasonId: following },
-          accounts: {
-            ...base,
-            protocol: protocolPda(),
-            arcadeConfig: arcadeConfigPda(),
-            arcadeArchive: arcadeArchivePda(),
-            season: seasonPda(following),
             cadenceFunding: cadenceFundingPda(),
             zkubeProgram: ZKUBE_PROGRAM_ID,
           },
@@ -908,27 +796,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           accounts: {
             ...base,
             protocol: protocolPda(),
+            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
             arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
-          },
-        };
-      case "activate_weekly_jackpot":
-        return {
-          name: "activateWeeklyJackpot",
-          args: {},
-          accounts: {
-            ...base,
-            protocol: protocolPda(),
-            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
-          },
-        };
-      case "activate_season":
-        return {
-          name: "activateSeason",
-          args: {},
-          accounts: {
-            ...base,
-            protocol: protocolPda(),
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
           },
         };
       case "force_finish_deadline":
@@ -973,24 +842,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             playerState: playerStatePda(player),
             arenaDaily: daily,
             arenaPlayer: arenaPlayerPda(daily, player),
-            weeklyJackpot: weeklyJackpotPda(weekIdForDay(challenge)),
-            activeRun: activeRunPda(player, requiredRunId(runId)),
-            rentRecipient: playerFundingPda(player),
-          },
-        };
-      }
-      case "consume_practice_run": {
-        const player = requiredOwner(owner);
-        const daily = arenaDailyPda(requiredNumber(dayId, "challenge day id"));
-        return {
-          name: "consumePracticeRun",
-          args: {},
-          accounts: {
-            playerState: playerStatePda(player),
-            arenaDaily: daily,
-            arenaPlayer: context.includeArenaPlayer
-              ? arenaPlayerPda(daily, player)
-              : ZKUBE_PROGRAM_ID,
             activeRun: activeRunPda(player, requiredRunId(runId)),
             rentRecipient: playerFundingPda(player),
           },
@@ -1013,18 +864,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
       }
-      case "expire_unresolved_practice_run": {
-        const player = requiredOwner(owner);
-        return {
-          name: "expireUnresolvedPracticeRun",
-          args: { runId: new BN(requiredRunId(runId).toString()) },
-          accounts: {
-            ...base,
-            playerState: playerStatePda(player),
-            owner: player,
-          },
-        };
-      }
       case "cleanup_orphan_active_run": {
         const player = requiredOwner(owner);
         return {
@@ -1038,203 +877,123 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
       }
-      case "initialize_season_player": {
-        const player = requiredOwner(owner);
-        const id = requiredNumber(seasonId, "Season id");
-        const season = seasonPda(id);
-        return {
-          name: "initializeSeasonPlayer",
-          args: {},
-          accounts: {
-            ...base,
-            season,
-            seasonPlayer: seasonPlayerPda(season, player),
-            player,
-          },
-        };
-      }
-      case "rollup_arena_to_season": {
-        const player = requiredOwner(owner);
-        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
-        const season = seasonPda(requiredNumber(seasonId, "Season id"));
-        return {
-          name: "rollupArenaToSeason",
-          args: {},
-          accounts: {
-            ...base,
-            arenaDaily: daily,
-            season,
-            seasonPlayer: seasonPlayerPda(season, player),
-            arenaPlayer: arenaPlayerPda(daily, player),
-          },
-        };
-      }
-      case "seal_arena_season_rollups":
-        return {
-          name: "sealArenaSeasonRollups",
-          args: {},
-          accounts: {
-            ...base,
-            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
-          },
-        };
       case "finalize_arena_daily":
+        {
+          const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
         return {
-          name: "finalizeArenaDaily",
+          name: "fundedFinalizeArenaDaily",
+          args: {
+            scorePayoutCount: requiredNumber(context.scorePayoutCount, "Score payout count"),
+            themePayoutCount: requiredNumber(context.themePayoutCount, "Theme payout count"),
+          },
+          accounts: {
+            caller: keeper,
+            arenaDaily: daily,
+            followingDaily: arenaDailyPda(
+              requiredNumber(context.followingDayId, "following day id"),
+            ),
+            scoreBoard: arenaBoardPda(daily, "score"),
+            themeBoard: arenaBoardPda(daily, "theme"),
+            cadenceFunding: cadenceFundingPda(),
+            systemProgram: SystemProgram.programId,
+            zkubeProgram: ZKUBE_PROGRAM_ID,
+          },
+        };
+        }
+      case "submit_arena_board_chunk": {
+        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
+        const board = requiredBoardKind(context.boardKind);
+        const entries = context.boardEntries;
+        if (!entries) throw new Error("board chunk entries are missing");
+        return {
+          name: "submitArenaBoardChunk",
+          args: {
+            kind: dailyBoardKind(board),
+            entries: entries.map((entry) => ({
+              score: entry.score,
+              objectiveTotal: new BN(entry.objectiveTotal.toString()),
+              finalizedAt: new BN(entry.finalizedAt),
+              replayHash: [...entry.replayHash],
+            })),
+            seal: context.sealBoard === true,
+          },
+          accounts: {
+            caller: keeper,
+            arenaDaily: daily,
+            arenaBoard: arenaBoardPda(daily, board),
+          },
+          remaining: entries.map((entry) => ({
+            pubkey: entry.source,
+            isWritable: false,
+          })),
+        };
+      }
+      case "expire_daily_claims":
+        {
+          const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
+        return {
+          name: "expireDailyClaims",
           args: {},
           accounts: {
-            ...base,
-            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+            caller: keeper,
+            arcadeArchive: arcadeArchivePda(),
+            arcadeConfig: arcadeConfigPda(),
+            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
+            arenaDaily: daily,
+            scoreBoard: arenaBoardPda(daily, "score"),
+            themeBoard: arenaBoardPda(daily, "theme"),
             followingDaily: arenaDailyPda(
               requiredNumber(context.followingDayId, "following day id"),
             ),
           },
-          remaining: writableRemaining(context.owners),
-        };
-      case "finalize_weekly_jackpot":
-        {
-          const id = requiredNumber(weekId, "week id");
-          const name = "finalizeWeeklyJackpot";
-          const archivedQualification = this.instructionHasAccount(
-            name,
-            "arcadeArchive",
-          );
-          const qualificationDays = archivedQualification
-            ? []
-            : requiredWeeklyQualificationDays(context, id);
-        return {
-          name,
-          args: {},
-          accounts: {
-            ...base,
-            weeklyJackpot: weeklyJackpotPda(id),
-            followingWeekly: weeklyJackpotPda(
-              requiredNumber(context.followingWeekId, "following week id"),
-            ),
-            arcadeArchive: arcadeArchivePda(),
-          },
-          remaining: [
-            ...qualificationDays.map((day) => ({
-              pubkey: arenaDailyPda(day),
-              isWritable: false,
-            })),
-            ...writableRemaining(context.owners),
-          ],
         };
         }
-      case "finalize_season":
-        return {
-          name: "finalizeSeason",
-          args: {},
-          accounts: {
-            ...base,
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
-            followingSeason: seasonPda(
-              requiredNumber(context.followingSeasonId, "following Season id"),
-            ),
-          },
-          remaining: writableRemaining(context.owners),
-        };
       case "sync_daily_profile": {
         const player = requiredOwner(owner);
+        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
+        const board = requiredBoardKind(context.boardKind);
         return {
           name: "syncDailyProfile",
-          args: {},
+          args: { board: dailyBoardKind(board) },
           accounts: {
             caller: keeper,
-            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
-            playerState: playerStatePda(player),
-          },
-        };
-      }
-      case "sync_weekly_profile": {
-        const player = requiredOwner(owner);
-        return {
-          name: "syncWeeklyProfile",
-          args: {},
-          accounts: {
-            caller: keeper,
-            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
-            playerState: playerStatePda(player),
-          },
-        };
-      }
-      case "sync_season_profile": {
-        const player = requiredOwner(owner);
-        return {
-          name: "syncSeasonProfile",
-          args: {},
-          accounts: {
-            caller: keeper,
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
+            arenaDaily: daily,
+            arenaBoard: arenaBoardPda(daily, board),
             playerState: playerStatePda(player),
           },
         };
       }
       case "archive_arena_daily":
+        {
+          const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
         return {
           name: "archiveArenaDaily",
           args: {},
           accounts: {
             caller: keeper,
             arcadeArchive: arcadeArchivePda(),
-            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+            arenaDaily: daily,
+            scoreBoard: arenaBoardPda(daily, "score"),
+            themeBoard: arenaBoardPda(daily, "theme"),
           },
         };
-      case "archive_weekly_jackpot":
-        return {
-          name: "archiveWeeklyJackpot",
-          args: {},
-          accounts: {
-            caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
-            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
-          },
-        };
-      case "archive_season":
-        return {
-          name: "archiveSeason",
-          args: {},
-          accounts: {
-            caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
-          },
-        };
+        }
       case "close_arena_daily":
+        {
+          const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
         return {
           name: "closeArenaDaily",
           args: {},
           accounts: {
             caller: keeper,
             arcadeArchive: arcadeArchivePda(),
-            arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+            arenaDaily: daily,
+            scoreBoard: arenaBoardPda(daily, "score"),
+            themeBoard: arenaBoardPda(daily, "theme"),
             cadenceFunding: cadenceFundingPda(),
           },
         };
-      case "close_weekly_jackpot":
-        return {
-          name: "closeWeeklyJackpot",
-          args: {},
-          accounts: {
-            caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
-            weeklyJackpot: weeklyJackpotPda(requiredNumber(weekId, "week id")),
-            cadenceFunding: cadenceFundingPda(),
-          },
-        };
-      case "close_season":
-        return {
-          name: "closeSeason",
-          args: {},
-          accounts: {
-            caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
-            season: seasonPda(requiredNumber(seasonId, "Season id")),
-            cadenceFunding: cadenceFundingPda(),
-          },
-        };
+        }
       case "close_arena_player": {
         const player = requiredOwner(owner);
         const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
@@ -1246,21 +1005,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             caller: keeper,
             arenaDaily: daily,
             arenaPlayer: arenaPlayerPda(daily, player),
-            rentRecipient: playerFundingPda(player),
-          },
-        };
-      }
-      case "close_season_player": {
-        const player = requiredOwner(owner);
-        const season = seasonPda(requiredNumber(seasonId, "Season id"));
-        requireRentRecipient(context.rentRecipient, player);
-        return {
-          name: "closeSeasonPlayer",
-          args: {},
-          accounts: {
-            caller: keeper,
-            season,
-            seasonPlayer: seasonPlayerPda(season, player),
             rentRecipient: playerFundingPda(player),
           },
         };
@@ -1283,12 +1027,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }
     if (names.has(legacy)) return legacy;
     throw new Error(`checked-in Anchor IDL is missing ${preferred}`);
-  }
-
-  private instructionHasAccount(name: string, account: string): boolean {
-    return instructionRecord(this.idl, name).accounts.some((value) =>
-      isRecord(value) && value.name === account
-    );
   }
 
   private idlHasInstruction(name: string): boolean {
@@ -1351,13 +1089,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadDailies(
     ids: readonly number[],
     launchDayId: number,
-  ): Promise<Array<{ loaded: LoadedAccount; snapshot: DailySnapshot }>> {
+  ): Promise<LoadedDaily[]> {
     const loaded = await this.loadKnown(
       "arenaDaily",
       ids.map((id) => ({ id, address: arenaDailyPda(id) })),
       ARCADE_ACCOUNT_VERSION,
     );
-    const output: Array<{ loaded: LoadedAccount; snapshot: DailySnapshot }> = [];
+    const output: LoadedDaily[] = [];
     for (const item of loaded) {
       const dayId = u32(item.value.dayId, "ArenaDaily day id");
       const dayStart = dayId * SECONDS_PER_DAY;
@@ -1367,8 +1105,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       );
       const runsCloseAt = timestamp(item.value.runsCloseAt, "ArenaDaily run close");
       if (!item.address.equals(arenaDailyPda(dayId)) ||
-          u32(item.value.weekId, "ArenaDaily week id") !== weekIdForDay(dayId) ||
-          u32(item.value.seasonId, "ArenaDaily Season id") !== seasonIdForDay(dayId) ||
           timestamp(item.value.opensAt, "ArenaDaily open") !== dayStart ||
           !validDailyWindow(dayStart, entriesCloseAt, runsCloseAt)) {
         throw new Error("ArenaDaily PDA or cadence relationship is invalid");
@@ -1380,6 +1116,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         "ArenaDaily ArcadeConfig",
       );
       const status = periodStatus(item.value.status, "ArenaDaily status");
+      const finalizedAt = signedTimestamp(
+        item.value.finalizedAt,
+        "ArenaDaily finalization",
+      );
       const availableLamports = availableLedgerLamports(item.value.ledger, "ArenaDaily");
       const potLamports = status === "finalized"
         ? fundedLedgerLamports(item.value.ledger, "ArenaDaily")
@@ -1387,10 +1127,64 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       if (status === "finalized" && availableLamports !== 0n) {
         throw new Error("finalized ArenaDaily retains unsettled ledger lamports");
       }
-      await this.assertSpendable(item.account, availableLamports, "ArenaDaily");
+      const scoreQualifiedPlayers = u32(
+        item.value.scoreQualifiedPlayers,
+        "ArenaDaily Score qualified players",
+      );
+      const themeQualifiedPlayers = u32(
+        item.value.themeQualifiedPlayers,
+        "ArenaDaily Theme qualified players",
+      );
+      const claimsExpired = boolean(item.value.claimsExpired, "ArenaDaily claim expiry");
+      let scoreClaimedMask = 0n;
+      let themeClaimedMask = 0n;
+      let scoreProfileSyncMask = 0n;
+      let themeProfileSyncMask = 0n;
+      let scoreBoard: LoadedBoardSnapshot | undefined;
+      let themeBoard: LoadedBoardSnapshot | undefined;
+      let settlement: SettlementSnapshot | undefined;
+      if (status === "finalized") {
+        const pools = dailyBoardPools(potLamports, themeQualifiedPlayers);
+        scoreBoard = await this.loadArenaBoard(
+          item.address,
+          dayId,
+          "score",
+          scoreQualifiedPlayers,
+          pools.score,
+        );
+        themeBoard = await this.loadArenaBoard(
+          item.address,
+          dayId,
+          "theme",
+          themeQualifiedPlayers,
+          pools.theme,
+        );
+        scoreClaimedMask = scoreBoard.claimedMask;
+        themeClaimedMask = themeBoard.claimedMask;
+        scoreProfileSyncMask = scoreBoard.profileSyncMask;
+        themeProfileSyncMask = themeBoard.profileSyncMask;
+        if (scoreBoard.construction.sealed && themeBoard.construction.sealed) {
+          settlement = this.rankedSettlement(
+            scoreBoard.entries,
+            themeBoard.entries,
+            scoreQualifiedPlayers,
+            themeQualifiedPlayers,
+            potLamports,
+          );
+        }
+      }
+      const retainedClaims = status === "finalized" && !claimsExpired &&
+          scoreBoard && themeBoard
+        ? bigint(scoreBoard.loaded.value.paidLamports, "Score board paid") -
+            scoreBoard.construction.claimedLamports +
+            bigint(themeBoard.loaded.value.paidLamports, "Theme board paid") -
+            themeBoard.construction.claimedLamports
+        : availableLamports;
+      await this.assertSpendable(item.account, retainedClaims, "ArenaDaily");
       const snapshot: DailySnapshot = {
         dayId,
         status,
+        finalizedAt,
         runsCloseAt,
         recoveryDeadlineAt: timestamp(
           item.value.recoveryDeadlineAt,
@@ -1400,288 +1194,188 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         entriesScored: bigint(item.value.entriesScored, "ArenaDaily scored entries"),
         entriesExpired: bigint(item.value.entriesExpired, "ArenaDaily expired entries"),
         potLamports,
+        scoreQualifiedPlayers,
+        themeQualifiedPlayers,
         predecessorRolloverRequired: dayId !== launchDayId,
         predecessorRolloverApplied: boolean(
           item.value.predecessorRolloverApplied,
           "ArenaDaily predecessor flag",
         ),
-        seasonEligiblePlayers: u32(
-          item.value.seasonEligiblePlayers,
-          "ArenaDaily Season eligible players",
-        ),
-        seasonRollups: u32(item.value.seasonRollups, "ArenaDaily Season rollups"),
-        seasonRollupSealed: boolean(
-          item.value.seasonRollupSealed,
-          "ArenaDaily Season seal",
-        ),
-        profileSyncMask: u8(item.value.profileSyncMask, "ArenaDaily profile sync mask"),
-        ...(status !== "funding" ? {
-          settlement: await this.rankedSettlement(
-            array(item.value.entries, "ArenaDaily entries"),
-            potLamports,
-            "daily",
-          ),
+        scoreClaimedMask,
+        themeClaimedMask,
+        scoreProfileSyncMask,
+        themeProfileSyncMask,
+        claimsExpired,
+        ...(scoreBoard ? {
+          scoreBoard: scoreBoard.construction,
+          scoreSources: scoreBoard.entries,
         } : {}),
+        ...(themeBoard ? {
+          themeBoard: themeBoard.construction,
+          themeSources: themeBoard.entries,
+        } : {}),
+        ...(settlement ? { settlement } : {}),
       };
-      output.push({ loaded: item, snapshot });
-    }
-    return output;
-  }
-
-  private async loadWeeklies(
-    ids: readonly number[],
-    launchWeekId: number,
-    launchDayId: number,
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
-  ): Promise<WeeklySnapshot[]> {
-    const loaded = await this.loadKnown(
-      "weeklyJackpot",
-      ids.map((id) => ({ id, address: weeklyJackpotPda(id) })),
-      ARCADE_ACCOUNT_VERSION,
-    );
-    const dailyById = new Map(dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]));
-    const output: WeeklySnapshot[] = [];
-    for (const item of loaded) {
-      const weekId = u32(item.value.weekId, "WeeklyJackpot week id");
-      const opensAt = weekStartDay(weekId) * SECONDS_PER_DAY;
-      const closesAt = (weekStartDay(weekId) + DAYS_PER_WEEK) * SECONDS_PER_DAY;
-      const qualificationStartDay = u32(
-        item.value.qualificationStartDay,
-        "WeeklyJackpot qualification start",
-      );
-      const expectedQualificationStart = weekId === launchWeekId
-        ? launchDayId
-        : weekStartDay(weekId);
-      if (!item.address.equals(weeklyJackpotPda(weekId)) ||
-          qualificationStartDay !== expectedQualificationStart ||
-          timestamp(item.value.opensAt, "WeeklyJackpot open") !== opensAt ||
-          timestamp(item.value.closesAt, "WeeklyJackpot close") !== closesAt) {
-        throw new Error("WeeklyJackpot PDA is invalid");
-      }
-      requirePublicKey(
-        item.value,
-        "arcadeConfig",
-        arcadeConfigPda(),
-        "WeeklyJackpot ArcadeConfig",
-      );
-      const status = periodStatus(item.value.status, "WeeklyJackpot status");
-      const availableLamports = availableLedgerLamports(item.value.ledger, "WeeklyJackpot");
-      const potLamports = status === "finalized"
-        ? fundedLedgerLamports(item.value.ledger, "WeeklyJackpot")
-        : availableLamports;
-      if (status === "finalized" && availableLamports !== 0n) {
-        throw new Error("finalized WeeklyJackpot retains unsettled ledger lamports");
-      }
-      await this.assertSpendable(item.account, availableLamports, "WeeklyJackpot");
-      const qualificationDailiesComplete = range(
-        qualificationStartDay,
-        weekStartDay(weekId) + DAYS_PER_WEEK - 1,
-      ).every((dayId) => dailyById.get(dayId)?.status === "finalized");
       output.push({
-        weekId,
-        qualificationStartDay,
-        status,
-        closesAt,
-        potLamports,
-        predecessorRolloverRequired: weekId !== launchWeekId,
-        predecessorRolloverApplied: boolean(
-          item.value.predecessorRolloverApplied,
-          "WeeklyJackpot predecessor flag",
-        ),
-        qualificationDailiesComplete,
-        profileSyncMask: u16(
-          item.value.profileSyncMask,
-          "WeeklyJackpot profile sync mask",
-        ),
-        ...(status !== "funding" ? {
-          settlement: await this.weeklySettlement(item.value, potLamports),
-        } : {}),
+        loaded: item,
+        snapshot,
+        ...(scoreBoard ? { scoreBoard: scoreBoard.loaded } : {}),
+        ...(themeBoard ? { themeBoard: themeBoard.loaded } : {}),
       });
     }
     return output;
   }
 
-  private async loadSeasons(
-    ids: readonly number[],
-    launchSeasonId: number,
-    launchDayId: number,
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
-  ): Promise<SeasonSnapshot[]> {
-    const loaded = await this.loadKnown(
-      "season",
-      ids.map((id) => ({ id, address: seasonPda(id) })),
+  private async loadArenaBoard(
+    daily: PublicKey,
+    dayId: number,
+    kind: "score" | "theme",
+    qualifiedCount: number,
+    poolLamports: bigint,
+  ): Promise<LoadedBoardSnapshot> {
+    const address = arenaBoardPda(daily, kind);
+    const loaded = await this.loadRequired(
+      "arenaBoard",
+      address,
       ARCADE_ACCOUNT_VERSION,
     );
-    void dailies;
-    const output: SeasonSnapshot[] = [];
-    for (const item of loaded) {
-      const seasonId = u32(item.value.seasonId, "Season id");
-      const qualificationStartDay = u32(
-        item.value.qualificationStartDay,
-        "Season qualification start",
-      );
-      const opensAt = (seasonId * DAYS_PER_SEASON + 4) * SECONDS_PER_DAY;
-      const closesAt =
-        (seasonId * DAYS_PER_SEASON + 4 + DAYS_PER_SEASON) * SECONDS_PER_DAY;
-      const expectedQualificationStart = seasonId === launchSeasonId
-        ? launchDayId
-        : seasonStartDay(seasonId);
-      if (!item.address.equals(seasonPda(seasonId)) ||
-          qualificationStartDay !== expectedQualificationStart ||
-          timestamp(item.value.opensAt, "Season open") !== opensAt ||
-          timestamp(item.value.closesAt, "Season close") !== closesAt) {
-        throw new Error("Season PDA is invalid");
-      }
-      requirePublicKey(
-        item.value,
-        "arcadeConfig",
-        arcadeConfigPda(),
-        "Season ArcadeConfig",
-      );
-      const status = periodStatus(item.value.status, "Season status");
-      const availableLamports = availableLedgerLamports(item.value.ledger, "Season");
-      const potLamports = status === "finalized"
-        ? fundedLedgerLamports(item.value.ledger, "Season")
-        : availableLamports;
-      if (status === "finalized" && availableLamports !== 0n) {
-        throw new Error("finalized Season retains unsettled ledger lamports");
-      }
-      await this.assertSpendable(item.account, availableLamports, "Season");
-      output.push({
-        seasonId,
-        qualificationStartDay,
-        status,
-        closesAt,
-        potLamports,
-        predecessorRolloverRequired: seasonId !== launchSeasonId,
-        predecessorRolloverApplied: boolean(
-          item.value.predecessorRolloverApplied,
-          "Season predecessor flag",
-        ),
-        sealedDailies: u8(item.value.sealedDailies, "Season sealed Dailies"),
-        profileSyncMask: u8(item.value.profileSyncMask, "Season profile sync mask"),
-        ...(status !== "funding" ? {
-          settlement: await this.rankedSettlement(
-            array(item.value.entries, "Season entries"),
-            potLamports,
-            "season",
-          ),
-        } : {}),
-      });
-    }
-    return output;
-  }
-
-  private async loadDailySeasonPlayers(
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
-    seasons: readonly SeasonSnapshot[],
-  ): Promise<DailySeasonPlayerSnapshot[]> {
-    const qualificationStarts = new Map(
-      seasons.map(({ seasonId, qualificationStartDay }) =>
-        [seasonId, qualificationStartDay]),
+    requirePublicKey(loaded.value, "arenaDaily", daily, `ArenaBoard ${kind} Daily`);
+    const decodedKind = enumVariant(loaded.value.kind, `ArenaBoard ${kind} kind`);
+    const payoutCount = u32(loaded.value.payoutCount, `ArenaBoard ${kind} payout count`);
+    const widthCount = u32(loaded.value.widthCount, `ArenaBoard ${kind} width count`);
+    const cursor = u32(loaded.value.cursor, `ArenaBoard ${kind} cursor`);
+    const claimedCount = u32(
+      loaded.value.claimedCount,
+      `ArenaBoard ${kind} claimed count`,
     );
-    const eligible: Array<{
-      dayId: number;
-      daily: PublicKey;
-      loaded: LoadedAccount;
-      owner: PublicKey;
-    }> = [];
-    for (const daily of dailies) {
-      if (daily.snapshot.status !== "finalized" || daily.snapshot.seasonRollupSealed) continue;
-      const qualificationStart = qualificationStarts.get(
-        seasonIdForDay(daily.snapshot.dayId),
-      );
-      if (qualificationStart === undefined || daily.snapshot.dayId < qualificationStart) {
-        continue;
-      }
-      const accounts = await this.scanAccounts(
-        "arenaPlayer",
-        ARCADE_ACCOUNT_VERSION,
-        MAX_ARENA_PLAYERS_PER_DAILY,
-        [{ memcmp: { offset: 9, bytes: daily.loaded.address.toBase58() } }],
-      );
-      for (const player of accounts) {
-        const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
-        const owner = publicKey(player.value.player, "ArenaPlayer owner");
-        if (!challenge.equals(daily.loaded.address) ||
-            !player.address.equals(arenaPlayerPda(challenge, owner))) {
-          throw new Error("ArenaPlayer PDA or Daily relationship is invalid");
-        }
-        if (u32(player.value.resolvedEntries, "ArenaPlayer resolved entries") >
-            u32(player.value.paidEntries, "ArenaPlayer paid entries")) {
-          throw new Error("ArenaPlayer resolved entries exceed paid entries");
-        }
-        eligible.push({ dayId: daily.snapshot.dayId, daily: challenge, loaded: player, owner });
-      }
-    }
-    const seasonAddresses = new Map<number, PublicKey>(
-      seasons.map(({ seasonId }) => [seasonId, seasonPda(seasonId)]),
+    const profileSyncCount = u32(
+      loaded.value.profileSyncCount,
+      `ArenaBoard ${kind} profile sync count`,
     );
-    const seasonPlayerAddresses = eligible.map(({ dayId, owner }) => {
-      const season = seasonAddresses.get(seasonIdForDay(dayId));
-      if (!season) throw new Error("ArenaPlayer references an undiscovered Season");
-      return seasonPlayerPda(season, owner);
-    });
-    const infos = await this.getMultiple(seasonPlayerAddresses);
-    return eligible.map(({ dayId, loaded, owner }, index) => {
-      const info = infos[index];
-      if (info) {
-        const season = seasonAddresses.get(seasonIdForDay(dayId))!;
-        const decoded = this.decodeAccount(
-          "seasonPlayer",
-          seasonPlayerAddresses[index]!,
-          info,
-          ARCADE_ACCOUNT_VERSION,
-          seasonPlayerAddresses[index]!,
-        );
-        requirePublicKey(decoded.value, "season", season, "SeasonPlayer Season");
-        requirePublicKey(decoded.value, "player", owner, "SeasonPlayer owner");
-        if (u8(decoded.value.resultCount, "SeasonPlayer result count") > 20) {
-          throw new Error("SeasonPlayer result count is invalid");
-        }
-      }
-      const paid = u32(loaded.value.paidEntries, "ArenaPlayer paid entries");
-      const resolved = u32(loaded.value.resolvedEntries, "ArenaPlayer resolved entries");
-      return {
-        dayId,
+    const bitmapBytes = Math.ceil(payoutCount / 8);
+    const expectedSize = ARENA_BOARD_HEADER_BYTES +
+      payoutCount * ARENA_BOARD_ENTRY_SIZE + 2 * bitmapBytes;
+    const plan = rankWeightedPayoutPlan(
+      poolLamports,
+      qualifiedCount,
+      ARENA_BOARD_CAPACITY,
+    );
+    const capacityLimited = boolean(
+      loaded.value.capacityLimited,
+      `ArenaBoard ${kind} capacity condition`,
+    );
+    if (decodedKind !== kind ||
+        u32(loaded.value.dayId, `ArenaBoard ${kind} day`) !== dayId ||
+        u32(loaded.value.qualifiedCount, `ArenaBoard ${kind} qualified count`) !==
+          qualifiedCount || payoutCount !== plan.winnerCount ||
+        widthCount !== plan.widthWinnerCount ||
+        bigint(loaded.value.denominator, `ArenaBoard ${kind} denominator`) !==
+          plan.denominator ||
+        bigint(loaded.value.poolLamports, `ArenaBoard ${kind} pool`) !== poolLamports ||
+        bigint(loaded.value.paidLamports, `ArenaBoard ${kind} paid`) !==
+          plan.paidLamports ||
+        bigint(loaded.value.rolloverLamports, `ArenaBoard ${kind} rollover`) !==
+          plan.rolloverLamports || capacityLimited !== plan.capacityLimited ||
+        cursor > payoutCount || claimedCount > payoutCount ||
+        profileSyncCount > payoutCount || loaded.account.data.length !== expectedSize) {
+      throw new Error(`${kind} ArenaBoard header is not canonical`);
+    }
+    const entries: BoardSourceSnapshot[] = [];
+    for (let position = 0; position < cursor; position += 1) {
+      const offset = ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_SIZE;
+      const row = loaded.account.data.subarray(offset, offset + ARENA_BOARD_ENTRY_SIZE);
+      const owner = new PublicKey(row.subarray(0, 32));
+      entries.push({
+        source: arenaPlayerPda(daily, owner),
         owner,
-        dailyResolved: paid === resolved,
-        hasBestScore: boolean(loaded.value.hasBest, "ArenaPlayer best flag"),
-        seasonRolled: boolean(
-          loaded.value.seasonRolledUp,
-          "ArenaPlayer Season rollup flag",
-        ),
-        seasonPlayerExists: !!info,
-      };
-    });
+        score: row.readUInt32LE(32),
+        objectiveTotal: row.readBigUInt64LE(36),
+        finalizedAt: safeBigintNumber(row.readBigInt64LE(44), `${kind} finalization`),
+        replayHash: Uint8Array.from(row.subarray(52, 84)),
+      });
+    }
+    const masksOffset = ARENA_BOARD_HEADER_BYTES +
+      payoutCount * ARENA_BOARD_ENTRY_SIZE;
+    const claimedMask = littleEndianMask(
+      loaded.account.data.subarray(masksOffset, masksOffset + bitmapBytes),
+    );
+    const profileSyncMask = littleEndianMask(
+      loaded.account.data.subarray(
+        masksOffset + bitmapBytes,
+        masksOffset + 2 * bitmapBytes,
+      ),
+    );
+    if (popcount(claimedMask) !== claimedCount ||
+        popcount(profileSyncMask) !== profileSyncCount) {
+      throw new Error(`${kind} ArenaBoard bitmap counters do not match`);
+    }
+    const sealed = boolean(loaded.value.sealed, `ArenaBoard ${kind} sealed`);
+    if (sealed !== (cursor === payoutCount)) {
+      throw new Error(`${kind} ArenaBoard seal does not match its cursor`);
+    }
+    const claimedLamports = bigint(
+      loaded.value.claimedLamports,
+      `ArenaBoard ${kind} claimed lamports`,
+    );
+    const expectedClaimed = plan.payouts.reduce(
+      (sum, payout, position) =>
+        (claimedMask & (1n << BigInt(position))) === 0n ? sum : sum + payout,
+      0n,
+    );
+    if (claimedLamports !== expectedClaimed) {
+      throw new Error(`${kind} ArenaBoard claimed lamports do not match its bitmap`);
+    }
+    return {
+      loaded,
+      construction: {
+        kind,
+        payoutCount,
+        widthCount,
+        cursor,
+        sealed,
+        claimedLamports,
+        claimedCount,
+        profileSyncCount,
+        capacityLimited,
+      },
+      entries,
+      claimedMask,
+      profileSyncMask,
+    };
   }
 
   private async loadParticipantClosures(
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
-    seasons: readonly SeasonSnapshot[],
+    dailies: readonly LoadedDaily[],
     archive: ArcadeArchiveSnapshot | undefined,
   ): Promise<{
     arenaPlayers: ArenaPlayerClosureSnapshot[];
-    seasonPlayers: SeasonPlayerClosureSnapshot[];
     arenaCadenceBlockers: Set<number>;
-    seasonCadenceBlockers: Set<number>;
+    boardSources: Map<number, {
+      score: BoardSourceSnapshot[];
+      theme: BoardSourceSnapshot[];
+    }>;
   }> {
-    const arenaCandidates: Array<{ dayId: number; owner: PublicKey }> = [];
+    const candidates: Array<{ dayId: number; owner: PublicKey }> = [];
     const arenaCadenceBlockers = new Set<number>();
+    const boardSources = new Map<number, {
+      score: BoardSourceSnapshot[];
+      theme: BoardSourceSnapshot[];
+    }>();
     const today = currentDayId(this.input.nowUnix);
     const firstDay = this.requiredRelease().launchDayId;
     const dayByAddress = new Map(
-      range(firstDay, today).map((dayId) => [arenaDailyPda(dayId).toBase58(), dayId]),
+      range(firstDay, today)
+        .map((dayId) => [arenaDailyPda(dayId).toBase58(), dayId]),
     );
     const liveDaily = new Map(
       dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
     );
-    const discoveredArenaPlayers = await this.scanAccounts(
+    const discovered = await this.scanAccounts(
       "arenaPlayer",
       ARCADE_ACCOUNT_VERSION,
       MAX_ARENA_PLAYERS_PER_DAILY,
     );
-    for (const player of discoveredArenaPlayers) {
+    for (const player of discovered) {
       const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
       const owner = publicKey(player.value.player, "ArenaPlayer owner");
       const dayId = dayByAddress.get(challenge.toBase58());
@@ -1690,15 +1384,18 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         throw new Error("ArenaPlayer cleanup PDA or Daily relationship is invalid");
       }
       if (liveDaily.has(dayId)) arenaCadenceBlockers.add(dayId);
-      if (archive?.lastDailyId !== undefined &&
-          dayId <= archive.lastDailyId &&
-          liveDaily.has(dayId) &&
-          liveDaily.get(dayId)?.status !== "finalized") {
+      const sources = boardSources.get(dayId) ?? { score: [], theme: [] };
+      if (boolean(player.value.hasScoreBest, "ArenaPlayer Score best flag")) {
+        sources.score.push(boardSourceSnapshot(player, owner, "score"));
+      }
+      if (boolean(player.value.hasThemeBest, "ArenaPlayer Theme best flag")) {
+        sources.theme.push(boardSourceSnapshot(player, owner, "theme"));
+      }
+      boardSources.set(dayId, sources);
+      if (archive?.lastDailyId !== undefined && dayId <= archive.lastDailyId &&
+          liveDaily.has(dayId) && liveDaily.get(dayId)?.status !== "finalized") {
         throw new Error("archived Daily was recreated or mutated");
       }
-      // Archive requires finalized on-chain. If the account is absent below
-      // the checkpoint, close_arena_daily additionally proves resolution,
-      // Season sealing, profile sync, and removal of participant blockers.
       const finalized = liveDaily.get(dayId)?.status === "finalized" ||
         (archive?.lastDailyId !== undefined && dayId <= archive.lastDailyId);
       if (!finalized ||
@@ -1709,90 +1406,35 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         player.value.activePaidRunId,
         "ArenaPlayer active paid run id",
       );
-      const hasBest = boolean(player.value.hasBest, "ArenaPlayer best flag");
-      const seasonRolled = boolean(
-        player.value.seasonRolledUp,
-        "ArenaPlayer Season rollup flag",
+      const paidEntries = bigint(player.value.paidEntries, "ArenaPlayer paid entries");
+      const resolvedEntries = bigint(
+        player.value.resolvedEntries,
+        "ArenaPlayer resolved entries",
       );
-      if (activePaidRunId === 0n && (!hasBest || seasonRolled)) {
-        arenaCandidates.push({ dayId, owner });
-      }
+      const resolved = resolvedEntries === paidEntries;
+      if (activePaidRunId === 0n && resolved) candidates.push({ dayId, owner });
     }
 
-    const seasonCandidates: Array<{ seasonId: number; owner: PublicKey }> = [];
-    const seasonCadenceBlockers = new Set<number>();
-    const firstSeason = seasonIdForDay(firstDay);
-    const currentSeason = seasonIdForDay(today);
-    const seasonByAddress = new Map(
-      range(firstSeason, currentSeason)
-        .map((seasonId) => [seasonPda(seasonId).toBase58(), seasonId]),
-    );
-    const liveSeason = new Map(seasons.map((value) => [value.seasonId, value]));
-    const discoveredSeasonPlayers = await this.scanAccounts(
-      "seasonPlayer",
-      ARCADE_ACCOUNT_VERSION,
-      MAX_SEASON_PLAYERS_PER_SEASON,
-    );
-    for (const player of discoveredSeasonPlayers) {
-      const storedSeason = publicKey(player.value.season, "SeasonPlayer Season");
-      const owner = publicKey(player.value.player, "SeasonPlayer owner");
-      const seasonId = seasonByAddress.get(storedSeason.toBase58());
-      if (seasonId === undefined ||
-          !player.address.equals(seasonPlayerPda(storedSeason, owner))) {
-        throw new Error("SeasonPlayer cleanup PDA or Season relationship is invalid");
-      }
-      if (liveSeason.has(seasonId)) seasonCadenceBlockers.add(seasonId);
-      if (archive?.lastSeasonId !== undefined &&
-          seasonId <= archive.lastSeasonId &&
-          liveSeason.has(seasonId) &&
-          liveSeason.get(seasonId)?.status !== "finalized") {
-        throw new Error("archived Season was recreated or mutated");
-      }
-      // Archive requires finalized on-chain; an absent account below the
-      // checkpoint is the canonical closed System placeholder accepted by
-      // close_season_player.
-      const finalized = liveSeason.get(seasonId)?.status === "finalized" ||
-        (archive?.lastSeasonId !== undefined &&
-          seasonId <= archive.lastSeasonId);
-      if (finalized &&
-          seasonId >= Math.max(0, currentSeason - KEEPER_RECENT_SEASON_CADENCES)) {
-        seasonCandidates.push({ seasonId, owner });
-      }
-    }
-
-    const allOwners = [
-      ...arenaCandidates.map(({ owner }) => owner),
-      ...seasonCandidates.map(({ owner }) => owner),
-    ];
     const fundingInfos = await this.getMultiple(
-      allOwners.map((owner) => playerFundingPda(owner)),
+      candidates.map(({ owner }) => playerFundingPda(owner)),
     );
-    // A canonical, not-yet-created PDA is a valid close destination: the
-    // runtime presents it as an empty System account and the recycled rent
-    // creates it. Existing accounts must still be exact System zero-data.
-    const validFunding = fundingInfos.map((info) => !info || (!info.executable &&
-      info.owner.equals(SystemProgram.programId) && info.data.length === 0));
-    let fundingIndex = 0;
-    const arenaPlayers = arenaCandidates.flatMap(({ dayId, owner }) => {
-      const valid = validFunding[fundingIndex++] ?? false;
+    const arenaPlayers = candidates.flatMap(({ dayId, owner }, index) => {
+      const info = fundingInfos[index];
+      const valid = !info || (!info.executable &&
+        info.owner.equals(SystemProgram.programId) && info.data.length === 0);
       return valid ? [{ dayId, owner, rentRecipient: playerFundingPda(owner) }] : [];
     });
-    const seasonPlayers = seasonCandidates.flatMap(({ seasonId, owner }) => {
-      const valid = validFunding[fundingIndex++] ?? false;
-      return valid ? [{ seasonId, owner, rentRecipient: playerFundingPda(owner) }] : [];
-    });
-    return {
-      arenaPlayers,
-      seasonPlayers,
-      arenaCadenceBlockers,
-      seasonCadenceBlockers,
-    };
+    for (const sources of boardSources.values()) {
+      sources.score.sort((left, right) => compareBoardSources("score", left, right));
+      sources.theme.sort((left, right) => compareBoardSources("theme", left, right));
+    }
+    return { arenaPlayers, arenaCadenceBlockers, boardSources };
   }
 
   private async loadPlayerStates(): Promise<PlayerStateRecord[]> {
     const accounts = await this.scanAccounts(
       "playerState",
-      [PROTOCOL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION],
+      PLAYER_STATE_ACCOUNT_VERSION,
       MAX_DISCOVERED_PLAYER_STATES,
     );
     return accounts.map((loaded) => {
@@ -1800,10 +1442,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       if (!loaded.address.equals(playerStatePda(owner))) {
         throw new Error("PlayerState PDA is invalid");
       }
-      const version = u8(loaded.value.version, "PlayerState version");
       const nextRunId = bigint(loaded.value.nextRunId, "PlayerState next run id");
-      let activeRunId = bigint(loaded.value.activeRunId, "PlayerState active run id");
-      let campaignActiveRunId = bigint(
+      const activeRunId = bigint(loaded.value.activeRunId, "PlayerState active run id");
+      const campaignActiveRunId = bigint(
         loaded.value.campaignActiveRunId,
         "PlayerState Campaign active run id",
       );
@@ -1817,21 +1458,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         loaded.value.activeRunDeadlineAt,
         "PlayerState active run deadline",
       );
-      if (
-        version === PROTOCOL_ACCOUNT_VERSION &&
-        activeRunId !== 0n &&
-        activeRunMode === "campaign"
-      ) {
-        if (
-          campaignActiveRunId !== 0n ||
-          !activeRunDaily.equals(SystemProgram.programId) ||
-          activeRunDeadlineAt !== 0 ||
-          orphanRunId !== 0n
-        ) {
-          throw new Error("legacy Campaign reservation is inconsistent");
-        }
-        campaignActiveRunId = activeRunId;
-        activeRunId = 0n;
+      const reserved = array(loaded.value.reserved, "PlayerState reserved bytes");
+      if (reserved.length !== 56 ||
+          reserved.some((value) => u8(value, "PlayerState reserved byte") !== 0)) {
+        throw new Error("PlayerState reserved bytes are nonzero");
       }
       if (nextRunId === 0n || activeRunId >= nextRunId ||
           campaignActiveRunId >= nextRunId || orphanRunId >= nextRunId ||
@@ -1852,7 +1482,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         address: loaded.address,
         owner,
         nextRunId,
-        version,
         activeRunId,
         campaignActiveRunId,
         activeRunDaily,
@@ -1865,7 +1494,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
 
   private async loadRuns(
     players: readonly PlayerStateRecord[],
-    dailies: readonly { loaded: LoadedAccount; snapshot: DailySnapshot }[],
+    dailies: readonly LoadedDaily[],
   ): Promise<RunSnapshot[]> {
     const dailyByAddress = new Map(
       dailies.map(({ loaded, snapshot }) => [loaded.address.toBase58(), snapshot]),
@@ -1904,20 +1533,16 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             throw error;
           }
           const daily = dailyByAddress.get(player.activeRunDaily.toBase58());
-          const ranked = player.activeRunMode === "ranked";
           const cadence = daily
-            ? {
-              challengeDayId: daily.dayId,
-              deadlineDayId: ranked ? daily.dayId : daily.dayId + 1,
-            }
-            : practiceCadenceFromDeadline(
-              player.activeRunMode,
+            ? { challengeDayId: daily.dayId, deadlineDayId: daily.dayId }
+            : rankedCadenceFromDeadline(
               player.activeRunDaily,
               player.activeRunDeadlineAt,
             );
-          const arenaPlayerExists = ranked
-            ? await this.loadArenaPlayerExists(player.activeRunDaily, player.owner)
-            : false;
+          const arenaPlayerExists = await this.loadArenaPlayerExists(
+            player.activeRunDaily,
+            player.owner,
+          );
           output.push({
             owner: player.owner,
             runId: player.activeRunId,
@@ -1956,7 +1581,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     reservationActive: boolean,
     dailyByAddress: ReadonlyMap<string, DailySnapshot>,
     expected?: {
-      mode: "campaign" | "ranked" | "practice";
+      mode: "campaign" | "ranked";
       daily: PublicKey;
       deadlineAt: number;
     },
@@ -2016,15 +1641,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }
     const daily = dailyByAddress.get(dailyAddress.toBase58());
     const cadence = daily
-      ? {
-        challengeDayId: daily.dayId,
-        deadlineDayId: mode === "ranked" ? daily.dayId : daily.dayId + 1,
-      }
-      : practiceCadenceFromDeadline(mode, dailyAddress, deadlineAt);
-    const arenaPlayerExists = mode === "ranked"
-      ? await this.loadArenaPlayerExists(dailyAddress, owner)
-      : false;
-    if (mode === "ranked" && !arenaPlayerExists) {
+      ? { challengeDayId: daily.dayId, deadlineDayId: daily.dayId }
+      : rankedCadenceFromDeadline(dailyAddress, deadlineAt);
+    const arenaPlayerExists = await this.loadArenaPlayerExists(dailyAddress, owner);
+    if (!arenaPlayerExists) {
       throw new Error("ranked ActiveRun is missing its ArenaPlayer");
     }
     return {
@@ -2059,74 +1679,44 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return true;
   }
 
-  private async rankedSettlement(
-    entries: readonly unknown[],
+  private rankedSettlement(
+    scoreEntries: readonly BoardSourceSnapshot[],
+    themeEntries: readonly BoardSourceSnapshot[],
+    scoreQualifiedPlayers: number,
+    themeQualifiedPlayers: number,
     potLamports: bigint,
-    competition: "daily" | "season",
-  ): Promise<SettlementSnapshot> {
-    const winners = entries.slice(0, 5).map((entry, index) => ({
-      owner: publicKey(record(entry, `${competition} entry`).player, `${competition} winner`),
-      rank: index + 1,
-    }));
-    const plan = winners.length > 0
-      ? payoutPlan(potLamports, DAILY_PRIZE_WEIGHTS, winners.length)
-      : { payouts: [], paidLamports: 0n, rolloverLamports: potLamports };
-    const valid = await this.walletValidity(winners.map(({ owner }) => owner));
-    return {
-      winners: winners.map(({ owner, rank }, index) => ({
-        owner,
-        rank,
-        payoutLamports: plan.payouts[index] ?? 0n,
-        destinationValid: valid[index] ?? false,
-      })),
-      rolloverLamports: plan.rolloverLamports,
-    };
-  }
-
-  private async weeklySettlement(
-    value: Record<string, unknown>,
-    potLamports: bigint,
-  ): Promise<SettlementSnapshot> {
-    const budgetPlan = equalBudgetPlan(potLamports, 3);
-    const positions: Array<Omit<WinnerSnapshot, "destinationValid">> = [];
-    const boardFields = ["comboEntries", "actionEntries", "runEntries"] as const;
-    for (const [bountyIndex, field] of boardFields.entries()) {
-      const board = array(value[field], `WeeklyJackpot ${field}`)
-        .map((entry) => record(entry, `WeeklyJackpot ${field} entry`))
-        .slice(0, 3);
-      const winnerCount = board.findIndex(
-        (entry) => bigint(entry.value, "Weekly metric value") === 0n,
-      );
-      const winners = winnerCount === -1 ? board : board.slice(0, winnerCount);
-      const plan = winners.length > 0
-        ? payoutPlan(
-          budgetPlan.budgets[bountyIndex]!,
-          WEEKLY_PRIZE_WEIGHTS,
-          winners.length,
-        )
-        : { payouts: [], paidLamports: 0n, rolloverLamports: budgetPlan.budgets[bountyIndex]! };
-      winners.forEach((entry, rank) => positions.push({
-        owner: publicKey(entry.player, "Weekly winner"),
-        payoutLamports: plan.payouts[rank] ?? 0n,
-        rank: rank + 1,
-        bountyIndex: bountyIndex as 0 | 1 | 2,
+  ): SettlementSnapshot {
+    const pools = dailyBoardPools(potLamports, themeQualifiedPlayers);
+    const scorePlan = rankWeightedPayoutPlan(
+      pools.score,
+      scoreQualifiedPlayers,
+      ARENA_BOARD_CAPACITY,
+    );
+    const themePlan = rankWeightedPayoutPlan(
+      pools.theme,
+      themeQualifiedPlayers,
+      ARENA_BOARD_CAPACITY,
+    );
+    const winners = ([
+      ["score", scoreEntries, scorePlan] as const,
+      ["theme", themeEntries, themePlan] as const,
+    ]).flatMap(([board, entries, plan]) => {
+      if (entries.length < plan.winnerCount) {
+        throw new Error(`${board} board does not retain every claimable winner`);
+      }
+      return entries.slice(0, plan.winnerCount).map((entry, index) => ({
+        board,
+        owner: entry.owner,
+        rank: index + 1,
+        payoutLamports: plan.payouts[index]!,
       }));
-    }
-    const valid = await this.walletValidity(positions.map(({ owner }) => owner));
-    const payouts = positions.reduce((sum, winner) => sum + winner.payoutLamports, 0n);
+    });
     return {
-      winners: positions.map((winner, index) => ({
-        ...winner,
-        destinationValid: valid[index] ?? false,
-      })),
-      rolloverLamports: potLamports - payouts,
+      winners,
+      rolloverLamports: scorePlan.rolloverLamports + themePlan.rolloverLamports,
+      scoreCapacityLimited: scorePlan.capacityLimited,
+      themeCapacityLimited: themePlan.capacityLimited,
     };
-  }
-
-  private async walletValidity(owners: readonly PublicKey[]): Promise<boolean[]> {
-    const infos = await this.getMultiple(owners);
-    return infos.map((info) => !!info && !info.executable &&
-      info.owner.equals(SystemProgram.programId) && info.data.length === 0);
   }
 
   private async assertSpendable(
@@ -2238,6 +1828,57 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   }
 }
 
+function boardSourceSnapshot(
+  loaded: LoadedAccount,
+  owner: PublicKey,
+  kind: "score" | "theme",
+): BoardSourceSnapshot {
+  const field = kind === "score" ? "scoreBestEntry" : "themeBestEntry";
+  const entry = record(loaded.value[field], `ArenaPlayer ${kind} best entry`);
+  requirePublicKey(entry, "player", owner, `ArenaPlayer ${kind} best owner`);
+  return {
+    source: loaded.address,
+    owner,
+    score: u32(entry.score, `ArenaPlayer ${kind} score`),
+    objectiveTotal: bigint(
+      entry.objectiveTotal,
+      `ArenaPlayer ${kind} objective total`,
+    ),
+    finalizedAt: signedTimestamp(
+      entry.finalizedAt,
+      `ArenaPlayer ${kind} finalization`,
+    ),
+    replayHash: bytes32(entry.replayHash, `ArenaPlayer ${kind} replay hash`),
+  };
+}
+
+function compareBoardSources(
+  kind: "score" | "theme",
+  left: BoardSourceSnapshot,
+  right: BoardSourceSnapshot,
+): number {
+  const leftMetric = kind === "score" ? BigInt(left.score) : left.objectiveTotal;
+  const rightMetric = kind === "score" ? BigInt(right.score) : right.objectiveTotal;
+  if (leftMetric !== rightMetric) return leftMetric > rightMetric ? -1 : 1;
+  if (left.finalizedAt !== right.finalizedAt) {
+    return left.finalizedAt - right.finalizedAt;
+  }
+  return Buffer.compare(left.owner.toBuffer(), right.owner.toBuffer());
+}
+
+function sameSettlementOwners(
+  left: SettlementSnapshot,
+  right: SettlementSnapshot,
+): boolean {
+  return left.winners.length === right.winners.length &&
+    left.winners.every((winner, index) => {
+      const other = right.winners[index];
+      return other !== undefined && winner.board === other.board &&
+        winner.rank === other.rank && winner.owner.equals(other.owner) &&
+        winner.payoutLamports === other.payoutLamports;
+    });
+}
+
 function assertIdlInterface(idl: Idl): void {
   const idlRecord = idl as unknown as Record<string, unknown>;
   const accounts = array(idlRecord.accounts, "Anchor IDL accounts")
@@ -2271,14 +1912,13 @@ const RESULT_FIELDS = {
   daily: [
     "version",
     "dayId",
-    "weekId",
-    "seasonId",
     "arcadeConfig",
     "rulesVersion",
     "contentVersion",
     "catalogHash",
     "rulesHash",
     "mapId",
+    "passiveMapId",
     "scoringRule",
     "rules",
     "pressure",
@@ -2291,63 +1931,94 @@ const RESULT_FIELDS = {
     "entriesScored",
     "entriesExpired",
     "uniquePlayers",
-    "seasonEligiblePlayers",
-    "entries",
-  ],
-  weekly: [
-    "version",
-    "weekId",
-    "qualificationStartDay",
-    "arcadeConfig",
-    "metrics",
-    "rulesHash",
-    "opensAt",
-    "closesAt",
-    "finalizedAt",
-    "ledger",
-    "comboEntries",
-    "actionEntries",
-    "runEntries",
-  ],
-  season: [
-    "version",
-    "seasonId",
-    "qualificationStartDay",
-    "arcadeConfig",
-    "opensAt",
-    "closesAt",
-    "finalizedAt",
-    "ledger",
-    "entries",
+    "scoreQualifiedPlayers",
+    "themeQualifiedPlayers",
   ],
 } as const;
 
+const BOARD_RESULT_FIELDS = [
+  "version",
+  "arenaDaily",
+  "dayId",
+  "kind",
+  "qualifiedCount",
+  "widthCount",
+  "payoutCount",
+  "denominator",
+  "poolLamports",
+  "paidLamports",
+  "rolloverLamports",
+  "capacityLimited",
+] as const;
+
+export interface CanonicalBoardResultInput {
+  value: Record<string, unknown>;
+  data: Buffer;
+}
+
 export function canonicalCadenceResultHash(
   idl: Idl,
-  competition: "daily" | "weekly" | "season",
+  competition: "daily",
   value: Record<string, unknown>,
+  boards: { score: CanonicalBoardResultInput; theme: CanonicalBoardResultInput },
 ): string {
   return cadenceResultHash(
     competition,
-    canonicalCadenceResultData(idl, competition, value),
+    canonicalCadenceResultData(idl, competition, value, boards),
   );
 }
 
 export function canonicalCadenceResultData(
   idl: Idl,
-  competition: "daily" | "weekly" | "season",
+  competition: "daily",
   value: Record<string, unknown>,
+  boards: { score: CanonicalBoardResultInput; theme: CanonicalBoardResultInput },
 ): Buffer {
-  const definitionName = competition === "daily"
-    ? "arenaDaily"
-    : competition === "weekly"
-      ? "weeklyJackpot"
-      : "season";
-  const fields = RESULT_FIELDS[competition];
   const definitions = array(
     (idl as unknown as Record<string, unknown>).types,
     "Anchor IDL types",
   );
+  const daily = encodeSelectedType(
+    definitions,
+    "arenaDaily",
+    RESULT_FIELDS[competition],
+    value,
+  );
+  const boardBytes = (["score", "theme"] as const).flatMap((kind) => {
+    const board = boards[kind];
+    const payoutCount = u32(board.value.payoutCount, `${kind} payout count`);
+    const cursor = u32(board.value.cursor, `${kind} cursor`);
+    if (!boolean(board.value.sealed, `${kind} board seal`) || cursor !== payoutCount) {
+      throw new Error(`${kind} board is not complete for archival`);
+    }
+    const rowsEnd = ARENA_BOARD_HEADER_BYTES + payoutCount * ARENA_BOARD_ENTRY_SIZE;
+    if (rowsEnd > board.data.length) throw new Error(`${kind} board rows are truncated`);
+    return [
+      encodeSelectedType(
+        definitions,
+        "arenaBoard",
+        BOARD_RESULT_FIELDS,
+        board.value,
+      ),
+      Buffer.from(board.data.subarray(ARENA_BOARD_HEADER_BYTES, rowsEnd)),
+    ];
+  });
+  const result = Buffer.concat([daily, ...boardBytes]);
+  if (result.length >= MAX_CADENCE_RESULT_BYTES) {
+    throw new Error(
+      `canonical ${competition} result encoding reached or exceeded the ` +
+        `${MAX_CADENCE_RESULT_BYTES}-byte bound`,
+    );
+  }
+  return result;
+}
+
+function encodeSelectedType(
+  definitions: readonly unknown[],
+  definitionName: string,
+  fields: readonly string[],
+  value: Record<string, unknown>,
+): Buffer {
   const definition = definitions
     .map((entry) => record(entry, "Anchor IDL type"))
     .find(({ name }) => name === definitionName);
@@ -2377,7 +2048,7 @@ export function canonicalCadenceResultData(
     encodedLength = layout.encode(value, buffer);
   } catch (cause) {
     throw new Error(
-      `canonical ${competition} result encoding failed within the ` +
+      `canonical ${definitionName} result encoding failed within the ` +
         `${MAX_CADENCE_RESULT_BYTES}-byte bound`,
       { cause },
     );
@@ -2385,65 +2056,40 @@ export function canonicalCadenceResultData(
   if (!Number.isSafeInteger(encodedLength) || encodedLength < 0 ||
       encodedLength >= MAX_CADENCE_RESULT_BYTES) {
     throw new Error(
-      `canonical ${competition} result encoding reached or exceeded the ` +
+      `canonical ${definitionName} result encoding reached or exceeded the ` +
         `${MAX_CADENCE_RESULT_BYTES}-byte bound`,
     );
   }
   return Buffer.from(buffer.subarray(0, encodedLength));
 }
 
-function cadenceRoot(
-  competition: "daily" | "weekly" | "season",
-  priorRoot: string,
-  cadenceId: number,
-  resultHash: string,
-): string {
-  const id = Buffer.alloc(4);
-  id.writeUInt32LE(cadenceId);
-  return createHash("sha256")
-    .update(Buffer.from(`zkube-arcade-${competition}-root-v1`, "utf8"))
-    .update(Buffer.from(priorRoot, "hex"))
-    .update(id)
-    .update(Buffer.from(resultHash, "hex"))
-    .digest("hex");
-}
-
 function profileSyncMask(
-  period: DailySnapshot | WeeklySnapshot | SeasonSnapshot,
-): number {
-  let mask = 0;
+  period: DailySnapshot,
+  board: "score" | "theme",
+): bigint {
+  let mask = 0n;
   for (const winner of period.settlement?.winners ?? []) {
-    if (winner.payoutLamports === 0n) continue;
-    const bit = winner.bountyIndex === undefined
-      ? winner.rank - 1
-      : winner.bountyIndex * 3 + winner.rank - 1;
-    if (!Number.isSafeInteger(bit) || bit < 0 || bit > 8) {
+    if (winner.board !== board || winner.payoutLamports === 0n) continue;
+    const bit = winner.rank - 1;
+    if (!Number.isSafeInteger(bit) ||
+        bit < 0 || bit >= ARENA_BOARD_CAPACITY) {
       throw new Error("cadence payout position is invalid");
     }
-    mask |= 1 << bit;
+    mask |= 1n << BigInt(bit);
   }
   return mask;
 }
 
-function practiceCadenceFromDeadline(
-  mode: "campaign" | "ranked" | "practice",
+function rankedCadenceFromDeadline(
   dailyAddress: PublicKey,
   deadlineAt: number,
 ): { challengeDayId: number; deadlineDayId: number } {
-  if (mode !== "practice") {
-    throw new Error("ActiveRun references an undiscovered Daily");
-  }
-  const deadlineDayId = Math.floor(deadlineAt / SECONDS_PER_DAY);
-  const challengeDayId = deadlineDayId - 1;
-  if (challengeDayId < 0 ||
-      ![
-        DAILY_RUN_CLOSE_OFFSET,
-        LEGACY_DAILY_RUN_CLOSE_OFFSET,
-      ].includes(deadlineAt - deadlineDayId * SECONDS_PER_DAY) ||
+  const challengeDayId = Math.floor(deadlineAt / SECONDS_PER_DAY);
+  if (deadlineAt - challengeDayId * SECONDS_PER_DAY !== DAILY_RUN_CLOSE_OFFSET ||
       !dailyAddress.equals(arenaDailyPda(challengeDayId))) {
-    throw new Error("Practice ActiveRun closed-Daily cadence is invalid");
+    throw new Error("ranked ActiveRun closed-Daily cadence is invalid");
   }
-  return { challengeDayId, deadlineDayId };
+  return { challengeDayId, deadlineDayId: challengeDayId };
 }
 
 function validDailyWindow(
@@ -2451,10 +2097,8 @@ function validDailyWindow(
   entriesCloseAt: number,
   runsCloseAt: number,
 ): boolean {
-  return (entriesCloseAt === dayStart + DAILY_ENTRY_CLOSE_OFFSET &&
-      runsCloseAt === dayStart + DAILY_RUN_CLOSE_OFFSET) ||
-    (entriesCloseAt === dayStart + LEGACY_DAILY_ENTRY_CLOSE_OFFSET &&
-      runsCloseAt === dayStart + LEGACY_DAILY_RUN_CLOSE_OFFSET);
+  return entriesCloseAt === dayStart + DAILY_ENTRY_CLOSE_OFFSET &&
+    runsCloseAt === dayStart + DAILY_RUN_CLOSE_OFFSET;
 }
 
 function instructionRecord(idl: Idl, name: string): {
@@ -2507,11 +2151,10 @@ function periodStatus(value: unknown, label: string): PeriodStatus {
   return variant;
 }
 
-function runMode(value: unknown, label: string): "campaign" | "ranked" | "practice" {
+function runMode(value: unknown, label: string): "campaign" | "ranked" {
   const variant = enumVariant(value, label);
   if (variant === "campaign") return "campaign";
   if (variant === "daily") return "ranked";
-  if (variant === "practice") return "practice";
   throw new Error(`${label} is invalid`);
 }
 
@@ -2530,6 +2173,28 @@ function enumVariant(value: unknown, label: string): string {
   const keys = Object.keys(object);
   if (keys.length !== 1) throw new Error(`${label} is malformed`);
   return keys[0]!;
+}
+
+function safeBigintNumber(value: bigint, label: string): number {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number)) throw new Error(`${label} is outside safe integer range`);
+  return number;
+}
+
+function littleEndianMask(bytes: Uint8Array): bigint {
+  let mask = 0n;
+  for (let index = bytes.length - 1; index >= 0; index -= 1) {
+    mask = (mask << 8n) | BigInt(bytes[index]!);
+  }
+  return mask;
+}
+
+function popcount(value: bigint): number {
+  let count = 0;
+  for (let remaining = value; remaining > 0n; remaining >>= 1n) {
+    count += Number(remaining & 1n);
+  }
+  return count;
 }
 
 function requirePublicKey(
@@ -2608,12 +2273,6 @@ function u8(value: unknown, label: string): number {
   return parsed;
 }
 
-function u16(value: unknown, label: string): number {
-  const parsed = safeInteger(value, label);
-  if (parsed > 0xffff) throw new Error(`${label} is outside u16`);
-  return parsed;
-}
-
 function u32(value: unknown, label: string): number {
   const parsed = safeInteger(value, label);
   assertCadenceId(parsed, label);
@@ -2643,6 +2302,10 @@ function array(value: unknown, label: string): readonly unknown[] {
 }
 
 function bytes32Hex(value: unknown, label: string): string {
+  return Buffer.from(bytes32(value, label)).toString("hex");
+}
+
+function bytes32(value: unknown, label: string): Uint8Array {
   const bytes = value instanceof Uint8Array
     ? value
     : Array.isArray(value) && value.length === 32 &&
@@ -2650,7 +2313,7 @@ function bytes32Hex(value: unknown, label: string): string {
       ? Uint8Array.from(value as number[])
       : undefined;
   if (!bytes || bytes.length !== 32) throw new Error(`${label} is not 32 bytes`);
-  return Buffer.from(bytes).toString("hex");
+  return bytes;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -2666,12 +2329,6 @@ function range(first: number, lastInclusive: number): number[] {
   return Array.from({ length: lastInclusive - first + 1 }, (_, index) => first + index);
 }
 
-function checkedNext(value: number, label: string): number {
-  assertCadenceId(value, label);
-  if (value === 0xffff_ffff) throw new Error(`${label} successor overflows u32`);
-  return value + 1;
-}
-
 function requiredRulesCatalog(value: PublicKey | undefined): PublicKey {
   if (!value) throw new Error("IDL materializer has no validated rules catalog");
   return value;
@@ -2680,27 +2337,6 @@ function requiredRulesCatalog(value: PublicKey | undefined): PublicKey {
 function requiredOwner(value: PublicKey | undefined): PublicKey {
   if (!value) throw new Error("IDL materializer is missing run/player owner");
   return value;
-}
-
-function requiredWeeklyQualificationDays(
-  context: KeeperPlanContext,
-  weekId: number,
-): readonly number[] {
-  const start = requiredNumber(context.qualificationStartDay, "Weekly qualification start");
-  const last = weekStartDay(weekId) + DAYS_PER_WEEK - 1;
-  if (context.finalDayId !== last || start < weekStartDay(weekId) || start > last ||
-      !context.qualificationDayIds ||
-      context.qualificationDayIds.length !== last - start + 1 ||
-      context.qualificationDayIds.some((dayId, index) => dayId !== start + index)) {
-    throw new Error("IDL materializer rejects Weekly qualification accounts");
-  }
-  return context.qualificationDayIds;
-}
-
-function writableRemaining(
-  owners: readonly PublicKey[] | undefined,
-): RemainingAccountMeta[] {
-  return (owners ?? []).map((pubkey) => ({ pubkey, isWritable: true }));
 }
 
 function requireRentRecipient(value: PublicKey | undefined, owner: PublicKey): void {
@@ -2719,6 +2355,36 @@ function requiredRunId(value: bigint | undefined): bigint {
 function requiredNumber(value: number | undefined, label: string): number {
   if (value === undefined) throw new Error(`IDL materializer is missing ${label}`);
   assertCadenceId(value, label);
+  return value;
+}
+
+function requiredMapId(
+  value: number | undefined,
+  allowWildcard: boolean,
+  label: string,
+): number {
+  if (!Number.isSafeInteger(value) || value === undefined ||
+      value < (allowWildcard ? 0 : 1) || value > 10) {
+    throw new Error(`IDL materializer is missing ${label}`);
+  }
+  return value;
+}
+
+function dailyBoardKind(
+  value: KeeperPlanContext["boardKind"],
+): Record<string, Record<string, never>> {
+  if (value !== "score" && value !== "theme") {
+    throw new Error("IDL materializer is missing Daily board kind");
+  }
+  return { [value]: {} };
+}
+
+function requiredBoardKind(
+  value: KeeperPlanContext["boardKind"],
+): "score" | "theme" {
+  if (value !== "score" && value !== "theme") {
+    throw new Error("IDL materializer is missing Daily board kind");
+  }
   return value;
 }
 

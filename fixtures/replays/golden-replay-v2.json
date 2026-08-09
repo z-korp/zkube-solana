@@ -18,13 +18,17 @@
       "commitment_hex": "b91e1666123b7bb0626bde02362110ebe78e5bbdc0a011fffe1b9a15b09ddde9"
     },
     {
-      "canonical_hex": "03010000000306",
-      "commitment_hex": "13c87d597ed5c5836f52d81500c85b59838af29d05bf3fd103e08728e5d1e98b"
+      "canonical_hex": "0601000000",
+      "commitment_hex": "6e7e6f489f917ed89bdd41cc9f028e7332fa7c478c33a69a20bb87e1f48cc567"
+    },
+    {
+      "canonical_hex": "0102000000b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6",
+      "commitment_hex": "99c7ff7c8a78386ff58b4821f4082c16ad93f9018c15210984dcedc4585e45f8"
     },
     {
       "canonical_hex": "0502000000",
-      "commitment_hex": "4ab008954e30c93f1837f0d7107efca33f20ba9de0641b97ac4dba422e1fdc3f"
+      "commitment_hex": "a5e7aa56ca1ddcf732ac7c01a025c7f724f1d6f83635756bc716aa8ceb6a8430"
     }
   ],
-  "final_commitment_hex": "4ab008954e30c93f1837f0d7107efca33f20ba9de0641b97ac4dba422e1fdc3f"
+  "final_commitment_hex": "a5e7aa56ca1ddcf732ac7c01a025c7f724f1d6f83635756bc716aa8ceb6a8430"
 }

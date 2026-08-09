@@ -25,7 +25,7 @@ afterEach(() => localStorage.clear());
 /**
  * Reproduces the Arcade→Play transition: while AnimatePresence keeps both
  * screens mounted, HomePage drives the theme to today's zone and PlayScreen
- * drives it to yesterday's Practice zone. Their effects mirror the real ones —
+ * drives it to a different run zone. Their effects mirror the real ones —
  * HomePage keys on its zone id, PlayScreen guards on the live themeTemplate.
  *
  * With an unstable provider value, `setThemeTemplate` changed identity on every

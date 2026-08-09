@@ -25,7 +25,7 @@ interface DailyTiming {
  * live run, and the current time.
  *
  * Precedence:
- *  1. `resume` — a live ranked or legacy Practice run always wins.
+ *  1. `resume` — a live ranked run always wins.
  *  2. `stale` — only a previous Daily is visible.
  *  3. `preparing`/`delayed` — today's Daily is missing or not open, split by
  *     a short post-midnight keeper grace window.

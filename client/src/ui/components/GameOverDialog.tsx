@@ -4,7 +4,10 @@ import { motion } from "motion/react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { dailyLeaderboardRank } from "@/chain/dailyClient";
 import { getZoneGuardian } from "@/config/bossCharacters";
-import { DAILY_WEIGHTS } from "@/ui/components/economy/payout";
+import {
+  computeRankPayouts,
+  dailyBoardPools,
+} from "@/ui/components/economy/payout";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
@@ -54,7 +57,7 @@ const rankChipStyle = (
  * Daily/arena run-over card in the guardian-trial language (shared with
  * LevelCompleteDialog / VictoryDialog): the guardian salutes the run, then the
  * card leads with what a daily player actually cares about — whether they beat
- * their best and where that stands them — and how it feeds the Weekly race.
+ * their best and where that stands them.
  */
 const GameOverDialog: React.FC<GameOverDialogProps> = ({
   isOpen,
@@ -70,7 +73,6 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   const daily = useDaily();
   const owner = useConnectedPlayer().publicKey;
   const guardian = getZoneGuardian(game.zoneId);
-  const isPractice = game.runMode === "practice";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,27 +88,29 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   // Rank is read from the current standing; it firms up once the just-finished
   // run settles and the board refreshes.
   const rank = useMemo(() => {
-    const board = isPractice
-      ? (daily.practiceDaily?.leaderboard ?? [])
-      : (daily.daily?.leaderboard ?? []);
-    if (isPractice) {
-      return 1 + board.filter((entry) => entry.dailyScore >= game.totalScore).length;
-    }
+    const board = daily.daily?.leaderboard ?? [];
     if (!owner) return null;
     const index = board.findIndex((entry) => entry.player.equals(owner));
     return index >= 0 ? dailyLeaderboardRank(board, index) : null;
-  }, [daily.daily?.leaderboard, daily.practiceDaily?.leaderboard, game.totalScore, isPractice, owner]);
+  }, [daily.daily?.leaderboard, owner]);
 
-  const previousBest = isPractice
-    ? (daily.practiceDaily?.player?.bestDailyScore ?? 0)
-    : (daily.daily?.player?.bestDailyScore ?? 0);
+  const previousBest = daily.daily?.player?.bestDailyScore ?? 0;
   const isNewBest = game.totalScore > previousBest;
+  const paidScorePlaces = daily.daily
+    ? computeRankPayouts(
+        dailyBoardPools(
+          daily.daily.dailyPotLamports,
+          daily.daily.themeQualifiedPlayers,
+        ).score,
+        daily.daily.scoreQualifiedPlayers,
+      ).winnerCount
+    : 0;
   // A personal best genuinely startles the guardian; a ranked run outside the
   // Daily's paid places gets the consolation, anything else the even-handed
   // daily line.
   const guardianLine = isNewBest
     ? guardian.newBestLine
-    : !isPractice && rank !== null && rank > DAILY_WEIGHTS.length
+    : rank !== null && rank > paidScorePlaces
       ? guardian.noPrizeLine
       : guardian.dailyGreeting;
   const talk = useGuardianTalk(game.zoneId, guardianLine, {
@@ -186,11 +190,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
                 color: isNewBest ? "#fde047" : "rgba(255,255,255,0.45)",
               }}
             >
-              {isPractice
-                ? "Practice Score"
-                : isNewBest
-                  ? "New Daily Best"
-                  : "Daily Score"}
+              {isNewBest ? "New Daily Best" : "Daily Score"}
             </p>
             <p
               className="font-display text-6xl font-black leading-none"
@@ -222,17 +222,14 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
                   />
                 )}
                 <span className="font-sans text-sm font-black text-white">
-                  {isPractice ? `Would have ranked #${rank}` : `Rank #${rank}`}
+                  Rank #{rank}
                 </span>
               </div>
             )}
           </motion.div>
 
-          {/* Weekly stakes — the reason the daily matters */}
           <p className="mt-3 text-center font-sans text-[11px] font-semibold text-white/50">
-            {isPractice
-              ? "Free Practice · yesterday's rules · no leaderboard or prize changes"
-              : "Paid ranked result · SOL payouts are pushed automatically"}
+            Paid ranked result · SOL payouts are pushed automatically
           </p>
 
           {/* Settlement error */}

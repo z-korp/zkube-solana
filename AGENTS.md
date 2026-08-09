@@ -8,53 +8,249 @@ protocol reference below, and operator procedures live here. Implementation
 detail belongs in code comments next to the code. Do not add new Markdown
 documents, and do not move approval policy or operator runbooks into `README.md`.
 
+## Deployment status — read this first
+
+**There is no live deployment.** The v4 Devnet protocol was deliberately
+abandoned on 2026-08-08 and its accounts, pools, keeper release, and launch
+bundles are dead. Nothing on chain is authoritative, nothing needs preserving,
+and no migration path exists or should be written. The next deployment is a
+fresh bootstrap of v5 and requires its own exact approval.
+
+Every keeper release fingerprint, launch-plan fingerprint, deployment manifest,
+and recurring write authority approved before that date is void. None of them
+carries over.
+
+Source implements v5 partially. Current state:
+
+| Area | Status |
+| --- | --- |
+| Deterministic core 0.6.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
+| Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
+| Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
+| `PlayerState` | Built — Campaign stars, one Daily record, Kredit balance, and 56 reserved bytes validated as zero |
+| Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, thirty-day expiry, and exact rollover |
+| Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
+| Elo ladder | **Not started** |
+
 ## Product truth
 
-- zKube v4 targets the Solana dApp Store and Seeker. Google Play is out.
+- zKube v5 targets the Solana dApp Store and Seeker. Google Play is out.
 - The connected Solana address is the player identity. There are no embedded
-  wallets, recovery codes, deposits, soft currencies, shops, passes, or prize
-  claims.
-- Campaign is free. Practice preparation is retired; existing legacy Practice
-  runs retain recovery, settlement, and expiry only. Arcade is immediately
-  available; Campaign never gates paid play.
-- Every ranked Arena run requires a separate owner-signed exact 0.01 SOL entry.
-  Device sessions can never authorize that transfer.
-- Entries split 60% to the following Daily, 20% to the following Weekly, 10%
-  to the following Monday-aligned 28-day Season, and 10% to operator revenue.
-  Daily and Season pay 45/25/15/10/5; each of three Weekly skill boards pays
-  60/25/15. All transfers floor to 0.001 SOL and dust rolls forward.
-- Settlement is push-only, may be late, and is never cancelled. Empty pots roll
-  forward; profile synchronization never gates money.
-- Paid entries close at 23:45 UTC. At 23:59 UTC a
-  run with an accepted action scores its last committed state; an untouched or
-  unrecoverable run expires and can never score late.
-- Campaign changes only the compact lifetime-best star record. Arcade owns
-  lifetime paid entries and Daily/Weekly/Season prize records. There is no XP,
-  quest, achievement, title, rating, crest, or general gameplay progression;
-  neither mode grants SOL, entries, prize eligibility, or mint odds.
+  wallets and no recovery codes.
+- Campaign is free, never gates paid play, and changes only the compact
+  lifetime-best star record. Arcade is immediately available.
+- Entries are prepaid as Kredits at exactly 0.01 SOL each. A Kredit is one-way:
+  no withdrawal, transfer, or cash-out. The owner funds the balance and a device
+  session may spend within it, which is an owner-set spending cap rather than a
+  removal of the owner-signature boundary. A Kredit is never granted,
+  discounted, or bundled as a bonus, so every entry contributes identical
+  lamports and no entry dilutes another.
+- Spending a Kredit routes 9,000,000 lamports to the following Daily and
+  1,000,000 to operator revenue. The operator share is swept at purchase, so the
+  credit vault holds prize money only. Nothing is withheld from a daily pot for
+  any other purpose, and no entry can increase the pot it competes for.
+- The Daily pot splits Score 50% and Theme 50% over the same runs. Both boards
+  require a positive metric to qualify. Payout weights are proportional to
+  `1/rank` and a board pays down to the last place still meeting the entry
+  price, floored at four places, with trailing zero-lamport places dropped.
+  Payouts floor to 0.001 SOL and dust rolls forward.
+- Settlement is claim-based. A reward stays claimable for thirty days from
+  finalization and then expires into the next daily pot, never into operator
+  revenue.
+- Paid entries close at 23:45 UTC. At 23:59 UTC a run with an accepted action
+  scores its last committed state; an untouched or unrecoverable run expires and
+  can never score late.
+- Content is a pool of authored dailies, not a calendar. Each day draws one
+  entry by a derived, independently recomputable selection; the pool may be
+  edited and dailies suspended at any time. The ladder is Elo, pays no SOL,
+  never decays, and resets only by an announced decision. Neither mode grants
+  SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
   recyclable device fee allowance. A separately seeded System-owned zero-data
-  cadence funding PDA recycles Daily/Weekly/Season account rent after finalized
-  results are durably archived. Funding PDAs sign only narrow self-CPI rent
-  paths; there is no Kora or generic paymaster.
+  cadence funding PDA recycles Daily account rent after finalized results are
+  durably archived. Funding PDAs sign only narrow self-CPI rent paths; there is
+  no Kora or generic paymaster.
 - Separate durable Campaign and Arcade run slots prevent overlap within either
   mode and support cross-device recovery while allowing one run of each. They
-  share one monotonic run-ID sequence. Base, Router, and resolved ER
-  connections remain separate; resolve ER placement with
-  `getDelegationStatus`.
-- Fly runs only the independently funded Daily/Weekly/Season keeper. The web
-  client is static PWA/TWA code with no server signer.
-- The cadence-archive upgrade is deployed on Devnet only. Its deployment and
-  observed recovery state do not imply Mainnet readiness; Mainnet requires
-  counsel, economic, and distribution review.
-- Fresh protocol initialization is paused. The approved schema-v11 recovery
-  completed and v11 keeper writes are enabled on Devnet under the approved
-  recurring authority. Initialization may seed only the first Daily, Weekly,
-  and Season. Separately approved authority top-ups may add any positive
-  lamport amount only to the canonical current or following Daily, Weekly, or
-  Season and must update its accounted seeded balance. Recovery does not
-  authorize reinitialization, deployment, funding, governance, or Mainnet
-  actions.
+  share one monotonic run-ID sequence. Base, Router, and resolved ER connections
+  remain separate; resolve ER placement with `getDelegationStatus`.
+- Fly runs only the independently funded Daily keeper. The web client is static
+  PWA/TWA code with no server signer.
+- Mainnet requires counsel, economic, and distribution review. Nothing in this
+  document authorizes it.
+
+## v5 specification
+
+Approved 2026-08-08. This is the specification the source is being built
+towards; the table under "Deployment status" says which parts exist today. Where
+this section and any older statement elsewhere in this document disagree, this
+section wins — report the contradiction rather than following the older text.
+
+Specification approval is not implementation, deployment, rules-change, or
+economics approval; each of those still requires its own exact enumerated
+approval under the transaction policy below.
+
+Three deliberate reversals of earlier product truth — a persistent rating, a
+purchasable soft currency, and claim-based settlement — were reviewed together
+and approved on 2026-08-08.
+
+**The systems below are locked. The balance is not.** Every structural rule in
+this section is settled and is not to be relitigated without an explicit new
+approval. Deliberately deferred to a separate balance pass, and safe to leave
+open: how many entries the pool ships with and what each carries, per-entry
+difficulty bands and thresholds, starting heights, `DailyPressureRules` values,
+Elo K-factor and tier boundaries, and Kredit pack sizes and prices.
+
+- **The pool is the content unit, and there is no calendar.** Every authored
+  daily is a pool entry carrying its realm, active mutator, objective family,
+  passive, and its own difficulty band. Entries are added, edited, or retired at
+  any time by publishing a catalog revision. There are no sets, seasons,
+  gauntlets, or scheduled boundaries of any kind. A thirteen-week set calendar
+  was designed and deliberately cut: it obliged the studio to ship content on a
+  timer, forced a dark stretch costing roughly 4.9% of annual entry revenue
+  purely to satisfy week arithmetic, and reserved a championship week whether or
+  not a championship existed.
+- **The draw is derived, never chosen.** Which entry runs on a given day is
+  derived from a committed seed and the day identifier, drawn without
+  replacement so the pool cycles fully before repeating. The operator controls
+  what is in the pool and never which entry runs; an operator who could pick the
+  day could pick who gets their best day, which is unacceptable in a game paying
+  real SOL. Selection must be independently recomputable from published data.
+- **Closing that lever takes four constraints, not one.** The seed is
+  protocol-fixed, entry ordering is canonical, and the cycle is anchored to the
+  absolute day rather than to the catalog's start. But the **entry count drives
+  both the permutation and the modulus**, so adding or removing a single entry
+  re-maps every future day, including tomorrow. A catalog revision therefore
+  takes effect only from a stated day at least a week ahead. Suspension is exempt
+  and immediate, because suspending removes days rather than re-mapping them, and
+  absolute anchoring means a gap shifts nothing on resume. Emergencies are
+  handled by suspending, never by editing a live pool.
+- **Instant suspension is a per-day veto, and that is accepted.** Because
+  tomorrow's entry is published a day ahead and suspension needs no notice, the
+  operator can see a day and cancel it. This is deliberate: the emergency path is
+  worth more than closing a lever with no payoff. Suspension cannot move money —
+  prepaid funding rolls to the next scheduled Daily, no Kredit is consumed, and a
+  missing day is the most visible action the operator can take. Never close this
+  by adding notice to suspension; that would remove the only way to stop a broken
+  pool.
+- **Tomorrow's daily is published a day ahead.** This restores the Campaign
+  bridge — practising tomorrow's realm is actionable, ambient hints are not —
+  and gives every evening a hook.
+- **Each entry pins its own difficulty band.** Every player faces the same day,
+  so a hard day is hard for the whole field and competitiveness is untouched. A
+  globally uniform difficulty is simply a pool whose entries all carry the same
+  band, so the per-entry schema costs nothing and may be authored uniformly.
+- **A guardian's active mutator is permanent and is never re-paired.** The
+  mutators are named for their guardians and a realm's Arcade appearance must
+  match its Campaign zone, or the practice bridge breaks and a completed star
+  record is invalidated by rules that moved underneath it. Variety comes from
+  new entries and retuned bands, never from reassigning a guardian's ability.
+- **Dailies may be suspended at any time and for any length.** Nothing obliges a
+  daily to run. Prepaid funding spans any gap untouched: the last paid day funds
+  the next paid day whenever that arrives, so a pause never strands a pot and
+  the return is funded by the departure.
+- **The Daily pot splits across two boards over the same runs**: Score 50% and
+  Theme 50%. One entry places on both. Score ranks `daily_score`. Theme ranks a
+  new `objective_total` accumulator carrying only the day's objective bonus,
+  which today is folded into `daily_score` and discarded as a separate figure.
+  That single field is the theme metric for all seven families at once and
+  means something different each day by construction — points from size-N
+  blocks on a Blocks day, from qualifying combo moves on a Combo day, from
+  exact-N clears on an ExactLines day.
+- **The two boards diverge because one is a subset of the other.**
+  `daily_score` is total performance; `objective_total` is only the part
+  attributable to playing the day's theme. A player clearing carelessly wins
+  Score; a player who plays only the theme wins Theme. Fixed boards for
+  specific skills are rejected: a permanent combo or blocks board duplicates
+  the objective family on the days those families run and is decorative on the
+  rest.
+- **Classic pays 100% to Score, and that is derived rather than configured.**
+  `DailyObjective::Classic` yields zero raw objective points, so its theme
+  total is always zero and the theme half folds back into Score. No family
+  needs a special case.
+- **A board requires a positive metric to qualify.** Score ranks only runs with
+  `daily_score > 0`; Theme ranks only runs with `objective_total > 0`. Without
+  that gate a large share of the field ties at exactly zero — anyone who never
+  satisfied the day's objective on Theme, anyone who never scored on Score —
+  and the earliest-finalized-then-wallet-bytes tiebreak would pay for byte
+  ordering rather than for play. The two boards therefore have different
+  qualified-winner counts on most days, which the width rule already handles by
+  renormalizing across occupied weights.
+- **A board never reports a winner it pays nothing.** After rounding, any
+  trailing zero-lamport place is dropped from the winner count. Those lamports
+  were already rollover, so this changes no payout — but under claim-based
+  settlement a zero-value place is a claim a player would pay a transaction fee
+  to collect nothing from, which is the exact outcome the width rule exists to
+  prevent.
+- **Payout width has no arithmetic cap, while the retained board has an explicit
+  systems bound.** The entry-price rule computes the full width and denominator
+  without narrowing rank or winner count to a byte. `ARENA_BOARD_CAPACITY`
+  bounds the on-chain rows and payable places; if the width exceeds it, the
+  finalized result and archive record that condition and the dropped shares are
+  rollover without renormalization.
+- **A reroll is an accepted action.** It increments the action counter and
+  folds its own replay event, so a run holding a pending or completed reroll
+  and no move is scored rather than expired; deterministic resolution when the
+  reroll output never arrives matters more than the empty row it can produce.
+  Such a run scores zero on both metrics, so the positive-metric gate above
+  keeps it off both boards.
+- **Payout width is a rule, not a count.** Board weights are the plain harmonic
+  series `1/rank`, and a board pays down to the largest place count whose last
+  payout still meets or exceeds the entry price, floored at four places. The
+  harmonic weight is exact integer division — no fixed-point root, no
+  approximation, and no large-rank underflow edge.
+  Existing renormalization, the 1,000,000-lamport payout floor, and dust
+  rollover are unchanged.
+- **Settlement is claim-based without an off-chain proof dependency.**
+  Finalization allocates one exact-sized account for each of the Score and Theme
+  boards. The keeper submits at most ten sorted rows per write, and the program
+  verifies every row against its `ArenaPlayer`, enforces ordering and uniqueness
+  across the persisted cursor, and seals only the program-computed count. Claims
+  remain disabled until sealing, then locate the owner's position and recompute
+  its payout directly. Dynamic claimed and profile-sync bitmaps live beside the
+  rows in each board account. A reward stays claimable for **thirty days from
+  finalization**; after archival, unclaimed rewards expire into the next daily
+  pot, never into operator revenue.
+- **The ladder is Elo, pays nothing, and runs on no timer.** The keeper
+  computes ratings from finalized on-chain daily boards, publishes them with a
+  commitment hash, and anyone may recompute and verify from chain data; the
+  rating itself is never a money path. It does not decay. Its payoff is
+  cosmetic: a named tier shown beside the player's identity on every
+  leaderboard. The approved fallback if true Elo is deferred is log-rank
+  scoring, `points = 50 * ln(entrants / rank)`.
+- **A ladder reset is a decision, not a date, and is always announced weeks
+  ahead.** A reset compresses toward the mean at roughly k=0.6 rather than
+  wiping, and a player's highest tier ever achieved is permanent on their
+  profile. Never reset by surprise: a ladder that might vanish at any moment
+  cannot be climbed toward, and one that never resets entrenches the top so
+  newcomers cannot climb at all.
+- **A championship is discretionary and unscheduled.** When one is run it is
+  contested by the ladder's top finishers and funded separately from operator
+  revenue; no lamports are escrowed or withheld from daily pots for it, so it is
+  a marketing commitment rather than an accounted prize balance. Its amount, or
+  a public formula over already public data, must be stated when it is
+  announced and never settled afterwards. Funding it is a governance action
+  requiring exact approval like any other operator spend.
+- **Reroll is a fourth bonus type**, replacing the next preview row rather than
+  altering the board. Because it consumes an additional VRF output it must fold
+  into the replay commitment as its own event under a distinct domain
+  separator, or determinism and independent recomputation break. Reroll is
+  categorically unlike Hammer, Totem and Wave: those alter the board, reroll
+  alters supply, attacking the one-row lookahead that is the game's core
+  tension.
+- **A Kredit is never granted, discounted, or bundled as a bonus.** Every Kredit
+  in existence was bought at the same price, so every entry contributes the same
+  lamports and no entry dilutes another. Larger packs carry cosmetics only. Free
+  and airdropped Kredits, bulk bonus Kredits, and per-unit bulk discounts are
+  all prohibited on the paid boards — a discount reduces the per-entry
+  contribution and is the same dilution wearing a different label. Unpaid
+  prestige boards are the only place an unbacked entry may exist.
+
+Superseded on implementation, and only then: the Weekly pot and its 60/25/15
+skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
+the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
+lamport splitting, and the Product truth statements ruling out soft currencies,
+deposits, prize claims, and ratings.
 
 ## Transaction policy
 
@@ -66,11 +262,16 @@ documents, and do not move approval policy or operator runbooks into `README.md`
   instructions, accounts, signers, cluster, and spend. A short `I approve` is
   valid only when it directly answers the immediately preceding single
   enumerated bundle and no detail has drifted.
-- The recurring keeper exception requires a separately approved fingerprinted
-  release enforcing Devnet genesis, deployed ProgramData hash, exact signer,
-  current/recent cadence PDAs, canonical instruction allowlist, at most eight
-  writes and two expired-session closures, 0.1 SOL simulated spend per pass,
-  and a 0.1 SOL reserve floor.
+- **No recurring keeper authority currently exists.** Every fingerprinted
+  release approved before 2026-08-08 died with the abandoned deployment. A new
+  one requires a separately approved fingerprinted release enforcing Devnet
+  genesis, deployed ProgramData hash, exact signer, current/recent cadence PDAs,
+  canonical instruction allowlist, the release's own declared write and closure
+  ceilings, 0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The
+  schema-15 source release currently declares six general writes, thirty-two
+  board-construction writes, one participant closure, two expired-session
+  closures, and at most 1,804,825,440 lamports of recyclable board rent per
+  pass; those numbers are a proposal until approved, not inherited permission.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
   mainnet actions remain outside recurring authority and require exact
@@ -96,6 +297,21 @@ documents, and do not move approval policy or operator runbooks into `README.md`
   `z-korp/zkube-solana:main` to project
   `prj_5kqIxlxgXHXGhldje8unic9h3qYA` under `z-labs`. Never deploy zKube under
   JCN DATA; its temporary exception is Fly Devnet keeper hosting only.
+
+## Versioning
+
+`zkube-core` is not published and has no independently-upgrading consumer: the
+program, keeper, and client all move in one commit, so the compiler is the
+compatibility check and a crate version communicates nothing semver was designed
+to communicate. Do not bump it per change or per phase. The `coreVersion`
+assertion in the fixtures only fires when the version moves and the vectors are
+not regenerated; it does not catch a logic change made without a bump, because
+the golden vector values already do that. Leave the version alone through
+development and cut `1.0.0` at the first bootstrap, where a deployed binary
+becomes a consumer that cannot be recompiled in lockstep and the number is
+pinned in the deployment manifest. Protocol identity is carried by the rules
+account version, keeper release schema, and archive contract version — those are
+the numbers that must stay truthful.
 
 ## Validation gates
 
@@ -128,65 +344,30 @@ behaviour agents must preserve.
 
 ### Accounting
 
-Each paid entry transfers exactly 10,000,000 lamports: 6,000,000 to the
-following Daily, 2,000,000 to the following Weekly, 1,000,000 to the following
-Season, and 1,000,000 to operator revenue. Entries never increase their own
-active pot. Every calculated transfer rounds down to 1,000,000 lamports;
-division residue, rounding dust, and empty allocations roll into the following
-competition of the same type. When fewer winners qualify, the occupied payout
-weights are renormalized before rounding. The invariant is
-`entries_scored + entries_expired == entries_paid`.
+Superseded in full by the v5 specification above. Entry routing, the two daily
+boards, payout width, claim settlement, and rollover are defined there and
+nowhere else. The v4 rules this section used to carry — a four-way entry split,
+Weekly and Season pots, the 45/25/15/10/5 curve, and push settlement — describe
+a protocol that no longer exists in source or on chain.
 
-Settlement is atomic, push-only, may be late, and is never cancelled. A paid
-entry has no refund or claim path. Operator withdrawals are governance actions
-and cannot spend accounted prize balances.
-
-All pots are prepaid. Initialization may seed only the first Daily, Weekly, and
-Season with values from a separately approved release bundle; every later pot is
-funded automatically from predecessor entries plus predecessor rollover.
-
-A separately approved manual top-up may add any positive lamport amount to the
-canonical current or following Daily, Weekly, or Season while that pool is live.
-The pool kind and cadence ID select an exact PDA-specific instruction, and the
-transfer increments the same on-chain seeded-funds ledger settlement reads.
-A direct wallet transfer to a pool PDA is not prize funding — it does not touch
-that ledger. The keeper has no authority to invoke this path.
-
-Devnet may launch partway through a calendar Weekly or Season. The first seeded
-Daily starts on the launch day; the first Weekly and Season keep canonical
-closing timestamps but qualify only finalized Dailies from the launch day
-onward. That qualification start is immutable and settlement validates every
-included Daily on-chain. Successors start at normal Monday boundaries with full
-calendar periods.
+Two invariants survive unchanged and are not restated above:
+`entries_scored + entries_expired == entries_paid`, and the rule that a paid
+entry has no refund or claim-back path. Operator withdrawals remain governance
+actions and cannot spend accounted prize balances.
 
 ### Competitions
 
-The next preactivated Daily opens at 00:00 even while the preceding payout pass
-finishes, so settlement never creates a playable-day gap. The keeper prepares
-successor accounts before entries open, so the client can show the active
-guaranteed pot and following-period funding separately.
+Superseded in full by the v5 specification above. There are no Weekly or Season
+competitions, no skill-metric boards, and no Daily-to-Season band table. One
+Daily, split Score and Theme, is the only competition.
 
-Daily keeps one best score per wallet while retaining attempt counts. Each
-Monday-aligned Weekly selects one deterministic metric per category — combo
-(maximum combo, combo-scoring actions, or combo-derived score); single action
-(highest action score, most lines, or most blocks destroyed); full run (total
-lines, total blocks destroyed, or perfect clears) — divides its pot equally
-across the three boards, and a wallet may win more than one board.
+The next preactivated Daily still opens at 00:00 even while the preceding payout
+pass finishes, so settlement never creates a playable-day gap, and the keeper
+still prepares successor accounts before entries open so the client can show the
+active guaranteed pot and following-period funding separately.
 
-A Season is a Monday-aligned 28-day period. Each finalized Daily contributes one
-band result per wallet and the best 20 count:
-
-| Daily band | Season points |
-| --- | ---: |
-| Top 1%, capped at rank 3 | 100 |
-| Top 5%, capped at rank 10 | 60 |
-| Top 10%, capped at rank 20 | 30 |
-| Top 25%, capped at rank 50 | 10 |
-| Another scoreable result | 2 |
-
-Leaderboards order by primary score or metric descending, then earliest
-finalized achievement, then wallet bytes.
-
+Leaderboards order by primary metric descending, then earliest finalized
+achievement, then wallet bytes.
 ### Campaign progression
 
 Ten zones of ten levels: 100 levels, 300 stars, stored as one packed 25-byte
@@ -228,25 +409,23 @@ become scoreable later.
 
 ### Competitive profile
 
-Player state keeps lifetime paid entries and one compact Daily, Weekly, and
-Season record. Each record stores best payout-bearing rank, podiums, wins, and
-pushed rewards in lamports. A non-paying leaderboard place stays visible on the
-period board but is not a profile best rank, so Daily and Season profile ranks
-cover only the top five; each Weekly skill board covers its own top three, and
-Weekly podiums and wins count the three boards independently. Aggregate wins and
-rewards are display-time sums.
+Player state keeps lifetime paid entries and one compact Daily record holding
+best payout-bearing rank, podiums, wins, and awarded rewards in lamports. A
+non-paying leaderboard place stays visible on the period board but is not a
+profile best rank. The Weekly and Season records are gone; the Kredit balance is
+live and fifty-six reserved bytes, validated as zero, remain for later profile
+fields.
+
+Payouts are settled before profile metadata synchronizes. A permissionless Daily
+profile-sync instruction recomputes the exact settled payout from the finalized
+board and ledger, then uses a per-period winner-position bitmask for idempotence.
+A missing or failed profile sync can never delay, cancel, repeat, or affect a SOL
+transfer.
 
 The featured emblem is owner- or device-session-selectable. ID 0 automatically
-chooses the strongest unlocked emblem; IDs 1–10 are zone guardians, 11 is Realm
+chooses the strongest unlocked emblem; IDs 1-10 are zone guardians, 11 is Realm
 Conqueror for all ten guardians, and 12 is World Perfect for 300/300 stars.
 Emblems are identity display only with no monetary effect.
-
-Payouts are pushed before profile metadata synchronizes. Separate permissionless
-Daily, Weekly, and Season profile-sync instructions recompute the exact
-already-pushed payout from finalized boards and ledgers, then use per-period
-winner-position bitmasks for idempotence. A missing or failed profile sync can
-never delay, cancel, repeat, or affect a SOL transfer.
-
 ### Runtime boundaries
 
 | Boundary | Responsibility | Authority and funding |
@@ -254,7 +433,7 @@ never delay, cancel, repeat, or affect a SOL transfer.
 | Owner wallet | Durable identity and paid entry | Signs every 0.01 SOL entry |
 | Device session | Approximately seven days of safe gameplay | Never signs entry payment |
 | Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
-| Cadence funding PDA | Recyclable Daily/Weekly/Season rent float | Separately seeded; narrow self-CPI preparation only |
+| Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
 | Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
@@ -264,7 +443,7 @@ never delay, cancel, repeat, or affect a SOL transfer.
 The player funding PDA is System-owned with zero data and can fund only the rent
 paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot
 forward arbitrary instructions. The cadence funding PDA follows the same pattern
-but is usable only by the exact Daily, Weekly, and Season preparation wrappers.
+but is usable only by the exact Daily preparation and board-allocation wrappers.
 
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
 limit and 1,000-micro-lamport unit price before wallet approval, so the maximum
@@ -295,19 +474,21 @@ winner profile synchronization and every required rollup completes. Before the
 on-chain account is committed and closed, the Devnet keeper atomically writes and
 re-reads the complete canonical result JSON on its persistent Fly volume. The
 small program-owned Arcade archive then advances one sequential rolling
-commitment per Daily, Weekly, and Season. Devnet volume storage is a recovery
+commitment per Daily. Devnet volume storage is a recovery
 aid, not the Mainnet durability design; Mainnet requires replicated public
 archive storage.
 
-Archive contract v1 files remain append-only and are never rewritten. New files
-use contract v2: `resultDataBase64` carries the exact immutable Borsh result
-projection committed by `resultHash` and the rolling root, while full raw account
-bytes remain point-in-time evidence. Closure reprojects both v1 and v2 evidence
-through the checked-in IDL and verifies the stored account, cadence, program,
-result hash, root, and immutable projection exactly. It does not require current
-raw-byte equality after permitted metadata changes such as winner profile
-synchronization. A missing or invalid committed file is never re-materialized;
-that cadence archive plan is quarantined while independent keeper plans continue.
+Archive contract v1 files remain append-only and are never rewritten. Contract
+v2 added `resultDataBase64`; new files use contract v3 and additionally retain
+the complete raw Score and Theme board accounts beside the raw Daily account.
+The exact immutable Borsh projection committed by `resultHash` and the rolling
+root therefore includes both board headers and every verified row, while mutable
+claim and profile-sync bitmaps remain point-in-time evidence. Closure reprojects
+supported v1-v3 evidence through the checked-in IDL and verifies the stored
+accounts, cadence, program, result hash, root, and immutable projection exactly.
+It does not require current raw-byte equality after permitted metadata changes.
+A missing or invalid committed file is never re-materialized; that cadence
+archive plan is quarantined while independent keeper plans continue.
 
 ### Keeper safety
 
@@ -315,12 +496,12 @@ The keeper validates cluster genesis, program and ProgramData identity, account
 owner, bounded length, discriminator, version, PDA, and stored account
 relationships before decoding or planning a write. It reconciles:
 
-- current and following Daily, Weekly, and Season preparation;
-- terminal or deadline Arena, Practice, and Campaign runs;
+- current and following Daily preparation;
+- terminal or deadline Arena and Campaign runs;
 - deterministic expiry and orphan recovery;
-- Daily-to-Season rollup and sealing;
-- Daily, Weekly, and Season push settlement and rollover;
-- post-settlement Daily, Weekly, and Season profile synchronization;
+- Daily finalization, verified Score/Theme board construction, direct-claim
+  expiry, and rollover;
+- post-settlement Daily profile synchronization;
 - full canonical cadence snapshots, sequential on-chain archive commitments,
   and safe cadence-account closure back to the cadence funding PDA;
 - resolved run and expired session cleanup;
@@ -331,23 +512,25 @@ The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. A
 write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
 program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
-instruction allowlist, eight-write limit, two-session cleanup limit, 0.1 SOL
-simulated spend ceiling, a separate two-participant-account closure limit, and
-a 0.1 SOL keeper reserve floor.
+instruction allowlist, a six-write general limit, a separate 32-write board
+construction limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling,
+a separate 1,804,825,440-lamport recyclable board-rent ceiling, a separate
+one-participant-account closure limit, and a 0.1 SOL keeper reserve floor.
 
-Keeper release-policy schema v11 fingerprints supported archive contracts
-`[1,2]` and the keeper's 10,240-byte fail-closed cadence-result encoding bound.
-It requires the Daily archive checkpoint to cover a Weekly's final qualified day
-before planning settlement. It quarantines a typed per-cadence
-archive-integrity failure without blocking an independent Daily, Weekly, Season,
-or Campaign plan. Global chain readiness, policy, materialization, storage
+Keeper release-policy source schema v15 fingerprints supported archive contracts
+`[1,2,3]`, the 1,536-row board bound, and the keeper's 300,000-byte fail-closed
+cadence-result encoding bound.
+It quarantines a typed per-cadence
+archive-integrity failure without blocking an independent Daily or Campaign
+plan. Global chain readiness, policy, materialization, storage
 configuration, and release errors remain fatal. A preparation/integrity failure
 or archive-transaction failure suppresses only the same cadence's profile sync,
 cadence close, and participant cleanup writes for that pass. Quarantined and
-suppressed plans consume neither the eight-write window nor its
-session/participant closure quotas, so later eligible recovery and
+suppressed plans consume neither the general nor board-construction write window
+nor its session/participant closure quotas, so later eligible recovery and
 unrelated-cadence work backfills the same pass. The enforced cadence ordering is
-finalize, Daily-to-Season rollup, seal, archive, profile sync, then close.
+finalize, construct both boards, archive, expire unclaimed rewards, profile sync,
+then close.
 
 ## Operator procedures
 
@@ -382,11 +565,14 @@ After the program and independently fingerprinted keeper release exist,
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused, initializes the Arcade archive
 with a 0.5 SOL recyclable cadence-rent float, publishes Campaign v2 and Arena
-rules v1, prepares current and following Daily/Weekly/Season accounts, and ends
-with one atomic transaction that seeds exactly 1/2/3 SOL, unpauses, and
-activates the three current competitions. The launch day may be mid-Weekly and
-mid-Season, but its approval expires at the specified pre-entry cutoff. The
-planner has no signing or sending path.
+rules, prepares the current and following Daily accounts, and ends with one
+atomic transaction that seeds the first Daily, unpauses, and activates it. Its
+approval expires at the specified pre-entry cutoff. The planner has no signing
+or sending path. The transaction indices quoted below are from the retired
+multi-pool shape and must be re-read from the planner's own output rather than
+assumed. The current 0.5 SOL rent float predates separate board accounts and is
+not sufficient for maximum-width boards; its replacement funding amount is an
+explicit fresh-bootstrap approval input, not an inherited default.
 
 `NO_DNA=1 pnpm chain:devnet:launch` is the separate approval-gated executor. Its
 `stage` mode simulates, signs once, confirms, and re-reads only transactions
@@ -400,14 +586,15 @@ Devnet genesis, ProgramData, account contents, cutoff, signer, keeper evidence,
 and exact instruction bytes before the atomic seed/unpause. No client or Fly
 process contains an unconditional launch path.
 
-Fresh initialization remains paused. The exact schema-v11 keeper release
-completed Devnet recovery and is write-enabled under the approved recurring
-authority, which does not authorize reinitialization, deployment, funding,
-governance, or Mainnet actions.
+No initialization has been performed and no keeper release is write-enabled.
+The abandoned v4 deployment's recovery state, release fingerprint, and recurring
+authority are void and grant nothing. A fresh bootstrap requires new approvals
+for deployment, keeper enablement, seeding, and activation, each enumerated
+exactly and none inherited.
 
 ### Manual prize top-up
 
-Never transfer SOL directly to a Daily, Weekly, or Season PDA; that does not
+Never transfer SOL directly to a Daily PDA; that does not
 update its seeded-funds ledger. From `client`, this read-only plan resolves the
 confirmed current cadences, validates the approved deployment and live accounts,
 combines instructions atomically, simulates without a signer, and writes a

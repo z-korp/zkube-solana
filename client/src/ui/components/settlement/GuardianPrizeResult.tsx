@@ -18,7 +18,7 @@ interface GuardianPrizeResultProps {
   /** The delta being celebrated, in lamports. */
   amountLamports: bigint;
   /** Which period paid. */
-  periodLabel: "Daily" | "Weekly" | "Season";
+  periodLabel: "Daily";
   /**
    * Best payout-bearing rank on the period record (0 = none, hidden). This is the
    * lifetime-best rank carried on PlayerState, not necessarily this exact

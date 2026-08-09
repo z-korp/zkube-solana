@@ -1,44 +1,71 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import {
-  equalBudgetPlan,
+  boardWidth,
+  dailyBoardPools,
   exactEntrySplit,
-  payoutPlan,
+  payoutForRank,
+  rankWeightedPayoutPlan,
 } from "../src/arcadeEconomy";
 
 describe("native SOL Arcade accounting", () => {
   it("conserves every exact 0.01 SOL entry", () => {
     expect(exactEntrySplit(10_000_000n)).toEqual({
-      followingDaily: 6_000_000n,
-      followingWeekly: 2_000_000n,
-      followingSeason: 1_000_000n,
+      followingDaily: 9_000_000n,
       operator: 1_000_000n,
     });
-    expect(() => exactEntrySplit(9_999_999n)).toThrow("exactly 0.01 SOL");
+    expect(() => exactEntrySplit(9_000_000n)).toThrow("exactly 0.01 SOL");
   });
 
-  it("renormalizes occupied Daily weights and rolls 0.001 SOL dust", () => {
-    const plan = payoutPlan(101_990_001n, [45, 25, 15, 10, 5], 2);
-    expect(plan.payouts).toEqual([65_000_000n, 36_000_000n, 0n, 0n, 0n]);
-    expect(plan.paidLamports).toBe(101_000_000n);
-    expect(plan.rolloverLamports).toBe(990_001n);
+  it("matches the core rank curve and rolls 0.001 SOL dust", () => {
+    expect(rankWeightedPayoutPlan(101_500_000n, 2)).toEqual({
+      payouts: [67_000_000n, 33_000_000n],
+      winnerCount: 2,
+      widthWinnerCount: 2,
+      denominator: 27_670_116_110_564_327_422n,
+      capacityLimited: false,
+      paidLamports: 100_000_000n,
+      rolloverLamports: 1_500_000n,
+    });
   });
 
-  it("splits Weekly into equal rounded budgets before bounty payouts", () => {
-    const split = equalBudgetPlan(20_500_001n, 3);
-    expect(split.budgets).toEqual([6_000_000n, 6_000_000n, 6_000_000n]);
-    expect(split.rolloverLamports).toBe(2_500_001n);
-    const bounty = payoutPlan(split.budgets[0]!, [60, 25, 15], 3);
-    expect(bounty.payouts).toEqual([3_000_000n, 1_000_000n, 0n]);
-    expect(bounty.rolloverLamports).toBe(2_000_000n);
-  });
-
-  it("rolls an undersized pool in full", () => {
-    expect(payoutPlan(999_999n, [100], 1)).toEqual({
-      payouts: [0n],
+  it("trims a fully starved board without changing its rollover", () => {
+    expect(rankWeightedPayoutPlan(999_999n, 1)).toEqual({
+      payouts: [],
+      winnerCount: 0,
+      widthWinnerCount: 0,
+      denominator: 18_446_744_073_709_551_615n,
+      capacityLimited: false,
       paidLamports: 0n,
       rolloverLamports: 999_999n,
     });
+  });
+
+  it("folds an empty Classic Theme board into Score", () => {
+    expect(dailyBoardPools(101_500_001n, 0)).toEqual({
+      score: 101_500_001n,
+      theme: 0n,
+    });
+    expect(dailyBoardPools(101_500_001n, 1)).toEqual({
+      score: 50_750_001n,
+      theme: 50_750_000n,
+    });
+  });
+
+  it("sizes the 1,176-place harmonic fixture without a byte-sized rank cap", () => {
+    const width = boardWidth(90_000_000_000n, 20_000);
+    expect(width.winnerCount).toBe(1_176);
+    expect(payoutForRank(90_000_000_000n, width.denominator, 1_176))
+      .toBeGreaterThanOrEqual(10_000_000n);
+    const bounded = rankWeightedPayoutPlan(90_000_000_000n, 20_000, 33);
+    expect(bounded).toMatchObject({
+      winnerCount: 33,
+      widthWinnerCount: 1_176,
+      capacityLimited: true,
+      denominator: width.denominator,
+    });
+    expect(bounded.payouts).toHaveLength(33);
+    expect(bounded.paidLamports + bounded.rolloverLamports)
+      .toBe(90_000_000_000n);
   });
 });

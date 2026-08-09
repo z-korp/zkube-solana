@@ -9,6 +9,7 @@ pub const MOVE_EVENT_TAG: u8 = 2;
 pub const BONUS_EVENT_TAG: u8 = 3;
 pub const PLAYER_ABANDON_EVENT_TAG: u8 = 4;
 pub const DAILY_DEADLINE_EVENT_TAG: u8 = 5;
+pub const REROLL_EVENT_TAG: u8 = 6;
 pub const MAX_CANONICAL_EVENT_LEN: usize = 37;
 
 macro_rules! bytes32_newtype {
@@ -52,7 +53,6 @@ bytes32_newtype!(ReplayCommitment);
 #[repr(u8)]
 pub enum ReplayMode {
     Ranked = 0,
-    Practice = 1,
 }
 
 impl ReplayMode {
@@ -84,6 +84,9 @@ pub enum ReplayEvent {
         action: u32,
         row: u8,
         column: u8,
+    },
+    Reroll {
+        action: u32,
     },
     PlayerAbandon {
         action: u32,
@@ -157,6 +160,11 @@ impl ReplayEvent {
                 bytes[5] = row;
                 bytes[6] = column;
                 7
+            }
+            Self::Reroll { action } => {
+                bytes[0] = REROLL_EVENT_TAG;
+                bytes[1..5].copy_from_slice(&action.to_le_bytes());
+                5
             }
             Self::PlayerAbandon { action } => {
                 bytes[0] = PLAYER_ABANDON_EVENT_TAG;
@@ -262,7 +270,7 @@ mod tests {
         mode: String,
         player_id_hex: String,
         initial_commitment_hex: String,
-        events: [GoldenEvent; 4],
+        events: std::vec::Vec<GoldenEvent>,
         final_commitment_hex: String,
     }
 
@@ -282,7 +290,7 @@ mod tests {
             .collect()
     }
 
-    fn fixture_events() -> [ReplayEvent; 4] {
+    fn fixture_events() -> [ReplayEvent; 5] {
         [
             ReplayEvent::Vrf {
                 request_counter: 1,
@@ -295,10 +303,10 @@ mod tests {
                 start: 2,
                 destination: 5,
             },
-            ReplayEvent::Bonus {
-                action: 1,
-                row: 3,
-                column: 6,
+            ReplayEvent::Reroll { action: 1 },
+            ReplayEvent::Vrf {
+                request_counter: 2,
+                output: [0xb6; 32],
             },
             ReplayEvent::DailyDeadline { action: 2 },
         ]
@@ -312,17 +320,46 @@ mod tests {
             events[1].canonical_bytes().as_slice(),
             [2, 0, 0, 0, 0, 1, 2, 7, 2, 5]
         );
-        assert_eq!(
-            events[2].canonical_bytes().as_slice(),
-            [3, 1, 0, 0, 0, 3, 6]
-        );
+        assert_eq!(events[2].canonical_bytes().as_slice(), [6, 1, 0, 0, 0]);
         assert_eq!(
             ReplayEvent::PlayerAbandon { action: 2 }
                 .canonical_bytes()
                 .as_slice(),
             [4, 2, 0, 0, 0]
         );
-        assert_eq!(events[3].canonical_bytes().as_slice(), [5, 2, 0, 0, 0]);
+        assert_eq!(events[4].canonical_bytes().as_slice(), [5, 2, 0, 0, 0]);
+        assert_eq!(
+            ReplayEvent::Reroll { action: 3 }
+                .canonical_bytes()
+                .as_slice(),
+            [6, 3, 0, 0, 0]
+        );
+        assert_eq!(
+            ReplayEvent::Bonus {
+                action: 1,
+                row: 3,
+                column: 6,
+            }
+            .canonical_bytes()
+            .as_slice(),
+            [3, 1, 0, 0, 0, 3, 6]
+        );
+    }
+
+    #[test]
+    fn replay_tags_match_the_shared_protocol_fixture() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../fixtures/protocol-invariants.json"))
+                .unwrap();
+        assert_eq!(fixture["schemaVersion"], 4);
+        assert_eq!(fixture["coreVersion"], crate::CORE_VERSION);
+        let tags = &fixture["replayEventTags"];
+        assert_eq!(tags["vrf"], VRF_EVENT_TAG);
+        assert_eq!(tags["move"], MOVE_EVENT_TAG);
+        assert_eq!(tags["bonus"], BONUS_EVENT_TAG);
+        assert_eq!(tags["playerAbandon"], PLAYER_ABANDON_EVENT_TAG);
+        assert_eq!(tags["dailyDeadline"], DAILY_DEADLINE_EVENT_TAG);
+        assert_eq!(tags["reroll"], REROLL_EVENT_TAG);
     }
 
     #[test]
@@ -339,7 +376,6 @@ mod tests {
         let run_id = fixture.run_id.parse::<u64>().unwrap();
         let mode = match fixture.mode.as_str() {
             "ranked" => ReplayMode::Ranked,
-            "practice" => ReplayMode::Practice,
             _ => panic!("unknown fixture mode"),
         };
         let player_id = derive_player_id(domain, raw_account);
@@ -366,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_mode_player_and_run_all_change_the_initial_commitment() {
+    fn domain_player_and_run_all_change_the_initial_commitment() {
         let domain = ChainDomain([1; 32]);
         let challenge = ChallengeId([2; 32]);
         let rules = RulesHash([3; 32]);
@@ -398,10 +434,6 @@ mod tests {
         assert_ne!(
             baseline,
             ReplayCommitment::initial(domain, challenge, rules, player, 8, ReplayMode::Ranked)
-        );
-        assert_ne!(
-            baseline,
-            ReplayCommitment::initial(domain, challenge, rules, player, 7, ReplayMode::Practice)
         );
     }
 }

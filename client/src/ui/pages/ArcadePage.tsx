@@ -28,9 +28,6 @@ import {
   usePrizeDeltaTrigger,
 } from "@/ui/components/settlement";
 import DailyBoard from "@/ui/components/arcade/DailyBoard";
-import SeasonTab from "@/ui/components/arena/SeasonTab";
-import WeeklyTab from "@/ui/components/arena/WeeklyTab";
-import SegmentedTabs from "@/ui/components/shared/SegmentedTabs";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -48,15 +45,12 @@ const SECTION_CLASS =
 const CHIP_CLASS =
   "flex items-center justify-center gap-1.5 rounded-full border border-white/[0.08] bg-black/40 px-2.5 py-1.5 font-mono text-[11px] font-bold tabular-nums text-white";
 
-const BOARDS = ["Daily", "Weekly", "Season"] as const;
-
 /**
  * The Arcade — pot and boards on one scroll. Today's zone art shows through a
  * shared ZoneBackdrop, with opaque block panels layered over it: the challenge card
- * (guardian + rule), the Daily pot with the player's rank, then the Daily /
- * Weekly / Season boards inline behind one segmented switch. The ranked entry
- * CTA stays pinned at the bottom on every board — the board is the sales
- * floor. The body reshapes across five lifecycle states (the connect-gate is
+ * (guardian + rule), the Daily pot with the player's rank, then the Daily board.
+ * The ranked entry CTA stays pinned at the bottom — the board is the sales floor.
+ * The body reshapes across five lifecycle states (the connect-gate is
  * handled globally by App).
  */
 const ArcadePage: React.FC = () => {
@@ -67,7 +61,7 @@ const ArcadePage: React.FC = () => {
   const activeDaily = useActiveDailyAttempt();
   const { setThemeTemplate } = useTheme();
 
-  // The ranked-entry confirm ("insert coin") sits before the owner signature.
+  // Spending an already-owner-funded Kredit is device-session authorized.
   const [coinSheetOpen, setCoinSheetOpen] = useState(false);
   // DEV-ONLY sheet preview (?demo=coin with the wallet bypass) — the coin
   // sheet lives here, so its fixture preview does too. Folds away in prod.
@@ -80,9 +74,6 @@ const ArcadePage: React.FC = () => {
       setCoinSheetOpen(true);
     }
   }, []);
-  // Which board shows under the pot — the boards share the page's one scroll.
-  const [activeBoard, setActiveBoard] =
-    useState<(typeof BOARDS)[number]>("Daily");
   // Data-available celebration for a grown per-period reward record.
   const { prize, dismiss: dismissPrize } = usePrizeDeltaTrigger();
 
@@ -120,13 +111,12 @@ const ArcadePage: React.FC = () => {
 
   // The pinned key: one verb per lifecycle; only "Enter" carries the coin.
   let primaryLabel = "Enter";
-  let primaryAmount: string | null = entrySol;
+  let primaryAmount: string | null = view?.kreditBalance ? "1" : entrySol;
   let primaryDisabled = false;
   let primaryOnClick: () => void = () => {};
 
   if (lifecycle === "resume") {
-    primaryLabel =
-      activeDaily?.mode === "practice" ? "Resume Practice" : "Resume run";
+    primaryLabel = "Resume run";
     primaryAmount = null;
     primaryOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
@@ -140,13 +130,23 @@ const ArcadePage: React.FC = () => {
       primaryLabel = "Ranked paused";
       primaryAmount = null;
       primaryDisabled = true;
-    } else if (daily.action === "enter:sol") {
-      primaryLabel = "Preparing signature…";
+    } else if (daily.action === "enter:kredit") {
+      primaryLabel = "Spending Kredit…";
       primaryAmount = null;
       primaryDisabled = true;
+    } else if (daily.action === "buy:kredits") {
+      primaryLabel = "Buying Kredit…";
+      primaryAmount = null;
+      primaryDisabled = true;
+    } else if ((view?.kreditBalance ?? 0n) === 0n) {
+      primaryLabel = "Buy Kredit";
+      primaryAmount = entrySol;
+      primaryDisabled = busy || !player.wallet;
+      primaryOnClick = () => void daily.buyKredits(1).catch(() => undefined);
     } else {
       primaryDisabled = busy || !player.wallet;
-      // Tap the key → confirm sheet → owner signature → play.
+      primaryAmount = "1";
+      // Tap the key → confirm one prepaid Kredit → session-authorized play.
       primaryOnClick = () => setCoinSheetOpen(true);
     }
   } else {
@@ -172,19 +172,8 @@ const ArcadePage: React.FC = () => {
         Arcade
       </h1>
 
-      {/* The period switch owns the top — Daily / Weekly / Season. */}
-      <div className="relative z-10 mx-4 mt-3">
-        <SegmentedTabs
-          tabs={BOARDS}
-          active={activeBoard}
-          onChange={setActiveBoard}
-          layoutId="arcade-board-indicator"
-        />
-      </div>
-
       <div className="relative z-10 mx-4 mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 hide-scrollbar">
-        {activeBoard === "Daily" && (
-          <>
+        <>
             {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
               <>
                 {/* The floor header: chips, not sentences. */}
@@ -210,9 +199,8 @@ const ArcadePage: React.FC = () => {
                         : "Closed"}
                     </span>
                     <InfoTip label="Daily rules">
-                      Top 5 split the pot 45 / 25 / 15 / 10 / 5%, floored to
-                      0.001 SOL. Pts is the Season points each rank earns
-                      today — your best 20 dailies count toward the Season.
+                      Score and Theme split the pot equally. Rank-weighted
+                      places extend while the last payout covers one Kredit.
                     </InfoTip>
                   </div>
                   <div className="mt-2.5 flex gap-1.5">
@@ -221,9 +209,7 @@ const ArcadePage: React.FC = () => {
                       {view.uniquePlayers}
                     </span>
                     <span className={`${CHIP_CLASS} flex-1`}>
-                      {entrySol}
-                      <SolMark size={10} />
-                      entry
+                      {view.kreditBalance.toString()} Kredits
                     </span>
                     {scoringRule && (
                       <span className={`${CHIP_CLASS} flex-1 truncate`}>
@@ -260,14 +246,7 @@ const ArcadePage: React.FC = () => {
                 {daily.error}
               </p>
             )}
-          </>
-        )}
-        {activeBoard === "Weekly" && (
-          <div className="mx-auto max-w-[640px]">
-            <WeeklyTab zoneId={zoneId} />
-          </div>
-        )}
-        {activeBoard === "Season" && <SeasonTab zoneId={zoneId} />}
+        </>
       </div>
 
       <div className="relative z-20 px-4 pb-3">
@@ -286,7 +265,7 @@ const ArcadePage: React.FC = () => {
           zoneId={zoneId}
           entryLamports={view.entryLamports}
           onConfirm={confirmRanked}
-          busy={daily.action === "enter:sol"}
+          busy={daily.action === "enter:kredit"}
         />
       )}
 

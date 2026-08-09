@@ -2,7 +2,7 @@
  * DEV-ONLY fixture data for the wallet-bypass harness (see devBypass.ts).
  *
  * These builders return objects that match the real chain-view shapes exactly
- * (DailyView, WeeklyView, SeasonView, CampaignView, ConnectedPlayerValue, the
+ * (DailyView, CampaignView, ConnectedPlayerValue, the
  * competitive PlayerProfile, and the player label) so the menu screens render
  * populated without any RPC or wallet. Nothing here signs, transfers, or
  * mutates chain state — it is presentation-only fixture data. The whole module
@@ -22,17 +22,6 @@ import {
   CANONICAL_DAILY_SCORING_RULES,
 } from "@/chain/dailyRules";
 import type { DailyScoringRuleView } from "@/chain/dailyRules";
-import { currentWeeklyId, weekStartDay } from "@/chain/weeklyClient";
-import type {
-  WeeklyLeaderboardEntryView,
-  WeeklyView,
-} from "@/chain/weeklyClient";
-import { currentSeasonId, seasonStartDay } from "@/chain/seasonClient";
-import type {
-  SeasonLeaderboardEntryView,
-  SeasonPlayerView,
-  SeasonView,
-} from "@/chain/seasonClient";
 import type {
   CampaignMapView,
   CampaignView,
@@ -45,7 +34,6 @@ import type { PlayerLabelView } from "@/chain/playerLabelClient";
 import type { PlayerProfileResult } from "@/hooks/usePlayerProfile";
 
 const SOL = 1_000_000_000n;
-const DAY = 86_400;
 const HOUR = 3_600;
 
 /** Deterministic, always-valid 32-byte pubkey — no on-curve requirement. */
@@ -110,6 +98,7 @@ export function buildDevDailyView(): DailyView {
     runId: BigInt(1_000 + index),
     dailyScore: dailyScores[index]!,
     dailyBonusTriggers: bonusTriggers[index]!,
+    objectiveTotal: BigInt(bonusTriggers[index]! * 1_000),
     engineScore: Math.round(dailyScores[index]! * 0.7),
     moves: moves[index]!,
     finalizedAttempts: attempts[index]!,
@@ -128,15 +117,14 @@ export function buildDevDailyView(): DailyView {
     bestEngineScore: Math.round(dailyScores[DEV_ROW]! * 0.7),
     bestMoves: moves[DEV_ROW]!,
     bestScore: dailyScores[DEV_ROW]!,
-    seasonRolledUp: false,
     activePaidRunId: 0n,
   };
 
   return {
     address: devKey(500),
+    rulesCatalog: devKey(501),
     dayId,
-    weeklyId: currentWeeklyId(now),
-    seasonId: currentSeasonId(now),
+    followingDayId: dayId + 1,
     status: "open",
     mapId: 8,
     opensAt: now - HOUR,
@@ -148,9 +136,8 @@ export function buildDevDailyView(): DailyView {
     entryLamports: 10_000_000n,
     dailyPotLamports: 3_200_000_000n,
     followingDailyLamports: 1_860_000_000n,
+    kreditBalance: 3n,
     uniquePlayers: 6,
-    seasonEligiblePlayers: 6,
-    seasonRollups: 0,
     attemptsStarted: 9n,
     runsFinalized: 6n,
     entriesExpired: 0n,
@@ -159,96 +146,15 @@ export function buildDevDailyView(): DailyView {
     activeRunId: 0n,
     player,
     leaderboard,
+    themeLeaderboard: [...leaderboard].sort((left, right) =>
+      Number(right.objectiveTotal - left.objectiveTotal)),
+    scoreQualifiedPlayers: leaderboard.length,
+    themeQualifiedPlayers: leaderboard.length,
     rules: DEV_RUN_RULES,
     scoringRule,
     pressure: CANONICAL_DAILY_PRESSURE,
     endlessThresholds: CANONICAL_DAILY_PRESSURE.thresholds,
     endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
-  };
-}
-
-function weeklyEntry(
-  seed: number,
-  name: string,
-  value: number,
-  finalizedAt: number,
-): WeeklyLeaderboardEntryView {
-  return {
-    player: seed === DEV_ROW ? DEV_PLAYER_PUBLIC_KEY : devKey(seed + 20),
-    playerName: name,
-    daily: devKey(seed + 120),
-    runId: BigInt(2_000 + seed),
-    value: BigInt(value),
-    score: value,
-    finalizedAt,
-    replayHash: EMPTY_HASH,
-  };
-}
-
-export function buildDevWeeklyView(): WeeklyView {
-  const now = Math.floor(Date.now() / 1_000);
-  const weeklyId = currentWeeklyId(now);
-  const board = (values: readonly number[]) =>
-    values.map((value, index) =>
-      weeklyEntry(index, NAMES[index] ?? `Player_${index}`, value, now - index * 900),
-    );
-  const boards: WeeklyView["boards"] = [
-    board([146, 128, 121, 118]),
-    board([9_820, 8_640, 7_510, 6_900]),
-    board([612_400, 548_900, 501_200]),
-  ];
-  return {
-    address: devKey(600),
-    weeklyId,
-    qualificationStartDay: weekStartDay(weeklyId),
-    status: "open",
-    opensAt: now - 3 * DAY,
-    closesAt: now + 4 * DAY,
-    finalizedAt: 0,
-    activePotLamports: 5_400_000_000n,
-    followingWeeklyLamports: 2_700_000_000n,
-    participants: 12,
-    rulesHash: EMPTY_HASH,
-    metricLabels: ["Highest Combo", "Best Single Action", "Full-Run Score"],
-    boards,
-    leaderboard: boards[2],
-  };
-}
-
-export function buildDevSeasonView(): SeasonView {
-  const now = Math.floor(Date.now() / 1_000);
-  const seasonId = currentSeasonId(now);
-  const points = [92, 81, 74, 63, 48, 32];
-  const leaderboard: SeasonLeaderboardEntryView[] = NAMES.map((name, index) => ({
-    player: index === DEV_ROW ? DEV_PLAYER_PUBLIC_KEY : devKey(index + 40),
-    playerName: name,
-    points: points[index]!,
-    finalizedAt: now - index * 1_200,
-  }));
-  const player: SeasonPlayerView = {
-    player: DEV_PLAYER_PUBLIC_KEY,
-    points: points[DEV_ROW]!,
-    resultCount: 3,
-    results: [
-      { dayId: currentDailyDayId(now) - 1, points: 25, rank: 3, recordedAt: now - DAY },
-      { dayId: currentDailyDayId(now) - 2, points: 20, rank: 5, recordedAt: now - 2 * DAY },
-      { dayId: currentDailyDayId(now) - 3, points: 18, rank: 6, recordedAt: now - 3 * DAY },
-    ],
-    finalCountedAt: 0,
-  };
-  return {
-    address: devKey(700),
-    seasonId,
-    qualificationStartDay: seasonStartDay(seasonId),
-    status: "open",
-    opensAt: now - 10 * DAY,
-    closesAt: now + 18 * DAY,
-    finalizedAt: 0,
-    activePotLamports: 7_800_000_000n,
-    followingSeasonLamports: 3_100_000_000n,
-    sealedDailies: 10,
-    leaderboard,
-    player,
   };
 }
 
@@ -343,30 +249,13 @@ export function applyDevPlayerProfile(
     wins: 1,
     rewardsLamports: 15n * (SOL / 10n),
   };
-  const weeklyRecord: CompetitionRecord = {
-    bestPrizeRank: 1,
-    podiums: 3,
-    wins: 2,
-    rewardsLamports: 21n * (SOL / 10n),
-  };
-  const seasonRecord: CompetitionRecord = {
-    bestPrizeRank: 3,
-    podiums: 2,
-    wins: 0,
-    rewardsLamports: 8n * (SOL / 10n),
-  };
   return {
     ...base,
     featuredEmblem: DEV_FEATURED_EMBLEM,
     lifetimePaidEntries: 42n,
     dailyRecord,
-    weeklyRecord,
-    seasonRecord,
-    totalWins: dailyRecord.wins + weeklyRecord.wins + seasonRecord.wins,
-    totalRewardsLamports:
-      dailyRecord.rewardsLamports +
-      weeklyRecord.rewardsLamports +
-      seasonRecord.rewardsLamports,
+    totalWins: dailyRecord.wins,
+    totalRewardsLamports: dailyRecord.rewardsLamports,
     loading: false,
     error: null,
   };

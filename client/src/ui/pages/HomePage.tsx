@@ -110,8 +110,7 @@ const HomePage: React.FC = () => {
   let playDisabled = false;
   let playOnClick: () => void = () => navigate("arcade");
   if (lifecycle === "resume") {
-    playLabel =
-      activeDaily?.mode === "practice" ? "Resume Practice" : "Resume";
+    playLabel = "Resume";
     playOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };

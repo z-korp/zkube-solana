@@ -9,7 +9,7 @@ const OWNER = PublicKey.unique();
 
 // Decode `data[0]` bytes into daily-record lamports (0.1 SOL each) and `data[1]`
 // into the daily best rank; 0xff means "malformed" so the untrusted-RPC guard
-// can be exercised. Weekly/Season stay empty.
+// can be exercised.
 vi.mock("@/chain/campaignClient", () => ({
   decodePlayerStateAccount: (
     _program: unknown,
@@ -19,7 +19,6 @@ vi.mock("@/chain/campaignClient", () => ({
   ) => {
     if (info.data[0] === 0xff) throw new Error("malformed PlayerState");
     const units = BigInt(info.data[0] ?? 0);
-    const empty = { bestPrizeRank: 0, podiums: 0, wins: 0, rewardsLamports: 0n };
     return {
       owner,
       version: 4,
@@ -32,8 +31,6 @@ vi.mock("@/chain/campaignClient", () => ({
         wins: 0,
         rewardsLamports: units * 100_000_000n,
       },
-      weeklyRecord: { ...empty },
-      seasonRecord: { ...empty },
     };
   },
 }));

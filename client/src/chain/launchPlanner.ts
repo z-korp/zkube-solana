@@ -18,30 +18,20 @@ import {
   buildPublishCanonicalMapsPlan,
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
-import {
-  LAUNCH_DAILY_SEED_LAMPORTS,
-  LAUNCH_SEASON_SEED_LAMPORTS,
-  LAUNCH_WEEKLY_SEED_LAMPORTS,
-} from "./deploymentManifest";
+import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
+  deriveCreditVaultPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
-import {
-  MONDAY_EPOCH_DAY_ID,
-  SEASON_DAYS,
-  SECONDS_PER_DAY,
-  WEEK_DAYS,
-} from "./protocolVersions.generated";
+import { SECONDS_PER_DAY } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import type { TransactionPlan } from "./runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
@@ -58,13 +48,12 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: 156,
   mapCatalog: 275,
-  dailyRulesCatalog: 346,
-  arcadeConfig: 119,
+  dailyRulesCatalog: 3_964,
+  arcadeConfig: 103,
   operatorRevenueVault: 58,
-  arcadeArchive: 162,
-  arenaDaily: 7_426,
-  weeklyJackpot: 5_925,
-  season: 2_222,
+  creditVault: 58,
+  arcadeArchive: 82,
+  arenaDaily: 10_226,
 } as const;
 
 export interface LaunchPlannerInput {
@@ -106,8 +95,6 @@ export interface LaunchCostPlan {
 export interface ZkubeLaunchPlan {
   input: LaunchPlannerInput;
   observedUnixTimestamp: number;
-  weekId: number;
-  seasonId: number;
   programDataAddress: string;
   rulesCatalogSha256: string;
   fundingPlan?: TransactionPlan;
@@ -229,7 +216,6 @@ export async function buildZkubeLaunchPlan(
   if (observedUnixTimestamp === null) {
     throw new Error("unable to read the current Devnet clock");
   }
-  const { weekId, seasonId } = launchCadences(input.launchDayId);
   assertLaunchWindow(
     input.launchDayId,
     input.launchCutoffUnixTimestamp,
@@ -250,11 +236,7 @@ export async function buildZkubeLaunchPlan(
   }
   const teamFundingLamports = teamInfo ? 0 : TEAM_DESTINATION_FUNDING_LAMPORTS;
 
-  const targetAccounts = bootstrapTargetAccounts(
-    input.launchDayId,
-    weekId,
-    seasonId,
-  );
+  const targetAccounts = bootstrapTargetAccounts(input.launchDayId);
   const targetInfos = await connection.getMultipleAccountsInfo(
     targetAccounts,
     "confirmed",
@@ -324,6 +306,7 @@ export async function buildZkubeLaunchPlan(
       connection,
       authority: wallet,
       firstDayId: input.launchDayId,
+      rulesVersion: ARENA_RULES_VERSION,
     }),
   );
   plans.push(
@@ -332,8 +315,7 @@ export async function buildZkubeLaunchPlan(
       authority: wallet,
       rulesVersion: ARENA_RULES_VERSION,
       dayId: input.launchDayId,
-      weekId,
-      seasonId,
+      contentVersion: CAMPAIGN_CONTENT_VERSION,
     })),
   );
   plans.push(
@@ -341,8 +323,7 @@ export async function buildZkubeLaunchPlan(
       connection,
       authority: wallet,
       dayId: input.launchDayId,
-      weekId,
-      seasonId,
+      rulesVersion: ARENA_RULES_VERSION,
     }),
   );
 
@@ -352,13 +333,10 @@ export async function buildZkubeLaunchPlan(
     LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
     LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
+    LAUNCH_ACCOUNT_SPACES.creditVault,
     LAUNCH_ACCOUNT_SPACES.arcadeArchive,
     LAUNCH_ACCOUNT_SPACES.arenaDaily,
     LAUNCH_ACCOUNT_SPACES.arenaDaily,
-    LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
-    LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
-    LAUNCH_ACCOUNT_SPACES.season,
-    LAUNCH_ACCOUNT_SPACES.season,
   ];
   const rentFloors = await Promise.all(
     accountSpaces.map((space) =>
@@ -376,12 +354,7 @@ export async function buildZkubeLaunchPlan(
     "bootstrap fees",
   );
   const seedLamports = sumSafe(
-    [
-      Number(LAUNCH_DAILY_SEED_LAMPORTS),
-      Number(LAUNCH_WEEKLY_SEED_LAMPORTS),
-      Number(LAUNCH_SEASON_SEED_LAMPORTS),
-      CADENCE_FUNDING_SEED_LAMPORTS,
-    ],
+    [Number(LAUNCH_DAILY_SEED_LAMPORTS), CADENCE_FUNDING_SEED_LAMPORTS],
     "launch seeds",
   );
   const maximumAuthoritySpendLamports = sumSafe(
@@ -450,12 +423,12 @@ export async function buildZkubeLaunchPlan(
     { label: "Activate staged content and rules", transactionIndexes: [12] },
     { label: "Initialize paused Arcade", transactionIndexes: [13] },
     {
-      label: "Prepare current and following periods",
-      transactionIndexes: [14, 15, 16, 17, 18, 19, 20],
+      label: "Initialize archive and prepare current/following Daily",
+      transactionIndexes: [14, 15, 16],
     },
     {
-      label: "Atomic 1/2/3 SOL seed, unpause, and activation",
-      transactionIndexes: [21],
+      label: "Atomic 1 SOL seed, unpause, and activation",
+      transactionIndexes: [17],
     },
   ];
   const approvalPayload = {
@@ -464,8 +437,6 @@ export async function buildZkubeLaunchPlan(
     observed: {
       programId: ZKUBE_PROGRAM_ID.toBase58(),
       programDataAddress: programState.programDataAddress.toBase58(),
-      weekId,
-      seasonId,
       freshTargetAccounts: targetAccounts.map((address) => address.toBase58()),
       rulesCatalogSha256,
     },
@@ -486,8 +457,6 @@ export async function buildZkubeLaunchPlan(
   return {
     input,
     observedUnixTimestamp,
-    weekId,
-    seasonId,
     programDataAddress: programState.programDataAddress.toBase58(),
     rulesCatalogSha256,
     ...(fundingPlan ? { fundingPlan } : {}),
@@ -509,12 +478,12 @@ export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
     `ProgramData SHA-256: ${plan.input.deployedProgramDataSha256}`,
     `ProgramData allocation: ${plan.input.programAllocationBytes} bytes`,
     `Authority: ${plan.input.authority}`,
-    `Launch day/week/Season: ${plan.input.launchDayId}/${plan.weekId}/${plan.seasonId}`,
+    `Launch day: ${plan.input.launchDayId}`,
     `Launch cutoff: ${plan.input.launchCutoffUnixTimestamp}`,
     `Observed chain time: ${plan.observedUnixTimestamp}`,
     `Transactions: ${plan.costs.transactionCount}`,
     `Account rent: ${plan.costs.accountRentLamports} lamports`,
-    `Seeds: ${plan.costs.seedLamports} lamports (1/2/3 SOL)`,
+    `Seeds: ${plan.costs.seedLamports} lamports (1 SOL Daily + cadence rent)`,
     `Maximum fees: ${plan.costs.maximumFeeLamports} lamports`,
     `Maximum authority spend: ${plan.costs.maximumAuthoritySpendLamports} lamports`,
     `Required post-plan reserve: ${plan.costs.authorityReserveLamports} lamports`,
@@ -534,24 +503,6 @@ export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
     ),
     "No transaction was signed or sent. This planner has no send path.",
   ].join("\n");
-}
-
-export function launchCadences(dayId: number): {
-  weekId: number;
-  seasonId: number;
-} {
-  if (
-    !Number.isSafeInteger(dayId) ||
-    dayId < MONDAY_EPOCH_DAY_ID ||
-    dayId > 0xffff_ffff
-  ) {
-    throw new Error("launch day must fit the supported cadence range");
-  }
-  const relative = dayId - MONDAY_EPOCH_DAY_ID;
-  return {
-    weekId: Math.floor(relative / WEEK_DAYS),
-    seasonId: Math.floor(relative / SEASON_DAYS),
-  };
 }
 
 function assertLaunchWindow(
@@ -576,11 +527,7 @@ function assertLaunchWindow(
   }
 }
 
-function bootstrapTargetAccounts(
-  dayId: number,
-  weekId: number,
-  seasonId: number,
-): PublicKey[] {
+function bootstrapTargetAccounts(dayId: number): PublicKey[] {
   return [
     deriveProtocolConfigPda(),
     ...Array.from({ length: 10 }, (_, index) =>
@@ -589,14 +536,11 @@ function bootstrapTargetAccounts(
     deriveDailyRulesCatalogPda(ARENA_RULES_VERSION),
     deriveArcadeConfigPda(),
     deriveOperatorRevenueVaultPda(),
+    deriveCreditVaultPda(),
     deriveArcadeArchivePda(),
     deriveCadenceFundingPda(),
     deriveArenaDailyPda(dayId),
     deriveArenaDailyPda(dayId + 1),
-    deriveWeeklyJackpotPda(weekId),
-    deriveWeeklyJackpotPda(weekId + 1),
-    deriveSeasonPda(seasonId),
-    deriveSeasonPda(seasonId + 1),
   ];
 }
 

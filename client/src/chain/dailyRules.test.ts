@@ -1,62 +1,62 @@
 // @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import {
-  CANONICAL_DAILY_PRESSURE,
-  CANONICAL_DAILY_SCORING_RULES,
-  DAILY_SCORING_RULE_COUNT,
-  dailyScoringRuleDescription,
-  dailyScoringRuleName,
-  dailyScoringRuleStatus,
-  mapDailyPressureProfile,
+  dailyContentSelection,
+  dailyIsScheduled,
+  nextScheduledDaily,
+  CANONICAL_DAILY_POOL_SEED,
 } from "./dailyRules";
+import { DAILY_POOL_CAPACITY } from "./protocolVersions.generated";
 
-describe("Daily rules", () => {
-  it("publishes all seven families through fifteen active variants", () => {
-    const active = CANONICAL_DAILY_SCORING_RULES.slice(
-      0,
-      DAILY_SCORING_RULE_COUNT,
+describe("v5 Daily content pool", () => {
+  it("draws a full reproducible cycle and resolves tomorrow today", async () => {
+    const seed = Uint8Array.from(CANONICAL_DAILY_POOL_SEED);
+    const startsDay = 20_000;
+    const selected = await Promise.all(
+      Array.from({ length: 10 }, (_, offset) =>
+        dailyContentSelection(seed, startsDay, startsDay + offset, 10)),
     );
-    expect(new Set(active.map((rule) => rule.family))).toEqual(
-      new Set([0, 1, 2, 3, 4, 5, 6]),
+    expect(selected.map(({ poolIndex }) => poolIndex)).toEqual([
+      6, 2, 1, 9, 0, 4, 3, 7, 8, 5,
+    ]);
+    expect(new Set(selected.map(({ poolIndex }) => poolIndex)).size).toBe(10);
+    const nextCycle = await Promise.all(
+      Array.from({ length: 10 }, (_, offset) =>
+        dailyContentSelection(seed, startsDay, startsDay + 10 + offset, 10)),
     );
-    expect(new Set(active.map((rule) => rule.id)).size).toBe(15);
-    expect(CANONICAL_DAILY_SCORING_RULES).toHaveLength(16);
+    expect(new Set(nextCycle.map(({ poolIndex }) => poolIndex)).size).toBe(10);
+    expect(nextCycle).not.toEqual(selected);
+    expect(await dailyContentSelection(seed, startsDay, startsDay + 1, 10))
+      .toEqual(selected[1]);
+    expect(await dailyContentSelection(seed, startsDay - 7, startsDay + 1, 10))
+      .toEqual(selected[1]);
   });
 
-  it("keeps the pressure schedule and emergency move cap visible to the client", () => {
-    const decoded = mapDailyPressureProfile(CANONICAL_DAILY_PRESSURE);
-    expect(decoded.thresholds).toEqual([8, 18, 30, 42, 54, 66, 78]);
-    expect(decoded.scoreMultipliersX100).toEqual([
-      100, 110, 125, 140, 160, 180, 210, 250,
-    ]);
-    expect(decoded.startingHeight).toBe(4);
-    expect(decoded.maxMoves).toBe(100);
-    expect(decoded.blockWeights).toEqual([
-      [25, 30, 25, 15, 5],
-      [22, 28, 25, 18, 7],
-      [20, 25, 25, 20, 10],
-      [18, 22, 24, 22, 14],
-      [16, 20, 22, 24, 18],
-      [14, 18, 20, 26, 22],
-      [12, 16, 18, 28, 26],
-      [10, 14, 16, 30, 30],
-    ]);
-    expect(
-      decoded.blockWeights.every(
-        (tier) => tier.reduce((sum, weight) => sum + weight, 0) === 100,
-      ),
-    ).toBe(true);
+  it("represents suspensions as an explicit empty or not-yet-started catalog", () => {
+    expect(dailyIsScheduled(20_000, 20_000, 0)).toBe(false);
+    expect(() => nextScheduledDaily(20_000, 20_000, 0)).toThrow(
+      "no paid Daily",
+    );
+    expect(dailyIsScheduled(20_005, 20_010, 10)).toBe(false);
+    expect(nextScheduledDaily(20_005, 20_010, 10)).toBe(20_010);
   });
 
-  it("explains combined scoring and live objective state before entry", () => {
-    const comboThree = CANONICAL_DAILY_SCORING_RULES[2];
-    expect(dailyScoringRuleName(comboThree)).toBe("3+ Line Combos");
-    expect(dailyScoringRuleDescription(comboThree)).toContain(
-      "Normal score always counts",
+  it("draws every entry at the raised capacity", async () => {
+    const seed = Uint8Array.from(CANONICAL_DAILY_POOL_SEED);
+    const startsDay = DAILY_POOL_CAPACITY * 200;
+    const selected = await Promise.all(
+      Array.from({ length: DAILY_POOL_CAPACITY }, (_, offset) =>
+        dailyContentSelection(
+          seed,
+          startsDay,
+          startsDay + offset,
+          DAILY_POOL_CAPACITY,
+        )),
     );
-    const clutch = CANONICAL_DAILY_SCORING_RULES[10];
-    expect(dailyScoringRuleStatus(clutch, 5)).toContain("Build to height 6");
-    expect(dailyScoringRuleStatus(clutch, 7)).toContain("ARMED");
+    expect(new Set(selected.map(({ poolIndex }) => poolIndex)).size).toBe(
+      DAILY_POOL_CAPACITY,
+    );
   });
 });

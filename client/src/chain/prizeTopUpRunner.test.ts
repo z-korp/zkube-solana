@@ -11,13 +11,13 @@ describe("manual prize top-up command", () => {
       cadence: "current",
       lamports: 1_000_000_000n,
     });
-    expect(parseTopUpSpec("weekly:following:3.000000001SOL")).toEqual({
-      kind: "weekly",
+    expect(parseTopUpSpec("daily:following:3.000000001SOL")).toEqual({
+      kind: "daily",
       cadence: "following",
       lamports: 3_000_000_001n,
     });
-    expect(parseTopUpSpec("season:737:2500000lamports")).toEqual({
-      kind: "season",
+    expect(parseTopUpSpec("daily:737:2500000lamports")).toEqual({
+      kind: "daily",
       cadence: 737,
       lamports: 2_500_000n,
     });
@@ -43,7 +43,7 @@ describe("manual prize top-up command", () => {
         "--top-up",
         "daily:current:1SOL",
         "--top-up",
-        "weekly:current:3SOL",
+        "daily:following:3SOL",
         "--reserve-lamports",
         "100000000",
       ],

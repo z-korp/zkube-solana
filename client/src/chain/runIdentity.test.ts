@@ -10,10 +10,7 @@ import {
   assertPreparedRunAddressesAvailable,
   resolvePreparedRunAddresses,
 } from "./runPlan";
-import {
-  PLAYER_STATE_ACCOUNT_VERSION,
-  PROTOCOL_ACCOUNT_VERSION,
-} from "./protocolVersions.generated";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated";
 
 function collisionConnection(
   occupiedIndexes: number[],
@@ -70,15 +67,16 @@ describe("run identity invariants", () => {
     expect(activeRunIdForSlot(profile, "campaign")).toBe(42n);
   });
 
-  it("normalizes a v2 Campaign pointer away from the Arcade slot", () => {
+  it("rejects an old PlayerState run-slot layout", () => {
     const profile = {
-      version: PROTOCOL_ACCOUNT_VERSION,
+      version: 2,
       activeRunId: { toString: () => "9" },
       activeRunMode: { campaign: {} },
     };
 
-    expect(activeRunIdForSlot(profile, "campaign")).toBe(9n);
-    expect(activeRunIdForSlot(profile, "arcade")).toBe(0n);
+    expect(() => activeRunIdForSlot(profile, "campaign")).toThrow(
+      /unsupported run-slot version/,
+    );
   });
 
   it("rejects only an existing run in the requested slot", () => {

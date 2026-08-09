@@ -8,7 +8,6 @@ import {
   coreEmptyContinuationRows,
   coreInitialReplayCommitment,
   corePlayerId,
-  coreWeeklyMetricLabels,
   decodeHex,
   encodeHex,
   initializeZkubeCoreSync,
@@ -37,14 +36,6 @@ describe("generated zkube-core WASM boundary", () => {
         }),
       ),
     ).toBe(golden.initial_replay_hash_hex);
-  });
-
-  it("selects one typed metric from each Weekly category", () => {
-    const labels = coreWeeklyMetricLabels(42, decodeHex(golden.rules_hash_hex));
-    expect(labels).toHaveLength(3);
-    expect(labels[0]).toMatch(/combo/i);
-    expect(labels[1]).toMatch(/action/i);
-    expect(labels[2]).toMatch(/lines|blocks|perfect/i);
   });
 
   it("matches the committed perfect-clear seed and preview rows", () => {

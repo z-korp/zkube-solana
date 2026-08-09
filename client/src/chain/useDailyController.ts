@@ -6,10 +6,12 @@ import { describeRunStartError } from "./runStartError";
 import { useSolanaConnection } from "./connectionContext";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import {
+  buildPurchaseKreditsPlan,
   currentDailyDayId,
   fetchDailyView,
   type DailyView,
 } from "./dailyClient";
+import { submitVersionedTransactionPlan } from "./runPlan";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();
@@ -17,7 +19,6 @@ export function useDailyController() {
   const wallet = player.readOnlyWallet;
   const run = useRun().arcade;
   const [daily, setDaily] = useState<DailyView | null>(null);
-  const [practiceDaily, setPracticeDaily] = useState<DailyView | null>(null);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,18 +27,8 @@ export function useDailyController() {
     setLoading(true);
     try {
       const dayId = currentDailyDayId();
-      const [value, previous] = await Promise.all([
-        fetchDailyView({ connection, wallet, dayId }),
-        run.activeRun?.mode === "practice" && dayId > 0
-          ? fetchDailyView({ connection, wallet, dayId: dayId - 1 })
-          : Promise.resolve(null),
-      ]);
+      const value = await fetchDailyView({ connection, wallet, dayId });
       setDaily(value);
-      // Read-only compatibility for displaying a legacy Practice result.
-      // No new Practice run can be launched.
-      setPracticeDaily(
-        run.activeRun?.mode === "practice" ? previous : null,
-      );
       setError(null);
       return value;
     } catch (cause) {
@@ -46,7 +37,7 @@ export function useDailyController() {
     } finally {
       setLoading(false);
     }
-  }, [connection, run.activeRun?.mode, wallet]);
+  }, [connection, wallet]);
 
   useEffect(() => {
     void refresh();
@@ -76,7 +67,10 @@ export function useDailyController() {
     }
     if (run.phase !== "none" && run.phase !== "missing")
       throw new Error("Finish the active run first");
-    setAction("enter:sol");
+    if (daily.kreditBalance < 1n) {
+      throw new Error("Buy a Kredit with the owner wallet before entering Arena");
+    }
+    setAction("enter:kredit");
     try {
       const active = await run.startDailyRun(daily);
       await refresh();
@@ -89,21 +83,39 @@ export function useDailyController() {
     }
   }, [daily, refresh, run]);
 
-  const practice = useCallback(async () => {
-    throw new Error("Practice has been retired");
-  }, []);
+  const buyKredits = useCallback(async (kreditCount = 1) => {
+    if (!player.wallet) throw new Error("Connect the owner wallet to buy Kredits");
+    setAction("buy:kredits");
+    try {
+      const plan = await buildPurchaseKreditsPlan({
+        connection,
+        ownerWallet: player.wallet,
+        kreditCount,
+      });
+      const signature = await submitVersionedTransactionPlan({
+        transactionPlan: plan,
+        wallet: player.wallet,
+      });
+      await refresh();
+      await player.refreshBalance();
+      return signature;
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      setAction(null);
+    }
+  }, [connection, player, refresh]);
 
   return {
     daily,
-    practiceDaily,
-    practiceAvailable: false,
     loading,
     action,
     error,
     refresh,
     maintain: refresh,
     enter,
-    practice,
+    buyKredits,
     run,
   };
 }

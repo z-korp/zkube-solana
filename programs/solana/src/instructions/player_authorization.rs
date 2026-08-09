@@ -224,28 +224,46 @@ mod tests {
     }
 
     #[test]
-    fn generated_arena_entry_metas_keep_sol_spending_owner_signed() {
+    fn generated_arena_entry_metas_allow_a_scoped_device_without_owner_signature() {
         let owner = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
         let entry = crate::accounts::EnterArena {
             protocol: Pubkey::new_unique(),
             arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),
             current_daily: Pubkey::new_unique(),
             arena_player: Pubkey::new_unique(),
-            current_weekly: Pubkey::new_unique(),
-            current_season: Pubkey::new_unique(),
             following_daily: Pubkey::new_unique(),
-            following_weekly: Pubkey::new_unique(),
-            following_season: Pubkey::new_unique(),
-            operator_revenue_vault: Pubkey::new_unique(),
+            credit_vault: Pubkey::new_unique(),
             active_run: Pubkey::new_unique(),
-            payer: owner,
+            payer: actor,
+            owner_authority: owner,
+            session_token: Some(token_address(owner, actor)),
+            actor,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None);
+        assert_eq!(entry.len(), 13);
+        assert_eq!(entry[9].pubkey, owner);
+        assert!(!entry[9].is_signer);
+        assert_eq!(entry[11].pubkey, actor);
+        assert!(entry[11].is_signer);
+    }
+
+    #[test]
+    fn generated_kredit_purchase_metas_require_the_owner_signature() {
+        let owner = Pubkey::new_unique();
+        let purchase = crate::accounts::PurchaseKredits {
+            protocol: Pubkey::new_unique(),
+            arcade_config: Pubkey::new_unique(),
+            player_state: Pubkey::new_unique(),
+            credit_vault: Pubkey::new_unique(),
+            operator_revenue_vault: Pubkey::new_unique(),
             owner,
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(entry.len(), 15);
-        assert_eq!(entry[13].pubkey, owner);
-        assert!(entry[13].is_signer);
+        assert_eq!(purchase[5].pubkey, owner);
+        assert!(purchase[5].is_signer);
     }
 }

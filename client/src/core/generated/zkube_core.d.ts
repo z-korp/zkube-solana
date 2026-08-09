@@ -31,7 +31,7 @@ export function playDailySimulationMove(config: Uint8Array, state: Uint8Array, a
 
 export function qualifiedPlayerId(chain_domain: Uint8Array, raw_account: Uint8Array): Uint8Array;
 
-export function weeklyMetricTags(week_id: number, rules_hash: Uint8Array): Uint8Array;
+export function requestDailySimulationReroll(config: Uint8Array, state: Uint8Array, action: number): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -39,12 +39,12 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly qualifiedPlayerId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly initialReplayCommitment: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number) => [number, number, number, number];
-    readonly weeklyMetricTags: (a: number, b: number, c: number) => [number, number, number, number];
     readonly emptyContinuationRows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly initializeDailySimulation: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly applyDailySimulationVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly playDailySimulationMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
     readonly applyDailySimulationBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly requestDailySimulationReroll: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly finishDailySimulationAtDeadline: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly dailySimulationScoreEligible: (a: number, b: number) => [number, number, number];
     readonly initializeCampaignSimulation: (a: number, b: number) => [number, number, number, number];

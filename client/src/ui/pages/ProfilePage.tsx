@@ -109,8 +109,6 @@ const ProfilePage: React.FC = () => {
 
   const records: Array<{ label: string; record: CompetitionRecord }> = [
     { label: "Daily", record: profile.dailyRecord },
-    { label: "Weekly", record: profile.weeklyRecord },
-    { label: "Season", record: profile.seasonRecord },
   ];
 
   const saveName = () => {

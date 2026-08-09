@@ -36,7 +36,7 @@ export interface SettlementWatcher {
  * data directly with the shared, relationship-verified decoder — the same idiom
  * used by `useDailyController`, `usePlayerStateSync`, and `ActiveRunObserver`.
  * Because settlement writes to PlayerState the instant the keeper's push
- * confirms, a landed Daily/Weekly/Season prize surfaces immediately rather than
+ * confirms, a landed Daily prize surfaces immediately rather than
  * at the next render poll.
  *
  * Untrusted RPC: every snapshot flows through `decodePlayerStateAccount`, which

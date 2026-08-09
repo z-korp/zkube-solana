@@ -10,14 +10,13 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
+  deriveCreditVaultPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
@@ -30,19 +29,15 @@ import BN from "bn.js";
 import {
   CANONICAL_DAILY_PRESSURE,
   CANONICAL_DAILY_SCORING_RULES,
-  CANONICAL_DAILY_SEASON_SEED,
-  DAILY_SCORING_RULE_COUNT,
+  CANONICAL_DAILY_POOL_SEED,
+  dailyContentSelection,
 } from "./dailyRules";
-import {
-  LAUNCH_DAILY_SEED_LAMPORTS,
-  LAUNCH_SEASON_SEED_LAMPORTS,
-  LAUNCH_WEEKLY_SEED_LAMPORTS,
-} from "./deploymentManifest";
+import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
 const U64_MAX = (1n << 64n) - 1n;
 
-export type PrizePoolKind = "daily" | "weekly" | "season";
+export type PrizePoolKind = "daily";
 
 export interface ProtocolInitialization {
   teamDestination: PublicKey;
@@ -259,25 +254,21 @@ export async function buildPublishCanonicalArenaRulesPlan(args: {
   assertPositiveInteger(args.contentVersion, "contentVersion");
   assertPositiveInteger(args.rulesVersion, "rulesVersion");
   assertU32(args.startsDay, "startsDay");
+  const poolEntries = canonicalDailyPoolEntries(args.contentVersion);
+  const difficultyBands = Array.from(
+    { length: 4 },
+    () => cloneDailyPressure(),
+  );
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.publishArenaRules({
       contentVersion: args.contentVersion,
       rulesVersion: args.rulesVersion,
-      rotationId: 1,
+      poolRevision: 1,
       startsDay: args.startsDay,
-      rotationSeed: [...CANONICAL_DAILY_SEASON_SEED],
-      scoringRuleCount: DAILY_SCORING_RULE_COUNT,
-      scoringRules: CANONICAL_DAILY_SCORING_RULES.map((rule) => ({ ...rule })),
-      pressure: {
-        ...CANONICAL_DAILY_PRESSURE,
-        thresholds: [...CANONICAL_DAILY_PRESSURE.thresholds],
-        scoreMultipliersX100: [
-          ...CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
-        ],
-        blockWeights: CANONICAL_DAILY_PRESSURE.blockWeights.map((weights) => [
-          ...weights,
-        ]),
-      },
+      poolEntryCount: CANONICAL_CAMPAIGN_MAP_COUNT,
+      poolEntries,
+      difficultyBandCount: 1,
+      difficultyBands,
     })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
@@ -307,6 +298,7 @@ export async function buildInitializeArcadePlan(args: {
       dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arcadeConfig: deriveArcadeConfigPda(),
       operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+      creditVault: deriveCreditVaultPda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })
@@ -323,8 +315,10 @@ export async function buildInitializeArcadeArchivePlan(args: {
   connection: Connection;
   authority: WalletLike;
   firstDayId: number;
+  rulesVersion: number;
 }): Promise<TransactionPlan> {
   assertU32(args.firstDayId, "firstDayId");
+  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   const archiveInstruction = await zkubeProgram(
     args.connection,
     args.authority,
@@ -333,6 +327,7 @@ export async function buildInitializeArcadeArchivePlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arcadeArchive: deriveArcadeArchivePda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -357,17 +352,23 @@ export async function buildPrepareLaunchPeriodPlans(args: {
   authority: WalletLike;
   rulesVersion: number;
   dayId: number;
-  weekId: number;
-  seasonId: number;
+  contentVersion: number;
 }): Promise<TransactionPlan[]> {
   assertPositiveInteger(args.rulesVersion, "rulesVersion");
   assertU32(args.dayId, "dayId");
-  assertU32(args.weekId, "weekId");
-  assertU32(args.seasonId, "seasonId");
   const program = zkubeProgram(args.connection, args.authority);
   const plans: TransactionPlan[] = [];
+  const poolEntries = canonicalDailyPoolEntries(args.contentVersion);
   for (const dayId of [args.dayId, args.dayId + 1]) {
     assertU32(dayId, "dayId");
+    const content = await dailyContentSelection(
+      Uint8Array.from(CANONICAL_DAILY_POOL_SEED),
+      args.dayId,
+      dayId,
+      CANONICAL_CAMPAIGN_MAP_COUNT,
+    );
+    const entry = poolEntries[content.poolIndex];
+    if (!entry) throw new Error("selected Daily pool entry is unavailable");
     const instruction = await program.methods
       .prepareArenaDaily(dayId)
       .accountsPartial({
@@ -375,6 +376,14 @@ export async function buildPrepareLaunchPeriodPlans(args: {
         arcadeConfig: deriveArcadeConfigPda(),
         arcadeArchive: deriveArcadeArchivePda(),
         dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+        realmMapCatalog: deriveMapCatalogPda(
+          args.contentVersion,
+          Math.max(entry.realmMapId, 1),
+        ),
+        passiveMapCatalog: deriveMapCatalogPda(
+          args.contentVersion,
+          entry.passiveMapId,
+        ),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
         caller: args.authority.publicKey,
@@ -390,83 +399,28 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       ),
     );
   }
-  for (const weeklyId of [args.weekId, args.weekId + 1]) {
-    assertU32(weeklyId, "weekId");
-    const instruction = await program.methods
-      .prepareWeeklyJackpot(weeklyId)
-      .accountsPartial({
-        protocol: deriveProtocolConfigPda(),
-        arcadeConfig: deriveArcadeConfigPda(),
-        arcadeArchive: deriveArcadeArchivePda(),
-        dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
-        weeklyJackpot: deriveWeeklyJackpotPda(weeklyId),
-        payer: args.authority.publicKey,
-        caller: args.authority.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
-    plans.push(
-      basePlan(
-        `Prepare Weekly ${weeklyId}`,
-        args.connection,
-        args.authority.publicKey,
-        [instruction],
-      ),
-    );
-  }
-  for (const seasonId of [args.seasonId, args.seasonId + 1]) {
-    assertU32(seasonId, "seasonId");
-    const instruction = await program.methods
-      .prepareSeason(seasonId)
-      .accountsPartial({
-        protocol: deriveProtocolConfigPda(),
-        arcadeConfig: deriveArcadeConfigPda(),
-        arcadeArchive: deriveArcadeArchivePda(),
-        season: deriveSeasonPda(seasonId),
-        payer: args.authority.publicKey,
-        caller: args.authority.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
-    plans.push(
-      basePlan(
-        `Prepare Season ${seasonId}`,
-        args.connection,
-        args.authority.publicKey,
-        [instruction],
-      ),
-    );
-  }
   return plans;
 }
 
 /**
- * The first funding, unpause, and three current-period activations share one
+ * The first funding, unpause, and current Daily activation share one
  * transaction. Any failed instruction rolls the entire launch back.
  */
 export async function buildAtomicArcadeLaunchPlan(args: {
   connection: Connection;
   authority: WalletLike;
   dayId: number;
-  weekId: number;
-  seasonId: number;
+  rulesVersion: number;
 }): Promise<TransactionPlan> {
   assertU32(args.dayId, "dayId");
-  assertU32(args.weekId, "weekId");
-  assertU32(args.seasonId, "seasonId");
+  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   const program = zkubeProgram(args.connection, args.authority);
   const seed = await program.methods
-    .seedLaunchPools(
-      new BN(LAUNCH_DAILY_SEED_LAMPORTS),
-      new BN(LAUNCH_WEEKLY_SEED_LAMPORTS),
-      new BN(LAUNCH_SEASON_SEED_LAMPORTS),
-    )
+    .seedLaunchPools(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       arenaDaily: deriveArenaDailyPda(args.dayId),
-      weeklyJackpot: deriveWeeklyJackpotPda(args.weekId),
-      season: deriveSeasonPda(args.seasonId),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
     })
@@ -482,38 +436,22 @@ export async function buildAtomicArcadeLaunchPlan(args: {
     .activateArenaDaily()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
+      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arenaDaily: deriveArenaDailyPda(args.dayId),
       caller: args.authority.publicKey,
     })
     .instruction();
-  const activateWeekly = await program.methods
-    .activateWeeklyJackpot()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      weeklyJackpot: deriveWeeklyJackpotPda(args.weekId),
-      caller: args.authority.publicKey,
-    })
-    .instruction();
-  const activateSeason = await program.methods
-    .activateSeason()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      season: deriveSeasonPda(args.seasonId),
-      caller: args.authority.publicKey,
-    })
-    .instruction();
   return basePlan(
-    "Atomically seed 1/2/3 SOL and launch Arcade",
+    "Atomically seed 1 SOL and launch Arcade",
     args.connection,
     args.authority.publicKey,
-    [seed, unpause, activateDaily, activateWeekly, activateSeason],
+    [seed, unpause, activateDaily],
   );
 }
 
 /**
  * Builds one exact authority-funded prize-pool transfer. The public API is
- * generic for operators, while each branch selects a distinct constrained
- * program instruction and canonical cadence PDA.
+ * constrained to the canonical Daily PDA.
  */
 export async function buildTopUpPrizePoolPlan(args: {
   connection: Connection;
@@ -521,6 +459,7 @@ export async function buildTopUpPrizePoolPlan(args: {
   pool: PrizePoolKind;
   cadenceId: number;
   lamports: bigint;
+  rulesCatalog: PublicKey;
 }): Promise<TransactionPlan> {
   assertU32(args.cadenceId, "cadenceId");
   if (args.lamports <= 0n || args.lamports > U64_MAX) {
@@ -528,47 +467,17 @@ export async function buildTopUpPrizePoolPlan(args: {
   }
   const program = zkubeProgram(args.connection, args.authority);
   const amount = new BN(args.lamports.toString());
-  let instruction: TransactionInstruction;
-  switch (args.pool) {
-    case "daily":
-      instruction = await program.methods
-        .topUpArenaDaily(amount)
-        .accountsPartial({
-          protocol: deriveProtocolConfigPda(),
-          arcadeConfig: deriveArcadeConfigPda(),
-          arenaDaily: deriveArenaDailyPda(args.cadenceId),
-          authority: args.authority.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-      break;
-    case "weekly":
-      instruction = await program.methods
-        .topUpWeeklyJackpot(amount)
-        .accountsPartial({
-          protocol: deriveProtocolConfigPda(),
-          arcadeConfig: deriveArcadeConfigPda(),
-          weeklyJackpot: deriveWeeklyJackpotPda(args.cadenceId),
-          authority: args.authority.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-      break;
-    case "season":
-      instruction = await program.methods
-        .topUpSeason(amount)
-        .accountsPartial({
-          protocol: deriveProtocolConfigPda(),
-          arcadeConfig: deriveArcadeConfigPda(),
-          season: deriveSeasonPda(args.cadenceId),
-          authority: args.authority.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-      break;
-    default:
-      throw new Error(`unsupported prize pool: ${String(args.pool)}`);
-  }
+  const instruction = await program.methods
+    .topUpArenaDaily(amount)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arcadeConfig: deriveArcadeConfigPda(),
+      dailyRulesCatalog: args.rulesCatalog,
+      arenaDaily: deriveArenaDailyPda(args.cadenceId),
+      authority: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
   return basePlan(
     `Top up ${args.pool} ${args.cadenceId} with ${args.lamports.toString()} lamports`,
     args.connection,
@@ -623,4 +532,48 @@ function assertU32(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
     throw new Error(`${label} must fit in u32`);
   }
+}
+
+function cloneDailyPressure() {
+  return {
+    ...CANONICAL_DAILY_PRESSURE,
+    thresholds: [...CANONICAL_DAILY_PRESSURE.thresholds],
+    scoreMultipliersX100: [
+      ...CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
+    ],
+    blockWeights: CANONICAL_DAILY_PRESSURE.blockWeights.map((weights) => [
+      ...weights,
+    ]),
+  };
+}
+
+function canonicalDailyPoolEntries(contentVersion: number) {
+  const scoringIndexes = [0, 1, 3, 6, 10, 12, 14, 2, 5, 9] as const;
+  const entries = Array.from(
+    { length: CANONICAL_CAMPAIGN_MAP_COUNT },
+    (_, index) => {
+      const realm = canonicalCampaignMap(contentVersion, index + 1);
+      const passive = canonicalCampaignMap(contentVersion, index + 1);
+      const scoringRule = CANONICAL_DAILY_SCORING_RULES[scoringIndexes[index]!]!;
+      return {
+        id: index + 1,
+        realmMapId: realm.mapId,
+        passiveMapId: passive.mapId,
+        activeMutatorId: realm.mapRules.activeMutatorId,
+        passiveMutatorId: passive.mapRules.passiveMutatorId,
+        scoringRule: { ...scoringRule },
+        scoreMultiplierX100: passive.mapRules.scoreMultiplierX100,
+        comboMultiplierX100: passive.mapRules.comboMultiplierX100,
+        lineClearBonus: passive.mapRules.lineClearBonus,
+        perfectClearBonus: passive.mapRules.perfectClearBonus,
+        bonusType: realm.mapRules.bonusType,
+        bonusTriggerType: realm.mapRules.bonusTriggerType,
+        bonusThreshold: realm.mapRules.bonusThreshold,
+        startingCharges: realm.mapRules.startingCharges,
+        startingRows: realm.mapRules.startingRows,
+        difficultyBand: 0,
+      };
+    },
+  );
+  return entries;
 }

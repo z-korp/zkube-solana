@@ -24,21 +24,14 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveProtocolConfigPda,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
-  ENTRY_SEASON_LAMPORTS,
-  ENTRY_WEEKLY_LAMPORTS,
-  MONDAY_EPOCH_DAY_ID,
   PROTOCOL_ACCOUNT_VERSION,
-  SEASON_DAYS,
   SECONDS_PER_DAY,
-  WEEK_DAYS,
 } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
@@ -118,6 +111,7 @@ interface PrizeTopUpApprovalPayload {
   programUpgradeAuthority: string;
   protocol: string;
   arcadeConfig: string;
+  rulesCatalog: string;
   authority: string;
   observedUnixTimestamp: number;
   currentCadences: Record<PrizePoolKind, number>;
@@ -168,8 +162,6 @@ const MAX_TOP_UPS = 6;
 const U64_MAX = (1n << 64n) - 1n;
 const KIND_ORDER: Record<PrizePoolKind, number> = {
   daily: 0,
-  weekly: 1,
-  season: 2,
 };
 
 export function parsePrizeTopUpCliArgs(
@@ -251,8 +243,8 @@ export function parseTopUpSpec(value: string): RequestedPrizeTopUp {
     );
   }
   const [rawKind, rawCadence, rawAmount] = parts;
-  if (rawKind !== "daily" && rawKind !== "weekly" && rawKind !== "season") {
-    throw new Error("top-up kind must be daily, weekly, or season");
+  if (rawKind !== "daily") {
+    throw new Error("top-up kind must be daily");
   }
   let cadence: CadenceSelector;
   if (rawCadence === "current" || rawCadence === "following") {
@@ -376,6 +368,7 @@ export async function buildPrizeTopUpApproval(args: {
     connection,
     authority,
     operations,
+    key(arcadeConfig.value.rulesCatalog, "Arcade rules catalog"),
   );
   const latest = await connection.getLatestBlockhash("confirmed");
   transactionPlan.transaction.feePayer = authority;
@@ -425,6 +418,10 @@ export async function buildPrizeTopUpApproval(args: {
     programUpgradeAuthority: deployed.upgradeAuthority!,
     protocol: deriveProtocolConfigPda().toBase58(),
     arcadeConfig: deriveArcadeConfigPda().toBase58(),
+    rulesCatalog: key(
+      arcadeConfig.value.rulesCatalog,
+      "Arcade rules catalog",
+    ).toBase58(),
     authority: authority.toBase58(),
     observedUnixTimestamp,
     currentCadences,
@@ -467,6 +464,7 @@ async function executePrizeTopUp(
     connection,
     signer.publicKey,
     payload.operations,
+    new PublicKey(payload.rulesCatalog),
   );
   const rebuiltPublic = publicPlan(plan);
   if (
@@ -764,6 +762,7 @@ async function buildAtomicTopUpPlan(
   connection: Connection,
   authority: PublicKey,
   operations: readonly ResolvedPrizeTopUp[],
+  rulesCatalog: PublicKey,
 ): Promise<TransactionPlan> {
   const wallet = createReadOnlyWallet(authority);
   const transaction = new Transaction();
@@ -774,6 +773,7 @@ async function buildAtomicTopUpPlan(
       pool: operation.kind,
       cadenceId: operation.cadenceId,
       lamports: BigInt(operation.lamports),
+      rulesCatalog,
     });
     transaction.add(...plan.transaction.instructions);
   }
@@ -821,14 +821,7 @@ async function inspectPool(args: {
       `${args.operation.kind} account has the wrong Arcade config`,
     );
   }
-  const decodedCadence = integer(
-    args.operation.kind === "daily"
-      ? value.dayId
-      : args.operation.kind === "weekly"
-        ? value.weekId
-        : value.seasonId,
-    "pool cadence id",
-  );
+  const decodedCadence = integer(value.dayId, "pool cadence id");
   if (decodedCadence !== args.operation.cadenceId) {
     throw new Error(
       `${args.operation.kind} account cadence does not match its PDA`,
@@ -840,10 +833,7 @@ async function inspectPool(args: {
       `${args.operation.kind} ${args.operation.cadenceId} is not live`,
     );
   }
-  const closesAt = integer(
-    args.operation.kind === "daily" ? value.runsCloseAt : value.closesAt,
-    "pool close time",
-  );
+  const closesAt = integer(value.runsCloseAt, "pool close time");
   if (args.observedUnixTimestamp >= closesAt) {
     throw new Error(
       `${args.operation.kind} ${args.operation.cadenceId} has closed`,
@@ -946,10 +936,6 @@ function assertProtocolAndArcade(
     amount(arcade.entryLamports, "entry lamports") !== ARENA_ENTRY_LAMPORTS ||
     amount(arcade.dailyLamports, "daily entry share") !==
       ENTRY_DAILY_LAMPORTS ||
-    amount(arcade.weeklyLamports, "weekly entry share") !==
-      ENTRY_WEEKLY_LAMPORTS ||
-    amount(arcade.seasonLamports, "season entry share") !==
-      ENTRY_SEASON_LAMPORTS ||
     amount(arcade.operatorLamports, "operator entry share") !==
       ENTRY_OPERATOR_LAMPORTS
   ) {
@@ -1016,50 +1002,29 @@ function resolveOperations(
 
 function cadencesAt(unixTimestamp: number): Record<PrizePoolKind, number> {
   const day = Math.floor(unixTimestamp / SECONDS_PER_DAY);
-  if (!Number.isSafeInteger(day) || day < MONDAY_EPOCH_DAY_ID) {
+  if (!Number.isSafeInteger(day) || day < 0) {
     throw new Error(
       "confirmed block time is outside the supported cadence range",
     );
   }
-  const relative = day - MONDAY_EPOCH_DAY_ID;
   return {
     daily: day,
-    weekly: Math.floor(relative / WEEK_DAYS),
-    season: Math.floor(relative / SEASON_DAYS),
   };
 }
 
 function poolAddress(kind: PrizePoolKind, cadenceId: number): PublicKey {
-  switch (kind) {
-    case "daily":
-      return deriveArenaDailyPda(cadenceId);
-    case "weekly":
-      return deriveWeeklyJackpotPda(cadenceId);
-    case "season":
-      return deriveSeasonPda(cadenceId);
-  }
+  void kind;
+  return deriveArenaDailyPda(cadenceId);
 }
 
 function poolAccountName(kind: PrizePoolKind): string {
-  switch (kind) {
-    case "daily":
-      return "arenaDaily";
-    case "weekly":
-      return "weeklyJackpot";
-    case "season":
-      return "season";
-  }
+  void kind;
+  return "arenaDaily";
 }
 
 function poolSpace(kind: PrizePoolKind): number {
-  switch (kind) {
-    case "daily":
-      return LAUNCH_ACCOUNT_SPACES.arenaDaily;
-    case "weekly":
-      return LAUNCH_ACCOUNT_SPACES.weeklyJackpot;
-    case "season":
-      return LAUNCH_ACCOUNT_SPACES.season;
-  }
+  void kind;
+  return LAUNCH_ACCOUNT_SPACES.arenaDaily;
 }
 
 function ledgerObservation(ledger: Record<string, unknown>): LedgerObservation {
@@ -1163,6 +1128,7 @@ function validateApprovalPayload(payload: PrizeTopUpApprovalPayload): void {
   new PublicKey(payload.authority);
   new PublicKey(payload.protocol);
   new PublicKey(payload.arcadeConfig);
+  new PublicKey(payload.rulesCatalog);
   new PublicKey(payload.programDataAddress);
   new PublicKey(payload.programUpgradeAuthority);
   resolveOperations(

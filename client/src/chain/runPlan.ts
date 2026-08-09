@@ -55,7 +55,6 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveWeeklyJackpotPda,
   type RunAddresses,
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
@@ -70,10 +69,7 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
-import {
-  PLAYER_STATE_ACCOUNT_VERSION,
-  PROTOCOL_ACCOUNT_VERSION,
-} from "./protocolVersions.generated.js";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */
@@ -179,7 +175,7 @@ export interface ActiveRunView extends EndlessRulesView {
   level: number;
   rules: ActiveRunRulesView;
   lifecycle: string;
-  /** Authoritative chain deadline for Daily/Practice; Campaign uses zero. */
+  /** Authoritative chain deadline for Daily; Campaign uses zero. */
   deadlineAt?: number;
   score: number;
   dailyScore: number;
@@ -386,19 +382,14 @@ interface RunSlotProfile {
   version: number | { toString(): string };
   nextRunId: { toString(): string };
   activeRunId?: { toString(): string };
-  activeRunMode?: unknown;
   campaignActiveRunId?: { toString(): string };
 }
 
-/**
- * PlayerState v2 stored one mode-tagged pointer. v3 keeps that byte-compatible
- * pointer as Arcade and consumes eight reserved bytes for Campaign. Normalize
- * both layouts before any client code decides whether a mode is blocked.
- */
+/** Return the exact fresh-bootstrap PlayerState slot for a run family. */
 export function activeRunIdForSlot(
   profile: Pick<
     RunSlotProfile,
-    "version" | "activeRunId" | "activeRunMode" | "campaignActiveRunId"
+    "version" | "activeRunId" | "campaignActiveRunId"
   > | null,
   slot: RunSlot,
 ): bigint {
@@ -407,31 +398,14 @@ export function activeRunIdForSlot(
   const sharedRunId = profile.activeRunId
     ? BigInt(profile.activeRunId.toString())
     : 0n;
-  if (version === PLAYER_STATE_ACCOUNT_VERSION) {
-    if (slot === "arcade") return sharedRunId;
-    if (!profile.campaignActiveRunId) {
-      throw new Error("PlayerState v3 is missing its Campaign run slot");
-    }
-    return BigInt(profile.campaignActiveRunId.toString());
-  }
-  if (version !== PROTOCOL_ACCOUNT_VERSION) {
+  if (version !== PLAYER_STATE_ACCOUNT_VERSION) {
     throw new Error("PlayerState has an unsupported run-slot version");
   }
-  if (sharedRunId === 0n) return 0n;
-  const mode = anchorEnumVariant(profile.activeRunMode);
-  if (mode !== "campaign" && mode !== "daily" && mode !== "practice") {
-    throw new Error("PlayerState v2 has an invalid active-run mode");
+  if (slot === "arcade") return sharedRunId;
+  if (!profile.campaignActiveRunId) {
+    throw new Error("PlayerState is missing its Campaign run slot");
   }
-  if (slot === "campaign") {
-    return mode === "campaign" ? sharedRunId : 0n;
-  }
-  return mode === "campaign" ? 0n : sharedRunId;
-}
-
-function anchorEnumVariant(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const keys = Object.keys(value);
-  return keys.length === 1 ? keys[0] ?? null : null;
+  return BigInt(profile.campaignActiveRunId.toString());
 }
 
 export async function assertPreparedRunAddressesAvailable(
@@ -774,7 +748,7 @@ export async function buildFinalizeRunPlan(args: {
   sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily" | "practice";
+  mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
@@ -812,7 +786,7 @@ export async function buildConsumeRunRecoveryPlan(args: {
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily" | "practice";
+  mode: "campaign" | "daily";
   dailyChallenge?: PublicKey | null;
   connection: Connection;
 }): Promise<TransactionPlan> {
@@ -833,7 +807,7 @@ async function buildConsumeRunInstruction(
   args: {
     owner: PublicKey;
     addresses: RunAddresses;
-    mode: "campaign" | "daily" | "practice";
+    mode: "campaign" | "daily";
     dailyChallenge?: PublicKey | null;
   },
 ): Promise<TransactionInstruction> {
@@ -842,7 +816,6 @@ async function buildConsumeRunInstruction(
     if (!dailyChallenge) {
       throw new Error("Daily settlement requires the challenge address");
     }
-    const daily = await program.account.arenaDaily.fetch(dailyChallenge);
     return program.methods
       .consumeArenaRun()
       .accountsPartial({
@@ -850,29 +823,6 @@ async function buildConsumeRunInstruction(
         playerState: derivePlayerStatePda(args.owner),
         arenaDaily: dailyChallenge,
         arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
-        weeklyJackpot: deriveWeeklyJackpotPda(Number(daily.weekId)),
-        rentRecipient: derivePlayerFundingPda(args.owner),
-      })
-      .instruction();
-  }
-  if (args.mode === "practice") {
-    const dailyChallenge = args.dailyChallenge;
-    if (!dailyChallenge) {
-      throw new Error("Practice settlement requires yesterday's Arena address");
-    }
-    const arenaPlayerInfo = await program.provider.connection.getAccountInfo(
-      deriveArenaPlayerPda(dailyChallenge, args.owner),
-      "confirmed",
-    );
-    return program.methods
-      .consumePracticeRun()
-      .accountsPartial({
-        activeRun: args.addresses.activeRun,
-        playerState: derivePlayerStatePda(args.owner),
-        arenaDaily: dailyChallenge,
-        arenaPlayer: arenaPlayerInfo
-          ? deriveArenaPlayerPda(dailyChallenge, args.owner)
-          : null,
         rentRecipient: derivePlayerFundingPda(args.owner),
       })
       .instruction();
@@ -1039,7 +989,7 @@ export async function compileWalletTransactionPlan(args: {
     });
   if (unsignedSimulation.value.err) {
     throw new Error(
-      `Preflight failed before owner signature for ${transactionPlan.label}: ${JSON.stringify(unsignedSimulation.value.err)}. The wallet was not prompted and no entry was charged.`,
+      `Preflight failed before wallet signature for ${transactionPlan.label}: ${JSON.stringify(unsignedSimulation.value.err)}. The wallet was not prompted and no entry was charged.`,
     );
   }
   transaction = await args.wallet.signTransaction(transaction);
@@ -1096,7 +1046,7 @@ export async function submitPreparedRunPlan(args: {
   owner: PublicKey;
   wallet: WalletLike;
   sessionSigner: Keypair;
-  mode?: "campaign" | "daily" | "practice";
+  mode?: "campaign" | "daily";
 }): Promise<string> {
   const signature = await submitVersionedTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,

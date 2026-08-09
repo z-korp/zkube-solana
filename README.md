@@ -6,11 +6,7 @@ competes for a real SOL prize pot.
 
 One application, two modes. **Campaign** is a free 100-level world map.
 **Arcade** is the competitive mode — each ranked run costs exactly 0.01 SOL and
-plays for that period's Daily, Weekly, and Season pots.
-
-- Play: <https://zkube-solana.vercel.app/>
-- Program: [`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd`](https://explorer.solana.com/address/Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd?cluster=devnet)
-  on Devnet
+plays for the Daily's Score and Theme boards.
 
 zKube previously ran on Starknet, where it spent several months among the
 network's most-used contracts. This repository is the Solana rewrite, built on
@@ -19,48 +15,110 @@ while money and records settle on Solana base layer.
 
 ## Status
 
-Live on **Devnet**. Mainnet is deliberately gated on counsel, economic, and
-distribution review, because paying SOL to compete for SOL is skill-gaming
+There is no live deployment. The former v4 Devnet deployment was abandoned and
+v5 will require a fresh bootstrap. Mainnet remains gated on counsel, economic,
+and distribution review, because paying SOL to compete for SOL is skill-gaming
 territory that needs a legal answer before it takes real money.
 
 ## How it works
 
+This section describes the v5 source being prepared for a fresh bootstrap. It is
+not a description of deployed state.
+
 The connected Solana address is the player identity. There are no embedded
-wallets, recovery codes, deposits, soft currencies, shops, passes, token swaps,
-or prize claims.
+wallets or recovery codes.
 
 **Campaign** is free and optional, and never gates Arcade. It is ten zones of
 ten levels — 100 levels, 300 possible stars — stored as one packed 25-byte,
-two-bits-per-level array. Stars are the only progression in the game: there is
-no XP, no quests, no achievements, no ratings. Campaign never grants SOL,
-entries, or prize eligibility.
+two-bits-per-level array. The packed star record is Campaign's only progression,
+and Campaign never grants SOL, entries, or prize eligibility.
 
-**Arcade** is competition only. Every ranked run requires a separate
-owner-signed transfer of exactly 0.01 SOL (10,000,000 lamports), split as:
+**Arcade** is competition only. The owner prepays Kredits at exactly 0.01 SOL
+(10,000,000 lamports) each. Spending one Kredit routes:
 
 | Destination | Share |
 | --- | ---: |
-| Following Daily pot | 60% |
-| Following Weekly pot | 20% |
-| Following 28-day Season pot | 10% |
+| Following paid Daily pot | 90% |
 | Operator revenue | 10% |
 
-Entries fund the *next* period, so every pot is fully prepaid before anyone can
-play for it — the prize you see is the prize that exists. Days run on UTC:
-entries close at 23:45 and live runs freeze at 23:59.
+Entries fund the *next paid Daily*, even across a suspension, so every pot is
+prepaid before anyone can play for it. Days run on UTC: entries close at 23:45
+and live runs freeze at 23:59. A paid entry becomes exactly one scored or
+expired entry, with no refund path, and the on-chain invariant is
+`entries_scored + entries_expired == entries_paid`.
 
-- **Daily** keeps one best score per wallet; top five split 45/25/15/10/5.
-- **Weekly** picks three deterministic skill metrics (a combo metric, a
-  single-action metric, and a full-run metric), splits its pot equally between
-  the three boards, and pays 60/25/15 on each.
-- **Season** is a Monday-aligned 28-day period scored from each wallet's best
-  20 finalized Daily band results; top five split 45/25/15/10/5.
+Each Daily uses one complete configuration from a published content pool. Its
+realm, permanent guardian mutator, objective, passive scoring, and difficulty
+band are fixed for the whole field. Selection is derived from a protocol seed
+and the day identifier, so tomorrow is independently recomputable today and a
+pool cycles without replacement before repeating.
 
-Settlement is atomic, push-only, and never cancelled — winners are paid without
-claiming. It may be late, but a late payout is still paid. A paid entry becomes
-exactly one scored or expired entry, with no refund path, and the on-chain
-invariant is `entries_scored + entries_expired == entries_paid`. Payouts floor
-to 0.001 SOL and all dust rolls into the next period of the same type.
+The pot splits between **Score** and **Theme** over the same runs. Score ranks
+total performance; Theme ranks only points attributable to the day's objective.
+Both require a positive metric, and Classic folds its empty Theme half back into
+Score. Board weights follow `1/rank` and extend through the last rounded payout
+that still covers the entry price. Payouts floor to 0.001 SOL and dust rolls
+forward. The retained board pays up to its explicit capacity, records when the
+full width exceeds that bound, and winners claim directly from the finalized
+rows.
+
+## What's changing
+
+Approved 2026-08-08 and partially built. Kredits, the content pool, the two
+Daily boards, and direct claim settlement are in source; the Elo ladder remains
+future work.
+
+| Unit | Length | Carries |
+| --- | --- | --- |
+| Day | 24h | the money, and the objective and passive that shape it |
+| Pool revision | Until replaced | authored Daily configurations and difficulty bands |
+
+**Kredits replace the per-run signature.** Entries are prepaid in bundles rather
+than signed one at a time, because a wallet prompt before every run is fatal to
+impulse play. Kredits are one-way — no withdrawal, transfer, or cash-out — and
+prizes still pay in SOL.
+
+**Playing funds the pot, not buying.** Spending a Kredit sends 90% of its price
+to the following paid Daily's pot; the other 10% is operator revenue. Prior play
+funds today, so the pot rises with how much the game is actually played. It also
+swings across the week, and deliberately so — the biggest pots land on the
+quietest days, which is exactly when playing is worth the most. Nothing is held
+back from a daily pot for anything else.
+
+The daily pot then divides across two boards scored from the same runs — **Score**
+takes 50% and **Theme** takes 50% — so one entry places on both. Score ranks the
+run's total. Theme ranks only the part of it earned by playing that day's
+objective, which is a different thing every day: destroying size-N blocks on a
+Blocks day, qualifying combo moves on a Combo day, exact-N clears on an
+ExactLines day. Clear a lot carelessly and you win Score; play only the theme and
+you win Theme. On a Classic day there is no theme to play, so the whole pot goes
+to Score.
+
+**Payout width becomes a rule instead of a count.** Weights fall off as
+`1/rank`, and a board pays down to the last place whose payout still meets
+the entry price. Everyone who places made money, and the number of places grows
+with the field instead of staying at five.
+
+**Winners claim instead of being pushed a payment.** Finalization allocates one
+exact-sized account for each board. The keeper submits the sorted rows in small
+chunks, and the program verifies each row against that player's result, the full
+ordering, uniqueness, and the program-computed winner count before sealing the
+board. Claims stay disabled until sealing; afterwards the program looks up the
+owner's position and recomputes that rank's payout directly. A reward stays
+claimable for thirty days from finalization; anything unclaimed then returns to
+the next Daily pot, never to operator revenue.
+
+**A persistent Elo ladder replaces the season bands.** It is fed by daily
+placements, pays no SOL, and resets only through an announced decision; its
+reward is a named tier shown beside you on every leaderboard. Ratings are
+computed from finalized on-chain boards and published with a commitment, so
+anyone can recompute and verify them. A championship is discretionary,
+unscheduled, and funded separately rather than skimmed from Daily pots.
+
+Bonuses gain a fourth type, a reroll of the incoming row, and each pool entry
+pins its active bonus so a day plays differently rather than only scoring
+differently. Mainnet remains gated on the same counsel, economic, and
+distribution review as before.
 
 ## Architecture
 
@@ -70,7 +128,7 @@ to 0.001 SOL and all dust rolls into the next period of the same type.
 | `crates/zkube-core-wasm` | WASM build of the same engine for the client |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
-| `services` | Keeper worker: period preparation, recovery, rollup, settlement, archival, cleanup |
+| `services` | Keeper worker: Daily preparation, recovery, settlement, archival, cleanup |
 | `client` | Static PWA/TWA — wallet, Campaign, and Arcade UI, with no server signer |
 
 The engine is the single source of truth for game rules, and native Rust, WASM,

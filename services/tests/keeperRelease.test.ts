@@ -16,33 +16,34 @@ describe("keeper release binding", () => {
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(first.record).toMatchObject({
-      schemaVersion: 11,
+      schemaVersion: 15,
       programId: input.programId,
       keeper: input.keeperPublicKey,
       entryLamports: "10000000",
       entrySplitLamports: {
-        followingDaily: "6000000",
-        followingWeekly: "2000000",
-        followingSeason: "1000000",
+        followingDaily: "9000000",
         operator: "1000000",
       },
       payoutUnitLamports: "1000000",
-      maximumCadenceResultBytes: 10_240,
+      arenaBoardCapacity: 1_536,
+      maximumCadenceResultBytes: 300_000,
       replayVersion: 2,
-      maximumWritesPerPass: 8,
+      maximumWritesPerPass: 6,
       maximumExpiredSessionClosuresPerPass: 2,
-      maximumParticipantClosuresPerPass: 2,
-      recentCadenceWindow: { dailies: 84, weeklies: 12, seasons: 3 },
+      maximumParticipantClosuresPerPass: 1,
+      recentCadenceWindow: { dailies: 84 },
       maximumSpendLamportsPerPass: 100_000_000,
       reserveFloorLamports: 100_000_000,
-      supportedArchiveVersions: [1, 2],
+      supportedArchiveVersions: [1, 2, 3],
+      maximumBoardWritesPerPass: 32,
+      maximumBoardRentLamportsPerPass: 1_804_825_440,
     });
-    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("finalize_season");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("finalize_arena_daily");
+    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("expire_daily_claims");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_daily_profile");
-    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_weekly_profile");
-    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_season_profile");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("close_arena_player");
-    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("close_season_player");
+    expect(KEEPER_RELEASE_POLICY.allowlist).not.toContain("finalize_season");
+    expect(KEEPER_RELEASE_POLICY.allowlist).not.toContain("consume_practice_run");
     expect(KEEPER_RELEASE_POLICY.denied).toContain("incident_or_refund");
   });
 

@@ -57,35 +57,34 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
 }
 
 describe("InsertCoinSheet", () => {
-  it("shows the guardian, the exact amount with the SOL mark, and a tap-to-open info affordance", () => {
+  it("shows one Kredit and a tap-to-open prepaid-entry explanation", () => {
     renderSheet();
 
-    expect(screen.getByText("0.010")).toBeInTheDocument();
-    // The official Solana logomark replaces the "SOL" text suffix.
-    expect(screen.getByRole("img", { name: "SOL" })).toBeInTheDocument();
+    expect(screen.getByText("1 Kredit")).toBeInTheDocument();
     // Today's guardian hosts the entry — you feed it the coin.
     expect(screen.getByLabelText(/Feed Sobek/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /how it works/i }),
     ).toBeInTheDocument();
     // The rules copy stays hidden until the info affordance is tapped.
-    expect(screen.queryByText(/funds tomorrow/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/owner wallet bought/i)).not.toBeInTheDocument();
   });
 
   it("reveals the rules only after tapping the info affordance", () => {
     renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: /how it works/i }));
-    expect(screen.getByText(/funds tomorrow/i)).toBeInTheDocument();
+    expect(screen.getByText(/owner wallet bought/i)).toBeInTheDocument();
+    expect(screen.getByText(/following Daily/i)).toBeInTheDocument();
   });
 
-  it("feeds the guardian, then proceeds to the owner signature", () => {
+  it("feeds the guardian, then proceeds to the Kredit spend", () => {
     vi.useFakeTimers();
     try {
       const onConfirm = vi.fn();
       renderSheet({ onConfirm });
 
-      fireEvent.click(screen.getByRole("button", { name: "Sign & enter" }));
+      fireEvent.click(screen.getByRole("button", { name: "Spend & enter" }));
       // The feeding ceremony runs first — confirm is not immediate…
       expect(onConfirm).not.toHaveBeenCalled();
       expect(
@@ -107,18 +106,18 @@ describe("InsertCoinSheet", () => {
       const onConfirm = vi.fn();
       renderSheet({ onConfirm });
 
-      fireEvent.click(screen.getByRole("button", { name: "Sign & enter" }));
+      fireEvent.click(screen.getByRole("button", { name: "Spend & enter" }));
       expect(onConfirm).toHaveBeenCalledOnce();
     } finally {
       fixtures.reduceMotion = false;
     }
   });
 
-  it("disables the button and blocks dismissal while a signature is in flight", () => {
+  it("disables the button and blocks dismissal while a Kredit spend is in flight", () => {
     const onClose = vi.fn();
     renderSheet({ busy: true, onClose });
 
-    expect(screen.getByRole("button", { name: "Preparing signature…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Spending Kredit…" })).toBeDisabled();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
   });

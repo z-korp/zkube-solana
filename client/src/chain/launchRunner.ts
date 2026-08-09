@@ -18,16 +18,11 @@ import {
   buildAtomicArcadeLaunchPlan,
 } from "./adminClient";
 import { canonicalCampaignMap } from "./campaignCatalog";
-import {
-  LAUNCH_DAILY_SEED_LAMPORTS,
-  LAUNCH_SEASON_SEED_LAMPORTS,
-  LAUNCH_WEEKLY_SEED_LAMPORTS,
-} from "./deploymentManifest";
+import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
   buildZkubeLaunchPlan,
   LAUNCH_ACCOUNT_SPACES,
-  launchCadences,
   launchPlannerInputFromEnv,
   launchTransactionSha256,
   type LaunchCostPlan,
@@ -38,19 +33,16 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
+  deriveCreditVaultPda,
   deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
   ARENA_ENTRY_LAMPORTS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
-  ENTRY_SEASON_LAMPORTS,
-  ENTRY_WEEKLY_LAMPORTS,
 } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
@@ -75,8 +67,8 @@ interface LaunchProgress {
 }
 
 interface LaunchBundle {
-  schema: "zkube-v4-devnet-launch-bundle";
-  schemaVersion: 2;
+  schema: "zkube-v5-devnet-launch-bundle";
+  schemaVersion: 3;
   approvalFingerprint: string;
   approvalEvidenceSha256: string;
   approvalPayload: unknown;
@@ -96,7 +88,7 @@ export interface LaunchRunnerResult {
   rulesCatalogSha256: string;
 }
 
-const DEFAULT_BUNDLE_PATH = "/tmp/zkube-v4-launch-20656.json";
+const DEFAULT_BUNDLE_PATH = "/tmp/zkube-v5-launch.json";
 
 export async function runLaunchFromEnv(
   env: Record<string, string | undefined> = process.env,
@@ -135,8 +127,8 @@ export async function runLaunchFromEnv(
   const activation = plan.plans[21];
   if (!activation) throw new Error("launch plan omitted its atomic activation");
   const bundle: LaunchBundle = {
-    schema: "zkube-v4-devnet-launch-bundle",
-    schemaVersion: 2,
+    schema: "zkube-v5-devnet-launch-bundle",
+    schemaVersion: 3,
     approvalFingerprint: plan.approvalFingerprint,
     approvalEvidenceSha256: plan.approvalEvidenceSha256,
     approvalPayload: plan.approvalPayload,
@@ -278,13 +270,11 @@ async function activateLaunch(
     bundle.input.authority,
     "protocol authority",
   );
-  const { weekId, seasonId } = launchCadences(bundle.input.launchDayId);
   const plan = await buildAtomicArcadeLaunchPlan({
     connection,
     authority: createReadOnlyWallet(authority.publicKey),
     dayId: bundle.input.launchDayId,
-    weekId,
-    seasonId,
+    rulesVersion: 1,
   });
   if (launchTransactionSha256(plan) !== bundle.activationTransactionSha256) {
     throw new Error("atomic activation instruction bytes drifted after approval");
@@ -412,8 +402,6 @@ async function verifyStagedLaunch(
   if (arcade.launchSeeded !== false || integer(arcade.launchDayId) !== 0 ||
       amount(arcade.entryLamports) !== ARENA_ENTRY_LAMPORTS ||
       amount(arcade.dailyLamports) !== ENTRY_DAILY_LAMPORTS ||
-      amount(arcade.weeklyLamports) !== ENTRY_WEEKLY_LAMPORTS ||
-      amount(arcade.seasonLamports) !== ENTRY_SEASON_LAMPORTS ||
       amount(arcade.operatorLamports) !== ENTRY_OPERATOR_LAMPORTS) {
     throw new Error("paused ArcadeConfig does not match the approved economy");
   }
@@ -426,6 +414,17 @@ async function verifyStagedLaunch(
   );
   if (amount(vault.grossOperatorShare) !== 0n || amount(vault.withdrawn) !== 0n) {
     throw new Error("operator vault is not fresh");
+  }
+  const creditVault = await fetchExact(
+    connection,
+    program,
+    "creditVault",
+    deriveCreditVaultPda(),
+    LAUNCH_ACCOUNT_SPACES.creditVault,
+  );
+  if (amount(creditVault.purchasedPrizeLamports) !== 0n ||
+      amount(creditVault.spentPrizeLamports) !== 0n) {
+    throw new Error("credit vault is not fresh");
   }
   await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
   await verifyPeriods(connection, program, bundle, false);
@@ -475,16 +474,9 @@ async function verifyFreshArcadeArchive(
     deriveArcadeArchivePda(),
     LAUNCH_ACCOUNT_SPACES.arcadeArchive,
   );
-  const { weekId, seasonId } = launchCadences(launchDayId);
   if (integer(archive.firstDailyId) !== launchDayId ||
       integer(archive.lastDailyId) !== launchDayId - 1 ||
-      integer(archive.firstWeeklyId) !== weekId ||
-      integer(archive.lastWeeklyId) !== weekId - 1 ||
-      integer(archive.firstSeasonId) !== seasonId ||
-      integer(archive.lastSeasonId) !== seasonId - 1 ||
-      bytesHex(archive.dailyRoot) !== "00".repeat(32) ||
-      bytesHex(archive.weeklyRoot) !== "00".repeat(32) ||
-      bytesHex(archive.seasonRoot) !== "00".repeat(32)) {
+      bytesHex(archive.dailyRoot) !== "00".repeat(32)) {
     throw new Error("Arcade archive is not the approved fresh checkpoint");
   }
   const funding = await connection.getAccountInfo(
@@ -504,7 +496,6 @@ async function verifyPeriods(
   active: boolean,
 ): Promise<void> {
   const dayId = bundle.input.launchDayId;
-  const { weekId, seasonId } = launchCadences(dayId);
   for (const id of [dayId, dayId + 1]) {
     const value = await fetchExact(
       connection,
@@ -516,42 +507,6 @@ async function verifyPeriods(
     verifyPeriod(value, id === dayId && active, id === dayId && active
       ? BigInt(LAUNCH_DAILY_SEED_LAMPORTS)
       : 0n, "Daily");
-  }
-  for (const id of [weekId, weekId + 1]) {
-    const value = await fetchExact(
-      connection,
-      program,
-      "weeklyJackpot",
-      deriveWeeklyJackpotPda(id),
-      LAUNCH_ACCOUNT_SPACES.weeklyJackpot,
-    );
-    verifyPeriod(value, id === weekId && active, id === weekId && active
-      ? BigInt(LAUNCH_WEEKLY_SEED_LAMPORTS)
-      : 0n, "Weekly");
-    const expectedStart = id === weekId && active
-      ? dayId
-      : id * 7 + 4;
-    if (integer(value.qualificationStartDay) !== expectedStart) {
-      throw new Error("Weekly qualification start is invalid");
-    }
-  }
-  for (const id of [seasonId, seasonId + 1]) {
-    const value = await fetchExact(
-      connection,
-      program,
-      "season",
-      deriveSeasonPda(id),
-      LAUNCH_ACCOUNT_SPACES.season,
-    );
-    verifyPeriod(value, id === seasonId && active, id === seasonId && active
-      ? BigInt(LAUNCH_SEASON_SEED_LAMPORTS)
-      : 0n, "Season");
-    const expectedStart = id === seasonId && active
-      ? dayId
-      : id * 28 + 4;
-    if (integer(value.qualificationStartDay) !== expectedStart) {
-      throw new Error("Season qualification start is invalid");
-    }
   }
 }
 
@@ -833,8 +788,8 @@ function loadPinnedKeypair(path: string, expected: string, label: string): Keypa
 function parseBundle(source: string): LaunchBundle {
   const value: unknown = JSON.parse(source);
   if (!value || typeof value !== "object" ||
-      (value as { schema?: unknown }).schema !== "zkube-v4-devnet-launch-bundle" ||
-      (value as { schemaVersion?: unknown }).schemaVersion !== 2) {
+      (value as { schema?: unknown }).schema !== "zkube-v5-devnet-launch-bundle" ||
+      (value as { schemaVersion?: unknown }).schemaVersion !== 3) {
     throw new Error("launch bundle is malformed or unsupported");
   }
   const bundle = value as LaunchBundle;

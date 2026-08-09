@@ -1,8 +1,85 @@
+import {
+  DAILY_POOL_CAPACITY,
+  DAILY_POOL_SELECTION_SEED,
+} from "./protocolVersions.generated";
+
 export const DAILY_SCORING_RULE_COUNT = 15;
-export const CANONICAL_DAILY_SEASON_SEED = [
-  122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 115, 101, 97, 115,
-  111, 110, 45, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100,
-] as const;
+export const CANONICAL_DAILY_POOL_SEED = DAILY_POOL_SELECTION_SEED;
+export function dailyIsScheduled(
+  dayId: number,
+  startsDay: number,
+  entryCount: number,
+): boolean {
+  assertDayId(dayId);
+  assertDayId(startsDay);
+  assertPoolEntryCount(entryCount);
+  return entryCount > 0 && dayId >= startsDay;
+}
+
+export function nextScheduledDaily(
+  dayId: number,
+  startsDay: number,
+  entryCount: number,
+): number {
+  assertDayId(dayId);
+  assertPoolEntryCount(entryCount);
+  if (entryCount === 0) throw new Error("no paid Daily is scheduled");
+  const candidate = Math.max(dayId + 1, startsDay);
+  assertDayId(candidate);
+  return candidate;
+}
+
+export async function dailyContentSelection(
+  selectionSeed: Uint8Array,
+  startsDay: number,
+  dayId: number,
+  entryCount: number,
+): Promise<{ poolIndex: number }> {
+  if (selectionSeed.length !== 32) throw new Error("selection seed must be 32 bytes");
+  if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
+    throw new Error("no paid Daily is scheduled");
+  }
+  const pool = Array.from({ length: DAILY_POOL_CAPACITY }, (_, index) => index);
+  const cycleIndex = Math.floor(dayId / entryCount);
+  for (let index = entryCount - 1; index > 0; index -= 1) {
+    const swap = Number(
+      (await poolHashU64(selectionSeed, cycleIndex, index)) % BigInt(index + 1),
+    );
+    [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
+  }
+  return { poolIndex: pool[dayId % entryCount]! };
+}
+
+async function poolHashU64(
+  seed: Uint8Array,
+  cycleIndex: number,
+  index: number,
+): Promise<bigint> {
+  const domainRoot = new TextEncoder().encode("zkube-daily-pool-draw-v2");
+  const input = new Uint8Array(domainRoot.length + 32 + 4 + 1);
+  let offset = 0;
+  for (const bytes of [domainRoot, seed]) {
+    input.set(bytes, offset);
+    offset += bytes.length;
+  }
+  new DataView(input.buffer).setUint32(offset, cycleIndex, true);
+  offset += 4;
+  input[offset] = index;
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", input));
+  return new DataView(digest.buffer).getBigUint64(0, true);
+}
+
+function assertPoolEntryCount(entryCount: number): void {
+  if (!Number.isInteger(entryCount) || entryCount < 0 || entryCount > DAILY_POOL_CAPACITY) {
+    throw new Error("Daily pool entry count is invalid");
+  }
+}
+
+function assertDayId(dayId: number): void {
+  if (!Number.isInteger(dayId) || dayId < 0 || dayId > 0xffff_ffff) {
+    throw new Error("day id is outside u32");
+  }
+}
 
 const DAILY_SCORE_CLASSIC = 0;
 const DAILY_SCORE_COMBO = 1;

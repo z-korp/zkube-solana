@@ -17,6 +17,7 @@ mod golden_run;
 // The extracted v4 engine preserves its already-reviewed arithmetic and
 // compact casts so the existing parity fixtures remain authoritative.
 mod campaign;
+mod daily_content;
 mod daily_scoring;
 mod economics;
 #[allow(clippy::pedantic)]
@@ -33,21 +34,25 @@ mod replay;
 #[allow(clippy::pedantic)]
 mod rules;
 mod simulation;
-mod weekly;
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries. Rules and public labels intentionally
 /// retain their independent v1 schemas.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
-pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 3;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 4;
-pub const RULES_ACCOUNT_VERSION: u8 = 1;
+pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 6;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 8;
+pub const RULES_ACCOUNT_VERSION: u8 = 4;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
+pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use campaign::{
     CAMPAIGN_LEVELS_PER_MAP, CAMPAIGN_MAP_COUNT, CAMPAIGN_MAX_STARS, CAMPAIGN_STAR_BYTES,
     CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignError, CampaignRules, CampaignSimulation,
     CampaignSimulationConfig, CampaignStars, CampaignStarsError,
+};
+pub use daily_content::{
+    DAILY_POOL_CAPACITY, DAILY_POOL_SELECTION_SEED, DailyPoolError, daily_pool_entry_index,
+    daily_pool_entry_index_with,
 };
 pub use daily_scoring::{
     DailyObjective, DailyObjectiveRule, DailyObjectiveScore, DailyScoringError,
@@ -55,26 +60,21 @@ pub use daily_scoring::{
 };
 pub use economics::{
     ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_BPS,
-    ENTRY_OPERATOR_LAMPORTS, ENTRY_SEASON_BPS, ENTRY_SEASON_LAMPORTS, ENTRY_WEEKLY_BPS,
-    ENTRY_WEEKLY_LAMPORTS, EntrySplit, EntrySplitError, split_arena_entry,
+    ENTRY_OPERATOR_LAMPORTS, EntrySplit, EntrySplitError, split_arena_entry,
 };
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};
 pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{
-    DAILY_PRIZE_WEIGHTS, EqualBudgetPlan, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,
-    WEEKLY_PRIZE_WEIGHTS, equal_sol_unit_budgets, equal_whole_budgets, sol_unit_payouts,
-    whole_unit_payouts,
+    BoardWidth, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,
+    board_width, payout_for_rank, rank_weighted_payouts, sol_rank_weighted_payouts,
 };
-pub use periods::{
-    FundingPeriods, MONDAY_EPOCH_DAY_ID, PeriodError, SEASON_DAYS, SECONDS_PER_DAY, WEEK_DAYS,
-    day_id_at, funding_periods_for_day, season_id_at, season_id_for_day, season_start_day,
-    week_id_at, week_id_for_day, week_start_day,
-};
+pub use periods::{DAILY_REWARD_CLAIM_WINDOW_SECONDS, PeriodError, SECONDS_PER_DAY, day_id_at};
 pub use randomness::{
     BlockWeights, ContinuationLayout, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT, OpeningLayout,
     RandomnessError, continuation_from_vrf, continuation_from_vrf_with, opening_from_vrf,
-    opening_from_vrf_with, row_from_vrf, row_from_vrf_with, sha256v, sha256v_with,
+    opening_from_vrf_with, reroll_row_from_vrf, reroll_row_from_vrf_with, row_from_vrf,
+    row_from_vrf_with, sha256v, sha256v_with,
 };
 pub use replay::{
     CanonicalEventBytes, ChainDomain, ChallengeId, PlayerId, ReplayCommitment, ReplayEvent,
@@ -88,7 +88,4 @@ pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DailyPressureRules, DailyRunRules,
     DailySimulation, DailySimulationConfig, SimulationError, daily_challenge_rules_hash,
     daily_challenge_rules_hash_with,
-};
-pub use weekly::{
-    WeeklyMetric, WeeklyMetricSelection, select_weekly_metrics, select_weekly_metrics_with,
 };

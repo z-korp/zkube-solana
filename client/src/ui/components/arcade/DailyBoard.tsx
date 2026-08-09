@@ -1,17 +1,16 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 import type { DailyView } from "@/chain/dailyClient";
-import { seasonPointsForDailyRank } from "@/ui/components/arcade/seasonBands";
 import {
   PaidCutLine,
   RankMedal,
 } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
-  DAILY_WEIGHTS,
   MONEY_GOLD,
   SolMark,
-  computePayouts,
+  computeRankPayouts,
+  dailyBoardPools,
 } from "@/ui/components/economy";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
@@ -39,20 +38,24 @@ interface DailyBoardProps {
 
 /**
  * The prize ladder IS the leaderboard: five rungs, always priced from the
- * live pot whether or not anyone holds them — rank, the Season points that
- * rank earns today, holder, score, potential earnings. Nothing renders below
+ * live pot whether or not anyone holds them — rank, holder, score, potential
+ * earnings. Nothing renders below
  * the prize zone except the connected player's own row when they sit outside
  * it, so they always know where they stand. The percentage split lives in
  * the ? popup.
  */
 const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
-  const payouts = computePayouts(view.dailyPotLamports, [...DAILY_WEIGHTS]);
-  const rows = view.leaderboard;
+  const [board, setBoard] = useState<"score" | "theme">("score");
+  const pools = dailyBoardPools(view.dailyPotLamports, view.themeQualifiedPlayers);
+  const qualified = board === "score"
+    ? view.scoreQualifiedPlayers
+    : view.themeQualifiedPlayers;
+  const plan = computeRankPayouts(pools[board], qualified);
+  const payouts = plan.payouts;
+  const rows = board === "score" ? view.leaderboard : view.themeLeaderboard;
   const myIndex = address
     ? rows.findIndex((entry) => entry.player.toBase58() === address)
     : -1;
-  const scoreablePlayers = Math.max(view.uniquePlayers, rows.length);
-
   const rowFor = (index: number, withDivider: boolean) => {
     const entry = rows[index];
     const rank = index + 1;
@@ -71,12 +74,6 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
         style={isYou ? YOU_RING : undefined}
       >
         <RankMedal rank={rank} />
-        <span
-          className="w-10 flex-none font-mono text-[12px] font-bold tabular-nums"
-          style={{ color: MONEY_GOLD }}
-        >
-          +{seasonPointsForDailyRank(rank, scoreablePlayers)}
-        </span>
         <span className="min-w-0 flex-1 truncate text-left font-sans text-[15px] font-bold text-white/90">
           {isYou
             ? "You"
@@ -86,7 +83,9 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
               : "—"}
         </span>
         <span className="w-20 flex-none text-right font-mono text-[15px] font-bold tabular-nums text-white">
-          {entry ? entry.dailyScore.toLocaleString() : ""}
+          {entry
+            ? (board === "score" ? entry.dailyScore : entry.objectiveTotal).toLocaleString()
+            : ""}
         </span>
         <span className="flex w-[72px] flex-none items-center justify-end gap-1">
           {prize > 0n && (
@@ -105,22 +104,37 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
 
   return (
     <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
-      <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
-        Leaderboard
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+          Daily board
+        </p>
+        <div className="flex rounded-lg bg-black/30 p-0.5 text-[10px] font-bold uppercase">
+          {(["score", "theme"] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className={`rounded-md px-2 py-1 ${board === kind ? "bg-white/15 text-white" : "text-white/40"}`}
+              onClick={() => setBoard(kind)}
+            >
+              {kind}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="mt-1 flex items-center gap-2.5 px-2 pb-1">
         <span className={`${HEAD_CLASS} w-5`}>#</span>
-        <span className={`${HEAD_CLASS} w-10`}>Pts</span>
         <span className={`${HEAD_CLASS} flex-1`}>Player</span>
-        <span className={`${HEAD_CLASS} w-20 text-right`}>Score</span>
+        <span className={`${HEAD_CLASS} w-20 text-right`}>
+          {board === "score" ? "Score" : "Theme"}
+        </span>
         <span className={`${HEAD_CLASS} w-[72px] text-right`}>Prize</span>
       </div>
 
-      {Array.from({ length: DAILY_WEIGHTS.length }, (_, index) =>
+      {Array.from({ length: plan.winnerCount }, (_, index) =>
         rowFor(index, index > 0),
       )}
 
-      {myIndex >= DAILY_WEIGHTS.length && (
+      {myIndex >= plan.winnerCount && (
         <Fragment>
           <PaidCutLine />
           {rowFor(myIndex, false)}

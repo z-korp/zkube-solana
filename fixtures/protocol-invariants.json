@@ -1,3 +1,20 @@
 {
-  "initialRunId": 1
+  "schemaVersion": 4,
+  "initialRunId": 1,
+  "coreVersion": "0.6.0",
+  "replayEventTags": {
+    "vrf": 1,
+    "move": 2,
+    "bonus": 3,
+    "playerAbandon": 4,
+    "dailyDeadline": 5,
+    "reroll": 6
+  },
+  "dailySimulationStateEncoding": {
+    "version": 2,
+    "length": 313,
+    "objectiveTotal": "u64-le"
+  },
+  "dailyClaimWindowSeconds": 2592000,
+  "dailyPoolCapacity": 128
 }

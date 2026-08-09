@@ -19,15 +19,17 @@ import {
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
+  deriveArenaBoardPda,
   deriveArenaDailyPda,
   deriveArenaPlayerPda,
+  deriveCadenceFundingPda,
+  deriveCreditVaultPda,
+  deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas.js";
 import {
   activeRunIdForSlot,
@@ -42,6 +44,8 @@ import {
 import {
   mapDailyPressureProfile,
   mapDailyScoringRule,
+  dailyContentSelection,
+  nextScheduledDaily,
   type DailyPressureProfileView,
   type DailyScoringRuleView,
 } from "./dailyRules.js";
@@ -60,6 +64,7 @@ export interface DailyLeaderboardView {
   runId: bigint;
   dailyScore: number;
   dailyBonusTriggers: number;
+  objectiveTotal: bigint;
   engineScore: number;
   moves: number;
   finalizedAttempts: number;
@@ -78,7 +83,6 @@ export interface DailyPlayerView {
   bestEngineScore: number;
   bestMoves: number;
   bestScore: number;
-  seasonRolledUp: boolean;
   activePaidRunId: bigint;
 }
 
@@ -110,9 +114,9 @@ export function parseDailyStatus(value: unknown): DailyStatus {
 
 export interface DailyView extends EndlessRulesView {
   address: PublicKey;
+  rulesCatalog: PublicKey;
   dayId: number;
-  weeklyId: number;
-  seasonId: number;
+  followingDayId: number | null;
   status: DailyStatus;
   mapId: number;
   opensAt: number;
@@ -124,9 +128,8 @@ export interface DailyView extends EndlessRulesView {
   entryLamports: bigint;
   dailyPotLamports: bigint;
   followingDailyLamports: bigint | null;
+  kreditBalance: bigint;
   uniquePlayers: number;
-  seasonEligiblePlayers: number;
-  seasonRollups: number;
   attemptsStarted: bigint;
   runsFinalized: bigint;
   entriesExpired: bigint;
@@ -135,6 +138,9 @@ export interface DailyView extends EndlessRulesView {
   activeRunId: bigint;
   player: DailyPlayerView | null;
   leaderboard: DailyLeaderboardView[];
+  themeLeaderboard: DailyLeaderboardView[];
+  scoreQualifiedPlayers: number;
+  themeQualifiedPlayers: number;
   rules: ActiveRunRulesView;
   scoringRule: DailyScoringRuleView;
   pressure: DailyPressureProfileView;
@@ -157,30 +163,51 @@ export async function fetchDailyView(args: {
   const challenge = await program.account.arenaDaily.fetchNullable(address);
   if (!challenge) return null;
   const owner = args.wallet.publicKey;
-  const [profile, player, arcadeConfig, following] = await Promise.all([
+  const status = parseDailyStatus(challenge.status);
+  const [profile, player, arcadeConfig, boardRows] = await Promise.all([
     program.account.playerState.fetchNullable(derivePlayerStatePda(owner)),
     program.account.arenaPlayer.fetchNullable(
       deriveArenaPlayerPda(address, owner),
     ),
     program.account.arcadeConfig.fetch(deriveArcadeConfigPda()),
-    program.account.arenaDaily.fetchNullable(deriveArenaDailyPda(dayId + 1)),
+    status === "finalized"
+      ? Promise.all([
+          fetchDailyBoardEntries(
+            args.connection,
+            address,
+            dayId,
+            "score",
+          ),
+          fetchDailyBoardEntries(
+            args.connection,
+            address,
+            dayId,
+            "theme",
+          ),
+        ])
+      : Promise.resolve([[], []] as const),
   ]);
-  const rows = challenge.entries.map((entry) => ({
-    player: entry.player,
-    runId: BigInt(entry.runId.toString()),
-    dailyScore: Number(entry.score),
-    dailyBonusTriggers: 0,
-    engineScore: Number(entry.score),
-    moves: 0,
-    finalizedAttempts: Number(entry.attempts),
-    score: Number(entry.score),
-    submittedAt: Number(entry.finalizedAt),
-    replayHash: Uint8Array.from(entry.replayHash),
-  }));
+  const catalog = await program.account.dailyRulesCatalog.fetch(
+    arcadeConfig.rulesCatalog,
+  );
+  const poolEntryCount = Number(catalog.poolEntryCount);
+  const followingDayId = poolEntryCount === 0
+    ? null
+    : nextScheduledDaily(
+        dayId,
+        Number(catalog.startsDay),
+        poolEntryCount,
+      );
+  const following = followingDayId === null
+    ? null
+    : await program.account.arenaDaily.fetchNullable(
+        deriveArenaDailyPda(followingDayId),
+      );
+  const [rows, themeRows] = boardRows;
   const labels = await fetchPlayerLabels({
     connection: args.connection,
     wallet: args.wallet,
-    owners: rows.map((entry) => entry.player),
+    owners: [...rows, ...themeRows].map((entry) => entry.player),
   }).catch(() => []);
   const names = new Map(
     labels.map((label) => [label.owner.toBase58(), label.displayName]),
@@ -188,10 +215,10 @@ export async function fetchDailyView(args: {
   const pressure = mapDailyPressureProfile(challenge.pressure);
   return {
     address,
+    rulesCatalog: arcadeConfig.rulesCatalog,
     dayId: Number(challenge.dayId),
-    weeklyId: Number(challenge.weekId),
-    seasonId: Number(challenge.seasonId),
-    status: parseDailyStatus(challenge.status),
+    followingDayId,
+    status,
     mapId: Number(challenge.mapId),
     opensAt: Number(challenge.opensAt),
     entriesCloseAt: Number(challenge.entriesCloseAt),
@@ -204,9 +231,8 @@ export async function fetchDailyView(args: {
     followingDailyLamports: following
       ? availablePoolLamports(following.ledger)
       : null,
+    kreditBalance: profile ? BigInt(profile.kreditBalance.toString()) : 0n,
     uniquePlayers: Number(challenge.uniquePlayers),
-    seasonEligiblePlayers: Number(challenge.seasonEligiblePlayers),
-    seasonRollups: Number(challenge.seasonRollups),
     attemptsStarted: BigInt(challenge.entriesPaid.toString()),
     runsFinalized: BigInt(challenge.entriesScored.toString()),
     entriesExpired: BigInt(challenge.entriesExpired.toString()),
@@ -218,13 +244,14 @@ export async function fetchDailyView(args: {
           attempts: Number(player.paidEntries),
           paidAttempts: Number(player.paidEntries),
           finalizedAttempts: Number(player.resolvedEntries),
-          bestRunId: BigInt(player.bestEntry.runId.toString()),
-          bestDailyScore: Number(player.bestEntry.score),
+          bestRunId: player.hasScoreBest
+            ? BigInt(player.scoreBestRunId.toString())
+            : 0n,
+          bestDailyScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
           bestDailyBonusTriggers: 0,
-          bestEngineScore: Number(player.bestEntry.score),
+          bestEngineScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
           bestMoves: 0,
-          bestScore: Number(player.bestEntry.score),
-          seasonRolledUp: Boolean(player.seasonRolledUp),
+          bestScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
           activePaidRunId: BigInt(player.activePaidRunId.toString()),
         }
       : null,
@@ -232,12 +259,85 @@ export async function fetchDailyView(args: {
       ...entry,
       playerName: names.get(entry.player.toBase58()) ?? null,
     })),
+    themeLeaderboard: themeRows.map((entry) => ({
+      ...entry,
+      playerName: names.get(entry.player.toBase58()) ?? null,
+    })),
+    scoreQualifiedPlayers: Number(challenge.scoreQualifiedPlayers),
+    themeQualifiedPlayers: Number(challenge.themeQualifiedPlayers),
     rules: mapLevelRuleSnapshot(challenge.rules),
     scoringRule: mapDailyScoringRule(challenge.scoringRule),
     pressure,
     endlessThresholds: pressure.thresholds,
     endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
   };
+}
+
+const ARENA_BOARD_HEADER_BYTES = 121;
+const ARENA_BOARD_ENTRY_BYTES = 84;
+const ARENA_BOARD_CAPACITY = 1_536;
+
+async function fetchDailyBoardEntries(
+  connection: Connection,
+  daily: PublicKey,
+  dayId: number,
+  kind: "score" | "theme",
+): Promise<DailyLeaderboardView[]> {
+  const address = deriveArenaBoardPda(daily, kind);
+  const info = await connection.getAccountInfo(address, "confirmed");
+  if (!info) return [];
+  const data = Buffer.from(info.data);
+  const discriminator = rankedDependencyCoder.accountDiscriminator("arenaBoard");
+  if (
+    info.executable ||
+    !info.owner.equals(ZKUBE_PROGRAM_ID) ||
+    data.length < ARENA_BOARD_HEADER_BYTES ||
+    !data.subarray(0, discriminator.length).equals(discriminator) ||
+    data.readUInt8(8) !== ARCADE_ACCOUNT_VERSION ||
+    !new PublicKey(data.subarray(9, 41)).equals(daily) ||
+    data.readUInt32LE(41) !== dayId ||
+    data.readUInt8(45) !== (kind === "score" ? 0 : 1)
+  ) {
+    throw new Error(`${kind} Daily board identity is invalid`);
+  }
+  const payoutCount = data.readUInt32LE(54);
+  const cursor = data.readUInt32LE(99);
+  const sealed = data.readUInt8(103) !== 0;
+  const bitmapBytes = Math.ceil(payoutCount / 8);
+  const expectedSize =
+    ARENA_BOARD_HEADER_BYTES +
+    payoutCount * ARENA_BOARD_ENTRY_BYTES +
+    2 * bitmapBytes;
+  if (
+    payoutCount > ARENA_BOARD_CAPACITY ||
+    cursor > payoutCount ||
+    data.length !== expectedSize
+  ) {
+    throw new Error(`${kind} Daily board allocation is invalid`);
+  }
+  // A partially constructed board is deliberately not a claimable or public
+  // result. Publish it only after the program has verified and sealed all rows.
+  if (!sealed || cursor !== payoutCount) return [];
+
+  return Array.from({ length: payoutCount }, (_, position) => {
+    const offset = ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_BYTES;
+    const row = data.subarray(offset, offset + ARENA_BOARD_ENTRY_BYTES);
+    const score = row.readUInt32LE(32);
+    return {
+      player: new PublicKey(row.subarray(0, 32)),
+      playerName: null,
+      runId: 0n,
+      dailyScore: score,
+      dailyBonusTriggers: 0,
+      objectiveTotal: row.readBigUInt64LE(36),
+      engineScore: score,
+      moves: 0,
+      finalizedAttempts: 0,
+      score,
+      submittedAt: Number(row.readBigInt64LE(44)),
+      replayHash: Uint8Array.from(row.subarray(52, 84)),
+    };
+  });
 }
 
 export async function buildPrepareDailyRunPlan(args: {
@@ -249,10 +349,9 @@ export async function buildPrepareDailyRunPlan(args: {
   sessionValidUntil: number;
 }): Promise<PreparedRunPlan> {
   const owner = args.ownerAuthority;
-  if (!args.wallet.publicKey.equals(owner)) {
-    throw new Error(
-      "Every Arena entry requires the connected owner wallet signature",
-    );
+  const followingDayId = requireFollowingDaily(args.daily);
+  if (args.daily.kreditBalance < 1n) {
+    throw new Error("Buy a Kredit with the owner wallet before entering Arena");
   }
   await assertRankedEntryDependencies({
     connection: args.connection,
@@ -277,15 +376,13 @@ export async function buildPrepareDailyRunPlan(args: {
       playerState: derivePlayerStatePda(owner),
       currentDaily: args.daily.address,
       arenaPlayer: deriveArenaPlayerPda(args.daily.address, owner),
-      currentWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId),
-      currentSeason: deriveSeasonPda(args.daily.seasonId),
-      followingDaily: deriveArenaDailyPda(args.daily.dayId + 1),
-      followingWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId + 1),
-      followingSeason: deriveSeasonPda(args.daily.seasonId + 1),
-      operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+      followingDaily: deriveArenaDailyPda(followingDayId),
+      creditVault: deriveCreditVaultPda(),
       activeRun: addresses.activeRun,
       playerFunding: derivePlayerFundingPda(owner),
-      owner,
+      ownerAuthority: owner,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
       zkubeProgram: ZKUBE_PROGRAM_ID,
     })
@@ -296,12 +393,47 @@ export async function buildPrepareDailyRunPlan(args: {
     sessionToken: args.sessionToken,
     sessionValidUntil: args.sessionValidUntil,
     transactionPlan: basePlan(
-      `Enter Arena · exact ${formatSolBalanceLamports(args.daily.entryLamports)} SOL + network fee`,
+      "Enter Arena · spend 1 Kredit + network fee",
       args.connection,
-      owner,
+      args.wallet.publicKey,
       [instruction],
     ),
   };
+}
+
+export async function buildPurchaseKreditsPlan(args: {
+  connection: Connection;
+  ownerWallet: WalletLike;
+  kreditCount: number;
+  expectedUnitLamports?: bigint;
+}): Promise<TransactionPlan> {
+  if (!Number.isInteger(args.kreditCount) ||
+      args.kreditCount < 1 || args.kreditCount > 0xffff_ffff) {
+    throw new Error("Kredit count must be a positive u32");
+  }
+  const unitLamports = args.expectedUnitLamports ?? 10_000_000n;
+  const owner = args.ownerWallet.publicKey;
+  const instruction = await zkubeProgram(args.connection, args.ownerWallet)
+    .methods.purchaseKredits(
+      args.kreditCount,
+      new BN(unitLamports.toString()),
+    )
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arcadeConfig: deriveArcadeConfigPda(),
+      playerState: derivePlayerStatePda(owner),
+      creditVault: deriveCreditVaultPda(),
+      operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+      owner,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return basePlan(
+    `Buy ${args.kreditCount} ${args.kreditCount === 1 ? "Kredit" : "Kredits"} · ${formatSolBalanceLamports(unitLamports * BigInt(args.kreditCount))} SOL`,
+    args.connection,
+    owner,
+    [instruction],
+  );
 }
 
 const rankedDependencyCoder = new BorshAccountsCoder(
@@ -310,11 +442,9 @@ const rankedDependencyCoder = new BorshAccountsCoder(
 
 const RANKED_ACCOUNT_SPACES = {
   protocolConfig: 156,
-  arcadeConfig: 119,
-  arenaDaily: 7_426,
-  weeklyJackpot: 5_925,
-  season: 2_222,
-  operatorRevenueVault: 58,
+  arcadeConfig: 103,
+  arenaDaily: 414,
+  creditVault: 58,
 } as const;
 
 type RankedAccountName = keyof typeof RANKED_ACCOUNT_SPACES;
@@ -329,12 +459,8 @@ interface RankedEntryDependencyValues {
   protocol: PublicKey;
   arcadeConfig: PublicKey;
   currentDaily: PublicKey;
-  currentWeekly: PublicKey;
-  currentSeason: PublicKey;
   followingDaily: PublicKey;
-  followingWeekly: PublicKey;
-  followingSeason: PublicKey;
-  operatorRevenueVault: PublicKey;
+  creditVault: PublicKey;
 }
 
 /**
@@ -342,8 +468,8 @@ interface RankedEntryDependencyValues {
  * disappeared, was substituted, or no longer matches the Daily snapshot.
  *
  * The checks intentionally use fixed offsets only for the account identity
- * prefix shared by every valid account revision. The variable leaderboard
- * tails are still bounded by the exact deployed allocation.
+ * prefix shared by every valid account revision. Leaderboards live in their
+ * own exact-sized accounts and are not entry dependencies.
  */
 export async function assertRankedEntryDependencies(args: {
   connection: Pick<Connection, "getMultipleAccountsInfo">;
@@ -353,16 +479,13 @@ export async function assertRankedEntryDependencies(args: {
   const program = zkubeProgram(args.connection as Connection, args.wallet);
   const protocol = deriveProtocolConfigPda();
   const arcadeConfig = deriveArcadeConfigPda();
+  const followingDayId = requireFollowingDaily(args.daily);
   const values: RankedEntryDependencyValues = {
     protocol,
     arcadeConfig,
     currentDaily: deriveArenaDailyPda(args.daily.dayId),
-    currentWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId),
-    currentSeason: deriveSeasonPda(args.daily.seasonId),
-    followingDaily: deriveArenaDailyPda(args.daily.dayId + 1),
-    followingWeekly: deriveWeeklyJackpotPda(args.daily.weeklyId + 1),
-    followingSeason: deriveSeasonPda(args.daily.seasonId + 1),
-    operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+    followingDaily: deriveArenaDailyPda(followingDayId),
+    creditVault: deriveCreditVaultPda(),
   };
   if (!args.daily.address.equals(values.currentDaily)) {
     throw rankedEntryUnavailable("current Daily PDA does not match its day");
@@ -376,30 +499,14 @@ export async function assertRankedEntryDependencies(args: {
       address: values.currentDaily,
     },
     {
-      name: "weeklyJackpot",
-      label: "current Weekly",
-      address: values.currentWeekly,
-    },
-    { name: "season", label: "current Season", address: values.currentSeason },
-    {
       name: "arenaDaily",
       label: "following Daily",
       address: values.followingDaily,
     },
     {
-      name: "weeklyJackpot",
-      label: "following Weekly",
-      address: values.followingWeekly,
-    },
-    {
-      name: "season",
-      label: "following Season",
-      address: values.followingSeason,
-    },
-    {
-      name: "operatorRevenueVault",
-      label: "operator revenue vault",
-      address: values.operatorRevenueVault,
+      name: "creditVault",
+      label: "credit vault",
+      address: values.creditVault,
     },
   ];
   const infos = await args.connection.getMultipleAccountsInfo(
@@ -416,34 +523,18 @@ export async function assertRankedEntryDependencies(args: {
     protocolInfo,
     arcadeConfigInfo,
     currentDailyInfo,
-    currentWeeklyInfo,
-    currentSeasonInfo,
     followingDailyInfo,
-    followingWeeklyInfo,
-    followingSeasonInfo,
-    operatorVaultInfo,
+    creditVaultInfo,
   ] = exact;
 
   assertVersion(protocolInfo!, PROTOCOL_ACCOUNT_VERSION, "protocol config");
   assertVersion(arcadeConfigInfo!, ARCADE_ACCOUNT_VERSION, "Arcade config");
   assertVersion(currentDailyInfo!, ARCADE_ACCOUNT_VERSION, "current Daily");
-  assertVersion(currentWeeklyInfo!, ARCADE_ACCOUNT_VERSION, "current Weekly");
-  assertVersion(currentSeasonInfo!, ARCADE_ACCOUNT_VERSION, "current Season");
   assertVersion(followingDailyInfo!, ARCADE_ACCOUNT_VERSION, "following Daily");
   assertVersion(
-    followingWeeklyInfo!,
+    creditVaultInfo!,
     ARCADE_ACCOUNT_VERSION,
-    "following Weekly",
-  );
-  assertVersion(
-    followingSeasonInfo!,
-    ARCADE_ACCOUNT_VERSION,
-    "following Season",
-  );
-  assertVersion(
-    operatorVaultInfo!,
-    ARCADE_ACCOUNT_VERSION,
-    "operator revenue vault",
+    "credit vault",
   );
 
   assertPubkeyAt(arcadeConfigInfo!, 9, protocol, "Arcade config protocol");
@@ -455,45 +546,19 @@ export async function assertRankedEntryDependencies(args: {
   );
   assertDailyIdentity(currentDailyInfo!, {
     dayId: args.daily.dayId,
-    weeklyId: args.daily.weeklyId,
-    seasonId: args.daily.seasonId,
     arcadeConfig,
     label: "current Daily",
   });
   assertDailyIdentity(followingDailyInfo!, {
-    dayId: args.daily.dayId + 1,
+    dayId: followingDayId,
     arcadeConfig,
     label: "following Daily",
   });
-  assertCadenceIdentity(
-    currentWeeklyInfo!,
-    args.daily.weeklyId,
-    arcadeConfig,
-    "current Weekly",
-  );
-  assertCadenceIdentity(
-    followingWeeklyInfo!,
-    args.daily.weeklyId + 1,
-    arcadeConfig,
-    "following Weekly",
-  );
-  assertCadenceIdentity(
-    currentSeasonInfo!,
-    args.daily.seasonId,
-    arcadeConfig,
-    "current Season",
-  );
-  assertCadenceIdentity(
-    followingSeasonInfo!,
-    args.daily.seasonId + 1,
-    arcadeConfig,
-    "following Season",
-  );
   assertPubkeyAt(
-    operatorVaultInfo!,
+    creditVaultInfo!,
     9,
     protocol,
-    "operator revenue vault protocol",
+    "credit vault protocol",
   );
 
   // The program object is deliberately constructed here, even though the
@@ -540,30 +605,12 @@ function assertDailyIdentity(
   data: Buffer,
   expected: {
     dayId: number;
-    weeklyId?: number;
-    seasonId?: number;
     arcadeConfig: PublicKey;
     label: string;
   },
 ): void {
   assertU32At(data, 9, expected.dayId, `${expected.label} day`);
-  if (expected.weeklyId !== undefined) {
-    assertU32At(data, 13, expected.weeklyId, `${expected.label} week`);
-  }
-  if (expected.seasonId !== undefined) {
-    assertU32At(data, 17, expected.seasonId, `${expected.label} Season`);
-  }
-  assertPubkeyAt(data, 21, expected.arcadeConfig, `${expected.label} config`);
-}
-
-function assertCadenceIdentity(
-  data: Buffer,
-  id: number,
-  arcadeConfig: PublicKey,
-  label: string,
-): void {
-  assertU32At(data, 9, id, `${label} ID`);
-  assertPubkeyAt(data, 17, arcadeConfig, `${label} config`);
+  assertPubkeyAt(data, 13, expected.arcadeConfig, `${expected.label} config`);
 }
 
 function assertU32At(
@@ -642,6 +689,18 @@ export async function buildOpenDailyChallengePlan(args: {
   const config = await program.account.arcadeConfig.fetch(
     deriveArcadeConfigPda(),
   );
+  const catalog = await program.account.dailyRulesCatalog.fetch(
+    config.rulesCatalog,
+  );
+  const content = await dailyContentSelection(
+    Uint8Array.from(catalog.selectionSeed),
+    Number(catalog.startsDay),
+    dayId,
+    Number(catalog.poolEntryCount),
+  );
+  const entry = catalog.poolEntries[content.poolIndex];
+  if (!entry) throw new Error("selected Daily pool entry is unavailable");
+  const contentVersion = Number(catalog.contentVersion);
   const instruction = await program.methods
     .prepareArenaDaily(dayId)
     .accountsPartial({
@@ -649,6 +708,14 @@ export async function buildOpenDailyChallengePlan(args: {
       arcadeConfig: deriveArcadeConfigPda(),
       arcadeArchive: deriveArcadeArchivePda(),
       dailyRulesCatalog: config.rulesCatalog,
+      realmMapCatalog: deriveMapCatalogPda(
+        contentVersion,
+        Math.max(Number(entry.realmMapId), 1),
+      ),
+      passiveMapCatalog: deriveMapCatalogPda(
+        contentVersion,
+        Number(entry.passiveMapId),
+      ),
       arenaDaily: challenge,
       payer: args.payer ?? args.wallet.publicKey,
       caller: args.wallet.publicKey,
@@ -672,6 +739,7 @@ export async function buildActivateDailyChallengePlan(args: {
     .methods.activateArenaDaily()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
+      dailyRulesCatalog: args.daily.rulesCatalog,
       arenaDaily: args.daily.address,
       caller: args.wallet.publicKey,
     })
@@ -688,24 +756,39 @@ export async function buildFinalizeDailyChallengePlan(args: {
   connection: Connection;
   wallet: WalletLike;
   daily: DailyView;
+  scorePayoutCount: number;
+  themePayoutCount: number;
 }): Promise<TransactionPlan> {
-  const winnerAccounts = args.daily.leaderboard.slice(0, 5).map((entry) => ({
-    pubkey: entry.player,
-    isSigner: false,
-    isWritable: true,
-  }));
+  const scoreBoard = deriveArenaBoardPda(args.daily.address, "score");
+  const themeBoard = deriveArenaBoardPda(args.daily.address, "theme");
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.finalizeArenaDaily()
+    .methods.fundedFinalizeArenaDaily(
+      args.scorePayoutCount,
+      args.themePayoutCount,
+    )
     .accountsPartial({
       arenaDaily: args.daily.address,
-      followingDaily: deriveArenaDailyPda(args.daily.dayId + 1),
+      followingDaily: deriveArenaDailyPda(requireFollowingDaily(args.daily)),
+      scoreBoard,
+      themeBoard,
+      cadenceFunding: deriveCadenceFundingPda(),
       caller: args.wallet.publicKey,
+      systemProgram: SystemProgram.programId,
+      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
-    .remainingAccounts(winnerAccounts)
     .instruction();
-  return basePlan("Push Arena prizes", args.connection, args.wallet.publicKey, [
+  return basePlan("Finalize Arena prizes", args.connection, args.wallet.publicKey, [
     instruction,
   ]);
+}
+
+function requireFollowingDaily(daily: DailyView): number {
+  if (daily.followingDayId === null || daily.followingDayId === undefined) {
+    throw new Error(
+      "DailyNotScheduled: no following paid Daily is prepared to receive this entry or rollover",
+    );
+  }
+  return daily.followingDayId;
 }
 
 export function availablePoolLamports(ledger: {

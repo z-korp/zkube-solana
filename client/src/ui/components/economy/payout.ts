@@ -1,61 +1,65 @@
-/**
- * Prize-ladder payout math for the Arcade economy. Pure bigint arithmetic so
- * there is no float drift: pots are split by integer weights, then every share
- * is floored to the 0.001 SOL on-chain transfer unit. Dust below that unit is
- * not returned here — on chain it rolls forward to the next competition.
- *
- * These weights mirror the settlement split enforced on chain:
- *   Daily / Season pay 45/25/15/10/5; each Weekly skill board pays 60/25/15.
- * This module never touches money or the chain; it only mirrors the payout
- * shape for presentational components.
- */
-
-/** Daily prize weights, first through fifth place. */
-export const DAILY_WEIGHTS = [45, 25, 15, 10, 5];
-/** Weekly (per skill board) prize weights, first through third place. */
-export const WEEKLY_WEIGHTS = [60, 25, 15];
-/** Season prize weights, first through fifth place. */
-export const SEASON_WEIGHTS = [45, 25, 15, 10, 5];
-
-/** Every transfer floors to 0.001 SOL (1_000_000 lamports). */
 const FLOOR_UNIT = 1_000_000n;
+const ENTRY_PRICE = 10_000_000n;
+const RANK_WEIGHT_SCALE = 0xffff_ffff_ffff_ffffn;
 
-/**
- * Split `potLamports` across `weights` and floor each share to the 0.001 SOL
- * transfer unit. The returned array is always `weights.length` long: index `i`
- * holds the payout for rank `i + 1`.
- *
- * When `occupied` is provided and smaller than the field, the pot is
- * renormalized over just the top `occupied` weights (so a short field still
- * distributes the whole pot among the places that exist); the remaining ranks
- * return `0n`. `occupied` at or above the field size, or omitted, pays the full
- * ladder. `occupied === 0` (or a non-positive pot) pays nothing.
- *
- * Dust left by flooring is not returned; on chain it rolls forward.
- */
-export function computePayouts(
+export interface RankPayoutPlan {
+  payouts: bigint[];
+  winnerCount: number;
+  paidLamports: bigint;
+  rolloverLamports: bigint;
+}
+
+export function dailyBoardPools(
   potLamports: bigint,
-  weights: number[],
-  occupied?: number,
-): bigint[] {
-  const count = weights.length;
-  const result = new Array<bigint>(count).fill(0n);
+  themeQualifiedPlayers: number,
+): { score: bigint; theme: bigint } {
+  if (themeQualifiedPlayers === 0) return { score: potLamports, theme: 0n };
+  const theme = potLamports / 2n;
+  return { score: potLamports - theme, theme };
+}
 
-  // Number of paying places: clamp to [0, count]; undefined pays the full field.
-  const paying =
-    occupied === undefined ? count : Math.max(0, Math.min(occupied, count));
-  if (paying === 0 || potLamports <= 0n) return result;
-
-  // Renormalize over the occupied top weights so the pot is fully allocated
-  // across the places that exist.
-  let totalWeight = 0n;
-  for (let i = 0; i < paying; i += 1) totalWeight += BigInt(weights[i]);
-  if (totalWeight <= 0n) return result;
-
-  for (let i = 0; i < paying; i += 1) {
-    const raw = (potLamports * BigInt(weights[i])) / totalWeight;
-    // Floor to the transfer unit; the sub-unit remainder rolls forward.
-    result[i] = (raw / FLOOR_UNIT) * FLOOR_UNIT;
+export function computeRankPayouts(
+  potLamports: bigint,
+  qualifiedPlayers: number,
+): RankPayoutPlan {
+  if (potLamports < 0n || !Number.isInteger(qualifiedPlayers) ||
+      qualifiedPlayers < 0 || qualifiedPlayers > 0xffff_ffff) {
+    throw new Error("Rank payout input is invalid");
   }
-  return result;
+  if (qualifiedPlayers === 0) {
+    return { payouts: [], winnerCount: 0, paidLamports: 0n,
+      rolloverLamports: potLamports };
+  }
+  const minimum = Math.min(qualifiedPlayers, 4);
+  let denominator = 0n;
+  for (let rank = 1; rank <= minimum; rank += 1) denominator += rankWeight(rank);
+  let winnerCount = minimum;
+  for (let rank = minimum + 1; rank <= qualifiedPlayers; rank += 1) {
+    const candidate = denominator + rankWeight(rank);
+    if (payoutForRank(potLamports, candidate, rank) < ENTRY_PRICE) break;
+    denominator = candidate;
+    winnerCount = rank;
+  }
+  while (winnerCount > 0 &&
+      payoutForRank(potLamports, denominator, winnerCount) === 0n) {
+    winnerCount -= 1;
+  }
+  const payouts = Array.from({ length: winnerCount }, (_, index) =>
+    payoutForRank(potLamports, denominator, index + 1));
+  const paidLamports = payouts.reduce((sum, payout) => sum + payout, 0n);
+  return { payouts, winnerCount, paidLamports,
+    rolloverLamports: potLamports - paidLamports };
+}
+
+function payoutForRank(pool: bigint, denominator: bigint, rank: number): bigint {
+  if (denominator === 0n) throw new Error("Rank payout denominator is zero");
+  const wholeUnits = pool * rankWeight(rank) / (denominator * FLOOR_UNIT);
+  return wholeUnits * FLOOR_UNIT;
+}
+
+function rankWeight(rank: number): bigint {
+  if (!Number.isInteger(rank) || rank < 1 || rank > 0xffff_ffff) {
+    throw new Error("Rank is invalid");
+  }
+  return RANK_WEIGHT_SCALE / BigInt(rank);
 }

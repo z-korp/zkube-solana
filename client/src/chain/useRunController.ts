@@ -147,7 +147,7 @@ export interface PublicRunSettlementDescriptor {
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily" | "practice";
+  mode: "campaign" | "daily";
   dailyChallenge: PublicKey | null;
 }
 
@@ -616,7 +616,7 @@ export function useRunController(slot: RunSlot) {
           mark = now;
         };
         const prepared = await buildPrepareDailyRunPlan({
-          wallet,
+          wallet: sessionWallet,
           ownerAuthority: publicKey,
           sessionToken: device.sessionToken,
           daily,
@@ -632,7 +632,7 @@ export function useRunController(slot: RunSlot) {
         const launchSignature = await submitPreparedRunPlan({
           preparedRun: launch,
           owner: publicKey,
-          wallet,
+          wallet: sessionWallet,
           sessionSigner: session,
           mode: "daily",
         });
@@ -733,14 +733,6 @@ export function useRunController(slot: RunSlot) {
     ],
   );
 
-  const startPracticeRun = useCallback(
-    async (yesterday: DailyView) => {
-      void yesterday;
-      throw new Error("Practice has been retired");
-    },
-    [],
-  );
-
   const setStage = useCallback(
     (settleStage: SettleStage | null) =>
       setState((value) => ({ ...value, settleStage })),
@@ -773,10 +765,7 @@ export function useRunController(slot: RunSlot) {
         const marker: RunSessionMarker = {
           owner: publicKey,
           runId: preparedOnBase.runId,
-          mode:
-            preparedOnBase.mode === "daily" || preparedOnBase.mode === "practice"
-              ? preparedOnBase.mode
-              : "campaign",
+          mode: preparedOnBase.mode === "daily" ? "daily" : "campaign",
           session,
           sessionToken: device.sessionToken,
           addresses,
@@ -1160,7 +1149,7 @@ export function useRunController(slot: RunSlot) {
           setStage("committing");
           const commitStartedAt = Date.now();
           const commit =
-            run.marker.mode === "daily" || run.marker.mode === "practice"
+            run.marker.mode === "daily"
               ? await buildCommitDailyRunPlan({
                   owner: run.marker.owner,
                   payerWallet: sessionWallet,
@@ -1704,7 +1693,6 @@ export function useRunController(slot: RunSlot) {
     publicKey,
     startCampaignRun,
     startDailyRun,
-    startPracticeRun,
     resumePreparedRun,
     playMove,
     applyBonus,

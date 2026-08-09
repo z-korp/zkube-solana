@@ -6,11 +6,11 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARENA_ENTRY_LAMPORTS, Bonus, CampaignRules, Constraint, ConstraintKind,
-    DAILY_PRIZE_WEIGHTS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, ENTRY_SEASON_LAMPORTS,
-    ENTRY_WEEKLY_LAMPORTS, LevelRules, MONDAY_EPOCH_DAY_ID, MutatorRules,
+    DAILY_POOL_CAPACITY, DAILY_POOL_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS,
+    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, LevelRules, MutatorRules,
     PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION,
-    RULES_ACCOUNT_VERSION, SEASON_DAYS, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256, WEEK_DAYS, WEEKLY_PRIZE_WEIGHTS,
+    RULES_ACCOUNT_VERSION, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
+    SoftwareSha256,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -281,16 +281,12 @@ fn render_protocol_constants() -> String {
          export const PLAYER_LABEL_ACCOUNT_VERSION = {PLAYER_LABEL_ACCOUNT_VERSION} as const;\n\
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\
          export const ENTRY_DAILY_LAMPORTS = {ENTRY_DAILY_LAMPORTS}n;\n\
-         export const ENTRY_WEEKLY_LAMPORTS = {ENTRY_WEEKLY_LAMPORTS}n;\n\
-         export const ENTRY_SEASON_LAMPORTS = {ENTRY_SEASON_LAMPORTS}n;\n\
          export const ENTRY_OPERATOR_LAMPORTS = {ENTRY_OPERATOR_LAMPORTS}n;\n\
          export const SOL_PAYOUT_UNIT_LAMPORTS = {SOL_PAYOUT_UNIT_LAMPORTS}n;\n\
          export const SECONDS_PER_DAY = {SECONDS_PER_DAY} as const;\n\
-         export const WEEK_DAYS = {WEEK_DAYS} as const;\n\
-         export const SEASON_DAYS = {SEASON_DAYS} as const;\n\
-         export const MONDAY_EPOCH_DAY_ID = {MONDAY_EPOCH_DAY_ID} as const;\n\
-         export const DAILY_PRIZE_WEIGHTS = {DAILY_PRIZE_WEIGHTS:?} as const;\n\
-         export const WEEKLY_PRIZE_WEIGHTS = {WEEKLY_PRIZE_WEIGHTS:?} as const;\n"
+         export const DAILY_POOL_CAPACITY = {DAILY_POOL_CAPACITY} as const;\n\
+         export const DAILY_POOL_SELECTION_SEED = {DAILY_POOL_SELECTION_SEED:?} as const;\n\
+         export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = {DAILY_REWARD_CLAIM_WINDOW_SECONDS} as const;\n"
     )
 }
 
@@ -309,9 +305,9 @@ mod tests {
         assert!(first.contains("CAMPAIGN_CONTENT_HASH_HEX"));
         let versions = render_protocol_constants();
         assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 2"));
-        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 3"));
-        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 4"));
+        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 6"));
+        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 8"));
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
-        assert!(versions.contains("DAILY_PRIZE_WEIGHTS = [45, 25, 15, 10, 5]"));
+        assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
     }
 }

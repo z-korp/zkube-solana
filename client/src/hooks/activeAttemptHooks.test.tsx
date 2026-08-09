@@ -72,22 +72,4 @@ describe("authoritative active-attempt projection", () => {
     });
   });
 
-  it("projects Campaign progress only from the Campaign slot", () => {
-    fixture.run.phase = "base";
-    fixture.run.activeRun = {
-      runId: 3n,
-      mode: "practice",
-      mapId: 8,
-      level: 1,
-    };
-
-    const story = renderHook(() => useActiveStoryAttempt());
-    const arcade = renderHook(() => useActiveDailyAttempt());
-
-    expect(story.result.current).toBeNull();
-    expect(arcade.result.current).toMatchObject({
-      gameId: 3n,
-      mode: "practice",
-    });
-  });
 });

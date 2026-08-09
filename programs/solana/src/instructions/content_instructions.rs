@@ -113,8 +113,10 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
     if player.version == 0 {
         player.set_inner(PlayerState::initialize(owner, ctx.bumps.player_state));
     } else {
-        require!(player.owner == owner, ErrorCode::Unauthorized);
-        player.migrate_run_slots()?;
+        require!(
+            player.owner == owner && player.schema_valid(),
+            ErrorCode::InvalidVersion
+        );
     }
 
     require_canonical_player_funding(&ctx.accounts.player_funding.to_account_info())?;
@@ -477,7 +479,7 @@ pub struct PrepareCampaignRun<'info> {
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
         constraint = player_state.owner == owner_authority.key() @ ErrorCode::Unauthorized,
-        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
+        constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(
@@ -525,7 +527,6 @@ pub fn handler_prepare_campaign_run(
         ctx.accounts.actor.key(),
         ctx.accounts.payer.key(),
     )?;
-    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts.player_state.next_run_id == run_id,
         ErrorCode::InvalidRunId
@@ -570,6 +571,7 @@ pub fn handler_prepare_campaign_run(
     active.has_next_row = false;
     active.score = 0;
     active.daily_score = 0;
+    active.objective_total = 0;
     active.daily_bonus_triggers = 0;
     active.pressure_score = 0;
     active.daily_scoring_rule = DailyScoringRule::default();

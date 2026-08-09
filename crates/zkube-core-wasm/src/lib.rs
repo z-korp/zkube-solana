@@ -15,12 +15,13 @@ pub use simulation::{
     DAILY_SIMULATION_CONFIG_LEN, DAILY_SIMULATION_STATE_LEN, decode_daily_simulation_config,
     decode_daily_simulation_state, encode_daily_simulation_config, encode_daily_simulation_state,
     initialize_daily_simulation, simulation_apply_bonus, simulation_apply_vrf,
-    simulation_finish_deadline, simulation_play_move, simulation_score_eligible,
+    simulation_finish_deadline, simulation_play_move, simulation_request_reroll,
+    simulation_score_eligible,
 };
 
 use zkube_core::{
     BlockWeights, ChainDomain, ChallengeId, ReplayCommitment, ReplayMode, RulesHash,
-    WeeklyMetricSelection, continuation_from_vrf, derive_player_id, select_weekly_metrics,
+    continuation_from_vrf, derive_player_id,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,7 +87,6 @@ pub fn initial_replay_commitment(
     let player_id = derive_player_id(domain, array_32(raw_account)?);
     let mode = match mode_tag {
         0 => ReplayMode::Ranked,
-        1 => ReplayMode::Practice,
         _ => return Err(BoundaryError::InvalidMode),
     };
     Ok(ReplayCommitment::initial(
@@ -98,21 +98,6 @@ pub fn initial_replay_commitment(
         mode,
     )
     .to_bytes())
-}
-
-/// Select the three canonical weekly metrics through the host boundary.
-///
-/// # Errors
-///
-/// Returns [`BoundaryError::InvalidLength`] unless `rules_hash` is 32 bytes.
-pub fn weekly_metric_selection(
-    week_id: u32,
-    rules_hash: &[u8],
-) -> Result<WeeklyMetricSelection, BoundaryError> {
-    Ok(select_weekly_metrics(
-        week_id,
-        RulesHash(array_32(rules_hash)?),
-    ))
 }
 
 /// Return the post-perfect-clear seed row followed by its visible preview.
@@ -150,16 +135,14 @@ mod wasm {
         campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
         initialize_campaign_simulation, initialize_daily_simulation, qualified_player_id,
         simulation_apply_bonus, simulation_apply_vrf, simulation_finish_deadline,
-        simulation_play_move, simulation_score_eligible, weekly_metric_selection,
+        simulation_play_move, simulation_request_reroll, simulation_score_eligible,
     };
     use wasm_bindgen::prelude::*;
 
     fn js_error(error: BoundaryError) -> JsError {
         match error {
             BoundaryError::InvalidLength => JsError::new("invalid byte length"),
-            BoundaryError::InvalidMode => {
-                JsError::new("replay mode must be 0 (ranked) or 1 (practice)")
-            }
+            BoundaryError::InvalidMode => JsError::new("replay mode must be 0 (ranked)"),
             BoundaryError::InvalidEncoding => JsError::new("invalid simulation encoding"),
             BoundaryError::Simulation(_) => JsError::new("simulation transition rejected"),
             BoundaryError::Campaign(_) => JsError::new("Campaign transition rejected"),
@@ -197,18 +180,6 @@ mod wasm {
         )
         .map(|bytes| bytes.to_vec())
         .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = weeklyMetricTags)]
-    pub fn js_weekly_metric_tags(week_id: u32, rules_hash: &[u8]) -> Result<Vec<u8>, JsError> {
-        weekly_metric_selection(week_id, rules_hash)
-            .map(|selection| {
-                selection
-                    .metrics
-                    .map(zkube_core::WeeklyMetric::tag)
-                    .to_vec()
-            })
-            .map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = emptyContinuationRows)]
@@ -274,6 +245,15 @@ mod wasm {
         column: u8,
     ) -> Result<Vec<u8>, JsError> {
         simulation_apply_bonus(config, state, action, row, column).map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = requestDailySimulationReroll)]
+    pub fn js_simulation_request_reroll(
+        config: &[u8],
+        state: &[u8],
+        action: u32,
+    ) -> Result<Vec<u8>, JsError> {
+        simulation_request_reroll(config, state, action).map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = finishDailySimulationAtDeadline)]

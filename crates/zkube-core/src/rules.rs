@@ -178,6 +178,7 @@ pub enum RunError {
     RowAlreadyAvailable,
     InvalidExpectedMove,
     NoBonusCharge,
+    RerollRequiresVrf,
     Grid(GridError),
 }
 
@@ -354,6 +355,9 @@ impl RunEngine {
         if self.bonus_charges == 0 {
             return Err(RunError::NoBonusCharge);
         }
+        if bonus == Bonus::Reroll {
+            return Err(RunError::RerollRequiresVrf);
+        }
         let height_before = self.grid.occupied_height();
         let block_cells_before =
             core::array::from_fn(|index| self.grid.count_cells_of_size(index as u8 + 1));
@@ -381,6 +385,45 @@ impl RunEngine {
             self.phase = RunPhase::AwaitingVrf;
         }
         Ok(report)
+    }
+
+    /// Consume one reroll charge and wait for a replacement preview row.
+    ///
+    /// The current preview stays visible in state until verified randomness
+    /// atomically replaces it, so a failed callback cannot strand the run
+    /// without a playable row.
+    pub fn request_reroll(&mut self) -> Result<(), RunError> {
+        if self.phase != RunPhase::Playing || self.bonus != Some(Bonus::Reroll) {
+            return Err(RunError::RerollRequiresVrf);
+        }
+        if self.bonus_charges == 0 {
+            return Err(RunError::NoBonusCharge);
+        }
+        if self.next_row.is_none() {
+            return Err(RunError::MissingNextRow);
+        }
+        self.bonus_charges -= 1;
+        self.phase = RunPhase::AwaitingVrf;
+        Ok(())
+    }
+
+    /// Replace the preview for a pending reroll without changing the board or
+    /// consuming a move.
+    pub fn provide_reroll_row(&mut self, row: Row) -> Result<(), RunError> {
+        if !self.reroll_pending() {
+            return Err(RunError::RerollRequiresVrf);
+        }
+        Grid::validate_row(&row)?;
+        self.next_row = Some(row);
+        self.phase = RunPhase::Playing;
+        Ok(())
+    }
+
+    #[must_use]
+    pub const fn reroll_pending(&self) -> bool {
+        matches!(self.phase, RunPhase::AwaitingVrf)
+            && matches!(self.bonus, Some(Bonus::Reroll))
+            && self.next_row.is_some()
     }
 
     pub fn level_satisfied(&self, rules: LevelRules) -> bool {

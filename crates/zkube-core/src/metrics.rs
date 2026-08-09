@@ -9,7 +9,7 @@ pub struct ActionMetrics {
     pub perfect_clear: bool,
 }
 
-/// Canonical counters used by the three weekly metric categories.
+/// Canonical counters retained with every finalized run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RunMetrics {
     pub maximum_combo: u32,
@@ -77,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn records_all_nine_weekly_metrics() {
+    fn records_all_nine_run_metrics() {
         let mut metrics = RunMetrics::default();
         metrics
             .record_action(ActionMetrics {

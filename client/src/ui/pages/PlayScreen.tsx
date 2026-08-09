@@ -359,7 +359,7 @@ export default function PlayScreen() {
       <PlaySurface>
         <StatePanel title="Run settled">
           <p className="text-white/75">
-            {receipt.mode === "practice" ? "Practice" : isArcadeReceipt ? "Daily" : "Score"}{" "}
+            {isArcadeReceipt ? "Daily" : "Score"}{" "}
             {isArcadeReceipt ? receipt.dailyScore : receipt.score} ·{" "}
             {receipt.moves} moves
           </p>

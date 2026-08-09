@@ -1,17 +1,18 @@
 //! Canonical Arena rules and cadence helpers.
 //!
-//! Deterministic Arena rule rotation shared by paid play and free Practice.
+//! Deterministic Arena rule rotation for paid play.
 
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::game::sha256v;
 
 pub const RULES_ACCOUNT_VERSION: u8 = zkube_core::RULES_ACCOUNT_VERSION;
 pub const DAILY_RULES_CATALOG_SEED: &[u8] = b"daily_rules";
 pub const DAILY_SCORE_RULE_CAPACITY: usize = 16;
 pub const DAILY_SCORE_FAMILY_COUNT: usize = 7;
 pub const DAILY_PRESSURE_TIERS: usize = 8;
+pub const DAILY_POOL_ENTRY_CAPACITY: usize = zkube_core::DAILY_POOL_CAPACITY;
+pub const DAILY_DIFFICULTY_BAND_CAPACITY: usize = 4;
 pub const DAILY_MAX_MOVES: u16 = 100;
 
 pub const DAILY_FAMILY_CLASSIC: u8 = 0;
@@ -76,6 +77,59 @@ pub struct DailyPressureProfile {
 impl Default for DailyPressureProfile {
     fn default() -> Self {
         Self::canonical()
+    }
+}
+
+/// One complete authored Daily in the published pool.
+///
+/// Map identifiers bind the entry back to the Campaign catalogs. The copied
+/// active and passive fields make the selected Daily independently immutable;
+/// preparation verifies them against those catalogs so a guardian's mutator
+/// can never be re-paired with another realm.
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub struct DailyPoolEntry {
+    pub id: u8,
+    /// Zero is allowed for a standalone wildcard entry with no guardian realm.
+    pub realm_map_id: u8,
+    pub passive_map_id: u8,
+    pub active_mutator_id: u8,
+    pub passive_mutator_id: u8,
+    pub scoring_rule: DailyScoringRule,
+    pub score_multiplier_x100: u16,
+    pub combo_multiplier_x100: u16,
+    pub line_clear_bonus: u16,
+    pub perfect_clear_bonus: u16,
+    pub bonus_type: u8,
+    pub bonus_trigger_type: u8,
+    pub bonus_threshold: u16,
+    pub starting_charges: u8,
+    pub starting_rows: u8,
+    pub difficulty_band: u8,
+}
+
+impl DailyPoolEntry {
+    pub fn validate(self, difficulty_band_count: u8) -> Result<()> {
+        require!(
+            self.id > 0
+                && self.realm_map_id <= 32
+                && (1..=32).contains(&self.passive_map_id)
+                && self.active_mutator_id > 0
+                && self.passive_mutator_id > 0
+                && self.score_multiplier_x100 > 0
+                && self.combo_multiplier_x100 > 0
+                && self.bonus_threshold > 0
+                && self.starting_charges <= 15
+                && self.difficulty_band < difficulty_band_count,
+            ErrorCode::InvalidLevel
+        );
+        require!(
+            (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
+                .contains(&self.starting_rows),
+            ErrorCode::InvalidLevel
+        );
+        self.scoring_rule.validate()
     }
 }
 
@@ -258,13 +312,22 @@ pub struct DailyRulesCatalog {
     pub protocol: Pubkey,
     pub content_version: u32,
     pub catalog_hash: [u8; 32],
-    pub rotation_id: u32,
+    pub pool_revision: u32,
     pub starts_day: u32,
-    pub rotation_seed: [u8; 32],
-    pub scoring_rule_count: u8,
-    pub scoring_rules: [DailyScoringRule; DAILY_SCORE_RULE_CAPACITY],
-    pub pressure: DailyPressureProfile,
+    pub selection_seed: [u8; 32],
+    pub pool_entry_count: u8,
+    #[max_len(DAILY_POOL_ENTRY_CAPACITY)]
+    pub pool_entries: Vec<DailyPoolEntry>,
+    pub difficulty_band_count: u8,
+    pub difficulty_bands: [DailyPressureProfile; DAILY_DIFFICULTY_BAND_CAPACITY],
     pub bump: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailyContentSelection {
+    pub pool_index: u8,
+    pub entry: DailyPoolEntry,
+    pub pressure: DailyPressureProfile,
 }
 
 impl DailyRulesCatalog {
@@ -272,96 +335,53 @@ impl DailyRulesCatalog {
         require!(
             self.version == RULES_ACCOUNT_VERSION
                 && self.rules_version > 0
-                && self.rotation_id > 0
-                && self.scoring_rule_count as usize <= DAILY_SCORE_RULE_CAPACITY,
+                && self.pool_revision > 0
+                && self.selection_seed == zkube_core::DAILY_POOL_SELECTION_SEED
+                && usize::from(self.pool_entry_count) <= DAILY_POOL_ENTRY_CAPACITY
+                && self.pool_entries.len() == usize::from(self.pool_entry_count)
+                && usize::from(self.difficulty_band_count) <= DAILY_DIFFICULTY_BAND_CAPACITY,
             ErrorCode::InvalidVersion
         );
-        require!(
-            usize::from(self.scoring_rule_count) >= DAILY_SCORE_FAMILY_COUNT,
-            ErrorCode::InvalidLevel
-        );
-        self.pressure.validate()?;
-        let active = &self.scoring_rules[..usize::from(self.scoring_rule_count)];
-        for (index, rule) in active.iter().enumerate() {
-            rule.validate()?;
-            require!(
-                !active[..index].iter().any(|prior| prior.id == rule.id),
-                ErrorCode::InvalidLevel
-            );
+        if self.pool_entry_count == 0 {
+            require!(self.difficulty_band_count == 0, ErrorCode::InvalidLevel);
+            return Ok(());
         }
-        for family in 0..DAILY_SCORE_FAMILY_COUNT as u8 {
+        require!(self.difficulty_band_count > 0, ErrorCode::InvalidLevel);
+        for pressure in &self.difficulty_bands[..usize::from(self.difficulty_band_count)] {
+            pressure.validate()?;
+        }
+        for (index, entry) in self.pool_entries.iter().enumerate() {
+            entry.validate(self.difficulty_band_count)?;
             require!(
-                active.iter().any(|rule| rule.family == family),
+                index == 0 || self.pool_entries[index - 1].id < entry.id,
                 ErrorCode::InvalidLevel
             );
         }
         Ok(())
     }
 
-    pub fn scoring_rule_for_day(&self, day_id: u32) -> Result<DailyScoringRule> {
+    pub fn is_scheduled(&self, day_id: u32) -> bool {
+        self.pool_entry_count > 0 && day_id >= self.starts_day
+    }
+
+    pub fn content_for_day(&self, day_id: u32) -> Result<DailyContentSelection> {
         self.validate()?;
-        require!(day_id >= self.starts_day, ErrorCode::ChallengeNotStarted);
-        let week_id = weekly_id_for_day(day_id);
-        let weekday = day_id.saturating_add(3) % 7;
-        let family = family_permutation(self.rotation_seed, week_id)[weekday as usize];
-        self.rule_for_family_and_week(family, week_id)
+        require!(self.is_scheduled(day_id), ErrorCode::DailyNotScheduled);
+        let pool_index =
+            zkube_core::daily_pool_entry_index_with::<crate::state::arcade::SolanaSha256>(
+                self.selection_seed,
+                self.starts_day,
+                day_id,
+                self.pool_entry_count,
+            )
+            .map_err(|_| error!(ErrorCode::DailyNotScheduled))?;
+        let entry = self.pool_entries[usize::from(pool_index)];
+        Ok(DailyContentSelection {
+            pool_index,
+            entry,
+            pressure: self.difficulty_bands[usize::from(entry.difficulty_band)],
+        })
     }
-
-    pub fn map_for_day(&self, day_id: u32) -> u8 {
-        const COPRIME_STEPS: [u64; 4] = [1, 3, 7, 9];
-        let offset = daily_hash_u64(self.rotation_seed, b"theme-offset", 0, 0) % 10;
-        let step_index =
-            daily_hash_u64(self.rotation_seed, b"theme-step", 0, 0) as usize % COPRIME_STEPS.len();
-        let theme = (offset + u64::from(day_id) * COPRIME_STEPS[step_index]) % 10;
-        theme as u8 + 1
-    }
-
-    fn rule_for_family_and_week(&self, family: u8, week_id: u32) -> Result<DailyScoringRule> {
-        let active = &self.scoring_rules[..usize::from(self.scoring_rule_count)];
-        let mut candidates = [DailyScoringRule::default(); DAILY_SCORE_RULE_CAPACITY];
-        let mut count = 0usize;
-        for rule in active.iter().filter(|rule| rule.family == family) {
-            candidates[count] = *rule;
-            count += 1;
-        }
-        require!(count > 0, ErrorCode::InvalidLevel);
-        let offset =
-            daily_hash_u64(self.rotation_seed, b"variant", u32::from(family), 0) as usize % count;
-        let index = (offset + week_id as usize) % count;
-        Ok(candidates[index])
-    }
-}
-
-fn family_permutation(seed: [u8; 32], week_id: u32) -> [u8; DAILY_SCORE_FAMILY_COUNT] {
-    let mut families = [0, 1, 2, 3, 4, 5, 6];
-    for index in (1..DAILY_SCORE_FAMILY_COUNT).rev() {
-        let swap = daily_hash_u64(seed, b"family", week_id, index as u8) as usize % (index + 1);
-        families.swap(index, swap);
-    }
-    families
-}
-
-fn daily_hash_u64(seed: [u8; 32], domain: &[u8], value: u32, discriminator: u8) -> u64 {
-    let value = value.to_le_bytes();
-    let digest = sha256v(&[
-        b"zkube-daily-selection-v1",
-        &seed,
-        domain,
-        &value,
-        &[discriminator],
-    ]);
-    u64::from_le_bytes(
-        digest[..8]
-            .try_into()
-            .expect("SHA-256 prefix is eight bytes"),
-    )
-}
-
-pub fn weekly_id_for_day(day_id: u32) -> u32 {
-    // Days before the shared Monday epoch are outside v4 competition time;
-    // retain zero as their inert cadence while routing every supported day
-    // through the one canonical period implementation.
-    zkube_core::week_id_for_day(day_id).unwrap_or(0)
 }
 
 pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
@@ -390,38 +410,124 @@ pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn scoring_rotation_uses_the_canonical_monday_week_at_boundaries() {
-        for (day, expected) in [(4, 0), (10, 0), (11, 1)] {
-            assert_eq!(weekly_id_for_day(day), expected);
-            assert_eq!(
-                weekly_id_for_day(day),
-                zkube_core::week_id_for_day(day).unwrap()
-            );
+    fn pool_entry(id: u8, realm_map_id: u8, passive_map_id: u8) -> DailyPoolEntry {
+        let scoring_rules = canonical_daily_scoring_rules();
+        DailyPoolEntry {
+            id,
+            realm_map_id,
+            passive_map_id,
+            active_mutator_id: realm_map_id.max(1),
+            passive_mutator_id: passive_map_id,
+            scoring_rule: scoring_rules[usize::from(id - 1) % (DAILY_SCORE_RULE_CAPACITY - 1)],
+            score_multiplier_x100: 100,
+            combo_multiplier_x100: 100,
+            line_clear_bonus: 1,
+            perfect_clear_bonus: 2,
+            bonus_type: 1,
+            bonus_trigger_type: 1,
+            bonus_threshold: 10,
+            starting_charges: 0,
+            starting_rows: 4,
+            difficulty_band: 0,
         }
+    }
 
-        let catalog = DailyRulesCatalog {
+    fn catalog(entry_count: u8) -> DailyRulesCatalog {
+        let pool_entries = (0..usize::from(entry_count))
+            .map(|index| {
+                pool_entry(
+                    u8::try_from(index + 1).unwrap(),
+                    u8::try_from(index % 32 + 1).unwrap(),
+                    u8::try_from(index % 32 + 1).unwrap(),
+                )
+            })
+            .collect();
+        let mut difficulty_bands =
+            [DailyPressureProfile::default(); DAILY_DIFFICULTY_BAND_CAPACITY];
+        difficulty_bands[0] = DailyPressureProfile::canonical();
+        DailyRulesCatalog {
             version: RULES_ACCOUNT_VERSION,
             rules_version: 1,
             protocol: Pubkey::new_unique(),
             content_version: 1,
             catalog_hash: [1; 32],
-            rotation_id: 1,
-            starts_day: 4,
-            rotation_seed: [7; 32],
-            scoring_rule_count: 15,
-            scoring_rules: canonical_daily_scoring_rules(),
-            pressure: DailyPressureProfile::canonical(),
+            pool_revision: 1,
+            starts_day: 20_000,
+            selection_seed: zkube_core::DAILY_POOL_SELECTION_SEED,
+            pool_entry_count: entry_count,
+            pool_entries,
+            difficulty_band_count: u8::from(entry_count > 0),
+            difficulty_bands,
             bump: 1,
-        };
-        for day in [4, 10, 11] {
-            let week = zkube_core::week_id_for_day(day).unwrap();
-            let weekday = day.saturating_add(3) % 7;
-            let family = family_permutation(catalog.rotation_seed, week)[weekday as usize];
-            assert_eq!(
-                catalog.scoring_rule_for_day(day).unwrap(),
-                catalog.rule_for_family_and_week(family, week).unwrap()
-            );
         }
+    }
+
+    #[test]
+    fn published_pool_draws_a_complete_reproducible_cycle() {
+        assert_eq!(DailyPoolEntry::INIT_SPACE, 26);
+        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_964);
+        let catalog = catalog(10);
+        catalog.validate().unwrap();
+        let first = (catalog.starts_day..catalog.starts_day + 10)
+            .map(|day| catalog.content_for_day(day).unwrap().pool_index)
+            .collect::<Vec<_>>();
+        for index in 0..10 {
+            assert_eq!(first.iter().filter(|entry| **entry == index).count(), 1);
+        }
+        let second = (catalog.starts_day + 10..catalog.starts_day + 20)
+            .map(|day| catalog.content_for_day(day).unwrap().pool_index)
+            .collect::<Vec<_>>();
+        assert_ne!(second, first);
+        assert_eq!(
+            catalog.content_for_day(catalog.starts_day + 1).unwrap(),
+            catalog.content_for_day(catalog.starts_day + 1).unwrap()
+        );
+    }
+
+    #[test]
+    fn empty_pool_and_days_before_start_are_not_scheduled() {
+        let suspended = catalog(0);
+        suspended.validate().unwrap();
+        assert!(!suspended.is_scheduled(suspended.starts_day));
+        assert!(suspended.content_for_day(suspended.starts_day).is_err());
+
+        let active = catalog(3);
+        assert!(!active.is_scheduled(active.starts_day - 1));
+        assert!(active.content_for_day(active.starts_day - 1).is_err());
+        assert!(active.is_scheduled(active.starts_day));
+    }
+
+    #[test]
+    fn pool_identity_order_is_canonical() {
+        let mut catalog = catalog(2);
+        catalog.pool_entries.swap(0, 1);
+        assert!(catalog.validate().is_err());
+    }
+
+    #[test]
+    fn raised_capacity_catalog_draws_every_entry_once() {
+        let catalog = catalog(u8::try_from(DAILY_POOL_ENTRY_CAPACITY).unwrap());
+        catalog.validate().unwrap();
+        let cycle_start = u32::try_from(DAILY_POOL_ENTRY_CAPACITY).unwrap() * 200;
+        let mut selected = (cycle_start
+            ..cycle_start + u32::try_from(DAILY_POOL_ENTRY_CAPACITY).unwrap())
+            .map(|day| catalog.content_for_day(day).unwrap().pool_index)
+            .collect::<Vec<_>>();
+        selected.sort_unstable();
+        assert_eq!(
+            selected,
+            (0..u8::try_from(DAILY_POOL_ENTRY_CAPACITY).unwrap()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn suspension_gap_routes_funding_to_the_next_catalog_start() {
+        let mut resumed = catalog(3);
+        resumed.starts_day = 20_010;
+        assert_eq!(
+            crate::state::scheduled_daily_window(&resumed, 20_000).unwrap(),
+            (20_010, 20_011)
+        );
+        assert!(crate::state::valid_daily_successor(20_000, 20_010));
     }
 }

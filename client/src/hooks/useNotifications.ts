@@ -31,7 +31,7 @@ import { formatSolBalanceLamports } from "@/utils/currency";
  * only — never presented to the user as a guaranteed background alert.
  *
  * TODO(remote-push): if/when a push server exists (out of the static-client
- * scope defined in CLAUDE.md — Fly only runs the Daily/Weekly/Season keeper,
+ * scope defined in CLAUDE.md — Fly only runs the Daily keeper,
  * not a signer for clients), wire `pushManager.subscribe` here and a `push`
  * handler in `public/sw.js`, and register the subscription with that server.
  *
@@ -70,38 +70,18 @@ function currentPermission(): NotificationPermissionState {
   return notificationsSupported() ? Notification.permission : "unsupported";
 }
 
-type SeenTriplet = [bigint, bigint, bigint];
-
-function readSeen(storage: StorageLike, key: string): SeenTriplet | null {
+function readSeen(storage: StorageLike, key: string): bigint | null {
   const raw = storage.getItem(key);
   if (!raw) return null;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      typeof (parsed as { d?: unknown }).d !== "string" ||
-      typeof (parsed as { w?: unknown }).w !== "string" ||
-      typeof (parsed as { s?: unknown }).s !== "string"
-    ) {
-      return null;
-    }
-    const record = parsed as { d: string; w: string; s: string };
-    return [BigInt(record.d), BigInt(record.w), BigInt(record.s)];
+    return BigInt(raw);
   } catch {
     return null;
   }
 }
 
-function writeSeen(storage: StorageLike, key: string, value: SeenTriplet): void {
-  storage.setItem(
-    key,
-    JSON.stringify({
-      d: value[0].toString(),
-      w: value[1].toString(),
-      s: value[2].toString(),
-    }),
-  );
+function writeSeen(storage: StorageLike, key: string, value: bigint): void {
+  storage.setItem(key, value.toString());
 }
 
 function fallbackNotify(title: string, options?: NotificationOptions): void {
@@ -217,8 +197,6 @@ export function useNotifications(): NotificationsController {
   const address = publicKey?.toBase58() ?? null;
   const { periods, loading, error } = useSettlementResult();
   const dailyRewards = periods[0]?.rewardsLamports ?? 0n;
-  const weeklyRewards = periods[1]?.rewardsLamports ?? 0n;
-  const seasonRewards = periods[2]?.rewardsLamports ?? 0n;
 
   useEffect(() => {
     // Never trust an in-flight or failed read; money never gates on it either.
@@ -227,7 +205,7 @@ export function useNotifications(): NotificationsController {
     if (!storage) return;
 
     const key = `${REWARDS_SEEN_KEY_PREFIX}${address}`;
-    const current: SeenTriplet = [dailyRewards, weeklyRewards, seasonRewards];
+    const current = dailyRewards;
     const seen = readSeen(storage, key);
 
     // First observation for this wallet — baseline silently, congratulate
@@ -237,29 +215,16 @@ export function useNotifications(): NotificationsController {
       return;
     }
 
-    // Advance every grown period at once so a burst that pays several boards is
-    // never double-counted later; announce the single largest genuine increase.
-    const next: SeenTriplet = [seen[0], seen[1], seen[2]];
-    let bestKind: PeriodKind | null = null;
-    let bestDelta = 0n;
-    for (const kind of [0, 1, 2] as const) {
-      const delta = current[kind] - seen[kind];
-      if (delta > 0n) {
-        next[kind] = current[kind];
-        if (delta > bestDelta) {
-          bestDelta = delta;
-          bestKind = kind;
-        }
-      }
-    }
-    if (bestKind === null) return;
+    const bestKind: PeriodKind = 0;
+    const bestDelta = current - seen;
+    if (bestDelta <= 0n) return;
 
     // Persist before firing so a re-render or reload never re-announces it.
-    writeSeen(storage, key, next);
+    writeSeen(storage, key, current);
     notify(`You won ${formatSolBalanceLamports(bestDelta)} SOL`, {
       body: `${PERIOD_LABELS[bestKind]} prize settled to your wallet.`,
       // OS-level dedupe key, independent of our storage baseline.
-      tag: `zkube-prize-${bestKind}-${current[bestKind].toString()}`,
+      tag: `zkube-prize-${bestKind}-${current.toString()}`,
       data: { url: "/" },
     });
   }, [
@@ -267,8 +232,6 @@ export function useNotifications(): NotificationsController {
     loading,
     error,
     dailyRewards,
-    weeklyRewards,
-    seasonRewards,
     notify,
   ]);
 

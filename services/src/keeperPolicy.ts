@@ -3,29 +3,24 @@ import { createHash } from "node:crypto";
 import { PublicKey, type Connection } from "@solana/web3.js";
 
 import {
+  ARENA_BOARD_CAPACITY,
   DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_POOL_SELECTION_SEED,
   DAILY_RECOVERY_DEADLINE_OFFSET,
-  DAYS_PER_SEASON,
-  DAYS_PER_WEEK,
   KEEPER_RECENT_DAILY_CADENCES,
-  KEEPER_RECENT_SEASON_CADENCES,
-  KEEPER_RECENT_WEEKLY_CADENCES,
-  PERIOD_SETTLEMENT_DELAY_SECONDS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
   ZKUBE_PROGRAM_ID,
+  arcadeArchivePda,
+  arenaBoardPda,
   arenaDailyPda,
   assertCadenceId,
-  currentDayId,
-  arcadeArchivePda,
   cadenceFundingPda,
+  currentDayId,
+  dailyContentSelection,
+  dailyIsScheduled,
+  nextScheduledDaily,
   playerFundingPda,
-  seasonIdForDay,
-  seasonPda,
-  seasonStartDay,
-  weekIdForDay,
-  weekStartDay,
-  weeklyJackpotPda,
   type KeeperInstructionPlan,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
@@ -40,14 +35,13 @@ export interface KeeperPlanPolicyInput {
   nowUnix: number;
 }
 
-/**
- * Validates semantic authority, cadence, and accounting before exact IDL
- * materialization. RPC is retained in the boundary so a materializer cannot
- * bypass the fresh account checks performed by the snapshot adapter.
- */
+/** Validates semantic authority and accounting before exact IDL materialization. */
 export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
   void input.keeper;
   void input.connection;
+  if (!input.programId.equals(ZKUBE_PROGRAM_ID)) {
+    throw new Error("keeper policy rejects an unexpected program ID");
+  }
   if (input.plan.operation === "revoke_expired_session") {
     assertSessionCleanupPlan(input.plan, input.programId, input.nowUnix);
     return;
@@ -58,77 +52,19 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
   }
   const context = requiredContext(input.plan.context);
   const today = currentDayId(input.nowUnix);
-  const currentWeek = weekIdForDay(today);
-  const currentSeason = seasonIdForDay(today);
 
   switch (input.plan.operation) {
     case "prepare_arena_daily":
       assertRulesCatalog(context);
       assertCadenceFunding(context);
-      assertExactSuccessor(
-        context.dayId,
-        context.followingDayId,
-        context.launchCadenceId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        "Daily",
-      );
-      return;
-    case "prepare_weekly_jackpot":
-      assertRulesCatalog(context);
-      assertCadenceFunding(context);
-      assertExactSuccessor(
-        context.weekId,
-        context.followingWeekId,
-        context.launchCadenceId,
-        currentWeek,
-        KEEPER_RECENT_WEEKLY_CADENCES,
-        "Weekly",
-      );
-      return;
-    case "prepare_season":
-      assertCadenceFunding(context);
-      assertExactSuccessor(
-        context.seasonId,
-        context.followingSeasonId,
-        context.launchCadenceId,
-        currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES,
-        "Season",
-      );
+      assertExactSuccessor(context, today);
+      assertDailyContent(context);
       return;
     case "activate_arena_daily":
-      assertActivation(
-        context,
-        context.dayId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        input.nowUnix,
-        "Daily",
-      );
-      return;
-    case "activate_weekly_jackpot":
-      assertActivation(
-        context,
-        context.weekId,
-        currentWeek,
-        KEEPER_RECENT_WEEKLY_CADENCES,
-        input.nowUnix,
-        "Weekly",
-      );
-      return;
-    case "activate_season":
-      assertActivation(
-        context,
-        context.seasonId,
-        currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES,
-        input.nowUnix,
-        "Season",
-      );
+      assertActivation(context, today, input.nowUnix);
       return;
     case "force_finish_deadline":
-      assertArenaRunContext(context, today);
+      assertRankedRunContext(context, today);
       assertRunDeadlines(context);
       if (context.runLocation !== "ephemeral_rollup" ||
           context.deadlineAt! > input.nowUnix) {
@@ -148,35 +84,18 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
       }
       return;
     case "consume_arena_run":
-      assertArenaRunContext(context, today, "ranked");
+      assertRankedRunContext(context, today);
       assertRunDeadlines(context);
       if (context.runLocation !== "base") {
         throw new Error("keeper policy rejects Arena consumption routing");
       }
       return;
-    case "consume_practice_run":
-      assertArenaRunContext(context, today, "practice");
-      assertRunDeadlines(context);
-      if (context.runLocation !== "base") {
-        throw new Error("keeper policy rejects Practice consumption routing");
-      }
-      return;
     case "expire_unresolved_arena_run":
-      assertArenaRunContext(context, today);
+      assertRankedRunContext(context, today);
       assertRunDeadlines(context);
       if (context.recoveryDeadlineAt! > input.nowUnix ||
-          context.runLocation === "ephemeral_rollup" ||
-          (context.runMode === "practice" && context.includeArenaPlayer)) {
+          context.runLocation === "ephemeral_rollup") {
         throw new Error("keeper policy rejects unresolved run expiry");
-      }
-      return;
-    case "expire_unresolved_practice_run":
-      assertArenaRunContext(context, today, "practice");
-      assertRunDeadlines(context);
-      if (context.recoveryDeadlineAt! > input.nowUnix ||
-          context.runLocation === "ephemeral_rollup" ||
-          context.includeArenaPlayer) {
-        throw new Error("keeper policy rejects unresolved Practice expiry");
       }
       return;
     case "cleanup_orphan_active_run":
@@ -187,148 +106,56 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
         throw new Error("keeper policy rejects orphan cleanup timing or routing");
       }
       return;
-    case "initialize_season_player":
-      if (!context.owner) throw new Error("keeper policy rejects SeasonPlayer owner");
-      assertRecentPastOrCurrent(
-        context.seasonId,
-        currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES,
-        "Season",
-      );
-      return;
-    case "rollup_arena_to_season":
-      assertRecentPastOrCurrent(
-        context.dayId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        "Daily",
-      );
-      if (!context.owner || context.dayId === undefined ||
-          context.seasonId !== seasonIdForDay(context.dayId) ||
-          !validQualificationDay(context.dayId, context.qualificationStartDay)) {
-        throw new Error("keeper policy rejects Daily-to-Season relationship");
-      }
-      return;
-    case "seal_arena_season_rollups":
-      assertRecentPastOrCurrent(
-        context.dayId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        "Daily",
-      );
-      if (context.dayId === undefined ||
-          context.seasonId !== seasonIdForDay(context.dayId) ||
-          !validQualificationDay(context.dayId, context.qualificationStartDay)) {
-        throw new Error("keeper policy rejects Daily Season seal relationship");
-      }
-      return;
     case "finalize_arena_daily":
-      assertRecentPastOrCurrent(
-        context.dayId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        "Daily",
-      );
-      assertSuccessor(context.dayId, context.followingDayId, today, "Daily");
-      assertAtomicFinalization(context, today, currentWeek, currentSeason);
+      assertRecentDaily(context.dayId, today, "Daily");
+      assertSuccessor(context.dayId, context.followingDayId, today);
+      assertAtomicFinalization(context, today);
+      assertCadenceFunding(context);
       return;
-    case "finalize_weekly_jackpot":
-      assertRecentPastOrCurrent(
-        context.weekId,
-        currentWeek,
-        KEEPER_RECENT_WEEKLY_CADENCES,
-        "Weekly",
-      );
-      assertSuccessor(
-        context.weekId,
-        context.followingWeekId,
-        currentWeek,
-        "Weekly",
-      );
-      if (context.weekId === undefined ||
-          context.finalDayId !== weekStartDay(context.weekId) + DAYS_PER_WEEK - 1) {
-        throw new Error("keeper policy rejects Weekly final Daily");
-      }
-      assertWeeklyQualificationAccounts(context);
-      assertAtomicFinalization(context, today, currentWeek, currentSeason);
+    case "submit_arena_board_chunk":
+      assertBoardChunk(context, today);
       return;
-    case "finalize_season": {
-      assertRecentPastOrCurrent(
-        context.seasonId,
-        currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES,
-        "Season",
-      );
-      assertSuccessor(
-        context.seasonId,
-        context.followingSeasonId,
-        currentSeason,
-        "Season",
-      );
-      if (context.seasonId === undefined || context.qualificationStartDay === undefined) {
-        throw new Error("keeper policy rejects incomplete Season sealing");
-      }
-      const seasonStart = seasonStartDay(context.seasonId);
-      const seasonEnd = seasonStart + DAYS_PER_SEASON - 1;
-      if (context.qualificationStartDay < seasonStart ||
-          context.qualificationStartDay > seasonEnd ||
-          context.sealedDailies !== seasonEnd - context.qualificationStartDay + 1) {
-        throw new Error("keeper policy rejects incomplete Season sealing");
-      }
-      assertAtomicFinalization(context, today, currentWeek, currentSeason);
-      return;
-    }
     case "sync_daily_profile":
-      assertProfileSync(context, "daily", today, currentWeek, currentSeason, 0x001f);
-      return;
-    case "sync_weekly_profile":
-      assertProfileSync(context, "weekly", today, currentWeek, currentSeason, 0x01ff);
-      return;
-    case "sync_season_profile":
-      assertProfileSync(context, "season", today, currentWeek, currentSeason, 0x001f);
+      assertProfileSync(context, today);
       return;
     case "archive_arena_daily":
-      assertCadenceArchive(context, "daily", context.dayId, today,
-        KEEPER_RECENT_DAILY_CADENCES, false, input.nowUnix);
+      assertCadenceArchive(context, today, "archive", input.nowUnix);
       return;
-    case "archive_weekly_jackpot":
-      assertCadenceArchive(context, "weekly", context.weekId, currentWeek,
-        KEEPER_RECENT_WEEKLY_CADENCES, false, input.nowUnix);
-      return;
-    case "archive_season":
-      assertCadenceArchive(context, "season", context.seasonId, currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES, false, input.nowUnix);
+    case "expire_daily_claims":
+      assertCadenceArchive(context, today, "expire", input.nowUnix);
+      assertExpiryTarget(context, today, input.nowUnix);
       return;
     case "close_arena_daily":
-      assertCadenceArchive(context, "daily", context.dayId, today,
-        KEEPER_RECENT_DAILY_CADENCES, true, input.nowUnix);
-      return;
-    case "close_weekly_jackpot":
-      assertCadenceArchive(context, "weekly", context.weekId, currentWeek,
-        KEEPER_RECENT_WEEKLY_CADENCES, true, input.nowUnix);
-      return;
-    case "close_season":
-      assertCadenceArchive(context, "season", context.seasonId, currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES, true, input.nowUnix);
+      assertCadenceArchive(context, today, "close", input.nowUnix);
       return;
     case "close_arena_player":
-      assertParticipantClosure(
-        context,
-        context.dayId,
-        today,
-        KEEPER_RECENT_DAILY_CADENCES,
-        "ArenaPlayer",
-      );
+      assertParticipantClosure(context, today);
       return;
-    case "close_season_player":
-      assertParticipantClosure(
-        context,
-        context.seasonId,
-        currentSeason,
-        KEEPER_RECENT_SEASON_CADENCES,
-        "SeasonPlayer",
-      );
-      return;
+  }
+}
+
+function assertBoardChunk(context: KeeperPlanContext, today: number): void {
+  assertRecentDaily(context.dayId, today, "Daily board");
+  const cursor = context.boardCursor;
+  const payoutCount = context.boardPayoutCount;
+  const entries = context.boardEntries;
+  if (context.competition !== "daily" ||
+      (context.boardKind !== "score" && context.boardKind !== "theme") ||
+      !Number.isSafeInteger(cursor) || cursor === undefined || cursor < 0 ||
+      !Number.isSafeInteger(payoutCount) || payoutCount === undefined ||
+      payoutCount < 1 || payoutCount > ARENA_BOARD_CAPACITY || !entries ||
+      entries.length < 1 || entries.length > 10 || cursor + entries.length > payoutCount ||
+      context.sealBoard !== (cursor + entries.length === payoutCount)) {
+    throw new Error("keeper policy rejects payout board chunk");
+  }
+  for (const entry of entries) {
+    if (!(entry.source instanceof PublicKey) ||
+        !Number.isSafeInteger(entry.score) || entry.score < 0 || entry.score > 0xffff_ffff ||
+        entry.objectiveTotal < 0n || entry.objectiveTotal > 0xffff_ffff_ffff_ffffn ||
+        !Number.isSafeInteger(entry.finalizedAt) || entry.finalizedAt < 0 ||
+        entry.replayHash.length !== 32) {
+      throw new Error("keeper policy rejects payout board entry");
+    }
   }
 }
 
@@ -340,48 +167,48 @@ function assertCadenceFunding(context: KeeperPlanContext): void {
 
 function assertCadenceArchive(
   context: KeeperPlanContext,
-  competition: "daily" | "weekly" | "season",
-  cadenceId: number | undefined,
-  currentCadence: number,
-  recentWindow: number,
-  closing: boolean,
+  today: number,
+  mode: "archive" | "expire" | "close",
   nowUnix: number,
 ): void {
-  assertRecentPastOrCurrent(
-    cadenceId,
-    currentCadence,
-    recentWindow,
-    `${competition} archive`,
-  );
-  if (context.competition !== competition ||
+  assertRecentDaily(context.dayId, today, "Daily archive");
+  if (context.competition !== "daily" ||
       !context.arcadeArchive?.equals(arcadeArchivePda()) ||
       !context.cadenceFunding?.equals(cadenceFundingPda()) ||
-      !/^[0-9a-f]{64}$/.test(context.archiveFileSha256 ?? "") ||
       !/^[0-9a-f]{64}$/.test(context.archiveResultHash ?? "") ||
-      !Number.isSafeInteger(context.requiredProfileSyncMask) ||
-      context.requiredProfileSyncMask === undefined ||
-      context.requiredProfileSyncMask < 0 ||
-      context.closeEligibleAt === undefined ||
+      !/^[0-9a-f]{64}$/.test(context.archiveCurrentRoot ?? "") ||
+      !validPayoutMask(context.requiredScoreProfileSyncMask) ||
+      !validPayoutMask(context.requiredThemeProfileSyncMask) ||
       !Number.isSafeInteger(context.closeEligibleAt) ||
-      context.closeEligibleAt < 0) {
+      context.closeEligibleAt === undefined || context.closeEligibleAt < 0) {
     throw new Error("keeper policy rejects cadence archive identity");
   }
-  if (context.previousCadenceId !== undefined) {
-    assertCadenceId(context.previousCadenceId, "previous archived cadence id");
-    if (cadenceId !== context.previousCadenceId + 1 &&
-        !(closing && cadenceId === context.previousCadenceId)) {
-      throw new Error("keeper policy rejects non-sequential cadence archive");
-    }
+  if (context.archiveFirstCadenceId === undefined ||
+      context.previousCadenceId === undefined) {
+    throw new Error("keeper policy rejects incomplete archive checkpoint");
   }
-  if (closing) {
-    if (!context.archiveCommitted || context.archiveCanonicalJson === undefined ||
+  assertCadenceId(context.archiveFirstCadenceId, "first archived Daily id");
+  assertCadenceId(context.previousCadenceId, "last archived Daily id");
+  if (context.archiveFirstCadenceId > context.dayId! ||
+      (mode === "archive"
+        ? context.previousCadenceId >= context.dayId!
+        : context.previousCadenceId < context.dayId!)) {
+    throw new Error("keeper policy rejects non-sequential cadence archive");
+  }
+  if (mode !== "archive") {
+    if (!context.archiveCommitted || context.archiveCanonicalJson !== undefined ||
+        context.archiveFileSha256 !== undefined ||
         context.closeEligibleAt > nowUnix) {
-      throw new Error("keeper policy rejects uncommitted cadence closure");
+      throw new Error("keeper policy rejects uncommitted expired cadence");
     }
-  } else {
-    if (context.archiveCommitted || context.archiveCanonicalJson === undefined) {
-      throw new Error("keeper policy rejects committed or incomplete cadence archive");
+    if (context.claimsExpired !== (mode === "close")) {
+      throw new Error("keeper policy rejects cadence claim-expiry state");
     }
+    return;
+  }
+  if (context.archiveCommitted || context.archiveCanonicalJson === undefined ||
+      !/^[0-9a-f]{64}$/.test(context.archiveFileSha256 ?? "")) {
+    throw new Error("keeper policy rejects committed or incomplete cadence archive");
   }
   const actualHash = createHash("sha256")
     .update(Buffer.from(context.archiveCanonicalJson, "utf8"))
@@ -390,82 +217,58 @@ function assertCadenceArchive(
     throw new Error("keeper policy rejects cadence archive file hash");
   }
   try {
-    const { contract, resultData } = parseCanonicalArchive(
-      context.archiveCanonicalJson,
-    );
-    const expectedAccount = competition === "daily"
-      ? arenaDailyPda(cadenceId!)
-      : competition === "weekly"
-        ? weeklyJackpotPda(cadenceId!)
-        : seasonPda(cadenceId!);
-    if (contract.schemaVersion !== 2 || !resultData ||
-        contract.competition !== competition ||
-        contract.periodId !== cadenceId ||
+    const { contract, resultData, scoreBoardData, themeBoardData } =
+      parseCanonicalArchive(context.archiveCanonicalJson);
+    const daily = arenaDailyPda(context.dayId!);
+    if (contract.schemaVersion !== 3 || !resultData ||
+        !scoreBoardData || !themeBoardData ||
+        contract.competition !== "daily" ||
+        contract.periodId !== context.dayId ||
         contract.programId !== ZKUBE_PROGRAM_ID.toBase58() ||
-        contract.account !== expectedAccount.toBase58() ||
+        contract.account !== daily.toBase58() ||
+        contract.scoreBoard !== arenaBoardPda(daily, "score").toBase58() ||
+        contract.themeBoard !== arenaBoardPda(daily, "theme").toBase58() ||
         contract.resultHash !== context.archiveResultHash) {
       throw new Error("mismatch");
     }
   } catch {
-    throw new Error("keeper policy rejects cadence archive v2 commitment");
+    throw new Error("keeper policy rejects cadence archive v3 commitment");
   }
 }
 
-function validQualificationDay(dayId: number, qualificationStartDay: number | undefined): boolean {
-  return qualificationStartDay !== undefined && qualificationStartDay <= dayId;
-}
-
-function assertWeeklyQualificationAccounts(context: KeeperPlanContext): void {
-  const weekId = context.weekId;
-  const start = context.qualificationStartDay;
-  const days = context.qualificationDayIds;
-  if (weekId === undefined || start === undefined || !days) {
-    throw new Error("keeper policy rejects Weekly qualification accounts");
-  }
-  const first = weekStartDay(weekId);
-  const last = first + DAYS_PER_WEEK - 1;
-  if (start < first || start > last || days.length !== last - start + 1 ||
-      days.some((dayId, index) => dayId !== start + index)) {
-    throw new Error("keeper policy rejects Weekly qualification accounts");
-  }
-  if (context.archiveLastDailyId === undefined) {
-    throw new Error("keeper policy rejects incomplete Weekly archive checkpoint");
-  }
-  assertCadenceId(context.archiveLastDailyId, "Weekly archive Daily checkpoint");
-  if (context.archiveLastDailyId < last) {
-    throw new Error("keeper policy rejects incomplete Weekly archive checkpoint");
-  }
-}
-
-function assertParticipantClosure(
+function assertExpiryTarget(
   context: KeeperPlanContext,
-  cadenceId: number | undefined,
-  currentCadence: number,
-  recentWindow: number,
-  label: string,
-): void {
-  assertRecentPastOrCurrent(cadenceId, currentCadence, recentWindow, label);
-  if (!context.owner || !context.rentRecipient ||
-      !context.rentRecipient.equals(playerFundingPda(context.owner))) {
-    throw new Error(`keeper policy rejects ${label} cleanup recipient`);
-  }
-}
-
-function assertProfileSync(
-  context: KeeperPlanContext,
-  competition: "daily" | "weekly" | "season",
   today: number,
-  currentWeek: number,
-  currentSeason: number,
-  maximumMask: number,
+  nowUnix: number,
 ): void {
-  if (!context.owner || context.competition !== competition ||
-      !Number.isSafeInteger(context.winnerPositionMask) ||
-      context.winnerPositionMask === undefined || context.winnerPositionMask <= 0 ||
-      (context.winnerPositionMask & ~maximumMask) !== 0) {
+  assertRulesCatalog(context);
+  const startsDay = context.catalogStartsDay;
+  const entryCount = context.poolEntryCount;
+  if (startsDay === undefined || entryCount === undefined ||
+      context.followingDayId !== nextScheduledDaily(today, startsDay, entryCount) ||
+      context.claimCloseAt !== context.closeEligibleAt ||
+      context.claimCloseAt === undefined || context.claimCloseAt > nowUnix) {
+    throw new Error("keeper policy rejects Daily claim-expiry target");
+  }
+  assertCadenceId(startsDay, "catalog start day");
+  assertAmount(context.unclaimedLamports, "unclaimed payout");
+}
+
+function assertParticipantClosure(context: KeeperPlanContext, today: number): void {
+  assertRecentDaily(context.dayId, today, "ArenaPlayer");
+  if (context.competition !== "daily" || !context.owner || !context.rentRecipient ||
+      !context.rentRecipient.equals(playerFundingPda(context.owner))) {
+    throw new Error("keeper policy rejects ArenaPlayer cleanup recipient");
+  }
+}
+
+function assertProfileSync(context: KeeperPlanContext, today: number): void {
+  if (!context.owner || context.competition !== "daily" ||
+      (context.boardKind !== "score" && context.boardKind !== "theme") ||
+      !validPayoutMask(context.winnerPositionMask) || context.winnerPositionMask === 0n) {
     throw new Error("keeper policy rejects profile sync context");
   }
-  assertCompetitionContext(context, today, currentWeek, currentSeason);
+  assertRecentDaily(context.dayId, today, "Daily");
 }
 
 function assertSessionCleanupPlan(
@@ -510,43 +313,31 @@ function assertCampaignRunContext(context: KeeperPlanContext): void {
 }
 
 function assertAnyRunContext(context: KeeperPlanContext, today: number): void {
-  if (context.runMode === "campaign") {
-    assertCampaignRunContext(context);
-  } else {
-    assertArenaRunContext(context, today);
+  if (context.runMode === "campaign") assertCampaignRunContext(context);
+  else {
+    assertRankedRunContext(context, today);
     assertRunDeadlines(context);
   }
 }
 
-function assertArenaRunContext(
-  context: KeeperPlanContext,
-  today: number,
-  expectedMode?: "ranked" | "practice",
-): void {
+function assertRankedRunContext(context: KeeperPlanContext, today: number): void {
   if (context.challengeDayId === undefined || context.deadlineDayId === undefined ||
-      !context.owner || context.runId === undefined ||
-      (context.runMode !== "ranked" && context.runMode !== "practice") ||
-      (expectedMode && context.runMode !== expectedMode)) {
+      !context.owner || context.runId === undefined || context.runMode !== "ranked") {
     throw new Error("keeper policy rejects incomplete Arena run context");
   }
   assertRunId(context.runId);
   assertCadenceId(context.challengeDayId, "run challenge day id");
   assertCadenceId(context.deadlineDayId, "run deadline day id");
-  if (context.challengeDayId > today || context.deadlineDayId > today ||
+  if (context.challengeDayId > today ||
       context.challengeDayId < Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES) ||
-      (context.runMode === "ranked" &&
-        context.challengeDayId !== context.deadlineDayId) ||
-      (context.runMode === "practice" &&
-        context.challengeDayId + 1 !== context.deadlineDayId) ||
-      (context.runMode === "ranked" && context.includeArenaPlayer !== true) ||
-      (context.runMode === "practice" &&
-        typeof context.includeArenaPlayer !== "boolean")) {
+      context.challengeDayId !== context.deadlineDayId ||
+      context.includeArenaPlayer !== true) {
     throw new Error("keeper policy rejects Arena run cadence relationship");
   }
 }
 
 function assertRunId(runId: bigint): void {
-  if (runId < 0n || runId > 0xffff_ffff_ffff_ffffn) {
+  if (runId < 1n || runId > 0xffff_ffff_ffff_ffffn) {
     throw new Error("keeper policy rejects run id");
   }
 }
@@ -560,76 +351,83 @@ function assertRunDeadlines(context: KeeperPlanContext): void {
   }
 }
 
-function assertExactSuccessor(
-  current: number | undefined,
-  following: number | undefined,
-  launch: number | undefined,
-  expectedCurrent: number,
-  recentWindow: number,
-  label: string,
-): void {
+function assertExactSuccessor(context: KeeperPlanContext, today: number): void {
+  const current = context.dayId;
+  const following = context.followingDayId;
+  const launch = context.launchCadenceId;
+  const startsDay = context.catalogStartsDay;
+  const entryCount = context.poolEntryCount;
   if (current === undefined || following === undefined || launch === undefined ||
-      following !== current + 1 ||
-      following <= launch || following > expectedCurrent + 1 ||
-      following < Math.max(launch + 1, expectedCurrent - recentWindow)) {
-    throw new Error(`keeper policy rejects following ${label} preparation`);
+      startsDay === undefined || entryCount === undefined ||
+      following <= current || following <= launch ||
+      !dailyIsScheduled(following, startsDay, entryCount) ||
+      following !== nextScheduledDaily(current, startsDay, entryCount) ||
+      following > nextScheduledDaily(today, startsDay, entryCount) ||
+      following < Math.max(launch + 1, today - KEEPER_RECENT_DAILY_CADENCES)) {
+    throw new Error("keeper policy rejects following Daily preparation");
   }
-  assertCadenceId(current, `${label} id`);
-  assertCadenceId(following, `following ${label} id`);
-  assertCadenceId(launch, `launch ${label} id`);
+  assertCadenceId(current, "Daily id");
+  assertCadenceId(following, "following Daily id");
+  assertCadenceId(launch, "launch Daily id");
+  assertCadenceId(startsDay, "catalog start day");
 }
 
 function assertActivation(
   context: KeeperPlanContext,
-  id: number | undefined,
-  current: number,
-  recentWindow: number,
+  today: number,
   nowUnix: number,
-  label: "Daily" | "Weekly" | "Season",
 ): void {
-  if (id === undefined) throw new Error(`keeper policy rejects ${label} activation`);
-  assertCadenceId(id, `${label} id`);
-  if (id === current) {
+  const dayId = context.dayId;
+  if (dayId === undefined) throw new Error("keeper policy rejects Daily activation");
+  assertCadenceId(dayId, "Daily id");
+  if (context.recoveryActivation) {
+    const expectedDeadline = dayId * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET;
+    if (dayId > today || dayId < Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES) ||
+        context.preactivation || context.predecessorRolloverApplied !== true ||
+        context.recoveryDeadlineAt !== expectedDeadline || nowUnix < expectedDeadline) {
+      throw new Error("keeper policy rejects Daily recovery activation");
+    }
+    return;
+  }
+  if (context.catalogStartsDay === undefined || context.poolEntryCount === undefined) {
+    throw new Error("keeper policy rejects Daily activation catalog");
+  }
+  assertRulesCatalog(context);
+  const currentScheduled = dailyIsScheduled(
+    today,
+    context.catalogStartsDay,
+    context.poolEntryCount,
+  )
+    ? today
+    : nextScheduledDaily(today - 1, context.catalogStartsDay, context.poolEntryCount);
+  const followingScheduled = nextScheduledDaily(
+    currentScheduled,
+    context.catalogStartsDay,
+    context.poolEntryCount,
+  );
+  if (dayId === currentScheduled) {
     if (context.recoveryActivation || context.preactivation ||
-        (label === "Daily" &&
-          nowUnix >= current * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET)) {
-      throw new Error(`keeper policy rejects ${label} activation`);
+        nowUnix >= today * SECONDS_PER_DAY + DAILY_ENTRY_CLOSE_OFFSET) {
+      throw new Error("keeper policy rejects Daily activation");
     }
     return;
   }
-  if (id === current + 1) {
+  if (dayId === followingScheduled) {
     if (context.preactivation !== true || context.recoveryActivation) {
-      throw new Error(`keeper policy rejects ${label} preactivation`);
+      throw new Error("keeper policy rejects Daily preactivation");
     }
     return;
   }
-  const expectedDeadline = label === "Daily"
-    ? id * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET
-    : label === "Weekly"
-      ? (weekStartDay(id) + DAYS_PER_WEEK) * SECONDS_PER_DAY
-      : (seasonStartDay(id) + DAYS_PER_SEASON) * SECONDS_PER_DAY;
-  const suppliedDeadline = label === "Daily"
-    ? context.recoveryDeadlineAt
-    : context.deadlineAt;
-  const readyAt = label === "Daily"
-    ? expectedDeadline
-    : expectedDeadline + PERIOD_SETTLEMENT_DELAY_SECONDS;
-  if (id > current || id < Math.max(0, current - recentWindow) ||
-      context.recoveryActivation !== true ||
-      context.predecessorRolloverApplied !== true ||
-      suppliedDeadline !== expectedDeadline || nowUnix < readyAt) {
-    throw new Error(`keeper policy rejects ${label} recovery activation`);
-  }
+  throw new Error("keeper policy rejects Daily activation");
 }
 
-function assertRecentPastOrCurrent(
+function assertRecentDaily(
   value: number | undefined,
-  current: number,
-  recentWindow: number,
+  today: number,
   label: string,
-): void {
+): asserts value is number {
   if (value === undefined || !Number.isSafeInteger(value) ||
-      value < Math.max(0, current - recentWindow) || value > current) {
+      value < Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES) || value > today) {
     throw new Error(`keeper policy rejects non-recent or invalid ${label}`);
   }
 }
@@ -638,91 +436,71 @@ function assertSuccessor(
   current: number | undefined,
   following: number | undefined,
   maximumCurrent: number,
-  label: string,
 ): void {
   if (current === undefined || following === undefined) {
-    throw new Error(`keeper policy rejects ${label} successor`);
+    throw new Error("keeper policy rejects Daily successor");
   }
-  assertCadenceId(current, `${label} id`);
-  assertCadenceId(following, `following ${label} id`);
-  if (current > maximumCurrent || following !== current + 1) {
-    throw new Error(`keeper policy rejects ${label} successor`);
+  assertCadenceId(current, "Daily id");
+  assertCadenceId(following, "following Daily id");
+  if (current > maximumCurrent || following <= current) {
+    throw new Error("keeper policy rejects Daily successor");
   }
 }
 
-function assertAtomicFinalization(
-  context: KeeperPlanContext,
-  today: number,
-  currentWeek: number,
-  currentSeason: number,
-): void {
-  assertCompetitionContext(context, today, currentWeek, currentSeason);
-  assertOwners(context.owners, context.competition === "weekly" ? 9 : 5);
-  if (!context.payoutLamports ||
-      context.payoutLamports.length !== context.owners?.length) {
-    throw new Error("keeper policy rejects payout recipient mismatch");
+function assertAtomicFinalization(context: KeeperPlanContext, today: number): void {
+  if (context.competition !== "daily") {
+    throw new Error("keeper policy rejects competition context");
   }
-  let total = 0n;
-  for (const payout of context.payoutLamports) {
-    if (payout <= 0n || payout > 0xffff_ffff_ffff_ffffn ||
-        payout % SOL_PAYOUT_UNIT_LAMPORTS !== 0n) {
-      throw new Error("keeper policy rejects noncanonical SOL payout");
-    }
-    total += payout;
-    if (total > 0xffff_ffff_ffff_ffffn) {
-      throw new Error("keeper policy rejects payout total overflow");
-    }
+  assertRecentDaily(context.dayId, today, "Daily");
+  assertBoardCount(context.scorePayoutCount, "Score");
+  assertBoardCount(context.themePayoutCount, "Theme");
+  if (typeof context.scoreCapacityLimited !== "boolean" ||
+      typeof context.themeCapacityLimited !== "boolean") {
+    throw new Error("keeper policy rejects payout capacity condition");
   }
   assertAmount(context.payoutTotalLamports, "payout total");
   assertAmount(context.potLamports, "competition pot");
   assertAmount(context.rolloverLamports, "competition rollover");
-  if (total !== context.payoutTotalLamports ||
-      total + context.rolloverLamports! !== context.potLamports) {
+  if (context.payoutTotalLamports! % SOL_PAYOUT_UNIT_LAMPORTS !== 0n ||
+      context.payoutTotalLamports! + context.rolloverLamports! !== context.potLamports) {
     throw new Error("keeper policy rejects payout conservation mismatch");
   }
 }
 
-function assertCompetitionContext(
-  context: KeeperPlanContext,
-  today: number,
-  currentWeek: number,
-  currentSeason: number,
-): void {
-  if (context.competition === "daily" && context.dayId !== undefined) {
-    assertRecentPastOrCurrent(
-      context.dayId,
-      today,
-      KEEPER_RECENT_DAILY_CADENCES,
-      "Daily",
-    );
-    return;
+function assertBoardCount(value: number | undefined, label: string): void {
+  if (!Number.isSafeInteger(value) || value === undefined || value < 0 ||
+      value > ARENA_BOARD_CAPACITY) {
+    throw new Error(`keeper policy rejects ${label} payout count`);
   }
-  if (context.competition === "weekly" && context.weekId !== undefined) {
-    assertRecentPastOrCurrent(
-      context.weekId,
-      currentWeek,
-      KEEPER_RECENT_WEEKLY_CADENCES,
-      "Weekly",
-    );
-    return;
-  }
-  if (context.competition === "season" && context.seasonId !== undefined) {
-    assertRecentPastOrCurrent(
-      context.seasonId,
-      currentSeason,
-      KEEPER_RECENT_SEASON_CADENCES,
-      "Season",
-    );
-    return;
-  }
-  throw new Error("keeper policy rejects competition context");
 }
 
-function assertOwners(owners: readonly PublicKey[] | undefined, maximum: number): void {
-  if (!owners || owners.length > maximum ||
-      new Set(owners.map((owner) => owner.toBase58())).size !== owners.length) {
-    throw new Error("keeper policy rejects payout owners");
+function assertDailyContent(context: KeeperPlanContext): void {
+  if (context.followingDayId === undefined || context.contentVersion === undefined ||
+      context.contentVersion < 1 || !context.selectionSeed ||
+      context.selectionSeed.length !== 32 || context.selectionSeed.some(
+        (byte, index) => byte !== DAILY_POOL_SELECTION_SEED[index],
+      ) || context.catalogStartsDay === undefined ||
+      context.poolEntryCount === undefined || !context.poolEntries ||
+      context.poolEntries.length !== context.poolEntryCount) {
+    throw new Error("keeper policy rejects Daily content context");
   }
+  const selected = dailyContentSelection(
+    context.selectionSeed,
+    context.catalogStartsDay,
+    context.followingDayId,
+    context.poolEntryCount,
+  );
+  const entry = context.poolEntries[selected.poolIndex];
+  if (context.poolIndex !== selected.poolIndex || !entry ||
+      context.realmMapId !== entry.realmMapId ||
+      context.passiveMapId !== entry.passiveMapId) {
+    throw new Error("keeper policy rejects Daily content selection");
+  }
+}
+
+function validPayoutMask(mask: bigint | undefined): mask is bigint {
+  return mask !== undefined && mask >= 0n &&
+    mask < (1n << BigInt(ARENA_BOARD_CAPACITY));
 }
 
 function assertAmount(value: bigint | undefined, label: string): void {

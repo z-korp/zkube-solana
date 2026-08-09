@@ -1,9 +1,9 @@
-//! Native-SOL Daily, Weekly bounty, Season, and ranked-run accounting.
+//! Native-SOL Daily and ranked-run accounting.
 
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
+use crate::state::arena_rules::{DailyPressureProfile, DailyRulesCatalog, DailyScoringRule};
 use crate::state::protocol::LevelRuleSnapshot;
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
@@ -11,37 +11,24 @@ pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
 pub const ARCADE_ARCHIVE_SEED: &[u8] = b"arcade_archive";
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const OPERATOR_REVENUE_VAULT_SEED: &[u8] = b"operator_revenue";
+pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
+pub const ARENA_BOARD_SEED: &[u8] = b"arena_board";
 pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
-pub const WEEKLY_JACKPOT_SEED: &[u8] = b"weekly_jackpot";
-pub const SEASON_SEED: &[u8] = b"season";
-pub const SEASON_PLAYER_SEED: &[u8] = b"season_player";
 
 pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
 pub const ENTRY_DAILY_LAMPORTS: u64 = zkube_core::ENTRY_DAILY_LAMPORTS;
-pub const ENTRY_WEEKLY_LAMPORTS: u64 = zkube_core::ENTRY_WEEKLY_LAMPORTS;
-pub const ENTRY_SEASON_LAMPORTS: u64 = zkube_core::ENTRY_SEASON_LAMPORTS;
 pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
-pub const LEGACY_ARENA_ENTRY_LAMPORTS: u64 = 20_000_000;
-pub const LEGACY_ENTRY_DAILY_LAMPORTS: u64 = 12_000_000;
-pub const LEGACY_ENTRY_WEEKLY_LAMPORTS: u64 = 4_000_000;
-pub const LEGACY_ENTRY_SEASON_LAMPORTS: u64 = 2_000_000;
-pub const LEGACY_ENTRY_OPERATOR_LAMPORTS: u64 = 2_000_000;
-pub const DAILY_PRIZE_WEIGHTS: [u16; 5] = zkube_core::DAILY_PRIZE_WEIGHTS;
-pub const WEEKLY_PRIZE_WEIGHTS: [u16; 3] = zkube_core::WEEKLY_PRIZE_WEIGHTS;
-pub const ARENA_BOARD_CAPACITY: usize = 50;
-pub const WEEKLY_BOARD_CAPACITY: usize = 16;
-pub const SEASON_BOARD_CAPACITY: usize = 50;
-pub const SEASON_RESULT_CAPACITY: usize = 20;
-pub const WEEKLY_MAX_PAYOUT_POSITIONS: usize = 3 * WEEKLY_PRIZE_WEIGHTS.len();
+/// Hard safety ceiling for one independently allocated payout board. The width
+/// rule remains authoritative below this ceiling and any narrowing is recorded
+/// in the immutable board header.
+pub const ARENA_BOARD_CAPACITY: usize = 1_536;
+pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
+pub const ARENA_BOARD_ENTRY_SIZE: usize = 84;
 pub const ARENA_ENTRIES_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 45 * 60;
 pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 59 * 60;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = 6 * 60 * 60;
 pub const ARCADE_SECONDS_PER_DAY: i64 = 86_400;
-pub const DAYS_PER_WEEK: u32 = 7;
-pub const DAYS_PER_SEASON: u32 = 28;
-pub const PERIOD_SETTLEMENT_DELAY_SECONDS: i64 =
-    ARENA_RUNS_CLOSE_OFFSET + STUCK_RUN_RECOVERY_SECONDS - ARCADE_SECONDS_PER_DAY;
 
 /// Routes canonical core hash schedules through Solana's SHA-256 syscall on
 /// SBF while retaining byte-identical host behavior.
@@ -61,8 +48,6 @@ pub struct ArcadeConfig {
     pub rules_catalog: Pubkey,
     pub entry_lamports: u64,
     pub daily_lamports: u64,
-    pub weekly_lamports: u64,
-    pub season_lamports: u64,
     pub operator_lamports: u64,
     pub launch_seeded: bool,
     pub launch_day_id: u32,
@@ -77,8 +62,6 @@ impl ArcadeConfig {
             rules_catalog,
             entry_lamports: ARENA_ENTRY_LAMPORTS,
             daily_lamports: ENTRY_DAILY_LAMPORTS,
-            weekly_lamports: ENTRY_WEEKLY_LAMPORTS,
-            season_lamports: ENTRY_SEASON_LAMPORTS,
             operator_lamports: ENTRY_OPERATOR_LAMPORTS,
             launch_seeded: false,
             launch_day_id: 0,
@@ -93,43 +76,23 @@ impl ArcadeConfig {
         );
         let total = self
             .daily_lamports
-            .checked_add(self.weekly_lamports)
-            .and_then(|value| value.checked_add(self.season_lamports))
-            .and_then(|value| value.checked_add(self.operator_lamports))
+            .checked_add(self.operator_lamports)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         require!(
             self.entry_lamports == ARENA_ENTRY_LAMPORTS
                 && self.daily_lamports == ENTRY_DAILY_LAMPORTS
-                && self.weekly_lamports == ENTRY_WEEKLY_LAMPORTS
-                && self.season_lamports == ENTRY_SEASON_LAMPORTS
                 && self.operator_lamports == ENTRY_OPERATOR_LAMPORTS
                 && total == self.entry_lamports,
             ErrorCode::AccountingInvariant
         );
         Ok(())
     }
-
-    pub fn has_legacy_terms(&self) -> bool {
-        self.entry_lamports == LEGACY_ARENA_ENTRY_LAMPORTS
-            && self.daily_lamports == LEGACY_ENTRY_DAILY_LAMPORTS
-            && self.weekly_lamports == LEGACY_ENTRY_WEEKLY_LAMPORTS
-            && self.season_lamports == LEGACY_ENTRY_SEASON_LAMPORTS
-            && self.operator_lamports == LEGACY_ENTRY_OPERATOR_LAMPORTS
-    }
-
-    pub fn activate_current_terms(&mut self) {
-        self.entry_lamports = ARENA_ENTRY_LAMPORTS;
-        self.daily_lamports = ENTRY_DAILY_LAMPORTS;
-        self.weekly_lamports = ENTRY_WEEKLY_LAMPORTS;
-        self.season_lamports = ENTRY_SEASON_LAMPORTS;
-        self.operator_lamports = ENTRY_OPERATOR_LAMPORTS;
-    }
 }
 
 /// Small, permanent commitment accumulator for recyclable cadence accounts.
 ///
-/// The three roots are append-only hash chains. `last_*_id` advances by
-/// exactly one for every archived result, beginning at the launch cadence.
+/// The root is an append-only hash chain. `last_daily_id` advances by exactly
+/// one for every archived result, beginning at the launch cadence.
 /// Operational synchronization and rollup counters deliberately do not enter
 /// the canonical result hashes, so those one-way cleanup steps cannot mutate
 /// an already committed competition result.
@@ -141,19 +104,11 @@ pub struct ArcadeArchive {
     pub first_daily_id: u32,
     pub last_daily_id: u32,
     pub daily_root: [u8; 32],
-    pub first_weekly_id: u32,
-    pub last_weekly_id: u32,
-    pub weekly_root: [u8; 32],
-    pub first_season_id: u32,
-    pub last_season_id: u32,
-    pub season_root: [u8; 32],
     pub bump: u8,
 }
 
 impl ArcadeArchive {
     pub fn initialize(arcade_config: Pubkey, launch_day_id: u32, bump: u8) -> Result<Self> {
-        let first_weekly_id = week_id_for_day(launch_day_id)?;
-        let first_season_id = season_id_for_day(launch_day_id)?;
         Ok(Self {
             version: ARCADE_ACCOUNT_VERSION,
             arcade_config,
@@ -162,23 +117,15 @@ impl ArcadeArchive {
                 .checked_sub(1)
                 .ok_or(ErrorCode::InvalidPeriod)?,
             daily_root: [0; 32],
-            first_weekly_id,
-            last_weekly_id: first_weekly_id
-                .checked_sub(1)
-                .ok_or(ErrorCode::InvalidPeriod)?,
-            weekly_root: [0; 32],
-            first_season_id,
-            last_season_id: first_season_id
-                .checked_sub(1)
-                .ok_or(ErrorCode::InvalidPeriod)?,
-            season_root: [0; 32],
             bump,
         })
     }
 
     pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
         require!(
-            day_id == self.last_daily_id.saturating_add(1) && day_id >= self.first_daily_id,
+            day_id >= self.first_daily_id
+                && ((self.last_daily_id < self.first_daily_id && day_id == self.first_daily_id)
+                    || (self.last_daily_id >= self.first_daily_id && day_id > self.last_daily_id)),
             ErrorCode::InvalidPeriod
         );
         self.daily_root = crate::game::sha256v(&[
@@ -188,36 +135,6 @@ impl ArcadeArchive {
             &result_hash,
         ]);
         self.last_daily_id = day_id;
-        Ok(())
-    }
-
-    pub fn append_weekly(&mut self, week_id: u32, result_hash: [u8; 32]) -> Result<()> {
-        require!(
-            week_id == self.last_weekly_id.saturating_add(1) && week_id >= self.first_weekly_id,
-            ErrorCode::InvalidPeriod
-        );
-        self.weekly_root = crate::game::sha256v(&[
-            b"zkube-arcade-weekly-root-v1",
-            &self.weekly_root,
-            &week_id.to_le_bytes(),
-            &result_hash,
-        ]);
-        self.last_weekly_id = week_id;
-        Ok(())
-    }
-
-    pub fn append_season(&mut self, season_id: u32, result_hash: [u8; 32]) -> Result<()> {
-        require!(
-            season_id == self.last_season_id.saturating_add(1) && season_id >= self.first_season_id,
-            ErrorCode::InvalidPeriod
-        );
-        self.season_root = crate::game::sha256v(&[
-            b"zkube-arcade-season-root-v1",
-            &self.season_root,
-            &season_id.to_le_bytes(),
-            &result_hash,
-        ]);
-        self.last_season_id = season_id;
         Ok(())
     }
 }
@@ -230,6 +147,48 @@ pub struct OperatorRevenueVault {
     pub gross_operator_share: u64,
     pub withdrawn: u64,
     pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct CreditVault {
+    pub version: u8,
+    pub protocol: Pubkey,
+    /// Exact 9,000,000-lamport prize deposits made by Kredit purchases.
+    pub purchased_prize_lamports: u64,
+    /// Exact prize deposits already routed by spent Kredits.
+    pub spent_prize_lamports: u64,
+    pub bump: u8,
+}
+
+impl CreditVault {
+    pub fn available_prize_lamports(&self) -> Result<u64> {
+        self.purchased_prize_lamports
+            .checked_sub(self.spent_prize_lamports)
+            .ok_or_else(|| error!(ErrorCode::AccountingInvariant))
+    }
+
+    pub fn record_purchase(&mut self, prize_lamports: u64) -> Result<()> {
+        require!(prize_lamports > 0, ErrorCode::InvalidKreditPurchase);
+        self.purchased_prize_lamports = self
+            .purchased_prize_lamports
+            .checked_add(prize_lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
+
+    pub fn record_spend(&mut self, prize_lamports: u64) -> Result<()> {
+        require!(
+            prize_lamports == ENTRY_DAILY_LAMPORTS
+                && self.available_prize_lamports()? >= prize_lamports,
+            ErrorCode::AccountingInvariant
+        );
+        self.spent_prize_lamports = self
+            .spent_prize_lamports
+            .checked_add(prize_lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
 }
 
 #[derive(
@@ -318,42 +277,155 @@ pub struct RunMetrics {
     pub perfect_clears: u32,
 }
 
-impl RunMetrics {
-    pub fn value(self, metric: WeeklyMetric) -> u64 {
-        match metric {
-            WeeklyMetric::HighestCombo => u64::from(self.max_combo),
-            WeeklyMetric::ComboScoringActions => u64::from(self.combo_scoring_actions),
-            WeeklyMetric::ComboDerivedScore => self.combo_derived_score,
-            WeeklyMetric::HighestActionScore => self.highest_action_score,
-            WeeklyMetric::MostLinesSingleAction => u64::from(self.most_lines_single_action),
-            WeeklyMetric::MostBlocksSingleAction => u64::from(self.most_blocks_single_action),
-            WeeklyMetric::TotalLines => self.total_lines,
-            WeeklyMetric::TotalBlocks => self.total_blocks,
-            WeeklyMetric::PerfectClears => u64::from(self.perfect_clears),
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub struct ArenaBoardEntry {
+    pub player: Pubkey,
+    pub score: u32,
+    pub objective_total: u64,
+    pub finalized_at: i64,
+    pub replay_hash: [u8; 32],
+}
+
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub enum DailyBoardKind {
+    #[default]
+    Score,
+    Theme,
+}
+
+impl DailyBoardKind {
+    pub const fn seed(self) -> &'static [u8] {
+        match self {
+            Self::Score => b"score",
+            Self::Theme => b"theme",
         }
+    }
+}
+
+#[account]
+#[derive(Default, InitSpace)]
+pub struct ArenaBoard {
+    pub version: u8,
+    pub arena_daily: Pubkey,
+    pub day_id: u32,
+    pub kind: DailyBoardKind,
+    pub qualified_count: u32,
+    pub width_count: u32,
+    pub payout_count: u32,
+    pub denominator: u128,
+    pub pool_lamports: u64,
+    pub paid_lamports: u64,
+    pub rollover_lamports: u64,
+    pub capacity_limited: bool,
+    /// Number of verified rows already appended.
+    pub cursor: u32,
+    pub sealed: bool,
+    pub claimed_lamports: u64,
+    pub claimed_count: u32,
+    pub profile_sync_count: u32,
+    pub bump: u8,
+}
+
+impl ArenaBoard {
+    pub const HEADER_SIZE: usize = 8 + Self::INIT_SPACE;
+
+    pub fn bitmap_size(payout_count: u32) -> Result<usize> {
+        let count = usize::try_from(payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+        count
+            .checked_add(7)
+            .map(|value| value / 8)
+            .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+    }
+
+    pub fn account_space(payout_count: u32) -> Result<usize> {
+        require!(
+            usize::try_from(payout_count).is_ok_and(|count| count <= ARENA_BOARD_CAPACITY),
+            ErrorCode::BoardCapacityExceeded
+        );
+        let rows = usize::try_from(payout_count)
+            .map_err(|_| ErrorCode::ArithmeticOverflow)?
+            .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let masks = Self::bitmap_size(payout_count)?
+            .checked_mul(2)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Self::HEADER_SIZE
+            .checked_add(rows)
+            .and_then(|value| value.checked_add(masks))
+            .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+    }
+
+    /// Anchor evaluates `space` before the handler can reject instruction
+    /// arguments. Invalid counts deliberately map to zero so account creation
+    /// fails closed without attempting an oversized allocation.
+    pub fn account_space_for_init(payout_count: u32) -> usize {
+        Self::account_space(payout_count).unwrap_or(0)
+    }
+
+    pub fn validate(&self, daily: Pubkey, kind: DailyBoardKind, data_len: usize) -> Result<()> {
+        require!(
+            self.version == ARCADE_ACCOUNT_VERSION
+                && self.arena_daily == daily
+                && self.kind == kind
+                && self.payout_count <= self.width_count
+                && self.payout_count <= self.qualified_count
+                && usize::try_from(self.payout_count)
+                    .is_ok_and(|count| count <= ARENA_BOARD_CAPACITY)
+                && self.capacity_limited == (self.payout_count < self.width_count)
+                && self.cursor <= self.payout_count
+                && self.claimed_count <= self.payout_count
+                && self.profile_sync_count <= self.payout_count
+                && data_len == Self::account_space(self.payout_count)?,
+            ErrorCode::AccountingInvariant
+        );
+        Ok(())
+    }
+
+    pub fn payout_for_position(&self, position: u32) -> Result<u64> {
+        require!(position < self.payout_count, ErrorCode::NoPrize);
+        zkube_core::payout_for_rank(
+            self.pool_lamports,
+            self.denominator,
+            position
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+        )
+        .map_err(|_| error!(ErrorCode::AccountingInvariant))
     }
 }
 
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
-pub struct ArenaBoardEntry {
-    pub player: Pubkey,
-    pub run_id: u64,
+pub struct SubmittedBoardEntry {
     pub score: u32,
-    pub attempts: u32,
+    pub objective_total: u64,
     pub finalized_at: i64,
     pub replay_hash: [u8; 32],
-    pub metrics: RunMetrics,
+}
+
+impl SubmittedBoardEntry {
+    pub fn with_player(self, player: Pubkey) -> ArenaBoardEntry {
+        ArenaBoardEntry {
+            player,
+            score: self.score,
+            objective_total: self.objective_total,
+            finalized_at: self.finalized_at,
+            replay_hash: self.replay_hash,
+        }
+    }
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(Default, InitSpace)]
 pub struct ArenaDaily {
     pub version: u8,
     pub day_id: u32,
-    pub week_id: u32,
-    pub season_id: u32,
     pub arcade_config: Pubkey,
     pub rules_version: u32,
     pub status: PeriodStatus,
@@ -362,6 +434,7 @@ pub struct ArenaDaily {
     pub catalog_hash: [u8; 32],
     pub rules_hash: [u8; 32],
     pub map_id: u8,
+    pub passive_map_id: u8,
     pub scoring_rule: DailyScoringRule,
     pub rules: LevelRuleSnapshot,
     pub pressure: DailyPressureProfile,
@@ -375,44 +448,35 @@ pub struct ArenaDaily {
     pub entries_scored: u64,
     pub entries_expired: u64,
     pub unique_players: u32,
-    pub season_eligible_players: u32,
-    pub season_rollups: u32,
-    pub season_rollup_sealed: bool,
-    #[max_len(ARENA_BOARD_CAPACITY)]
-    pub entries: Vec<ArenaBoardEntry>,
-    /// Bit per payout-bearing Daily position. Profile synchronization happens
-    /// only after push settlement and cannot gate or repeat a transfer.
-    pub profile_sync_mask: u8,
+    pub score_qualified_players: u32,
+    pub theme_qualified_players: u32,
+    /// Set exactly once after the claim window and unclaimed transfer.
+    pub claims_expired: bool,
     pub bump: u8,
 }
 
 impl ArenaDaily {
-    pub fn record_best(&mut self, entry: ArenaBoardEntry) {
-        if let Some(current) = self
-            .entries
-            .iter_mut()
-            .find(|current| current.player == entry.player)
-        {
-            if !compare_arena_entries(&entry, current).is_lt() {
-                // Attempts are live resolution metadata, not part of the best
-                // replay identity. A worse retry must still advance the row.
-                current.attempts = current.attempts.max(entry.attempts);
-                return;
-            }
+    pub fn record_scored_entry(
+        &mut self,
+        player: &mut ArenaPlayer,
+        candidate: ArenaBoardEntry,
+        run_id: u64,
+    ) -> Result<()> {
+        if candidate.score > 0 && player.record_score(DailyBoardKind::Score, candidate, run_id) {
+            self.score_qualified_players = self
+                .score_qualified_players
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
         }
-        self.entries
-            .retain(|current| current.player != entry.player);
-        self.entries.push(entry);
-        self.entries.sort_by(compare_arena_entries);
-        self.entries.truncate(ARENA_BOARD_CAPACITY);
-    }
-
-    pub fn hypothetical_rank(&self, entry: &ArenaBoardEntry) -> usize {
-        1 + self
-            .entries
-            .iter()
-            .filter(|current| compare_arena_entries(current, entry).is_lt())
-            .count()
+        if candidate.objective_total > 0
+            && player.record_score(DailyBoardKind::Theme, candidate, run_id)
+        {
+            self.theme_qualified_players = self
+                .theme_qualified_players
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
+        }
+        Ok(())
     }
 
     pub fn resolved(&self) -> bool {
@@ -437,15 +501,6 @@ impl ArenaDaily {
             .resolved_entries
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
-        if player.has_best {
-            if let Some(entry) = self
-                .entries
-                .iter_mut()
-                .find(|entry| entry.player == player.player)
-            {
-                entry.attempts = entry.attempts.max(player.paid_entries);
-            }
-        }
         Ok(())
     }
 }
@@ -459,9 +514,13 @@ pub struct ArenaPlayer {
     pub paid_entries: u32,
     pub resolved_entries: u32,
     pub active_paid_run_id: u64,
-    pub has_best: bool,
-    pub best_entry: ArenaBoardEntry,
-    pub season_rolled_up: bool,
+    pub has_score_best: bool,
+    pub score_best_entry: ArenaBoardEntry,
+    /// Retained outside the payout row for client replay/result identity.
+    pub score_best_run_id: u64,
+    pub has_theme_best: bool,
+    pub theme_best_entry: ArenaBoardEntry,
+    pub theme_best_run_id: u64,
     pub bump: u8,
 }
 
@@ -474,20 +533,41 @@ impl ArenaPlayer {
             paid_entries: 0,
             resolved_entries: 0,
             active_paid_run_id: 0,
-            has_best: false,
-            best_entry: ArenaBoardEntry::default(),
-            season_rolled_up: false,
+            has_score_best: false,
+            score_best_entry: ArenaBoardEntry::default(),
+            score_best_run_id: 0,
+            has_theme_best: false,
+            theme_best_entry: ArenaBoardEntry::default(),
+            theme_best_run_id: 0,
             bump,
         }
     }
 
-    /// Returns true on the first scoreable attempt from this wallet.
-    pub fn record_score(&mut self, entry: ArenaBoardEntry) -> bool {
-        let first = !self.has_best;
-        if first || compare_arena_entries(&entry, &self.best_entry).is_lt() {
-            self.best_entry = entry;
+    /// Returns true when this wallet first qualifies for the selected board.
+    pub fn record_score(
+        &mut self,
+        board: DailyBoardKind,
+        entry: ArenaBoardEntry,
+        run_id: u64,
+    ) -> bool {
+        let (has_best, best, best_run_id) = match board {
+            DailyBoardKind::Score => (
+                &mut self.has_score_best,
+                &mut self.score_best_entry,
+                &mut self.score_best_run_id,
+            ),
+            DailyBoardKind::Theme => (
+                &mut self.has_theme_best,
+                &mut self.theme_best_entry,
+                &mut self.theme_best_run_id,
+            ),
+        };
+        let first = !*has_best;
+        if first || compare_arena_entries(board, &entry, best).is_lt() {
+            *best = entry;
+            *best_run_id = run_id;
         }
-        self.has_best = true;
+        *has_best = true;
         first
     }
 
@@ -496,237 +576,15 @@ impl ArenaPlayer {
     }
 }
 
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub enum WeeklyMetric {
-    #[default]
-    HighestCombo,
-    ComboScoringActions,
-    ComboDerivedScore,
-    HighestActionScore,
-    MostLinesSingleAction,
-    MostBlocksSingleAction,
-    TotalLines,
-    TotalBlocks,
-    PerfectClears,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub struct MetricBoardEntry {
-    pub player: Pubkey,
-    pub daily: Pubkey,
-    pub run_id: u64,
-    pub value: u64,
-    pub finalized_at: i64,
-    pub replay_hash: [u8; 32],
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct WeeklyJackpot {
-    pub version: u8,
-    pub week_id: u32,
-    /// First Daily whose ranked runs can qualify for this Weekly. The launch
-    /// Weekly may start mid-period; all successors use the natural Monday.
-    pub qualification_start_day: u32,
-    pub arcade_config: Pubkey,
-    pub status: PeriodStatus,
-    pub predecessor_rollover_applied: bool,
-    pub metrics: [WeeklyMetric; 3],
-    pub rules_hash: [u8; 32],
-    pub opens_at: i64,
-    pub closes_at: i64,
-    pub finalized_at: i64,
-    pub ledger: PoolLedger,
-    #[max_len(WEEKLY_BOARD_CAPACITY)]
-    pub combo_entries: Vec<MetricBoardEntry>,
-    #[max_len(WEEKLY_BOARD_CAPACITY)]
-    pub action_entries: Vec<MetricBoardEntry>,
-    #[max_len(WEEKLY_BOARD_CAPACITY)]
-    pub run_entries: Vec<MetricBoardEntry>,
-    /// Nine bits: `board_index * 3 + zero_based_rank`.
-    pub profile_sync_mask: u16,
-    pub bump: u8,
-}
-
-impl WeeklyJackpot {
-    pub fn qualified_day_count(&self) -> Result<u8> {
-        qualified_day_count(
-            self.qualification_start_day,
-            week_start_day(self.week_id)?,
-            DAYS_PER_WEEK,
-        )
-    }
-
-    pub fn record_run(&mut self, daily: Pubkey, entry: ArenaBoardEntry) {
-        for index in 0..3 {
-            let candidate = MetricBoardEntry {
-                player: entry.player,
-                daily,
-                run_id: entry.run_id,
-                value: entry.metrics.value(self.metrics[index]),
-                finalized_at: entry.finalized_at,
-                replay_hash: entry.replay_hash,
-            };
-            let board = match index {
-                0 => &mut self.combo_entries,
-                1 => &mut self.action_entries,
-                _ => &mut self.run_entries,
-            };
-            if board
-                .iter()
-                .find(|current| current.player == candidate.player)
-                .is_some_and(|current| !compare_metric_entries(&candidate, current).is_lt())
-            {
-                continue;
-            }
-            board.retain(|current| current.player != candidate.player);
-            board.push(candidate);
-            board.sort_by(compare_metric_entries);
-            board.truncate(WEEKLY_BOARD_CAPACITY);
-        }
-    }
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub struct DailySeasonResult {
-    pub day_id: u32,
-    pub points: u16,
-    pub rank: u16,
-    pub recorded_at: i64,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct SeasonPlayer {
-    pub version: u8,
-    pub season: Pubkey,
-    pub player: Pubkey,
-    pub results: [DailySeasonResult; SEASON_RESULT_CAPACITY],
-    pub result_count: u8,
-    pub points: u16,
-    pub final_counted_at: i64,
-    pub bump: u8,
-}
-
-impl SeasonPlayer {
-    pub fn initialize(season: Pubkey, player: Pubkey, bump: u8) -> Self {
-        Self {
-            version: ARCADE_ACCOUNT_VERSION,
-            season,
-            player,
-            results: [DailySeasonResult::default(); SEASON_RESULT_CAPACITY],
-            result_count: 0,
-            points: 0,
-            final_counted_at: 0,
-            bump,
-        }
-    }
-
-    pub fn record(&mut self, result: DailySeasonResult) -> Result<()> {
-        require!(result.rank > 0, ErrorCode::InvalidState);
-        let len = usize::from(self.result_count);
-        require!(
-            !self.results[..len]
-                .iter()
-                .any(|existing| existing.day_id == result.day_id),
-            ErrorCode::AlreadySubmitted
-        );
-        if len < SEASON_RESULT_CAPACITY {
-            self.results[len] = result;
-            self.result_count = self
-                .result_count
-                .checked_add(1)
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-        } else {
-            let worst = self.results[..len]
-                .iter()
-                .enumerate()
-                .min_by(|(_, left), (_, right)| compare_season_results(left, right))
-                .map(|(index, _)| index)
-                .ok_or(ErrorCode::InvalidState)?;
-            if compare_season_results(&result, &self.results[worst]).is_gt() {
-                self.results[worst] = result;
-            }
-        }
-        self.recompute()
-    }
-
-    fn recompute(&mut self) -> Result<()> {
-        let active = &mut self.results[..usize::from(self.result_count)];
-        active.sort_by(|left, right| compare_season_results(right, left));
-        self.points = active.iter().try_fold(0u16, |sum, result| {
-            sum.checked_add(result.points)
-                .ok_or(ErrorCode::ArithmeticOverflow)
-        })?;
-        self.final_counted_at = active
-            .iter()
-            .map(|result| result.recorded_at)
-            .max()
-            .unwrap_or(0);
-        Ok(())
-    }
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub struct SeasonBoardEntry {
-    pub player: Pubkey,
-    pub points: u16,
-    pub finalized_at: i64,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct Season {
-    pub version: u8,
-    pub season_id: u32,
-    /// First Daily eligible for this Season. The launch Season may start
-    /// mid-period; successor Seasons always use their natural Monday.
-    pub qualification_start_day: u32,
-    pub arcade_config: Pubkey,
-    pub status: PeriodStatus,
-    pub predecessor_rollover_applied: bool,
-    pub opens_at: i64,
-    pub closes_at: i64,
-    pub finalized_at: i64,
-    pub ledger: PoolLedger,
-    pub sealed_dailies: u8,
-    #[max_len(SEASON_BOARD_CAPACITY)]
-    pub entries: Vec<SeasonBoardEntry>,
-    /// Bit per payout-bearing Season position.
-    pub profile_sync_mask: u8,
-    pub bump: u8,
-}
-
-impl Season {
-    pub fn qualified_day_count(&self) -> Result<u8> {
-        qualified_day_count(
-            self.qualification_start_day,
-            season_start_day(self.season_id)?,
-            DAYS_PER_SEASON,
-        )
-    }
-
-    pub fn record(&mut self, entry: SeasonBoardEntry) {
-        self.entries
-            .retain(|current| current.player != entry.player);
-        self.entries.push(entry);
-        self.entries.sort_by(compare_season_entries);
-        self.entries.truncate(SEASON_BOARD_CAPACITY);
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PayoutPlan<const N: usize> {
     pub amounts: [u64; N],
-    pub count: u8,
+    /// Payable places after applying `N`.
+    pub count: u32,
+    /// Unbounded width-rule result used to preserve its denominator.
+    pub width_count: u32,
+    pub denominator: u128,
+    pub capacity_limited: bool,
     pub paid_lamports: u64,
     pub rollover_lamports: u64,
 }
@@ -736,121 +594,329 @@ impl<const N: usize> Default for PayoutPlan<N> {
         Self {
             amounts: [0; N],
             count: 0,
+            width_count: 0,
+            denominator: 0,
+            capacity_limited: false,
             paid_lamports: 0,
             rollover_lamports: 0,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WeeklyRecipientPlan {
-    pub players: [Pubkey; WEEKLY_MAX_PAYOUT_POSITIONS],
-    pub amounts: [u64; WEEKLY_MAX_PAYOUT_POSITIONS],
-    pub count: u8,
-    pub total_lamports: u64,
-}
-
-impl Default for WeeklyRecipientPlan {
-    fn default() -> Self {
-        Self {
-            players: [Pubkey::default(); WEEKLY_MAX_PAYOUT_POSITIONS],
-            amounts: [0; WEEKLY_MAX_PAYOUT_POSITIONS],
-            count: 0,
-            total_lamports: 0,
-        }
-    }
-}
-
-pub fn rounded_payouts<const N: usize>(
-    pool: u64,
-    weights: &[u16; N],
-    winners: usize,
-) -> Result<PayoutPlan<N>> {
-    let core = zkube_core::sol_unit_payouts(
+pub fn rounded_payouts<const N: usize>(pool: u64, qualified_winners: u32) -> Result<PayoutPlan<N>> {
+    let width = zkube_core::board_width(
         pool,
-        *weights,
-        u8::try_from(winners).map_err(|_| ErrorCode::ArithmeticOverflow)?,
+        qualified_winners,
+        ARENA_ENTRY_LAMPORTS,
+        zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
     )
     .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
+    let bounded_count = width
+        .winner_count
+        .min(u32::try_from(N).map_err(|_| ErrorCode::ArithmeticOverflow)?);
+    let winner_count = usize::try_from(bounded_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    let mut amounts = [0u64; N];
+    let mut paid_lamports = 0u64;
+    for (position, amount) in amounts[..winner_count].iter_mut().enumerate() {
+        *amount = zkube_core::payout_for_rank(
+            pool,
+            width.denominator,
+            u32::try_from(position + 1).map_err(|_| ErrorCode::ArithmeticOverflow)?,
+            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+        )
+        .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
+        paid_lamports = paid_lamports
+            .checked_add(*amount)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+    }
     Ok(PayoutPlan {
-        amounts: core.payouts,
-        count: core.winner_count,
-        paid_lamports: core.paid,
-        rollover_lamports: core.rollover,
+        amounts,
+        count: bounded_count,
+        width_count: width.winner_count,
+        denominator: width.denominator,
+        capacity_limited: bounded_count < width.winner_count,
+        paid_lamports,
+        rollover_lamports: pool
+            .checked_sub(paid_lamports)
+            .ok_or(ErrorCode::AccountingInvariant)?,
     })
 }
 
-pub fn aggregate_weekly_recipients(
-    boards: [&[MetricBoardEntry]; 3],
-    winner_counts: [usize; 3],
-    plans: &[PayoutPlan<3>; 3],
-) -> Result<WeeklyRecipientPlan> {
-    let mut recipients = WeeklyRecipientPlan::default();
-    for board_index in 0..3 {
-        require!(
-            winner_counts[board_index] <= WEEKLY_PRIZE_WEIGHTS.len()
-                && winner_counts[board_index] <= boards[board_index].len(),
-            ErrorCode::InvalidState
-        );
-        for rank in 0..winner_counts[board_index] {
-            let amount = plans[board_index].amounts[rank];
-            if amount == 0 {
-                continue;
-            }
-            let player = boards[board_index][rank].player;
-            let count = usize::from(recipients.count);
-            if let Some(existing) = recipients.players[..count]
-                .iter()
-                .position(|candidate| *candidate == player)
-            {
-                recipients.amounts[existing] = recipients.amounts[existing]
-                    .checked_add(amount)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?;
-            } else {
-                require!(
-                    count < WEEKLY_MAX_PAYOUT_POSITIONS,
-                    ErrorCode::AccountingInvariant
-                );
-                recipients.players[count] = player;
-                recipients.amounts[count] = amount;
-                recipients.count = recipients
-                    .count
-                    .checked_add(1)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?;
-            }
-            recipients.total_lamports = recipients
-                .total_lamports
-                .checked_add(amount)
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-        }
-    }
-    Ok(recipients)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BoardPayoutPlan {
+    pub count: u32,
+    pub width_count: u32,
+    pub denominator: u128,
+    pub capacity_limited: bool,
+    pub paid_lamports: u64,
+    pub rollover_lamports: u64,
 }
 
-pub fn weekly_bounty_budget(pool: u64) -> u64 {
-    zkube_core::equal_sol_unit_budgets::<3>(pool)
-        .map(|plan| plan.budgets[0])
-        .unwrap_or(0)
+pub fn board_payout_plan(pool: u64, qualified_winners: u32) -> Result<BoardPayoutPlan> {
+    let width = zkube_core::board_width(
+        pool,
+        qualified_winners,
+        ARENA_ENTRY_LAMPORTS,
+        zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+    )
+    .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
+    let maximum = u32::try_from(ARENA_BOARD_CAPACITY).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    let count = width.winner_count.min(maximum);
+    let paid_lamports = (1..=count).try_fold(0u64, |paid, rank| {
+        let amount = zkube_core::payout_for_rank(
+            pool,
+            width.denominator,
+            rank,
+            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+        )
+        .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
+        paid.checked_add(amount)
+            .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+    })?;
+    Ok(BoardPayoutPlan {
+        count,
+        width_count: width.winner_count,
+        denominator: width.denominator,
+        capacity_limited: count < width.winner_count,
+        paid_lamports,
+        rollover_lamports: pool
+            .checked_sub(paid_lamports)
+            .ok_or(ErrorCode::AccountingInvariant)?,
+    })
+}
+
+pub(crate) struct ArenaBoardInitialization {
+    pub daily: Pubkey,
+    pub day_id: u32,
+    pub kind: DailyBoardKind,
+    pub qualified_count: u32,
+    pub pool_lamports: u64,
+    pub plan: BoardPayoutPlan,
+    pub bump: u8,
+}
+
+pub(crate) fn initialize_arena_board(
+    board: &mut ArenaBoard,
+    initialization: ArenaBoardInitialization,
+) {
+    let ArenaBoardInitialization {
+        daily,
+        day_id,
+        kind,
+        qualified_count,
+        pool_lamports,
+        plan,
+        bump,
+    } = initialization;
+    *board = ArenaBoard {
+        version: ARCADE_ACCOUNT_VERSION,
+        arena_daily: daily,
+        day_id,
+        kind,
+        qualified_count,
+        width_count: plan.width_count,
+        payout_count: plan.count,
+        denominator: plan.denominator,
+        pool_lamports,
+        paid_lamports: plan.paid_lamports,
+        rollover_lamports: plan.rollover_lamports,
+        capacity_limited: plan.capacity_limited,
+        cursor: 0,
+        sealed: plan.count == 0,
+        claimed_lamports: 0,
+        claimed_count: 0,
+        profile_sync_count: 0,
+        bump,
+    };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RankedPrize {
+    /// Zero-based payout position.
+    pub position: u32,
+    /// One-based board rank.
+    pub rank: u16,
+    pub amount: u64,
+}
+
+pub fn validate_finalized_board(
+    daily: &ArenaDaily,
+    daily_key: Pubkey,
+    board: &ArenaBoard,
+    board_data_len: usize,
+    kind: DailyBoardKind,
+) -> Result<()> {
+    require!(
+        daily.status == PeriodStatus::Finalized,
+        ErrorCode::InvalidState
+    );
+    board.validate(daily_key, kind, board_data_len)?;
+    let pool = daily
+        .ledger
+        .payout_lamports
+        .checked_add(daily.ledger.rollover_out_lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let pools = daily_board_pools(pool, daily.theme_qualified_players);
+    let (expected_pool, qualified) = match kind {
+        DailyBoardKind::Score => (pools.score, daily.score_qualified_players),
+        DailyBoardKind::Theme => (pools.theme, daily.theme_qualified_players),
+    };
+    let plan = board_payout_plan(expected_pool, qualified)?;
+    require!(
+        board.qualified_count == qualified
+            && board.pool_lamports == expected_pool
+            && board.payout_count == plan.count
+            && board.width_count == plan.width_count
+            && board.denominator == plan.denominator
+            && board.capacity_limited == plan.capacity_limited
+            && board.paid_lamports == plan.paid_lamports
+            && board.rollover_lamports == plan.rollover_lamports,
+        ErrorCode::AccountingInvariant
+    );
+    Ok(())
+}
+
+fn board_row_offset(position: u32) -> Result<usize> {
+    let position = usize::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    ArenaBoard::HEADER_SIZE
+        .checked_add(
+            position
+                .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+        )
+        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+}
+
+pub fn read_board_entry(info: &AccountInfo<'_>, position: u32) -> Result<ArenaBoardEntry> {
+    let start = board_row_offset(position)?;
+    let end = start
+        .checked_add(ARENA_BOARD_ENTRY_SIZE)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let data = info.try_borrow_data()?;
+    let bytes = data.get(start..end).ok_or(ErrorCode::AccountingInvariant)?;
+    ArenaBoardEntry::try_from_slice(bytes).map_err(Into::into)
+}
+
+pub fn write_board_entry(
+    info: &AccountInfo<'_>,
+    position: u32,
+    entry: &ArenaBoardEntry,
+) -> Result<()> {
+    let start = board_row_offset(position)?;
+    let end = start
+        .checked_add(ARENA_BOARD_ENTRY_SIZE)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let mut data = info.try_borrow_mut_data()?;
+    let bytes = data
+        .get_mut(start..end)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    let mut destination = &mut bytes[..];
+    entry.serialize(&mut destination)?;
+    require!(destination.is_empty(), ErrorCode::AccountingInvariant);
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+pub enum BoardBitmap {
+    Claimed,
+    ProfileSynced,
+}
+
+fn board_bitmap_offset(
+    board: &ArenaBoard,
+    bitmap: BoardBitmap,
+    position: u32,
+) -> Result<(usize, u8)> {
+    require!(position < board.payout_count, ErrorCode::NoPrize);
+    let rows = usize::try_from(board.payout_count)
+        .map_err(|_| ErrorCode::ArithmeticOverflow)?
+        .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let bitmap_size = ArenaBoard::bitmap_size(board.payout_count)?;
+    let domain_offset = match bitmap {
+        BoardBitmap::Claimed => 0,
+        BoardBitmap::ProfileSynced => bitmap_size,
+    };
+    let position = usize::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    let offset = ArenaBoard::HEADER_SIZE
+        .checked_add(rows)
+        .and_then(|value| value.checked_add(domain_offset))
+        .and_then(|value| value.checked_add(position / 8))
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    Ok((offset, 1u8 << (position % 8)))
+}
+
+pub fn board_bitmap_is_set(
+    info: &AccountInfo<'_>,
+    board: &ArenaBoard,
+    bitmap: BoardBitmap,
+    position: u32,
+) -> Result<bool> {
+    let (offset, bit) = board_bitmap_offset(board, bitmap, position)?;
+    let data = info.try_borrow_data()?;
+    Ok(data.get(offset).is_some_and(|value| value & bit != 0))
+}
+
+pub fn set_board_bitmap(
+    info: &AccountInfo<'_>,
+    board: &ArenaBoard,
+    bitmap: BoardBitmap,
+    position: u32,
+) -> Result<()> {
+    let (offset, bit) = board_bitmap_offset(board, bitmap, position)?;
+    let mut data = info.try_borrow_mut_data()?;
+    let value = data.get_mut(offset).ok_or(ErrorCode::AccountingInvariant)?;
+    require!(*value & bit == 0, ErrorCode::AlreadySubmitted);
+    *value |= bit;
+    Ok(())
+}
+
+pub fn ranked_prize(
+    board: &ArenaBoard,
+    board_info: &AccountInfo<'_>,
+    owner: Pubkey,
+) -> Result<RankedPrize> {
+    require!(
+        board.sealed && board.cursor == board.payout_count,
+        ErrorCode::BoardIncomplete
+    );
+    for position in 0..board.payout_count {
+        if read_board_entry(board_info, position)?.player == owner {
+            let amount = board.payout_for_position(position)?;
+            require!(amount > 0, ErrorCode::NoPrize);
+            return Ok(RankedPrize {
+                position,
+                rank: u16::try_from(position + 1).map_err(|_| ErrorCode::ArithmeticOverflow)?,
+                amount,
+            });
+        }
+    }
+    err!(ErrorCode::NoPrize)
 }
 
 pub fn day_id_at(timestamp: i64) -> Result<u32> {
     zkube_core::day_id_at(timestamp).map_err(|_| error!(ErrorCode::InvalidPeriod))
 }
 
-pub fn week_id_for_day(day_id: u32) -> Result<u32> {
-    zkube_core::week_id_for_day(day_id).map_err(|_| error!(ErrorCode::InvalidPeriod))
+/// The first two Dailies supported by the active catalog around a wall-clock
+/// day. A future `starts_day` represents a suspension gap; an empty pool is an
+/// explicit refusal until another catalog revision is activated.
+pub fn scheduled_daily_window(catalog: &DailyRulesCatalog, day_id: u32) -> Result<(u32, u32)> {
+    catalog.validate()?;
+    require!(catalog.pool_entry_count > 0, ErrorCode::DailyNotScheduled);
+    let first = day_id.max(catalog.starts_day);
+    let following = first.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
+    Ok((first, following))
 }
 
-pub fn season_id_for_day(day_id: u32) -> Result<u32> {
-    zkube_core::season_id_for_day(day_id).map_err(|_| error!(ErrorCode::InvalidPeriod))
+/// The first scheduled Daily that has not opened yet at `day_id`.
+pub fn next_scheduled_daily(catalog: &DailyRulesCatalog, day_id: u32) -> Result<u32> {
+    let (first, following) = scheduled_daily_window(catalog, day_id)?;
+    Ok(if first > day_id { first } else { following })
 }
 
-pub fn week_start_day(week_id: u32) -> Result<u32> {
-    zkube_core::week_start_day(week_id).map_err(|_| error!(ErrorCode::InvalidPeriod))
-}
-
-pub fn season_start_day(season_id: u32) -> Result<u32> {
-    zkube_core::season_start_day(season_id).map_err(|_| error!(ErrorCode::InvalidPeriod))
+pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool {
+    successor_day_id > source_day_id
 }
 
 pub fn day_window(day_id: u32) -> Result<(i64, i64, i64, i64)> {
@@ -871,21 +937,39 @@ pub fn day_window(day_id: u32) -> Result<(i64, i64, i64, i64)> {
     ))
 }
 
-/// Canonical finalized Daily result commitment. Operational season-rollup and
-/// profile-sync fields, the account bump, and predecessor transport state are
-/// intentionally excluded.
-pub fn daily_result_hash(daily: &ArenaDaily) -> Result<[u8; 32]> {
+pub fn daily_claim_deadline(finalized_at: i64) -> Result<i64> {
+    finalized_at
+        .checked_add(zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS)
+        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+}
+
+/// Canonical finalized Daily result commitment. Mutable claim/profile state,
+/// expiry, cursors, account bumps, and predecessor transport state are excluded
+/// so archival remains immutable throughout the claim window.
+pub fn daily_result_hash(
+    daily: &ArenaDaily,
+    score_board: &ArenaBoard,
+    score_info: &AccountInfo<'_>,
+    theme_board: &ArenaBoard,
+    theme_info: &AccountInfo<'_>,
+) -> Result<[u8; 32]> {
+    require!(
+        score_board.sealed
+            && score_board.cursor == score_board.payout_count
+            && theme_board.sealed
+            && theme_board.cursor == theme_board.payout_count,
+        ErrorCode::BoardIncomplete
+    );
     let mut bytes = Vec::new();
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
-    daily.week_id.serialize(&mut bytes)?;
-    daily.season_id.serialize(&mut bytes)?;
     daily.arcade_config.serialize(&mut bytes)?;
     daily.rules_version.serialize(&mut bytes)?;
     daily.content_version.serialize(&mut bytes)?;
     daily.catalog_hash.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
     daily.map_id.serialize(&mut bytes)?;
+    daily.passive_map_id.serialize(&mut bytes)?;
     daily.scoring_rule.serialize(&mut bytes)?;
     daily.rules.serialize(&mut bytes)?;
     daily.pressure.serialize(&mut bytes)?;
@@ -898,304 +982,163 @@ pub fn daily_result_hash(daily: &ArenaDaily) -> Result<[u8; 32]> {
     daily.entries_scored.serialize(&mut bytes)?;
     daily.entries_expired.serialize(&mut bytes)?;
     daily.unique_players.serialize(&mut bytes)?;
-    daily.season_eligible_players.serialize(&mut bytes)?;
-    daily.entries.serialize(&mut bytes)?;
+    daily.score_qualified_players.serialize(&mut bytes)?;
+    daily.theme_qualified_players.serialize(&mut bytes)?;
+    let score_header = immutable_board_header(score_board)?;
+    let theme_header = immutable_board_header(theme_board)?;
+    let score_data = score_info.try_borrow_data()?;
+    let theme_data = theme_info.try_borrow_data()?;
+    let score_rows_end = board_row_offset(score_board.payout_count)?;
+    let theme_rows_end = board_row_offset(theme_board.payout_count)?;
+    let score_rows = score_data
+        .get(ArenaBoard::HEADER_SIZE..score_rows_end)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    let theme_rows = theme_data
+        .get(ArenaBoard::HEADER_SIZE..theme_rows_end)
+        .ok_or(ErrorCode::AccountingInvariant)?;
     Ok(crate::game::sha256v(&[
-        b"zkube-arcade-daily-result-v1",
+        b"zkube-arcade-daily-result-v4",
         &bytes,
+        &score_header,
+        score_rows,
+        &theme_header,
+        theme_rows,
     ]))
 }
 
-/// Canonical finalized Weekly result commitment. Profile synchronization and
-/// account-transport fields are not competition results and are excluded.
-pub fn weekly_result_hash(weekly: &WeeklyJackpot) -> Result<[u8; 32]> {
-    let mut bytes = Vec::new();
-    weekly.version.serialize(&mut bytes)?;
-    weekly.week_id.serialize(&mut bytes)?;
-    weekly.qualification_start_day.serialize(&mut bytes)?;
-    weekly.arcade_config.serialize(&mut bytes)?;
-    weekly.metrics.serialize(&mut bytes)?;
-    weekly.rules_hash.serialize(&mut bytes)?;
-    weekly.opens_at.serialize(&mut bytes)?;
-    weekly.closes_at.serialize(&mut bytes)?;
-    weekly.finalized_at.serialize(&mut bytes)?;
-    weekly.ledger.serialize(&mut bytes)?;
-    weekly.combo_entries.serialize(&mut bytes)?;
-    weekly.action_entries.serialize(&mut bytes)?;
-    weekly.run_entries.serialize(&mut bytes)?;
-    Ok(crate::game::sha256v(&[
-        b"zkube-arcade-weekly-result-v1",
-        &bytes,
-    ]))
+pub fn immutable_board_header(board: &ArenaBoard) -> Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(96);
+    board.version.serialize(&mut bytes)?;
+    board.arena_daily.serialize(&mut bytes)?;
+    board.day_id.serialize(&mut bytes)?;
+    board.kind.serialize(&mut bytes)?;
+    board.qualified_count.serialize(&mut bytes)?;
+    board.width_count.serialize(&mut bytes)?;
+    board.payout_count.serialize(&mut bytes)?;
+    board.denominator.serialize(&mut bytes)?;
+    board.pool_lamports.serialize(&mut bytes)?;
+    board.paid_lamports.serialize(&mut bytes)?;
+    board.rollover_lamports.serialize(&mut bytes)?;
+    board.capacity_limited.serialize(&mut bytes)?;
+    Ok(bytes)
 }
 
-/// Canonical finalized Season result commitment. The mutable Daily-sealing
-/// counter and profile synchronization mask are excluded.
-pub fn season_result_hash(season: &Season) -> Result<[u8; 32]> {
-    let mut bytes = Vec::new();
-    season.version.serialize(&mut bytes)?;
-    season.season_id.serialize(&mut bytes)?;
-    season.qualification_start_day.serialize(&mut bytes)?;
-    season.arcade_config.serialize(&mut bytes)?;
-    season.opens_at.serialize(&mut bytes)?;
-    season.closes_at.serialize(&mut bytes)?;
-    season.finalized_at.serialize(&mut bytes)?;
-    season.ledger.serialize(&mut bytes)?;
-    season.entries.serialize(&mut bytes)?;
-    Ok(crate::game::sha256v(&[
-        b"zkube-arcade-season-result-v1",
-        &bytes,
-    ]))
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailyBoardPools {
+    pub score: u64,
+    pub theme: u64,
 }
 
-pub fn ranked_profile_sync_mask(entries_len: usize, ledger: PoolLedger) -> Result<u8> {
-    let winners = entries_len.min(DAILY_PRIZE_WEIGHTS.len());
-    let pool = ledger
-        .payout_lamports
-        .checked_add(ledger.rollover_out_lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let plan = rounded_payouts(pool, &DAILY_PRIZE_WEIGHTS, winners)?;
-    require!(
-        plan.paid_lamports == ledger.payout_lamports
-            && plan.rollover_lamports == ledger.rollover_out_lamports,
-        ErrorCode::AccountingInvariant
-    );
-    plan.amounts[..winners]
-        .iter()
-        .enumerate()
-        .try_fold(0u8, |mask, (position, amount)| {
-            if *amount == 0 {
-                return Ok(mask);
-            }
-            let position = u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-            Ok(mask
-                | 1u8
-                    .checked_shl(position)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?)
-        })
-}
-
-pub fn weekly_profile_sync_mask(weekly: &WeeklyJackpot) -> Result<u16> {
-    let pool = weekly
-        .ledger
-        .payout_lamports
-        .checked_add(weekly.ledger.rollover_out_lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let budget = weekly_bounty_budget(pool);
-    let boards = [
-        weekly.combo_entries.as_slice(),
-        weekly.action_entries.as_slice(),
-        weekly.run_entries.as_slice(),
-    ];
-    let mut mask = 0u16;
-    for (board_index, board) in boards.iter().enumerate() {
-        let count = board
-            .iter()
-            .take(WEEKLY_PRIZE_WEIGHTS.len())
-            .take_while(|entry| entry.value > 0)
-            .count();
-        let plan = rounded_payouts(budget, &WEEKLY_PRIZE_WEIGHTS, count)?;
-        for (rank, amount) in plan.amounts[..count].iter().enumerate() {
-            if *amount == 0 {
-                continue;
-            }
-            let position = board_index
-                .checked_mul(WEEKLY_PRIZE_WEIGHTS.len())
-                .and_then(|value| value.checked_add(rank))
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-            mask |= 1u16
-                .checked_shl(u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?)
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-        }
+pub fn daily_board_pools(pool: u64, theme_qualified: u32) -> DailyBoardPools {
+    if theme_qualified == 0 {
+        return DailyBoardPools {
+            score: pool,
+            theme: 0,
+        };
     }
-    Ok(mask)
+    let theme = pool / 2;
+    DailyBoardPools {
+        score: pool - theme,
+        theme,
+    }
 }
 
-pub fn week_window(week_id: u32) -> Result<(i64, i64)> {
-    let opens_at = i64::from(week_start_day(week_id)?)
-        .checked_mul(ARCADE_SECONDS_PER_DAY)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok((
-        opens_at,
-        opens_at
-            .checked_add(i64::from(DAYS_PER_WEEK) * ARCADE_SECONDS_PER_DAY)
-            .ok_or(ErrorCode::ArithmeticOverflow)?,
-    ))
-}
-
-pub fn season_window(season_id: u32) -> Result<(i64, i64)> {
-    let opens_at = i64::from(season_start_day(season_id)?)
-        .checked_mul(ARCADE_SECONDS_PER_DAY)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok((
-        opens_at,
-        opens_at
-            .checked_add(i64::from(DAYS_PER_SEASON) * ARCADE_SECONDS_PER_DAY)
-            .ok_or(ErrorCode::ArithmeticOverflow)?,
-    ))
-}
-
-fn qualified_day_count(qualification_start_day: u32, period_start: u32, days: u32) -> Result<u8> {
-    let period_end = period_start
-        .checked_add(days)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    require!(
-        (period_start..period_end).contains(&qualification_start_day),
-        ErrorCode::InvalidPeriod
-    );
-    u8::try_from(period_end - qualification_start_day)
-        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
-}
-
-pub fn period_settlement_ready(now: i64, closes_at: i64) -> bool {
-    closes_at
-        .checked_add(PERIOD_SETTLEMENT_DELAY_SECONDS)
-        .is_some_and(|ready_at| now >= ready_at)
-}
-
-pub fn weekly_metric_selection(week_id: u32, rules_hash: [u8; 32]) -> [WeeklyMetric; 3] {
-    zkube_core::select_weekly_metrics_with::<SolanaSha256>(
-        week_id,
-        zkube_core::RulesHash(rules_hash),
-    )
-    .metrics
-    .map(|metric| match metric {
-        zkube_core::WeeklyMetric::MaximumCombo => WeeklyMetric::HighestCombo,
-        zkube_core::WeeklyMetric::ComboScoringActions => WeeklyMetric::ComboScoringActions,
-        zkube_core::WeeklyMetric::TotalComboDerivedScore => WeeklyMetric::ComboDerivedScore,
-        zkube_core::WeeklyMetric::HighestActionScore => WeeklyMetric::HighestActionScore,
-        zkube_core::WeeklyMetric::MostLinesInAction => WeeklyMetric::MostLinesSingleAction,
-        zkube_core::WeeklyMetric::MostBlocksDestroyedInAction => {
-            WeeklyMetric::MostBlocksSingleAction
-        }
-        zkube_core::WeeklyMetric::TotalLines => WeeklyMetric::TotalLines,
-        zkube_core::WeeklyMetric::TotalBlocksDestroyed => WeeklyMetric::TotalBlocks,
-        zkube_core::WeeklyMetric::PerfectClears => WeeklyMetric::PerfectClears,
-    })
-}
-
-pub fn daily_points(one_based_rank: usize, participants: u32) -> u16 {
-    let participants = u64::from(participants.max(1));
-    let in_band = |percent: u64, cap: usize| {
-        let percentile_rank = participants.saturating_mul(percent).div_ceil(100) as usize;
-        one_based_rank <= cap.min(percentile_rank.max(1))
+pub fn compare_arena_entries(
+    board: DailyBoardKind,
+    left: &ArenaBoardEntry,
+    right: &ArenaBoardEntry,
+) -> core::cmp::Ordering {
+    let metric = |entry: &ArenaBoardEntry| match board {
+        DailyBoardKind::Score => u64::from(entry.score),
+        DailyBoardKind::Theme => entry.objective_total,
     };
-    if in_band(1, 3) {
-        100
-    } else if in_band(5, 10) {
-        60
-    } else if in_band(10, 20) {
-        30
-    } else if in_band(25, 50) {
-        10
-    } else {
-        2
+    metric(right)
+        .cmp(&metric(left))
+        .then_with(|| left.finalized_at.cmp(&right.finalized_at))
+        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
+}
+
+pub fn verify_submitted_board_entry(
+    kind: DailyBoardKind,
+    submitted: SubmittedBoardEntry,
+    source: &ArenaPlayer,
+) -> Result<ArenaBoardEntry> {
+    let (has_best, expected) = match kind {
+        DailyBoardKind::Score => (source.has_score_best, source.score_best_entry),
+        DailyBoardKind::Theme => (source.has_theme_best, source.theme_best_entry),
+    };
+    let entry = submitted.with_player(source.player);
+    require!(
+        has_best
+            && entry == expected
+            && match kind {
+                DailyBoardKind::Score => entry.score > 0,
+                DailyBoardKind::Theme => entry.objective_total > 0,
+            },
+        ErrorCode::BoardEntryMismatch
+    );
+    Ok(entry)
+}
+
+pub fn verify_next_board_entry(
+    kind: DailyBoardKind,
+    previous: &ArenaBoardEntry,
+    entry: &ArenaBoardEntry,
+) -> Result<()> {
+    require!(
+        previous.player != entry.player,
+        ErrorCode::DuplicateBoardPlayer
+    );
+    require!(
+        compare_arena_entries(kind, previous, entry).is_lt(),
+        ErrorCode::BoardEntryOutOfOrder
+    );
+    Ok(())
+}
+
+pub fn verify_board_completion(next_cursor: u32, payout_count: u32, seal: bool) -> Result<()> {
+    require!(next_cursor <= payout_count, ErrorCode::AccountingInvariant);
+    if seal {
+        require!(next_cursor == payout_count, ErrorCode::BoardIncomplete);
     }
-}
-
-fn compare_arena_entries(left: &ArenaBoardEntry, right: &ArenaBoardEntry) -> core::cmp::Ordering {
-    right
-        .score
-        .cmp(&left.score)
-        .then_with(|| left.finalized_at.cmp(&right.finalized_at))
-        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
-}
-
-fn compare_metric_entries(
-    left: &MetricBoardEntry,
-    right: &MetricBoardEntry,
-) -> core::cmp::Ordering {
-    right
-        .value
-        .cmp(&left.value)
-        .then_with(|| left.finalized_at.cmp(&right.finalized_at))
-        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
-}
-
-fn compare_season_results(
-    left: &DailySeasonResult,
-    right: &DailySeasonResult,
-) -> core::cmp::Ordering {
-    left.points
-        .cmp(&right.points)
-        .then_with(|| right.recorded_at.cmp(&left.recorded_at))
-        .then_with(|| right.day_id.cmp(&left.day_id))
-}
-
-fn compare_season_entries(
-    left: &SeasonBoardEntry,
-    right: &SeasonBoardEntry,
-) -> core::cmp::Ordering {
-    right
-        .points
-        .cmp(&left.points)
-        .then_with(|| left.finalized_at.cmp(&right.finalized_at))
-        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn finalized_daily(day_id: u32, arcade_config: Pubkey) -> ArenaDaily {
-        let (opens_at, entries_close_at, runs_close_at, recovery_deadline_at) =
-            day_window(day_id).unwrap();
-        ArenaDaily {
-            version: ARCADE_ACCOUNT_VERSION,
-            day_id,
-            week_id: week_id_for_day(day_id).unwrap(),
-            season_id: season_id_for_day(day_id).unwrap(),
-            arcade_config,
-            rules_version: 1,
-            status: PeriodStatus::Finalized,
-            predecessor_rollover_applied: true,
-            content_version: 1,
-            catalog_hash: [1; 32],
-            rules_hash: [2; 32],
-            map_id: 1,
-            scoring_rule: DailyScoringRule::default(),
-            rules: LevelRuleSnapshot::default(),
-            pressure: DailyPressureProfile::default(),
-            opens_at,
-            entries_close_at,
-            runs_close_at,
-            recovery_deadline_at,
-            finalized_at: runs_close_at,
-            ledger: PoolLedger::default(),
-            entries_paid: 0,
-            entries_scored: 0,
-            entries_expired: 0,
-            unique_players: 0,
-            season_eligible_players: 0,
-            season_rollups: 0,
-            season_rollup_sealed: false,
-            entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump: 1,
-        }
-    }
-
     #[test]
     fn entry_split_is_exact_and_static() {
         let config = ArcadeConfig::canonical(Pubkey::new_unique(), Pubkey::new_unique(), 1);
         config.validate_terms().unwrap();
         assert_eq!(
-            config.daily_lamports
-                + config.weekly_lamports
-                + config.season_lamports
-                + config.operator_lamports,
+            config.daily_lamports + config.operator_lamports,
             ARENA_ENTRY_LAMPORTS
         );
     }
 
     #[test]
-    fn periods_are_monday_aligned() {
-        let (week_open, week_close) = week_window(2_950).unwrap();
-        assert_eq!(week_close - week_open, 7 * ARCADE_SECONDS_PER_DAY);
-        assert_eq!((week_open / ARCADE_SECONDS_PER_DAY - 4).rem_euclid(7), 0);
-        let (season_open, season_close) = season_window(730).unwrap();
-        assert_eq!(season_close - season_open, 28 * ARCADE_SECONDS_PER_DAY);
-        assert_eq!((season_open / ARCADE_SECONDS_PER_DAY - 4).rem_euclid(7), 0);
+    fn kredit_purchase_and_spend_conserve_every_lamport() {
+        let split = zkube_core::split_arena_entry(ARENA_ENTRY_LAMPORTS).unwrap();
+        let count = 3u64;
+        let prize = split.next_daily_lamports * count;
+        let operator = split.operator_lamports * count;
+        assert_eq!(prize + operator, ARENA_ENTRY_LAMPORTS * count);
+
+        let mut vault = CreditVault {
+            version: ARCADE_ACCOUNT_VERSION,
+            protocol: Pubkey::new_unique(),
+            purchased_prize_lamports: 0,
+            spent_prize_lamports: 0,
+            bump: 1,
+        };
+        vault.record_purchase(prize).unwrap();
+        vault.record_spend(split.next_daily_lamports).unwrap();
+        assert_eq!(
+            vault.available_prize_lamports().unwrap(),
+            split.next_daily_lamports * (count - 1)
+        );
     }
 
     #[test]
@@ -1211,251 +1154,294 @@ mod tests {
     }
 
     #[test]
-    fn archive_is_strictly_sequential_and_hashes_ignore_cleanup_state() {
+    fn archive_is_strictly_sequential() {
         let arcade = Pubkey::new_unique();
-        let launch_day = 20_656;
+        let launch_day = 20_000;
         let mut archive = ArcadeArchive::initialize(arcade, launch_day, 7).unwrap();
-        let mut daily = finalized_daily(launch_day, arcade);
-        let result_hash = daily_result_hash(&daily).unwrap();
-
-        daily.profile_sync_mask = u8::MAX;
-        daily.season_rollups = 42;
-        daily.season_rollup_sealed = true;
-        daily.bump = 9;
-        assert_eq!(daily_result_hash(&daily).unwrap(), result_hash);
-
-        assert!(archive.append_daily(launch_day + 1, result_hash).is_err());
-        archive.append_daily(launch_day, result_hash).unwrap();
-        assert!(archive.append_daily(launch_day, result_hash).is_err());
-        archive.append_daily(launch_day + 1, [3; 32]).unwrap();
-        assert_eq!(archive.last_daily_id, launch_day + 1);
+        assert!(archive.append_daily(launch_day + 1, [2; 32]).is_err());
+        archive.append_daily(launch_day, [1; 32]).unwrap();
+        assert!(archive.append_daily(launch_day, [1; 32]).is_err());
+        archive.append_daily(launch_day + 9, [3; 32]).unwrap();
+        assert_eq!(archive.last_daily_id, launch_day + 9);
         assert_ne!(archive.daily_root, [0; 32]);
     }
 
     #[test]
-    fn archive_result_hash_golden_vectors() {
-        let arcade = Pubkey::new_from_array([9; 32]);
-        let daily = finalized_daily(20_656, arcade);
-        let weekly = WeeklyJackpot {
-            version: ARCADE_ACCOUNT_VERSION,
-            week_id: week_id_for_day(daily.day_id).unwrap(),
-            qualification_start_day: daily.day_id,
-            arcade_config: arcade,
-            status: PeriodStatus::Finalized,
-            predecessor_rollover_applied: true,
-            metrics: [
-                WeeklyMetric::HighestCombo,
-                WeeklyMetric::HighestActionScore,
-                WeeklyMetric::TotalLines,
-            ],
-            rules_hash: [4; 32],
-            opens_at: 10,
-            closes_at: 20,
-            finalized_at: 30,
-            ledger: PoolLedger::default(),
-            combo_entries: Vec::new(),
-            action_entries: Vec::new(),
-            run_entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump: 2,
-        };
-        let season = Season {
-            version: ARCADE_ACCOUNT_VERSION,
-            season_id: season_id_for_day(daily.day_id).unwrap(),
-            qualification_start_day: daily.day_id,
-            arcade_config: arcade,
-            status: PeriodStatus::Finalized,
-            predecessor_rollover_applied: true,
-            opens_at: 40,
-            closes_at: 50,
-            finalized_at: 60,
-            ledger: PoolLedger::default(),
-            sealed_dailies: 1,
-            entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump: 3,
-        };
+    fn rank_weighted_payouts_conserve_the_board_pool() {
+        let plan = rounded_payouts::<ARENA_BOARD_CAPACITY>(101_990_000, 5).unwrap();
+        assert_eq!(plan.count, 4);
+        assert!(plan.amounts[..4].windows(2).all(|pair| pair[0] >= pair[1]));
+        assert_eq!(plan.paid_lamports + plan.rollover_lamports, 101_990_000);
+        let fewer = rounded_payouts::<ARENA_BOARD_CAPACITY>(101_500_000, 2).unwrap();
+        assert_eq!(fewer.count, 2);
+        assert_eq!(fewer.paid_lamports + fewer.rollover_lamports, 101_500_000);
+    }
+
+    #[test]
+    fn classic_empty_theme_folds_the_whole_pool_into_score() {
         assert_eq!(
-            daily_result_hash(&daily).unwrap(),
-            [
-                60, 127, 133, 233, 21, 213, 116, 82, 86, 202, 219, 197, 227, 25, 91, 234, 97, 244,
-                169, 24, 64, 45, 95, 104, 212, 155, 47, 170, 19, 160, 235, 142,
-            ]
+            daily_board_pools(101_000_001, 0),
+            DailyBoardPools {
+                score: 101_000_001,
+                theme: 0,
+            }
         );
         assert_eq!(
-            weekly_result_hash(&weekly).unwrap(),
-            [
-                132, 139, 242, 177, 3, 248, 115, 65, 200, 214, 245, 238, 198, 54, 229, 47, 137, 1,
-                17, 224, 13, 18, 182, 177, 48, 221, 142, 154, 215, 17, 203, 243,
-            ]
-        );
-        assert_eq!(
-            season_result_hash(&season).unwrap(),
-            [
-                189, 231, 71, 25, 160, 8, 224, 52, 31, 154, 35, 104, 41, 132, 237, 7, 126, 56, 23,
-                216, 124, 20, 205, 161, 80, 111, 174, 79, 225, 238, 210, 71,
-            ]
+            daily_board_pools(101_000_001, 1),
+            DailyBoardPools {
+                score: 50_500_001,
+                theme: 50_500_000,
+            }
         );
     }
 
     #[test]
-    fn qualification_counts_support_mid_period_launches() {
-        let week_start = week_start_day(2_950).unwrap();
-        assert_eq!(qualified_day_count(week_start, week_start, 7).unwrap(), 7);
-        assert_eq!(
-            qualified_day_count(week_start + 5, week_start, 7).unwrap(),
-            2
-        );
-        assert!(qualified_day_count(week_start - 1, week_start, 7).is_err());
-        assert!(qualified_day_count(week_start + 7, week_start, 7).is_err());
-
-        let season_start = season_start_day(730).unwrap();
-        assert_eq!(
-            qualified_day_count(season_start, season_start, 28).unwrap(),
-            28
-        );
-        assert_eq!(
-            qualified_day_count(season_start + 9, season_start, 28).unwrap(),
-            19
-        );
+    fn twenty_thousand_entry_board_is_not_artificially_narrowed() {
+        let pool = 90_000_000_000;
+        let plan = board_payout_plan(pool, 20_000).unwrap();
+        assert_eq!(plan.count, 1_176);
+        assert_eq!(plan.width_count, 1_176);
+        assert!(!plan.capacity_limited);
+        assert_eq!(plan.paid_lamports + plan.rollover_lamports, pool);
     }
 
     #[test]
-    fn payouts_floor_to_millisol_and_roll_all_dust() {
-        let plan = rounded_payouts(101_990_000, &DAILY_PRIZE_WEIGHTS, 5).unwrap();
-        assert_eq!(
-            plan.amounts,
-            [45_000_000, 25_000_000, 15_000_000, 10_000_000, 5_000_000]
-        );
-        assert_eq!(plan.paid_lamports, 100_000_000);
-        assert_eq!(plan.rollover_lamports, 1_990_000);
-        let fewer = rounded_payouts(101_500_000, &DAILY_PRIZE_WEIGHTS, 2).unwrap();
-        assert_eq!(fewer.amounts[..2], [65_000_000, 36_000_000]);
-        assert_eq!(fewer.rollover_lamports, 500_000);
-    }
-
-    #[test]
-    fn weekly_selection_is_deterministic_and_category_scoped() {
-        let first = weekly_metric_selection(88, [9; 32]);
-        assert_eq!(first, weekly_metric_selection(88, [9; 32]));
-        assert!(matches!(
-            first[0],
-            WeeklyMetric::HighestCombo
-                | WeeklyMetric::ComboScoringActions
-                | WeeklyMetric::ComboDerivedScore
-        ));
-        assert!(matches!(
-            first[1],
-            WeeklyMetric::HighestActionScore
-                | WeeklyMetric::MostLinesSingleAction
-                | WeeklyMetric::MostBlocksSingleAction
-        ));
-        assert!(matches!(
-            first[2],
-            WeeklyMetric::TotalLines | WeeklyMetric::TotalBlocks | WeeklyMetric::PerfectClears
-        ));
-    }
-
-    #[test]
-    fn season_keeps_best_twenty_results() {
-        let mut player = SeasonPlayer::initialize(Pubkey::new_unique(), Pubkey::new_unique(), 1);
-        for day in 0..28u32 {
-            player
-                .record(DailySeasonResult {
-                    day_id: day,
-                    points: if day < 8 { 2 } else { 10 },
-                    rank: if day < 8 { 80 } else { 20 },
-                    recorded_at: i64::from(day),
-                })
-                .unwrap();
-        }
-        assert_eq!(player.result_count, 20);
-        assert_eq!(player.points, 200);
-        assert!(player.results.iter().all(|result| result.points == 10));
-    }
-
-    #[test]
-    fn worse_score_and_expiry_keep_best_replay_but_advance_attempts() {
+    fn zero_metrics_do_not_qualify_for_either_board() {
         let wallet = Pubkey::new_unique();
-        let mut daily = ArenaDaily {
-            version: ARCADE_ACCOUNT_VERSION,
-            day_id: 4,
-            week_id: 0,
-            season_id: 0,
-            arcade_config: Pubkey::new_unique(),
-            rules_version: 1,
-            status: PeriodStatus::Open,
-            predecessor_rollover_applied: true,
-            content_version: 1,
-            catalog_hash: [0; 32],
-            rules_hash: [0; 32],
-            map_id: 1,
-            scoring_rule: DailyScoringRule::default(),
-            rules: LevelRuleSnapshot::default(),
-            pressure: DailyPressureProfile::default(),
-            opens_at: 0,
-            entries_close_at: 0,
-            runs_close_at: 0,
-            recovery_deadline_at: 0,
-            finalized_at: 0,
-            ledger: PoolLedger::default(),
-            entries_paid: 3,
-            entries_scored: 2,
-            entries_expired: 0,
-            unique_players: 1,
-            season_eligible_players: 1,
-            season_rollups: 0,
-            season_rollup_sealed: false,
-            entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump: 1,
-        };
+        let mut daily = ArenaDaily::default();
+        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        daily
+            .record_scored_entry(
+                &mut player,
+                ArenaBoardEntry {
+                    player: wallet,
+                    score: 0,
+                    objective_total: 0,
+                    ..ArenaBoardEntry::default()
+                },
+                1,
+            )
+            .unwrap();
+        assert_eq!(daily.score_qualified_players, 0);
+        assert_eq!(daily.theme_qualified_players, 0);
+        assert!(!player.has_score_best);
+        assert!(!player.has_theme_best);
+    }
+
+    #[test]
+    fn arena_player_keeps_best_replay_and_its_run_identity() {
+        let wallet = Pubkey::new_unique();
         let best = ArenaBoardEntry {
             player: wallet,
-            run_id: 1,
             score: 100,
-            attempts: 1,
             finalized_at: 10,
             replay_hash: [1; 32],
             ..ArenaBoardEntry::default()
         };
-        daily.record_best(best);
-        daily.record_best(ArenaBoardEntry {
-            player: wallet,
-            run_id: 2,
-            score: 90,
-            attempts: 2,
-            finalized_at: 11,
-            replay_hash: [2; 32],
-            ..ArenaBoardEntry::default()
-        });
-        assert_eq!(daily.entries[0].run_id, 1);
-        assert_eq!(daily.entries[0].replay_hash, [1; 32]);
-        assert_eq!(daily.entries[0].attempts, 2);
-
         let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
-        player.paid_entries = 3;
-        player.resolved_entries = 2;
-        player.has_best = true;
-        player.best_entry = best;
-        daily.record_expired_entry(&mut player).unwrap();
-        assert_eq!(daily.entries[0].run_id, 1);
-        assert_eq!(daily.entries[0].attempts, 3);
+        assert!(player.record_score(DailyBoardKind::Score, best, 1));
+        assert!(!player.record_score(
+            DailyBoardKind::Score,
+            ArenaBoardEntry {
+                player: wallet,
+                score: 90,
+                finalized_at: 11,
+                replay_hash: [2; 32],
+                ..ArenaBoardEntry::default()
+            },
+            2,
+        ));
+        assert_eq!(player.score_best_entry.replay_hash, [1; 32]);
+        assert_eq!(player.score_best_run_id, 1);
     }
 
     #[test]
-    fn accounts_fit_normal_allocation() {
+    fn account_sizes_and_maximum_board_rent_are_explicit() {
+        assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 414);
+        let mut daily_bytes = Vec::new();
+        ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
+        assert_eq!(daily_bytes.len(), 406);
+        assert_eq!(ArenaBoard::INIT_SPACE, 113);
+        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_529);
+        assert_eq!(
+            Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
+            902_412_720
+        );
         for size in [
             ArcadeConfig::INIT_SPACE,
             ArcadeArchive::INIT_SPACE,
             OperatorRevenueVault::INIT_SPACE,
+            CreditVault::INIT_SPACE,
             ArenaDaily::INIT_SPACE,
             ArenaPlayer::INIT_SPACE,
-            WeeklyJackpot::INIT_SPACE,
-            Season::INIT_SPACE,
-            SeasonPlayer::INIT_SPACE,
         ] {
             assert!(8 + size < 10_240, "account allocation too large: {size}");
         }
+    }
+
+    #[test]
+    fn maximum_board_last_place_can_be_read_and_claimed() {
+        let count = u32::try_from(ARENA_BOARD_CAPACITY).unwrap();
+        let plan = board_payout_plan(u64::MAX / 4, count).unwrap();
+        let mut board = ArenaBoard::default();
+        initialize_arena_board(
+            &mut board,
+            ArenaBoardInitialization {
+                daily: Pubkey::new_unique(),
+                day_id: 1,
+                kind: DailyBoardKind::Score,
+                qualified_count: count,
+                pool_lamports: u64::MAX / 4,
+                plan: BoardPayoutPlan { count, ..plan },
+                bump: 1,
+            },
+        );
+        board.cursor = count;
+        board.sealed = true;
+        let key = Pubkey::new_unique();
+        let owner = crate::ID;
+        let mut lamports = 0;
+        let mut data = vec![0u8; ArenaBoard::account_space(count).unwrap()];
+        let info = AccountInfo::new(&key, false, true, &mut lamports, &mut data, &owner, false);
+        let player = Pubkey::new_unique();
+        let entry = ArenaBoardEntry {
+            player,
+            score: 1,
+            ..ArenaBoardEntry::default()
+        };
+        write_board_entry(&info, count - 1, &entry).unwrap();
+        let prize = ranked_prize(&board, &info, player).unwrap();
+        assert_eq!(prize.position, count - 1);
+        assert_eq!(prize.amount, board.payout_for_position(count - 1).unwrap());
+        set_board_bitmap(&info, &board, BoardBitmap::Claimed, count - 1).unwrap();
+        assert!(board_bitmap_is_set(&info, &board, BoardBitmap::Claimed, count - 1).unwrap());
+    }
+
+    fn score_source(entry: ArenaBoardEntry) -> ArenaPlayer {
+        let mut source = ArenaPlayer::initialize(Pubkey::new_unique(), entry.player, 1);
+        source.has_score_best = true;
+        source.score_best_entry = entry;
+        source
+    }
+
+    fn submitted(entry: ArenaBoardEntry) -> SubmittedBoardEntry {
+        SubmittedBoardEntry {
+            score: entry.score,
+            objective_total: entry.objective_total,
+            finalized_at: entry.finalized_at,
+            replay_hash: entry.replay_hash,
+        }
+    }
+
+    #[test]
+    fn submitted_metrics_must_match_arena_player_exactly() {
+        let entry = ArenaBoardEntry {
+            player: Pubkey::new_unique(),
+            score: 100,
+            finalized_at: 7,
+            replay_hash: [9; 32],
+            ..ArenaBoardEntry::default()
+        };
+        let source = score_source(entry);
+        let mut wrong = submitted(entry);
+        wrong.score += 1;
+        assert!(verify_submitted_board_entry(DailyBoardKind::Score, wrong, &source).is_err());
+        assert_eq!(
+            verify_submitted_board_entry(DailyBoardKind::Score, submitted(entry), &source).unwrap(),
+            entry
+        );
+    }
+
+    #[test]
+    fn board_rejects_metric_order_tiebreak_order_and_duplicates() {
+        let first = ArenaBoardEntry {
+            player: Pubkey::new_from_array([1; 32]),
+            score: 100,
+            finalized_at: 10,
+            ..ArenaBoardEntry::default()
+        };
+        let better = ArenaBoardEntry {
+            score: 101,
+            ..first
+        };
+        assert!(verify_next_board_entry(DailyBoardKind::Score, &first, &better).is_err());
+
+        let later_tie = ArenaBoardEntry {
+            player: Pubkey::new_from_array([2; 32]),
+            finalized_at: 11,
+            ..first
+        };
+        assert!(verify_next_board_entry(DailyBoardKind::Score, &later_tie, &first).is_err());
+        let wallet_tie = ArenaBoardEntry {
+            finalized_at: 10,
+            ..later_tie
+        };
+        assert!(verify_next_board_entry(DailyBoardKind::Score, &wallet_tie, &first).is_err());
+        assert!(verify_next_board_entry(DailyBoardKind::Score, &first, &first).is_err());
+    }
+
+    #[test]
+    fn seal_requires_the_program_computed_count_and_partial_board_is_unclaimable() {
+        assert!(verify_board_completion(9, 10, true).is_err());
+        assert!(verify_board_completion(11, 10, false).is_err());
+        verify_board_completion(10, 10, true).unwrap();
+
+        let board = ArenaBoard {
+            payout_count: 1,
+            cursor: 1,
+            sealed: false,
+            ..ArenaBoard::default()
+        };
+        let key = Pubkey::new_unique();
+        let owner = crate::ID;
+        let mut lamports = 0;
+        let mut data = vec![0u8; ArenaBoard::account_space(1).unwrap()];
+        let info = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
+        assert!(ranked_prize(&board, &info, Pubkey::new_unique()).is_err());
+    }
+
+    #[test]
+    fn ordering_carries_across_many_chunks() {
+        let entries = (0..27)
+            .map(|index| ArenaBoardEntry {
+                player: Pubkey::new_from_array([u8::try_from(index + 1).unwrap(); 32]),
+                score: 1_000 - index,
+                finalized_at: i64::from(index),
+                ..ArenaBoardEntry::default()
+            })
+            .collect::<Vec<_>>();
+        let mut carried = None;
+        for chunk in entries.chunks(ARENA_BOARD_CHUNK_CAPACITY) {
+            for entry in chunk {
+                if let Some(previous) = carried {
+                    verify_next_board_entry(DailyBoardKind::Score, &previous, entry).unwrap();
+                }
+                carried = Some(*entry);
+            }
+        }
+        assert_eq!(carried, entries.last().copied());
+    }
+
+    #[test]
+    fn claimed_expired_and_rounding_rollover_conserve_the_pot() {
+        let pool = 90_000_000_000;
+        let plan = board_payout_plan(pool, 20_000).unwrap();
+        let claimed = (1..=plan.count)
+            .step_by(3)
+            .try_fold(0u64, |sum, rank| {
+                sum.checked_add(
+                    zkube_core::payout_for_rank(
+                        pool,
+                        plan.denominator,
+                        rank,
+                        zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+                    )
+                    .unwrap(),
+                )
+            })
+            .unwrap();
+        let expired = plan.paid_lamports - claimed;
+        assert_eq!(claimed + expired + plan.rollover_lamports, pool);
     }
 }

@@ -183,29 +183,6 @@ describe("run session persistence", () => {
     ).not.toBeNull();
   });
 
-  it("round-trips the free Practice run mode", () => {
-    const storage = new MemoryStorage();
-    const owner = Keypair.generate().publicKey;
-    const session = Keypair.generate();
-    saveRunSession(
-      {
-        owner,
-        runId: 22n,
-        mode: "practice",
-        session,
-        sessionToken: deriveSessionTokenV2Pda({
-          authority: owner,
-          sessionSigner: session.publicKey,
-        }).sessionToken,
-        addresses: deriveRunAddresses(owner, 22n),
-        validUntil: 5_000,
-        createdAt: 1_000,
-      },
-      storage,
-    );
-    expect(loadRunSession(owner, "arcade", { storage })?.mode).toBe("practice");
-  });
-
   it("keeps one Campaign marker and one Arcade marker for the same owner", () => {
     const storage = new MemoryStorage();
     const owner = Keypair.generate().publicKey;

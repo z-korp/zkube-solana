@@ -299,20 +299,23 @@ export function qualifiedPlayerId(chain_domain, raw_account) {
 }
 
 /**
- * @param {number} week_id
- * @param {Uint8Array} rules_hash
+ * @param {Uint8Array} config
+ * @param {Uint8Array} state
+ * @param {number} action
  * @returns {Uint8Array}
  */
-export function weeklyMetricTags(week_id, rules_hash) {
-    const ptr0 = passArray8ToWasm0(rules_hash, wasm.__wbindgen_malloc);
+export function requestDailySimulationReroll(config, state, action) {
+    const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.weeklyMetricTags(week_id, ptr0, len0);
+    const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.requestDailySimulationReroll(ptr0, len0, ptr1, len1, action);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
+    return v3;
 }
 function __wbg_get_imports() {
     const import0 = {

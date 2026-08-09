@@ -12,19 +12,20 @@ import {
   buildZkubeLaunchPlan,
   canonicalDevnetReplayDomainHex,
   formatZkubeLaunchPlan,
-  launchCadences,
   type LaunchPlannerInput,
 } from "./launchPlanner";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+const TEST_WILDCARD_MUTATOR = {
+  activeMutatorId: 31,
+  bonusType: 1,
+  bonusThreshold: 100,
+  startingCharges: 1,
+  startingRows: 4,
+};
 
 describe("read-only paused bootstrap and launch planner", () => {
-  it("derives canonical mid-week and mid-Season cadence IDs", () => {
-    expect(launchCadences(100)).toEqual({ weekId: 13, seasonId: 3 });
-    expect(() => launchCadences(3)).toThrow("supported cadence");
-  });
-
   it("plans the full fresh bootstrap and one atomic launch transaction", async () => {
     const authority = Keypair.generate().publicKey;
     const deployer = Keypair.generate().publicKey;
@@ -50,22 +51,21 @@ describe("read-only paused bootstrap and launch planner", () => {
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
       deployerReserveLamports: 100_000_000,
+      wildcardMutator: TEST_WILDCARD_MUTATOR,
     };
     const plan = await buildZkubeLaunchPlan(
       input,
       launchConnection({ upgradeAuthority, team, allocationBytes }),
     );
 
-    expect(plan.weekId).toBe(13);
-    expect(plan.seasonId).toBe(3);
-    expect(plan.plans).toHaveLength(22);
-    expect(plan.plans[21]?.transaction.instructions).toHaveLength(5);
+    expect(plan.plans).toHaveLength(18);
+    expect(plan.plans[17]?.transaction.instructions).toHaveLength(3);
     expect(plan.phases.at(-1)).toEqual({
-      label: "Atomic 1/2/3 SOL seed, unpause, and activation",
-      transactionIndexes: [21],
+      label: "Atomic 1 SOL seed, unpause, and activation",
+      transactionIndexes: [17],
     });
-    expect(plan.costs.seedLamports).toBe(6_500_000_000);
-    expect(plan.costs.transactionCount).toBe(22);
+    expect(plan.costs.seedLamports).toBe(1_500_000_000);
+    expect(plan.costs.transactionCount).toBe(18);
     expect(plan.rulesCatalogSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
@@ -97,6 +97,7 @@ describe("read-only paused bootstrap and launch planner", () => {
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
       deployerReserveLamports: 100_000_000,
+      wildcardMutator: TEST_WILDCARD_MUTATOR,
     };
     await expect(
       buildZkubeLaunchPlan(

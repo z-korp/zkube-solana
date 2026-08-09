@@ -1,25 +1,23 @@
 import type { CompetitionRecord, PlayerStateView } from "./campaignClient.js";
 
-/** 0 Daily, 1 Weekly, 2 Season — matches competitionProfileSynced.periodKind. */
-export type PeriodKind = 0 | 1 | 2;
+/** Daily — matches competitionProfileSynced.periodKind. */
+export type PeriodKind = 0;
 
-export const PERIOD_LABELS: Record<PeriodKind, "Daily" | "Weekly" | "Season"> = {
+export const PERIOD_LABELS: Record<PeriodKind, "Daily"> = {
   0: "Daily",
-  1: "Weekly",
-  2: "Season",
 };
 
-const PERIOD_KINDS: readonly PeriodKind[] = [0, 1, 2];
+const PERIOD_KINDS: readonly PeriodKind[] = [0];
 
 /**
- * A single, precise pushed-prize signal: one Daily/Weekly/Season competition
+ * A single, precise profile-prize signal: one Daily competition
  * record whose lifetime `rewardsLamports` grew between two confirmed PlayerState
- * snapshots. Because settlement is push-only and never refunded, an increase is
- * always a real paid placement — never a fabricated or optimistic value.
+ * snapshots. This is durable awarded-prize metadata, independent of whether the
+ * owner has submitted the corresponding claim.
  */
 export interface SettlementEvent {
   periodKind: PeriodKind;
-  label: "Daily" | "Weekly" | "Season";
+  label: "Daily";
   /** How much this period's lifetime rewards grew across the two snapshots. */
   deltaLamports: bigint;
   /** The new lifetime rewards total for this period after the increase. */
@@ -31,7 +29,7 @@ export interface SettlementEvent {
    * placement only on a player's first prize for the period; a repeat winner who
    * previously placed higher keeps that better rank here. The exact per-event
    * rank lives only in the `competitionProfileSynced` program event
-   * ({ owner, periodKind, rank:u16, rewardLamports:u64}); we deliberately do not
+   * ({ owner, board, rank:u16, rewardLamports:u64}); we deliberately do not
    * scrape program logs for it (no existing log-decode surface in the client, and
    * flaky signature scraping is explicitly out of scope). Treat this as the honest
    * best-known rank, not a claim about this specific win.
@@ -43,9 +41,8 @@ export function periodRecord(
   view: PlayerStateView,
   kind: PeriodKind,
 ): CompetitionRecord {
-  if (kind === 0) return view.dailyRecord;
-  if (kind === 1) return view.weeklyRecord;
-  return view.seasonRecord;
+  void kind;
+  return view.dailyRecord;
 }
 
 /**
@@ -78,9 +75,8 @@ export function detectSettlementEvents(
 }
 
 /**
- * The most significant event in a burst: the largest reward increase, ties broken
- * toward the shorter cadence (Daily before Weekly before Season). Used to surface
- * a single "latest pushed prize" while callers still reconcile every period.
+ * The most significant event in a burst. Used to surface a single latest
+ * awarded prize while callers still reconcile every record.
  */
 export function pickPrimaryEvent(
   events: readonly SettlementEvent[],

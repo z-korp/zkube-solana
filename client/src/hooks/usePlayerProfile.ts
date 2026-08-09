@@ -24,11 +24,9 @@ export interface PlayerProfile {
   featuredEmblem: number;
   lifetimePaidEntries: bigint;
   dailyRecord: CompetitionRecord;
-  weeklyRecord: CompetitionRecord;
-  seasonRecord: CompetitionRecord;
-  /** Display-time sum of wins across the three competition records. */
+  /** Display-time sum of wins across competition records. */
   totalWins: number;
-  /** Display-time sum of rewards (lamports) across the three records. */
+  /** Display-time sum of rewards (lamports) across competition records. */
   totalRewardsLamports: bigint;
   /** Campaign stars, reused from useZoneProgress rather than re-read. */
   totalStars: number;
@@ -42,7 +40,7 @@ export interface PlayerProfileResult extends PlayerProfile {
 
 /**
  * Competitive profile for the connected player. Reads PlayerState directly for
- * the emblem, lifetime paid entries, and the Daily/Weekly/Season prize records;
+ * the emblem, lifetime paid entries, and the Daily prize record;
  * Campaign stars/totalStars are reused from useZoneProgress (which projects the
  * shared campaign controller) rather than re-reading the account. Fields fall
  * back to zeros when disconnected or before the first paid entry, so the UI
@@ -88,17 +86,12 @@ export function usePlayerProfile(): PlayerProfileResult {
 
   const profile = useMemo<PlayerProfile>(() => {
     const daily = state?.dailyRecord ?? EMPTY_RECORD;
-    const weekly = state?.weeklyRecord ?? EMPTY_RECORD;
-    const season = state?.seasonRecord ?? EMPTY_RECORD;
     return {
       featuredEmblem: state?.featuredEmblem ?? 0,
       lifetimePaidEntries: state?.lifetimePaidEntries ?? 0n,
       dailyRecord: daily,
-      weeklyRecord: weekly,
-      seasonRecord: season,
-      totalWins: daily.wins + weekly.wins + season.wins,
-      totalRewardsLamports:
-        daily.rewardsLamports + weekly.rewardsLamports + season.rewardsLamports,
+      totalWins: daily.wins,
+      totalRewardsLamports: daily.rewardsLamports,
       totalStars,
     };
   }, [state, totalStars]);

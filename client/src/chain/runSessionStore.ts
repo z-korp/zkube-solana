@@ -6,11 +6,11 @@ import {
 import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 
-export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v2";
+export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v3";
 const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;
 
 interface StoredRunSession {
-  version: 2;
+  version: 3;
   owner: string;
   runId: string;
   mode: RunSessionMode;
@@ -32,7 +32,7 @@ export interface RunSessionMarker {
   createdAt: number;
 }
 
-export type RunSessionMode = "campaign" | "daily" | "practice";
+export type RunSessionMode = "campaign" | "daily";
 export type RunSlot = "campaign" | "arcade";
 
 export function runSlotForMode(mode: RunSessionMode): RunSlot {
@@ -50,7 +50,7 @@ export function saveRunSession(
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
   sessions[sessionKey(marker.owner, runSlotForMode(marker.mode))] = {
-    version: 2,
+    version: 3,
     owner: marker.owner.toBase58(),
     runId: marker.runId.toString(),
     mode: marker.mode,
@@ -77,22 +77,12 @@ export function loadRunSession(
   if (!storage) return null;
   const sessions = loadStoredSessions(storage);
   const key = sessionKey(owner, slot);
-  const stored = sessions[key] ?? sessions[owner.toBase58()];
+  const stored = sessions[key];
   if (!stored) return null;
   const marker = restoreStoredRunSession(stored, owner);
   if (!marker || runSlotForMode(marker.mode) !== slot) {
     clearRunSession(owner, slot, storage);
     return null;
-  }
-  // Move the legacy single-owner entry into its explicit slot on first read.
-  if (!sessions[key]) {
-    sessions[key] = stored;
-    delete sessions[owner.toBase58()];
-    try {
-      storage.setItem(RUN_SESSION_STORAGE_KEY, JSON.stringify(sessions));
-    } catch {
-      // Recovery still succeeds even if storage migration is unavailable.
-    }
   }
   return marker;
 }
@@ -186,12 +176,10 @@ function loadStoredSessions(
 function isStoredRunSession(value: unknown): value is StoredRunSession {
   return (
     isRecord(value) &&
-    value.version === 2 &&
+    value.version === 3 &&
     typeof value.owner === "string" &&
     typeof value.runId === "string" &&
-    (value.mode === "campaign" ||
-      value.mode === "daily" ||
-      value.mode === "practice") &&
+    (value.mode === "campaign" || value.mode === "daily") &&
     validSecretKey(value.sessionSecretKey) &&
     typeof value.sessionToken === "string" &&
     typeof value.activeRun === "string" &&

@@ -76,7 +76,7 @@ export function ThemeProvider({
   // dependency arrays of consumer theme effects (HomePage, PlayScreen, …),
   // re-firing them on every provider render. When two mounted screens target
   // different zone themes (e.g. Arcade→Play during the AnimatePresence
-  // transition into yesterday's Practice run), that turns into an unbounded
+  // transition into a different run), that turns into an unbounded
   // themeTemplate flip → "Maximum update depth exceeded" (React #185).
   const setTheme = useCallback(
     (next: Theme) => {

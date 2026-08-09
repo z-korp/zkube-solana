@@ -275,29 +275,20 @@ pub struct FundedEnterArena<'info> {
     pub arena_player: UncheckedAccount<'info>,
     /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
-    pub current_weekly: UncheckedAccount<'info>,
-    /// CHECK: Fully constrained by the inner instruction.
-    pub current_season: UncheckedAccount<'info>,
-    /// CHECK: Fully constrained by the inner instruction.
-    #[account(mut)]
     pub following_daily: UncheckedAccount<'info>,
     /// CHECK: Fully constrained by the inner instruction.
     #[account(mut)]
-    pub following_weekly: UncheckedAccount<'info>,
-    /// CHECK: Fully constrained by the inner instruction.
-    #[account(mut)]
-    pub following_season: UncheckedAccount<'info>,
-    /// CHECK: Fully constrained by the inner instruction.
-    #[account(mut)]
-    pub operator_revenue_vault: UncheckedAccount<'info>,
+    pub credit_vault: UncheckedAccount<'info>,
     /// CHECK: Initialized by the inner instruction.
     #[account(mut)]
     pub active_run: UncheckedAccount<'info>,
     /// CHECK: Canonical zero-data System PDA validated before self-CPI.
-    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()], bump)]
+    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()], bump)]
     pub player_funding: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub owner: Signer<'info>,
+    /// CHECK: Immutable wallet identity checked by the inner instruction.
+    pub owner_authority: UncheckedAccount<'info>,
+    pub session_token: Account<'info, SessionTokenV2>,
+    pub actor: Signer<'info>,
     pub system_program: Program<'info, System>,
     pub zkube_program: Program<'info, crate::program::Solana>,
 }
@@ -307,21 +298,43 @@ pub fn handler_funded_enter_arena(
     run_id: u64,
     expected_entry_lamports: u64,
 ) -> Result<()> {
+    // Check the expected current-day PDA before the inner instruction tries
+    // to deserialize it, so a suspended day returns the protocol's typed
+    // refusal rather than an incidental missing-account error.
+    let day_id = day_id_at(Clock::get()?.unix_timestamp)?;
+    let (expected_daily, _) =
+        Pubkey::find_program_address(&[ARENA_DAILY_SEED, &day_id.to_le_bytes()], &crate::ID);
+    require_keys_eq!(
+        ctx.accounts.current_daily.key(),
+        expected_daily,
+        ErrorCode::InvalidPeriod
+    );
+    let current_daily_info = ctx.accounts.current_daily.to_account_info();
+    if *current_daily_info.owner == system_program::ID && current_daily_info.data_is_empty() {
+        return err!(ErrorCode::DailyNotScheduled);
+    }
+    require_keys_eq!(
+        *current_daily_info.owner,
+        crate::ID,
+        ErrorCode::InvalidOwner
+    );
+    require!(
+        current_daily_info.data_len() == 8 + ArenaDaily::INIT_SPACE,
+        ErrorCode::InvalidOwner
+    );
     let accounts = crate::accounts::EnterArena {
         protocol: ctx.accounts.protocol.key(),
         arcade_config: ctx.accounts.arcade_config.key(),
         player_state: ctx.accounts.player_state.key(),
         current_daily: ctx.accounts.current_daily.key(),
         arena_player: ctx.accounts.arena_player.key(),
-        current_weekly: ctx.accounts.current_weekly.key(),
-        current_season: ctx.accounts.current_season.key(),
         following_daily: ctx.accounts.following_daily.key(),
-        following_weekly: ctx.accounts.following_weekly.key(),
-        following_season: ctx.accounts.following_season.key(),
-        operator_revenue_vault: ctx.accounts.operator_revenue_vault.key(),
+        credit_vault: ctx.accounts.credit_vault.key(),
         active_run: ctx.accounts.active_run.key(),
         payer: ctx.accounts.player_funding.key(),
-        owner: ctx.accounts.owner.key(),
+        owner_authority: ctx.accounts.owner_authority.key(),
+        session_token: Some(ctx.accounts.session_token.key()),
+        actor: ctx.accounts.actor.key(),
         system_program: ctx.accounts.system_program.key(),
     };
     let instruction = Instruction {
@@ -339,73 +352,8 @@ pub fn handler_funded_enter_arena(
         ctx.accounts.player_state.to_account_info(),
         ctx.accounts.current_daily.to_account_info(),
         ctx.accounts.arena_player.to_account_info(),
-        ctx.accounts.current_weekly.to_account_info(),
-        ctx.accounts.current_season.to_account_info(),
         ctx.accounts.following_daily.to_account_info(),
-        ctx.accounts.following_weekly.to_account_info(),
-        ctx.accounts.following_season.to_account_info(),
-        ctx.accounts.operator_revenue_vault.to_account_info(),
-        ctx.accounts.active_run.to_account_info(),
-        ctx.accounts.player_funding.to_account_info(),
-        ctx.accounts.owner.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        ctx.accounts.zkube_program.to_account_info(),
-    ];
-    invoke_with_player_funding(
-        ctx.accounts.owner.key(),
-        &ctx.accounts.player_funding.to_account_info(),
-        ctx.bumps.player_funding,
-        instruction,
-        &infos,
-    )
-}
-
-#[derive(Accounts)]
-#[instruction(run_id: u64)]
-pub struct FundedPreparePracticeRun<'info> {
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    /// CHECK: Fully constrained by the inner instruction.
-    #[account(mut)]
-    pub player_state: UncheckedAccount<'info>,
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    /// CHECK: Initialized by the inner instruction.
-    #[account(mut)]
-    pub active_run: UncheckedAccount<'info>,
-    /// CHECK: Canonical zero-data System PDA validated before self-CPI.
-    #[account(mut, seeds = [PLAYER_FUNDING_SEED, owner_authority.key().as_ref()], bump)]
-    pub player_funding: UncheckedAccount<'info>,
-    /// CHECK: Durable wallet identity checked by the inner instruction.
-    pub owner_authority: UncheckedAccount<'info>,
-    pub session_token: Account<'info, SessionTokenV2>,
-    pub actor: Signer<'info>,
-    pub system_program: Program<'info, System>,
-    pub zkube_program: Program<'info, crate::program::Solana>,
-}
-
-pub fn handler_funded_prepare_practice_run(
-    ctx: Context<FundedPreparePracticeRun>,
-    run_id: u64,
-) -> Result<()> {
-    let accounts = crate::accounts::PreparePracticeRun {
-        protocol: ctx.accounts.protocol.key(),
-        player_state: ctx.accounts.player_state.key(),
-        arena_daily: ctx.accounts.arena_daily.key(),
-        active_run: ctx.accounts.active_run.key(),
-        payer: ctx.accounts.player_funding.key(),
-        owner_authority: ctx.accounts.owner_authority.key(),
-        session_token: Some(ctx.accounts.session_token.key()),
-        actor: ctx.accounts.actor.key(),
-        system_program: ctx.accounts.system_program.key(),
-    };
-    let instruction = Instruction {
-        program_id: crate::ID,
-        accounts: accounts.to_account_metas(None),
-        data: crate::instruction::PreparePracticeRun { run_id }.data(),
-    };
-    let infos = [
-        ctx.accounts.protocol.to_account_info(),
-        ctx.accounts.player_state.to_account_info(),
-        ctx.accounts.arena_daily.to_account_info(),
+        ctx.accounts.credit_vault.to_account_info(),
         ctx.accounts.active_run.to_account_info(),
         ctx.accounts.player_funding.to_account_info(),
         ctx.accounts.owner_authority.to_account_info(),

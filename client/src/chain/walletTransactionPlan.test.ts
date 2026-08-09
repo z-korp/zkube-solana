@@ -23,14 +23,12 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveArenaPlayerPda,
+  deriveCreditVaultPda,
   deriveMapCatalogPda,
-  deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
 import {
   combinePreparedAndDelegatePlan,
@@ -353,7 +351,7 @@ describe("native SOL transaction boundaries", () => {
     expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
   });
 
-  it("keeps the device as Daily fee payer and delegation actor while the owner approves entry", async () => {
+  it("lets the device spend a Kredit, pay fees, and delegate without an owner signature", async () => {
     const owner = Keypair.generate();
     const session = Keypair.generate();
     const sessionToken = deriveSessionTokenV2Pda({
@@ -369,7 +367,7 @@ describe("native SOL transaction boundaries", () => {
       identity: Keypair.generate().publicKey,
     });
     const currentDaily = deriveArenaDailyPda(20);
-    const enterArena = await zkubeProgram(connection, new SessionWallet(owner))
+    const enterArena = await zkubeProgram(connection, new SessionWallet(session))
       .methods.fundedEnterArena(new BN(1), new BN(10_000_000))
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
@@ -377,15 +375,13 @@ describe("native SOL transaction boundaries", () => {
         playerState: derivePlayerStatePda(owner.publicKey),
         currentDaily,
         arenaPlayer: deriveArenaPlayerPda(currentDaily, owner.publicKey),
-        currentWeekly: deriveWeeklyJackpotPda(2),
-        currentSeason: deriveSeasonPda(1),
         followingDaily: deriveArenaDailyPda(21),
-        followingWeekly: deriveWeeklyJackpotPda(3),
-        followingSeason: deriveSeasonPda(2),
-        operatorRevenueVault: deriveOperatorRevenueVaultPda(),
+        creditVault: deriveCreditVaultPda(),
         activeRun: addresses.activeRun,
         playerFunding: derivePlayerFundingPda(owner.publicKey),
-        owner: owner.publicKey,
+        ownerAuthority: owner.publicKey,
+        sessionToken,
+        actor: session.publicKey,
         systemProgram: SystemProgram.programId,
         zkubeProgram: ZKUBE_PROGRAM_ID,
       })
@@ -397,10 +393,10 @@ describe("native SOL transaction boundaries", () => {
       sessionValidUntil: 1_800_000_000,
       transactionPlan: {
         layer: "solana-base" as const,
-        label: "Enter Arena · exact 0.01 SOL + network fee",
+        label: "Enter Arena · spend 1 Kredit + network fee",
         connection,
         transaction: new Transaction().add(enterArena),
-        feePayer: owner.publicKey,
+        feePayer: session.publicKey,
         signers: [],
       },
     };
@@ -426,13 +422,13 @@ describe("native SOL transaction boundaries", () => {
 
     const signed = await compileWalletTransactionPlan({
       transactionPlan: combined.transactionPlan,
-      wallet: new SessionWallet(owner),
+      wallet: new SessionWallet(session),
     });
     const requiredSigners = signed.message.staticAccountKeys.slice(
       0,
       signed.message.header.numRequiredSignatures,
     );
-    expect(requiredSigners).toEqual([session.publicKey, owner.publicKey]);
+    expect(requiredSigners).toEqual([session.publicKey]);
     expect(signed.message.compiledInstructions).toHaveLength(4);
     expect(signed.serialize().byteLength).toBeLessThanOrEqual(1_232);
     expect(
@@ -507,7 +503,7 @@ describe("run transaction funding preflight", () => {
         },
       }),
     ).rejects.toThrow(
-      "Preflight failed before owner signature for Prepare and delegate active run",
+      "Preflight failed before wallet signature for Prepare and delegate active run",
     );
     expect(simulation).toHaveBeenCalledOnce();
     expect(simulation).toHaveBeenCalledWith(expect.any(VersionedTransaction), {

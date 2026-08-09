@@ -5,17 +5,22 @@ import {
   mkdir,
   open,
   readFile,
+  readdir,
   realpath,
   rm,
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 
-import type {
-  CompetitionKind,
-  KeeperInstructionPlan,
+import {
+  ZKUBE_PROGRAM_ID,
+  arenaBoardPda,
+  arenaDailyPda,
+  type CompetitionKind,
+  type KeeperInstructionPlan,
 } from "./arcadeChain.js";
 import {
   CURRENT_ARCHIVE_SCHEMA_VERSION,
+  cadenceRoot,
   cadenceResultHash,
   parseCanonicalArchive,
   type CadenceArchiveContract,
@@ -50,6 +55,8 @@ export class ArchiveIntegrityError extends Error {
 export type ArchiveResultProjector = (
   competition: CompetitionKind,
   accountData: Buffer,
+  scoreBoardData?: Buffer,
+  themeBoardData?: Buffer,
 ) => Buffer;
 
 export class FileKeeperArchiveStore implements KeeperArchiveStore {
@@ -67,6 +74,13 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
 
   async prepare(plan: KeeperInstructionPlan): Promise<void> {
     const identity = archiveIdentity(plan);
+    if (!isArchiveOperation(plan.operation)) {
+      await this.verifyCommittedChain(plan, identity.kind, identity.id);
+      return;
+    }
+    if (identity.sha256 === undefined) {
+      throw new Error("archive plan identity or SHA-256 is invalid");
+    }
     const canonicalJson = plan.context?.archiveCanonicalJson;
     if (canonicalJson === undefined) {
       throw new Error("archive plan is missing canonical JSON");
@@ -82,8 +96,74 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
       canonicalJson,
       identity.sha256,
       expected,
-      isArchiveOperation(plan.operation),
+      true,
     );
+  }
+
+  private async verifyCommittedChain(
+    plan: KeeperInstructionPlan,
+    kind: CompetitionKind,
+    id: number,
+  ): Promise<void> {
+    const first = plan.context?.archiveFirstCadenceId;
+    const last = plan.context?.previousCadenceId;
+    const currentRoot = plan.context?.archiveCurrentRoot;
+    const expectedResultHash = plan.context?.archiveResultHash;
+    if (!Number.isSafeInteger(first) || first === undefined || first < 0 || first > id ||
+        !Number.isSafeInteger(last) || last === undefined || last < id ||
+        !/^[0-9a-f]{64}$/.test(currentRoot ?? "") ||
+        !/^[0-9a-f]{64}$/.test(expectedResultHash ?? "")) {
+      throw new Error("committed archive checkpoint is invalid");
+    }
+    const target = await this.safePath(kind, id);
+    const directory = dirname(target);
+    const ids = (await readdir(directory))
+      .map((name) => /^(0|[1-9][0-9]*)\.json$/.exec(name)?.[1])
+      .filter((value): value is string => value !== undefined)
+      .map(Number)
+      .filter((cadenceId) =>
+        Number.isSafeInteger(cadenceId) && cadenceId >= first && cadenceId <= last
+      )
+      .sort((left, right) => left - right);
+    if (ids[0] !== first || !ids.includes(id) || ids.at(-1) !== last) {
+      throw new ArchiveIntegrityError(
+        "missing_committed_archive",
+        kind,
+        id,
+        "committed cadence archive chain is incomplete",
+      );
+    }
+    let root = "00".repeat(32);
+    for (const cadenceId of ids) {
+      const stored = await this.readStored(kind, cadenceId);
+      this.verifyStoredIdentity(kind, cadenceId, stored);
+      this.verifyProjection(kind, cadenceId, stored);
+      root = cadenceRoot(kind, root, cadenceId, stored.contract.resultHash);
+      if (stored.contract.root !== root) {
+        throw new ArchiveIntegrityError(
+          "immutable_commitment_mismatch",
+          kind,
+          cadenceId,
+          "stored cadence archive root does not match its chain",
+        );
+      }
+      if (cadenceId === id && stored.contract.resultHash !== expectedResultHash) {
+        throw new ArchiveIntegrityError(
+          "immutable_commitment_mismatch",
+          kind,
+          id,
+          "stored cadence result does not match the live finalized result",
+        );
+      }
+    }
+    if (root !== currentRoot) {
+      throw new ArchiveIntegrityError(
+        "immutable_commitment_mismatch",
+        kind,
+        id,
+        "stored cadence archive chain does not reach the on-chain root",
+      );
+    }
   }
 
   private async preparePath(
@@ -164,9 +244,38 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
     bytes: Buffer,
     expected: CadenceArchiveContract,
   ): void {
-    let stored: ReturnType<typeof parseCanonicalArchive>;
+    const stored = this.parseStored(kind, id, bytes);
+    const actual = stored.contract;
+    if (actual.account !== expected.account ||
+        actual.competition !== expected.competition ||
+        actual.periodId !== expected.periodId ||
+        actual.programId !== expected.programId ||
+        actual.resultHash !== expected.resultHash ||
+        actual.root !== expected.root ||
+        actual.scoreBoard !== expected.scoreBoard ||
+        actual.themeBoard !== expected.themeBoard) {
+      throw new ArchiveIntegrityError(
+        "immutable_commitment_mismatch",
+        kind,
+        id,
+        "stored cadence archive immutable commitment does not match",
+      );
+    }
+    this.verifyProjection(
+      kind,
+      id,
+      stored,
+      Buffer.from(expected.resultDataBase64!, "base64"),
+    );
+  }
+
+  private parseStored(
+    kind: CompetitionKind,
+    id: number,
+    bytes: Buffer,
+  ): ReturnType<typeof parseCanonicalArchive> {
     try {
-      stored = parseCanonicalArchive(bytes.toString("utf8"));
+      return parseCanonicalArchive(bytes.toString("utf8"));
     } catch (error) {
       throw new ArchiveIntegrityError(
         "existing_archive_invalid",
@@ -175,24 +284,60 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private async readStored(
+    kind: CompetitionKind,
+    id: number,
+  ): Promise<ReturnType<typeof parseCanonicalArchive>> {
+    const bytes = await readExistingRegularFile(await this.safePath(kind, id));
+    if (!bytes) {
+      throw new ArchiveIntegrityError(
+        "missing_committed_archive",
+        kind,
+        id,
+        "committed cadence archive file is missing",
+      );
+    }
+    return this.parseStored(kind, id, bytes);
+  }
+
+  private verifyStoredIdentity(
+    kind: CompetitionKind,
+    id: number,
+    stored: ReturnType<typeof parseCanonicalArchive>,
+  ): void {
     const actual = stored.contract;
-    if (actual.account !== expected.account ||
-        actual.competition !== expected.competition ||
-        actual.periodId !== expected.periodId ||
-        actual.programId !== expected.programId ||
-        actual.resultHash !== expected.resultHash ||
-        actual.root !== expected.root) {
+    if (actual.competition !== kind || actual.periodId !== id ||
+        actual.programId !== ZKUBE_PROGRAM_ID.toBase58() ||
+        actual.account !== arenaDailyPda(id).toBase58() ||
+        (actual.schemaVersion === 3 &&
+          (actual.scoreBoard !== arenaBoardPda(arenaDailyPda(id), "score").toBase58() ||
+           actual.themeBoard !== arenaBoardPda(arenaDailyPda(id), "theme").toBase58()))) {
       throw new ArchiveIntegrityError(
         "immutable_commitment_mismatch",
         kind,
         id,
-        "stored cadence archive immutable commitment does not match",
+        "stored cadence archive identity does not match",
       );
     }
+  }
 
+  private verifyProjection(
+    kind: CompetitionKind,
+    id: number,
+    stored: ReturnType<typeof parseCanonicalArchive>,
+    expectedResultData?: Buffer,
+  ): void {
+    const actual = stored.contract;
     let projected: Buffer;
     try {
-      projected = this.projectResultData(kind, stored.accountData);
+      projected = this.projectResultData(
+        kind,
+        stored.accountData,
+        stored.scoreBoardData,
+        stored.themeBoardData,
+      );
     } catch (error) {
       throw new ArchiveIntegrityError(
         "existing_archive_invalid",
@@ -203,8 +348,7 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
         }`,
       );
     }
-    const expectedResultData = Buffer.from(expected.resultDataBase64!, "base64");
-    if (!projected.equals(expectedResultData) ||
+    if ((expectedResultData && !projected.equals(expectedResultData)) ||
         cadenceResultHash(kind, projected) !== actual.resultHash ||
         (stored.resultData && !stored.resultData.equals(projected))) {
       throw new ArchiveIntegrityError(
@@ -217,8 +361,8 @@ export class FileKeeperArchiveStore implements KeeperArchiveStore {
   }
 
   private async safePath(kind: CompetitionKind, id: number): Promise<string> {
-    if (!["daily", "weekly", "season"].includes(kind) ||
-        !Number.isSafeInteger(id) || id < 0 || id > 0xffff_ffff) {
+    if (kind !== "daily" || !Number.isSafeInteger(id) ||
+        id < 0 || id > 0xffff_ffff) {
       throw new Error("cadence archive identity is invalid");
     }
     await mkdir(this.root, { recursive: true, mode: 0o700 });
@@ -246,32 +390,26 @@ export function archiveSha256(canonicalJson: string): string {
 function archiveIdentity(plan: KeeperInstructionPlan): {
   kind: CompetitionKind;
   id: number;
-  sha256: string;
+  sha256?: string;
 } {
   const kind = archiveKind(plan.operation);
   const context = plan.context;
-  const id = kind === "daily"
-    ? context?.dayId
-    : kind === "weekly"
-      ? context?.weekId
-      : context?.seasonId;
+  const id = context?.dayId;
   const hash = context?.archiveFileSha256;
-  if (id === undefined || !/^[0-9a-f]{64}$/.test(hash ?? "")) {
+  if (id === undefined || !Number.isSafeInteger(id) || id < 0 || id > 0xffff_ffff) {
+    throw new Error("archive plan identity is invalid");
+  }
+  if (isArchiveOperation(plan.operation) && !/^[0-9a-f]{64}$/.test(hash ?? "")) {
     throw new Error("archive plan identity or SHA-256 is invalid");
   }
-  return { kind, id, sha256: hash! };
+  return { kind, id, ...(hash === undefined ? {} : { sha256: hash }) };
 }
 
 function archiveKind(operation: string): CompetitionKind {
-  if (operation === "archive_arena_daily" || operation === "close_arena_daily") {
+  if (operation === "archive_arena_daily" ||
+      operation === "expire_daily_claims" ||
+      operation === "close_arena_daily") {
     return "daily";
-  }
-  if (operation === "archive_weekly_jackpot" ||
-      operation === "close_weekly_jackpot") {
-    return "weekly";
-  }
-  if (operation === "archive_season" || operation === "close_season") {
-    return "season";
   }
   throw new Error("operation does not use cadence archive storage");
 }
@@ -285,12 +423,15 @@ function parseExpectedArchive(
   identity: { kind: CompetitionKind; id: number },
   contextResultHash: string | undefined,
 ): CadenceArchiveContract {
-  const { contract, resultData } = parseCanonicalArchive(canonicalJson);
-  if (contract.schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION || !resultData ||
+  const { contract, resultData, scoreBoardData, themeBoardData } =
+    parseCanonicalArchive(canonicalJson);
+  if ((contract.schemaVersion !== 2 &&
+       contract.schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) || !resultData ||
+      (contract.schemaVersion === 3 && (!scoreBoardData || !themeBoardData)) ||
       contract.competition !== identity.kind ||
       contract.periodId !== identity.id ||
       contract.resultHash !== contextResultHash) {
-    throw new Error("archive plan does not carry the canonical v2 commitment");
+    throw new Error("archive plan does not carry the canonical v3 commitment");
   }
   return contract;
 }

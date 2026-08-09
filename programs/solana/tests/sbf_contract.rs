@@ -3,7 +3,7 @@
 use std::{fs, io::Cursor, path::PathBuf};
 
 use anchor_lang::prelude::{AccountDeserialize, AccountSerialize, Pubkey};
-use anchor_lang::{InstructionData, Space, ToAccountMetas};
+use anchor_lang::{AnchorSerialize, InstructionData, Space, ToAccountMetas};
 use mollusk_svm::Mollusk;
 use session_keys::SessionTokenV2;
 use solana_account::Account;
@@ -71,6 +71,71 @@ fn program_account<T: AccountSerialize>(value: &T, space: usize) -> Account {
 
 fn decode<T: AccountDeserialize>(account: &Account) -> T {
     T::try_deserialize(&mut account.data.as_slice()).expect("decode resulting account")
+}
+
+fn daily_pool_entry_fixture() -> DailyPoolEntry {
+    DailyPoolEntry {
+        id: 1,
+        realm_map_id: 1,
+        passive_map_id: 2,
+        active_mutator_id: 1,
+        passive_mutator_id: 2,
+        scoring_rule: canonical_daily_scoring_rules()[0],
+        score_multiplier_x100: 100,
+        combo_multiplier_x100: 100,
+        line_clear_bonus: 1,
+        perfect_clear_bonus: 2,
+        bonus_type: 1,
+        bonus_trigger_type: 1,
+        bonus_threshold: 10,
+        starting_charges: 0,
+        starting_rows: 4,
+        difficulty_band: 0,
+    }
+}
+
+fn daily_rules_fixture(
+    protocol: Pubkey,
+    content_version: u32,
+    rules_version: u32,
+    starts_day: u32,
+    bump: u8,
+) -> DailyRulesCatalog {
+    let pool_entries = vec![daily_pool_entry_fixture()];
+    let mut difficulty_bands = [DailyPressureProfile::default(); DAILY_DIFFICULTY_BAND_CAPACITY];
+    difficulty_bands[0] = DailyPressureProfile::canonical();
+    DailyRulesCatalog {
+        version: RULES_ACCOUNT_VERSION,
+        rules_version,
+        protocol,
+        content_version,
+        catalog_hash: [7; 32],
+        pool_revision: 1,
+        starts_day,
+        selection_seed: zkube_core::DAILY_POOL_SELECTION_SEED,
+        pool_entry_count: 1,
+        pool_entries,
+        difficulty_band_count: 1,
+        difficulty_bands,
+        bump,
+    }
+}
+
+fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
+    CampaignMapRuleSnapshot {
+        active_mutator_id: 1,
+        passive_mutator_id: 2,
+        score_multiplier_x100: 100,
+        combo_multiplier_x100: 100,
+        line_clear_bonus: 1,
+        perfect_clear_bonus: 2,
+        bonus_type: 1,
+        bonus_trigger_type: 1,
+        bonus_threshold: 10,
+        starting_charges: 0,
+        starting_rows: 4,
+        ..CampaignMapRuleSnapshot::default()
+    }
 }
 
 fn resulting_account<'a>(
@@ -1117,20 +1182,7 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
         &[DAILY_RULES_CATALOG_SEED, &next_rules.to_le_bytes()],
         &zkube::ID,
     );
-    let rules_state = DailyRulesCatalog {
-        version: RULES_ACCOUNT_VERSION,
-        rules_version: next_rules,
-        protocol,
-        content_version: next_content,
-        catalog_hash: [7; 32],
-        rotation_id: 1,
-        starts_day: 0,
-        rotation_seed: [9; 32],
-        scoring_rule_count: 15,
-        scoring_rules: canonical_daily_scoring_rules(),
-        pressure: DailyPressureProfile::canonical(),
-        bump: rules_bump,
-    };
+    let rules_state = daily_rules_fixture(protocol, next_content, next_rules, 0, rules_bump);
     let maps: Vec<(Pubkey, Account)> = (1..=MAX_MAPS as u8)
         .map(|map_id| {
             let (address, bump) = Pubkey::find_program_address(
@@ -1143,13 +1195,13 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
                 map_id,
                 theme_id: map_id,
                 enabled: true,
-                map_rules: CampaignMapRuleSnapshot::default(),
+                map_rules: daily_map_rule_fixture(),
                 levels: [CampaignLevelSnapshot::default(); LEVELS_PER_MAP],
                 bump,
             };
             (address, program_account(&state, 8 + MapCatalog::INIT_SPACE))
         })
-        .collect();
+        .collect::<Vec<_>>();
     let mut metas = zkube::accounts::ActivateContentRelease {
         protocol,
         daily_rules_catalog: daily_rules,
@@ -1201,221 +1253,18 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
 }
 
 #[test]
-fn sbf_run_slots_v3_activation_is_paused_exact_and_one_way() {
-    let authority = Pubkey::new_unique();
-    let (protocol, mut protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), true);
-    protocol_state.player_funding_target_lamports = LEGACY_PLAYER_FUNDING_TARGET_LAMPORTS;
-    let (arcade, mut arcade_state) = arcade_fixture(protocol);
-    arcade_state.entry_lamports = LEGACY_ARENA_ENTRY_LAMPORTS;
-    arcade_state.daily_lamports = LEGACY_ENTRY_DAILY_LAMPORTS;
-    arcade_state.weekly_lamports = LEGACY_ENTRY_WEEKLY_LAMPORTS;
-    arcade_state.season_lamports = LEGACY_ENTRY_SEASON_LAMPORTS;
-    arcade_state.operator_lamports = LEGACY_ENTRY_OPERATOR_LAMPORTS;
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ActivateRunSlotsV3 {
-            protocol,
-            arcade_config: arcade,
-            authority,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ActivateRunSlotsV3 {}.data(),
-    };
-    let accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            arcade,
-            program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-        ),
-        (authority, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let activated = mollusk().process_instruction(&instruction, &accounts);
-    assert!(
-        activated.program_result.is_ok(),
-        "{:?}",
-        activated.program_result
-    );
-    let protocol_after: ProtocolConfig = decode(resulting_account(&activated, &protocol));
-    let arcade_after: ArcadeConfig = decode(resulting_account(&activated, &arcade));
-    assert!(protocol_after.paused);
-    assert_eq!(
-        protocol_after.player_funding_target_lamports,
-        PLAYER_FUNDING_TARGET_LAMPORTS
-    );
-    assert_eq!(arcade_after.entry_lamports, ARENA_ENTRY_LAMPORTS);
-    assert_eq!(arcade_after.daily_lamports, ENTRY_DAILY_LAMPORTS);
-    assert_eq!(arcade_after.weekly_lamports, ENTRY_WEEKLY_LAMPORTS);
-    assert_eq!(arcade_after.season_lamports, ENTRY_SEASON_LAMPORTS);
-    assert_eq!(arcade_after.operator_lamports, ENTRY_OPERATOR_LAMPORTS);
-
-    // The exact legacy precondition makes the migration non-repeatable.
-    assert!(mollusk()
-        .process_instruction(
-            &instruction,
-            &[
-                (protocol, resulting_account(&activated, &protocol).clone(),),
-                (arcade, resulting_account(&activated, &arcade).clone()),
-                (authority, system_account(ACCOUNT_LAMPORTS)),
-            ],
-        )
-        .program_result
-        .is_err());
-}
-
-#[test]
-fn sbf_authority_top_ups_are_exact_accounted_and_pool_specific() {
-    let authority = Pubkey::new_unique();
-    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
-    let (arcade, arcade_state) = arcade_fixture(protocol);
-    let day_id = 32;
-    let week_id = week_id_for_day(day_id).unwrap();
-    let season_id = season_id_for_day(day_id).unwrap();
-    let amount = 1_234_567;
-    let now = day_window(day_id).unwrap().0 + 1;
-
-    let (daily, daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Open, true);
-    let daily_instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::TopUpArenaDaily {
-            protocol,
-            arcade_config: arcade,
-            arena_daily: daily,
-            authority,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::TopUpArenaDaily { lamports: amount }.data(),
-    };
-    let mut daily_runtime = mollusk();
-    daily_runtime.sysvars.clock.unix_timestamp = now;
-    let daily_result = daily_runtime.process_instruction(
-        &daily_instruction,
-        &[
-            (
-                protocol,
-                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-            ),
-            (
-                arcade,
-                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-            ),
-            (
-                daily,
-                program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
-            ),
-            (authority, system_account(ACCOUNT_LAMPORTS)),
-            (anchor_lang::system_program::ID, system_program_account()),
-        ],
-    );
-    assert!(
-        daily_result.program_result.is_ok(),
-        "{:?}",
-        daily_result.program_result
-    );
-    let daily_after: ArenaDaily = decode(resulting_account(&daily_result, &daily));
-    assert_eq!(daily_after.ledger.seeded_lamports, amount);
-    assert_eq!(
-        resulting_account(&daily_result, &daily).lamports,
-        ACCOUNT_LAMPORTS + amount
-    );
-    assert_eq!(
-        resulting_account(&daily_result, &authority).lamports,
-        ACCOUNT_LAMPORTS - amount
-    );
-
-    let (weekly, weekly_state) = weekly_fixture(week_id, arcade, PeriodStatus::Funding, true);
-    let weekly_instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::TopUpWeeklyJackpot {
-            protocol,
-            arcade_config: arcade,
-            weekly_jackpot: weekly,
-            authority,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::TopUpWeeklyJackpot { lamports: amount }.data(),
-    };
-    let mut weekly_runtime = mollusk();
-    weekly_runtime.sysvars.clock.unix_timestamp = now;
-    let weekly_result = weekly_runtime.process_instruction(
-        &weekly_instruction,
-        &[
-            (
-                protocol,
-                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-            ),
-            (
-                arcade,
-                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-            ),
-            (
-                weekly,
-                program_account(&weekly_state, 8 + WeeklyJackpot::INIT_SPACE),
-            ),
-            (authority, system_account(ACCOUNT_LAMPORTS)),
-            (anchor_lang::system_program::ID, system_program_account()),
-        ],
-    );
-    assert!(
-        weekly_result.program_result.is_ok(),
-        "{:?}",
-        weekly_result.program_result
-    );
-    let weekly_after: WeeklyJackpot = decode(resulting_account(&weekly_result, &weekly));
-    assert_eq!(weekly_after.ledger.seeded_lamports, amount);
-
-    let (season, season_state) = season_fixture(season_id, arcade, PeriodStatus::Open, true);
-    let season_instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::TopUpSeason {
-            protocol,
-            arcade_config: arcade,
-            season,
-            authority,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::TopUpSeason { lamports: amount }.data(),
-    };
-    let mut season_runtime = mollusk();
-    season_runtime.sysvars.clock.unix_timestamp = now;
-    let season_result = season_runtime.process_instruction(
-        &season_instruction,
-        &[
-            (
-                protocol,
-                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-            ),
-            (
-                arcade,
-                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-            ),
-            (
-                season,
-                program_account(&season_state, 8 + Season::INIT_SPACE),
-            ),
-            (authority, system_account(ACCOUNT_LAMPORTS)),
-            (anchor_lang::system_program::ID, system_program_account()),
-        ],
-    );
-    assert!(
-        season_result.program_result.is_ok(),
-        "{:?}",
-        season_result.program_result
-    );
-    let season_after: Season = decode(resulting_account(&season_result, &season));
-    assert_eq!(season_after.ledger.seeded_lamports, amount);
-}
-
-#[test]
 fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
     let authority = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
+    let rules = arcade_state.rules_catalog;
+    let rules_state = daily_rules_fixture(
+        protocol,
+        protocol_state.content_version,
+        protocol_state.daily_rules_version,
+        32,
+        1,
+    );
     let day_id = 32;
     let now = day_window(day_id).unwrap().0 + 1;
 
@@ -1430,6 +1279,7 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
             accounts: zkube::accounts::TopUpArenaDaily {
                 protocol,
                 arcade_config: arcade,
+                daily_rules_catalog: rules,
                 arena_daily: daily,
                 authority,
                 system_program: anchor_lang::system_program::ID,
@@ -1449,6 +1299,10 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
                 (
                     arcade,
                     program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+                ),
+                (
+                    rules,
+                    program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
                 ),
                 (
                     daily,
@@ -1489,8 +1343,6 @@ fn daily_fixture(
         ArenaDaily {
             version: ARCADE_ACCOUNT_VERSION,
             day_id,
-            week_id: week_id_for_day(day_id).unwrap(),
-            season_id: season_id_for_day(day_id).unwrap(),
             arcade_config,
             rules_version: 1,
             status,
@@ -1499,6 +1351,7 @@ fn daily_fixture(
             catalog_hash: [1; 32],
             rules_hash: [2; 32],
             map_id: 1,
+            passive_map_id: 2,
             scoring_rule: canonical_daily_scoring_rules()[0],
             rules: LevelRuleSnapshot::default(),
             pressure: DailyPressureProfile::canonical(),
@@ -1512,117 +1365,114 @@ fn daily_fixture(
             entries_scored: 0,
             entries_expired: 0,
             unique_players: 0,
-            season_eligible_players: 0,
-            season_rollups: 0,
-            season_rollup_sealed: false,
-            entries: Vec::new(),
-            profile_sync_mask: 0,
+            score_qualified_players: 0,
+            theme_qualified_players: 0,
+            claims_expired: false,
             bump,
         },
     )
 }
 
-fn weekly_fixture(
-    week_id: u32,
-    arcade_config: Pubkey,
-    status: PeriodStatus,
-    predecessor_rollover_applied: bool,
-) -> (Pubkey, WeeklyJackpot) {
+fn board_fixture(
+    daily: Pubkey,
+    day_id: u32,
+    kind: DailyBoardKind,
+    qualified_count: u32,
+    pool_lamports: u64,
+    entries: &[ArenaBoardEntry],
+    masks: (&[u32], &[u32]),
+) -> (Pubkey, ArenaBoard, Account, BoardPayoutPlan) {
+    let (claimed_positions, profile_synced_positions) = masks;
     let (address, bump) =
-        Pubkey::find_program_address(&[WEEKLY_JACKPOT_SEED, &week_id.to_le_bytes()], &zkube::ID);
-    let (opens_at, closes_at) = week_window(week_id).unwrap();
-    (
-        address,
-        WeeklyJackpot {
-            version: ARCADE_ACCOUNT_VERSION,
-            week_id,
-            qualification_start_day: week_start_day(week_id).unwrap(),
-            arcade_config,
-            status,
-            predecessor_rollover_applied,
-            metrics: weekly_metric_selection(week_id, [3; 32]),
-            rules_hash: [3; 32],
-            opens_at,
-            closes_at,
-            finalized_at: 0,
-            ledger: PoolLedger::default(),
-            combo_entries: Vec::new(),
-            action_entries: Vec::new(),
-            run_entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump,
-        },
-    )
+        Pubkey::find_program_address(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()], &zkube::ID);
+    let plan = board_payout_plan(pool_lamports, qualified_count).unwrap();
+    let payout_count = usize::try_from(plan.count).unwrap();
+    assert!(entries.len() >= payout_count);
+    let mut board = ArenaBoard {
+        version: ARCADE_ACCOUNT_VERSION,
+        arena_daily: daily,
+        day_id,
+        kind,
+        qualified_count,
+        width_count: plan.width_count,
+        payout_count: plan.count,
+        denominator: plan.denominator,
+        pool_lamports,
+        paid_lamports: plan.paid_lamports,
+        rollover_lamports: plan.rollover_lamports,
+        capacity_limited: plan.capacity_limited,
+        cursor: plan.count,
+        sealed: true,
+        claimed_lamports: 0,
+        claimed_count: u32::try_from(claimed_positions.len()).unwrap(),
+        profile_sync_count: u32::try_from(profile_synced_positions.len()).unwrap(),
+        bump,
+    };
+    board.claimed_lamports = claimed_positions
+        .iter()
+        .map(|position| board.payout_for_position(*position).unwrap())
+        .sum();
+    let mut account = program_account(&board, ArenaBoard::account_space(plan.count).unwrap());
+    for (position, entry) in entries.iter().take(payout_count).enumerate() {
+        let start = ArenaBoard::HEADER_SIZE + position * ARENA_BOARD_ENTRY_SIZE;
+        entry
+            .serialize(&mut Cursor::new(
+                &mut account.data[start..start + ARENA_BOARD_ENTRY_SIZE],
+            ))
+            .unwrap();
+    }
+    let mask_start =
+        ArenaBoard::HEADER_SIZE + usize::try_from(plan.count).unwrap() * ARENA_BOARD_ENTRY_SIZE;
+    let bitmap_size = ArenaBoard::bitmap_size(plan.count).unwrap();
+    for position in claimed_positions {
+        let position = usize::try_from(*position).unwrap();
+        account.data[mask_start + position / 8] |= 1 << (position % 8);
+    }
+    for position in profile_synced_positions {
+        let position = usize::try_from(*position).unwrap();
+        account.data[mask_start + bitmap_size + position / 8] |= 1 << (position % 8);
+    }
+    (address, board, account, plan)
 }
 
-fn season_fixture(
-    season_id: u32,
-    arcade_config: Pubkey,
-    status: PeriodStatus,
-    predecessor_rollover_applied: bool,
-) -> (Pubkey, Season) {
-    let (address, bump) =
-        Pubkey::find_program_address(&[SEASON_SEED, &season_id.to_le_bytes()], &zkube::ID);
-    let (opens_at, closes_at) = season_window(season_id).unwrap();
+fn credit_vault_fixture(protocol: Pubkey) -> (Pubkey, CreditVault) {
+    let (address, bump) = Pubkey::find_program_address(&[CREDIT_VAULT_SEED], &zkube::ID);
     (
         address,
-        Season {
-            version: ARCADE_ACCOUNT_VERSION,
-            season_id,
-            qualification_start_day: season_start_day(season_id).unwrap(),
-            arcade_config,
-            status,
-            predecessor_rollover_applied,
-            opens_at,
-            closes_at,
-            finalized_at: 0,
-            ledger: PoolLedger::default(),
-            sealed_dailies: 0,
-            entries: Vec::new(),
-            profile_sync_mask: 0,
-            bump,
-        },
-    )
-}
-
-fn operator_fixture(protocol: Pubkey) -> (Pubkey, OperatorRevenueVault) {
-    let (address, bump) = Pubkey::find_program_address(&[OPERATOR_REVENUE_VAULT_SEED], &zkube::ID);
-    (
-        address,
-        OperatorRevenueVault {
+        CreditVault {
             version: ARCADE_ACCOUNT_VERSION,
             protocol,
-            gross_operator_share: 0,
-            withdrawn: 0,
+            purchased_prize_lamports: ENTRY_DAILY_LAMPORTS,
+            spent_prize_lamports: 0,
             bump,
         },
     )
 }
 
 #[test]
-fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
+fn sbf_funded_entry_spends_prepaid_kredit_without_owner_signature() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
+    let actor = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, team, false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
     let day_id = 32;
-    let week_id = week_id_for_day(day_id).unwrap();
-    let season_id = season_id_for_day(day_id).unwrap();
     let (current_daily, current_daily_state) =
         daily_fixture(day_id, arcade, PeriodStatus::Open, false);
     let (following_daily, following_daily_state) =
         daily_fixture(day_id + 1, arcade, PeriodStatus::Funding, false);
-    let (current_weekly, current_weekly_state) =
-        weekly_fixture(week_id, arcade, PeriodStatus::Open, false);
-    let (following_weekly, following_weekly_state) =
-        weekly_fixture(week_id + 1, arcade, PeriodStatus::Funding, false);
-    let (current_season, current_season_state) =
-        season_fixture(season_id, arcade, PeriodStatus::Open, false);
-    let (following_season, following_season_state) =
-        season_fixture(season_id + 1, arcade, PeriodStatus::Funding, false);
-    let (operator, operator_state) = operator_fixture(protocol);
-    let (player, player_state) = player_fixture(owner);
+    let (credit_vault, credit_vault_state) = credit_vault_fixture(protocol);
+    let (player, mut player_state) = player_fixture(owner);
+    player_state.record_kredit_purchase(1).unwrap();
+    let session_token = session_token_address(owner, actor);
+    let session_state = SessionTokenV2 {
+        authority: owner,
+        target_program: zkube::ID,
+        session_signer: actor,
+        fee_payer: owner,
+        valid_until: current_daily_state.runs_close_at,
+    };
     let (arena_player, _) = Pubkey::find_program_address(
         &[ARENA_PLAYER_SEED, current_daily.as_ref(), owner.as_ref()],
         &zkube::ID,
@@ -1647,15 +1497,13 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
             player_state: player,
             current_daily,
             arena_player,
-            current_weekly,
-            current_season,
             following_daily,
-            following_weekly,
-            following_season,
-            operator_revenue_vault: operator,
+            credit_vault,
             active_run,
             player_funding,
-            owner,
+            owner_authority: owner,
+            session_token,
+            actor,
             system_program: anchor_lang::system_program::ID,
             zkube_program: zkube::ID,
         }
@@ -1666,7 +1514,6 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
         }
         .data(),
     };
-    let owner_before = 2_000_000_000;
     let funding_before = PLAYER_FUNDING_TARGET_LAMPORTS;
     let accounts = vec![
         (
@@ -1687,32 +1534,31 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
         ),
         (arena_player, system_account(0)),
         (
-            current_weekly,
-            program_account(&current_weekly_state, 8 + WeeklyJackpot::INIT_SPACE),
-        ),
-        (
-            current_season,
-            program_account(&current_season_state, 8 + Season::INIT_SPACE),
-        ),
-        (
             following_daily,
             program_account(&following_daily_state, 8 + ArenaDaily::INIT_SPACE),
         ),
         (
-            following_weekly,
-            program_account(&following_weekly_state, 8 + WeeklyJackpot::INIT_SPACE),
-        ),
-        (
-            following_season,
-            program_account(&following_season_state, 8 + Season::INIT_SPACE),
-        ),
-        (
-            operator,
-            program_account(&operator_state, 8 + OperatorRevenueVault::INIT_SPACE),
+            credit_vault,
+            serialized_account(
+                &credit_vault_state,
+                8 + CreditVault::INIT_SPACE,
+                zkube::ID,
+                ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS,
+            ),
         ),
         (active_run, system_account(0)),
         (player_funding, system_account(funding_before)),
-        (owner, system_account(owner_before)),
+        (owner, system_account(0)),
+        (
+            session_token,
+            serialized_account(
+                &session_state,
+                SessionTokenV2::LEN,
+                session_keys::ID,
+                ACCOUNT_LAMPORTS,
+            ),
+        ),
+        (actor, system_account(ACCOUNT_LAMPORTS)),
         (anchor_lang::system_program::ID, system_program_account()),
         (
             zkube::ID,
@@ -1721,46 +1567,58 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
             )),
         ),
     ];
+    let suspended_accounts = accounts
+        .iter()
+        .map(|(address, account)| {
+            if *address == current_daily {
+                (*address, system_account(0))
+            } else {
+                (*address, account.clone())
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut suspended_runtime = mollusk();
+    suspended_runtime.sysvars.clock.unix_timestamp = current_daily_state.opens_at + 1;
+    let refused = suspended_runtime.process_instruction(&instruction, &suspended_accounts);
+    let expected_error = 6_000 + zkube::error::ErrorCode::DailyNotScheduled as u32;
+    assert!(
+        format!("{:?}", refused.program_result).contains(&format!("Custom({expected_error})")),
+        "unexpected suspension refusal: {:?}",
+        refused.program_result
+    );
+
     let mut runtime = mollusk();
     runtime.sysvars.clock.unix_timestamp = current_daily_state.opens_at + 1;
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
 
     let daily_after: ArenaDaily = decode(resulting_account(&result, &following_daily));
-    let weekly_after: WeeklyJackpot = decode(resulting_account(&result, &following_weekly));
-    let season_after: Season = decode(resulting_account(&result, &following_season));
-    let operator_after: OperatorRevenueVault = decode(resulting_account(&result, &operator));
+    let credit_vault_after: CreditVault = decode(resulting_account(&result, &credit_vault));
     let current_after: ArenaDaily = decode(resulting_account(&result, &current_daily));
     let player_after: ArenaPlayer = decode(resulting_account(&result, &arena_player));
     let profile_after_entry: PlayerState = decode(resulting_account(&result, &player));
     assert_eq!(daily_after.ledger.entry_lamports, ENTRY_DAILY_LAMPORTS);
-    assert_eq!(weekly_after.ledger.entry_lamports, ENTRY_WEEKLY_LAMPORTS);
-    assert_eq!(season_after.ledger.entry_lamports, ENTRY_SEASON_LAMPORTS);
-    assert_eq!(operator_after.gross_operator_share, ENTRY_OPERATOR_LAMPORTS);
+    assert_eq!(
+        credit_vault_after.spent_prize_lamports,
+        ENTRY_DAILY_LAMPORTS
+    );
     assert_eq!(current_after.entries_paid, 1);
     assert_eq!(player_after.paid_entries, 1);
     assert_eq!(player_after.active_paid_run_id, run_id);
     assert_eq!(profile_after_entry.lifetime_paid_entries, 1);
+    assert_eq!(profile_after_entry.kredit_balance, 0);
     assert_eq!(
         resulting_account(&result, &owner).lamports,
-        owner_before - ARENA_ENTRY_LAMPORTS,
-        "the connected owner pays exactly the ranked entry"
+        0,
+        "the owner is not a signer or lamport source for Kredit spending"
     );
     assert_eq!(
         resulting_account(&result, &following_daily).lamports,
         ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS
     );
     assert_eq!(
-        resulting_account(&result, &following_weekly).lamports,
-        ACCOUNT_LAMPORTS + ENTRY_WEEKLY_LAMPORTS
-    );
-    assert_eq!(
-        resulting_account(&result, &following_season).lamports,
-        ACCOUNT_LAMPORTS + ENTRY_SEASON_LAMPORTS
-    );
-    assert_eq!(
-        resulting_account(&result, &operator).lamports,
-        ACCOUNT_LAMPORTS + ENTRY_OPERATOR_LAMPORTS
+        resulting_account(&result, &credit_vault).lamports,
+        ACCOUNT_LAMPORTS
     );
     let arena_player_rent = resulting_account(&result, &arena_player).lamports;
     let active_run_rent = resulting_account(&result, &active_run).lamports;
@@ -1811,26 +1669,14 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
             player_state: player,
             arena_daily: current_daily,
             arena_player,
-            weekly_jackpot: current_weekly,
             active_run,
             rent_recipient: player_funding,
         }
         .to_account_metas(None),
         data: zkube::instruction::ConsumeArenaRun {}.data(),
     };
-    // Model an entry that was created by v2 and remained in flight across the
-    // program upgrade. Consume must lazily migrate its shared reservation
-    // before validating and releasing the paid Arcade run.
-    let mut legacy_profile_after_entry = profile_after_entry;
-    legacy_profile_after_entry.version = ACCOUNT_VERSION;
-    let legacy_profile_account = serialized_account(
-        &legacy_profile_after_entry,
-        8 + PlayerState::INIT_SPACE,
-        zkube::ID,
-        resulting_account(&result, &player).lamports,
-    );
     let consume_accounts = vec![
-        (player, legacy_profile_account),
+        (player, resulting_account(&result, &player).clone()),
         (
             current_daily,
             resulting_account(&result, &current_daily).clone(),
@@ -1838,10 +1684,6 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
         (
             arena_player,
             resulting_account(&result, &arena_player).clone(),
-        ),
-        (
-            current_weekly,
-            resulting_account(&result, &current_weekly).clone(),
         ),
         (active_run, terminal_account),
         (
@@ -1866,7 +1708,6 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     let consumed_daily: ArenaDaily = decode(resulting_account(&consumed, &current_daily));
     let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
     assert_eq!(consumed_daily.entries_expired, 1);
-    assert_eq!(consumed_player.version, PLAYER_STATE_VERSION);
     assert_eq!(consumed_player.active_run_id, 0);
     assert_eq!(consumed_player.lifetime_paid_entries, 1);
 
@@ -1874,15 +1715,41 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
     // payout ordering is not: even a fully resolved Daily cannot finalize
     // before its own predecessor rollover has landed.
     let caller = Pubkey::new_unique();
+    let (score_board, _) = Pubkey::find_program_address(
+        &[
+            ARENA_BOARD_SEED,
+            current_daily.as_ref(),
+            DailyBoardKind::Score.seed(),
+        ],
+        &zkube::ID,
+    );
+    let (theme_board, _) = Pubkey::find_program_address(
+        &[
+            ARENA_BOARD_SEED,
+            current_daily.as_ref(),
+            DailyBoardKind::Theme.seed(),
+        ],
+        &zkube::ID,
+    );
+    let (cadence_funding, _) = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID);
     let finalize = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::FinalizeArenaDaily {
+        accounts: zkube::accounts::FundedFinalizeArenaDaily {
             arena_daily: current_daily,
             following_daily,
+            score_board,
+            theme_board,
+            cadence_funding,
             caller,
+            system_program: anchor_lang::system_program::ID,
+            zkube_program: zkube::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FinalizeArenaDaily {}.data(),
+        data: zkube::instruction::FundedFinalizeArenaDaily {
+            score_payout_count: 0,
+            theme_payout_count: 0,
+        }
+        .data(),
     };
     let mut late = mollusk();
     late.sysvars.clock.unix_timestamp = current_daily_state.runs_close_at;
@@ -1898,7 +1765,17 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
                     following_daily,
                     resulting_account(&result, &following_daily).clone(),
                 ),
+                (score_board, system_account(0)),
+                (theme_board, system_account(0)),
+                (cadence_funding, system_account(500_000_000)),
                 (caller, system_account(ACCOUNT_LAMPORTS)),
+                (anchor_lang::system_program::ID, system_program_account()),
+                (
+                    zkube::ID,
+                    executable_program_account(Pubkey::from_str_const(
+                        "BPFLoaderUpgradeab1e11111111111111111111111",
+                    )),
+                ),
             ],
         )
         .program_result
@@ -1906,182 +1783,19 @@ fn sbf_funded_entry_keeps_owner_payment_and_rent_boundaries_exact() {
 }
 
 #[test]
-fn sbf_practice_is_retired_but_legacy_runs_still_consume_or_expire() {
-    let authority = Pubkey::new_unique();
-    let owner = Pubkey::new_unique();
-    let caller = Pubkey::new_unique();
-    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
-    let (arcade, _) = arcade_fixture(protocol);
-    let challenge_day = 32;
-    let today = challenge_day + 1;
-    let (yesterday, yesterday_state) =
-        daily_fixture(challenge_day, arcade, PeriodStatus::Finalized, true);
-    let (today_opens, _, today_runs_close, _) = day_window(today).unwrap();
-    let (player, player_state) = player_fixture(owner);
-    let run_id = INITIAL_RUN_ID;
-    let (active_run, active_bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    let prepare = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::PreparePracticeRun {
-            protocol,
-            player_state: player,
-            arena_daily: yesterday,
-            active_run,
-            payer: owner,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::PreparePracticeRun { run_id }.data(),
-    };
-    let prepare_accounts = vec![
-        (
-            protocol,
-            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            player,
-            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-        ),
-        (
-            yesterday,
-            program_account(&yesterday_state, 8 + ArenaDaily::INIT_SPACE),
-        ),
-        (active_run, system_account(0)),
-        (owner, system_account(100_000_000)),
-        (anchor_lang::system_program::ID, system_program_account()),
-    ];
-    let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = today_opens + 1;
-    let prepared = runtime.process_instruction(&prepare, &prepare_accounts);
-    assert!(prepared.program_result.is_err());
-
-    // Existing v2 Practice reservations remain recoverable after the upgrade.
-    let mut legacy_player = player_state;
-    legacy_player.version = ACCOUNT_VERSION;
-    legacy_player.next_run_id = run_id + 1;
-    legacy_player.active_run_id = run_id;
-    legacy_player.active_run_daily = yesterday;
-    legacy_player.active_run_mode = RunMode::Practice;
-    legacy_player.active_run_deadline_at = today_runs_close;
-    let legacy_run = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        daily_challenge: yesterday,
-        run_id,
-        mode: RunMode::Practice,
-        lifecycle: RunLifecycle::Finished,
-        deadline_at: today_runs_close,
-        action_counter: 1,
-        finished_at: today_runs_close,
-        bump: active_bump,
-        ..ActiveRun::default()
-    };
-
-    // Practice consumption remains valid after its source Daily has been
-    // archived and closed. The two legacy ABI positions are present but
-    // intentionally untyped and unread.
-    let (rent_recipient, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
-    let consume = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ConsumePracticeRun {
-            player_state: player,
-            arena_daily: yesterday,
-            arena_player: None,
-            active_run,
-            rent_recipient,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ConsumePracticeRun {}.data(),
-    };
-    let consumed = mollusk().process_instruction(
-        &consume,
-        &[
-            (
-                player,
-                program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
-            ),
-            (yesterday, system_account(0)),
-            (
-                zkube::ID,
-                executable_program_account(Pubkey::from_str_const(
-                    "BPFLoaderUpgradeab1e11111111111111111111111",
-                )),
-            ),
-            (
-                active_run,
-                program_account(&legacy_run, 8 + ActiveRun::INIT_SPACE),
-            ),
-            (rent_recipient, system_account(1_000_000)),
-        ],
-    );
-    assert!(
-        consumed.program_result.is_ok(),
-        "{:?}",
-        consumed.program_result
-    );
-    let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
-    assert_eq!(consumed_player.version, PLAYER_STATE_VERSION);
-    assert_eq!(consumed_player.active_run_id, 0);
-
-    // If the ER copy remains unavailable, durable recovery is likewise based
-    // on today's deadline and never yesterday's already-past challenge time.
-    let expire = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ExpireUnresolvedPracticeRun {
-            player_state: player,
-            owner,
-            caller,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ExpireUnresolvedPracticeRun { run_id }.data(),
-    };
-    let expire_accounts = vec![
-        (
-            player,
-            program_account(&legacy_player, 8 + PlayerState::INIT_SPACE),
-        ),
-        (owner, system_account(0)),
-        (caller, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let recovery_at = today_runs_close + STUCK_RUN_RECOVERY_SECONDS;
-    let mut early_recovery = mollusk();
-    early_recovery.sysvars.clock.unix_timestamp = recovery_at - 1;
-    assert!(early_recovery
-        .process_instruction(&expire, &expire_accounts)
-        .program_result
-        .is_err());
-    let mut recover = mollusk();
-    recover.sysvars.clock.unix_timestamp = recovery_at;
-    let expired = recover.process_instruction(&expire, &expire_accounts);
-    assert!(
-        expired.program_result.is_ok(),
-        "{:?}",
-        expired.program_result
-    );
-    let recovered_player: PlayerState = decode(resulting_account(&expired, &player));
-    assert_eq!(recovered_player.version, PLAYER_STATE_VERSION);
-    assert_eq!(recovered_player.active_run_id, 0);
-    assert_eq!(recovered_player.orphan_run_id, run_id);
-}
-
-#[test]
 fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
     let authority = Pubkey::new_unique();
     let caller = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
-    let (arcade, _) = arcade_fixture(protocol);
+    let (arcade, arcade_state) = arcade_fixture(protocol);
+    let rules = arcade_state.rules_catalog;
+    let rules_state = daily_rules_fixture(
+        protocol,
+        protocol_state.content_version,
+        protocol_state.daily_rules_version,
+        32,
+        1,
+    );
     let (_, mut missing_state) = daily_fixture(32, arcade, PeriodStatus::Funding, true);
     let missing = Pubkey::find_program_address(
         &[ARENA_DAILY_SEED, &missing_state.day_id.to_le_bytes()],
@@ -2092,6 +1806,7 @@ fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
         program_id: zkube::ID,
         accounts: zkube::accounts::ActivateArenaDaily {
             protocol,
+            daily_rules_catalog: rules,
             arena_daily: missing,
             caller,
         }
@@ -2103,6 +1818,10 @@ fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
             (
                 protocol,
                 program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                rules,
+                program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
             ),
             (missing, program_account(state, 8 + ArenaDaily::INIT_SPACE)),
             (caller, system_account(ACCOUNT_LAMPORTS)),
@@ -2149,21 +1868,44 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
     let rules = arcade_state.rules_catalog;
-    let rules_state = DailyRulesCatalog {
-        version: RULES_ACCOUNT_VERSION,
-        rules_version: 1,
+    let rules_state = daily_rules_fixture(
         protocol,
-        content_version: protocol_state.content_version,
-        catalog_hash: [7; 32],
-        rotation_id: 1,
-        starts_day: arcade_state.launch_day_id + 4,
-        rotation_seed: [9; 32],
-        scoring_rule_count: 15,
-        scoring_rules: canonical_daily_scoring_rules(),
-        pressure: DailyPressureProfile::canonical(),
-        bump: 1,
-    };
+        protocol_state.content_version,
+        1,
+        arcade_state.launch_day_id,
+        1,
+    );
     let missing_day = arcade_state.launch_day_id + 2;
+    let content = rules_state.content_for_day(missing_day).unwrap();
+    let realm_map_id = content.entry.realm_map_id.max(1);
+    let map_fixture = |map_id: u8| {
+        let (address, bump) = Pubkey::find_program_address(
+            &[
+                MAP_CATALOG_SEED,
+                &protocol_state.content_version.to_le_bytes(),
+                &[map_id],
+            ],
+            &zkube::ID,
+        );
+        (
+            address,
+            program_account(
+                &MapCatalog {
+                    version: ACCOUNT_VERSION,
+                    content_version: protocol_state.content_version,
+                    map_id,
+                    theme_id: map_id,
+                    enabled: true,
+                    map_rules: daily_map_rule_fixture(),
+                    levels: [CampaignLevelSnapshot::default(); LEVELS_PER_MAP],
+                    bump,
+                },
+                8 + MapCatalog::INIT_SPACE,
+            ),
+        )
+    };
+    let (realm_map_catalog, realm_map_account) = map_fixture(realm_map_id);
+    let (passive_map_catalog, passive_map_account) = map_fixture(content.entry.passive_map_id);
     let (missing, _) =
         Pubkey::find_program_address(&[ARENA_DAILY_SEED, &missing_day.to_le_bytes()], &zkube::ID);
     let (arcade_archive, archive_bump) =
@@ -2178,6 +1920,8 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             arcade_config: arcade,
             arcade_archive,
             daily_rules_catalog: rules,
+            realm_map_catalog,
+            passive_map_catalog,
             arena_daily: missing,
             cadence_funding,
             caller,
@@ -2208,6 +1952,8 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             rules,
             program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
         ),
+        (realm_map_catalog, realm_map_account),
+        (passive_map_catalog, passive_map_account),
         (missing, system_account(0)),
         (cadence_funding, system_account(funding_before)),
         (caller, system_account(ACCOUNT_LAMPORTS)),
@@ -2288,7 +2034,7 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
     let (daily, mut daily_state) = daily_fixture(32, arcade, PeriodStatus::Finalized, true);
     let mut players = vec![owner];
     players.extend((0..4).map(|_| Pubkey::new_unique()));
-    daily_state.entries = players
+    let entries = players
         .iter()
         .enumerate()
         .map(|(index, player)| ArenaBoardEntry {
@@ -2296,9 +2042,18 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
             score: 100 - index as u32,
             ..ArenaBoardEntry::default()
         })
-        .collect();
+        .collect::<Vec<_>>();
+    daily_state.score_qualified_players = 5;
     let pool = 101_990_000;
-    let plan = rounded_payouts(pool, &DAILY_PRIZE_WEIGHTS, 5).unwrap();
+    let (score_board, score_board_state, score_board_account, plan) = board_fixture(
+        daily,
+        daily_state.day_id,
+        DailyBoardKind::Score,
+        5,
+        pool,
+        &entries,
+        (&[], &[]),
+    );
     daily_state.ledger = PoolLedger {
         seeded_lamports: pool,
         payout_lamports: plan.paid_lamports,
@@ -2311,10 +2066,14 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
         accounts: zkube::accounts::SyncDailyProfile {
             caller,
             arena_daily: daily,
+            arena_board: score_board,
             player_state: player,
         }
         .to_account_metas(None),
-        data: zkube::instruction::SyncDailyProfile {}.data(),
+        data: zkube::instruction::SyncDailyProfile {
+            board: DailyBoardKind::Score,
+        }
+        .data(),
     };
     let accounts = vec![
         (caller, system_account(ACCOUNT_LAMPORTS)),
@@ -2322,6 +2081,7 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
             daily,
             program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
         ),
+        (score_board, score_board_account),
         (
             player,
             program_account(&player_state, 8 + PlayerState::INIT_SPACE),
@@ -2329,13 +2089,16 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
     ];
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let daily_after: ArenaDaily = decode(resulting_account(&result, &daily));
+    let board_after: ArenaBoard = decode(resulting_account(&result, &score_board));
     let player_after: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(daily_after.profile_sync_mask, 1);
+    assert_eq!(board_after.profile_sync_count, 1);
     assert_eq!(player_after.daily_record.best_prize_rank, 1);
     assert_eq!(player_after.daily_record.podiums, 1);
     assert_eq!(player_after.daily_record.wins, 1);
-    assert_eq!(player_after.daily_record.rewards_lamports, 45_000_000);
+    assert_eq!(
+        player_after.daily_record.rewards_lamports,
+        score_board_state.payout_for_position(0).unwrap()
+    );
     assert_eq!(
         resulting_account(&result, &daily).lamports,
         ACCOUNT_LAMPORTS
@@ -2351,6 +2114,10 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
             &[
                 (caller, system_account(ACCOUNT_LAMPORTS)),
                 (daily, resulting_account(&result, &daily).clone()),
+                (
+                    score_board,
+                    resulting_account(&result, &score_board).clone(),
+                ),
                 (player, resulting_account(&result, &player).clone()),
             ],
         )
@@ -2359,7 +2126,166 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
 }
 
 #[test]
-fn sbf_launch_seeding_accepts_mid_period_and_sets_qualification_boundaries() {
+fn sbf_daily_claim_pays_exact_rank_and_rejects_duplicates_nonwinners_and_late_claims() {
+    let owner = Pubkey::new_unique();
+    let outsider = Pubkey::new_unique();
+    let arcade = Pubkey::new_unique();
+    let day_id = 20_650;
+    let (daily, mut daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
+    let mut players = vec![Pubkey::new_unique(), owner];
+    players.extend((0..3).map(|_| Pubkey::new_unique()));
+    let entries = players
+        .iter()
+        .enumerate()
+        .map(|(index, player)| ArenaBoardEntry {
+            player: *player,
+            score: 100 - u32::try_from(index).unwrap(),
+            ..ArenaBoardEntry::default()
+        })
+        .collect::<Vec<_>>();
+    daily_state.score_qualified_players = 5;
+    daily_state.finalized_at = daily_state.runs_close_at;
+    let pool = 101_990_000;
+    let (score_board, score_board_state, score_board_account, plan) = board_fixture(
+        daily,
+        day_id,
+        DailyBoardKind::Score,
+        5,
+        pool,
+        &entries,
+        (&[], &[]),
+    );
+    daily_state.ledger = PoolLedger {
+        seeded_lamports: pool,
+        payout_lamports: plan.paid_lamports,
+        rollover_out_lamports: plan.rollover_lamports,
+        ..PoolLedger::default()
+    };
+    let (player, player_state) = player_fixture(owner);
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ClaimDailyPrize {
+            arena_daily: daily,
+            arena_board: score_board,
+            player_state: player,
+            owner_authority: owner,
+            session_token: None,
+            actor: owner,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ClaimDailyPrize {
+            board: DailyBoardKind::Score,
+        }
+        .data(),
+    };
+    let daily_before = 1_000_000_000;
+    let owner_before = ACCOUNT_LAMPORTS;
+    let accounts = vec![
+        (
+            daily,
+            serialized_account(
+                &daily_state,
+                8 + ArenaDaily::INIT_SPACE,
+                zkube::ID,
+                daily_before,
+            ),
+        ),
+        (score_board, score_board_account),
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (owner, system_account(owner_before)),
+    ];
+    let mut runtime = mollusk();
+    runtime.sysvars.clock.unix_timestamp = daily_state.finalized_at + 1;
+    let claimed = runtime.process_instruction(&instruction, &accounts);
+    assert!(
+        claimed.program_result.is_ok(),
+        "{:?}",
+        claimed.program_result
+    );
+    let expected = score_board_state.payout_for_position(1).unwrap();
+    assert_eq!(
+        resulting_account(&claimed, &daily).lamports,
+        daily_before - expected
+    );
+    assert_eq!(
+        resulting_account(&claimed, &owner).lamports,
+        owner_before + expected
+    );
+    let claimed_board: ArenaBoard = decode(resulting_account(&claimed, &score_board));
+    assert_eq!(claimed_board.claimed_count, 1);
+    assert_eq!(claimed_board.claimed_lamports, expected);
+
+    let duplicate = runtime.process_instruction(
+        &instruction,
+        &[
+            (daily, resulting_account(&claimed, &daily).clone()),
+            (
+                score_board,
+                resulting_account(&claimed, &score_board).clone(),
+            ),
+            (player, resulting_account(&claimed, &player).clone()),
+            (owner, resulting_account(&claimed, &owner).clone()),
+        ],
+    );
+    assert!(duplicate.program_result.is_err());
+    assert_eq!(
+        resulting_account(&duplicate, &daily).lamports,
+        daily_before - expected
+    );
+    assert_eq!(
+        resulting_account(&duplicate, &owner).lamports,
+        owner_before + expected
+    );
+
+    let (outsider_state, outsider_player) = player_fixture(outsider);
+    let outsider_instruction = anchor_lang::solana_program::instruction::Instruction {
+        accounts: zkube::accounts::ClaimDailyPrize {
+            arena_daily: daily,
+            arena_board: score_board,
+            player_state: outsider_state,
+            owner_authority: outsider,
+            session_token: None,
+            actor: outsider,
+        }
+        .to_account_metas(None),
+        ..instruction.clone()
+    };
+    let outsider_result = runtime.process_instruction(
+        &outsider_instruction,
+        &[
+            (daily, accounts[0].1.clone()),
+            (score_board, accounts[1].1.clone()),
+            (
+                outsider_state,
+                program_account(&outsider_player, 8 + PlayerState::INIT_SPACE),
+            ),
+            (outsider, system_account(owner_before)),
+        ],
+    );
+    assert!(outsider_result.program_result.is_err());
+    assert_eq!(
+        resulting_account(&outsider_result, &daily).lamports,
+        daily_before
+    );
+    assert_eq!(
+        resulting_account(&outsider_result, &outsider).lamports,
+        owner_before
+    );
+
+    let mut late_runtime = mollusk();
+    late_runtime.sysvars.clock.unix_timestamp =
+        daily_state.finalized_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS;
+    let late = late_runtime.process_instruction(&instruction, &accounts);
+    assert!(late.program_result.is_err());
+    assert_eq!(resulting_account(&late, &daily).lamports, daily_before);
+    assert_eq!(resulting_account(&late, &owner).lamports, owner_before);
+}
+
+#[test]
+fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, team, true);
@@ -2367,29 +2293,19 @@ fn sbf_launch_seeding_accepts_mid_period_and_sets_qualification_boundaries() {
     let (arcade, arcade_bump) = Pubkey::find_program_address(&[ARCADE_CONFIG_SEED], &zkube::ID);
     let arcade_state = ArcadeConfig::canonical(protocol, rules, arcade_bump);
     let today = 33;
-    let week_id = week_id_for_day(today).unwrap();
-    let season_id = season_id_for_day(today).unwrap();
-    assert_ne!(week_start_day(week_id).unwrap(), today);
-    assert_ne!(season_start_day(season_id).unwrap(), today);
     let (daily, daily_state) = daily_fixture(today, arcade, PeriodStatus::Funding, false);
-    let (weekly, weekly_state) = weekly_fixture(week_id, arcade, PeriodStatus::Funding, false);
-    let (season, season_state) = season_fixture(season_id, arcade, PeriodStatus::Funding, false);
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::SeedLaunchPools {
             protocol,
             arcade_config: arcade,
             arena_daily: daily,
-            weekly_jackpot: weekly,
-            season,
             authority,
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
         data: zkube::instruction::SeedLaunchPools {
             daily_lamports: 10_000_000,
-            weekly_lamports: 20_000_000,
-            season_lamports: 30_000_000,
         }
         .data(),
     };
@@ -2406,14 +2322,6 @@ fn sbf_launch_seeding_accepts_mid_period_and_sets_qualification_boundaries() {
             daily,
             program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
         ),
-        (
-            weekly,
-            program_account(&weekly_state, 8 + WeeklyJackpot::INIT_SPACE),
-        ),
-        (
-            season,
-            program_account(&season_state, 8 + Season::INIT_SPACE),
-        ),
         (authority, system_account(1_000_000_000)),
         (anchor_lang::system_program::ID, system_program_account()),
     ];
@@ -2422,178 +2330,145 @@ fn sbf_launch_seeding_accepts_mid_period_and_sets_qualification_boundaries() {
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let arcade_after: ArcadeConfig = decode(resulting_account(&result, &arcade));
-    let weekly_after: WeeklyJackpot = decode(resulting_account(&result, &weekly));
-    let season_after: Season = decode(resulting_account(&result, &season));
+    let daily_after: ArenaDaily = decode(resulting_account(&result, &daily));
     assert!(arcade_after.launch_seeded);
     assert_eq!(arcade_after.launch_day_id, today);
-    assert_eq!(weekly_after.qualification_start_day, today);
-    assert_eq!(weekly_after.qualified_day_count().unwrap(), 6);
-    assert_eq!(season_after.qualification_start_day, today);
-    assert_eq!(season_after.qualified_day_count().unwrap(), 27);
+    assert_eq!(daily_after.ledger.seeded_lamports, 10_000_000);
+    assert!(daily_after.predecessor_rollover_applied);
 }
 
 #[test]
-fn sbf_season_seal_rejects_prequalification_daily() {
+fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
     let caller = Pubkey::new_unique();
-    let arcade = Pubkey::new_unique();
-    let season_id = 3;
-    let natural_start = season_start_day(season_id).unwrap();
-    let (season, mut season_state) = season_fixture(season_id, arcade, PeriodStatus::Open, true);
-    season_state.qualification_start_day = natural_start + 1;
-    let (prequalification_daily, prequalification_state) =
-        daily_fixture(natural_start, arcade, PeriodStatus::Finalized, true);
-    let prequalification_instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::SealArenaSeasonRollups {
-            arena_daily: prequalification_daily,
-            season,
-            caller,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::SealArenaSeasonRollups {}.data(),
-    };
-    assert!(mollusk()
-        .process_instruction(
-            &prequalification_instruction,
-            &[
-                (
-                    prequalification_daily,
-                    program_account(&prequalification_state, 8 + ArenaDaily::INIT_SPACE),
-                ),
-                (
-                    season,
-                    program_account(&season_state, 8 + Season::INIT_SPACE),
-                ),
-                (caller, system_account(ACCOUNT_LAMPORTS)),
-            ],
-        )
-        .program_result
-        .is_err());
-
-    let (qualified_daily, qualified_state) =
-        daily_fixture(natural_start + 1, arcade, PeriodStatus::Finalized, true);
-    let qualified_instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::SealArenaSeasonRollups {
-            arena_daily: qualified_daily,
-            season,
-            caller,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::SealArenaSeasonRollups {}.data(),
-    };
-    let qualified_result = mollusk().process_instruction(
-        &qualified_instruction,
-        &[
-            (
-                qualified_daily,
-                program_account(&qualified_state, 8 + ArenaDaily::INIT_SPACE),
-            ),
-            (
-                season,
-                program_account(&season_state, 8 + Season::INIT_SPACE),
-            ),
-            (caller, system_account(ACCOUNT_LAMPORTS)),
-        ],
+    let protocol = Pubkey::new_unique();
+    let (arcade, mut arcade_state) = arcade_fixture(protocol);
+    let rules = arcade_state.rules_catalog;
+    let rules_state = daily_rules_fixture(protocol, 1, 1, 0, 1);
+    let day_id = 20_600;
+    let (daily, mut daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
+    let players = (0..5).map(|_| Pubkey::new_unique()).collect::<Vec<_>>();
+    let entries = players
+        .iter()
+        .enumerate()
+        .map(|(index, player)| ArenaBoardEntry {
+            player: *player,
+            score: 100 - u32::try_from(index).unwrap(),
+            ..ArenaBoardEntry::default()
+        })
+        .collect::<Vec<_>>();
+    daily_state.score_qualified_players = 5;
+    daily_state.finalized_at = daily_state.runs_close_at;
+    let pool = 101_990_000;
+    let (score_board, score_board_state, score_board_account, plan) = board_fixture(
+        daily,
+        day_id,
+        DailyBoardKind::Score,
+        5,
+        pool,
+        &entries,
+        (&[0], &[]),
     );
-    assert!(
-        qualified_result.program_result.is_ok(),
-        "{:?}",
-        qualified_result.program_result
-    );
-    let daily_after: ArenaDaily = decode(resulting_account(&qualified_result, &qualified_daily));
-    let season_after: Season = decode(resulting_account(&qualified_result, &season));
-    assert!(daily_after.season_rollup_sealed);
-    assert_eq!(season_after.sealed_dailies, 1);
-}
-
-#[test]
-fn sbf_weekly_finalize_requires_sequential_daily_archive_checkpoint() {
-    let caller = Pubkey::new_unique();
-    let arcade = Pubkey::new_unique();
-    let week_id = 5;
-    let week_start = week_start_day(week_id).unwrap();
-    let qualification_start = week_start + 5;
-    let (weekly, mut weekly_state) = weekly_fixture(week_id, arcade, PeriodStatus::Open, true);
-    weekly_state.qualification_start_day = qualification_start;
-    let pool = 90_000_000;
-    weekly_state.ledger.seeded_lamports = pool;
+    let (theme_board, _, theme_board_account, _) =
+        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], (&[], &[]));
+    daily_state.ledger = PoolLedger {
+        seeded_lamports: pool,
+        payout_lamports: plan.paid_lamports,
+        rollover_out_lamports: plan.rollover_lamports,
+        ..PoolLedger::default()
+    };
+    let expiry_at = daily_state.finalized_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS;
+    let current_day = u32::try_from(expiry_at / ARCADE_SECONDS_PER_DAY).unwrap();
+    let following_day = current_day + 1;
     let (following, following_state) =
-        weekly_fixture(week_id + 1, arcade, PeriodStatus::Funding, false);
-    let (arcade_archive, archive_bump) =
-        Pubkey::find_program_address(&[ARCADE_ARCHIVE_SEED], &zkube::ID);
-    let mut archive_state =
-        ArcadeArchive::initialize(arcade, qualification_start, archive_bump).unwrap();
-    archive_state.last_daily_id = qualification_start + 1;
-
-    let metas = zkube::accounts::FinalizeWeeklyJackpot {
-        weekly_jackpot: weekly,
-        following_weekly: following,
-        arcade_archive,
-        caller,
-    }
-    .to_account_metas(None);
+        daily_fixture(following_day, arcade, PeriodStatus::Open, true);
+    let (archive, archive_bump) = Pubkey::find_program_address(&[ARCADE_ARCHIVE_SEED], &zkube::ID);
+    let mut archive_state = ArcadeArchive::initialize(arcade, day_id, archive_bump).unwrap();
+    archive_state.last_daily_id = day_id;
+    archive_state.daily_root = [9; 32];
+    arcade_state.rules_catalog = rules;
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: metas,
-        data: zkube::instruction::FinalizeWeeklyJackpot {}.data(),
+        accounts: zkube::accounts::ExpireDailyClaims {
+            arcade_archive: archive,
+            arcade_config: arcade,
+            daily_rules_catalog: rules,
+            arena_daily: daily,
+            score_board,
+            theme_board,
+            following_daily: following,
+            caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ExpireDailyClaims {}.data(),
     };
+    let daily_before = 1_000_000_000;
+    let following_before = ACCOUNT_LAMPORTS;
     let accounts = vec![
         (
-            weekly,
+            archive,
+            program_account(&archive_state, 8 + ArcadeArchive::INIT_SPACE),
+        ),
+        (
+            arcade,
+            program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+        ),
+        (
+            rules,
+            program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
+        ),
+        (
+            daily,
             serialized_account(
-                &weekly_state,
-                8 + WeeklyJackpot::INIT_SPACE,
+                &daily_state,
+                8 + ArenaDaily::INIT_SPACE,
                 zkube::ID,
-                ACCOUNT_LAMPORTS + pool + 100_000_000,
+                daily_before,
             ),
         ),
+        (score_board, score_board_account),
+        (theme_board, theme_board_account),
         (
             following,
-            program_account(&following_state, 8 + WeeklyJackpot::INIT_SPACE),
-        ),
-        (
-            arcade_archive,
-            program_account(&archive_state, 8 + ArcadeArchive::INIT_SPACE),
+            serialized_account(
+                &following_state,
+                8 + ArenaDaily::INIT_SPACE,
+                zkube::ID,
+                following_before,
+            ),
         ),
         (caller, system_account(ACCOUNT_LAMPORTS)),
     ];
     let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = weekly_state.closes_at + PERIOD_SETTLEMENT_DELAY_SECONDS;
-
-    let mut incomplete_archive = archive_state.clone();
-    incomplete_archive.last_daily_id = qualification_start;
-    let incomplete_accounts = vec![
-        accounts[0].clone(),
-        accounts[1].clone(),
-        (
-            arcade_archive,
-            program_account(&incomplete_archive, 8 + ArcadeArchive::INIT_SPACE),
-        ),
-        accounts[3].clone(),
-    ];
-    assert!(runtime
-        .process_instruction(&instruction, &incomplete_accounts)
-        .program_result
-        .is_err());
-
+    runtime.sysvars.clock.unix_timestamp = expiry_at;
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let weekly_after: WeeklyJackpot = decode(resulting_account(&result, &weekly));
-    let following_after: WeeklyJackpot = decode(resulting_account(&result, &following));
-    assert_eq!(weekly_after.status, PeriodStatus::Finalized);
-    assert_eq!(weekly_after.ledger.rollover_out_lamports, pool);
-    assert!(following_after.predecessor_rollover_applied);
-    assert_eq!(following_after.ledger.rollover_in_lamports, pool);
+    let claimed = score_board_state.payout_for_position(0).unwrap();
+    let expired = plan.paid_lamports - claimed;
+    assert_eq!(
+        resulting_account(&result, &daily).lamports,
+        daily_before - expired
+    );
+    assert_eq!(
+        resulting_account(&result, &following).lamports,
+        following_before + expired
+    );
+    let daily_after: ArenaDaily = decode(resulting_account(&result, &daily));
+    let following_after: ArenaDaily = decode(resulting_account(&result, &following));
+    assert!(daily_after.claims_expired);
+    assert_eq!(following_after.ledger.rollover_in_lamports, expired);
+    assert_eq!(claimed + expired + plan.rollover_lamports, pool);
 }
 
 #[test]
 fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
     let caller = Pubkey::new_unique();
     let arcade = Pubkey::new_unique();
-    let day_id = 20_656;
-    let (daily, mut daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
-    daily_state.season_rollup_sealed = true;
+    let day_id = 20_651;
+    let (daily, daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
+    let (score_board, _, score_board_account, _) =
+        board_fixture(daily, day_id, DailyBoardKind::Score, 0, 0, &[], (&[], &[]));
+    let (theme_board, _, theme_board_account, _) =
+        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], (&[], &[]));
     let (archive, archive_bump) = Pubkey::find_program_address(&[ARCADE_ARCHIVE_SEED], &zkube::ID);
     let archive_state = ArcadeArchive::initialize(arcade, day_id, archive_bump).unwrap();
     let archive_instruction = anchor_lang::solana_program::instruction::Instruction {
@@ -2601,6 +2476,8 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
         accounts: zkube::accounts::ArchiveArenaDaily {
             arcade_archive: archive,
             arena_daily: daily,
+            score_board,
+            theme_board,
             caller,
         }
         .to_account_metas(None),
@@ -2617,6 +2494,8 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
                 daily,
                 program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
             ),
+            (score_board, score_board_account),
+            (theme_board, theme_board_account),
             (caller, system_account(ACCOUNT_LAMPORTS)),
         ],
     );
@@ -2632,11 +2511,15 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
     let (cadence_funding, _) = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID);
     let funding_before = 500_000_000;
     let daily_lamports = resulting_account(&archived, &daily).lamports;
+    let score_board_lamports = resulting_account(&archived, &score_board).lamports;
+    let theme_board_lamports = resulting_account(&archived, &theme_board).lamports;
     let close_instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::CloseArenaDaily {
             arcade_archive: archive,
             arena_daily: daily,
+            score_board,
+            theme_board,
             cadence_funding,
             caller,
         }
@@ -2644,12 +2527,49 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
         data: zkube::instruction::CloseArenaDaily {}.data(),
     };
     let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = day_window(day_id + 1).unwrap().1;
-    let closed = runtime.process_instruction(
+    runtime.sysvars.clock.unix_timestamp = zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
+    let premature = runtime.process_instruction(
         &close_instruction,
         &[
             (archive, resulting_account(&archived, &archive).clone()),
             (daily, resulting_account(&archived, &daily).clone()),
+            (
+                score_board,
+                resulting_account(&archived, &score_board).clone(),
+            ),
+            (
+                theme_board,
+                resulting_account(&archived, &theme_board).clone(),
+            ),
+            (cadence_funding, system_account(funding_before)),
+            (caller, system_account(ACCOUNT_LAMPORTS)),
+        ],
+    );
+    assert!(premature.program_result.is_err());
+
+    let mut expired_daily: ArenaDaily = decode(resulting_account(&archived, &daily));
+    expired_daily.claims_expired = true;
+    let closed = runtime.process_instruction(
+        &close_instruction,
+        &[
+            (archive, resulting_account(&archived, &archive).clone()),
+            (
+                daily,
+                serialized_account(
+                    &expired_daily,
+                    8 + ArenaDaily::INIT_SPACE,
+                    zkube::ID,
+                    daily_lamports,
+                ),
+            ),
+            (
+                score_board,
+                resulting_account(&archived, &score_board).clone(),
+            ),
+            (
+                theme_board,
+                resulting_account(&archived, &theme_board).clone(),
+            ),
             (cadence_funding, system_account(funding_before)),
             (caller, system_account(ACCOUNT_LAMPORTS)),
         ],
@@ -2657,7 +2577,7 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
     assert!(closed.program_result.is_ok(), "{:?}", closed.program_result);
     assert_eq!(
         resulting_account(&closed, &cadence_funding).lamports,
-        funding_before + daily_lamports
+        funding_before + daily_lamports + score_board_lamports + theme_board_lamports
     );
 }
 

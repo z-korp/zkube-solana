@@ -7,13 +7,13 @@ import { browserLocalStorage, type StorageLike } from "@/platform/browserStorage
 
 export type { PeriodKind };
 
-/** Per-wallet localStorage key: the last-seen per-period reward totals. */
-const SEEN_KEY_PREFIX = "zkube:v4:rewards-seen:";
+/** Per-wallet localStorage key: the last-seen Daily reward total. */
+const SEEN_KEY_PREFIX = "zkube:v5:rewards-seen:";
 
 export interface PrizeDelta {
-  /** 0 Daily, 1 Weekly, 2 Season — the period whose record grew. */
+  /** Daily — the period whose record grew. */
   periodKind: PeriodKind;
-  periodLabel: "Daily" | "Weekly" | "Season";
+  periodLabel: "Daily";
   /** How much the attributed period's lifetime rewards grew, in lamports. */
   amountLamports: bigint;
   /**
@@ -27,38 +27,18 @@ export interface PrizeDelta {
   bestPrizeRank: number;
 }
 
-type SeenTriplet = [bigint, bigint, bigint];
-
-function readSeen(storage: StorageLike, key: string): SeenTriplet | null {
+function readSeen(storage: StorageLike, key: string): bigint | null {
   const raw = storage.getItem(key);
   if (!raw) return null;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      typeof (parsed as { d?: unknown }).d !== "string" ||
-      typeof (parsed as { w?: unknown }).w !== "string" ||
-      typeof (parsed as { s?: unknown }).s !== "string"
-    ) {
-      return null;
-    }
-    const record = parsed as { d: string; w: string; s: string };
-    return [BigInt(record.d), BigInt(record.w), BigInt(record.s)];
+    return BigInt(raw);
   } catch {
     return null;
   }
 }
 
-function writeSeen(storage: StorageLike, key: string, value: SeenTriplet): void {
-  storage.setItem(
-    key,
-    JSON.stringify({
-      d: value[0].toString(),
-      w: value[1].toString(),
-      s: value[2].toString(),
-    }),
-  );
+function writeSeen(storage: StorageLike, key: string, value: bigint): void {
+  storage.setItem(key, value.toString());
 }
 
 export interface PrizeDeltaTrigger {
@@ -71,34 +51,27 @@ export interface PrizeDeltaTrigger {
  * Precise, real-time celebration trigger for the guardian-delivers moment.
  *
  * Driven by `useSettlementResult`, which subscribes to the connected player's
- * PlayerState and surfaces a landed Daily/Weekly/Season prize the instant the
+ * PlayerState and surfaces a landed Daily prize the instant the
  * keeper's push confirms (not at a render poll). A pushed prize is the only way a
  * period's lifetime `rewardsLamports` grows, so an increase is always a real paid
  * win — never a fabricated "scored vs expired" outcome (that per-run distinction
  * is not on PlayerState; see `useSettlementResult`).
  *
  * Dedup + baseline (bigint-safe, per wallet, persisted so a reload never
- * re-congratulates): the last-seen per-period totals live in localStorage. The
+ * re-congratulates): the last-seen Daily total lives in localStorage. The
  * first observation for a wallet is baselined silently so a returning player with
- * existing winnings is never falsely congratulated. Thereafter every period is
- * reconciled against its last-seen total — all grown periods are advanced at once
- * so a settlement burst that pays several boards can never be double-counted
- * later — and the largest genuine increase is celebrated once, enriched with the
- * precise event's rank. The trigger never acts on a loading or errored read.
+ * existing winnings is never falsely congratulated. Thereafter the Daily record
+ * is reconciled against its last-seen total and a genuine increase is celebrated
+ * once, enriched with the precise event's rank. The trigger never acts on a
+ * loading or errored read.
  */
 export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
   const { publicKey } = useConnectedPlayer();
   const address = publicKey?.toBase58() ?? null;
   const { periods, latestEvent, loading, error } = useSettlementResult();
   const daily = periods[0];
-  const weekly = periods[1];
-  const season = periods[2];
   const dailyRewards = daily?.rewardsLamports ?? 0n;
-  const weeklyRewards = weekly?.rewardsLamports ?? 0n;
-  const seasonRewards = season?.rewardsLamports ?? 0n;
   const dailyRank = daily?.bestPrizeRank ?? 0;
-  const weeklyRank = weekly?.bestPrizeRank ?? 0;
-  const seasonRank = season?.bestPrizeRank ?? 0;
 
   const [prize, setPrize] = useState<PrizeDelta | null>(null);
 
@@ -109,8 +82,7 @@ export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
     if (!storage) return;
 
     const key = `${SEEN_KEY_PREFIX}${address}`;
-    const current: SeenTriplet = [dailyRewards, weeklyRewards, seasonRewards];
-    const ranks: [number, number, number] = [dailyRank, weeklyRank, seasonRank];
+    const current = dailyRewards;
     const seen = readSeen(storage, key);
 
     // First observation for this wallet — baseline silently, celebrate nothing.
@@ -119,34 +91,19 @@ export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
       return;
     }
 
-    // Reconcile every period against the last-seen totals: advance them all at
-    // once so a burst that pays several boards is never double-counted later,
-    // and pick the largest genuine increase to celebrate.
-    const next: SeenTriplet = [seen[0], seen[1], seen[2]];
-    let bestKind: PeriodKind | null = null;
-    let bestDelta = 0n;
-    for (const kind of [0, 1, 2] as const) {
-      const delta = current[kind] - seen[kind];
-      if (delta > 0n) {
-        next[kind] = current[kind];
-        if (delta > bestDelta) {
-          bestDelta = delta;
-          bestKind = kind;
-        }
-      }
-    }
-
-    if (bestKind === null) return;
+    const bestKind: PeriodKind = 0;
+    const bestDelta = current - seen;
+    if (bestDelta <= 0n) return;
 
     // Persist immediately so a refresh or re-render never re-fires this prize.
-    writeSeen(storage, key, next);
+    writeSeen(storage, key, current);
     // `latestEvent` is the same snapshot's largest increase and carries the
     // period record's rank; fall back to the reconciled period's own rank if the
     // subscription has not surfaced the event yet (e.g. a manual refresh path).
     const rank =
       latestEvent && latestEvent.periodKind === bestKind
         ? latestEvent.bestPrizeRank
-        : ranks[bestKind];
+        : dailyRank;
     setPrize({
       periodKind: bestKind,
       periodLabel: PERIOD_LABELS[bestKind],
@@ -159,11 +116,7 @@ export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
     error,
     latestEvent,
     dailyRewards,
-    weeklyRewards,
-    seasonRewards,
     dailyRank,
-    weeklyRank,
-    seasonRank,
   ]);
 
   const dismiss = useCallback(() => setPrize(null), []);

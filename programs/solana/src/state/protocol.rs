@@ -15,10 +15,9 @@ pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 pub const PLAYER_FUNDING_SEED: &[u8] = b"player_funding";
 
 pub const ACCOUNT_VERSION: u8 = zkube_core::PROTOCOL_ACCOUNT_VERSION;
-/// PlayerState v3 splits the former single durable run pointer into one
-/// Campaign slot and one Arcade slot without reallocating the account.
+/// Fresh-bootstrap PlayerState schema with independent Campaign and Arcade
+/// run slots plus explicit zeroed expansion space.
 pub const PLAYER_STATE_VERSION: u8 = zkube_core::PLAYER_STATE_ACCOUNT_VERSION;
-pub const LEGACY_PLAYER_STATE_VERSION: u8 = ACCOUNT_VERSION;
 pub const MAX_MAPS: usize = zkube_core::CAMPAIGN_MAP_COUNT;
 pub const LEVELS_PER_MAP: usize = zkube_core::CAMPAIGN_LEVELS_PER_MAP;
 pub const CAMPAIGN_LEVEL_COUNT: usize = zkube_core::CAMPAIGN_TOTAL_LEVELS;
@@ -33,7 +32,6 @@ pub const EMBLEM_WORLD_PERFECT: u8 = 12;
 pub const INITIAL_RUN_ID: u64 = 1;
 /// Reusable owner-funded float: current maximum run/delegation rent plus a
 /// 20% safety margin, rounded up to the next 0.001 SOL.
-pub const LEGACY_PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 25_000_000;
 pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 50_000_000;
 
 #[account]
@@ -60,8 +58,7 @@ pub struct PlayerState {
     pub version: u8,
     pub owner: Pubkey,
     pub next_run_id: u64,
-    /// Zero when the Arcade slot is idle. In legacy v2 accounts this is the
-    /// single shared pointer and is normalized according to active_run_mode.
+    /// Zero when the Arcade slot is idle.
     pub active_run_id: u64,
     /// Base-layer reservation remains authoritative while the run PDA is
     /// delegated to an ephemeral rollup.
@@ -76,16 +73,16 @@ pub struct PlayerState {
     pub campaign_stars: [u8; CAMPAIGN_STAR_BYTES],
     /// Zero selects the strongest currently unlocked emblem automatically.
     pub featured_emblem: u8,
-    /// Incremented exactly once by each successful owner-signed paid entry.
+    /// Incremented exactly once when one prepaid Kredit starts a ranked run.
     pub lifetime_paid_entries: u64,
     pub daily_record: CompetitionRecord,
-    pub weekly_record: CompetitionRecord,
-    pub season_record: CompetitionRecord,
-    /// Zero when the Campaign slot is idle. This consumes the first eight
-    /// bytes of v2's zeroed reserve without changing PlayerState's allocation.
+    /// Zero when the Campaign slot is idle.
     pub campaign_active_run_id: u64,
-    /// Reserved bytes for a future explicitly versioned schema only.
-    pub reserved: [u8; 24],
+    /// One-way prepaid entries owned by this wallet identity.
+    pub kredit_balance: u64,
+    /// Reserved for later versioned profile fields such as the ladder. Readers
+    /// reject nonzero bytes until an explicitly versioned schema consumes them.
+    pub reserved: [u8; 56],
     pub bump: u8,
 }
 
@@ -104,43 +101,19 @@ impl PlayerState {
             featured_emblem: EMBLEM_AUTO,
             lifetime_paid_entries: 0,
             daily_record: CompetitionRecord::default(),
-            weekly_record: CompetitionRecord::default(),
-            season_record: CompetitionRecord::default(),
             campaign_active_run_id: 0,
-            reserved: [0; 24],
+            kredit_balance: 0,
+            reserved: [0; 56],
             bump,
         }
     }
 
-    pub fn version_supported(&self) -> bool {
-        matches!(
-            self.version,
-            LEGACY_PLAYER_STATE_VERSION | PLAYER_STATE_VERSION
-        )
+    pub fn schema_valid(&self) -> bool {
+        self.version == PLAYER_STATE_VERSION && self.reserved == [0; 56]
     }
 
-    /// Convert a v2 shared pointer to the v3 slot selected by its immutable
-    /// stored mode. This is safe to call at every slot-sensitive transition.
-    pub fn migrate_run_slots(&mut self) -> Result<()> {
-        require!(self.version_supported(), ErrorCode::InvalidVersion);
-        if self.version == PLAYER_STATE_VERSION {
-            return Ok(());
-        }
-        require!(
-            self.campaign_active_run_id == 0 && self.reserved == [0; 24],
-            ErrorCode::InvalidState
-        );
-        if self.active_run_id != 0 && self.active_run_mode == RunMode::Campaign {
-            require!(
-                self.active_run_daily == Pubkey::default()
-                    && self.active_run_deadline_at == 0
-                    && self.orphan_run_id == 0,
-                ErrorCode::InvalidState
-            );
-            self.campaign_active_run_id = self.active_run_id;
-            self.clear_arcade_slot();
-        }
-        self.version = PLAYER_STATE_VERSION;
+    fn require_schema(&self) -> Result<()> {
+        require!(self.schema_valid(), ErrorCode::InvalidVersion);
         Ok(())
     }
 
@@ -156,7 +129,7 @@ impl PlayerState {
     }
 
     pub fn reserve_campaign_run(&mut self, run_id: u64) -> Result<()> {
-        self.migrate_run_slots()?;
+        self.require_schema()?;
         require!(self.campaign_active_run_id == 0, ErrorCode::ActiveRunExists);
         self.allocate_run_id(run_id)?;
         self.campaign_active_run_id = run_id;
@@ -170,11 +143,9 @@ impl PlayerState {
         mode: RunMode,
         deadline_at: i64,
     ) -> Result<()> {
-        self.migrate_run_slots()?;
+        self.require_schema()?;
         require!(
-            matches!(mode, RunMode::Daily | RunMode::Practice)
-                && daily != Pubkey::default()
-                && deadline_at > 0,
+            mode == RunMode::Daily && daily != Pubkey::default() && deadline_at > 0,
             ErrorCode::InvalidState
         );
         require!(
@@ -217,14 +188,14 @@ impl PlayerState {
     /// Releases only the exact Arcade run pinned in durable state while its
     /// terminal ActiveRun is atomically consumed and closed on the base layer.
     pub fn release_arcade_run(&mut self, run_id: u64) -> Result<()> {
-        self.migrate_run_slots()?;
+        self.require_schema()?;
         require!(self.active_run_id == run_id, ErrorCode::InvalidRunId);
         self.clear_arcade_slot();
         Ok(())
     }
 
     pub fn release_campaign_run(&mut self, run_id: u64) -> Result<()> {
-        self.migrate_run_slots()?;
+        self.require_schema()?;
         require!(
             self.campaign_active_run_id == run_id,
             ErrorCode::InvalidRunId
@@ -234,7 +205,7 @@ impl PlayerState {
     }
 
     pub fn expire_arcade_run(&mut self, run_id: u64) -> Result<()> {
-        self.migrate_run_slots()?;
+        self.require_schema()?;
         require!(self.orphan_run_id == 0, ErrorCode::ActiveRunExists);
         self.release_arcade_run(run_id)?;
         self.orphan_run_id = run_id;
@@ -242,6 +213,7 @@ impl PlayerState {
     }
 
     pub fn release_orphan(&mut self, run_id: u64) -> Result<()> {
+        self.require_schema()?;
         require!(self.orphan_run_id == run_id, ErrorCode::InvalidRunId);
         self.orphan_run_id = 0;
         Ok(())
@@ -312,9 +284,24 @@ impl PlayerState {
     }
 
     pub fn record_paid_entry(&mut self) -> Result<()> {
+        self.require_schema()?;
+        self.kredit_balance = self
+            .kredit_balance
+            .checked_sub(1)
+            .ok_or(ErrorCode::InsufficientKredits)?;
         self.lifetime_paid_entries = self
             .lifetime_paid_entries
             .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
+
+    pub fn record_kredit_purchase(&mut self, count: u64) -> Result<()> {
+        self.require_schema()?;
+        require!(count > 0, ErrorCode::InvalidKreditPurchase);
+        self.kredit_balance = self
+            .kredit_balance
+            .checked_add(count)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
     }
@@ -324,8 +311,7 @@ impl PlayerState {
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
 pub struct CompetitionRecord {
-    /// Zero means no payout-bearing rank. Nonzero ranks are Daily/Season top
-    /// five or a Weekly board's top three only.
+    /// Zero means no payout-bearing Daily rank.
     pub best_prize_rank: u16,
     pub podiums: u32,
     pub wins: u32,
@@ -470,8 +456,8 @@ pub struct ActiveRun {
     pub mode: RunMode,
     pub lifecycle: RunLifecycle,
     pub rules_hash: [u8; 32],
-    /// Ranked and Practice actions and VRF callbacks are rejected at this
-    /// immutable cutoff. Campaign runs use zero (no cadence deadline).
+    /// Ranked actions and VRF callbacks are rejected at this immutable cutoff.
+    /// Campaign runs use zero (no cadence deadline).
     pub deadline_at: i64,
     pub map_id: u8,
     pub level: u8,
@@ -482,6 +468,8 @@ pub struct ActiveRun {
     pub score: u32,
     /// Arena leaderboard score: engine score plus pressure-scaled challenge bonus.
     pub daily_score: u32,
+    /// Pressure-scaled points attributable only to the Daily objective.
+    pub objective_total: u64,
     /// Number of actions that earned nonzero Daily challenge bonus credit.
     pub daily_bonus_triggers: u16,
     pub pressure_score: u32,
@@ -491,7 +479,7 @@ pub struct ActiveRun {
     pub moves: u16,
     pub combo_counter: u8,
     pub max_combo: u8,
-    /// Canonical, full-width metrics used by the three Weekly boards.
+    /// Canonical, full-width run metrics retained for deterministic scoring.
     pub arcade_metrics: ArcadeRunMetrics,
     pub primary_progress: u8,
     pub secondary_progress: u8,
@@ -538,6 +526,7 @@ impl Default for ActiveRun {
             has_next_row: false,
             score: 0,
             daily_score: 0,
+            objective_total: 0,
             daily_bonus_triggers: 0,
             pressure_score: 0,
             daily_scoring_rule: DailyScoringRule::default(),
@@ -579,7 +568,6 @@ pub enum RunMode {
     #[default]
     Campaign,
     Daily,
-    Practice,
 }
 
 #[derive(
@@ -646,29 +634,26 @@ mod tests {
     }
 
     #[test]
-    fn v2_shared_pointer_migrates_to_its_immutable_mode_slot() {
-        let owner = Pubkey::new_unique();
-        let mut campaign = PlayerState::initialize(owner, 1);
-        campaign.version = LEGACY_PLAYER_STATE_VERSION;
-        campaign.active_run_id = 7;
-        campaign.active_run_mode = RunMode::Campaign;
-        campaign.migrate_run_slots().unwrap();
-        assert_eq!(campaign.version, PLAYER_STATE_VERSION);
-        assert_eq!(campaign.campaign_active_run_id, 7);
-        assert_eq!(campaign.active_run_id, 0);
+    fn player_state_rejects_nonzero_reserved_bytes() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        assert!(player.schema_valid());
+        player.reserved[47] = 1;
+        assert!(!player.schema_valid());
+        assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
+    }
 
-        let daily = Pubkey::new_unique();
-        let mut arcade = PlayerState::initialize(owner, 1);
-        arcade.version = LEGACY_PLAYER_STATE_VERSION;
-        arcade.active_run_id = 9;
-        arcade.active_run_mode = RunMode::Daily;
-        arcade.active_run_daily = daily;
-        arcade.active_run_deadline_at = 1_000;
-        arcade.migrate_run_slots().unwrap();
-        assert_eq!(arcade.version, PLAYER_STATE_VERSION);
-        assert_eq!(arcade.campaign_active_run_id, 0);
-        assert_eq!(arcade.active_run_id, 9);
-        assert!(arcade.arcade_reservation_matches(9, daily, RunMode::Daily, 1_000));
+    #[test]
+    fn kredit_purchase_and_spend_preserve_entry_counting() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(3).unwrap();
+        assert_eq!(player.kredit_balance, 3);
+        assert_eq!(player.lifetime_paid_entries, 0);
+
+        player.record_paid_entry().unwrap();
+        assert_eq!(player.kredit_balance, 2);
+        assert_eq!(player.lifetime_paid_entries, 1);
+        player.kredit_balance = 0;
+        assert!(player.record_paid_entry().is_err());
     }
 
     #[test]
@@ -680,8 +665,8 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 227);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 543);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 551);
     }
 
     #[test]

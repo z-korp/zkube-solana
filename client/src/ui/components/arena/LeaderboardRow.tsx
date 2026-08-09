@@ -53,7 +53,7 @@ export const RankMedal: React.FC<{ rank: number; size?: number }> = ({
  * One board row in the opaque grammar: medal chip, inline emblem, name, the
  * primary figure, and an optional floored SOL prize. Rows render transparent —
  * the parent panel carries the surface — except the connected player's row,
- * which wears the gold ring. Shared by the Weekly and Season boards so every
+ * which wears the gold ring. Shared by leaderboard surfaces so every
  * board reads as one system.
  */
 const LeaderboardRow: React.FC<LeaderboardRowProps> = ({

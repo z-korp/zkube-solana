@@ -3,7 +3,7 @@ use crate::{
     DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
     ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics,
     RunPhase, Sha256Provider, SoftwareSha256, continuation_from_vrf, derive_player_id,
-    opening_from_vrf, row_from_vrf, score_daily_objective,
+    opening_from_vrf, reroll_row_from_vrf, row_from_vrf, score_daily_objective,
 };
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
@@ -237,6 +237,7 @@ pub struct DailySimulation {
     pub metrics: RunMetrics,
     pub action_counter: u32,
     pub daily_score: u32,
+    pub objective_total: u64,
     pub pressure_score: u32,
     pub current_difficulty: u8,
     pub last_vrf_counter: u32,
@@ -326,6 +327,7 @@ impl DailySimulation {
             metrics: RunMetrics::default(),
             action_counter: 0,
             daily_score: 0,
+            objective_total: 0,
             pressure_score: 0,
             current_difficulty: 0,
             last_vrf_counter: 0,
@@ -371,6 +373,14 @@ impl DailySimulation {
             next.engine.next_row = Some(opening.preview);
             next.engine.starting_height_target = 0;
             next.engine.phase = RunPhase::Playing;
+        } else if next.engine.reroll_pending() {
+            let row = reroll_row_from_vrf(
+                output,
+                request_counter,
+                next.rules_hash.to_bytes(),
+                rules.pressure.weights(next.current_difficulty),
+            )?;
+            next.engine.provide_reroll_row(row)?;
         } else if next.engine.grid.is_empty() {
             let continuation = continuation_from_vrf(
                 output,
@@ -481,6 +491,37 @@ impl DailySimulation {
         Ok(())
     }
 
+    /// Consume a reroll charge and request a domain-separated replacement for
+    /// the visible preview. The action is committed before the VRF callback so
+    /// deadline recovery preserves the accepted request even when no output
+    /// arrives in time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an ordering, rules, engine-state, or arithmetic error without
+    /// mutating the simulation.
+    pub fn request_reroll(
+        &mut self,
+        rules: DailyRunRules,
+        action: u32,
+    ) -> Result<(), SimulationError> {
+        if rules.snapshot_hash() != self.rules_snapshot_hash {
+            return Err(SimulationError::InvalidRules);
+        }
+        if action != self.action_counter {
+            return Err(SimulationError::InvalidActionOrder);
+        }
+        let mut next = *self;
+        next.engine.request_reroll()?;
+        next.action_counter = next
+            .action_counter
+            .checked_add(1)
+            .ok_or(SimulationError::Overflow)?;
+        next.replay = next.replay.fold(ReplayEvent::Reroll { action });
+        *self = next;
+        Ok(())
+    }
+
     /// Freeze the last fully accepted state at the Daily deadline.
     ///
     /// # Errors
@@ -532,6 +573,10 @@ impl DailySimulation {
             .daily_score
             .checked_add(report.points_earned)
             .and_then(|score| score.checked_add(objective.awarded_bonus))
+            .ok_or(SimulationError::Overflow)?;
+        self.objective_total = self
+            .objective_total
+            .checked_add(u64::from(objective.awarded_bonus))
             .ok_or(SimulationError::Overflow)?;
         self.pressure_score = self
             .pressure_score
@@ -599,6 +644,7 @@ const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
+        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -702,5 +748,57 @@ mod tests {
         assert!(simulation.deadline_finished);
         assert!(!simulation.is_score_eligible());
         assert_ne!(simulation.replay, replay_before);
+    }
+
+    #[test]
+    fn reroll_replaces_only_the_preview_after_a_distinct_vrf_request() {
+        let mut reroll_rules = rules();
+        reroll_rules.bonus = Some(Bonus::Reroll);
+        reroll_rules.starting_bonus_charges = 1;
+        let mut reroll_config = config();
+        reroll_config.rules = reroll_rules;
+        let mut simulation = DailySimulation::new(reroll_config).unwrap();
+        simulation.apply_vrf(reroll_rules, 1, [9; 32]).unwrap();
+        let grid = simulation.engine.grid;
+        let preview = simulation.engine.next_row.unwrap();
+        let replay_before = simulation.replay;
+
+        simulation.request_reroll(reroll_rules, 0).unwrap();
+        assert_eq!(simulation.engine.phase, RunPhase::AwaitingVrf);
+        assert_eq!(simulation.engine.grid, grid);
+        assert_eq!(simulation.engine.next_row, Some(preview));
+        assert_eq!(simulation.engine.moves, 0);
+        assert_eq!(simulation.action_counter, 1);
+        assert_eq!(simulation.engine.bonus_charges, 0);
+        assert_ne!(simulation.replay, replay_before);
+
+        let replay_after_request = simulation.replay;
+        simulation.apply_vrf(reroll_rules, 2, [10; 32]).unwrap();
+        assert_eq!(simulation.engine.phase, RunPhase::Playing);
+        assert_eq!(simulation.engine.grid, grid);
+        assert_ne!(simulation.engine.next_row, Some(preview));
+        assert_eq!(simulation.engine.moves, 0);
+        assert_eq!(simulation.daily_score, 0);
+        assert_eq!(simulation.objective_total, 0);
+        assert_eq!(simulation.last_vrf_counter, 2);
+        assert_ne!(simulation.replay, replay_after_request);
+    }
+
+    #[test]
+    fn pending_reroll_is_an_accepted_action_at_deadline() {
+        let mut reroll_rules = rules();
+        reroll_rules.bonus = Some(Bonus::Reroll);
+        reroll_rules.starting_bonus_charges = 1;
+        let mut reroll_config = config();
+        reroll_config.rules = reroll_rules;
+        let mut simulation = DailySimulation::new(reroll_config).unwrap();
+        simulation.apply_vrf(reroll_rules, 1, [9; 32]).unwrap();
+        simulation.request_reroll(reroll_rules, 0).unwrap();
+
+        simulation.finish_at_deadline().unwrap();
+
+        assert!(simulation.is_score_eligible());
+        assert!(simulation.deadline_finished);
+        assert_eq!(simulation.engine.next_row, None);
     }
 }

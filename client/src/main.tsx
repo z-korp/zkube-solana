@@ -6,8 +6,6 @@ import { CampaignProvider } from "./contexts/campaign";
 import { DailyProvider } from "./contexts/daily";
 import { MusicPlayerProvider } from "./contexts/music";
 import { RunProvider } from "./contexts/run";
-import { SeasonProvider } from "./contexts/season";
-import { WeeklyProvider } from "./contexts/weekly";
 import { SolanaProvider } from "./chain/provider";
 import { captureInstallPrompt } from "./platform/installPrompt";
 import { initializePwaLifecycle } from "./platform/pwaLifecycle";
@@ -28,12 +26,8 @@ createRoot(document.getElementById("root")!).render(
           <RunProvider>
             <CampaignProvider>
               <DailyProvider>
-                <WeeklyProvider>
-                  <SeasonProvider>
-                    <App />
-                    <PwaLifecycleBanner />
-                  </SeasonProvider>
-                </WeeklyProvider>
+                <App />
+                <PwaLifecycleBanner />
               </DailyProvider>
             </CampaignProvider>
           </RunProvider>

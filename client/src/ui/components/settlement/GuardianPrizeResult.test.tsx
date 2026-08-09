@@ -65,7 +65,7 @@ describe("GuardianPrizeResult", () => {
         onDismiss={vi.fn()}
         zoneId={1}
         amountLamports={1_250_000_000n}
-        periodLabel="Season"
+        periodLabel="Daily"
       />,
     );
     expect(screen.getByText("+1.250")).toBeInTheDocument();
@@ -80,7 +80,7 @@ describe("GuardianPrizeResult", () => {
         onDismiss={onDismiss}
         zoneId={2}
         amountLamports={250_000_000n}
-        periodLabel="Weekly"
+        periodLabel="Daily"
       />,
     );
 

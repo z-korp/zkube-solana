@@ -14,12 +14,12 @@ use zkube_core::{
 pub const DAILY_SIMULATION_CONFIG_LEN: usize = 282;
 /// Versioned state layout returned by every transition.
 ///
-/// The first byte is version 1, followed by engine flags/counters, the 80-byte
+/// The first byte is version 2, followed by engine flags/counters, the 80-byte
 /// grid, optional next row, nine metrics, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 305;
-const STATE_VERSION: u8 = 1;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 313;
+const STATE_VERSION: u8 = 2;
 
 /// Encode a typed configuration for the frontend WASM boundary.
 #[must_use]
@@ -56,7 +56,6 @@ pub fn decode_daily_simulation_config(
     let run_id = reader.u64()?;
     let mode = match reader.u8()? {
         0 => ReplayMode::Ranked,
-        1 => ReplayMode::Practice,
         _ => return Err(BoundaryError::InvalidMode),
     };
     let rules_hash = RulesHash(reader.array()?);
@@ -101,6 +100,7 @@ pub fn encode_daily_simulation_state(
     writer.write(&simulation.last_vrf_counter.to_le_bytes());
     writer.write(&simulation.engine.score.to_le_bytes());
     writer.write(&simulation.daily_score.to_le_bytes());
+    writer.write(&simulation.objective_total.to_le_bytes());
     writer.write(&simulation.pressure_score.to_le_bytes());
     writer.write(simulation.engine.grid.cells());
     writer.write(&simulation.engine.next_row.unwrap_or([0; 8]));
@@ -144,6 +144,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let last_vrf_counter = reader.u32()?;
     let score = reader.u32()?;
     let daily_score = reader.u32()?;
+    let objective_total = reader.u64()?;
     let pressure_score = reader.u32()?;
     let grid = Grid::try_from_cells(reader.array()?).map_err(|_| BoundaryError::InvalidEncoding)?;
     let next_row_bytes = reader.array()?;
@@ -166,7 +167,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     if current_difficulty > 7
         || (deadline_finished && phase != RunPhase::Finished)
         || (phase == RunPhase::Playing && next_row.is_none())
-        || (phase == RunPhase::AwaitingVrf && next_row.is_some())
+        || (phase == RunPhase::AwaitingVrf && next_row.is_some() && bonus != Some(Bonus::Reroll))
     {
         return Err(BoundaryError::InvalidEncoding);
     }
@@ -190,6 +191,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
         metrics,
         action_counter,
         daily_score,
+        objective_total,
         pressure_score,
         current_difficulty,
         last_vrf_counter,
@@ -267,6 +269,21 @@ pub fn simulation_apply_bonus(
 ) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut simulation) = decode_for_transition(config, state)?;
     simulation.apply_bonus(config.rules, action, row, column)?;
+    Ok(encode_daily_simulation_state(simulation).to_vec())
+}
+
+/// Request an ordered reroll without consuming a move or altering the board.
+///
+/// # Errors
+///
+/// Returns an encoding or simulation transition error.
+pub fn simulation_request_reroll(
+    config: &[u8],
+    state: &[u8],
+    action: u32,
+) -> Result<Vec<u8>, BoundaryError> {
+    let (config, mut simulation) = decode_for_transition(config, state)?;
+    simulation.request_reroll(config.rules, action)?;
     Ok(encode_daily_simulation_state(simulation).to_vec())
 }
 
@@ -433,6 +450,7 @@ const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
+        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -442,6 +460,7 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
         1 => Ok(Some(Bonus::Hammer)),
         2 => Ok(Some(Bonus::Totem)),
         3 => Ok(Some(Bonus::Wave)),
+        4 => Ok(Some(Bonus::Reroll)),
         _ => Err(BoundaryError::InvalidEncoding),
     }
 }
@@ -589,6 +608,14 @@ mod tests {
     }
 
     #[test]
+    fn state_codec_matches_the_shared_protocol_fixture() {
+        let fixture = include_str!("../../../fixtures/protocol-invariants.json");
+        assert!(fixture.contains(&format!("\"version\": {STATE_VERSION}")));
+        assert!(fixture.contains(&format!("\"length\": {DAILY_SIMULATION_STATE_LEN}")));
+        assert!(fixture.contains("\"objectiveTotal\": \"u64-le\""));
+    }
+
+    #[test]
     fn stateless_boundary_matches_typed_core_transitions() {
         let config = config();
         let config_bytes = encode_daily_simulation_config(config);
@@ -628,6 +655,31 @@ mod tests {
         assert!(decoded.deadline_finished);
         assert_eq!(decoded.action_counter, 0);
         assert!(!simulation_score_eligible(&finished).unwrap());
+    }
+
+    #[test]
+    fn reroll_round_trips_through_the_stateless_boundary() {
+        let mut config = config();
+        config.rules.bonus = Some(Bonus::Reroll);
+        config.rules_hash = zkube_core::daily_challenge_rules_hash(
+            42,
+            config.rules.snapshot_hash().to_bytes(),
+            7,
+            3,
+            15,
+        );
+        let config_bytes = encode_daily_simulation_config(config);
+        let mut expected = DailySimulation::new(config).unwrap();
+        expected.apply_vrf(config.rules, 1, [0x11; 32]).unwrap();
+        let mut state = initialize_daily_simulation(&config_bytes, 1, &[0x11; 32]).unwrap();
+
+        expected.request_reroll(config.rules, 0).unwrap();
+        state = simulation_request_reroll(&config_bytes, &state, 0).unwrap();
+        assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
+
+        expected.apply_vrf(config.rules, 2, [0x22; 32]).unwrap();
+        state = simulation_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();
+        assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
     }
 
     #[test]

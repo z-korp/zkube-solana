@@ -1,96 +1,75 @@
+import { createHash } from "node:crypto";
+
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
+  DAILY_POOL_CAPACITY,
+  DAILY_POOL_SELECTION_SEED,
+  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
-  ENTRY_SEASON_LAMPORTS,
-  ENTRY_WEEKLY_LAMPORTS,
-  DAILY_PRIZE_WEIGHTS,
-  MONDAY_EPOCH_DAY_ID,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   RULES_ACCOUNT_VERSION,
-  SEASON_DAYS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
-  WEEK_DAYS,
-  WEEKLY_PRIZE_WEIGHTS,
 } from "./protocolVersions.generated.js";
 
 export {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  DAILY_PRIZE_WEIGHTS,
-  MONDAY_EPOCH_DAY_ID,
+  DAILY_POOL_CAPACITY,
+  DAILY_POOL_SELECTION_SEED,
+  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   RULES_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
-  WEEKLY_PRIZE_WEIGHTS,
 };
 
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const DAYS_PER_WEEK = WEEK_DAYS;
-export const DAYS_PER_SEASON = SEASON_DAYS;
 export const DAILY_ENTRY_CLOSE_OFFSET = 23 * 60 * 60 + 45 * 60;
 export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 59 * 60;
 export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
 export const DAILY_RECOVERY_DEADLINE_OFFSET =
   DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
-export const PERIOD_SETTLEMENT_DELAY_SECONDS =
-  DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS - SECONDS_PER_DAY;
-/** Recurring authority covers at most the trailing three 28-day Seasons. */
+/** Recurring authority covers at most the trailing 84 Dailies. */
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
-export const KEEPER_RECENT_WEEKLY_CADENCES = 12;
-export const KEEPER_RECENT_SEASON_CADENCES = 3;
+export const ARENA_BOARD_CAPACITY = 1_536;
+export const ARENA_BOARD_CHUNK_CAPACITY = 10;
+export const ARENA_BOARD_ENTRY_SIZE = 84;
+const DAILY_POOL_DRAW_DOMAIN = Buffer.from("zkube-daily-pool-draw-v2", "utf8");
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
   followingDaily: ENTRY_DAILY_LAMPORTS,
-  followingWeekly: ENTRY_WEEKLY_LAMPORTS,
-  followingSeason: ENTRY_SEASON_LAMPORTS,
   operator: ENTRY_OPERATOR_LAMPORTS,
 });
 
 export type KeeperOperation =
   | "prepare_arena_daily"
-  | "prepare_weekly_jackpot"
-  | "prepare_season"
   | "activate_arena_daily"
-  | "activate_weekly_jackpot"
-  | "activate_season"
   | "force_finish_deadline"
   | "commit_run"
   | "consume_campaign_run"
   | "consume_arena_run"
-  | "consume_practice_run"
   | "expire_unresolved_arena_run"
-  | "expire_unresolved_practice_run"
   | "cleanup_orphan_active_run"
-  | "initialize_season_player"
-  | "rollup_arena_to_season"
-  | "seal_arena_season_rollups"
   | "finalize_arena_daily"
-  | "finalize_weekly_jackpot"
-  | "finalize_season"
+  | "submit_arena_board_chunk"
+  | "expire_daily_claims"
   | "sync_daily_profile"
-  | "sync_weekly_profile"
-  | "sync_season_profile"
   | "archive_arena_daily"
-  | "archive_weekly_jackpot"
-  | "archive_season"
   | "close_arena_daily"
-  | "close_weekly_jackpot"
-  | "close_season"
   | "close_arena_player"
-  | "close_season_player"
   | "revoke_expired_session";
 
-export type CompetitionKind = "daily" | "weekly" | "season";
-export type RunMode = "campaign" | "ranked" | "practice";
+export type CompetitionKind = "daily";
+export type DailyBoardKind = "score" | "theme";
+export type RunMode = "campaign" | "ranked";
 export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
 export interface KeeperPlanContext {
@@ -98,20 +77,21 @@ export interface KeeperPlanContext {
   challengeDayId?: number;
   deadlineDayId?: number;
   followingDayId?: number;
-  finalDayId?: number;
-  weekId?: number;
-  followingWeekId?: number;
-  seasonId?: number;
-  followingSeasonId?: number;
   competition?: CompetitionKind;
-  qualificationStartDay?: number;
-  qualificationDayIds?: readonly number[];
-  /** Relationship-checked ArcadeArchive Daily checkpoint used by Weekly settlement. */
-  archiveLastDailyId?: number;
   rulesCatalog?: PublicKey;
+  contentVersion?: number;
+  selectionSeed?: Uint8Array;
+  catalogStartsDay?: number;
+  poolEntryCount?: number;
+  poolIndex?: number;
+  poolEntries?: readonly {
+    realmMapId: number;
+    passiveMapId: number;
+  }[];
+  realmMapId?: number;
+  passiveMapId?: number;
   launchCadenceId?: number;
   owner?: PublicKey;
-  owners?: readonly PublicKey[];
   runId?: bigint;
   runMode?: RunMode;
   runLocation?: RunLocation;
@@ -119,24 +99,43 @@ export interface KeeperPlanContext {
   predecessorRolloverApplied?: boolean;
   recoveryActivation?: boolean;
   preactivation?: boolean;
-  sealedDailies?: number;
   deadlineAt?: number;
   recoveryDeadlineAt?: number;
   potLamports?: bigint;
-  payoutLamports?: readonly bigint[];
+  scorePayoutCount?: number;
+  themePayoutCount?: number;
+  scoreCapacityLimited?: boolean;
+  themeCapacityLimited?: boolean;
+  boardCursor?: number;
+  boardPayoutCount?: number;
+  boardEntries?: readonly {
+    source: PublicKey;
+    score: number;
+    objectiveTotal: bigint;
+    finalizedAt: number;
+    replayHash: Uint8Array;
+  }[];
+  sealBoard?: boolean;
   payoutTotalLamports?: bigint;
   rolloverLamports?: bigint;
   /** Canonical payout-position bits this profile sync is expected to consume. */
-  winnerPositionMask?: number;
+  winnerPositionMask?: bigint;
+  boardKind?: DailyBoardKind;
   rentRecipient?: PublicKey;
   cadenceFunding?: PublicKey;
   arcadeArchive?: PublicKey;
+  archiveFirstCadenceId?: number;
   previousCadenceId?: number;
+  archiveCurrentRoot?: string;
   archiveCanonicalJson?: string;
   archiveFileSha256?: string;
   archiveResultHash?: string;
   archiveCommitted?: boolean;
-  requiredProfileSyncMask?: number;
+  claimsExpired?: boolean;
+  requiredScoreProfileSyncMask?: bigint;
+  requiredThemeProfileSyncMask?: bigint;
+  claimCloseAt?: number;
+  unclaimedLamports?: bigint;
   closeEligibleAt?: number;
   sessionSigner?: PublicKey;
   sessionAddress?: PublicKey;
@@ -167,57 +166,6 @@ export function validationOnlyPlan(
 export function currentDayId(nowUnix: number): number {
   assertSafeTimestamp(nowUnix);
   return Math.floor(nowUnix / SECONDS_PER_DAY);
-}
-
-/** Monday-aligned week 0 starts on 1970-01-05. */
-export function weekIdForDay(dayId: number): number {
-  assertCadenceId(dayId, "day id");
-  if (dayId < MONDAY_EPOCH_DAY_ID) throw new Error("week cadence predates Monday epoch");
-  return Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / DAYS_PER_WEEK);
-}
-
-export function weekStartDay(weekId: number): number {
-  assertCadenceId(weekId, "week id");
-  return checkedCadenceProduct(
-    weekId,
-    DAYS_PER_WEEK,
-    MONDAY_EPOCH_DAY_ID,
-    "week start day",
-  );
-}
-
-/** Monday-aligned 28-day Season 0 starts on 1970-01-05. */
-export function seasonIdForDay(dayId: number): number {
-  assertCadenceId(dayId, "day id");
-  if (dayId < MONDAY_EPOCH_DAY_ID) throw new Error("Season cadence predates Monday epoch");
-  return Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / DAYS_PER_SEASON);
-}
-
-export function seasonStartDay(seasonId: number): number {
-  assertCadenceId(seasonId, "season id");
-  return checkedCadenceProduct(
-    seasonId,
-    DAYS_PER_SEASON,
-    MONDAY_EPOCH_DAY_ID,
-    "Season start day",
-  );
-}
-
-export function fundingPeriodsForDay(dayId: number) {
-  assertCadenceId(dayId, "day id");
-  const weekId = weekIdForDay(dayId);
-  const seasonId = seasonIdForDay(dayId);
-  if (dayId === 0xffff_ffff || weekId === 0xffff_ffff || seasonId === 0xffff_ffff) {
-    throw new Error("following cadence overflows u32");
-  }
-  return Object.freeze({
-    qualificationDayId: dayId,
-    qualificationWeekId: weekId,
-    qualificationSeasonId: seasonId,
-    dailyFundingDayId: dayId + 1,
-    weeklyFundingWeekId: weekId + 1,
-    seasonFundingSeasonId: seasonId + 1,
-  });
 }
 
 export function assertCadenceId(value: number, label: string): void {
@@ -255,6 +203,7 @@ export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
 export const protocolPda = () => derivePda("protocol");
 export const arcadeConfigPda = () => derivePda("arcade");
 export const operatorRevenuePda = () => derivePda("operator_revenue");
+export const creditVaultPda = () => derivePda("credit_vault");
 export const cadenceFundingPda = () => derivePda("cadence_funding");
 export const arcadeArchivePda = () => derivePda("arcade_archive");
 export const rulesCatalogPda = (version: number) =>
@@ -268,20 +217,79 @@ export const mapCatalogPda = (contentVersion: number, mapId: number) => {
 };
 export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
-export const weeklyJackpotPda = (weekId: number) =>
-  derivePda("weekly_jackpot", u32(weekId));
-export const seasonPda = (seasonId: number) =>
-  derivePda("season", u32(seasonId));
+export const arenaBoardPda = (daily: PublicKey, board: DailyBoardKind) =>
+  derivePda("arena_board", daily.toBytes(), Buffer.from(board, "utf8"));
 export const playerStatePda = (owner: PublicKey) =>
   derivePda("player", owner.toBytes());
 export const playerFundingPda = (owner: PublicKey) =>
   derivePda("player_funding", owner.toBytes());
 export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
   derivePda("arena_player", daily.toBytes(), owner.toBytes());
-export const seasonPlayerPda = (season: PublicKey, owner: PublicKey) =>
-  derivePda("season_player", season.toBytes(), owner.toBytes());
 export const activeRunPda = (owner: PublicKey, runId: bigint) =>
   derivePda("run", Buffer.from("active"), owner.toBytes(), u64(runId));
+
+export function dailyIsScheduled(
+  dayId: number,
+  startsDay: number,
+  entryCount: number,
+): boolean {
+  assertCadenceId(dayId, "day id");
+  assertCadenceId(startsDay, "catalog start day");
+  assertPoolEntryCount(entryCount);
+  return entryCount > 0 && dayId >= startsDay;
+}
+
+export function nextScheduledDaily(
+  dayId: number,
+  startsDay: number,
+  entryCount: number,
+): number {
+  assertCadenceId(dayId, "day id");
+  assertPoolEntryCount(entryCount);
+  if (entryCount === 0) throw new Error("no paid Daily is scheduled");
+  const candidate = Math.max(dayId + 1, startsDay);
+  assertCadenceId(candidate, "following scheduled day id");
+  return candidate;
+}
+
+export function dailyContentSelection(
+  selectionSeed: Uint8Array,
+  startsDay: number,
+  dayId: number,
+  entryCount: number,
+): { poolIndex: number } {
+  if (selectionSeed.length !== 32) throw new Error("Daily selection seed must be 32 bytes");
+  if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
+    throw new Error("no paid Daily is scheduled");
+  }
+  const pool = Array.from({ length: DAILY_POOL_CAPACITY }, (_, index) => index);
+  const cycleIndex = Math.floor(dayId / entryCount);
+  for (let index = entryCount - 1; index > 0; index -= 1) {
+    const swap = Number(poolHashU64(selectionSeed, cycleIndex, index) % BigInt(index + 1));
+    [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
+  }
+  return { poolIndex: pool[dayId % entryCount]! };
+}
+
+function poolHashU64(
+  seed: Uint8Array,
+  cycleIndex: number,
+  index: number,
+): bigint {
+  const digest = createHash("sha256")
+    .update(DAILY_POOL_DRAW_DOMAIN)
+    .update(seed)
+    .update(u32(cycleIndex))
+    .update(Uint8Array.from([index]))
+    .digest();
+  return digest.readBigUInt64LE(0);
+}
+
+function assertPoolEntryCount(entryCount: number): void {
+  if (!Number.isSafeInteger(entryCount) || entryCount < 0 || entryCount > DAILY_POOL_CAPACITY) {
+    throw new Error("Daily pool entry count is invalid");
+  }
+}
 
 export function u32(value: number): Buffer {
   assertCadenceId(value, "cadence id");
@@ -295,17 +303,4 @@ export function u64(value: bigint): Buffer {
   const bytes = Buffer.alloc(8);
   bytes.writeBigUInt64LE(value);
   return bytes;
-}
-
-function checkedCadenceProduct(
-  id: number,
-  multiplier: number,
-  offset: number,
-  label: string,
-): number {
-  const value = id * multiplier + offset;
-  if (!Number.isSafeInteger(value) || value > 0xffff_ffff) {
-    throw new Error(`${label} is outside u32`);
-  }
-  return value;
 }

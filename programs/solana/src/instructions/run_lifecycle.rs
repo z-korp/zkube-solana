@@ -306,7 +306,7 @@ pub fn handler_fulfill_row_vrf(
 /// threshold-crossing action immediately affects the next unseen row. Campaign
 /// runs keep their authored level snapshot for their full lifetime.
 fn generation_weights(active: &ActiveRun) -> [u16; 5] {
-    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+    if active.mode == RunMode::Daily {
         active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
     } else {
         active.rules.block_weights
@@ -584,7 +584,7 @@ enum ActionKind {
 
 fn action_mutator(active: &ActiveRun) -> Result<(MutatorRules, u16)> {
     let mut mutator = mutator_rules(&active.rules);
-    if !matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+    if active.mode != RunMode::Daily {
         return Ok((mutator, 100));
     }
     let pressure_multiplier_x100 =
@@ -703,7 +703,7 @@ fn record_action_accounting(
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
-    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+    if active.mode == RunMode::Daily {
         let (weighted_raw_bonus, awarded_bonus) =
             daily_challenge_bonus(active.daily_scoring_rule, report, pressure_multiplier_x100)?;
         active.pressure_score = active
@@ -723,6 +723,10 @@ fn record_action_accounting(
                     .checked_add(awarded_bonus)
                     .ok_or(ErrorCode::ArithmeticOverflow)?,
             )
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        active.objective_total = active
+            .objective_total
+            .checked_add(u64::from(awarded_bonus))
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         if awarded_bonus > 0 {
             active.daily_bonus_triggers = active
@@ -751,7 +755,7 @@ fn record_action_accounting(
 }
 
 fn fold_replay_event(active: &mut ActiveRun, event: zkube_core::ReplayEvent) {
-    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+    if active.mode == RunMode::Daily {
         active.replay_hash = zkube_core::ReplayCommitment(active.replay_hash)
             .fold_with::<SolanaSha256>(event)
             .to_bytes();
@@ -766,7 +770,7 @@ fn fold_replay_event(active: &mut ActiveRun, event: zkube_core::ReplayEvent) {
 }
 
 fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
-    if matches!(active.mode, RunMode::Daily | RunMode::Practice) {
+    if active.mode == RunMode::Daily {
         require!(
             active.deadline_at > 0 && now < active.deadline_at,
             ErrorCode::ChallengeEnded
@@ -839,10 +843,7 @@ pub struct ForceFinishDeadline<'info> {
 /// only possible resolution. Zero-action ranked runs are expired by consume.
 pub fn handler_force_finish_deadline(ctx: Context<ForceFinishDeadline>) -> Result<()> {
     let active = &mut ctx.accounts.active_run;
-    require!(
-        matches!(active.mode, RunMode::Daily | RunMode::Practice),
-        ErrorCode::InvalidState
-    );
+    require!(active.mode == RunMode::Daily, ErrorCode::InvalidState);
     require!(
         Clock::get()?.unix_timestamp >= active.deadline_at,
         ErrorCode::ChallengeNotEnded
@@ -929,7 +930,7 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     require!(
         matches!(
             ctx.accounts.active_run.mode,
-            RunMode::Campaign | RunMode::Daily | RunMode::Practice
+            RunMode::Campaign | RunMode::Daily
         ),
         ErrorCode::InvalidState
     );
@@ -973,7 +974,7 @@ pub struct ConsumeCampaignRun<'info> {
         seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
         bump = player_state.bump,
         has_one = owner @ ErrorCode::Unauthorized,
-        constraint = player_state.version_supported() @ ErrorCode::InvalidVersion
+        constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion
     )]
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Player wallet pinned by every durable account and active_run.
@@ -992,7 +993,6 @@ pub struct ConsumeCampaignRun<'info> {
 pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
     require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
-    ctx.accounts.player_state.migrate_run_slots()?;
     require!(
         ctx.accounts
             .player_state
@@ -1145,6 +1145,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         1 => Some(Bonus::Hammer),
         2 => Some(Bonus::Totem),
         3 => Some(Bonus::Wave),
+        4 => Some(Bonus::Reroll),
         _ => return err!(ErrorCode::InvalidState),
     };
     let phase = match active.lifecycle {
@@ -1188,6 +1189,7 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
+        Some(Bonus::Reroll) => 4,
     };
     active.bonus_charges = engine.bonus_charges;
     active.perfect_trigger_available = engine.perfect_trigger_available;
@@ -1212,7 +1214,8 @@ fn map_run_error(error: RunError) -> anchor_lang::error::Error {
         RunError::InvalidPhase
         | RunError::MissingNextRow
         | RunError::RowAlreadyAvailable
-        | RunError::NoBonusCharge => error!(ErrorCode::InvalidState),
+        | RunError::NoBonusCharge
+        | RunError::RerollRequiresVrf => error!(ErrorCode::InvalidState),
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 4,
   "validRows": [
     {
       "name": "mixed-widths",
@@ -182,5 +182,34 @@
     { "mapId": 8, "themeId": 8, "bossId": 8, "bossName": "SURGEON" },
     { "mapId": 9, "themeId": 9, "bossId": 9, "bossName": "ASCETIC" },
     { "mapId": 10, "themeId": 10, "bossId": 10, "bossName": "PERFECTIONIST" }
-  ]
+  ],
+  "phase1Core": {
+    "coreVersion": "0.6.0",
+    "dailyPoolDraw": {
+      "selectionSeedHex": "7a6b7562652d6461696c792d706f6f6c2d7630312d7075626c69632d73656564",
+      "startsDay": 20000,
+      "entryCount": 10,
+      "entryIndicesByDay": [
+        6, 2, 1, 9, 0, 4, 3, 7, 8, 5,
+        7, 3, 8, 5, 9, 0, 1, 4, 6, 2
+      ]
+    },
+    "rankPayout": {
+      "poolLamports": 1000000000,
+      "qualifiedWinners": 50,
+      "entryPriceLamports": 10000000,
+      "winnerCount": 25,
+      "payoutsLamports": [
+        262000000, 131000000, 87000000, 65000000, 52000000,
+        43000000, 37000000, 32000000, 29000000, 26000000,
+        23000000, 21000000, 20000000, 18000000, 17000000,
+        16000000, 15000000, 14000000, 13000000, 13000000,
+        12000000, 11000000, 11000000, 10000000, 10000000,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      ],
+      "paidLamports": 988000000,
+      "rolloverLamports": 12000000
+    }
+  }
 }

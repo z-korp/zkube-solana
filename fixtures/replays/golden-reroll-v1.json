@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "core_version": "0.6.0",
+  "domain": "zkube-reroll-row-v1",
+  "request_counter": 2,
+  "vrf_output_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+  "rules_hash_hex": "1919191919191919191919191919191919191919191919191919191919191919",
+  "weights": [25, 30, 25, 15, 5],
+  "rerolled_row": [0, 1, 3, 3, 3, 3, 3, 3],
+  "ordinary_next_row": [0, 2, 2, 2, 2, 1, 2, 2],
+  "reroll_event": {
+    "action": 1,
+    "canonical_hex": "0601000000"
+  }
+}

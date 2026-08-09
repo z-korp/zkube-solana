@@ -14,9 +14,6 @@ import {
   cadenceFundingPda,
   arenaDailyPda,
   arenaPlayerPda,
-  seasonPda,
-  seasonPlayerPda,
-  weeklyJackpotPda,
   type CompetitionKind,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
@@ -37,9 +34,11 @@ import { discoverExpiredSessionPlans } from "./sessionCleanup.js";
 
 export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
-const MAX_WRITES = 8;
+const MAX_WRITES = 6;
+const MAX_BOARD_WRITES = 32;
+const MAX_BOARD_RENT_LAMPORTS = 1_804_825_440;
 const MAX_EXPIRED_SESSION_REVOKES = 2;
-const MAX_PARTICIPANT_CLOSURES = 2;
+const MAX_PARTICIPANT_CLOSURES = 1;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
@@ -53,7 +52,7 @@ export interface KeeperLogEvent {
     | "keeper_dependency_suppressed";
   traceId: string;
   operation?: string;
-  competition?: "daily" | "weekly" | "season";
+  competition?: "daily";
   cadenceId?: number;
   archiveIntegrityCode?: string;
   archiveFailureStage?: "preparation" | "transaction";
@@ -179,12 +178,17 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let archiveQuarantines = 0;
   let spentLamports = 0;
   let attemptedWrites = 0;
+  let attemptedBoardWrites = 0;
+  let boardRentLamports = 0;
   let resolvedPlans = 0;
   let sessionRevokes = 0;
   let participantClosures = 0;
   const quarantinedArchiveDependencies = new Set<string>();
   for (const plan of plans) {
-    if (attemptedWrites >= maxWrites) break;
+    const boardWrite = plan.operation === "submit_arena_board_chunk";
+    if (boardWrite
+      ? attemptedBoardWrites >= MAX_BOARD_WRITES
+      : attemptedWrites >= maxWrites) continue;
     assertKeeperPlanPolicy({
       plan,
       keeper: input.keeper.publicKey,
@@ -254,7 +258,8 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     // Charge every bound only after runtime quarantine and archive preparation
     // establish that this plan is eligible. A submitted write still owns its
     // slot even when confirmation or post-write verification later fails.
-    attemptedWrites += 1;
+    if (boardWrite) attemptedBoardWrites += 1;
+    else attemptedWrites += 1;
     resolvedPlans += 1;
     if (plan.operation === "revoke_expired_session") {
       sessionRevokes += 1;
@@ -318,26 +323,38 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       if (!simulatedPayer) throw new Error("simulation omitted keeper balance");
       const fee = await connection.getFeeForMessage(transaction.message, "confirmed");
       if (fee.value === null) throw new Error("RPC omitted transaction fee");
-      const predicted = predictedKeeperSpendLamports(
+      const payerPredicted = predictedKeeperSpendLamports(
         before,
         simulatedPayer.lamports,
         fee.value,
-      ) + (fundingWritable
+      );
+      const fundingPredicted = fundingWritable
         ? predictedAccountSpendLamports(
           fundingBefore,
           simulation.value.accounts?.[1]?.lamports,
         )
-        : 0);
+        : 0;
+      const boardAllocation = plan.operation === "finalize_arena_daily"
+        ? fundingPredicted
+        : 0;
+      const predicted = payerPredicted + fundingPredicted - boardAllocation;
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
       }
-      if (before - predicted < minimumBalanceLamports) {
+      if (!keeperSpendWithinLimit(
+        boardAllocation,
+        MAX_BOARD_RENT_LAMPORTS - boardRentLamports,
+      )) {
+        throw new Error("recyclable board-rent allocation ceiling reached");
+      }
+      if (before - payerPredicted < minimumBalanceLamports) {
         throw new Error("keeper simulation crosses the reserve floor");
       }
       // Reserve the simulated spend before submission. An RPC timeout or a
       // post-confirmation verification failure may still mean the write
       // landed, so its budget must never be reused during this pass.
       spentLamports += predicted;
+      boardRentLamports += boardAllocation;
       const signature = await connection.sendRawTransaction(transaction.serialize(), {
         maxRetries: 5,
         skipPreflight: materialized.connection === "ephemeral-rollup",
@@ -489,7 +506,6 @@ function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string
   }
   if (plan.operation === "consume_campaign_run" ||
       plan.operation === "consume_arena_run" ||
-      plan.operation === "consume_practice_run" ||
       plan.operation === "cleanup_orphan_active_run") {
     const owner = plan.context?.owner;
     const runId = plan.context?.runId;
@@ -513,31 +529,11 @@ function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string
     }
     closed.add(arenaPlayerPda(arenaDailyPda(dayId), owner).toBase58());
   }
-  if (plan.operation === "close_season_player") {
-    const owner = plan.context?.owner;
-    const seasonId = plan.context?.seasonId;
-    if (!owner || seasonId === undefined) {
-      throw new Error("SeasonPlayer cleanup verification is missing its identity");
-    }
-    closed.add(seasonPlayerPda(seasonPda(seasonId), owner).toBase58());
-  }
   if (plan.operation === "close_arena_daily") {
     if (plan.context?.dayId === undefined) {
       throw new Error("Daily closure verification is missing its identity");
     }
     closed.add(arenaDailyPda(plan.context.dayId).toBase58());
-  }
-  if (plan.operation === "close_weekly_jackpot") {
-    if (plan.context?.weekId === undefined) {
-      throw new Error("Weekly closure verification is missing its identity");
-    }
-    closed.add(weeklyJackpotPda(plan.context.weekId).toBase58());
-  }
-  if (plan.operation === "close_season") {
-    if (plan.context?.seasonId === undefined) {
-      throw new Error("Season closure verification is missing its identity");
-    }
-    closed.add(seasonPda(plan.context.seasonId).toBase58());
   }
   return closed;
 }
@@ -644,36 +640,20 @@ function safeError(error: unknown): string {
 export function operationPriority(operation: string): number {
   const priority: Record<string, number> = {
     prepare_arena_daily: 0,
-    prepare_weekly_jackpot: 0,
-    prepare_season: 0,
     activate_arena_daily: 1,
-    activate_weekly_jackpot: 1,
-    activate_season: 1,
     force_finish_deadline: 2,
     commit_run: 3,
     consume_campaign_run: 4,
     consume_arena_run: 4,
-    consume_practice_run: 4,
     expire_unresolved_arena_run: 5,
-    expire_unresolved_practice_run: 5,
     finalize_arena_daily: 6,
-    finalize_weekly_jackpot: 6,
-    finalize_season: 6,
-    initialize_season_player: 7,
-    rollup_arena_to_season: 8,
-    seal_arena_season_rollups: 9,
+    submit_arena_board_chunk: 7,
     archive_arena_daily: 10,
-    archive_weekly_jackpot: 10,
-    archive_season: 10,
+    expire_daily_claims: 11,
     sync_daily_profile: 13,
-    sync_weekly_profile: 13,
-    sync_season_profile: 13,
     close_arena_daily: 14,
-    close_weekly_jackpot: 14,
-    close_season: 14,
     cleanup_orphan_active_run: 15,
     close_arena_player: 16,
-    close_season_player: 16,
     revoke_expired_session: 17,
   };
   return priority[operation] ?? Number.MAX_SAFE_INTEGER;
@@ -681,9 +661,8 @@ export function operationPriority(operation: string): number {
 
 function usesArchiveStorage(operation: string): boolean {
   return operation.startsWith("archive_") ||
-    operation === "close_arena_daily" ||
-    operation === "close_weekly_jackpot" ||
-    operation === "close_season";
+    operation === "expire_daily_claims" ||
+    operation === "close_arena_daily";
 }
 
 interface CadenceDependency {
@@ -710,14 +689,9 @@ function archiveStorageCadence(
 ): CadenceDependency | undefined {
   switch (plan.operation) {
     case "archive_arena_daily":
+    case "expire_daily_claims":
     case "close_arena_daily":
       return exactCadence(plan, "daily", plan.context?.dayId);
-    case "archive_weekly_jackpot":
-    case "close_weekly_jackpot":
-      return exactCadence(plan, "weekly", plan.context?.weekId);
-    case "archive_season":
-    case "close_season":
-      return exactCadence(plan, "season", plan.context?.seasonId);
     default:
       return undefined;
   }
@@ -729,10 +703,6 @@ function archiveTransactionCadence(
   switch (plan.operation) {
     case "archive_arena_daily":
       return exactCadence(plan, "daily", plan.context?.dayId);
-    case "archive_weekly_jackpot":
-      return exactCadence(plan, "weekly", plan.context?.weekId);
-    case "archive_season":
-      return exactCadence(plan, "season", plan.context?.seasonId);
     default:
       return undefined;
   }
@@ -742,17 +712,11 @@ function dependentArchiveCadence(
   plan: KeeperInstructionPlan,
 ): CadenceDependency | undefined {
   switch (plan.operation) {
+    case "expire_daily_claims":
     case "sync_daily_profile":
     case "close_arena_daily":
     case "close_arena_player":
       return exactCadence(plan, "daily", plan.context?.dayId);
-    case "sync_weekly_profile":
-    case "close_weekly_jackpot":
-      return exactCadence(plan, "weekly", plan.context?.weekId);
-    case "sync_season_profile":
-    case "close_season":
-    case "close_season_player":
-      return exactCadence(plan, "season", plan.context?.seasonId);
     default:
       return undefined;
   }
@@ -773,6 +737,5 @@ function exactCadence(
 }
 
 function isParticipantClosure(operation: string): boolean {
-  return operation === "close_arena_player" ||
-    operation === "close_season_player";
+  return operation === "close_arena_player";
 }

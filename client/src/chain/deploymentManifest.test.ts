@@ -20,7 +20,7 @@ import {
 import { VRF_QUEUE } from "./runPlan";
 import { deriveOperatorRevenueVaultPda } from "./pdas";
 
-describe("zKube deployment manifest v5", () => {
+describe("zKube deployment manifest v6", () => {
   it("validates a sanitized, fully bound Devnet candidate", () => {
     const manifest = candidate();
     const validation = validateDeploymentManifest(manifest);
@@ -91,7 +91,7 @@ describe("zKube deployment manifest v5", () => {
       },
       { ...base, content: { ...base.content, campaignVersion: 3 } },
       { ...base, rules: { ...base.rules, arenaVersion: 2 } },
-      { ...base, launch: { ...base.launch, dayId: 11, weekId: 0 } },
+      { ...base, launch: { ...base.launch, dayId: 11 } },
       {
         ...base,
         launch: {
@@ -109,20 +109,18 @@ describe("zKube deployment manifest v5", () => {
     }
   });
 
-  it("accepts a mid-week, mid-Season launch with derived cadence IDs", () => {
+  it("accepts a launch on any valid Daily", () => {
     const base = candidate();
     const dayId = 9;
-    const midSeason = {
+    const laterDay = {
       ...base,
       launch: {
         ...base.launch,
         dayId,
-        weekId: 0,
-        seasonId: 0,
         cutoffUnixTimestamp: dayId * 86_400 + 3_600,
       },
     };
-    expect(validateDeploymentManifest(midSeason).valid).toBe(true);
+    expect(validateDeploymentManifest(laterDay).valid).toBe(true);
   });
 
   it("binds artifact, environment, and approval without tolerating drift", () => {
@@ -161,7 +159,7 @@ function candidate(): ZkubeDeploymentManifest {
   )[0].toBase58();
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 5,
+    schemaVersion: 6,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -199,14 +197,10 @@ function candidate(): ZkubeDeploymentManifest {
     rules: { arenaVersion: 1, catalogSha256: "d".repeat(64) },
     launch: {
       dayId: 4,
-      weekId: 0,
-      seasonId: 0,
       cutoffUnixTimestamp: 4 * 86_400 + 3_600,
       planFingerprint: "e".repeat(64),
       seeds: {
         dailyLamports: "1000000000",
-        weeklyLamports: "2000000000",
-        seasonLamports: "3000000000",
       },
     },
     keeper: {
@@ -246,8 +240,6 @@ function environment(
     ZKUBE_ARENA_RULES_VERSION: String(manifest.rules.arenaVersion),
     ZKUBE_ARENA_RULES_CATALOG_SHA256: manifest.rules.catalogSha256,
     ZKUBE_LAUNCH_DAY_ID: String(manifest.launch.dayId),
-    ZKUBE_LAUNCH_WEEK_ID: String(manifest.launch.weekId),
-    ZKUBE_LAUNCH_SEASON_ID: String(manifest.launch.seasonId),
     ZKUBE_LAUNCH_CUTOFF_UNIX: String(manifest.launch.cutoffUnixTimestamp),
     ZKUBE_LAUNCH_PLAN_FINGERPRINT: manifest.launch.planFingerprint,
     ZKUBE_KEEPER_PUBLIC_KEY: manifest.keeper.signer,

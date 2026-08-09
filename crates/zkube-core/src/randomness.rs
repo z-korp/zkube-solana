@@ -258,6 +258,36 @@ pub fn row_from_vrf_with<H: Sha256Provider>(
     Ok(packed_row(&mut stream, weights))
 }
 
+/// Replace one visible preview from a dedicated reroll randomness domain.
+///
+/// Binding the rules hash as well as the verified output and request counter
+/// prevents a reroll result from being replayed as an ordinary next row or
+/// across challenge revisions.
+pub fn reroll_row_from_vrf(
+    randomness: [u8; 32],
+    request_counter: u32,
+    rules_hash: [u8; 32],
+    weights: BlockWeights,
+) -> Result<Row, RandomnessError> {
+    reroll_row_from_vrf_with::<SoftwareSha256>(randomness, request_counter, rules_hash, weights)
+}
+
+pub fn reroll_row_from_vrf_with<H: Sha256Provider>(
+    randomness: [u8; 32],
+    request_counter: u32,
+    rules_hash: [u8; 32],
+    weights: BlockWeights,
+) -> Result<Row, RandomnessError> {
+    weights.validate()?;
+    let mut stream = DrawStream::<H>::new(
+        b"zkube-reroll-row-v1",
+        randomness,
+        request_counter,
+        rules_hash,
+    );
+    Ok(packed_row(&mut stream, weights))
+}
+
 /// Pack a weighted row without turning rejected large blocks into accidental
 /// gaps. Conditioning the draw on the sizes that fit the current span is
 /// distribution-equivalent to Cairo's redraw loop, but has fixed work.
@@ -465,6 +495,37 @@ mod tests {
             layout,
             continuation_from_vrf(output, request_counter, rules_hash, weights).unwrap()
         );
+    }
+
+    #[test]
+    fn reroll_uses_its_committed_role_separated_row() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../fixtures/replays/golden-reroll-v1.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["schema_version"], 1);
+        assert_eq!(fixture["core_version"], crate::CORE_VERSION);
+        assert_eq!(fixture["domain"], "zkube-reroll-row-v1");
+        let output = decode_32(fixture["vrf_output_hex"].as_str().unwrap());
+        let rules_hash = decode_32(fixture["rules_hash_hex"].as_str().unwrap());
+        let request_counter = u32::try_from(fixture["request_counter"].as_u64().unwrap()).unwrap();
+        let weights = BlockWeights {
+            values: fixture["weights"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| u16::try_from(value.as_u64().unwrap()).unwrap())
+                .collect::<std::vec::Vec<_>>()
+                .try_into()
+                .unwrap(),
+        };
+
+        let rerolled = reroll_row_from_vrf(output, request_counter, rules_hash, weights).unwrap();
+        let ordinary = row_from_vrf(output, request_counter, weights).unwrap();
+
+        assert_eq!(rerolled, decode_row(&fixture["rerolled_row"]));
+        assert_eq!(ordinary, decode_row(&fixture["ordinary_next_row"]));
+        assert_ne!(rerolled, ordinary);
     }
 
     #[test]

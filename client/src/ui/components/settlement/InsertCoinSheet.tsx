@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
+import { Coin, MONEY_GOLD } from "@/ui/components/economy";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
@@ -16,11 +16,11 @@ interface InsertCoinSheetProps {
   onClose: () => void;
   /** Zone whose guardian hosts today's trial. */
   zoneId: number;
-  /** Exact ranked entry price in lamports (rendered gold + mono). */
+  /** Owner purchase price of the Kredit already being spent. */
   entryLamports: bigint;
-  /** Proceeds with the existing daily.enter() owner-signature flow. */
+  /** Proceeds with the device-session-authorized Kredit spend. */
   onConfirm: () => void;
-  /** True while the owner signature is being prepared. */
+  /** True while the Kredit spend is being prepared. */
   busy?: boolean;
 }
 
@@ -28,10 +28,10 @@ const FEED_JAWS_MS = 480;
 const FEED_DONE_MS = 1_700;
 
 /**
- * Ranked-entry confirm, shown before the owner signature — and the entry IS
- * the guardian: confirm feeds it the SOL coin. The jaws open (talk-open
+ * Ranked-entry confirm for one prepaid Kredit — and the entry IS the guardian:
+ * confirm feeds it the Kredit coin. The jaws open (talk-open
  * frame), the coin arcs in, the guardian settles satisfied, and only then the
- * unchanged daily.enter() owner-signature flow takes over. Zones without a
+ * device-session-authorized daily.enter() flow takes over. Zones without a
  * frame set (and reduced motion) skip the ceremony and confirm immediately.
  */
 const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
@@ -90,12 +90,12 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
     <Sheet
       open={open}
       onClose={onClose}
-      srTitle="Insert coin to enter ranked"
+      srTitle="Spend Kredit to enter ranked"
       dismissible={!busy}
     >
       <div className="flex flex-col items-center gap-4 pt-1">
         <div
-          aria-label={`Feed ${guardian.name} one SOL coin to enter`}
+          aria-label={`Feed ${guardian.name} one Kredit coin to enter`}
           className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716]"
           style={{ height: 260 }}
         >
@@ -162,25 +162,24 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
                 : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
             }
           >
-            <Coin size={44} title="One SOL entry coin" />
+            <Coin size={44} title="One Kredit entry coin" />
           </motion.span>
           <div className="flex items-center gap-2">
-            <SolMark size={22} />
             <span
               className="font-display text-4xl tabular-nums"
               style={{ color: MONEY_GOLD }}
             >
-              {formatSolBalanceLamports(entryLamports)}
+              1 Kredit
             </span>
           </div>
           <InfoSheet title="How ranked entry works">
             <p>
-              Your wallet signs every ranked entry — a device session can't pay
-              for you.
+              The owner wallet bought this Kredit for {formatSolBalanceLamports(entryLamports)} SOL.
+              A device session may spend it within that prepaid balance.
             </p>
             <p>
-              Each entry funds tomorrow: 60% Daily, 20% Weekly, 10% Season, 10%
-              team. Scored or expired, never refunded.
+              Purchase sends 10% to the operator. Spending sends the prepaid
+              90% to the following Daily. Scored or expired, never refunded.
             </p>
           </InfoSheet>
         </div>
@@ -192,10 +191,10 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
             accentOverride={MONEY_GOLD}
           >
             {busy
-              ? "Preparing signature…"
+              ? "Spending Kredit…"
               : feeding
                 ? `Feeding ${guardian.name}…`
-                : "Sign & enter"}
+                : "Spend & enter"}
           </ArcadeButton>
         </div>
       </div>

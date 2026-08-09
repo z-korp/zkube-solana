@@ -1,6 +1,6 @@
 [package]
 name = "zkube-core"
-version = "0.1.0"
+version = "0.6.0"
 description = "Deterministic, chain-neutral zKube protocol primitives"
 edition = "2024"
 rust-version = "1.89"

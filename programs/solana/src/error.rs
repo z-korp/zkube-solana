@@ -74,12 +74,32 @@ pub enum ErrorCode {
     VrfRequestMismatch,
     #[msg("The player has no Daily prize")]
     NoPrize,
+    #[msg("This Daily prize position was already claimed")]
+    PrizeAlreadyClaimed,
+    #[msg("The Daily prize claim window has closed")]
+    ClaimWindowClosed,
+    #[msg("The Daily prize claim window is still open")]
+    ClaimWindowOpen,
+    #[msg("The payout board exceeds the protocol safety ceiling")]
+    BoardCapacityExceeded,
+    #[msg("The payout board is incomplete or unsealed")]
+    BoardIncomplete,
+    #[msg("A submitted payout row does not match its ArenaPlayer source")]
+    BoardEntryMismatch,
+    #[msg("Submitted payout rows are not in canonical order")]
+    BoardEntryOutOfOrder,
+    #[msg("A player appears more than once on a payout board")]
+    DuplicateBoardPlayer,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
     #[msg("The Arena entry price changed; refresh the exact quote")]
     PriceChanged,
-    #[msg("Practice has been retired; finish an existing legacy Practice run instead")]
-    PracticeRetired,
+    #[msg("The player does not have a Kredit available")]
+    InsufficientKredits,
+    #[msg("A Kredit purchase must contain a positive whole-number count at the exact unit price")]
+    InvalidKreditPurchase,
+    #[msg("No paid Daily is scheduled for this day")]
+    DailyNotScheduled,
     #[msg("The scoped player session is invalid")]
     InvalidSession,
     #[msg("The scoped player session has expired")]
@@ -90,6 +110,6 @@ pub enum ErrorCode {
     InvalidEmblem,
     #[msg("The provided period is not the canonical current or successor period")]
     InvalidPeriod,
-    #[msg("The first Daily, Weekly, and Season pools were already seeded")]
+    #[msg("The first Daily pool was already seeded")]
     AlreadySeeded,
 }

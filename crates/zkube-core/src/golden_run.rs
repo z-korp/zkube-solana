@@ -84,6 +84,7 @@ struct GoldenExpected {
     next_row: Option<[u8; 8]>,
     base_score: u32,
     daily_score: u32,
+    objective_total: u64,
     pressure_score: u32,
     current_difficulty: u8,
     moves: u16,
@@ -193,7 +194,7 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
 #[allow(clippy::too_many_lines)]
 fn verify_daily_run_vector(json: &str) {
     let fixture: GoldenDailyRun = serde_json::from_str(json).unwrap();
-    assert_eq!(fixture.version, 1);
+    assert_eq!(fixture.version, 2);
     let rules = fixture_rules(&fixture.rules);
     assert_eq!(
         rules.snapshot_hash().to_bytes(),
@@ -214,7 +215,6 @@ fn verify_daily_run_vector(json: &str) {
         run_id: fixture.run_id.parse().unwrap(),
         mode: match fixture.mode.as_str() {
             "ranked" => ReplayMode::Ranked,
-            "practice" => ReplayMode::Practice,
             _ => panic!("unknown mode"),
         },
         rules_hash,
@@ -272,6 +272,7 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(simulation.engine.next_row, expected.next_row);
     assert_eq!(simulation.engine.score, expected.base_score);
     assert_eq!(simulation.daily_score, expected.daily_score);
+    assert_eq!(simulation.objective_total, expected.objective_total);
     assert_eq!(simulation.pressure_score, expected.pressure_score);
     assert_eq!(simulation.current_difficulty, expected.current_difficulty);
     assert_eq!(simulation.engine.moves, expected.moves);

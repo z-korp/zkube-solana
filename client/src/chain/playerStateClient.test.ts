@@ -39,14 +39,13 @@ const OFFSET = {
   featuredEmblem: 131,
   lifetimePaidEntries: 132,
   dailyRecord: 140,
-  weeklyRecord: 158,
-  seasonRecord: 176,
-  campaignActiveRunId: 194,
-  reserved: 202,
-  bump: 226,
+  campaignActiveRunId: 158,
+  kreditBalance: 166,
+  reserved: 174,
+  bump: 230,
 } as const;
 
-const PLAYER_STATE_SIZE = 227;
+const PLAYER_STATE_SIZE = 231;
 
 function program() {
   return zkubeProgram(
@@ -76,7 +75,7 @@ function writeRecord(
 function playerStateBuffer(
   owner: Keypair,
   campaignStars: readonly number[] = [],
-  version = PROTOCOL_ACCOUNT_VERSION,
+  version = PLAYER_STATE_ACCOUNT_VERSION,
 ): Buffer {
   const data = Buffer.alloc(PLAYER_STATE_SIZE);
   for (let i = 0; i < PLAYER_STATE_DISCRIMINATOR.length; i += 1) {
@@ -96,8 +95,7 @@ function playerStateBuffer(
   data.writeUInt8(5, OFFSET.featuredEmblem);
   data.writeBigUInt64LE(42n, OFFSET.lifetimePaidEntries);
   writeRecord(data, OFFSET.dailyRecord, 1, 2, 3, 1_000n);
-  writeRecord(data, OFFSET.weeklyRecord, 2, 5, 7, 2_000n);
-  writeRecord(data, OFFSET.seasonRecord, 3, 11, 13, 3_000n);
+  data.writeBigUInt64LE(9n, OFFSET.kreditBalance);
   data.writeUInt8(254, OFFSET.bump);
   return data;
 }
@@ -130,44 +128,44 @@ describe("decodePlayerStateAccount", () => {
     );
 
     expect(view.owner.equals(owner.publicKey)).toBe(true);
-    expect(view.version).toBe(PROTOCOL_ACCOUNT_VERSION);
+    expect(view.version).toBe(PLAYER_STATE_ACCOUNT_VERSION);
     expect(view.campaignStars).toHaveLength(25);
     expect(view.campaignStars.slice(0, 3)).toEqual([255, 255, 15]);
     expect(view.featuredEmblem).toBe(5);
     expect(view.lifetimePaidEntries).toBe(42n);
+    expect(view.kreditBalance).toBe(9n);
     expect(view.dailyRecord).toEqual({
       bestPrizeRank: 1,
       podiums: 2,
       wins: 3,
       rewardsLamports: 1_000n,
     });
-    expect(view.weeklyRecord).toEqual({
-      bestPrizeRank: 2,
-      podiums: 5,
-      wins: 7,
-      rewardsLamports: 2_000n,
-    });
-    expect(view.seasonRecord).toEqual({
-      bestPrizeRank: 3,
-      podiums: 11,
-      wins: 13,
-      rewardsLamports: 3_000n,
-    });
   });
 
-  it("accepts the byte-compatible v3 dual-slot PlayerState", () => {
+  it("rejects the old protocol account version", () => {
     const owner = Keypair.generate();
-    const view = decodePlayerStateAccount(
-      program(),
-      derivePlayerStatePda(owner.publicKey),
-      owner.publicKey,
-      accountInfo(
-        playerStateBuffer(owner, [0x03], PLAYER_STATE_ACCOUNT_VERSION),
+    expect(() =>
+      decodePlayerStateAccount(
+        program(),
+        derivePlayerStatePda(owner.publicKey),
+        owner.publicKey,
+        accountInfo(playerStateBuffer(owner, [0x03], PROTOCOL_ACCOUNT_VERSION)),
       ),
-    );
+    ).toThrow(/relationship is invalid/);
+  });
 
-    expect(view.version).toBe(PLAYER_STATE_ACCOUNT_VERSION);
-    expect(view.campaignStars[0]).toBe(0x03);
+  it("rejects nonzero reserved padding", () => {
+    const owner = Keypair.generate();
+    const data = playerStateBuffer(owner);
+    data[OFFSET.reserved + 55] = 1;
+    expect(() =>
+      decodePlayerStateAccount(
+        program(),
+        derivePlayerStatePda(owner.publicKey),
+        owner.publicKey,
+        accountInfo(data),
+      ),
+    ).toThrow(/relationship is invalid/);
   });
 
   it("rejects an account whose embedded owner is not the expected wallet", () => {

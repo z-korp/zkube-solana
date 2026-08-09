@@ -35,8 +35,8 @@ import { keeperReleaseRecord } from "./keeperRelease.js";
 const DEFAULT_INTERVAL_MS = 60 * 1_000;
 const RAPID_RERUN_DELAY_MS = 1_000;
 const MAX_RAPID_RERUNS = 4;
-const DEFAULT_MAX_WRITES = 8;
-const MAX_MAX_WRITES = 8;
+const DEFAULT_MAX_WRITES = 6;
+const MAX_MAX_WRITES = 6;
 
 /** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
@@ -261,8 +261,13 @@ async function runConfiguredKeeperPass(
     protocolMaterializer: adapter,
     archiveStore: new FileKeeperArchiveStore(
       archiveDirectory,
-      (competition, accountData) =>
-        adapter.projectArchiveResultData(competition, accountData),
+      (competition, accountData, scoreBoardData, themeBoardData) =>
+        adapter.projectArchiveResultData(
+          competition,
+          accountData,
+          scoreBoardData,
+          themeBoardData,
+        ),
     ),
     resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
       plan,

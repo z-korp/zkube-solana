@@ -21,13 +21,13 @@ import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveCadenceFundingPda,
+  deriveCreditVaultPda,
+  deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveArenaDailyPda,
   derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-  deriveSeasonPda,
-  deriveWeeklyJackpotPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
 
@@ -163,11 +163,17 @@ describe("authority publication client", () => {
     expect(arcade.transaction.instructions).toHaveLength(1);
     expect(rules.label).toBe("Publish Arena rules v1");
     expect(arcade.label).toBe("Initialize paused Arcade");
+    expect(
+      arcade.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+        pubkey.equals(deriveCreditVaultPda()),
+      ),
+    ).toBe(true);
 
     const archive = await buildInitializeArcadeArchivePlan({
       connection: {} as Connection,
       authority,
       firstDayId: 10_000,
+      rulesVersion: 1,
     });
     expect(archive.transaction.instructions).toHaveLength(2);
     expect(
@@ -182,62 +188,41 @@ describe("authority publication client", () => {
     ).toBe(true);
   });
 
-  it("prepares current and following Daily, Weekly, and Season separately", async () => {
+  it("prepares current and following Daily separately", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const plans = await buildPrepareLaunchPeriodPlans({
       connection: {} as Connection,
       authority,
       rulesVersion: 1,
       dayId: 100,
-      weekId: 13,
-      seasonId: 3,
+      contentVersion: 2,
     });
 
     expect(plans.map(({ label }) => label)).toEqual([
       "Prepare Daily 100",
       "Prepare Daily 101",
-      "Prepare Weekly 13",
-      "Prepare Weekly 14",
-      "Prepare Season 3",
-      "Prepare Season 4",
     ]);
     expect(
       plans[0]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
         pubkey.equals(deriveArenaDailyPda(100)),
       ),
     ).toBe(true);
-    expect(
-      plans[2]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveWeeklyJackpotPda(13)),
-      ),
-    ).toBe(true);
-    expect(
-      plans[4]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveSeasonPda(3)),
-      ),
-    ).toBe(true);
   });
 
-  it("keeps seed, unpause, and all three activations in one ordered transaction", async () => {
+  it("keeps seed, unpause, and Daily activation in one ordered transaction", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const plan = await buildAtomicArcadeLaunchPlan({
       connection: {} as Connection,
       authority,
       dayId: 100,
-      weekId: 13,
-      seasonId: 3,
+      rulesVersion: 1,
     });
 
-    expect(plan.transaction.instructions).toHaveLength(5);
-    expect(plan.label).toBe("Atomically seed 1/2/3 SOL and launch Arcade");
+    expect(plan.transaction.instructions).toHaveLength(3);
+    expect(plan.label).toBe("Atomically seed 1 SOL and launch Arcade");
     expect(
       plan.transaction.instructions[0]?.keys.some(({ pubkey }) =>
         pubkey.equals(deriveArenaDailyPda(100)),
-      ),
-    ).toBe(true);
-    expect(
-      plan.transaction.instructions[4]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveSeasonPda(3)),
       ),
     ).toBe(true);
   });
@@ -245,23 +230,11 @@ describe("authority publication client", () => {
   it("routes a chosen amount to the exact selected prize-pool PDA", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const connection = {} as Connection;
-    const cases = [
-      {
-        pool: "daily" as const,
-        cadenceId: 20_657,
-        expected: deriveArenaDailyPda(20_657),
-      },
-      {
-        pool: "weekly" as const,
-        cadenceId: 2_951,
-        expected: deriveWeeklyJackpotPda(2_951),
-      },
-      {
-        pool: "season" as const,
-        cadenceId: 737,
-        expected: deriveSeasonPda(737),
-      },
-    ];
+    const cases = [{
+      pool: "daily" as const,
+      cadenceId: 20_657,
+      expected: deriveArenaDailyPda(20_657),
+    }];
 
     for (const testCase of cases) {
       const plan = await buildTopUpPrizePoolPlan({
@@ -269,12 +242,14 @@ describe("authority publication client", () => {
         authority,
         ...testCase,
         lamports: 1_234_567_890n,
+        rulesCatalog: deriveDailyRulesCatalogPda(1),
       });
       const accounts = plan.transaction.instructions[0]?.keys ?? [];
       expect(accounts[0]?.pubkey.equals(deriveProtocolConfigPda())).toBe(true);
       expect(accounts[1]?.pubkey.equals(deriveArcadeConfigPda())).toBe(true);
-      expect(accounts[2]?.pubkey.equals(testCase.expected)).toBe(true);
-      expect(accounts[3]?.pubkey.equals(authority.publicKey)).toBe(true);
+      expect(accounts[2]?.pubkey.equals(deriveDailyRulesCatalogPda(1))).toBe(true);
+      expect(accounts[3]?.pubkey.equals(testCase.expected)).toBe(true);
+      expect(accounts[4]?.pubkey.equals(authority.publicKey)).toBe(true);
       expect(
         plan.transaction.instructions[0]?.data.readBigUInt64LE(8),
       ).toBe(1_234_567_890n);
@@ -292,6 +267,7 @@ describe("authority publication client", () => {
         pool: "daily",
         cadenceId,
         lamports,
+        rulesCatalog: deriveDailyRulesCatalogPda(1),
       });
 
     await expect(build(0n)).rejects.toThrow("positive u64");

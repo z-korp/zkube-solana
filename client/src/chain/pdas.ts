@@ -33,6 +33,12 @@ export function deriveOperatorRevenueVaultPda(
   return derive([Buffer.from("operator_revenue")], programId);
 }
 
+export function deriveCreditVaultPda(
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive([Buffer.from("credit_vault")], programId);
+}
+
 export function deriveDailyRulesCatalogPda(
   rulesVersion: number,
   programId = ZKUBE_PROGRAM_ID,
@@ -83,6 +89,17 @@ export function deriveArenaDailyPda(
   return derive([Buffer.from("arena_daily"), u32le(dayId)], programId);
 }
 
+export function deriveArenaBoardPda(
+  daily: PublicKey,
+  kind: "score" | "theme",
+  programId = ZKUBE_PROGRAM_ID,
+): PublicKey {
+  return derive(
+    [Buffer.from("arena_board"), daily.toBuffer(), Buffer.from(kind)],
+    programId,
+  );
+}
+
 export function deriveArenaPlayerPda(
   challenge: PublicKey,
   owner: PublicKey,
@@ -90,33 +107,6 @@ export function deriveArenaPlayerPda(
 ): PublicKey {
   return derive(
     [Buffer.from("arena_player"), challenge.toBuffer(), owner.toBuffer()],
-    programId,
-  );
-}
-
-export function deriveWeeklyJackpotPda(
-  weeklyId: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(weeklyId, 0, 0xffff_ffff, "weeklyId");
-  return derive([Buffer.from("weekly_jackpot"), u32le(weeklyId)], programId);
-}
-
-export function deriveSeasonPda(
-  seasonId: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(seasonId, 0, 0xffff_ffff, "seasonId");
-  return derive([Buffer.from("season"), u32le(seasonId)], programId);
-}
-
-export function deriveSeasonPlayerPda(
-  season: PublicKey,
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive(
-    [Buffer.from("season_player"), season.toBuffer(), owner.toBuffer()],
     programId,
   );
 }

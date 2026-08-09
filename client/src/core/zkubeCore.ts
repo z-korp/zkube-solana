@@ -4,11 +4,10 @@ import {
   emptyContinuationRows,
   initialReplayCommitment,
   qualifiedPlayerId,
-  weeklyMetricTags,
 } from "./generated/zkube_core";
 import wasmUrl from "./generated/zkube_core_bg.wasm?url";
 
-export type ReplayMode = "ranked" | "practice";
+export type ReplayMode = "ranked";
 
 let initialized = false;
 let initialization: Promise<void> | null = null;
@@ -28,18 +27,6 @@ export function initializeZkubeCoreSync(module: BufferSource): void {
   initSync({ module });
   initialized = true;
 }
-
-export const WEEKLY_METRIC_LABELS = [
-  "Maximum combo",
-  "Combo-scoring actions",
-  "Combo-derived score",
-  "Highest single-action score",
-  "Most lines in one action",
-  "Most blocks in one action",
-  "Total lines",
-  "Total blocks destroyed",
-  "Perfect clears",
-] as const;
 
 export function coreEmptyContinuationRows(args: {
   requestCounter: number;
@@ -112,26 +99,8 @@ export function coreInitialReplayCommitment(args: {
     args.rulesHash,
     args.rawAccount,
     args.runId,
-    args.mode === "ranked" ? 0 : 1,
+    0,
   );
-}
-
-export function coreWeeklyMetricLabels(
-  weekId: number,
-  rulesHash: Uint8Array,
-): readonly [string, string, string] {
-  assertInitialized();
-  if (!Number.isSafeInteger(weekId) || weekId < 0) {
-    throw new Error("weekId must be a non-negative integer");
-  }
-  assertBytes32(rulesHash, "rulesHash");
-  const tags = weeklyMetricTags(weekId, rulesHash);
-  if (tags.length !== 3) throw new Error("core returned an invalid Weekly selection");
-  const labels = [...tags].map((tag) => WEEKLY_METRIC_LABELS[tag]);
-  if (labels.some((label) => label === undefined)) {
-    throw new Error("core returned an unknown Weekly metric");
-  }
-  return labels as [string, string, string];
 }
 
 export function decodeHex(value: string): Uint8Array {

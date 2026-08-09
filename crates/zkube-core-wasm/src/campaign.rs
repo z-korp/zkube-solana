@@ -420,6 +420,7 @@ const fn bonus_tag(value: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
+        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -429,6 +430,7 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
         1 => Ok(Some(Bonus::Hammer)),
         2 => Ok(Some(Bonus::Totem)),
         3 => Ok(Some(Bonus::Wave)),
+        4 => Ok(Some(Bonus::Reroll)),
         _ => Err(BoundaryError::InvalidEncoding),
     }
 }

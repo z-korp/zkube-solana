@@ -5,10 +5,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { Keypair } from "@solana/web3.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  cadenceRoot,
   cadenceResultHash,
   canonicalArchiveV2,
   parseCanonicalArchive,
@@ -20,14 +20,14 @@ import {
 } from "../src/archiveStore";
 import {
   ZKUBE_PROGRAM_ID,
+  arenaDailyPda,
   validationOnlyPlan,
   type CompetitionKind,
   type KeeperInstructionPlan,
 } from "../src/arcadeChain";
 
 const roots: string[] = [];
-const account = Keypair.generate().publicKey;
-const rootHash = "44".repeat(32);
+const ZERO_ROOT = "00".repeat(32);
 const projectResult = (_competition: CompetitionKind, data: Buffer) =>
   Buffer.from(data.subarray(0, 4));
 
@@ -54,6 +54,26 @@ describe("keeper cadence archive storage", () => {
       resultDataBase64: projectResult("daily", accountData(1)).toString("base64"),
     });
     await expect(store.prepare(closePlan(plan))).resolves.toBeUndefined();
+  });
+
+  it("verifies an older committed Daily through the current archive root", async () => {
+    const root = await temporaryRoot();
+    const store = new FileKeeperArchiveStore(root, projectResult);
+    const first = archivePlan("daily", 12, accountData(2));
+    const second = archivePlan(
+      "daily",
+      13,
+      accountData(3),
+      planRoot(first),
+      12,
+      12,
+    );
+    await store.prepare(first);
+    await store.prepare(second);
+
+    await expect(store.prepare(
+      closePlan(first, 13, planRoot(second)),
+    )).resolves.toBeUndefined();
   });
 
   it("preserves and verifies a legacy v1 file after permitted raw metadata drift", async () => {
@@ -89,9 +109,9 @@ describe("keeper cadence archive storage", () => {
   it("rejects immutable commitment and stored projection tampering", async () => {
     const root = await temporaryRoot();
     const store = new FileKeeperArchiveStore(root, projectResult);
-    const plan = archivePlan("season", 3, accountData(4));
+    const plan = archivePlan("daily", 3, accountData(4));
     await store.prepare(plan);
-    const path = join(root, "season", "3.json");
+    const path = join(root, "daily", "3.json");
     const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
     parsed.root = "55".repeat(32);
     await writeFile(path, canonicalJson(parsed));
@@ -99,13 +119,13 @@ describe("keeper cadence archive storage", () => {
     await expect(store.prepare(closePlan(plan))).rejects.toMatchObject({
       name: "ArchiveIntegrityError",
       code: "immutable_commitment_mismatch",
-      competition: "season",
+      competition: "daily",
       cadenceId: 3,
     });
 
     const projectedTamper = accountData(4);
     projectedTamper[0] = 42;
-    parsed.root = rootHash;
+    parsed.root = planRoot(plan);
     parsed.accountDataBase64 = projectedTamper.toString("base64");
     parsed.accountDataSha256 = sha256(projectedTamper);
     await writeFile(path, canonicalJson(parsed));
@@ -117,15 +137,15 @@ describe("keeper cadence archive storage", () => {
   it("quarantines a missing committed archive without re-materializing it", async () => {
     const root = await temporaryRoot();
     const store = new FileKeeperArchiveStore(root, projectResult);
-    const plan = closePlan(archivePlan("weekly", 2_950, accountData(5)));
+    const plan = closePlan(archivePlan("daily", 2_950, accountData(5)));
 
     await expect(store.prepare(plan)).rejects.toEqual(expect.objectContaining({
       name: "ArchiveIntegrityError",
       code: "missing_committed_archive",
-      competition: "weekly",
+      competition: "daily",
       cadenceId: 2_950,
     } satisfies Partial<ArchiveIntegrityError>));
-    await expect(readFile(join(root, "weekly", "2950.json")))
+    await expect(readFile(join(root, "daily", "2950.json")))
       .rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -174,45 +194,52 @@ function archivePlan(
   competition: CompetitionKind,
   id: number,
   data: Buffer,
+  previousRoot = ZERO_ROOT,
+  firstCadenceId = id,
+  previousCadenceId = id - 1,
 ): KeeperInstructionPlan {
   const resultData = projectResult(competition, data);
+  const resultHash = cadenceResultHash(competition, resultData);
+  const root = cadenceRoot(competition, previousRoot, id, resultHash);
   const canonicalJson = canonicalArchiveV2({
-    account,
+    account: arenaDailyPda(id),
     accountData: data,
     competition,
     periodId: id,
     programId: ZKUBE_PROGRAM_ID,
     resultData,
-    root: rootHash,
+    root,
   });
-  const identity = competition === "daily"
-    ? { dayId: id }
-    : competition === "weekly"
-      ? { weekId: id }
-      : { seasonId: id };
-  const operation = competition === "daily"
-    ? "archive_arena_daily"
-    : competition === "weekly"
-      ? "archive_weekly_jackpot"
-      : "archive_season";
-  return validationOnlyPlan(operation, {
+  return validationOnlyPlan("archive_arena_daily", {
     competition,
-    ...identity,
+    dayId: id,
+    archiveFirstCadenceId: firstCadenceId,
+    previousCadenceId,
+    archiveCurrentRoot: previousRoot,
     archiveCanonicalJson: canonicalJson,
     archiveFileSha256: archiveSha256(canonicalJson),
-    archiveResultHash: cadenceResultHash(competition, resultData),
+    archiveResultHash: resultHash,
   });
 }
 
-function closePlan(plan: KeeperInstructionPlan): KeeperInstructionPlan {
-  const operation = plan.context?.competition === "daily"
-    ? "close_arena_daily"
-    : plan.context?.competition === "weekly"
-      ? "close_weekly_jackpot"
-      : "close_season";
-  return validationOnlyPlan(operation, {
-    ...plan.context!,
+function closePlan(
+  plan: KeeperInstructionPlan,
+  lastCadenceId = plan.context!.dayId!,
+  currentRoot = planRoot(plan),
+): KeeperInstructionPlan {
+  const {
+    archiveCanonicalJson,
+    archiveFileSha256,
+    ...context
+  } = plan.context!;
+  void archiveCanonicalJson;
+  void archiveFileSha256;
+  return validationOnlyPlan("close_arena_daily", {
+    ...context,
+    previousCadenceId: lastCadenceId,
+    archiveCurrentRoot: currentRoot,
     archiveCommitted: true,
+    claimsExpired: true,
   });
 }
 
@@ -221,17 +248,22 @@ function legacyArchiveJson(
   id: number,
   data: Buffer,
 ): string {
+  const resultHash = cadenceResultHash(competition, projectResult(competition, data));
   return canonicalJson({
-    account: account.toBase58(),
+    account: arenaDailyPda(id).toBase58(),
     accountDataBase64: data.toString("base64"),
     accountDataSha256: sha256(data),
     competition,
     periodId: id,
     programId: ZKUBE_PROGRAM_ID.toBase58(),
-    resultHash: cadenceResultHash(competition, projectResult(competition, data)),
-    root: rootHash,
+    resultHash,
+    root: cadenceRoot(competition, ZERO_ROOT, id, resultHash),
     schemaVersion: 1,
   });
+}
+
+function planRoot(plan: KeeperInstructionPlan): string {
+  return parseCanonicalArchive(plan.context!.archiveCanonicalJson!).contract.root;
 }
 
 function accountData(seed: number): Buffer {

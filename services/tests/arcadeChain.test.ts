@@ -1,56 +1,74 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import {
   ARCADE_ACCOUNT_VERSION,
+  DAILY_ENTRY_CLOSE_OFFSET,
+  DAILY_POOL_CAPACITY,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
-  PERIOD_SETTLEMENT_DELAY_SECONDS,
+  DAILY_POOL_SELECTION_SEED,
+  ENTRY_SPLIT_LAMPORTS,
+  PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
-  fundingPeriodsForDay,
-  seasonIdForDay,
-  seasonStartDay,
-  weekIdForDay,
-  weekStartDay,
+  currentDayId,
+  dailyContentSelection,
 } from "../src/arcadeChain";
 
-describe("Arcade cadence math", () => {
-  it("keeps protocol-run and Arcade account versions distinct", () => {
+describe("v5 Daily cadence constants", () => {
+  it("pins fresh-bootstrap account versions", () => {
     expect(PROTOCOL_ACCOUNT_VERSION).toBe(2);
-    expect(ARCADE_ACCOUNT_VERSION).toBe(4);
+    expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(6);
+    expect(ARCADE_ACCOUNT_VERSION).toBe(8);
   });
 
-  it("matches the on-chain 05:59 UTC settlement delay", () => {
+  it("pins the 23:45 entry and 23:59 run deadlines", () => {
+    expect(DAILY_ENTRY_CLOSE_OFFSET).toBe(23 * 60 * 60 + 45 * 60);
+    expect(DAILY_RUN_CLOSE_OFFSET).toBe(23 * 60 * 60 + 59 * 60);
     expect(DAILY_RECOVERY_DEADLINE_OFFSET).toBe(
       DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS,
     );
-    expect(PERIOD_SETTLEMENT_DELAY_SECONDS).toBe(
-      DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS - SECONDS_PER_DAY,
-    );
-    expect(PERIOD_SETTLEMENT_DELAY_SECONDS).toBe(5 * 60 * 60 + 59 * 60);
+    expect(currentDayId(20_651 * SECONDS_PER_DAY + 1)).toBe(20_651);
   });
 
-  it("uses Monday 1970-01-05 for Weekly and 28-day Season epoch zero", () => {
-    expect(weekIdForDay(4)).toBe(0);
-    expect(weekIdForDay(10)).toBe(0);
-    expect(weekIdForDay(11)).toBe(1);
-    expect(weekStartDay(1)).toBe(11);
-    expect(seasonIdForDay(4)).toBe(0);
-    expect(seasonIdForDay(31)).toBe(0);
-    expect(seasonIdForDay(32)).toBe(1);
-    expect(seasonStartDay(1)).toBe(32);
-  });
-
-  it("funds the following period across a Season boundary", () => {
-    expect(fundingPeriodsForDay(31)).toEqual({
-      qualificationDayId: 31,
-      qualificationWeekId: 3,
-      qualificationSeasonId: 0,
-      dailyFundingDayId: 32,
-      weeklyFundingWeekId: 4,
-      seasonFundingSeasonId: 1,
+  it("routes every paid entry only to the following Daily and operator", () => {
+    expect(ENTRY_SPLIT_LAMPORTS).toEqual({
+      followingDaily: 9_000_000n,
+      operator: 1_000_000n,
     });
+  });
+
+  it("does not let a catalog start rotate a day's pool selection", () => {
+    const dayId = 31_415;
+    expect(dailyContentSelection(
+      Uint8Array.from(DAILY_POOL_SELECTION_SEED),
+      dayId - 20,
+      dayId,
+      10,
+    )).toEqual(dailyContentSelection(
+      Uint8Array.from(DAILY_POOL_SELECTION_SEED),
+      dayId,
+      dayId,
+      10,
+    ));
+  });
+
+  it("reshuffles each complete raised-capacity cycle", () => {
+    const startsDay = DAILY_POOL_CAPACITY * 200;
+    const cycle = (cycleIndex: number) => Array.from(
+      { length: DAILY_POOL_CAPACITY },
+      (_, offset) => dailyContentSelection(
+        Uint8Array.from(DAILY_POOL_SELECTION_SEED),
+        startsDay,
+        startsDay + cycleIndex * DAILY_POOL_CAPACITY + offset,
+        DAILY_POOL_CAPACITY,
+      ).poolIndex,
+    );
+    const first = cycle(0);
+    const second = cycle(1);
+    expect(new Set(first).size).toBe(DAILY_POOL_CAPACITY);
+    expect(new Set(second).size).toBe(DAILY_POOL_CAPACITY);
+    expect(second).not.toEqual(first);
   });
 });

@@ -33,7 +33,6 @@ vi.mock("@/chain/connectionContext", () => ({
 vi.mock("@/chain/dailyClient", () => ({
   currentDailyDayId: () => 20,
   fetchDailyView: fixtures.fetchDailyView,
-  isPracticeEntryWindowOpen: () => true,
 }));
 
 vi.mock("@/chain/connectedPlayerContext", async () =>

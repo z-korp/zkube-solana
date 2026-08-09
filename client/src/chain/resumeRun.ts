@@ -17,6 +17,7 @@ import type { WalletLike } from "./sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import type { DeviceSession } from "./deviceSessionStore";
 import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated";
 
 export type ResumedRun =
   | { phase: "none" }
@@ -280,10 +281,7 @@ async function discoverActiveRunMarker(args: {
   ) {
     throw new Error("The discovered ActiveRun does not match its owner and run id");
   }
-  const mode =
-    activeRun.mode === "daily" || activeRun.mode === "practice"
-      ? activeRun.mode
-      : "campaign";
+  const mode = activeRun.mode === "daily" ? "daily" : "campaign";
   if (runSlotForMode(mode) !== args.slot) {
     throw new Error("The discovered ActiveRun belongs to the other run slot");
   }
@@ -323,24 +321,17 @@ async function fetchActiveRunId(
   if (!profile.owner.equals(owner)) {
     throw new Error("PlayerState owner does not match the connected wallet");
   }
-  const sharedRunId = BigInt(profile.activeRunId.toString());
-  const mode = Object.keys(profile.activeRunMode)[0];
   const version = Number(profile.version);
-  if (version === 2) {
-    return slot === "campaign"
-      ? mode === "campaign" ? sharedRunId : 0n
-      : mode === "campaign" ? 0n : sharedRunId;
-  }
-  if (version !== 3) {
+  if (version !== PLAYER_STATE_ACCOUNT_VERSION) {
     throw new Error("PlayerState has an unsupported run-slot version");
   }
   if (slot === "campaign") {
     if (!profile.campaignActiveRunId) {
-      throw new Error("PlayerState v3 is missing its Campaign run slot");
+      throw new Error("PlayerState is missing its Campaign run slot");
     }
     return BigInt(profile.campaignActiveRunId.toString());
   }
-  return sharedRunId;
+  return BigInt(profile.activeRunId.toString());
 }
 
 function defaultErConnection(endpoint: string): Connection {
@@ -355,9 +346,7 @@ function matchesMarker(
     activeRun.owner.equals(marker.owner) &&
     activeRun.runId === marker.runId &&
     runSlotForMode(
-      activeRun.mode === "daily" || activeRun.mode === "practice"
-        ? activeRun.mode
-        : "campaign",
+      activeRun.mode === "daily" ? "daily" : "campaign",
     ) === runSlotForMode(marker.mode)
   );
 }

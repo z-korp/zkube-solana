@@ -8,20 +8,13 @@ import {
 } from "./constants";
 import { VRF_QUEUE } from "./runPlan";
 import { deriveOperatorRevenueVaultPda } from "./pdas";
-import {
-  MONDAY_EPOCH_DAY_ID,
-  SEASON_DAYS,
-  SECONDS_PER_DAY,
-  WEEK_DAYS,
-} from "./protocolVersions.generated";
+import { SECONDS_PER_DAY } from "./protocolVersions.generated";
 
 type DeploymentCluster = "localnet" | "devnet";
 type DeploymentApprovalStatus = "candidate" | "approved";
 type ManifestCheckStatus = "pass" | "fail";
 
 export const LAUNCH_DAILY_SEED_LAMPORTS = "1000000000";
-export const LAUNCH_WEEKLY_SEED_LAMPORTS = "2000000000";
-export const LAUNCH_SEASON_SEED_LAMPORTS = "3000000000";
 const ENTRY_CUTOFF_OFFSET_SECONDS = 23 * 60 * 60 + 45 * 60;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
@@ -29,7 +22,7 @@ const UPGRADEABLE_LOADER_ID = new PublicKey(
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 5;
+  schemaVersion: 6;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -77,14 +70,10 @@ export interface ZkubeDeploymentManifest {
   };
   launch: {
     dayId: number;
-    weekId: number;
-    seasonId: number;
     cutoffUnixTimestamp: number;
     planFingerprint: string;
     seeds: {
       dailyLamports: typeof LAUNCH_DAILY_SEED_LAMPORTS;
-      weeklyLamports: typeof LAUNCH_WEEKLY_SEED_LAMPORTS;
-      seasonLamports: typeof LAUNCH_SEASON_SEED_LAMPORTS;
     };
   };
   keeper: {
@@ -135,7 +124,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 5,
+    schemaVersion: 6,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -205,8 +194,6 @@ export function deploymentManifestFromEnv(
     },
     launch: {
       dayId: requiredInteger(env, "ZKUBE_LAUNCH_DAY_ID"),
-      weekId: requiredInteger(env, "ZKUBE_LAUNCH_WEEK_ID"),
-      seasonId: requiredInteger(env, "ZKUBE_LAUNCH_SEASON_ID"),
       cutoffUnixTimestamp: requiredInteger(env, "ZKUBE_LAUNCH_CUTOFF_UNIX"),
       planFingerprint: required(
         env,
@@ -214,8 +201,6 @@ export function deploymentManifestFromEnv(
       ).toLowerCase(),
       seeds: {
         dailyLamports: LAUNCH_DAILY_SEED_LAMPORTS,
-        weeklyLamports: LAUNCH_WEEKLY_SEED_LAMPORTS,
-        seasonLamports: LAUNCH_SEASON_SEED_LAMPORTS,
       },
     },
     keeper: {
@@ -267,8 +252,6 @@ export function validateDeploymentManifest(
   const approvalStatus = string(approval?.status);
   const approved = approvalStatus === "approved";
   const dayId = number(launch?.dayId);
-  const expectedWeek = dayId === null ? null : periodId(dayId, WEEK_DAYS);
-  const expectedSeason = dayId === null ? null : periodId(dayId, SEASON_DAYS);
   const dayOpensAt = dayId === null ? null : dayId * SECONDS_PER_DAY;
   const expectedProgramDataAddress = PublicKey.findProgramAddressSync(
     [expectedProgramId.toBuffer()],
@@ -279,14 +262,14 @@ export function validateDeploymentManifest(
       "schema",
       "Schema",
       manifest.schema === "zkube-solana-deployment" &&
-        manifest.schemaVersion === 5,
-      "Expected zkube-solana-deployment@5",
+        manifest.schemaVersion === 6,
+      "Expected zkube-solana-deployment@6",
     ),
     check(
       "cluster",
       "Cluster",
       cluster === "localnet" || cluster === "devnet",
-      "Only localnet and devnet are allowed by schema v5",
+      "Only localnet and devnet are allowed by schema v6",
     ),
     check(
       "created-at",
@@ -376,25 +359,19 @@ export function validateDeploymentManifest(
       "launch",
       "Launch-day window",
       dayId !== null &&
-        expectedWeek !== null &&
-        expectedSeason !== null &&
-        launch?.weekId === expectedWeek &&
-        launch?.seasonId === expectedSeason &&
         dayOpensAt !== null &&
         positiveInteger(launch?.cutoffUnixTimestamp) &&
         Number(launch?.cutoffUnixTimestamp) > dayOpensAt &&
         Number(launch?.cutoffUnixTimestamp) <=
           dayOpensAt + ENTRY_CUTOFF_OFFSET_SECONDS &&
         RELEASE_FINGERPRINT_PATTERN.test(string(launch?.planFingerprint) ?? ""),
-      "Launch week/Season IDs must derive from the exact current day with a pre-entry cutoff and 64-hex plan fingerprint",
+      "Launch day must have a pre-entry cutoff and 64-hex plan fingerprint",
     ),
     check(
       "launch-seeds",
       "Initial competition seeds",
-      seeds?.dailyLamports === LAUNCH_DAILY_SEED_LAMPORTS &&
-        seeds?.weeklyLamports === LAUNCH_WEEKLY_SEED_LAMPORTS &&
-        seeds?.seasonLamports === LAUNCH_SEASON_SEED_LAMPORTS,
-      "Launch seeds must be exactly 1/2/3 SOL",
+      seeds?.dailyLamports === LAUNCH_DAILY_SEED_LAMPORTS,
+      "Launch seed must be exactly 1 SOL",
     ),
     check(
       "keeper-release",
@@ -463,8 +440,6 @@ export function deploymentManifestMismatches(
     ["ZKUBE_ARENA_RULES_VERSION", String(manifest.rules.arenaVersion)],
     ["ZKUBE_ARENA_RULES_CATALOG_SHA256", manifest.rules.catalogSha256],
     ["ZKUBE_LAUNCH_DAY_ID", String(manifest.launch.dayId)],
-    ["ZKUBE_LAUNCH_WEEK_ID", String(manifest.launch.weekId)],
-    ["ZKUBE_LAUNCH_SEASON_ID", String(manifest.launch.seasonId)],
     ["ZKUBE_LAUNCH_CUTOFF_UNIX", String(manifest.launch.cutoffUnixTimestamp)],
     ["ZKUBE_LAUNCH_PLAN_FINGERPRINT", manifest.launch.planFingerprint],
     ["ZKUBE_KEEPER_PUBLIC_KEY", manifest.keeper.signer],
@@ -655,11 +630,6 @@ function optionalString(value: unknown): boolean {
 
 function positiveInteger(value: unknown): boolean {
   return Number.isSafeInteger(value) && Number(value) > 0;
-}
-
-function periodId(dayId: number, periodDays: number): number | null {
-  if (!Number.isSafeInteger(dayId) || dayId < MONDAY_EPOCH_DAY_ID) return null;
-  return Math.floor((dayId - MONDAY_EPOCH_DAY_ID) / periodDays);
 }
 
 function containsSecretField(value: unknown): boolean {

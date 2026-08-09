@@ -59,9 +59,8 @@ export interface PlayerStateView {
   /** Zero selects the strongest currently unlocked emblem automatically. */
   featuredEmblem: number;
   lifetimePaidEntries: bigint;
+  kreditBalance: bigint;
   dailyRecord: CompetitionRecord;
-  weeklyRecord: CompetitionRecord;
-  seasonRecord: CompetitionRecord;
 }
 
 export async function fetchCampaignView(args: {
@@ -216,8 +215,8 @@ interface RawPlayerState {
   featuredEmblem: number;
   lifetimePaidEntries: { toString(): string } | number | bigint;
   dailyRecord: RawCompetitionRecord;
-  weeklyRecord: RawCompetitionRecord;
-  seasonRecord: RawCompetitionRecord;
+  kreditBalance: { toString(): string } | number | bigint;
+  reserved: readonly number[];
 }
 
 function toBigint(value: { toString(): string } | number | bigint): bigint {
@@ -239,12 +238,12 @@ function mapCompetitionRecord(raw: RawCompetitionRecord): CompetitionRecord {
 
 /**
  * Decode and relationship-verify a PlayerState account. Mirrors the untrusted
- * RPC discipline in dailyClient/weeklyClient: the owning program (via
+ * RPC discipline in dailyClient: the owning program (via
  * assertProgramAccount), the exact account size, the Anchor discriminator (via
- * coder.decode), the account version, the embedded owner field, the derived
- * PDA seed, and the compact star bitmap length are all confirmed before any
- * field is trusted. Throws on any mismatch so callers can treat a malformed
- * account as "no state" rather than inventing profile data.
+ * coder.decode), the exact account version, the embedded owner field, the
+ * derived PDA seed, compact star bitmap length, and zeroed reserved bytes are
+ * all confirmed before any field is trusted. Throws on any mismatch so callers
+ * can treat a malformed account as "no state" rather than inventing profile data.
  */
 export function decodePlayerStateAccount(
   program: ReturnType<typeof zkubeProgram>,
@@ -263,12 +262,14 @@ export function decodePlayerStateAccount(
     info.data,
   ) as unknown as RawPlayerState;
   const campaignStars = Array.from(raw.campaignStars, (byte) => Number(byte));
+  const reserved = Array.from(raw.reserved, (byte) => Number(byte));
   if (
-    (Number(raw.version) !== PROTOCOL_ACCOUNT_VERSION &&
-      Number(raw.version) !== PLAYER_STATE_ACCOUNT_VERSION) ||
+    Number(raw.version) !== PLAYER_STATE_ACCOUNT_VERSION ||
     !raw.owner.equals(owner) ||
     !address.equals(derivePlayerStatePda(owner)) ||
-    campaignStars.length !== CAMPAIGN_STAR_BYTES
+    campaignStars.length !== CAMPAIGN_STAR_BYTES ||
+    reserved.length !== 56 ||
+    reserved.some((byte) => byte !== 0)
   ) {
     throw new Error("PlayerState relationship is invalid");
   }
@@ -278,9 +279,8 @@ export function decodePlayerStateAccount(
     campaignStars,
     featuredEmblem: Number(raw.featuredEmblem),
     lifetimePaidEntries: toBigint(raw.lifetimePaidEntries),
+    kreditBalance: toBigint(raw.kreditBalance),
     dailyRecord: mapCompetitionRecord(raw.dailyRecord),
-    weeklyRecord: mapCompetitionRecord(raw.weeklyRecord),
-    seasonRecord: mapCompetitionRecord(raw.seasonRecord),
   };
 }
 

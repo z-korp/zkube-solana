@@ -7,9 +7,9 @@ import { useSettlementWatcher } from "./useSettlementWatcher";
 export type { PeriodKind } from "@/chain/settlementEvents";
 
 export interface PeriodSettlement {
-  /** 0 Daily, 1 Weekly, 2 Season — matches competitionProfileSynced.periodKind. */
+  /** Daily — matches competitionProfileSynced.periodKind. */
   periodKind: PeriodKind;
-  label: "Daily" | "Weekly" | "Season";
+  label: "Daily";
   /** Best payout-bearing rank ever reached (0 = none). */
   bestPrizeRank: number;
   podiums: number;
@@ -50,11 +50,7 @@ const EMPTY_RECORD: CompetitionRecord = {
 };
 
 const PERIODS: readonly { kind: PeriodKind; label: PeriodSettlement["label"] }[] =
-  [
-    { kind: 0, label: "Daily" },
-    { kind: 1, label: "Weekly" },
-    { kind: 2, label: "Season" },
-  ];
+  [{ kind: 0, label: "Daily" }];
 
 function toPeriod(
   kind: PeriodKind,
@@ -74,8 +70,8 @@ function toPeriod(
 
 /**
  * Real-time settlement summary for the connected player, derived from the
- * live-subscribed Daily/Weekly/Season competition records on PlayerState (via
- * `useSettlementWatcher`). Settlement is push-only and may be late; the account
+ * live-subscribed Daily competition record on PlayerState (via
+ * `useSettlementWatcher`). Profile synchronization may be late; the account
  * updates whenever the keeper pushes a profile sync, so this reflects the latest
  * confirmed prize state — including the most recent pushed prize as
  * `latestEvent` — the instant it lands, without gating on money.
@@ -84,23 +80,18 @@ export function useSettlementResult(): SettlementResult {
   const { view, latestEvent, loading, error, refresh } = useSettlementWatcher();
 
   const daily = view?.dailyRecord ?? EMPTY_RECORD;
-  const weekly = view?.weeklyRecord ?? EMPTY_RECORD;
-  const season = view?.seasonRecord ?? EMPTY_RECORD;
 
   const periods = useMemo<PeriodSettlement[]>(() => {
     const records: Record<PeriodKind, CompetitionRecord> = {
       0: daily,
-      1: weekly,
-      2: season,
     };
     return PERIODS.map(({ kind, label }) => toPeriod(kind, label, records[kind]));
-  }, [daily, weekly, season]);
+  }, [daily]);
 
   return {
     periods,
-    totalRewardsLamports:
-      daily.rewardsLamports + weekly.rewardsLamports + season.rewardsLamports,
-    totalWins: daily.wins + weekly.wins + season.wins,
+    totalRewardsLamports: daily.rewardsLamports,
+    totalWins: daily.wins,
     latestEvent,
     loading,
     error,
