@@ -114,15 +114,18 @@ const SUBJECTS = {
     "fine filigree, no small repeating ornament, no animal and no face.",
 
   "crest-world":
-    "Draw a single ornate platinum medallion badge, filling the frame, viewed " +
-    "straight on. A thick bevelled silver-white ring encloses a deep violet " +
-    "center in which one large faceted gold star blazes, its points reaching " +
-    "the ring. Radiating light streams outward from behind the star. Cool " +
-    "polished silver-white metal with a strong glossy highlight across the " +
-    "upper left, and a bright violet glow behind the whole badge. This badge " +
-    "means a perfect clear of the entire game — it must read as the rarest " +
-    "thing a player owns. Bold and simple, no fine filigree, no small " +
-    "repeating ornament, no animal and no face.",
+    "Draw a single ornate medallion badge, filling the frame, viewed straight " +
+    "on. A thick bevelled silver-white metal ring, and inside it one large " +
+    "faceted gold star whose points reach the ring, seated on a solid deep " +
+    "violet disc that completely fills the ring's interior. Small violet gems " +
+    "are set into the ring at the top, bottom, left and right. Cool polished " +
+    "silver-white metal with a strong glossy highlight across the upper left. " +
+    "Every part of the badge is solid and opaque — no rays, no beams, no " +
+    "glow spilling outside the ring, no wisps and no sparkles around it, " +
+    "because anything detached from the badge is lost when the background is " +
+    "removed. This badge means a perfect clear of the entire game — it must " +
+    "read as the rarest thing a player owns. Bold and simple, no fine " +
+    "filigree, no small repeating ornament, no animal and no face.",
 };
 
 function parseArgs(argv) {

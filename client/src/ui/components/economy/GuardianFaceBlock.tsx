@@ -13,11 +13,13 @@ interface GuardianFaceBlockProps {
   /** Square size in px. */
   size: number;
   /**
-   * Drop the white sticker rim, for a block sitting inside a `TierFrame`.
+   * Render the guardian's bust alone, for a portrait sitting inside a
+   * `TierFrame`.
    *
-   * The frame is already the border. Leaving the sticker on puts a white
-   * outline between the guardian and the ornament, which reads as a label
-   * nobody peeled off.
+   * The frame is the chrome. Keeping the block's coloured body and sticker
+   * rim inside an ornate border stacks two frames on one portrait — the
+   * realm's square fights the rank's ornament and the guardian ends up the
+   * smallest thing in its own avatar.
    */
   framed?: boolean;
   /**
@@ -71,6 +73,46 @@ const GuardianFaceBlock: React.FC<GuardianFaceBlockProps> = ({
   const rimWidth = Math.max(2, size * 0.045);
   const badgeColor = badge ? BADGE_COLORS[badge] : null;
   const badgeSize = Math.round(size * 0.32);
+
+  if (framed) {
+    return (
+      <motion.div
+        className={`relative flex-none overflow-hidden ${className}`}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "22%",
+          background: `radial-gradient(circle at 50% 38%, ${mix(base, 255, 0.22)}, ${mix(base, 0, 0.55)} 88%)`,
+        }}
+        animate={breathe && !reduceMotion ? { scale: [1, 1.035, 1] } : undefined}
+        transition={
+          breathe && !reduceMotion
+            ? { duration: 4, repeat: Infinity, ease: "easeInOut" }
+            : undefined
+        }
+      >
+        <img
+          src={getGuardianPortrait(zoneId)}
+          alt={guardian.name}
+          className="absolute max-w-none"
+          style={{
+            ...window,
+            filter: "brightness(1.24) saturate(1.24) contrast(1.04)",
+          }}
+          draggable={false}
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            borderRadius: "inherit",
+            background:
+              "linear-gradient(to bottom, rgba(255,255,255,0.2), rgba(255,255,255,0) 40%)",
+          }}
+        />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

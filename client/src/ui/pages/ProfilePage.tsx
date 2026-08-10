@@ -314,6 +314,48 @@ const ProfilePage: React.FC = () => {
           </span>
         </div>
 
+        {/* The borders. A rank you reached stays yours to wear, so this is a
+            picker rather than a trophy shelf — and it is the only place the
+            higher ranks are visible before you hold them. */}
+        <div className="mt-2.5 flex items-center justify-between gap-1">
+          {LADDER_TIER_THRESHOLDS.map((_, tier) => {
+            const unlocked = tier <= profile.highestLadderTier;
+            const worn = tier === wornFrameTier;
+            return (
+              <button
+                key={tier}
+                type="button"
+                disabled={!unlocked || emblem.saving}
+                title={ladderTierName(tier)}
+                aria-label={`Wear the ${ladderTierName(tier)} border`}
+                aria-pressed={worn}
+                onClick={() => wearIdentity(featuredEmblem, tier)}
+                className="relative grid place-items-center rounded-xl disabled:cursor-not-allowed"
+                style={{
+                  width: 56,
+                  height: 56,
+                  opacity: unlocked ? 1 : 0.32,
+                  filter: unlocked ? undefined : "grayscale(1)",
+                  boxShadow: worn
+                    ? `inset 0 0 0 1.5px ${ladderTierColor(tier)}, 0 0 14px ${ladderTierColor(tier)}55`
+                    : undefined,
+                }}
+              >
+                <TierFrame tier={tier} size={26}>
+                  <span
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: "24%",
+                      background: "rgba(4,7,15,0.75)",
+                    }}
+                  />
+                </TierFrame>
+              </button>
+            );
+          })}
+        </div>
+
         <div
           className="mt-2 h-2 overflow-hidden rounded-full"
           style={{ background: "rgba(0,0,0,0.45)" }}
@@ -383,48 +425,6 @@ const ProfilePage: React.FC = () => {
           </span>
         </div>
 
-        {/* The borders. A rank you reached stays yours to wear, so this is a
-            picker rather than a trophy shelf — and it is the only place the
-            higher ranks are visible before you hold them. */}
-        <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-white/[0.07] pt-2.5">
-          {LADDER_TIER_THRESHOLDS.map((_, tier) => {
-            const unlocked = tier <= profile.highestLadderTier;
-            const worn = tier === wornFrameTier;
-            return (
-              <button
-                key={tier}
-                type="button"
-                disabled={!unlocked || emblem.saving}
-                title={ladderTierName(tier)}
-                aria-label={`Wear the ${ladderTierName(tier)} border`}
-                aria-pressed={worn}
-                onClick={() => wearIdentity(featuredEmblem, tier)}
-                className="relative grid place-items-center rounded-xl disabled:cursor-not-allowed"
-                style={{
-                  width: 56,
-                  height: 56,
-                  opacity: unlocked ? 1 : 0.32,
-                  filter: unlocked ? undefined : "grayscale(1)",
-                  boxShadow: worn
-                    ? `inset 0 0 0 1.5px ${ladderTierColor(tier)}, 0 0 14px ${ladderTierColor(tier)}55`
-                    : undefined,
-                }}
-              >
-                <TierFrame tier={tier} size={26}>
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "24%",
-                      background: "rgba(4,7,15,0.75)",
-                    }}
-                  />
-                </TierFrame>
-              </button>
-            );
-          })}
-        </div>
-
         {/* The two figures a board cannot keep: its rows hold only payout
             places and its accounts are recycled. */}
         <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-white/[0.07] pt-2.5">
@@ -481,7 +481,7 @@ const ProfilePage: React.FC = () => {
                 </span>
               </span>
               <span className="flex-none font-sans text-[11px] font-semibold text-white/45">
-                {record.wins}W · {record.podiums}P
+                {record.wins} {record.wins === 1 ? "win" : "wins"}
               </span>
               <span
                 className="flex w-[76px] flex-none items-center justify-end gap-1 font-mono text-[13px] font-bold tabular-nums"
@@ -604,6 +604,7 @@ const ProfilePage: React.FC = () => {
           totalEarnedLamports: profile.totalRewardsLamports,
           entryStreakDays: profile.entryStreakDays,
           bestPrizeRank: bestRankAcrossBoards,
+          bestDailyScore: profile.bestDailyScore,
         }}
       />
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
+import { getGuardianPortrait } from "@/config/bossCharacters";
 import {
   GUARDIAN_FACE_CROPS,
   GUARDIAN_TIER_COLORS,
@@ -15,6 +15,9 @@ const GOLD = "#FACC15";
 const CREAM = "#FFF4D7";
 const WIDTH = 1080;
 const HEIGHT = 1350;
+
+/** Content box of the supplied MagicBlock logomark inside its 1536² canvas. */
+const MAGICBLOCK_BOX = [243, 288, 1049, 962] as const;
 
 /** Per-tier opening fractions; mirrors TierFrame. */
 const TIER_FRAME_OPENINGS = [0.8255, 0.6673, 0.7078, 0.5886, 0.6177];
@@ -31,6 +34,8 @@ export interface ShareCardData {
   entryStreakDays: number;
   /** Best payout-bearing rank across both boards; 0 when never placed. */
   bestPrizeRank: number;
+  /** Lifetime best `daily_score`, which the challenge names. */
+  bestDailyScore: number;
 }
 
 interface ShareCardSheetProps {
@@ -75,6 +80,103 @@ function faceCrop(zoneId: number): [number, number, number] {
   const sx = Math.max(0, Math.min(512 - side, cx - side / 2));
   const sy = Math.max(0, Math.min(512 - side, cy - side / 2));
   return [sx, sy, side];
+}
+
+
+/** The profile's flame, drawn straight onto the card. */
+function drawFlame(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+): void {
+  const h = size / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.moveTo(0, -h);
+  ctx.bezierCurveTo(h * 0.75, -h * 0.25, h * 0.6, h * 0.5, 0, h);
+  ctx.bezierCurveTo(-h * 0.6, h * 0.5, -h * 0.75, -h * 0.25, 0, -h);
+  ctx.closePath();
+  ctx.fillStyle = GOLD;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, -h * 0.1);
+  ctx.bezierCurveTo(h * 0.42, h * 0.25, h * 0.3, h * 0.7, 0, h * 0.86);
+  ctx.bezierCurveTo(-h * 0.3, h * 0.7, -h * 0.42, h * 0.25, 0, -h * 0.1);
+  ctx.closePath();
+  ctx.fillStyle = "#FFF0A8";
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The platforms this runs on, along the foot of the card.
+ *
+ * Solana and MagicBlock draw their own marks — the white MagicBlock logomark,
+ * since the card's foot is always dark. Seeker is set as a wordmark: its brand
+ * mark is not in this repo, and inventing one for somebody else's brand is
+ * worse than spelling their name correctly. Drop the official asset in
+ * `public/assets/common/` and it becomes a mark here like the others.
+ */
+async function drawPlatformStrip(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  y: number,
+): Promise<void> {
+  const MARK = 46;
+  const GAP = 40;
+  ctx.font = "800 28px Outfit, sans-serif";
+  const seekerWidth = ctx.measureText("SEEKER").width;
+
+  let magicBlock: HTMLImageElement | null = null;
+  try {
+    magicBlock = await loadImage("/assets/common/MagicBlock-Logomark-White.png");
+  } catch {
+    // mark unavailable — the strip degrades to the two it can draw
+  }
+  const magicWidth = magicBlock ? MARK * 1.09 : 0;
+  const parts = [MARK, seekerWidth, magicWidth].filter((w) => w > 0);
+  const total =
+    parts.reduce((sum, w) => sum + w, 0) + GAP * (parts.length - 1);
+  let cursor = cx - total / 2;
+
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.translate(cursor, y - MARK * 0.44);
+  ctx.scale(MARK / 101, MARK / 101);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fill(new Path2D(SOL_LOGO_PATH));
+  ctx.restore();
+  cursor += MARK + GAP;
+
+  // All three centre on `y`: the Solana path is 101x88 drawn from its own top,
+  // a text baseline sits below its cap height, and the logomark is square.
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.fillText("SEEKER", cursor, y + 10);
+  cursor += seekerWidth + GAP;
+
+  if (magicBlock) {
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    // The supplied logomark is a 1536² canvas with the mark inset; draw its
+    // content box so it lands the same visual size as the Solana mark rather
+    // than a third smaller.
+    ctx.drawImage(
+      magicBlock,
+      MAGICBLOCK_BOX[0],
+      MAGICBLOCK_BOX[1],
+      MAGICBLOCK_BOX[2],
+      MAGICBLOCK_BOX[3],
+      cursor,
+      y - MARK * 0.5,
+      magicWidth,
+      MARK,
+    );
+    ctx.restore();
+  }
+  ctx.textAlign = "center";
 }
 
 /**
@@ -174,56 +276,41 @@ async function drawCard(data: ShareCardData): Promise<string> {
   ctx.font = '64px "Fredericka the Great"';
   ctx.fillText("zKube", WIDTH / 2, 128);
 
-  // The guardian block inside the border — the two things the player chose.
+  // The guardian's bust inside the border — the two things the player chose.
+  // No block body: the frame is the chrome, and a coloured square inside an
+  // ornate border makes the guardian the smallest thing in its own avatar.
   const size = 356;
   const bx = WIDTH / 2 - size / 2;
   const by = 214;
-  const body = ctx.createLinearGradient(bx, by, bx + size, by + size);
-  body.addColorStop(0, "#FFFFFF");
-  body.addColorStop(0.45, accent);
-  body.addColorStop(1, "#10141E");
-  roundedRect(ctx, bx, by, size, size, size * 0.24);
-  ctx.fillStyle = body;
-  ctx.fill();
-  // A dark seat, not a white sticker: the border is the frame here.
-  ctx.strokeStyle = "rgba(6,10,20,0.72)";
-  ctx.lineWidth = 14;
-  ctx.stroke();
-  const inset = size * 0.085;
-  roundedRect(
-    ctx,
-    bx + inset,
-    by + inset,
-    size - inset * 2,
-    size - inset * 2,
-    size * 0.2,
-  );
+  roundedRect(ctx, bx, by, size, size, size * 0.22);
   ctx.save();
   ctx.clip();
+  const seat = ctx.createRadialGradient(
+    bx + size / 2,
+    by + size * 0.38,
+    10,
+    bx + size / 2,
+    by + size * 0.38,
+    size * 0.78,
+  );
+  seat.addColorStop(0, accent);
+  seat.addColorStop(1, "#0A0E18");
+  ctx.fillStyle = seat;
+  ctx.fillRect(bx, by, size, size);
   try {
     const img = await loadImage(getGuardianPortrait(zoneId));
     const [sx, sy, side] = faceCrop(zoneId);
-    ctx.filter = "brightness(1.3) saturate(1.25)";
-    ctx.drawImage(
-      img,
-      sx,
-      sy,
-      side,
-      side,
-      bx + inset,
-      by + inset,
-      size - inset * 2,
-      size - inset * 2,
-    );
+    ctx.filter = "brightness(1.24) saturate(1.24) contrast(1.04)";
+    ctx.drawImage(img, sx, sy, side, side, bx, by, size, size);
     ctx.filter = "none";
   } catch {
-    // face art unavailable — the block alone still reads
+    // face art unavailable — the seat colour alone still reads as the realm
   }
-  const gloss = ctx.createLinearGradient(0, by, 0, by + size * 0.4);
-  gloss.addColorStop(0, "rgba(255,255,255,0.35)");
+  const gloss = ctx.createLinearGradient(0, by, 0, by + size * 0.42);
+  gloss.addColorStop(0, "rgba(255,255,255,0.2)");
   gloss.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = gloss;
-  ctx.fillRect(bx + inset, by + inset, size - inset * 2, size * 0.34);
+  ctx.fillRect(bx, by, size, size * 0.42);
   ctx.restore();
   try {
     const frame = await loadImage(`/assets/common/tier-${data.frameTier}.png`);
@@ -236,7 +323,7 @@ async function drawCard(data: ShareCardData): Promise<string> {
       outer,
     );
   } catch {
-    // border art unavailable — the block alone still reads
+    // border art unavailable — the bust alone still reads
   }
 
   // Name and rank.
@@ -271,34 +358,58 @@ async function drawCard(data: ShareCardData): Promise<string> {
     ctx.restore();
   }
 
-  // Supporting figures, small and on one line.
-  const support = [
-    data.bestPrizeRank > 0 ? `BEST #${data.bestPrizeRank}` : null,
-    data.entryStreakDays > 0 ? `${data.entryStreakDays}-DAY STREAK` : null,
-    `★ ${data.totalStars}/300`,
-  ].filter(Boolean) as string[];
-  ctx.fillStyle = "rgba(255,255,255,0.72)";
-  ctx.font = "700 32px ui-monospace, monospace";
-  ctx.fillText(support.join("   ·   "), WIDTH / 2, 1104);
+  // Supporting figures, small and on one line. The streak keeps the flame it
+  // wears on the profile — the same fact should not look like two facts.
+  const support: Array<{ glyph: string | null; text: string }> = [];
+  if (data.bestPrizeRank > 0) {
+    support.push({ glyph: null, text: `BEST #${data.bestPrizeRank}` });
+  }
+  if (data.entryStreakDays > 0) {
+    support.push({ glyph: "flame", text: `${data.entryStreakDays} DAYS` });
+  }
+  support.push({ glyph: null, text: `★ ${data.totalStars}/300` });
 
-  // The invitation.
-  roundedRect(ctx, WIDTH / 2 - 330, 1172, 660, 94, 47);
+  ctx.font = "700 32px ui-monospace, monospace";
+  const gap = 46;
+  const widths = support.map(
+    (item) => ctx.measureText(item.text).width + (item.glyph ? 40 : 0),
+  );
+  let cursor =
+    WIDTH / 2 -
+    (widths.reduce((sum, w) => sum + w, 0) + gap * (support.length - 1)) / 2;
+  ctx.textAlign = "left";
+  support.forEach((item, index) => {
+    if (item.glyph === "flame") {
+      drawFlame(ctx, cursor + 14, 1094, 26);
+      ctx.fillStyle = GOLD;
+      ctx.fillText(item.text, cursor + 40, 1104);
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.72)";
+      ctx.fillText(item.text, cursor, 1104);
+    }
+    cursor += widths[index]! + gap;
+  });
+  ctx.textAlign = "center";
+
+  // The invitation. A number a stranger can aim at beats a name for a thing
+  // they have never heard of — the old line asked them to beat "today's
+  // daily", which the card never explained.
+  const challenge =
+    data.bestDailyScore > 0
+      ? `CAN YOU BEAT ${data.bestDailyScore.toLocaleString()}?`
+      : "PLAY THE DAILY SOL ARENA";
+  ctx.font = "800 40px Outfit, sans-serif";
+  const ctaWidth = Math.min(760, ctx.measureText(challenge).width + 92);
+  roundedRect(ctx, WIDTH / 2 - ctaWidth / 2, 1160, ctaWidth, 96, 48);
   ctx.fillStyle = "rgba(250,204,21,0.14)";
   ctx.fill();
   ctx.strokeStyle = "rgba(250,204,21,0.5)";
   ctx.lineWidth = 3;
   ctx.stroke();
   ctx.fillStyle = GOLD;
-  ctx.font = "800 38px Outfit, sans-serif";
-  ctx.fillText("BEAT ME ON TODAY'S DAILY", WIDTH / 2, 1232);
+  ctx.fillText(challenge, WIDTH / 2, 1222);
 
-  ctx.fillStyle = "rgba(255,255,255,0.4)";
-  ctx.font = "700 26px Outfit, sans-serif";
-  ctx.fillText(
-    `${getZoneGuardian(zoneId).name}'s realm · Solana`,
-    WIDTH / 2,
-    1308,
-  );
+  await drawPlatformStrip(ctx, WIDTH / 2, 1300);
 
   return canvas.toDataURL("image/png");
 }
