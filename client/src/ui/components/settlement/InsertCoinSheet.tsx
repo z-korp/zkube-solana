@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { Coin, MONEY_GOLD } from "@/ui/components/economy";
+import { KreditCoin, MONEY_GOLD } from "@/ui/components/economy";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
@@ -133,7 +133,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
               animate={{ y: -118, scale: 0.5, opacity: [1, 1, 0.9, 0] }}
               transition={{ duration: FEED_JAWS_MS / 1000, ease: "easeIn" }}
             >
-              <Coin size={44} />
+              <KreditCoin size={44} />
             </motion.span>
           )}
           {/* The guardian acknowledges the toll before the wallet takes over. */}
@@ -162,7 +162,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
                 : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
             }
           >
-            <Coin size={44} title="One Kredit entry coin" />
+            <KreditCoin size={44} title="One Kredit entry coin" />
           </motion.span>
           <div className="flex items-center gap-2">
             <span
