@@ -1,68 +1,55 @@
 /**
- * DEV-ONLY bottom-panel prototype, the third pane of the tablet.
+ * DEV-ONLY bottom controls: three buttons on the stone, no panel.
  *
- * Same width and same frame as the header and the grid, so the screen reads as
- * one object rather than three floating widgets.
+ * The framed tray spent 108px — a ninth of the phone — presenting one thing you
+ * ever press. A thumb-sized key with its counts as badges says the same in 68,
+ * and the badge is the better readout anyway: a charge count belongs on the
+ * thing it charges, not beside it.
  *
- * The rework, beyond the paint:
- *
- * - THE BONUS IS THE ONLY THING YOU PLAY WITH DOWN HERE, so it is the only
- *   thing that looks pressable — a full-width key with a real under-edge,
- *   charges as pips, and the trigger progress as its own meter. Previously the
- *   most important control was the same size as "settings" and its progress was
- *   a 7px chip floating off its shoulder.
- * - BACK MOVED HERE from the top-left corner of the HUD, where it sat inside
- *   the score furniture.
- * - GIVING UP TAKES TWO TAPS. It abandons on chain — terminal, zero stars, the
- *   entry gone — and it was one tap away from the board the whole run.
+ * Home, bonus, settings. Giving up lives inside settings rather than sitting on
+ * the board: it abandons on chain — terminal, zero stars, the entry gone — so
+ * one stray thumb should never reach it, and it still asks before it does it.
  */
 import { useEffect, useState } from "react";
-import { ChevronLeft, Flag } from "lucide-react";
+import { Flag, Home, Settings, Volume2, VolumeX } from "lucide-react";
 
+import { useMusicPlayer } from "@/contexts/hooks";
+import { Button } from "@/ui/elements/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/ui/elements/dialog";
+import { Slider } from "@/ui/elements/slider";
 import type { BonusSlot } from "@/ui/components/actionbar/GameActionBar";
-import { FRAME, FRAME_INNER } from "./frame";
 
-function StoneKey({
-  label,
-  onClick,
-  tone,
-  children,
-}: {
-  label: string;
-  onClick?: () => void;
-  tone?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className="grid h-[52px] w-[52px] flex-none place-items-center rounded-2xl transition-transform active:translate-y-[2px]"
-      style={{
-        background: "linear-gradient(180deg, #2A3348 0%, #151C2C 100%)",
-        boxShadow: "0 4px 0 #05080F, inset 0 2px 0 rgba(255,255,255,0.14)",
-        color: tone ?? "rgba(255,255,255,0.62)",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
+const ROUND_KEY: React.CSSProperties = {
+  background: "linear-gradient(180deg, #2A3348 0%, #141B2A 100%)",
+  boxShadow: "0 3px 0 #05080F, inset 0 2px 0 rgba(255,255,255,0.14)",
+};
 
 export default function PrototypeActionBar({
   bonusSlots,
   activeBonus,
   onSurrender,
-  onBack,
-  frameWidth,
+  onHome,
 }: {
   bonusSlots: BonusSlot[];
   activeBonus: number;
   onSurrender: () => void;
-  onBack?: () => void;
-  frameWidth: number | null;
+  onHome?: () => void;
 }) {
+  const {
+    isPlaying,
+    playTheme,
+    stopTheme,
+    musicVolume,
+    setMusicVolume,
+    effectsVolume,
+    setEffectsVolume,
+  } = useMusicPlayer();
   const slot = bonusSlots[0];
   const selected = slot !== undefined && activeBonus === slot.type;
   const spent = slot === undefined || slot.charges <= 0;
@@ -70,106 +57,139 @@ export default function PrototypeActionBar({
 
   useEffect(() => {
     if (!confirmingQuit) return;
-    const timer = window.setTimeout(() => setConfirmingQuit(false), 3_000);
+    const timer = window.setTimeout(() => setConfirmingQuit(false), 4_000);
     return () => window.clearTimeout(timer);
   }, [confirmingQuit]);
 
-  const progress = slot?.lineProgress;
-
   return (
-    <div className="w-full px-1 pb-1.5 pt-1">
-      {/* max-width for the same reason as the header: this pane is sized from
-          the board and must never be able to widen it back. */}
-      <div
-        className="mx-auto"
-        style={{ ...FRAME, width: frameWidth ?? undefined, maxWidth: "100%" }}
+    <div className="flex w-full items-center justify-between px-5 pb-5 pt-1">
+      <button
+        type="button"
+        aria-label="Home"
+        onClick={onHome}
+        className="grid h-11 w-11 flex-none place-items-center rounded-full text-white/60 transition-transform active:translate-y-[2px]"
+        style={ROUND_KEY}
       >
-        <div className="flex items-center gap-2 p-2" style={FRAME_INNER}>
-          <StoneKey label="Back" onClick={onBack}>
-            <ChevronLeft size={20} />
-          </StoneKey>
+        <Home size={19} />
+      </button>
 
-          <button
-            type="button"
-            aria-label={
-              slot ? `${slot.name}: ${slot.charges} charges` : "No bonus"
-            }
-            onClick={spent ? undefined : slot?.onClick}
-            disabled={spent}
-            className="relative flex h-[58px] min-w-0 flex-1 items-center justify-center gap-2.5 rounded-2xl px-2 transition-transform active:translate-y-[3px] disabled:translate-y-0"
+      <button
+        type="button"
+        aria-label={slot ? `${slot.name}: ${slot.charges} charges` : "No bonus"}
+        onClick={spent ? undefined : slot?.onClick}
+        disabled={spent}
+        className="relative grid h-[62px] w-[62px] flex-none place-items-center rounded-full transition-transform active:translate-y-[3px] disabled:translate-y-0"
+        style={{
+          background: spent
+            ? "linear-gradient(180deg, #232B3D 0%, #121826 100%)"
+            : selected
+              ? "linear-gradient(160deg, #FFF6CE 0%, #FDE047 55%, #C99C0C 100%)"
+              : "linear-gradient(160deg, #FCE177 0%, #FACC15 55%, #B4930F 100%)",
+          boxShadow: spent
+            ? "0 4px 0 #05080F, inset 0 1px 0 rgba(255,255,255,0.08)"
+            : `0 5px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.55)${
+                selected ? ", 0 0 22px rgba(250,204,21,0.6)" : ""
+              }`,
+        }}
+      >
+        {slot && (
+          <img
+            src={slot.icon}
+            alt=""
+            className="h-8 w-8 object-contain"
+            style={{ opacity: spent ? 0.35 : 1 }}
+          />
+        )}
+        {/* Counts ride the thing they count. */}
+        {slot && (
+          <span
+            className="absolute -bottom-0.5 -right-0.5 grid h-6 min-w-[24px] place-items-center rounded-full px-1 font-sans text-[13px] font-black tabular-nums"
             style={{
               background: spent
-                ? "linear-gradient(180deg, #232B3D 0%, #121826 100%)"
-                : selected
-                  ? "linear-gradient(160deg, #FFF6CE 0%, #FDE047 55%, #C99C0C 100%)"
-                  : "linear-gradient(160deg, #FCE177 0%, #FACC15 55%, #B4930F 100%)",
-              boxShadow: spent
-                ? "0 4px 0 #05080F, inset 0 1px 0 rgba(255,255,255,0.08)"
-                : `0 5px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.55)${
-                    selected ? ", 0 0 22px rgba(250,204,21,0.55)" : ""
-                  }`,
-              color: spent ? "rgba(255,255,255,0.35)" : "#241903",
+                ? "linear-gradient(180deg, #3A4459, #202836)"
+                : "linear-gradient(180deg, #FFF3C4, #E0A800)",
+              color: spent ? "rgba(255,255,255,0.4)" : "#241903",
+              boxShadow:
+                "0 2px 0 rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5)",
             }}
           >
-            {slot && (
-              <img
-                src={slot.icon}
-                alt=""
-                className="h-8 w-8 flex-none object-contain"
-                style={{ opacity: spent ? 0.4 : 1 }}
-              />
-            )}
-            <span className="flex min-w-0 flex-col items-start">
-              <span className="truncate font-sans text-[15px] font-black uppercase tracking-[0.04em]">
-                {slot?.name ?? "No bonus"}
-              </span>
-              {progress && !spent && (
-                <span className="mt-0.5 flex items-center gap-1">
-                  <span
-                    className="block h-[4px] w-14 overflow-hidden rounded-full"
-                    style={{ background: "rgba(36,25,3,0.35)" }}
-                  >
-                    <span
-                      className="block h-full rounded-full"
-                      style={{
-                        width: `${(progress.current / Math.max(1, progress.threshold)) * 100}%`,
-                        background: "#241903",
-                      }}
-                    />
-                  </span>
-                  <span className="font-sans text-[9px] font-bold uppercase tracking-[0.1em]">
-                    next charge
-                  </span>
-                </span>
-              )}
-            </span>
-            {/* Charges as pips: three of them read at a glance, and an empty
-                slot is obviously empty rather than a small zero. */}
-            <span className="flex flex-none items-center gap-1">
-              {Array.from(
-                { length: Math.max(slot?.startingCharges ?? 1, 3) },
-                (_, index) => (
-                  <span
-                    key={index}
-                    className="block h-[9px] w-[9px] rounded-full"
-                    style={{
-                      background:
-                        index < (slot?.charges ?? 0)
-                          ? "radial-gradient(circle at 35% 30%, #fff, #7A5F00)"
-                          : "rgba(36,25,3,0.28)",
-                      boxShadow:
-                        index < (slot?.charges ?? 0)
-                          ? "inset 0 1px 0 rgba(255,255,255,0.8)"
-                          : "none",
-                    }}
-                  />
-                ),
-              )}
-            </span>
-          </button>
+            {slot.charges}
+          </span>
+        )}
+        {slot?.lineProgress && (
+          <span
+            className="absolute -top-1.5 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-[1px] font-sans text-[10px] font-black tabular-nums text-[#FDE68A]"
+            style={{
+              background: "rgba(6,10,18,0.92)",
+              boxShadow: "inset 0 0 0 1px rgba(250,204,21,0.32)",
+            }}
+          >
+            {slot.lineProgress.current}/{slot.lineProgress.threshold}
+          </span>
+        )}
+      </button>
 
-          <StoneKey
-            label={confirmingQuit ? "Confirm give up" : "Give up"}
+      <Dialog>
+        <DialogTrigger
+          type="button"
+          aria-label="Settings"
+          className="grid h-11 w-11 flex-none place-items-center rounded-full border-0 text-white/60 transition-transform active:translate-y-[2px]"
+          style={ROUND_KEY}
+        >
+          <Settings size={19} />
+        </DialogTrigger>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Settings</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 rounded-lg border p-4">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => (isPlaying ? stopTheme() : playTheme())}
+              >
+                {isPlaying ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+              </Button>
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">Music</span>
+                <Slider
+                  value={[musicVolume]}
+                  onValueChange={(value) => setMusicVolume(value[0])}
+                  max={1}
+                  step={0.05}
+                />
+              </div>
+              <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                {Math.round(musicVolume * 100)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 shrink-0" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">Effects</span>
+                <Slider
+                  value={[effectsVolume]}
+                  onValueChange={(value) => setEffectsVolume(value[0])}
+                  max={1}
+                  step={0.05}
+                />
+              </div>
+              <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                {Math.round(effectsVolume * 100)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Terminal and irreversible, so it asks — and it asks in here rather
+              than from a button the thumb rests next to all run. */}
+          <button
+            type="button"
             onClick={() => {
               if (confirmingQuit) {
                 onSurrender();
@@ -177,18 +197,15 @@ export default function PrototypeActionBar({
               }
               setConfirmingQuit(true);
             }}
-            tone={confirmingQuit ? "#FCA5A5" : undefined}
+            className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-950/40 px-4 py-3 font-sans text-sm font-bold text-red-200"
           >
-            {confirmingQuit ? (
-              <span className="font-sans text-[10px] font-black uppercase leading-tight">
-                Sure?
-              </span>
-            ) : (
-              <Flag size={18} />
-            )}
-          </StoneKey>
-        </div>
-      </div>
+            <Flag size={15} />
+            {confirmingQuit
+              ? "Give up — this ends the run for good"
+              : "Give up this run"}
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

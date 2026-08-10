@@ -3,12 +3,12 @@
  *
  * Reach it with `?dev=1&page=play&board=arena|campaign&hud=tablet`.
  *
- * Header, board and tray are three panes of one tablet: same width, same
- * frame, same stone. The frame is deliberately the board's own — a 2px
- * gold-stone stroke at low opacity, not the heavy bezel this started as, which
- * out-shouted the grid it was supposed to sit above.
+ * Atomized: no frame, no panel, no shared plate. Each readout is its own
+ * object sitting on the stone with its own recess and shadow, because the
+ * framing was only ever drawing a box around things that already read as a
+ * group — and a second frame above the grid's own competed with it.
  *
- * What each pane says:
+ * What it says:
  *
  * - TWO SLOTS, TWO POTS. A daily run is ranked twice over the same play and
  *   each board pays half. The second slot is labelled with the day's actual
@@ -31,7 +31,6 @@ import type { GameLevelData } from "@/hooks/useGameLevel";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import { buildTierScale, currentTierIndex } from "./tierScale";
 import type { FieldStandings } from "./chase";
-import { FRAME, FRAME_INNER } from "./frame";
 
 export type { FieldStanding, FieldStandings } from "./chase";
 
@@ -222,15 +221,15 @@ export default function PrototypeHud(props: PrototypeHudProps) {
         : "#EF4444";
 
   return (
-    <div className="w-full px-1 pt-1.5">
-      {/* max-width, not just width: the pane is sized FROM the board, so it
-          must never be able to widen the page and grow the board in turn —
-          that loop runs until the cell size hits its ceiling. */}
+    // max-width, never a plain width: the header is sized FROM the board, so
+    // it must not be able to widen the page and grow the board in turn — that
+    // loop runs until the cell size hits its ceiling.
+    <div className="w-full px-1 pt-2">
       <div
         className="mx-auto"
-        style={{ ...FRAME, width: frameWidth ?? undefined, maxWidth: "100%" }}
+        style={{ width: frameWidth ?? undefined, maxWidth: "100%" }}
       >
-        <div className="px-2 pb-2 pt-2" style={FRAME_INNER}>
+        <div>
           <div className="flex items-stretch gap-2">
             <span className="relative flex flex-none items-center">
               <span

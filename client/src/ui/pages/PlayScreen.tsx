@@ -864,12 +864,11 @@ export default function PlayScreen() {
           bonusSlots={bonusSlots}
           activeBonus={activeBonus}
           onSurrender={handleQuit}
-          onBack={
+          onHome={
             chainTerminal || basePhase || run.busy
               ? undefined
-              : () => navigate(game.mode === 1 ? "arcade" : "map")
+              : () => navigate("home")
           }
-          frameWidth={boardFrameWidth}
         />
       ) : (
       <GameActionBar
