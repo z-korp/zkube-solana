@@ -181,6 +181,11 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
               Purchase sends 10% to the operator. Spending sends the prepaid
               90% to the following Daily. Scored or expired, never refunded.
             </p>
+            <p>
+              Any reward you are still owed is collected in this same
+              transaction, so entering again is how you get paid — there is no
+              separate claim to remember.
+            </p>
           </InfoSheet>
         </div>
 

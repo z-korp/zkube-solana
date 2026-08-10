@@ -8,5 +8,6 @@ export { default as KreditShopSheet } from "./KreditShopSheet";
 export {
   computeRankPayouts,
   dailyBoardPools,
+  payoutForRank,
 } from "./payout";
 export { MONEY_GOLD, mixHex } from "./tokens";

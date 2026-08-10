@@ -51,7 +51,14 @@ export function computeRankPayouts(
     rolloverLamports: potLamports - paidLamports };
 }
 
-function payoutForRank(pool: bigint, denominator: bigint, rank: number): bigint {
+/**
+ * Exact payout for one rank against a board's own stored denominator.
+ *
+ * Exported because a sealed board carries its final pool and denominator, so a
+ * claim can quote the true amount rather than re-deriving a width that may have
+ * been narrowed by the capacity bound.
+ */
+export function payoutForRank(pool: bigint, denominator: bigint, rank: number): bigint {
   if (denominator === 0n) throw new Error("Rank payout denominator is zero");
   const wholeUnits = pool * rankWeight(rank) / (denominator * FLOOR_UNIT);
   return wholeUnits * FLOOR_UNIT;

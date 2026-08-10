@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Settings } from "lucide-react";
+import { Gift, Settings } from "lucide-react";
 import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useUnclaimedRewards } from "@/chain/useUnclaimedRewards";
 import { getThemeId } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
@@ -53,6 +54,7 @@ const HomePage: React.FC = () => {
   const daily = useDaily();
   const activeDaily = useActiveDailyAttempt();
   const { totalStars, zones } = useZoneProgress(address);
+  const owed = useUnclaimedRewards();
   const { setThemeTemplate } = useTheme();
   const themeColors = useThemeColors();
 
@@ -86,6 +88,8 @@ const HomePage: React.FC = () => {
       ? new URLSearchParams(window.location.search).get("demo")
       : null;
   const [demoPrizeOpen, setDemoPrizeOpen] = useState(demoSheet === "prize");
+  // The collected amount, held so the guardian can deliver it.
+  const [collected, setCollected] = useState<bigint | null>(null);
   // Buying is owner work, and the balance readout is where a player looks
   // when they wonder whether they can play — so it is also the shop door.
   const [shopOpen, setShopOpen] = useState(false);
@@ -102,10 +106,8 @@ const HomePage: React.FC = () => {
     address !== null &&
     (view?.leaderboard.some((entry) => entry.player.toBase58() === address) ??
       false);
-  const entrySol = view ? formatSolBalanceLamports(view.entryLamports) : null;
-
   let playLabel = "Play";
-  let playAmount: string | null = null;
+  let playSpends = false;
   let playDisabled = false;
   let playOnClick: () => void = () => navigate("arcade");
 
@@ -125,12 +127,14 @@ const HomePage: React.FC = () => {
       playLabel = "Ranked paused";
       playDisabled = true;
     } else if ((view?.kreditBalance ?? 0n) === 0n) {
-      playLabel = "Play";
-      playAmount = entrySol;
+      // An entry costs a Kredit, so a key with none to spend asks for Kredits
+      // rather than pricing "Play" in the currency you buy them with.
+      playLabel = "Get Kredits";
       playDisabled = busy || !player.wallet;
       playOnClick = () => setShopOpen(true);
     } else {
       playLabel = alreadyEntered ? "Play again" : "Play";
+      playSpends = true;
       playDisabled = busy || !player.wallet;
       playOnClick = () => setCoinSheetOpen(true);
     }
@@ -214,10 +218,48 @@ const HomePage: React.FC = () => {
           keeps the larger share; min-height covers the block's overlap. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
         <div className="min-h-[64px] flex-1" />
+        {/* Money already won outranks everything else on this screen. One tap,
+            device-session signed — no wallet approval and no Kredit, because a
+            prize is not something a player should have to buy their way into.
+            Entering also collects it, so this is the door for the winner who
+            did not come back. */}
+        {owed.rewards.length > 0 && (
+          <motion.button
+            type="button"
+            disabled={owed.claiming}
+            onClick={() => {
+              const reward = owed.rewards[0];
+              if (!reward) return;
+              void owed
+                .claim(reward)
+                .then((amount) => setCollected(amount))
+                .catch(() => undefined);
+            }}
+            whileTap={{ y: 3, boxShadow: "0 1px 0 #705C09" }}
+            // The guardian overhangs the marquee by 52px, so the band clears
+            // it rather than being half-covered by a cat.
+            className="mx-auto mb-[62px] flex w-full max-w-[400px] items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-[#241903] disabled:opacity-60"
+            style={{
+              background:
+                "linear-gradient(160deg, #FCE177 0%, #FACC15 55%, #B4930F 100%)",
+              boxShadow:
+                "0 4px 0 #705C09, 0 12px 26px -10px rgba(250,204,21,0.6), inset 0 2px 0 rgba(255,255,255,0.5)",
+            }}
+          >
+            <Gift size={18} className="flex-none" />
+            <span className="min-w-0 flex-1 text-left font-sans text-[15px] font-extrabold">
+              {formatSolBalanceLamports(owed.totalLamports)} SOL waiting
+            </span>
+            <span className="flex-none font-sans text-[13px] font-extrabold uppercase tracking-[0.1em]">
+              {owed.claiming ? "Collecting…" : "Collect"}
+            </span>
+          </motion.button>
+        )}
+
         <DailyMarquee zoneId={zoneId} view={view} address={address ?? null}>
           <EnterCoinKey
             label={playLabel}
-            amountSol={playAmount}
+            spendsKredit={playSpends}
             disabled={playDisabled}
             onClick={playOnClick}
           />
@@ -259,6 +301,19 @@ const HomePage: React.FC = () => {
               .then(() => setShopOpen(false))
               .catch(() => undefined);
           }}
+        />
+      )}
+
+      {/* The guardian delivers what was just collected — the payoff moment the
+          whole loop exists for. */}
+      {collected !== null && (
+        <GuardianPrizeResult
+          open
+          onDismiss={() => setCollected(null)}
+          zoneId={zoneId}
+          amountLamports={collected}
+          periodLabel="Daily"
+          bestPrizeRank={owed.rewards[0]?.rank ?? 0}
         />
       )}
 

@@ -99,7 +99,6 @@ const ArcadePage: React.FC = () => {
 
   const scoringRule = view?.scoringRule ?? null;
   const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
-  const entrySol = view ? formatSolBalanceLamports(view.entryLamports) : "0.010";
   const busy = daily.action !== null;
   const arcadeDiscoveryReady =
     daily.run.watchStatus?.phase === "subscribed";
@@ -115,9 +114,10 @@ const ArcadePage: React.FC = () => {
   const entrySeconds = useCountdown(view?.runsCloseAt);
 
   // The pinned key: one verb per lifecycle. An entry is always exactly one
-  // Kredit, so the key never prices it — only buying carries a SOL amount.
+  // Kredit, and the SOL price of a Kredit lives in the shop — a key labelled
+  // "Enter" priced in SOL conflated the two currencies.
   let primaryLabel = "Enter";
-  let primaryAmount: string | null = null;
+  let primarySpends = false;
   let primaryDisabled = false;
   let primaryOnClick: () => void = () => {};
 
@@ -140,11 +140,11 @@ const ArcadePage: React.FC = () => {
       primaryLabel = "Buying Kredits…";
       primaryDisabled = true;
     } else if ((view?.kreditBalance ?? 0n) === 0n) {
-      primaryLabel = "Buy Kredits";
-      primaryAmount = entrySol;
+      primaryLabel = "Get Kredits";
       primaryDisabled = busy || !player.wallet;
       primaryOnClick = () => setShopOpen(true);
     } else {
+      primarySpends = true;
       primaryDisabled = busy || !player.wallet;
       // Tap the key → confirm one prepaid Kredit → session-authorized play.
       primaryOnClick = () => setCoinSheetOpen(true);
@@ -156,7 +156,6 @@ const ArcadePage: React.FC = () => {
         : lifecycle === "delayed" || lifecycle === "stale"
           ? "Keeper catching up"
           : "Daily being prepared";
-    primaryAmount = null;
     primaryDisabled = true;
   }
 
@@ -261,7 +260,7 @@ const ArcadePage: React.FC = () => {
       <div className="relative z-20 px-4 pb-3">
         <EnterCoinKey
           label={primaryLabel}
-          amountSol={primaryAmount}
+          spendsKredit={primarySpends}
           disabled={primaryDisabled}
           onClick={primaryOnClick}
         />

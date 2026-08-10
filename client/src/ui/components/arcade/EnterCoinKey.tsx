@@ -1,25 +1,29 @@
 import { motion } from "motion/react";
 
-import { Coin } from "@/ui/components/economy";
+import { KreditCoin } from "@/ui/components/economy";
 
 interface EnterCoinKeyProps {
-  /** The verb ("Enter", "Resume run", "Entries closed", …). */
+  /** The verb ("Play", "Resume run", "Get Kredits", …). */
   label: string;
-  /** SOL entry price shown beside the coin; omit for non-entry verbs. */
-  amountSol?: string | null;
+  /**
+   * Show the Kredit token, for a key that spends one.
+   *
+   * Deliberately never a SOL amount: an entry costs one Kredit, and the SOL
+   * price of a Kredit belongs in the shop. Pricing a key labelled "Play" in
+   * SOL conflated the two currencies at the exact moment they matter most.
+   */
+  spendsKredit?: boolean;
   disabled?: boolean;
   onClick?: () => void;
 }
 
 /**
- * The Arcade's pinned key: the insert-coin moment as a button. When it sells
- * an entry, the embossed SOL coin sits after the price as its unit — one
- * currency object, obeying the amount-then-mark rule. Other lifecycle verbs
- * render plain. Same chunky gold recipe as every key in the app.
+ * The pinned key: the insert-coin moment as a button. Same chunky gold recipe
+ * as every key in the app.
  */
 const EnterCoinKey: React.FC<EnterCoinKeyProps> = ({
   label,
-  amountSol = null,
+  spendsKredit = false,
   disabled = false,
   onClick,
 }) => (
@@ -40,11 +44,8 @@ const EnterCoinKey: React.FC<EnterCoinKeyProps> = ({
         "0 5px 0 #705C09, 0 12px 26px -10px rgba(250,204,21,0.65), inset 0 2px 0 rgba(255,255,255,0.5)",
     }}
   >
-    <span>
-      {label}
-      {amountSol !== null && ` ${amountSol}`}
-    </span>
-    {amountSol !== null && <Coin size={26} />}
+    <span>{label}</span>
+    {spendsKredit && <KreditCoin size={24} />}
   </motion.button>
 );
 

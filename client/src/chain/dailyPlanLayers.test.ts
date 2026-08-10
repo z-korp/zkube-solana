@@ -98,6 +98,11 @@ function claimableBoard(
   data.writeUInt32LE(1, 46);
   data.writeUInt32LE(1, 50);
   data.writeUInt32LE(1, 54);
+  // A sealed board carries the pool and denominator its payouts were computed
+  // from; without them the row is not payable and is correctly skipped.
+  data.writeBigUInt64LE(0xffff_ffff_ffff_ffffn, 58);
+  data.writeBigUInt64LE(0n, 66);
+  data.writeBigUInt64LE(1_000_000_000n, 74);
   data.writeUInt32LE(1, 99);
   data.writeUInt8(1, 103);
   data.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1_000)), 104);

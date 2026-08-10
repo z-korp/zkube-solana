@@ -52,6 +52,7 @@ import {
 } from "./dailyRules.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import type { WalletLike } from "./sessionWallet.js";
+import { payoutForRank } from "@/ui/components/economy/payout";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import { IDL } from "./idl/index.js";
 import {
@@ -432,15 +433,29 @@ export async function buildPrepareDailyRunPlan(args: {
   };
 }
 
-async function discoverAutoClaimAccounts(args: {
-  connection: Pick<Connection, "getMultipleAccountsInfo">;
-  owner: PublicKey;
-  currentDayId: number;
-  nowUnix?: number;
-}): Promise<AccountMeta[]> {
-  const firstDay = Math.max(0, args.currentDayId - AUTO_CLAIM_LOOKBACK_DAYS);
-  const identities = Array.from(
-    { length: Math.max(0, args.currentDayId - firstDay) },
+/** One sealed, unexpired board place this wallet has not collected yet. */
+export interface UnclaimedRewardView {
+  dayId: number;
+  board: "score" | "theme";
+  /** Row index on the board; the rank is one higher. */
+  position: number;
+  rank: number;
+  amountLamports: bigint;
+  /** Instant the claim window closes and the reward rolls into the next pot. */
+  expiresAt: number;
+}
+
+interface BoardIdentity {
+  dayId: number;
+  daily: PublicKey;
+  kind: "score" | "theme";
+  board: PublicKey;
+}
+
+function claimLookbackIdentities(currentDayId: number): BoardIdentity[] {
+  const firstDay = Math.max(0, currentDayId - AUTO_CLAIM_LOOKBACK_DAYS);
+  return Array.from(
+    { length: Math.max(0, currentDayId - firstDay) },
     (_, offset) => firstDay + offset,
   ).flatMap((dayId) => {
     const daily = deriveArenaDailyPda(dayId);
@@ -451,6 +466,15 @@ async function discoverAutoClaimAccounts(args: {
       board: deriveArenaBoardPda(daily, kind),
     }));
   });
+}
+
+async function scanUnclaimedBoards(args: {
+  connection: Pick<Connection, "getMultipleAccountsInfo">;
+  owner: PublicKey;
+  currentDayId: number;
+  nowUnix?: number;
+}): Promise<Array<BoardIdentity & UnclaimedBoardReward>> {
+  const identities = claimLookbackIdentities(args.currentDayId);
   if (identities.length === 0) return [];
   const infos = await args.connection.getMultipleAccountsInfo(
     identities.map(({ board }) => board),
@@ -461,7 +485,7 @@ async function discoverAutoClaimAccounts(args: {
   const candidates = identities.flatMap((identity, index) => {
     const info = infos[index];
     if (!info) return [];
-    const sealedAt = unclaimedBoardSealTime(
+    const reward = unclaimedBoardReward(
       info,
       identity.daily,
       identity.dayId,
@@ -469,27 +493,108 @@ async function discoverAutoClaimAccounts(args: {
       args.owner,
       nowUnix,
     );
-    return sealedAt === null ? [] : [{ ...identity, sealedAt }];
+    return reward === null ? [] : [{ ...identity, ...reward }];
   });
+  // Oldest window first: the one closest to expiring is the one worth doing.
   candidates.sort((left, right) =>
     left.sealedAt - right.sealedAt ||
     left.dayId - right.dayId ||
     left.kind.localeCompare(right.kind)
   );
-  return candidates.slice(0, MAX_AUTO_CLAIMS_PER_ENTRY).flatMap(({ daily, board }) => [
-    { pubkey: daily, isSigner: false, isWritable: true },
-    { pubkey: board, isSigner: false, isWritable: true },
-  ]);
+  return candidates;
 }
 
-function unclaimedBoardSealTime(
+/**
+ * Every reward this wallet is still owed, newest window last.
+ *
+ * The same thirty-day scan the entry planner already runs, reporting amounts
+ * instead of account metas. Spending a Kredit collects these automatically, but
+ * a winner who never plays again would otherwise have no way to be paid — and
+ * the window closes.
+ */
+export async function fetchUnclaimedRewards(args: {
+  connection: Pick<Connection, "getMultipleAccountsInfo">;
+  owner: PublicKey;
+  currentDayId: number;
+  nowUnix?: number;
+}): Promise<UnclaimedRewardView[]> {
+  const candidates = await scanUnclaimedBoards(args);
+  return candidates.map((candidate) => ({
+    dayId: candidate.dayId,
+    board: candidate.kind,
+    position: candidate.position,
+    rank: candidate.position + 1,
+    amountLamports: candidate.amountLamports,
+    expiresAt: candidate.sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS,
+  }));
+}
+
+/**
+ * Collect one reward directly, without spending a Kredit.
+ *
+ * `claim_daily_prize` takes the owner as a writable non-signer and the actor as
+ * the signer, so a device session can drive it: one tap, no wallet approval,
+ * and the SOL lands in the owner wallet.
+ */
+export async function buildClaimDailyPrizePlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey;
+  dayId: number;
+  board: "score" | "theme";
+}): Promise<TransactionPlan> {
+  const daily = deriveArenaDailyPda(args.dayId);
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.claimDailyPrize(
+      args.board === "score" ? { score: {} } : { theme: {} },
+    )
+    .accountsPartial({
+      arenaDaily: daily,
+      arenaBoard: deriveArenaBoardPda(daily, args.board),
+      playerState: derivePlayerStatePda(args.ownerAuthority),
+      ownerAuthority: args.ownerAuthority,
+      sessionToken: args.sessionToken,
+      actor: args.wallet.publicKey,
+    })
+    .instruction();
+  return basePlan(
+    "Collect Daily reward",
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
+}
+
+async function discoverAutoClaimAccounts(args: {
+  connection: Pick<Connection, "getMultipleAccountsInfo">;
+  owner: PublicKey;
+  currentDayId: number;
+  nowUnix?: number;
+}): Promise<AccountMeta[]> {
+  const candidates = await scanUnclaimedBoards(args);
+  return candidates
+    .slice(0, MAX_AUTO_CLAIMS_PER_ENTRY)
+    .flatMap(({ daily, board }) => [
+      { pubkey: daily, isSigner: false, isWritable: true },
+      { pubkey: board, isSigner: false, isWritable: true },
+    ]);
+}
+
+interface UnclaimedBoardReward {
+  sealedAt: number;
+  position: number;
+  amountLamports: bigint;
+}
+
+function unclaimedBoardReward(
   info: AccountInfo<Buffer>,
   daily: PublicKey,
   dayId: number,
   kind: "score" | "theme",
   owner: PublicKey,
   nowUnix: number,
-): number | null {
+): UnclaimedBoardReward | null {
   const data = Buffer.from(info.data);
   const discriminator = rankedDependencyCoder.accountDiscriminator("arenaBoard");
   if (
@@ -503,6 +608,8 @@ function unclaimedBoardSealTime(
     data.readUInt8(45) !== (kind === "score" ? 0 : 1)
   ) return null;
   const payoutCount = data.readUInt32LE(54);
+  const denominator = readU128LE(data, 58);
+  const poolLamports = data.readBigUInt64LE(74);
   const cursor = data.readUInt32LE(99);
   const sealed = data.readUInt8(103) !== 0;
   const sealedAt = Number(data.readBigInt64LE(104));
@@ -513,6 +620,7 @@ function unclaimedBoardSealTime(
     cursor !== payoutCount ||
     !sealed ||
     sealedAt <= 0 ||
+    denominator === 0n ||
     nowUnix > sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS ||
     data.length !== rowsEnd + 2 * bitmapBytes
   ) return null;
@@ -524,7 +632,21 @@ function unclaimedBoardSealTime(
   if (position === undefined) return null;
   const claimed = (data[rowsEnd + Math.floor(position / 8)] ?? 0) &
     (1 << (position % 8));
-  return claimed === 0 ? sealedAt : null;
+  if (claimed !== 0) return null;
+  // The board's own stored pool and denominator, so the quoted amount is the
+  // one the program will pay rather than a re-derived width.
+  return {
+    sealedAt,
+    position,
+    amountLamports: payoutForRank(poolLamports, denominator, position + 1),
+  };
+}
+
+function readU128LE(data: Buffer, offset: number): bigint {
+  return (
+    data.readBigUInt64LE(offset) |
+    (data.readBigUInt64LE(offset + 8) << 64n)
+  );
 }
 
 export async function buildPurchaseKreditsPlan(args: {

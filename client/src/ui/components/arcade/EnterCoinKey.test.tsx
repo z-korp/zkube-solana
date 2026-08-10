@@ -27,27 +27,28 @@ afterAll(() => {
 });
 
 describe("EnterCoinKey", () => {
-  it("sells an entry as amount-then-coin: the coin is the only currency mark and sits after the price", () => {
-    render(<EnterCoinKey label="Enter" amountSol="0.010" />);
+  it("prices an entry in Kredits and never in SOL", () => {
+    render(<EnterCoinKey label="Play" spendsKredit />);
 
-    const key = screen.getByRole("button", { name: /enter 0\.010/i });
-    // Exactly one currency object — the embossed coin, no trailing SOL mark.
-    const marks = key.querySelectorAll("svg");
-    expect(marks).toHaveLength(1);
-    const coin = marks[0]!;
-    expect(coin.querySelector("circle")).not.toBeNull();
-    // The coin follows the price (unit on the right).
+    const key = screen.getByRole("button", { name: /play/i });
+    // An entry costs exactly one Kredit, so the key shows the Kredit token and
+    // no amount at all — the SOL price of a Kredit belongs in the shop.
     const text = key.querySelector("span");
-    expect(text?.textContent).toBe("Enter 0.010");
+    expect(text?.textContent).toBe("Play");
+    const token = key.querySelector("img");
+    expect(token?.getAttribute("src")).toBe("/assets/common/kredit.png");
+    expect(key.querySelectorAll("svg")).toHaveLength(0);
     expect(
-      text!.compareDocumentPosition(coin) & Node.DOCUMENT_POSITION_FOLLOWING,
+      text!.compareDocumentPosition(token!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("renders plain for non-entry verbs", () => {
+  it("renders plain for verbs that spend nothing", () => {
     render(<EnterCoinKey label="Entries closed" disabled />);
 
     const key = screen.getByRole("button", { name: /entries closed/i });
+    expect(key.querySelectorAll("img")).toHaveLength(0);
     expect(key.querySelectorAll("svg")).toHaveLength(0);
   });
 });

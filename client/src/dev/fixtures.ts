@@ -12,6 +12,7 @@
 import { PublicKey } from "@solana/web3.js";
 
 import { currentDailyDayId } from "@/chain/dailyClient";
+import type { UnclaimedRewardView } from "@/chain/dailyClient";
 import type {
   DailyLeaderboardView,
   DailyPlayerView,
@@ -198,6 +199,24 @@ export function buildDevLeaderboardEmblems(): PlayerEmblemView[] {
     highestLadderTier: tiers[index]!,
     featuredFrameTier: tiers[index]!,
   }));
+}
+
+/**
+ * A reward waiting to be collected, so the lobby's collect band is reviewable
+ * under the bypass. Folds away in production builds.
+ */
+export function devUnclaimedRewards(): UnclaimedRewardView[] {
+  const dayId = currentDailyDayId();
+  return [
+    {
+      dayId: dayId - 1,
+      board: "score",
+      position: 1,
+      rank: 2,
+      amountLamports: 653n * (SOL / 1_000n),
+      expiresAt: (dayId + 29) * 86_400,
+    },
+  ];
 }
 
 export function buildDevCampaignView(): CampaignView {
