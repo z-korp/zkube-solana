@@ -56,10 +56,11 @@ export const DEV_BYPASS_ACTIVE: boolean =
  * Absent means the shipped HUD, so the harness can still show what exists
  * today — a comparison needs the incumbent in it.
  */
-export function devHudVariantFromUrl(): "slab" | "towers" | "hero" | null {
+export function devHudVariantFromUrl(): "tablet" | null {
   if (!import.meta.env.DEV || !DEV_BYPASS_ACTIVE) return null;
-  const hud = new URLSearchParams(window.location.search).get("hud");
-  return hud === "slab" || hud === "towers" || hud === "hero" ? hud : null;
+  return new URLSearchParams(window.location.search).get("hud") === "tablet"
+    ? "tablet"
+    : null;
 }
 
 export function devBoardModeFromUrl(): "arena" | "campaign" | null {

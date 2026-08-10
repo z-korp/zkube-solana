@@ -9,9 +9,6 @@
 import { Flag, Settings } from "lucide-react";
 
 import type { BonusSlot } from "@/ui/components/actionbar/GameActionBar";
-import type { FieldStanding } from "./PrototypeHud";
-
-export type ActionBarVariant = "rail" | "flank";
 
 const PANEL: React.CSSProperties = {
   background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
@@ -102,91 +99,25 @@ function BonusKey({
   );
 }
 
+/**
+ * Controls only. The chase moved into the header, where it sits with the two
+ * numbers it is about — a second rail down here would have restated it, and
+ * the tray's job is the one thing you press.
+ */
 export default function PrototypeActionBar({
-  variant,
   bonusSlots,
   activeBonus,
   onSurrender,
-  field,
-  yourScore,
-  objectiveLine,
 }: {
-  variant: ActionBarVariant;
   bonusSlots: BonusSlot[];
   activeBonus: number;
   onSurrender: () => void;
-  field: FieldStanding | null;
-  /** The run's live score, so the rail can quote the gap rather than a total. */
-  yourScore: number;
-  /** Shown in place of the field rail when there is no field (Campaign). */
-  objectiveLine?: string;
 }) {
   const slot = bonusSlots[0];
   const selected = slot !== undefined && activeBonus === slot.type;
 
-  const rail = field ? (
-    <div
-      className="mb-1.5 flex items-center gap-2 rounded-xl px-2.5 py-1.5"
-      style={PANEL}
-    >
-      <span className="font-sans text-[11px] font-black tabular-nums text-white/50">
-        #{field.rank - 1}
-      </span>
-      <span className="min-w-0 flex-1 truncate font-sans text-[11px] font-bold text-white">
-        {field.nextName}
-      </span>
-      <span className="font-sans text-[11px] font-black tabular-nums text-white/70">
-        {field.nextScore.toLocaleString("en-US")}
-      </span>
-      <span className="font-sans text-[11px] font-black tabular-nums text-amber-300">
-        +{Math.max(0, field.nextScore - yourScore).toLocaleString("en-US")}
-      </span>
-    </div>
-  ) : objectiveLine ? (
-    <div
-      className="mb-1.5 truncate rounded-xl px-2.5 py-1.5 text-center font-sans text-[11px] font-bold text-white/60"
-      style={PANEL}
-    >
-      {objectiveLine}
-    </div>
-  ) : null;
-
-  if (variant === "flank") {
-    return (
-      <div className="w-full px-2 pb-2">
-        <div className="flex items-center gap-2">
-          <ControlKey label="Surrender" onClick={onSurrender}>
-            <Flag size={18} />
-          </ControlKey>
-          <BonusKey slot={slot} selected={selected} />
-          <ControlKey label="Settings">
-            <Settings size={18} />
-          </ControlKey>
-        </div>
-        {field && (
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span
-              className="flex-1 truncate rounded-xl px-2 py-1 font-sans text-[10px] font-bold tabular-nums text-white/55"
-              style={PANEL}
-            >
-              #{field.rank - 1} {field.nextName}{" "}
-              {field.nextScore.toLocaleString("en-US")}
-            </span>
-            <span
-              className="flex-1 truncate rounded-xl px-2 py-1 text-right font-sans text-[10px] font-bold tabular-nums text-white/55"
-              style={PANEL}
-            >
-              {field.entrants} playing
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="w-full px-2 pb-2">
-      {rail}
       <div className="flex items-center gap-2">
         <ControlKey label="Surrender" onClick={onSurrender}>
           <Flag size={18} />

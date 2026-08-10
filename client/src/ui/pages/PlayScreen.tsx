@@ -625,22 +625,20 @@ export default function PlayScreen() {
           folds away in production with the rest of the harness. */}
       {hudVariant ? (
         <PrototypeHud
-          variant={hudVariant}
           isDaily={game.mode === 1}
           zoneId={game.zoneId}
           level={hudGame.level}
           score={game.mode === 1 ? hudGame.totalScore : hudGame.levelScore}
+          themeScore={hudGame.challengeBonus}
           targetScore={gameLevel.pointsRequired}
-          engineScore={hudGame.engineScore}
-          challengeBonus={hudGame.challengeBonus}
           pressureScore={hudGame.pressureScore}
           currentDifficulty={hudGame.currentDifficulty}
           endlessThresholds={activeRun.endlessThresholds}
           endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
+          movesUsed={hudGame.levelMoves}
           movesRemaining={movesDisplay}
           maxMoves={gameLevel.maxMoves}
           combo={hudGame.combo}
-          starsEarned={devStarsEarned(gameLevel, hudGame.levelMoves)}
           gameLevel={gameLevel}
           constraintProgress={hudGame.constraintProgress}
           constraint2Progress={hudGame.constraint2Progress}
@@ -649,7 +647,11 @@ export default function PlayScreen() {
               ? dailyScoringRuleName(activeRun.dailyScoringRule)
               : undefined
           }
-          field={game.mode === 1 ? devFieldStanding(hudGame.totalScore) : null}
+          standings={
+            game.mode === 1
+              ? devStandings(hudGame.totalScore, hudGame.challengeBonus)
+              : null
+          }
           onBack={
             chainTerminal || basePhase || run.busy
               ? undefined
@@ -860,17 +862,9 @@ export default function PlayScreen() {
           the terminal/settlement window it stays as an inert height-holder. */}
       {hudVariant ? (
         <PrototypeActionBar
-          variant={hudVariant === "towers" ? "flank" : "rail"}
           bonusSlots={bonusSlots}
           activeBonus={activeBonus}
           onSurrender={handleQuit}
-          field={game.mode === 1 ? devFieldStanding(hudGame.totalScore) : null}
-          yourScore={hudGame.totalScore}
-          objectiveLine={
-            game.mode === 1
-              ? undefined
-              : dailyScoringRuleDescription(activeRun.dailyScoringRule)
-          }
         />
       ) : (
       <GameActionBar
@@ -892,25 +886,22 @@ export default function PlayScreen() {
 }
 
 /**
- * DEV-only stand-ins for data the prototypes need and the chain does not carry
- * yet: there is no live board during the day, so a rank has to be faked to be
- * looked at. Nothing outside the harness may read these.
+ * DEV-only stand-in for the live field, which the chain does not carry during
+ * the day: board accounts are built after the freeze, so a rank has to be
+ * faked to be looked at. Nothing outside the harness may read this, and the
+ * real version is a sliced scan of today's ArenaPlayer accounts.
+ *
+ * The Theme gap is deliberately the cheaper of the two here, so the rail can be
+ * seen choosing it.
  */
-function devFieldStanding(score: number) {
+function devStandings(score: number, themeScore: number) {
   return {
-    rank: 4,
-    entrants: 147,
-    nextScore: Math.round(score * 1.09),
-    nextName: "Jade_Serpent",
+    score: { rank: 4, entrants: 147, gapToNext: Math.round(score * 0.09) },
+    theme:
+      themeScore > 0
+        ? { rank: 2, entrants: 61, gapToNext: Math.round(themeScore * 0.05) }
+        : null,
   };
-}
-
-function devStarsEarned(
-  gameLevel: { star3Threshold: number; star2Threshold: number },
-  movesUsed: number,
-): number {
-  if (movesUsed <= gameLevel.star3Threshold) return 3;
-  return movesUsed <= gameLevel.star2Threshold ? 2 : 1;
 }
 
 function PlaySurface({ children }: { children: ReactNode }) {
