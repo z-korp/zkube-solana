@@ -138,9 +138,16 @@ prices.
   missing day is the most visible action the operator can take. Never close this
   by adding notice to suspension; that would remove the only way to stop a broken
   pool.
-- **Tomorrow's daily is published a day ahead.** This restores the Campaign
-  bridge — practising tomorrow's realm is actionable, ambient hints are not —
-  and gives every evening a hook.
+- **Tomorrow's daily is not published, and the client shows no hint of it.**
+  Reversed on 2026-08-10 after the surface was built twice and cut twice. The
+  Campaign bridge it was supposed to restore does not survive contact with the
+  draw: tomorrow's realm is derived independently of progress, so the one
+  actionable thing it offered — practise that realm today — sends a player who
+  has not unlocked it to a locked screen. The keeper still prepares the
+  following Daily and `followingMapId` is still readable on chain; nothing
+  renders it. Do not reintroduce a tomorrow panel, an evening hook, or an
+  ambient hint. Suspension notice is unaffected: the operator's per-day veto
+  above depends on suspension needing no notice, never on publication.
 - **Each entry pins its own difficulty band.** Every player faces the same day,
   so a hard day is hard for the whole field and competitiveness is untouched. A
   globally uniform difficulty is simply a pool whose entries all carry the same

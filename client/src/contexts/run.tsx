@@ -10,7 +10,12 @@ export type RunController = SlotRunController & {
   arcade: SlotRunController;
 };
 
-const RunContext = createContext<RunController | null>(null);
+/**
+ * Exported for the DEV wallet-bypass harness only, which re-provides it with a
+ * fixture run so the play surface can be reviewed without a wallet, a session
+ * and a paid entry. Production code reads it through {@link useRun}.
+ */
+export const RunContext = createContext<RunController | null>(null);
 
 export function RunProvider({ children }: { children: ReactNode }) {
   const campaign = useRunController("campaign");

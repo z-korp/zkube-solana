@@ -42,3 +42,16 @@ function resolveDevBypass(): boolean {
  */
 export const DEV_BYPASS_ACTIVE: boolean =
   import.meta.env.DEV && resolveDevBypass();
+
+/**
+ * Which board the harness should stage, from `&board=arena|campaign`.
+ *
+ * Only read when the bypass is already active, so it folds away with the rest
+ * of the harness. Absent means no fixture run at all and the real (empty) run
+ * controller stays in place — the menus must keep reading "no run".
+ */
+export function devBoardModeFromUrl(): "arena" | "campaign" | null {
+  if (!import.meta.env.DEV || !DEV_BYPASS_ACTIVE) return null;
+  const board = new URLSearchParams(window.location.search).get("board");
+  return board === "arena" || board === "campaign" ? board : null;
+}
