@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Gift, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -19,6 +19,7 @@ import {
   KreditCoin,
   KreditShopSheet,
   MONEY_GOLD,
+  PLATE_STYLE,
   SolMark,
 } from "@/ui/components/economy";
 import EnterCoinKey from "@/ui/components/arcade/EnterCoinKey";
@@ -32,13 +33,6 @@ import {
   useThemeColors,
 } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalance, formatSolBalanceLamports } from "@/utils/currency";
-
-/** Opaque block furniture — the menu chrome never uses glass blur. */
-const PLATE_STYLE: React.CSSProperties = {
-  background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "0 3px 0 #04070F, inset 0 1px 0 rgba(255,255,255,0.08)",
-};
 
 /**
  * Home — the lobby after connection. The same surface as the landing: the
@@ -106,15 +100,37 @@ const HomePage: React.FC = () => {
     address !== null &&
     (view?.leaderboard.some((entry) => entry.player.toBase58() === address) ??
       false);
+  // Money already won outranks starting a new run, so it takes the key rather
+  // than stacking a second gold button above it. One tap, device-session
+  // signed — no wallet approval and no Kredit, because a prize is not
+  // something a player should have to buy their way into. Entering also
+  // collects, so this is only the door for the winner who did not come back.
+  const owedReward = owed.rewards[0] ?? null;
   let playLabel = "Play";
-  let playSpends = false;
+  let playToken: "kredit" | "sol" | undefined;
   let playDisabled = false;
   let playOnClick: () => void = () => navigate("arcade");
 
   if (lifecycle === "resume") {
+    // Resume outranks even a prize: a run in flight can be lost at the freeze,
+    // while a reward keeps for thirty days.
     playLabel = "Resume run";
     playOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
+    };
+  } else if (owedReward) {
+    // The amount named is the one this tap collects, not the running total —
+    // a second reward simply re-arms the key with its own figure.
+    playLabel = owed.claiming
+      ? "Collecting…"
+      : `Collect ${formatSolBalanceLamports(owedReward.amountLamports)}`;
+    playToken = owed.claiming ? undefined : "sol";
+    playDisabled = owed.claiming;
+    playOnClick = () => {
+      void owed
+        .claim(owedReward)
+        .then((amount) => setCollected(amount))
+        .catch(() => undefined);
     };
   } else if (lifecycle === "entries-open") {
     if (daily.action === "enter:kredit") {
@@ -134,7 +150,7 @@ const HomePage: React.FC = () => {
       playOnClick = () => setShopOpen(true);
     } else {
       playLabel = alreadyEntered ? "Play again" : "Play";
-      playSpends = true;
+      playToken = "kredit";
       playDisabled = busy || !player.wallet;
       playOnClick = () => setCoinSheetOpen(true);
     }
@@ -218,48 +234,10 @@ const HomePage: React.FC = () => {
           keeps the larger share; min-height covers the block's overlap. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
         <div className="min-h-[64px] flex-1" />
-        {/* Money already won outranks everything else on this screen. One tap,
-            device-session signed — no wallet approval and no Kredit, because a
-            prize is not something a player should have to buy their way into.
-            Entering also collects it, so this is the door for the winner who
-            did not come back. */}
-        {owed.rewards.length > 0 && (
-          <motion.button
-            type="button"
-            disabled={owed.claiming}
-            onClick={() => {
-              const reward = owed.rewards[0];
-              if (!reward) return;
-              void owed
-                .claim(reward)
-                .then((amount) => setCollected(amount))
-                .catch(() => undefined);
-            }}
-            whileTap={{ y: 3, boxShadow: "0 1px 0 #705C09" }}
-            // The guardian overhangs the marquee by 52px, so the band clears
-            // it rather than being half-covered by a cat.
-            className="mx-auto mb-[62px] flex w-full max-w-[400px] items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-[#241903] disabled:opacity-60"
-            style={{
-              background:
-                "linear-gradient(160deg, #FCE177 0%, #FACC15 55%, #B4930F 100%)",
-              boxShadow:
-                "0 4px 0 #705C09, 0 12px 26px -10px rgba(250,204,21,0.6), inset 0 2px 0 rgba(255,255,255,0.5)",
-            }}
-          >
-            <Gift size={18} className="flex-none" />
-            <span className="min-w-0 flex-1 text-left font-sans text-[15px] font-extrabold">
-              {formatSolBalanceLamports(owed.totalLamports)} SOL waiting
-            </span>
-            <span className="flex-none font-sans text-[13px] font-extrabold uppercase tracking-[0.1em]">
-              {owed.claiming ? "Collecting…" : "Collect"}
-            </span>
-          </motion.button>
-        )}
-
         <DailyMarquee zoneId={zoneId} view={view} address={address ?? null}>
           <EnterCoinKey
             label={playLabel}
-            spendsKredit={playSpends}
+            token={playToken}
             disabled={playDisabled}
             onClick={playOnClick}
           />

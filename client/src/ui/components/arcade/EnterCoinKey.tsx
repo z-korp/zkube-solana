@@ -1,18 +1,20 @@
 import { motion } from "motion/react";
 
-import { KreditCoin } from "@/ui/components/economy";
+import { KreditCoin, SolMark } from "@/ui/components/economy";
 
 interface EnterCoinKeyProps {
   /** The verb ("Play", "Resume run", "Get Kredits", …). */
   label: string;
   /**
-   * Show the Kredit token, for a key that spends one.
+   * The token this key moves, if any.
    *
-   * Deliberately never a SOL amount: an entry costs one Kredit, and the SOL
-   * price of a Kredit belongs in the shop. Pricing a key labelled "Play" in
-   * SOL conflated the two currencies at the exact moment they matter most.
+   * `kredit` for a key that spends one to enter; `sol` only for collecting a
+   * prize, which is the one action on this screen denominated in SOL. An entry
+   * is never priced in SOL here — the SOL price of a Kredit belongs in the
+   * shop, and pricing a key labelled "Play" in SOL conflated the two
+   * currencies at the exact moment they matter most.
    */
-  spendsKredit?: boolean;
+  token?: "kredit" | "sol";
   disabled?: boolean;
   onClick?: () => void;
 }
@@ -23,7 +25,7 @@ interface EnterCoinKeyProps {
  */
 const EnterCoinKey: React.FC<EnterCoinKeyProps> = ({
   label,
-  spendsKredit = false,
+  token,
   disabled = false,
   onClick,
 }) => (
@@ -45,7 +47,8 @@ const EnterCoinKey: React.FC<EnterCoinKeyProps> = ({
     }}
   >
     <span>{label}</span>
-    {spendsKredit && <KreditCoin size={24} />}
+    {token === "kredit" && <KreditCoin size={24} />}
+    {token === "sol" && <SolMark size={17} />}
   </motion.button>
 );
 

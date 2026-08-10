@@ -28,7 +28,7 @@ afterAll(() => {
 
 describe("EnterCoinKey", () => {
   it("prices an entry in Kredits and never in SOL", () => {
-    render(<EnterCoinKey label="Play" spendsKredit />);
+    render(<EnterCoinKey label="Play" token="kredit" />);
 
     const key = screen.getByRole("button", { name: /play/i });
     // An entry costs exactly one Kredit, so the key shows the Kredit token and
@@ -50,5 +50,15 @@ describe("EnterCoinKey", () => {
     const key = screen.getByRole("button", { name: /entries closed/i });
     expect(key.querySelectorAll("img")).toHaveLength(0);
     expect(key.querySelectorAll("svg")).toHaveLength(0);
+  });
+
+  it("marks a collected prize in SOL, the one key that pays out", () => {
+    render(<EnterCoinKey label="Collect 0.653" token="sol" />);
+
+    const key = screen.getByRole("button", { name: /collect 0\.653/i });
+    // Collecting is the only key denominated in SOL: it moves a prize rather
+    // than buying an entry, so it must never wear the Kredit token.
+    expect(key.querySelectorAll("img")).toHaveLength(0);
+    expect(key.querySelectorAll("svg").length).toBeGreaterThan(0);
   });
 });

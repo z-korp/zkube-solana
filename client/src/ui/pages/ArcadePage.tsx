@@ -117,7 +117,7 @@ const ArcadePage: React.FC = () => {
   // Kredit, and the SOL price of a Kredit lives in the shop — a key labelled
   // "Enter" priced in SOL conflated the two currencies.
   let primaryLabel = "Enter";
-  let primarySpends = false;
+  let primaryToken: "kredit" | "sol" | undefined;
   let primaryDisabled = false;
   let primaryOnClick: () => void = () => {};
 
@@ -144,7 +144,7 @@ const ArcadePage: React.FC = () => {
       primaryDisabled = busy || !player.wallet;
       primaryOnClick = () => setShopOpen(true);
     } else {
-      primarySpends = true;
+      primaryToken = "kredit";
       primaryDisabled = busy || !player.wallet;
       // Tap the key → confirm one prepaid Kredit → session-authorized play.
       primaryOnClick = () => setCoinSheetOpen(true);
@@ -260,7 +260,7 @@ const ArcadePage: React.FC = () => {
       <div className="relative z-20 px-4 pb-3">
         <EnterCoinKey
           label={primaryLabel}
-          spendsKredit={primarySpends}
+          token={primaryToken}
           disabled={primaryDisabled}
           onClick={primaryOnClick}
         />
