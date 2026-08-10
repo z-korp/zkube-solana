@@ -7,6 +7,8 @@ import {
   fetchPlayerEmblems,
   type PlayerEmblemView,
 } from "@/chain/playerStateClient";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { buildDevLeaderboardEmblems } from "@/dev/fixtures";
 
 /**
  * Emblem and ladder-tier projection for the wallets on a board, keyed by
@@ -38,6 +40,20 @@ export function useLeaderboardEmblems(
   );
 
   useEffect(() => {
+    // DEV-ONLY: the bypass has no chain, so a live board would render six
+    // empty avatar slots and the layout could not be judged. Folds away in
+    // production builds.
+    if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
+      setEmblems(
+        new Map(
+          buildDevLeaderboardEmblems().map((view) => [
+            view.address.toBase58(),
+            view,
+          ]),
+        ),
+      );
+      return;
+    }
     if (key === "") {
       setEmblems(new Map());
       return;

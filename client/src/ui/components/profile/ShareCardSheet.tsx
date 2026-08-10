@@ -7,6 +7,7 @@ import {
 } from "@/config/guardianBlocks";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { getThemeId, getThemeImages } from "@/config/themes";
+import { tierFrameOuterSize } from "@/config/tierFrames";
 import { SOL_LOGO_PATH } from "@/ui/components/economy/SolMark";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -18,9 +19,6 @@ const HEIGHT = 1350;
 
 /** Content box of the supplied MagicBlock logomark inside its 1536² canvas. */
 const MAGICBLOCK_BOX = [243, 288, 1049, 962] as const;
-
-/** Per-tier opening fractions; mirrors TierFrame. */
-const TIER_FRAME_OPENINGS = [0.8255, 0.6673, 0.7078, 0.5886, 0.6177];
 
 export interface ShareCardData {
   displayName: string;
@@ -34,8 +32,6 @@ export interface ShareCardData {
   entryStreakDays: number;
   /** Best payout-bearing rank across both boards; 0 when never placed. */
   bestPrizeRank: number;
-  /** Lifetime best `daily_score`, which the challenge names. */
-  bestDailyScore: number;
 }
 
 interface ShareCardSheetProps {
@@ -114,10 +110,10 @@ function drawFlame(
  * The platforms this runs on, along the foot of the card.
  *
  * Solana and MagicBlock draw their own marks — the white MagicBlock logomark,
- * since the card's foot is always dark. Seeker is set as a wordmark: its brand
- * mark is not in this repo, and inventing one for somebody else's brand is
- * worse than spelling their name correctly. Drop the official asset in
- * `public/assets/common/` and it becomes a mark here like the others.
+ * since the card's foot is always dark. Nothing here is set as a wordmark:
+ * inventing a mark for somebody else's brand is worse than leaving them off,
+ * so a platform joins this strip when its official asset lands in
+ * `public/assets/common/`.
  */
 async function drawPlatformStrip(
   ctx: CanvasRenderingContext2D,
@@ -126,8 +122,6 @@ async function drawPlatformStrip(
 ): Promise<void> {
   const MARK = 46;
   const GAP = 40;
-  ctx.font = "800 28px Outfit, sans-serif";
-  const seekerWidth = ctx.measureText("SEEKER").width;
 
   let magicBlock: HTMLImageElement | null = null;
   try {
@@ -136,7 +130,7 @@ async function drawPlatformStrip(
     // mark unavailable — the strip degrades to the two it can draw
   }
   const magicWidth = magicBlock ? MARK * 1.09 : 0;
-  const parts = [MARK, seekerWidth, magicWidth].filter((w) => w > 0);
+  const parts = [MARK, magicWidth].filter((w) => w > 0);
   const total =
     parts.reduce((sum, w) => sum + w, 0) + GAP * (parts.length - 1);
   let cursor = cx - total / 2;
@@ -150,12 +144,8 @@ async function drawPlatformStrip(
   ctx.restore();
   cursor += MARK + GAP;
 
-  // All three centre on `y`: the Solana path is 101x88 drawn from its own top,
-  // a text baseline sits below its cap height, and the logomark is square.
-  ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.fillText("SEEKER", cursor, y + 10);
-  cursor += seekerWidth + GAP;
+  // Both centre on `y`: the Solana path is 101x88 drawn from its own top and
+  // the logomark is drawn from its own centre.
 
   if (magicBlock) {
     ctx.save();
@@ -314,7 +304,7 @@ async function drawCard(data: ShareCardData): Promise<string> {
   ctx.restore();
   try {
     const frame = await loadImage(`/assets/common/tier-${data.frameTier}.png`);
-    const outer = (size * 1.03) / (TIER_FRAME_OPENINGS[data.frameTier] ?? 0.8255);
+    const outer = tierFrameOuterSize(data.frameTier, size);
     ctx.drawImage(
       frame,
       WIDTH / 2 - outer / 2,
@@ -391,13 +381,9 @@ async function drawCard(data: ShareCardData): Promise<string> {
   });
   ctx.textAlign = "center";
 
-  // The invitation. A number a stranger can aim at beats a name for a thing
-  // they have never heard of — the old line asked them to beat "today's
-  // daily", which the card never explained.
-  const challenge =
-    data.bestDailyScore > 0
-      ? `CAN YOU BEAT ${data.bestDailyScore.toLocaleString()}?`
-      : "PLAY THE DAILY SOL ARENA";
+  // The invitation. Everything above already says who is being challenged and
+  // with what, so the line only has to point at them.
+  const challenge = "CAN YOU BEAT ME?";
   ctx.font = "800 40px Outfit, sans-serif";
   const ctaWidth = Math.min(760, ctx.measureText(challenge).width + 92);
   roundedRect(ctx, WIDTH / 2 - ctaWidth / 2, 1160, ctaWidth, 96, 48);

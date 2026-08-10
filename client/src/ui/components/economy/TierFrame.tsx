@@ -1,20 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ladderTierName } from "@/config/ladderTiers";
-
-/**
- * Fraction of each frame's artwork taken up by its opening, measured by
- * `client/tools/sprites/install-tier-frames.py` and printed by it.
- *
- * Per tier rather than one constant: forcing every frame to the same ratio
- * would have cropped the ornament off the elaborate ranks, whose bands are
- * thicker. A higher tier legitimately reaches further past the block, which is
- * what makes the rack of them read as a climb.
- */
-const TIER_FRAME_OPENINGS = [0.8255, 0.6673, 0.7078, 0.5886, 0.6177] as const;
-
-/** Overlap: the block tucks under the band instead of leaving a seam. */
-const TUCK = 1.03;
+import { tierFrameOuterSize } from "@/config/tierFrames";
 
 interface TierFrameProps {
   /** Protocol tier index. */
@@ -40,9 +27,7 @@ const TierFrame: React.FC<TierFrameProps> = ({
   children,
   className = "",
 }) => {
-  const opening =
-    TIER_FRAME_OPENINGS[tier] ?? TIER_FRAME_OPENINGS[0];
-  const outer = Math.round((size * TUCK) / opening);
+  const outer = tierFrameOuterSize(tier, size);
   // The box is the whole ornament, not the block: a frame that overhangs its
   // own box gets clipped by the first panel edge it meets.
   return (

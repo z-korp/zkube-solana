@@ -2,11 +2,9 @@ import { Fragment, useMemo, useState } from "react";
 
 import type { DailyView } from "@/chain/dailyClient";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
+import { tierFrameInnerSize } from "@/config/tierFrames";
 import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
-import {
-  PaidCutLine,
-  RankMedal,
-} from "@/ui/components/arena/LeaderboardRow";
+import { PaidCutLine } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
   GuardianFaceBlock,
@@ -31,8 +29,9 @@ const YOU_RING: React.CSSProperties = {
   boxShadow: "0 0 12px rgba(250,204,21,0.25)",
 };
 
-const HEAD_CLASS =
-  "font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-white/30";
+/** Every row's avatar slot, ornament included, so the column stays straight. */
+const AVATAR_BOX = 46;
+const MEDAL_COLORS = ["#FACC15", "#C9D6E4", "#E2955C"] as const;
 
 interface DailyBoardProps {
   view: DailyView;
@@ -41,18 +40,43 @@ interface DailyBoardProps {
 }
 
 /**
- * The prize ladder IS the leaderboard: five rungs, always priced from the
- * live pot whether or not anyone holds them — rank, holder, score, potential
- * earnings. Nothing renders below
- * the prize zone except the connected player's own row when they sit outside
- * it, so they always know where they stand. The percentage split lives in
- * the ? popup.
+ * The rank badge, worn on the corner of the player's own avatar.
  *
- * Every row wears the border and guardian its player chose. The ladder pays no
- * SOL, so the board is the only place a rank can mean anything: a border the
- * field can see is a border worth climbing for, and one that lived on the
- * owner's own profile would be a private number. The tier is named beside the
- * wallet too, because an ornament is not readable at row height on its own.
+ * On its own column it was a fifth element competing with the border for the
+ * same job — saying where somebody stands. Sitting on the avatar it costs no
+ * width, which is what let the avatar grow enough to be worth wearing.
+ */
+const RankBadge: React.FC<{ rank: number }> = ({ rank }) => (
+  <span
+    className="absolute -bottom-0.5 -left-0.5 z-10 flex items-center justify-center font-mono font-black"
+    style={{
+      width: 18,
+      height: 18,
+      borderRadius: 6,
+      fontSize: 10,
+      background: MEDAL_COLORS[rank - 1] ?? "#26344A",
+      color: rank <= 3 ? "#181205" : "rgba(255,255,255,0.85)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 3px rgba(0,0,0,0.6)",
+    }}
+  >
+    {rank}
+  </span>
+);
+
+/**
+ * The prize ladder IS the leaderboard: every rung priced from the live pot
+ * whether or not anyone holds it. Nothing renders below the prize zone except
+ * the connected player's own row when they sit outside it, so they always know
+ * where they stand. The percentage split lives in the ? popup.
+ *
+ * Four things per row and no column headings: a medal, a face, a number and a
+ * gold SOL amount need no labels, and the labels were crowding the title.
+ *
+ * Every row wears the border and guardian its player chose, which is the whole
+ * point of earning either — the ladder pays no SOL, so a board is the only
+ * place a rank can mean anything. The tier is named beside the wallet as well,
+ * because an ornament is not readable at row height on its own.
  */
 const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
   const [board, setBoard] = useState<"score" | "theme">("score");
@@ -74,6 +98,7 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
     [view.leaderboard, view.themeLeaderboard],
   );
   const emblems = useLeaderboardEmblems(owners);
+
   const rowFor = (index: number, withDivider: boolean) => {
     const entry = rows[index];
     const rank = index + 1;
@@ -81,10 +106,11 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
     const prize = payouts[index] ?? 0n;
     const emblem = entry ? emblems.get(entry.player.toBase58()) : undefined;
     const tier = emblem?.featuredFrameTier ?? 0;
+    const inner = tierFrameInnerSize(tier, AVATAR_BOX);
     return (
       <div
         key={rank}
-        className={`flex items-center gap-2.5 px-2 py-2.5 ${
+        className={`flex items-center gap-2.5 px-2 py-1.5 ${
           isYou
             ? "rounded-xl"
             : withDivider
@@ -93,28 +119,46 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
         }`}
         style={isYou ? YOU_RING : undefined}
       >
-        <RankMedal rank={rank} />
-        {emblem && (
-          <TierFrame tier={tier} size={22}>
-            {emblem.featuredEmblem >= 1 && emblem.featuredEmblem <= 10 ? (
-              <GuardianFaceBlock
-                zoneId={emblem.featuredEmblem}
-                size={22}
-                framed
-              />
-            ) : (
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: "24%",
-                  background: "rgba(4,7,15,0.75)",
-                }}
-              />
-            )}
-          </TierFrame>
-        )}
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span
+          className="relative flex flex-none items-center justify-center"
+          style={{ width: AVATAR_BOX, height: AVATAR_BOX }}
+        >
+          {emblem ? (
+            <TierFrame tier={tier} size={inner}>
+              {emblem.featuredEmblem >= 1 && emblem.featuredEmblem <= 10 ? (
+                <GuardianFaceBlock
+                  zoneId={emblem.featuredEmblem}
+                  size={inner}
+                  framed
+                />
+              ) : (
+                <span
+                  style={{
+                    width: inner,
+                    height: inner,
+                    borderRadius: "22%",
+                    background: "rgba(4,7,15,0.75)",
+                  }}
+                />
+              )}
+            </TierFrame>
+          ) : (
+            // No resolved profile: a neutral seat rather than a borrowed
+            // border, which would claim a rank this player may not hold.
+            <span
+              style={{
+                width: AVATAR_BOX - 10,
+                height: AVATAR_BOX - 10,
+                borderRadius: "24%",
+                background: "rgba(255,255,255,0.05)",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.09)",
+              }}
+            />
+          )}
+          <RankBadge rank={rank} />
+        </span>
+
+        <span className="flex min-w-0 flex-1 flex-col">
           <span className="min-w-0 truncate text-left font-sans text-[15px] font-bold text-white/90">
             {isYou
               ? "You"
@@ -123,22 +167,17 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
                   playerLabelWithWallet(null, entry.player.toBase58()))
                 : "—"}
           </span>
-          {/* The tier is named, not numbered: a numeral here would read as a
-              second rank, and a bare colour would need a legend. Rows whose
-              profile has not resolved simply carry none. */}
           {emblem && (
             <span
-              className="flex-none rounded px-1 py-px font-sans text-[8px] font-bold uppercase tracking-[0.1em]"
-              style={{
-                color: ladderTierColor(tier),
-                boxShadow: `inset 0 0 0 1px ${ladderTierColor(tier)}55`,
-              }}
+              className="font-sans text-[9px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: ladderTierColor(tier) }}
             >
               {ladderTierName(tier)}
             </span>
           )}
         </span>
-        <span className="w-20 flex-none text-right font-mono text-[15px] font-bold tabular-nums text-white">
+
+        <span className="w-[68px] flex-none text-right font-mono text-[15px] font-bold tabular-nums text-white">
           {entry
             ? (board === "score" ? entry.dailyScore : entry.objectiveTotal).toLocaleString()
             : ""}
@@ -162,7 +201,7 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
     <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
       <div className="flex items-center justify-between">
         <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
-          Daily board
+          Leaderboard
         </p>
         <div className="flex rounded-lg bg-black/30 p-0.5 text-[10px] font-bold uppercase">
           {(["score", "theme"] as const).map((kind) => (
@@ -177,25 +216,19 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
           ))}
         </div>
       </div>
-      <div className="mt-1 flex items-center gap-2.5 px-2 pb-1">
-        <span className={`${HEAD_CLASS} w-5`}>#</span>
-        <span className={`${HEAD_CLASS} flex-1`}>Player</span>
-        <span className={`${HEAD_CLASS} w-20 text-right`}>
-          {board === "score" ? "Score" : "Theme"}
-        </span>
-        <span className={`${HEAD_CLASS} w-[72px] text-right`}>Prize</span>
+
+      <div className="mt-2.5">
+        {Array.from({ length: plan.winnerCount }, (_, index) =>
+          rowFor(index, index > 0),
+        )}
+
+        {myIndex >= plan.winnerCount && (
+          <Fragment>
+            <PaidCutLine />
+            {rowFor(myIndex, false)}
+          </Fragment>
+        )}
       </div>
-
-      {Array.from({ length: plan.winnerCount }, (_, index) =>
-        rowFor(index, index > 0),
-      )}
-
-      {myIndex >= plan.winnerCount && (
-        <Fragment>
-          <PaidCutLine />
-          {rowFor(myIndex, false)}
-        </Fragment>
-      )}
 
       {rows.length === 0 && (
         <p className="mt-1 border-t border-white/[0.05] px-2 pt-2 text-center font-sans text-xs font-semibold text-white/50">

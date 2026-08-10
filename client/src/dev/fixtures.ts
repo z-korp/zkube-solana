@@ -31,6 +31,7 @@ import type { ActiveRunRulesView } from "@/chain/runPlan";
 import type { ConnectedPlayerValue } from "@/chain/connectedPlayerContext";
 import { createReadOnlyWallet } from "@/chain/readOnlyWallet";
 import type { PlayerLabelView } from "@/chain/playerLabelClient";
+import type { PlayerEmblemView } from "@/chain/playerStateClient";
 import type { PlayerProfileResult } from "@/hooks/usePlayerProfile";
 
 const SOL = 1_000_000_000n;
@@ -175,6 +176,28 @@ function levelStars(total: number, clearedBoss: boolean): number[] {
     remaining -= value;
   }
   return stars;
+}
+
+/**
+ * Emblem and border projection for the fixture board, so the leaderboard's
+ * avatars are reviewable under the bypass.
+ *
+ * Every wallet on a real board has a PlayerState — it is created by their first
+ * entry — so an empty avatar slot is a loading state, not a steady one. Without
+ * this the dev board showed six blanks and the layout could not be judged.
+ */
+export function buildDevLeaderboardEmblems(): PlayerEmblemView[] {
+  // Deliberately mixed: five ranks and a guardian each, so the row reads
+  // differently at every position the way a live board would.
+  const emblems = [4, 2, 9, DEV_FEATURED_EMBLEM, 7, 1];
+  const tiers = [4, 3, 1, 2, 0, 2];
+  return NAMES.map((_, index) => ({
+    address: index === DEV_ROW ? DEV_PLAYER_PUBLIC_KEY : devKey(index + 1),
+    featuredEmblem: emblems[index]!,
+    totalStars: 300 - index * 40,
+    highestLadderTier: tiers[index]!,
+    featuredFrameTier: tiers[index]!,
+  }));
 }
 
 export function buildDevCampaignView(): CampaignView {

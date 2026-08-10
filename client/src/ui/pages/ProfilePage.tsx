@@ -604,7 +604,6 @@ const ProfilePage: React.FC = () => {
           totalEarnedLamports: profile.totalRewardsLamports,
           entryStreakDays: profile.entryStreakDays,
           bestPrizeRank: bestRankAcrossBoards,
-          bestDailyScore: profile.bestDailyScore,
         }}
       />
     </div>
