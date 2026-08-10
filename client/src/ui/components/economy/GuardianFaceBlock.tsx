@@ -13,16 +13,11 @@ interface GuardianFaceBlockProps {
   /** Square size in px. */
   size: number;
   /**
-   * Sticker rim colour. Defaults to the neutral white sticker; pass a ladder
-   * tier colour where the block stands for a player rather than for a realm.
-   */
-  rimColor?: string;
-  /**
    * Campaign mastery, worn as a corner star rather than as a rim.
    *
    * Mastery and ladder rank are different achievements and used to compete for
-   * the same edge — a gold rim could only ever say one of them. The star says
-   * what was finished; the rim says how high the player has climbed.
+   * the same edge. The star says what was finished; the rank wears its own
+   * frame outside the block (see `TierFrame`).
    */
   badge?: MasteryBadge | null;
   /** Gentle 4s scale breathe (hero placements only). */
@@ -54,7 +49,6 @@ const BADGE_COLORS: Record<MasteryBadge, string> = {
 const GuardianFaceBlock: React.FC<GuardianFaceBlockProps> = ({
   zoneId,
   size,
-  rimColor = NEUTRAL_RIM,
   badge = null,
   breathe = false,
   className = "",
@@ -76,10 +70,7 @@ const GuardianFaceBlock: React.FC<GuardianFaceBlockProps> = ({
         borderRadius: "24%",
         background: `linear-gradient(135deg, ${mix(base, 255, 0.5)} 0%, ${base} 55%, ${mix(base, 0, 0.38)} 100%)`,
         boxShadow: [
-          `inset 0 0 0 ${rimWidth}px ${rimColor}`,
-          // A hairline behind the rim. Without it a tier colour close to the
-          // realm's own body — Jade on a green guardian — vanishes into it.
-          `inset 0 0 0 ${rimWidth + Math.max(1, size * 0.02)}px rgba(0,0,0,0.5)`,
+          `inset 0 0 0 ${rimWidth}px ${NEUTRAL_RIM}`,
           badge === "perfected" ? `0 0 ${size * 0.28}px rgba(250,204,21,0.35)` : "",
           `0 ${size * 0.055}px ${size * 0.1}px rgba(0,0,0,0.45)`,
         ]

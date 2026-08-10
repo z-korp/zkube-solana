@@ -33,10 +33,10 @@ export const LADDER_TIERS: readonly LadderTier[] = [
  */
 export const LADDER_TIER_THRESHOLDS: readonly bigint[] = [
   0n,
-  1_000n,
-  5_000n,
-  20_000n,
-  50_000n,
+  1_500n,
+  7_000n,
+  25_000n,
+  75_000n,
 ];
 
 /** Name of a tier index, clamped so an unknown index still renders. */

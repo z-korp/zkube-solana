@@ -731,8 +731,8 @@ mod tests {
     #[test]
     fn ladder_points_accumulate_and_promote_without_consuming_padding() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        assert_eq!(player.record_ladder_points(999).unwrap(), 999);
-        assert_eq!(player.ladder_points, 999);
+        assert_eq!(player.record_ladder_points(1_499).unwrap(), 1_499);
+        assert_eq!(player.ladder_points, 1_499);
         assert_eq!(player.highest_ladder_tier, 0);
         player.record_ladder_points(1).unwrap();
         assert_eq!(player.highest_ladder_tier, 1);

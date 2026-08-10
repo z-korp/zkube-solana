@@ -36,7 +36,17 @@ describe("ladder tiers", () => {
   });
 
   it("agrees with the core on which tier a total has reached", () => {
-    const totals = [0n, 1n, 999n, 1_000n, 4_999n, 5_000n, 19_999n, 50_000n, 10n ** 9n];
+    const totals = [
+      0n,
+      1n,
+      1_499n,
+      1_500n,
+      6_999n,
+      7_000n,
+      24_999n,
+      75_000n,
+      10n ** 9n,
+    ];
     for (const points of totals) {
       const tier = LADDER_TIER_THRESHOLDS.filter(
         (threshold) => points >= threshold,
@@ -58,14 +68,14 @@ describe("ladder tiers", () => {
   });
 
   it("measures progress inside a tier and what is left to the next", () => {
-    expect(ladderTierProgress(0n, 0)).toEqual({ fraction: 0, remaining: 1_000n });
-    expect(ladderTierProgress(500n, 0)).toEqual({
+    expect(ladderTierProgress(0n, 0)).toEqual({ fraction: 0, remaining: 1_500n });
+    expect(ladderTierProgress(750n, 0)).toEqual({
       fraction: 0.5,
-      remaining: 500n,
+      remaining: 750n,
     });
-    expect(ladderTierProgress(3_000n, 1)).toEqual({
+    expect(ladderTierProgress(4_250n, 1)).toEqual({
       fraction: 0.5,
-      remaining: 2_000n,
+      remaining: 2_750n,
     });
   });
 

@@ -271,7 +271,7 @@ export function applyDevPlayerProfile(
       scoreRecord.rewardsLamports + themeRecord.rewardsLamports,
     // Mid-Jade: far enough in to show a partly filled bar rather than an
     // empty or complete one.
-    ladderPoints: 7_480n,
+    ladderPoints: 14_000n,
     highestLadderTier: 2,
     bestDailyScore: 18_940,
     entryStreakDays: 6,

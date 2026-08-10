@@ -6,6 +6,7 @@ import {
   GUARDIAN_FACE_CROPS,
   GUARDIAN_TIER_COLORS,
 } from "@/config/guardianBlocks";
+import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { SOL_LOGO_PATH } from "@/ui/components/economy/SolMark";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -21,8 +22,15 @@ export interface ShareCardData {
   featuredEmblem: number;
   totalStars: number;
   totalEarnedLamports: bigint;
+  /** Ladder tier index, drawn as the frame around the emblem. */
+  tier: number;
+  ladderPoints: bigint;
+  entryStreakDays: number;
   records: Array<{ label: string; record: CompetitionRecord }>;
 }
+
+/** Per-tier opening fractions; mirrors TierFrame. */
+const TIER_FRAME_OPENINGS = [0.8237, 0.6677, 0.6903, 0.4848, 0.5767];
 
 interface ShareCardSheetProps {
   open: boolean;
@@ -93,13 +101,14 @@ async function drawCard(data: ShareCardData): Promise<string> {
 
   // The app title.
   ctx.fillStyle = CREAM;
-  ctx.font = '96px "Fredericka the Great"';
-  ctx.fillText("zKube", 540, 230);
+  ctx.font = '86px "Fredericka the Great"';
+  ctx.fillText("zKube", 540, 210);
 
-  // The emblem block.
-  const size = 300;
+  // The emblem block, inside its rank frame — the same pairing the profile
+  // shows, so a shared card and the app agree on what a rank looks like.
+  const size = 292;
   const bx = 540 - size / 2;
-  const by = 290;
+  const by = 262;
   const zoneId =
     data.featuredEmblem >= 1 && data.featuredEmblem <= 10
       ? data.featuredEmblem
@@ -154,57 +163,71 @@ async function drawCard(data: ShareCardData): Promise<string> {
     ctx.restore();
   } else {
     ctx.fillStyle = GOLD;
-    ctx.font = "150px sans-serif";
-    ctx.fillText("★", 540, by + size * 0.66);
+    ctx.font = "148px sans-serif";
+    ctx.fillText("\u2605", 540, by + size * 0.66);
+  }
+  try {
+    const frame = await loadImage(`/assets/common/tier-${data.tier}.png`);
+    const outer = (size * 1.03) / (TIER_FRAME_OPENINGS[data.tier] ?? 0.8237);
+    ctx.drawImage(frame, 540 - outer / 2, by + size / 2 - outer / 2, outer, outer);
+  } catch {
+    // frame art unavailable — the block alone still reads
   }
 
-  // Name + wallet.
+  // Name, rank, wallet.
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = '84px "Fredericka the Great"';
-  ctx.fillText(data.displayName, 540, 710);
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = "600 30px ui-monospace, monospace";
-  ctx.fillText(truncatePublicKey(data.address), 540, 760);
+  ctx.font = '78px "Fredericka the Great"';
+  ctx.fillText(data.displayName, 540, 700);
+  ctx.fillStyle = ladderTierColor(data.tier);
+  ctx.font = "700 34px Outfit, sans-serif";
+  ctx.fillText(
+    `${ladderTierName(data.tier).toUpperCase()}  \u00B7  ${Number(data.ladderPoints).toLocaleString()} PTS`,
+    540,
+    752,
+  );
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  ctx.font = "600 28px ui-monospace, monospace";
+  ctx.fillText(truncatePublicKey(data.address), 540, 800);
 
   // Total earned.
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.font = "700 26px Outfit, sans-serif";
-  ctx.fillText("T O T A L   E A R N E D", 540, 840);
+  ctx.fillText("T O T A L   E A R N E D", 540, 880);
   const amount = formatSolBalanceLamports(data.totalEarnedLamports);
   ctx.fillStyle = GOLD;
-  ctx.font = '110px "Fredericka the Great"';
+  ctx.font = '104px "Fredericka the Great"';
   const amountWidth = ctx.measureText(amount).width;
-  ctx.fillText(amount, 540 - 40, 950);
+  ctx.fillText(amount, 540 - 38, 985);
   // The official mark rides AFTER the amount — the unit sits on the right.
   ctx.save();
-  ctx.translate(540 - 40 + amountWidth / 2 + 30, 915 - 32);
-  ctx.scale(0.62, 0.62);
+  ctx.translate(540 - 38 + amountWidth / 2 + 30, 952 - 32);
+  ctx.scale(0.6, 0.6);
   ctx.fillStyle = GOLD;
   ctx.fill(new Path2D(SOL_LOGO_PATH));
   ctx.restore();
 
-  // Records.
+  // Best rank per board, then the free mode's own total.
   ctx.font = "700 34px ui-monospace, monospace";
   const parts = data.records.map(({ label, record }) =>
-    record.bestPrizeRank > 0 ? `${label} #${record.bestPrizeRank}` : `${label} —`,
+    record.bestPrizeRank > 0 ? `${label} #${record.bestPrizeRank}` : `${label} \u2014`,
   );
   ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText(parts.join("   ·   "), 540, 1060);
-
-  // Stars.
+  ctx.fillText(parts.join("   \u00B7   "), 540, 1075);
   ctx.fillStyle = GOLD;
-  ctx.font = "700 40px ui-monospace, monospace";
-  ctx.fillText(`★ ${data.totalStars}/300`, 540, 1140);
+  ctx.font = "700 38px ui-monospace, monospace";
+  ctx.fillText(`\u2605 ${data.totalStars}/300`, 540, 1145);
 
   // Footer.
   ctx.fillStyle = "rgba(255,255,255,0.35)";
   ctx.font = "700 26px Outfit, sans-serif";
   ctx.fillText(
-    data.featuredEmblem >= 1 && data.featuredEmblem <= 10
-      ? `${getZoneGuardian(data.featuredEmblem).name} rides with me`
-      : "Solana arcade",
+    data.entryStreakDays > 1
+      ? `${data.entryStreakDays} days running`
+      : zoneId
+        ? `${getZoneGuardian(zoneId).name} rides with me`
+        : "Solana arcade",
     540,
-    1215,
+    1210,
   );
 
   return canvas.toDataURL("image/png");
