@@ -75,7 +75,10 @@ Source implements v5 partially. Current state:
   share one monotonic run-ID sequence. Base, Router, and resolved ER connections
   remain separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily keeper. The web client is static
-  PWA/TWA code with no server signer.
+  PWA/TWA code with no server signer. The keeper additionally serves prize-push
+  registration on one unprivileged HTTP route, which cannot sign, cannot read
+  chain, and cannot reach the keeper signer; notifications are a courtesy on
+  top of in-app collection and are never load-bearing for a reward.
 - Mainnet requires counsel, economic, and distribution review. Nothing in this
   document authorizes it.
 
@@ -586,6 +589,12 @@ That leaves the keeper two irreducible jobs and one role:
 - **Write the durable archive** to its volume before an account is committed and
   closed. This is the only responsibility that touches storage off chain and the
   only one nobody else can perform.
+- **Announce a settled prize** to devices that registered for it. Read-only,
+  failure-isolated, and outside the pass: it re-reads sealed boards rather than
+  being handed winners, so a push outage cannot slow or fail settlement. A
+  missed notification costs a reminder, never a reward — the reward stays
+  claimable in the app for the whole thirty-day window, and spending a Kredit
+  still collects it automatically.
 - **Be the actor of last resort** for permissionless work no one is motivated to
   pay for: expiring unclaimed rewards, closing finalized accounts, recovering
   expired or orphaned runs, cleaning up participants, and building a board when

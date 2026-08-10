@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,10 @@ import {
   resolveEphemeralConnectionForPlan,
 } from "./router.js";
 import { ZKUBE_PROGRAM_ID, protocolPda } from "./arcadeChain.js";
+import { runPrizeNotifier, type NotifiedBoardStore } from "./prizeNotifier.js";
+import { createPushServer } from "./pushServer.js";
+import { PushSubscriptionStore } from "./pushSubscriptions.js";
+import type { VapidKeys } from "./webPush.js";
 import { keeperReleaseRecord } from "./keeperRelease.js";
 
 const DEFAULT_INTERVAL_MS = 60 * 1_000;
@@ -101,6 +106,22 @@ export interface KeeperWorkerEvent {
   error?: string;
 }
 
+/**
+ * Notification telemetry, kept as its own event so a push failure can never be
+ * mistaken for a settlement failure in the logs.
+ */
+export interface KeeperPushEvent {
+  schemaVersion: 1;
+  event: "keeper_push";
+  outcome: "notified" | "notify_failed" | "subscribe" | "unsubscribe";
+  boards?: number;
+  sent?: number;
+  pruned?: number;
+  removed?: number;
+  owner?: string;
+  error?: string;
+}
+
 export interface KeeperWorkerDependencies {
   env?: Record<string, string | undefined>;
   signal: AbortSignal;
@@ -111,7 +132,7 @@ export interface KeeperWorkerDependencies {
     writes: number;
     plannedWrites: number;
   } | void>;
-  log?: (event: KeeperWorkerEvent | KeeperLogEvent) => void;
+  log?: (event: KeeperWorkerEvent | KeeperPushEvent | KeeperLogEvent) => void;
 }
 
 export function keeperIntervalFromEnv(
@@ -124,6 +145,35 @@ export function keeperIntervalFromEnv(
   );
 }
 
+/**
+ * Prize notifications, if this release carries VAPID keys.
+ *
+ * Deliberately additive and deliberately failure-isolated: the HTTP surface is
+ * a separate listener the keeper pass never awaits, and the notifier is a
+ * read-only pass whose errors are logged and swallowed. Nothing here can slow,
+ * block or fail settlement — a missed notification costs a player a reminder,
+ * never a reward, which stays claimable in the app regardless.
+ */
+export function pushConfigFromEnv(
+  env: Record<string, string | undefined>,
+): {
+  vapid: VapidKeys;
+  port: number;
+  allowedOrigins: string[];
+} | null {
+  const publicKey = env.ZKUBE_PUSH_VAPID_PUBLIC_KEY;
+  const privateKey = env.ZKUBE_PUSH_VAPID_PRIVATE_KEY;
+  const subject = env.ZKUBE_PUSH_VAPID_SUBJECT;
+  const origins = (env.ZKUBE_PUSH_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  if (!publicKey || !privateKey || !subject || origins.length === 0) return null;
+  const port = Number(env.ZKUBE_PUSH_PORT ?? "8080");
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) return null;
+  return { vapid: { publicKey, privateKey, subject }, port, allowedOrigins: origins };
+}
+
 export async function runKeeperWorker(
   dependencies: KeeperWorkerDependencies,
 ): Promise<void> {
@@ -133,6 +183,31 @@ export async function runKeeperWorker(
   const log = dependencies.log ?? jsonLog;
   const intervalMs = keeperIntervalFromEnv(env);
   let rapidRerunsRemaining = MAX_RAPID_RERUNS;
+
+  const push = pushConfigFromEnv(env);
+  const subscriptions = push
+    ? new PushSubscriptionStore(archiveDirectoryFromEnv(env))
+    : null;
+  const pushServer = push && subscriptions
+    ? createPushServer({
+        store: subscriptions,
+        vapidPublicKey: push.vapid.publicKey,
+        allowedOrigins: push.allowedOrigins,
+        port: push.port,
+        log: (event) =>
+          log({
+            schemaVersion: 1,
+            event: "keeper_push",
+            outcome: event.event === "push_subscribe" ? "subscribe" : "unsubscribe",
+            owner: typeof event.owner === "string" ? event.owner : undefined,
+            removed: typeof event.removed === "number" ? event.removed : undefined,
+          }),
+      })
+    : null;
+  pushServer?.listen(push!.port);
+  dependencies.signal.addEventListener("abort", () => pushServer?.close(), {
+    once: true,
+  });
 
   while (!dependencies.signal.aborted) {
     const startedAt = now();
@@ -168,6 +243,34 @@ export async function runKeeperWorker(
       }
     }
 
+    if (push && subscriptions) {
+      try {
+        const result = await runPrizeNotifier({
+          connection: createDevnetConnection(env),
+          subscriptions,
+          notified: notifiedBoardStore(archiveDirectoryFromEnv(env)),
+          vapid: push.vapid,
+          currentDayId: Math.floor(now() / 1_000 / 86_400),
+        });
+        if (result.boards > 0) {
+          log({
+            schemaVersion: 1,
+            event: "keeper_push",
+            outcome: "notified",
+            ...result,
+          });
+        }
+      } catch (error) {
+        // Never surfaced as a pass failure: notifications are a courtesy.
+        log({
+          schemaVersion: 1,
+          event: "keeper_push",
+          outcome: "notify_failed",
+          error: safeError(error),
+        });
+      }
+    }
+
     if (!rapidRerun) rapidRerunsRemaining = MAX_RAPID_RERUNS;
     const shouldRunRapidly = rapidRerun && rapidRerunsRemaining > 0;
     if (shouldRunRapidly) rapidRerunsRemaining -= 1;
@@ -183,9 +286,43 @@ export async function runKeeperWorker(
   log({ schemaVersion: 1, event: "keeper_worker", outcome: "stopping" });
 }
 
+/**
+ * Which boards have already been announced, beside the subscriptions.
+ *
+ * Losing this file re-announces at most the last few days of prizes, which the
+ * browser's own notification tag then collapses — a far better failure than
+ * holding it in memory and re-announcing on every restart.
+ */
+function notifiedBoardStore(root: string): NotifiedBoardStore {
+  const path = resolve(root, "push-notified.json");
+  return {
+    async read() {
+      try {
+        const parsed = JSON.parse(await readFile(path, "utf8")) as {
+          schemaVersion?: number;
+          boards?: unknown;
+        };
+        return parsed.schemaVersion === 1 && Array.isArray(parsed.boards)
+          ? parsed.boards.filter((key): key is string => typeof key === "string")
+          : [];
+      } catch {
+        return [];
+      }
+    },
+    async write(keys) {
+      await mkdir(root, { recursive: true, mode: 0o700 });
+      await writeFile(
+        path,
+        JSON.stringify({ schemaVersion: 1, boards: [...new Set(keys)] }),
+        { mode: 0o600 },
+      );
+    },
+  };
+}
+
 async function runConfiguredKeeperPass(
   env: Record<string, string | undefined>,
-  log: (event: KeeperWorkerEvent | KeeperLogEvent) => void,
+  log: (event: KeeperWorkerEvent | KeeperPushEvent | KeeperLogEvent) => void,
 ): Promise<Awaited<ReturnType<typeof runKeeperPass>> | undefined> {
   const connection = createDevnetConnection(env);
   const readiness = await checkChainReadiness({
@@ -308,7 +445,7 @@ async function abortableDelay(
   await delay(milliseconds, undefined, { signal });
 }
 
-function jsonLog(event: KeeperWorkerEvent | KeeperLogEvent): void {
+function jsonLog(event: KeeperWorkerEvent | KeeperPushEvent | KeeperLogEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 

@@ -8,6 +8,10 @@ import {
   browserLocalStorage,
   type StorageLike,
 } from "@/platform/browserStorage";
+import {
+  subscribeToPrizePush,
+  unsubscribeFromPrizePush,
+} from "@/platform/pushSubscription";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
 /**
@@ -120,6 +124,8 @@ export interface NotificationsController {
 }
 
 export function useNotifications(): NotificationsController {
+  const { publicKey } = useConnectedPlayer();
+  const address = publicKey?.toBase58() ?? null;
   const [permission, setPermission] = useState<NotificationPermissionState>(
     () => currentPermission(),
   );
@@ -177,10 +183,16 @@ export function useNotifications(): NotificationsController {
     if (result === "granted") {
       setPreferenceEnabled(true);
       browserLocalStorage()?.setItem(PREF_KEY, "1");
+      // Register for remote push in the same breath. Everything below is
+      // best-effort by design: without it the in-session observers still fire,
+      // and a reward is collectable in the app whether or not anyone was told.
+      const owner = publicKey?.toBase58();
+      if (owner) void subscribeToPrizePush(owner).catch(() => undefined);
     }
-  }, []);
+  }, [publicKey]);
 
   const disable = useCallback(() => {
+    void unsubscribeFromPrizePush().catch(() => undefined);
     setPreferenceEnabled(false);
     browserLocalStorage()?.setItem(PREF_KEY, "0");
     // The browser-level permission grant cannot be revoked from script — the
@@ -193,8 +205,6 @@ export function useNotifications(): NotificationsController {
   // push, so an increase is always a real paid win — never fabricated. Baseline
   // is per-wallet and advanced even while disabled, so enabling later never
   // retroactively fires historical wins.
-  const { publicKey } = useConnectedPlayer();
-  const address = publicKey?.toBase58() ?? null;
   const { periods, latestEvent, loading, error } = useSettlementResult();
   // One entry places on both boards, so reconcile their sum.
   const dailyRewards = periods.reduce(

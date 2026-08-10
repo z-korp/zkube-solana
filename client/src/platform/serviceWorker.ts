@@ -65,7 +65,50 @@ interface ServiceWorkerScopeLike extends EventTarget {
     }): Promise<WindowClientLike[]>;
     openWindow?(url: string): Promise<WindowClientLike | null>;
   };
+  readonly registration?: {
+    showNotification(title: string, options?: NotificationOptions): Promise<void>;
+  };
   skipWaiting(): Promise<void>;
+}
+
+interface PushEventLike {
+  data?: { text(): string } | null;
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+/**
+ * The shape the keeper sends. Anything else is shown as a bare prompt rather
+ * than dropped: a push that arrived is a push the browser already counted, and
+ * a silent one is a permission the browser may revoke.
+ */
+interface PrizePushPayload {
+  title?: unknown;
+  body?: unknown;
+  tag?: unknown;
+  url?: unknown;
+}
+
+export function parsePushPayload(raw: string | null | undefined): {
+  title: string;
+  options: NotificationOptions;
+} {
+  let parsed: PrizePushPayload = {};
+  try {
+    parsed = raw ? (JSON.parse(raw) as PrizePushPayload) : {};
+  } catch {
+    parsed = {};
+  }
+  const title = typeof parsed.title === "string" && parsed.title.length <= 120
+    ? parsed.title
+    : "zKube";
+  const body = typeof parsed.body === "string" && parsed.body.length <= 240
+    ? parsed.body
+    : "Open zKube to collect your reward.";
+  const tag = typeof parsed.tag === "string" && parsed.tag.length <= 120
+    ? parsed.tag
+    : undefined;
+  const url = typeof parsed.url === "string" ? parsed.url : "/";
+  return { title, options: { body, tag, data: { url } } };
 }
 
 let cacheMutationQueue: Promise<void> = Promise.resolve();
@@ -442,8 +485,20 @@ export function installServiceWorkerHandlers(
     // association traffic.
   });
 
-  // LOCAL notifications only. There is intentionally no push or background
-  // sync handler. A click focuses an existing window or opens the local route.
+  // Remote push: the keeper announces a settled prize while the app is closed,
+  // which is the only way a winner who has drifted away learns there is money
+  // waiting before the claim window shuts. The payload carries no secret — a
+  // board's contents are public on chain — so it is rendered as sent, with
+  // every field bounded and a safe fallback.
+  scope.addEventListener("push", (rawEvent) => {
+    const event = rawEvent as unknown as PushEventLike;
+    const registration = scope.registration;
+    if (!registration) return;
+    const { title, options } = parsePushPayload(event.data?.text());
+    event.waitUntil(registration.showNotification(title, options));
+  });
+
+  // A click focuses an existing window or opens the local route.
   scope.addEventListener("notificationclick", (rawEvent) => {
     const event = rawEvent as NotificationEventLike;
     event.notification.close();
