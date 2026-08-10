@@ -43,6 +43,9 @@ import "../../grid.css";
 
 export default function PlayScreen() {
   const hudVariant = useMemo(() => devHudVariantFromUrl(), []);
+  // The header and tray line up with the grid's own frame rather than the
+  // viewport, so the three panes read as one tablet.
+  const [boardFrameWidth, setBoardFrameWidth] = useState<number | null>(null);
   const pendingBonusEarnRef = useRef(false);
   const lastBonusReceiptActionRef = useRef<number | null>(null);
   const handleActionReceipt = useCallback((receipt: ActionReceipt) => {
@@ -637,7 +640,6 @@ export default function PlayScreen() {
           endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
           movesUsed={hudGame.levelMoves}
           movesRemaining={movesDisplay}
-          maxMoves={gameLevel.maxMoves}
           combo={hudGame.combo}
           gameLevel={gameLevel}
           constraintProgress={hudGame.constraintProgress}
@@ -652,11 +654,7 @@ export default function PlayScreen() {
               ? devStandings(hudGame.totalScore, hudGame.challengeBonus)
               : null
           }
-          onBack={
-            chainTerminal || basePhase || run.busy
-              ? undefined
-              : () => navigate(game.mode === 1 ? "arcade" : "map")
-          }
+          frameWidth={boardFrameWidth}
         />
       ) : (
       <GameHud
@@ -721,6 +719,7 @@ export default function PlayScreen() {
             activeBonus={activeBonus}
             bonusDescription={bonusDescription}
             onCascadeComplete={handleCascadeComplete}
+            onFrameWidth={setBoardFrameWidth}
             forceTxProcessing={locked}
             outcomeAnimation={outcomeAnimation}
             onMove={handleMove}
@@ -865,6 +864,12 @@ export default function PlayScreen() {
           bonusSlots={bonusSlots}
           activeBonus={activeBonus}
           onSurrender={handleQuit}
+          onBack={
+            chainTerminal || basePhase || run.busy
+              ? undefined
+              : () => navigate(game.mode === 1 ? "arcade" : "map")
+          }
+          frameWidth={boardFrameWidth}
         />
       ) : (
       <GameActionBar

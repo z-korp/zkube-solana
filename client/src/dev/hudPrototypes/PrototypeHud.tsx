@@ -1,29 +1,28 @@
 /**
- * DEV-ONLY in-run header prototype: the Tablet, with the Chase folded in.
+ * DEV-ONLY in-run header prototype: the Tablet.
  *
  * Reach it with `?dev=1&page=play&board=arena|campaign&hud=tablet`.
  *
- * Three ideas carry the whole thing:
+ * Header, board and tray are three panes of one tablet: same width, same
+ * frame, same stone. The frame is deliberately the board's own — a 2px
+ * gold-stone stroke at low opacity, not the heavy bezel this started as, which
+ * out-shouted the grid it was supposed to sit above.
  *
- * 1. TWO POTS, TWO SLOTS. A daily run is ranked twice over the same play and
- *    each board pays half the pot, so the header shows both figures, coloured
- *    apart. `objective_total` is already on the run account; the client used to
- *    compute it and throw it into a 7px sub-line.
- * 2. ONE RAIL, AND IT IS ALWAYS WHAT YOU ARE CHASING. In Arena that is the gap
- *    to the next rank. In Campaign there is no field, so it is the star track —
- *    which is the same fact as the move counter, since stars are derived from
- *    moves used. Two readouts became one meter.
- * 3. THINGS HAVE THICKNESS. A key is pressable and has an under-edge; a slot is
- *    recessed and only ever holds a number; a bezel frames; a gem glows and
- *    escalates. The previous pass used menu plates — flat, 1px border, no
- *    light — which is why it read as a dashboard rather than a game.
+ * What each pane says:
  *
- * The rail deliberately does NOT name the player above or quote their score:
- * the gap is the only part of that anyone is playing against.
+ * - TWO SLOTS, TWO POTS. A daily run is ranked twice over the same play and
+ *   each board pays half. The second slot is labelled with the day's actual
+ *   objective rather than the word "Theme", because the objective is what the
+ *   player is being asked to do; "Theme" is the name of the ledger it lands in.
+ * - ONE RAIL, AND IT IS THE MOVES. Ranks live on the slots where the numbers
+ *   they rank are. In Campaign the same rail carries the star thresholds,
+ *   because stars are derived from moves used — the counter and the three
+ *   stars were always one meter.
+ * - The combo rides the score panel's corner: it multiplies that number and
+ *   nothing else, so it belongs to it rather than floating on its own.
  */
-import { useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Flame } from "lucide-react";
+import { Flame } from "lucide-react";
 
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import { ConstraintType } from "@/game/constraint";
@@ -31,7 +30,8 @@ import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import { buildTierScale, currentTierIndex } from "./tierScale";
-import { chaseTarget, type FieldStandings } from "./chase";
+import type { FieldStandings } from "./chase";
+import { FRAME, FRAME_INNER } from "./frame";
 
 export type { FieldStanding, FieldStandings } from "./chase";
 
@@ -48,34 +48,26 @@ export interface PrototypeHudProps {
   endlessScoreMultipliersX100: readonly number[];
   movesUsed: number;
   movesRemaining: number;
-  maxMoves: number;
   combo: number;
   gameLevel: GameLevelData | null;
   constraintProgress: number;
   constraint2Progress: number;
+  /** The day's rule, e.g. "2+ line combos" — the second slot's own label. */
   objectiveName?: string;
   standings: FieldStandings | null;
-  onBack?: () => void;
+  /** The board's frame width, so the panes line up with the grid. */
+  frameWidth: number | null;
 }
 
 /** Numerals that count are sans-black and tabular: a proportional figure
  *  changes width as it ticks, so a score jitters sideways the whole climb. */
 const FIGURE = "font-sans font-black tabular-nums leading-[0.92]";
-const EMBOSS = "0 2px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(255,255,255,0.22)";
-
-/** Gold-stone, the ring already used by the shipped HUD chrome. */
-const BEZEL: React.CSSProperties = {
-  padding: 3,
-  borderRadius: 20,
-  background:
-    "linear-gradient(135deg, #4E4029 0%, #C9A96E 30%, #DFC088 50%, #A98B55 72%, #43371F 100%)",
-  boxShadow: "0 5px 0 #1E1810, 0 14px 26px -12px rgba(0,0,0,0.9)",
-};
+const EMBOSS = "0 2px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(255,255,255,0.2)";
 
 /** Recessed. Holds a number, never a control — the inverse of a key. */
 const SLOT: React.CSSProperties = {
   background: "linear-gradient(180deg, #05080F 0%, #0C1220 100%)",
-  borderRadius: 12,
+  borderRadius: 11,
   boxShadow:
     "inset 0 4px 10px rgba(0,0,0,0.95), inset 0 -1px 0 rgba(255,255,255,0.07)",
 };
@@ -95,9 +87,9 @@ function Gem({
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.32,
+        fontSize: size * 0.33,
         background: `radial-gradient(circle at 33% 27%, #fff 0%, ${color} 42%, #2A0F02 130%)`,
-        boxShadow: `0 0 ${size * 0.3}px ${color}, inset 0 2px 5px rgba(255,255,255,0.55), 0 3px 0 rgba(0,0,0,0.55)`,
+        boxShadow: `0 0 ${size * 0.28}px ${color}, inset 0 2px 5px rgba(255,255,255,0.55), 0 2px 0 rgba(0,0,0,0.55)`,
         textShadow: "0 1px 0 rgba(255,255,255,0.35)",
       }}
     >
@@ -106,9 +98,25 @@ function Gem({
   );
 }
 
-function RankChip({ rank, of, tone }: { rank: number; of?: number; tone: string }) {
+/**
+ * Rank rides the slot whose number it ranks, and pops when it improves — the
+ * only celebration the standing gets, now that no rail chases it.
+ */
+function RankChip({
+  rank,
+  entrants,
+  tone,
+}: {
+  rank: number;
+  entrants: number;
+  tone: string;
+}) {
   return (
-    <span
+    <motion.span
+      key={rank}
+      initial={{ scale: 1 }}
+      animate={{ scale: [1, 1.22, 1] }}
+      transition={{ duration: 0.28, ease: "easeOut" }}
       className="rounded-md px-1.5 py-[1px] font-sans text-[11px] font-black tabular-nums"
       style={{
         background: `linear-gradient(160deg, ${tone}, ${tone}99)`,
@@ -117,36 +125,26 @@ function RankChip({ rank, of, tone }: { rank: number; of?: number; tone: string 
       }}
     >
       #{rank}
-      {of !== undefined && <span className="opacity-55">/{of}</span>}
-    </span>
+      <span className="opacity-55">/{entrants}</span>
+    </motion.span>
   );
 }
 
-function Medallion({ zoneId, size }: { zoneId: number; size: number }) {
+function Label({
+  children,
+  tone,
+  tight,
+}: {
+  children: React.ReactNode;
+  tone: string;
+  /** The objective's own name runs long, so it trades tracking for fitting. */
+  tight?: boolean;
+}) {
   return (
     <span
-      className="block flex-none rounded-full"
-      style={{
-        width: size,
-        height: size,
-        padding: 3,
-        background: "linear-gradient(135deg, #5A4A32, #DFC088 45%, #8B7355)",
-        boxShadow: "0 4px 0 #241E12, 0 8px 18px -6px rgba(0,0,0,0.9)",
-      }}
-    >
-      <img
-        src={getGuardianPortrait(zoneId)}
-        alt={getZoneGuardian(zoneId).name}
-        className="h-full w-full rounded-full object-cover"
-      />
-    </span>
-  );
-}
-
-function Label({ children, tone }: { children: React.ReactNode; tone: string }) {
-  return (
-    <span
-      className="font-sans text-[9px] font-bold uppercase tracking-[0.2em]"
+      className={`truncate font-sans font-bold uppercase ${
+        tight ? "text-[8.5px] tracking-[0.06em]" : "text-[9px] tracking-[0.18em]"
+      }`}
       style={{ color: tone }}
     >
       {children}
@@ -174,20 +172,13 @@ export default function PrototypeHud(props: PrototypeHudProps) {
     constraint2Progress,
     objectiveName,
     standings,
-    onBack,
+    frameWidth,
   } = props;
 
   const scale = buildTierScale(endlessThresholds, endlessScoreMultipliersX100);
   const tier = scale[currentTierIndex(scale, currentDifficulty, pressureScore)]!;
   const shownScore = useLerpNumber(score, { duration: 300, integer: true }) ?? 0;
   const shownTheme = useLerpNumber(themeScore, { duration: 300, integer: true }) ?? 0;
-
-  // Which board the rail is chasing, held across renders so the hysteresis in
-  // `chaseTarget` has something to hold against.
-  const chasing = useRef<"score" | "theme" | null>(null);
-  const chase = chaseTarget(standings, score, themeScore, chasing.current);
-  chasing.current = chase?.board ?? null;
-  const chaseTone = chase?.board === "theme" ? "#38BDF8" : "#FACC15";
 
   const constraints: { type: ConstraintType; progress: number; count: number }[] =
     [];
@@ -211,79 +202,57 @@ export default function PrototypeHud(props: PrototypeHudProps) {
     });
   }
 
-  // How far into the gap this run already is, on whichever board is being
-  // chased. Without live field data there is nothing to chase, and the rail
-  // says so rather than inventing a number to sit next to real SOL.
-  const chaseEarned = chase?.board === "theme" ? themeScore : score;
-  const chaseProgress = chase
-    ? Math.max(
-        0,
-        Math.min(1, chaseEarned / Math.max(1, chaseEarned + chase.standing.gapToNext)),
-      )
-    : 0;
-
-  // The star track: stars fall out of moves used, so the move counter and the
-  // three stars are one meter with the thresholds marked on it.
+  // Stars fall out of moves used, so the thresholds are marks on the move rail
+  // rather than a second readout.
   const star3 = gameLevel?.star3Threshold ?? 0;
   const star2 = gameLevel?.star2Threshold ?? 0;
   const trackMax = Math.max(1, gameLevel?.maxMoves ?? 1);
   const starsLeft = movesUsed <= star3 ? 3 : movesUsed <= star2 ? 2 : 1;
-  const trackColor =
-    starsLeft === 3 ? "#22C55E" : starsLeft === 2 ? "#EAB308" : "#EF4444";
+  const spent = Math.min(1, movesUsed / trackMax);
+  const railColor = isDaily
+    ? spent > 0.85
+      ? "#EF4444"
+      : spent > 0.6
+        ? "#F97316"
+        : "#64748B"
+    : starsLeft === 3
+      ? "#22C55E"
+      : starsLeft === 2
+        ? "#EAB308"
+        : "#EF4444";
 
   return (
-    <div className="w-full px-2 pt-2">
-      <div className="mb-1.5 flex items-center gap-2">
-        {onBack && (
-          <button
-            type="button"
-            aria-label="Back"
-            onClick={onBack}
-            className="flex-none rounded-lg p-0.5 text-white/55"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        )}
-        <span className="min-w-0 flex-1 truncate">
-          <Label tone="rgba(255,255,255,0.45)">
-            {isDaily ? objectiveName : `Level ${level} · ${getZoneGuardian(zoneId).name}`}
-          </Label>
-        </span>
-        <motion.span
-          key={combo}
-          animate={combo > 0 ? { scale: [1, 1.25, 1] } : {}}
-          transition={{ duration: 0.25 }}
-          className="flex flex-none items-center gap-1 rounded-lg px-2 py-1 font-sans text-[12px] font-black tabular-nums text-white"
-          style={{
-            background:
-              combo >= 3
-                ? "linear-gradient(160deg, #FB923C, #DC2626)"
-                : combo > 0
-                  ? "linear-gradient(160deg, #9A3412, #7F1D1D)"
-                  : "linear-gradient(160deg, #263145, #161E2E)",
-            boxShadow:
-              "0 3px 0 rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.35)",
-            color: combo > 0 ? "#fff" : "rgba(255,255,255,0.4)",
-          }}
-        >
-          <Flame size={12} />
-          {combo > 0 ? combo : "–"}
-        </motion.span>
-      </div>
-
-      <div style={BEZEL}>
-        <div
-          className="rounded-[16px] px-2.5 pb-2 pt-2.5"
-          style={{ background: "linear-gradient(180deg, #1A1E2E 0%, #0D1119 100%)" }}
-        >
-          <div className="flex items-stretch gap-2.5">
+    <div className="w-full px-1 pt-1.5">
+      {/* max-width, not just width: the pane is sized FROM the board, so it
+          must never be able to widen the page and grow the board in turn —
+          that loop runs until the cell size hits its ceiling. */}
+      <div
+        className="mx-auto"
+        style={{ ...FRAME, width: frameWidth ?? undefined, maxWidth: "100%" }}
+      >
+        <div className="px-2 pb-2 pt-2" style={FRAME_INNER}>
+          <div className="flex items-stretch gap-2">
             <span className="relative flex flex-none items-center">
-              <Medallion zoneId={zoneId} size={54} />
-              {/* Hangs off the bezel rather than sitting on the portrait —
-                  the guardian is art, not a backdrop for a badge. */}
-              <span className="absolute -bottom-2 -right-3">
+              <span
+                className="block rounded-full"
+                style={{
+                  width: 52,
+                  height: 52,
+                  padding: 2,
+                  background:
+                    "linear-gradient(135deg, #5A4A32, #DFC088 45%, #8B7355)",
+                  boxShadow: "0 3px 0 #241E12",
+                }}
+              >
+                <img
+                  src={getGuardianPortrait(zoneId)}
+                  alt={getZoneGuardian(zoneId).name}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              </span>
+              <span className="absolute -bottom-1.5 -right-2.5">
                 {isDaily ? (
-                  <Gem color={tier.color} size={30}>
+                  <Gem color={tier.color} size={28}>
                     ×{tier.multiplier}
                   </Gem>
                 ) : (
@@ -294,61 +263,85 @@ export default function PrototypeHud(props: PrototypeHudProps) {
               </span>
             </span>
 
+            {/* SCORE — the run's total. Combo hangs off its corner. */}
             <span
-              className="flex min-w-0 flex-[1.35] flex-col justify-center px-2.5 py-1.5"
+              className="relative flex min-w-0 flex-[1.3] flex-col justify-center px-2.5 py-1.5"
               style={SLOT}
             >
               <span className="flex items-baseline justify-between gap-1">
-                <Label tone="rgba(250,204,21,0.75)">Score</Label>
+                <Label tone="rgba(250,204,21,0.72)">Score</Label>
                 {standings && (
                   <RankChip
                     rank={standings.score.rank}
-                    of={standings.score.entrants}
+                    entrants={standings.score.entrants}
                     tone="#FDE68A"
                   />
                 )}
               </span>
               <span
-                className={`${FIGURE} mt-0.5 truncate text-[30px] text-[#FACC15]`}
+                className={`${FIGURE} mt-1 truncate text-[29px] text-[#FACC15]`}
                 style={{ textShadow: EMBOSS }}
               >
                 {isDaily
                   ? shownScore.toLocaleString("en-US")
                   : `${shownScore}/${targetScore}`}
               </span>
+              <motion.span
+                key={combo}
+                animate={combo > 0 ? { scale: [1, 1.3, 1] } : {}}
+                transition={{ duration: 0.25 }}
+                className="absolute -bottom-2 -right-2 flex items-center gap-0.5 rounded-lg px-1.5 py-[3px] font-sans text-[11px] font-black tabular-nums"
+                style={{
+                  background:
+                    combo >= 3
+                      ? "linear-gradient(160deg, #FB923C, #DC2626)"
+                      : combo > 0
+                        ? "linear-gradient(160deg, #9A3412, #7F1D1D)"
+                        : "linear-gradient(160deg, #263145, #161E2E)",
+                  boxShadow:
+                    "0 2px 0 rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.35)",
+                  color: combo > 0 ? "#fff" : "rgba(255,255,255,0.38)",
+                }}
+              >
+                <Flame size={11} />
+                {combo > 0 ? combo : "–"}
+              </motion.span>
             </span>
 
             {isDaily ? (
+              /* The day's objective, named by what it asks for. */
               <span
                 className="flex min-w-0 flex-1 flex-col justify-center px-2.5 py-1.5"
                 style={SLOT}
               >
                 <span className="flex items-baseline justify-between gap-1">
-                  <Label tone="rgba(56,189,248,0.8)">Theme</Label>
+                  <Label tone="rgba(56,189,248,0.85)" tight>
+                    {objectiveName ?? "Objective"}
+                  </Label>
                   {standings?.theme && (
                     <RankChip
                       rank={standings.theme.rank}
-                      of={standings.theme.entrants}
+                      entrants={standings.theme.entrants}
                       tone="#BAE6FD"
                     />
                   )}
                 </span>
                 <span
-                  className={`${FIGURE} mt-0.5 truncate text-[30px] text-[#38BDF8]`}
+                  className={`${FIGURE} mt-1 truncate text-[29px] text-[#38BDF8]`}
                   style={{ textShadow: EMBOSS }}
                 >
                   {shownTheme.toLocaleString("en-US")}
                 </span>
               </span>
             ) : (
-              <span className="flex flex-none items-center gap-1.5">
+              <span className="flex flex-none items-stretch gap-1.5">
                 {constraints.map((constraint, index) => {
                   const icon = CONSTRAINT_ICON_MAP[constraint.type];
                   const done = constraint.progress >= constraint.count;
                   return (
                     <span
                       key={index}
-                      className="flex h-full w-[52px] flex-col items-center justify-center gap-0.5 px-1"
+                      className="flex w-[54px] flex-col items-center justify-center gap-1 px-1"
                       style={SLOT}
                     >
                       {icon && (
@@ -368,8 +361,9 @@ export default function PrototypeHud(props: PrototypeHudProps) {
             )}
           </div>
 
-          {/* One rail, and it is always what you are chasing. */}
-          <div className="mt-2 flex items-center gap-2">
+          {/* The move rail. Both modes, same meter — in Campaign it also
+              carries the star thresholds it already decides. */}
+          <div className="mt-2.5 flex items-center gap-2">
             <span className="relative h-[9px] flex-1">
               <span
                 className="block h-full overflow-hidden rounded-full"
@@ -381,14 +375,10 @@ export default function PrototypeHud(props: PrototypeHudProps) {
                 <motion.span
                   className="block h-full rounded-full"
                   initial={false}
-                  animate={{
-                    width: `${(isDaily ? chaseProgress : Math.min(1, movesUsed / trackMax)) * 100}%`,
-                  }}
+                  animate={{ width: `${spent * 100}%` }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                   style={{
-                    background: isDaily
-                      ? `linear-gradient(90deg, ${chaseTone}55, ${chaseTone})`
-                      : `linear-gradient(90deg, ${trackColor}88, ${trackColor})`,
+                    background: `linear-gradient(90deg, ${railColor}77, ${railColor})`,
                   }}
                 />
               </span>
@@ -400,33 +390,12 @@ export default function PrototypeHud(props: PrototypeHudProps) {
                 </>
               )}
             </span>
-            {isDaily ? (
-              chase ? (
-                // Named by board, because the rail moves between them: the
-                // player must never wonder which ladder they are climbing.
-                <span
-                  className="flex-none font-sans text-[12px] font-black tabular-nums"
-                  style={{ color: chaseTone }}
-                >
-                  +{chase.standing.gapToNext.toLocaleString("en-US")}
-                  <span className="ml-1 text-white/45">
-                    → {chase.board === "theme" ? "Theme" : "Score"} #
-                    {chase.standing.rank - 1}
-                  </span>
-                </span>
-              ) : (
-                <span className="flex-none font-sans text-[11px] font-bold tabular-nums text-white/40">
-                  {movesRemaining} moves
-                </span>
-              )
-            ) : (
-              <span className="flex-none font-sans text-[12px] font-black tabular-nums text-white">
-                {movesRemaining}
-                <span className="ml-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/40">
-                  left
-                </span>
+            <span className="flex-none font-sans text-[12px] font-black tabular-nums text-white">
+              {movesRemaining}
+              <span className="ml-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/40">
+                moves
               </span>
-            )}
+            </span>
           </div>
         </div>
       </div>
@@ -434,7 +403,7 @@ export default function PrototypeHud(props: PrototypeHudProps) {
   );
 }
 
-/** A star threshold pinned on the campaign track. */
+/** A star threshold pinned on the move rail. */
 function StarMark({ at, lit }: { at: number; lit: boolean }) {
   return (
     <span

@@ -21,6 +21,14 @@ interface GameBoardProps {
   activeBonus: BonusType;
   bonusDescription: string;
   onCascadeComplete?: () => void;
+  /**
+   * The board's outer frame width in px, reported whenever it changes.
+   *
+   * The header and tray line up with the grid rather than with the viewport —
+   * three panes of one tablet — and only this component knows the cell size
+   * the container settled on.
+   */
+  onFrameWidth?: (width: number) => void;
   forceTxProcessing?: boolean;
   /** Terminal board show (win/lose) — see Grid's OutcomeAnimation. */
   outcomeAnimation?: OutcomeAnimation | null;
@@ -35,6 +43,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   activeBonus,
   bonusDescription,
   onCascadeComplete,
+  onFrameWidth,
   forceTxProcessing = false,
   outcomeAnimation = null,
   onMove,
@@ -137,6 +146,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Grid.tsx draws a 9px frame on each side of the cells.
+  useEffect(() => {
+    onFrameWidth?.(gridSize * COLS + 18);
+  }, [gridSize, onFrameWidth]);
 
   const memoizedInitialData = useMemo(() => {
     return transformDataContractIntoBlock(initialGrid);
