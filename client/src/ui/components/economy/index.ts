@@ -10,4 +10,4 @@ export {
   dailyBoardPools,
   payoutForRank,
 } from "./payout";
-export { MONEY_GOLD, mixHex } from "./tokens";
+export { MONEY_GOLD, PLATE_STYLE, mixHex } from "./tokens";

@@ -52,7 +52,7 @@ if (spectatePlayer || spectatePda) {
 // Guarded by DEV_BYPASS_ACTIVE (import.meta.env.DEV) — dead-code-eliminated in prod.
 if (DEV_BYPASS_ACTIVE) {
   const devPage = params.get("page");
-  const devPages = ["home", "arcade", "campaign", "profile"];
+  const devPages = ["home", "arcade", "campaign", "profile", "map"];
   if (devPage && devPages.includes(devPage)) {
     useNavigationStore.setState({ currentPage: devPage as PageId });
   }

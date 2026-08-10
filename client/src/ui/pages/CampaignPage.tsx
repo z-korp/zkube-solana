@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LockKeyhole } from "lucide-react";
 import { motion } from "motion/react";
 
-import { dailyScoringRuleName } from "@/chain/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeId } from "@/config/themes";
 import { ZONE_NAMES } from "@/config/profileData";
-import { useDaily } from "@/contexts/daily";
 import { useMusicPlayer } from "@/contexts/hooks";
 import useAccount from "@/hooks/useAccount";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
@@ -16,6 +14,7 @@ import {
   GuardianFaceBlock,
   mixHex,
   MONEY_GOLD,
+  PLATE_STYLE,
 } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoTip from "@/ui/components/shared/InfoTip";
@@ -23,6 +22,44 @@ import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme, useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
 const STAR_GOLD = "#FACC15";
+
+/**
+ * A level's three stars as one small block: copper, silver, gold.
+ *
+ * The old row filled gold at one star or more, so a realm at 10/30 and one at
+ * 30/30 drew the same ten gold squares — the pips could say "cleared" but never
+ * "what is left here", which is the one thing the 300-star total cannot
+ * localise either. The metal answers it per level at a glance.
+ */
+const STAR_METALS: readonly { face: string; light: string; dark: string }[] = [
+  { face: "#C2793A", light: "#E9A867", dark: "#6E3D17" },
+  { face: "#C4D2DE", light: "#F2F7FB", dark: "#7A8896" },
+  { face: STAR_GOLD, light: "#FDE68A", dark: "#A9760B" },
+];
+
+const PIP_SIZE = 13;
+
+function LevelPip({ stars }: { stars: number }) {
+  const metal = STAR_METALS[Math.min(3, Math.max(0, stars)) - 1];
+  // Unplayed is an empty socket, so the row reads as blocks waiting to be
+  // filled rather than as dim blocks.
+  return (
+    <span
+      className="block"
+      style={{
+        width: PIP_SIZE,
+        height: PIP_SIZE,
+        borderRadius: 4,
+        background: metal
+          ? `linear-gradient(180deg, ${metal.light} 0%, ${metal.face} 55%, ${metal.dark} 100%)`
+          : "rgba(255,255,255,0.10)",
+        boxShadow: metal
+          ? "inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.5)"
+          : "inset 0 1px 2px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5)",
+      }}
+    />
+  );
+}
 
 /**
  * Campaign — the realm IS the screen. One full-bleed painting per realm with
@@ -38,14 +75,6 @@ export default function CampaignPage() {
   const activeRun = useActiveStoryAttempt();
   const navigate = useNavigationStore((state) => state.navigate);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-  const daily = useDaily();
-  const tomorrow =
-    daily.daily?.followingMapId != null && daily.daily.followingScoringRule
-      ? {
-          mapId: daily.daily.followingMapId,
-          scoringRule: daily.daily.followingScoringRule,
-        }
-      : null;
   const { setMusicMood } = useMusicPlayer();
   const { setThemeTemplate } = useTheme();
   // The browse arrows are utility chrome, so they wear the realm's accent —
@@ -129,69 +158,32 @@ export default function CampaignPage() {
         />
       </motion.div>
 
-      {/* The crown title, like every tab page. */}
-      <h1
-        className="relative z-10 text-center font-display text-[46px] leading-none"
-        style={{ color: "#FFF4D7", textShadow: "0 4px 20px rgba(0,0,0,0.7)" }}
-      >
-        Campaign
-      </h1>
-
-      {/* Tomorrow's realm, where practising it is the next tap. The draw is
-          derived from a protocol-fixed seed, so it is knowable a day ahead —
-          and this is the only screen where knowing is actionable. */}
-      {tomorrow && (
-        <motion.button
-          type="button"
-          onClick={() => setSelectedZoneId(tomorrow.mapId)}
-          whileTap={{ y: 2 }}
-          className="relative z-10 mx-4 mt-3 flex items-center gap-2.5 rounded-2xl px-3 py-2"
-          style={{
-            background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            boxShadow: "0 3px 0 #04070F, inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
+      {/* The crown row, exactly Home's: a plate chip, the display title, and
+          one control. The 300-star total was a full-width progress bar under
+          the title — a global number wedged above a screen that is otherwise
+          about the one realm you are browsing, in a material nothing else in
+          the app uses. As a chip it keeps the number and gives the row back. */}
+      <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
+        <span
+          className="flex items-center gap-1.5 justify-self-start rounded-xl px-2 py-2 font-mono text-xs font-bold tabular-nums text-white"
+          style={PLATE_STYLE}
         >
-          <GuardianFaceBlock zoneId={tomorrow.mapId} size={30} />
-          <span className="min-w-0 flex-1 text-left">
-            <span className="block font-sans text-[9px] font-bold uppercase tracking-[0.18em] text-white/45">
-              Tomorrow's arena
-            </span>
-            <span className="block truncate font-sans text-[13px] font-extrabold text-white">
-              {getZoneGuardian(tomorrow.mapId).name}
-              <span className="font-mono text-[10px] font-semibold text-white/50">
-                {" · "}
-                {dailyScoringRuleName(tomorrow.scoringRule)}
-              </span>
-            </span>
-          </span>
-          <span className="flex-none font-sans text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
-            Practise
-          </span>
-          <ChevronRight size={15} className="flex-none text-white/35" />
-        </motion.button>
-      )}
-
-      <div className="relative z-10 mx-4 mt-3 flex items-center gap-2">
-        <span className="relative h-7 flex-1 overflow-hidden rounded-full border border-white/[0.1] bg-black/45">
-          <span
-            className="absolute inset-y-0 left-0"
-            style={{
-              width: `${Math.min(100, (totalStars / 300) * 100)}%`,
-              background: "linear-gradient(90deg, #C79B0B, #FACC15)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4)",
-            }}
-          />
-          <span className="absolute inset-0 flex items-center justify-center gap-1.5 font-mono text-xs font-bold tabular-nums text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.7)]">
-            <span style={{ color: STAR_GOLD }}>★</span>
-            {totalStars}/300
-          </span>
+          <span style={{ color: STAR_GOLD }}>★</span>
+          {totalStars}/300
         </span>
-        <InfoTip label="Campaign rules">
-          Campaign is free — stars are the only record, and they never affect
-          Arcade prizes. Each realm holds ten levels; beat the guardian at
-          level 10 to open the next realm. 30/30 stars turns a realm gold.
-        </InfoTip>
+        <h1
+          className="text-center font-display text-[46px] leading-none"
+          style={{ color: "#FFF4D7", textShadow: "0 4px 20px rgba(0,0,0,0.7)" }}
+        >
+          Campaign
+        </h1>
+        <span className="justify-self-end">
+          <InfoTip label="Campaign rules">
+            Campaign is free — stars are the only record, and they never affect
+            Arcade prizes. Each realm holds ten levels; beat the guardian at
+            level 10 to open the next realm. 30/30 stars turns a realm gold.
+          </InfoTip>
+        </span>
       </div>
 
       {/* The stage: the guardian directly on the scene, no card. */}
@@ -244,24 +236,14 @@ export default function CampaignPage() {
               style={{ textShadow: "0 3px 14px rgba(0,0,0,0.85)" }}
             >
               {guardian.name}
-              {perfected && <span aria-hidden> 👑</span>}
             </span>
             {unlocked && (
               <>
                 <div className="mt-2 flex gap-2">
                   {Array.from({ length: 10 }, (_, index) => (
-                    <span
+                    <LevelPip
                       key={index}
-                      style={{
-                        width: 13,
-                        height: 13,
-                        borderRadius: 4,
-                        background:
-                          (selectedZone?.levelStars?.[index] ?? 0) > 0
-                            ? STAR_GOLD
-                            : "rgba(255,255,255,0.22)",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
-                      }}
+                      stars={selectedZone?.levelStars?.[index] ?? 0}
                     />
                   ))}
                 </div>
@@ -276,14 +258,15 @@ export default function CampaignPage() {
           </motion.div>
         )}
 
-        {/* Chunky accent arrows browse the realms. */}
+        {/* Chunky accent arrows browse the realms, and the road is a loop:
+            realm 10 steps forward to 1. A disabled arrow at either end was a
+            dead control on a screen whose whole job is browsing. */}
         <motion.button
           type="button"
           aria-label="Previous realm"
-          disabled={selectedZoneId <= 1}
-          onClick={() => setSelectedZoneId((zone) => Math.max(1, zone - 1))}
+          onClick={() => setSelectedZoneId((zone) => (zone === 1 ? 10 : zone - 1))}
           whileTap={{ y: 2, boxShadow: `0 1px 0 ${arrowUnder}` }}
-          className="absolute left-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-2xl disabled:opacity-35"
+          className="absolute left-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-2xl"
           style={arrowStyle}
         >
           <ChevronLeft size={26} strokeWidth={3} />
@@ -291,10 +274,9 @@ export default function CampaignPage() {
         <motion.button
           type="button"
           aria-label="Next realm"
-          disabled={selectedZoneId >= 10}
-          onClick={() => setSelectedZoneId((zone) => Math.min(10, zone + 1))}
+          onClick={() => setSelectedZoneId((zone) => (zone === 10 ? 1 : zone + 1))}
           whileTap={{ y: 2, boxShadow: `0 1px 0 ${arrowUnder}` }}
-          className="absolute right-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-2xl disabled:opacity-35"
+          className="absolute right-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-2xl"
           style={arrowStyle}
         >
           <ChevronRight size={26} strokeWidth={3} />
