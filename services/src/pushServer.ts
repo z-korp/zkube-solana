@@ -6,8 +6,12 @@ import {
 } from "./pushSubscriptions.js";
 
 /**
- * The keeper's only inbound surface: registering a device for prize
- * notifications.
+ * Registering a device for prize notifications.
+ *
+ * PARKED — nothing starts this server. Prize push is polish against a reward
+ * that is already collectable in the app for thirty days, and platform
+ * notifications (Seeker, MagicBlock) may make owning this unnecessary. Kept
+ * because it is finished and tested; see the note in `keeperWorker.ts`.
  *
  * It is deliberately tiny and deliberately unprivileged. It cannot read chain,
  * cannot sign anything, and cannot reach the keeper's signer — the worst a

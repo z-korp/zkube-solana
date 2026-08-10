@@ -8,6 +8,9 @@ import { sendPush, type VapidKeys } from "./webPush.js";
 /**
  * Tell winners they have been paid, from an entirely read-only pass.
  *
+ * PARKED — no keeper pass calls this. See the note in `keeperWorker.ts` for
+ * why, and check what Seeker and MagicBlock already deliver before reviving it.
+ *
  * Deliberately decoupled from the write path. It re-reads the boards rather
  * than being handed winners by the reconciliation, so a push outage, a wedged
  * push service or a corrupt subscription file can never fail a settlement pass

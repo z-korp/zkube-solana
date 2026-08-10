@@ -1,6 +1,9 @@
 /**
  * Registering this device for prize notifications.
  *
+ * PARKED — nothing calls this, and the keeper serves no push route. Kept
+ * finished rather than deleted; see the note in `hooks/useNotifications.ts`.
+ *
  * The keeper is the only server this client talks to, and this is the only
  * thing it says: "notify this browser when that wallet is paid." No signature
  * is attached and none is needed — a board's contents are public on chain, so

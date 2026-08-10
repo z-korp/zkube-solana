@@ -8,10 +8,6 @@ import {
   browserLocalStorage,
   type StorageLike,
 } from "@/platform/browserStorage";
-import {
-  subscribeToPrizePush,
-  unsubscribeFromPrizePush,
-} from "@/platform/pushSubscription";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
 /**
@@ -34,10 +30,12 @@ import { formatSolBalanceLamports } from "@/utils/currency";
  * the browser) is running. Delivery is therefore best-effort and in-session
  * only — never presented to the user as a guaranteed background alert.
  *
- * TODO(remote-push): if/when a push server exists (out of the static-client
- * scope defined in CLAUDE.md — Fly only runs the Daily keeper,
- * not a signer for clients), wire `pushManager.subscribe` here and a `push`
- * handler in `public/sw.js`, and register the subscription with that server.
+ * The server half exists but is PARKED: `platform/pushSubscription.ts` and the
+ * keeper's push modules are written and tested, and nothing calls them. Before
+ * reviving that, check whether Seeker or MagicBlock already deliver device
+ * notifications — a platform that ships this beats running our own VAPID keys.
+ * A reward stays collectable in the app for thirty days either way, so a
+ * notification can only ever be a reminder.
  *
  * SCOPE NOTE: the reward + Daily-open observers below only run while THIS hook
  * is mounted. It is mounted once at the app root (App.tsx), so events fire for
@@ -183,16 +181,10 @@ export function useNotifications(): NotificationsController {
     if (result === "granted") {
       setPreferenceEnabled(true);
       browserLocalStorage()?.setItem(PREF_KEY, "1");
-      // Register for remote push in the same breath. Everything below is
-      // best-effort by design: without it the in-session observers still fire,
-      // and a reward is collectable in the app whether or not anyone was told.
-      const owner = publicKey?.toBase58();
-      if (owner) void subscribeToPrizePush(owner).catch(() => undefined);
     }
-  }, [publicKey]);
+  }, []);
 
   const disable = useCallback(() => {
-    void unsubscribeFromPrizePush().catch(() => undefined);
     setPreferenceEnabled(false);
     browserLocalStorage()?.setItem(PREF_KEY, "0");
     // The browser-level permission grant cannot be revoked from script — the

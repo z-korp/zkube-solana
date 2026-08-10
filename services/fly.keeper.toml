@@ -27,22 +27,10 @@ kill_timeout = "240s"
   KEEPER_MAX_SPEND_LAMPORTS_PER_PASS = "100000000"
   MIN_KEEPER_LAMPORTS = "100000000"
   ZKUBE_ARCHIVE_DIRECTORY = "/data/zkube-archives"
-  # Prize notifications. Push stays entirely off unless all four are present;
-  # the private key is a Fly secret and is never written here.
-  ZKUBE_PUSH_PORT = "8080"
-  ZKUBE_PUSH_VAPID_SUBJECT = "mailto:ops@z-korp.xyz"
-  ZKUBE_PUSH_ALLOWED_ORIGINS = "https://zkube.z-korp.xyz"
 
-# The keeper's only inbound surface: prize-notification registration. It
-# cannot sign, cannot read chain, and cannot reach the keeper's signer — the
-# worst a caller can do is add a row to a bounded JSON file.
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = false
-  auto_start_machines = false
-  min_machines_running = 1
-  processes = ["worker"]
+# No [http_service]: the keeper has no inbound surface at all. Prize push is
+# parked (see the note at the top of src/keeperWorker.ts), so this process still
+# only reads chain and writes its volume.
 
 [[mounts]]
   source = "zkube_archives"
