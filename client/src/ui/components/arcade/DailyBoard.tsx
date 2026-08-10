@@ -4,7 +4,7 @@ import type { DailyView } from "@/chain/dailyClient";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
 import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
-import { PaidCutLine } from "@/ui/components/arena/LeaderboardRow";
+import { PaidCutLine, RankBadge } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
   GuardianFaceBlock,
@@ -31,38 +31,12 @@ const YOU_RING: React.CSSProperties = {
 
 /** Every row's avatar slot, ornament included, so the column stays straight. */
 const AVATAR_BOX = 46;
-const MEDAL_COLORS = ["#FACC15", "#C9D6E4", "#E2955C"] as const;
 
 interface DailyBoardProps {
   view: DailyView;
   /** Connected wallet base58, for the gold ring and your below-cut row. */
   address: string | null;
 }
-
-/**
- * The rank badge, worn on the corner of the player's own avatar.
- *
- * On its own column it was a fifth element competing with the border for the
- * same job — saying where somebody stands. Sitting on the avatar it costs no
- * width, which is what let the avatar grow enough to be worth wearing.
- */
-const RankBadge: React.FC<{ rank: number }> = ({ rank }) => (
-  <span
-    className="absolute -bottom-0.5 -left-0.5 z-10 flex items-center justify-center font-mono font-black"
-    style={{
-      width: 18,
-      height: 18,
-      borderRadius: 6,
-      fontSize: 10,
-      background: MEDAL_COLORS[rank - 1] ?? "#26344A",
-      color: rank <= 3 ? "#181205" : "rgba(255,255,255,0.85)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 3px rgba(0,0,0,0.6)",
-    }}
-  >
-    {rank}
-  </span>
-);
 
 /**
  * The prize ladder IS the leaderboard: every rung priced from the live pot

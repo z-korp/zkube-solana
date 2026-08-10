@@ -2,9 +2,7 @@ import { useEffect } from "react";
 
 import { getThemeId } from "@/config/themes";
 import { useDaily } from "@/contexts/daily";
-import CampaignDoor, {
-  type CampaignShelfItem,
-} from "@/ui/components/arcade/CampaignDoor";
+import CampaignDoor from "@/ui/components/arcade/CampaignDoor";
 import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
 import { MONEY_GOLD } from "@/ui/components/economy";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
@@ -20,12 +18,6 @@ interface ConnectScreenProps {
    */
   revealDone?: boolean;
 }
-
-// Pre-wallet there is no progress to wear: the first realm's block alone
-// stands on the locked door.
-const LOCKED_SHELF: readonly CampaignShelfItem[] = [
-  { zoneId: 1, badge: null },
-];
 
 /**
  * The landing — the same lobby a connected player stands in. The marquee
@@ -72,6 +64,9 @@ export default function ConnectScreen({
                 >
                   zKube
                 </span>
+                <p className="mt-1 font-sans text-[12px] font-semibold text-white/55">
+                  Daily block-puzzle arena. One run, real SOL.
+                </p>
               </div>
               {/* The pinned totem, minus the campaign door — the dock below
                   already names Campaign. Free height splits 1:2 around it so
@@ -84,7 +79,7 @@ export default function ConnectScreen({
                     accentOverride={MONEY_GOLD}
                   />
                 </DailyMarquee>
-                <CampaignDoor shelf={LOCKED_SHELF} locked />
+                <CampaignDoor locked />
                 <div className="flex-[2]" />
               </div>
             </div>

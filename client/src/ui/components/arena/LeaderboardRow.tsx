@@ -50,6 +50,34 @@ export const RankMedal: React.FC<{ rank: number; size?: number }> = ({
 );
 
 /**
+ * The rank badge worn on the corner of a player's own avatar.
+ *
+ * On its own column it was a second element saying what the border already
+ * says — where somebody stands — and it cost the width that lets an avatar be
+ * worth wearing something in.
+ */
+export const RankBadge: React.FC<{ rank: number; size?: number }> = ({
+  rank,
+  size = 18,
+}) => (
+  <span
+    className="absolute -bottom-0.5 -left-0.5 z-10 flex items-center justify-center font-mono font-black"
+    style={{
+      width: size,
+      height: size,
+      borderRadius: Math.round(size * 0.33),
+      fontSize: Math.round(size * 0.56),
+      background: MEDAL_COLORS[rank - 1] ?? "#26344A",
+      color: rank <= 3 ? "#181205" : "rgba(255,255,255,0.85)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 3px rgba(0,0,0,0.6)",
+    }}
+  >
+    {rank}
+  </span>
+);
+
+/**
  * One board row in the opaque grammar: medal chip, inline emblem, name, the
  * primary figure, and an optional floored SOL prize. Rows render transparent —
  * the parent panel carries the surface — except the connected player's row,

@@ -12,9 +12,7 @@ import { useNowTick } from "@/hooks/useNowTick";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { computeArcadeLifecycle } from "@/ui/components/arcade";
-import CampaignDoor, {
-  type CampaignShelfItem,
-} from "@/ui/components/arcade/CampaignDoor";
+import CampaignDoor from "@/ui/components/arcade/CampaignDoor";
 import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
 import {
   KreditCoin,
@@ -22,14 +20,17 @@ import {
   MONEY_GOLD,
   SolMark,
 } from "@/ui/components/economy";
-import { GuardianPrizeResult } from "@/ui/components/settlement";
-import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import EnterCoinKey from "@/ui/components/arcade/EnterCoinKey";
+import {
+  GuardianPrizeResult,
+  InsertCoinSheet,
+} from "@/ui/components/settlement";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import {
   useTheme,
   useThemeColors,
 } from "@/ui/elements/theme-provider/hooks";
-import { formatSolBalance } from "@/utils/currency";
+import { formatSolBalance, formatSolBalanceLamports } from "@/utils/currency";
 
 /** Opaque block furniture — the menu chrome never uses glass blur. */
 const PLATE_STYLE: React.CSSProperties = {
@@ -77,29 +78,6 @@ const HomePage: React.FC = () => {
     return unlocked.reduce((max, zone) => Math.max(max, zone.zoneId), 1);
   }, [zones]);
 
-  // The door's shelf: the realm being conquered and up to two behind it, each
-  // wearing its earned mastery star.
-  const shelf = useMemo<CampaignShelfItem[]>(
-    () =>
-      [campaignZoneId - 2, campaignZoneId - 1, campaignZoneId]
-        .filter((id) => id >= 1)
-        .map((id) => {
-          const zone = zones.find((candidate) => candidate.zoneId === id);
-          const perfected =
-            zone !== undefined &&
-            (zone.perfectionClaimed || zone.stars >= zone.maxStars);
-          return {
-            zoneId: id,
-            badge: perfected
-              ? ("perfected" as const)
-              : zone?.bossCleared
-                ? ("cleared" as const)
-                : null,
-          };
-        }),
-    [campaignZoneId, zones],
-  );
-
   // DEV-ONLY prize-ceremony preview (?demo=prize with the wallet bypass):
   // renders the settlement surface with fixture values and no chain state.
   // The whole branch folds to null in production builds.
@@ -111,20 +89,58 @@ const HomePage: React.FC = () => {
   // Buying is owner work, and the balance readout is where a player looks
   // when they wonder whether they can play — so it is also the shop door.
   const [shopOpen, setShopOpen] = useState(false);
+  // Entering from the lobby directly: the Arcade round trip existed only to
+  // reach a second key.
+  const [coinSheetOpen, setCoinSheetOpen] = useState(false);
 
-  // One verb, chosen by lifecycle. Entering (and paying) lives on the Arcade;
-  // Home's key only resumes a live run directly.
+  // One key, and it names the single best next action. It used to say "Play"
+  // in every state and then navigate to the Arcade so a second key could be
+  // pressed — two taps for one intent, with the price hidden until screen two.
+  const busy = daily.action !== null;
+  const alreadyEntered =
+    address !== undefined &&
+    address !== null &&
+    (view?.leaderboard.some((entry) => entry.player.toBase58() === address) ??
+      false);
+  const entrySol = view ? formatSolBalanceLamports(view.entryLamports) : null;
+
   let playLabel = "Play";
+  let playAmount: string | null = null;
   let playDisabled = false;
   let playOnClick: () => void = () => navigate("arcade");
+
   if (lifecycle === "resume") {
-    playLabel = "Resume";
+    playLabel = "Resume run";
     playOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };
+  } else if (lifecycle === "entries-open") {
+    if (daily.action === "enter:kredit") {
+      playLabel = "Entering…";
+      playDisabled = true;
+    } else if (daily.action === "buy:kredits") {
+      playLabel = "Buying…";
+      playDisabled = true;
+    } else if (view?.followingDailyLamports === null) {
+      playLabel = "Ranked paused";
+      playDisabled = true;
+    } else if ((view?.kreditBalance ?? 0n) === 0n) {
+      playLabel = "Play";
+      playAmount = entrySol;
+      playDisabled = busy || !player.wallet;
+      playOnClick = () => setShopOpen(true);
+    } else {
+      playLabel = alreadyEntered ? "Play again" : "Play";
+      playDisabled = busy || !player.wallet;
+      playOnClick = () => setCoinSheetOpen(true);
+    }
   } else if (lifecycle === "entries-closed") {
-    playLabel = "Board";
-  } else if (lifecycle !== "entries-open") {
+    playLabel = "See results";
+  } else {
+    playLabel =
+      lifecycle === "delayed" || lifecycle === "stale"
+        ? "Keeper catching up"
+        : "Daily being prepared";
     playDisabled = true;
   }
 
@@ -198,32 +214,37 @@ const HomePage: React.FC = () => {
           keeps the larger share; min-height covers the block's overlap. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
         <div className="min-h-[64px] flex-1" />
-        <DailyMarquee zoneId={zoneId} view={view}>
-          <ArcadeButton
+        <DailyMarquee zoneId={zoneId} view={view} address={address ?? null}>
+          <EnterCoinKey
+            label={playLabel}
+            amountSol={playAmount}
             disabled={playDisabled}
             onClick={playOnClick}
-            accentOverride={MONEY_GOLD}
-          >
-            {playLabel}
-          </ArcadeButton>
+          />
         </DailyMarquee>
-        {/* The door carries the evening hook: tomorrow's realm is already
-            knowable, and practising it for free is behind this same tap. */}
         <CampaignDoor
-          shelf={shelf}
+          zoneId={campaignZoneId}
           totalStars={totalStars}
-          tomorrow={
-            view?.followingMapId != null && view.followingScoringRule
-              ? {
-                  mapId: view.followingMapId,
-                  scoringRule: view.followingScoringRule,
-                }
-              : null
-          }
           onClick={() => navigate("campaign")}
         />
         <div className="flex-[2]" />
       </div>
+
+      {view && (
+        <InsertCoinSheet
+          open={coinSheetOpen}
+          onClose={() => setCoinSheetOpen(false)}
+          zoneId={zoneId}
+          entryLamports={view.entryLamports}
+          busy={daily.action === "enter:kredit"}
+          onConfirm={() => {
+            void daily
+              .enter()
+              .then((active) => navigate("play", active.runId))
+              .catch(() => setCoinSheetOpen(false));
+          }}
+        />
+      )}
 
       {view && (
         <KreditShopSheet

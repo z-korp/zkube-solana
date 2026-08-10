@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LockKeyhole } from "lucide-react";
 import { motion } from "motion/react";
 
+import { dailyScoringRuleName } from "@/chain/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { getThemeId } from "@/config/themes";
 import { ZONE_NAMES } from "@/config/profileData";
+import { useDaily } from "@/contexts/daily";
 import { useMusicPlayer } from "@/contexts/hooks";
 import useAccount from "@/hooks/useAccount";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
@@ -36,6 +38,14 @@ export default function CampaignPage() {
   const activeRun = useActiveStoryAttempt();
   const navigate = useNavigationStore((state) => state.navigate);
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
+  const daily = useDaily();
+  const tomorrow =
+    daily.daily?.followingMapId != null && daily.daily.followingScoringRule
+      ? {
+          mapId: daily.daily.followingMapId,
+          scoringRule: daily.daily.followingScoringRule,
+        }
+      : null;
   const { setMusicMood } = useMusicPlayer();
   const { setThemeTemplate } = useTheme();
   // The browse arrows are utility chrome, so they wear the realm's accent —
@@ -126,6 +136,41 @@ export default function CampaignPage() {
       >
         Campaign
       </h1>
+
+      {/* Tomorrow's realm, where practising it is the next tap. The draw is
+          derived from a protocol-fixed seed, so it is knowable a day ahead —
+          and this is the only screen where knowing is actionable. */}
+      {tomorrow && (
+        <motion.button
+          type="button"
+          onClick={() => setSelectedZoneId(tomorrow.mapId)}
+          whileTap={{ y: 2 }}
+          className="relative z-10 mx-4 mt-3 flex items-center gap-2.5 rounded-2xl px-3 py-2"
+          style={{
+            background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "0 3px 0 #04070F, inset 0 1px 0 rgba(255,255,255,0.08)",
+          }}
+        >
+          <GuardianFaceBlock zoneId={tomorrow.mapId} size={30} />
+          <span className="min-w-0 flex-1 text-left">
+            <span className="block font-sans text-[9px] font-bold uppercase tracking-[0.18em] text-white/45">
+              Tomorrow's arena
+            </span>
+            <span className="block truncate font-sans text-[13px] font-extrabold text-white">
+              {getZoneGuardian(tomorrow.mapId).name}
+              <span className="font-mono text-[10px] font-semibold text-white/50">
+                {" · "}
+                {dailyScoringRuleName(tomorrow.scoringRule)}
+              </span>
+            </span>
+          </span>
+          <span className="flex-none font-sans text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
+            Practise
+          </span>
+          <ChevronRight size={15} className="flex-none text-white/35" />
+        </motion.button>
+      )}
 
       <div className="relative z-10 mx-4 mt-3 flex items-center gap-2">
         <span className="relative h-7 flex-1 overflow-hidden rounded-full border border-white/[0.1] bg-black/45">
