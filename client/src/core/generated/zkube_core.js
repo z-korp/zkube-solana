@@ -246,6 +246,15 @@ export function ladderPoints(qualified_entrants, rank) {
 }
 
 /**
+ * @param {number} streak_days
+ * @returns {number}
+ */
+export function ladderStreakBonusPct(streak_days) {
+    const ret = wasm.ladderStreakBonusPct(streak_days);
+    return ret >>> 0;
+}
+
+/**
  * @param {bigint} points
  * @returns {number}
  */

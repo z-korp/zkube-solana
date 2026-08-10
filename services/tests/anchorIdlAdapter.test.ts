@@ -18,7 +18,7 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "49c22db78c3dea42b02fb93a28d7ae4652074f0039b1a7bb78636645df64d3aa";
+  "995de7b50b1f88450b984d6fa7c4af5bd79a5d978115dbfa4d7e5b6eaa859f0a";
 const DAY = 20_651;
 const RUN_ID = 42n;
 

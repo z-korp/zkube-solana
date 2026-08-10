@@ -164,16 +164,26 @@ pub fn ladder_tier_count() -> u8 {
     zkube_core::LADDER_TIER_COUNT
 }
 
+/// Ladder bonus percentage earned by a consecutive-entry streak.
+///
+/// The program scales every ladder award by this, so the client reads it here
+/// rather than restating the cap or the per-day rate.
+#[must_use]
+pub fn ladder_streak_bonus_pct(streak_days: u32) -> u32 {
+    zkube_core::ladder_streak_bonus_pct(streak_days)
+}
+
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm {
     use super::{
         BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
         campaign_simulation_earned_stars, campaign_simulation_end_reason,
         campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
-        initialize_campaign_simulation, initialize_daily_simulation, ladder_points, ladder_tier,
-        ladder_tier_count, ladder_tier_floor, qualified_player_id, simulation_apply_bonus,
-        simulation_apply_vrf, simulation_finish_deadline, simulation_play_move,
-        simulation_request_reroll, simulation_score_eligible,
+        initialize_campaign_simulation, initialize_daily_simulation, ladder_points,
+        ladder_streak_bonus_pct, ladder_tier, ladder_tier_count, ladder_tier_floor,
+        qualified_player_id, simulation_apply_bonus, simulation_apply_vrf,
+        simulation_finish_deadline, simulation_play_move, simulation_request_reroll,
+        simulation_score_eligible,
     };
     use wasm_bindgen::prelude::*;
 
@@ -254,6 +264,12 @@ mod wasm {
     #[must_use]
     pub fn js_ladder_tier_count() -> u8 {
         ladder_tier_count()
+    }
+
+    #[wasm_bindgen(js_name = ladderStreakBonusPct)]
+    #[must_use]
+    pub fn js_ladder_streak_bonus_pct(streak_days: u32) -> u32 {
+        ladder_streak_bonus_pct(streak_days)
     }
 
     #[wasm_bindgen(js_name = initializeDailySimulation)]

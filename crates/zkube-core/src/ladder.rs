@@ -23,6 +23,34 @@ pub const LADDER_QUALIFY_POINTS: u32 = 10;
 /// pass may retune this number but may not remove it.
 const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 
+/// Longest consecutive-entry streak the ladder bonus counts, in days.
+///
+/// The bonus is one percent per day, so the cap is also the maximum bonus: a
+/// hundred-day streak doubles a day's ladder award and a longer one does not
+/// grow further. The cap exists because an uncapped attendance multiplier
+/// eventually dwarfs the play itself — at two hundred days a mediocre run would
+/// outscore a stranger's win, which inverts what the ladder measures.
+pub const LADDER_STREAK_BONUS_CAP_DAYS: u32 = 100;
+
+/// Ladder bonus percentage earned by a consecutive-entry streak.
+#[must_use]
+pub fn ladder_streak_bonus_pct(streak_days: u32) -> u32 {
+    streak_days.min(LADDER_STREAK_BONUS_CAP_DAYS)
+}
+
+/// Apply a streak's bonus percentage to one ladder award, rounding down.
+///
+/// The floor matters at small awards: [`LADDER_QUALIFY_POINTS`] is currently
+/// ten, so a streak shorter than ten days adds nothing to the qualifying half
+/// and only the placement half moves. That is a consequence of the placeholder
+/// balance value rather than of this rule, and it resolves whenever the balance
+/// pass raises the credit.
+#[must_use]
+pub fn apply_ladder_streak_bonus(base_points: u32, streak_days: u32) -> u32 {
+    let bonus = u64::from(base_points) * u64::from(ladder_streak_bonus_pct(streak_days)) / 100;
+    base_points.saturating_add(u32::try_from(bonus).unwrap_or(u32::MAX))
+}
+
 /// Cumulative-point floor of each named tier, ascending.
 ///
 /// Placeholder balance values. The systems contract is one monotonic total and
@@ -127,6 +155,35 @@ mod tests {
         assert!(ladder_points(qualified, paid).unwrap() > 0);
         assert!(ladder_points(qualified, paid + 1).is_ok());
         assert!(f64::from(paid) / f64::from(qualified) < 0.06);
+    }
+
+    #[test]
+    fn a_streak_adds_one_percent_a_day_and_stops_doubling() {
+        // The shape the product states: six days is +6%, a hundred days is
+        // +100%, and nothing beyond a hundred moves.
+        assert_eq!(apply_ladder_streak_bonus(1_000, 0), 1_000);
+        assert_eq!(apply_ladder_streak_bonus(1_000, 6), 1_060);
+        assert_eq!(apply_ladder_streak_bonus(1_000, 100), 2_000);
+        assert_eq!(apply_ladder_streak_bonus(1_000, 5_000), 2_000);
+        assert_eq!(
+            ladder_streak_bonus_pct(u32::MAX),
+            LADDER_STREAK_BONUS_CAP_DAYS
+        );
+    }
+
+    #[test]
+    fn the_streak_bonus_rounds_down_and_never_overflows() {
+        // Documented consequence of the placeholder qualifying credit: under
+        // ten days the bonus floors away, and the placement half carries it.
+        assert_eq!(
+            apply_ladder_streak_bonus(LADDER_QUALIFY_POINTS, 9),
+            LADDER_QUALIFY_POINTS
+        );
+        assert_eq!(
+            apply_ladder_streak_bonus(LADDER_QUALIFY_POINTS, 10),
+            LADDER_QUALIFY_POINTS + 1
+        );
+        assert_eq!(apply_ladder_streak_bonus(u32::MAX, 100), u32::MAX);
     }
 
     #[test]

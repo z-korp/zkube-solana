@@ -49,6 +49,20 @@ export function ladderTierColor(tier: number): string {
   return (LADDER_TIERS[tier] ?? LADDER_TIERS[0]!).color;
 }
 
+/**
+ * Longest streak the ladder bonus counts, mirrored from the protocol for the
+ * same reason the thresholds are — the panel states a percentage before the
+ * core is loaded, and `ladderTiers.test.ts` fails the build if the two ever
+ * disagree.
+ */
+export const LADDER_STREAK_BONUS_CAP_DAYS = 100;
+
+/** Ladder bonus percentage a consecutive-entry streak earns. */
+export function ladderStreakBonusPct(streakDays: number): number {
+  if (!Number.isFinite(streakDays) || streakDays <= 0) return 0;
+  return Math.min(Math.floor(streakDays), LADDER_STREAK_BONUS_CAP_DAYS);
+}
+
 /** True when the tier is the highest the protocol defines. */
 export function isTopLadderTier(tier: number): boolean {
   return tier >= LADDER_TIER_THRESHOLDS.length - 1;

@@ -3,18 +3,21 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 import {
+  coreLadderStreakBonusPct,
   coreLadderTier,
   coreLadderTierCount,
   coreLadderTierFloor,
   initializeZkubeCoreSync,
 } from "@/core/zkubeCore";
 import {
+  LADDER_STREAK_BONUS_CAP_DAYS,
   LADDER_TIERS,
   LADDER_TIER_THRESHOLDS,
   isTopLadderTier,
   ladderTierColor,
   ladderTierName,
   ladderTierProgress,
+  ladderStreakBonusPct,
 } from "./ladderTiers";
 
 initializeZkubeCoreSync(
@@ -64,6 +67,22 @@ describe("ladder tiers", () => {
       fraction: 0.5,
       remaining: 2_000n,
     });
+  });
+
+  it("mirrors the protocol's streak bonus, cap included", () => {
+    const streaks = [0, 1, 6, 40, 99, 100, 101, 5_000];
+    for (const days of streaks) {
+      expect(ladderStreakBonusPct(days)).toBe(coreLadderStreakBonusPct(days));
+    }
+    expect(ladderStreakBonusPct(LADDER_STREAK_BONUS_CAP_DAYS)).toBe(
+      LADDER_STREAK_BONUS_CAP_DAYS,
+    );
+  });
+
+  it("never promises a bonus for a streak that has not started", () => {
+    expect(ladderStreakBonusPct(0)).toBe(0);
+    expect(ladderStreakBonusPct(-3)).toBe(0);
+    expect(ladderStreakBonusPct(Number.NaN)).toBe(0);
   });
 
   it("fills the bar at the top tier, where nothing remains", () => {

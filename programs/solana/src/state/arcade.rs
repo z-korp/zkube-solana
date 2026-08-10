@@ -478,7 +478,7 @@ impl ArenaDaily {
                 .score_qualified_players
                 .checked_add(1)
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
-            player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
+            let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
         if candidate.objective_total > 0
             && player.record_score(DailyBoardKind::Theme, candidate, run_id)
@@ -487,7 +487,7 @@ impl ArenaDaily {
                 .theme_qualified_players
                 .checked_add(1)
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
-            player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
+            let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
         Ok(())
     }

@@ -2228,14 +2228,16 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
     let board_after: ArenaBoard = decode(resulting_account(&result, &score_board));
     let player_after: PlayerState = decode(resulting_account(&result, &player));
     assert_eq!(board_after.profile_sync_count, 1);
-    assert_eq!(player_after.daily_record.best_prize_rank, 1);
-    assert_eq!(player_after.daily_record.podiums, 1);
-    assert_eq!(player_after.daily_record.wins, 1);
+    assert_eq!(player_after.score_record.best_prize_rank, 1);
+    assert_eq!(player_after.score_record.podiums, 1);
+    assert_eq!(player_after.score_record.wins, 1);
+    // A Score placement is recorded on the Score board alone.
+    assert_eq!(player_after.theme_record, CompetitionRecord::default());
     let expected_points = zkube_core::ladder_points(5, 1).unwrap();
     assert_eq!(player_after.ladder_points, u64::from(expected_points));
     assert_eq!(player_after.highest_ladder_tier, 0);
     assert_eq!(
-        player_after.daily_record.rewards_lamports,
+        player_after.score_record.rewards_lamports,
         score_board_state.payout_for_position(0).unwrap()
     );
     assert_eq!(

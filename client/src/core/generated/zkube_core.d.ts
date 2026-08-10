@@ -27,6 +27,8 @@ export function initializeDailySimulation(config: Uint8Array, request_counter: n
 
 export function ladderPoints(qualified_entrants: number, rank: number): number;
 
+export function ladderStreakBonusPct(streak_days: number): number;
+
 export function ladderTier(points: bigint): number;
 
 export function ladderTierCount(): number;
@@ -65,6 +67,7 @@ export interface InitOutput {
     readonly abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly campaignRunEarnedStars: (a: number, b: number) => [number, number, number];
     readonly campaignRunEndReason: (a: number, b: number) => [number, number, number];
+    readonly ladderStreakBonusPct: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;

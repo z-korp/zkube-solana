@@ -98,16 +98,19 @@ pub fn handler_sync_daily_profile(
         )?,
         ErrorCode::AlreadySubmitted
     );
-    let points = zkube_core::ladder_points(
+    let base_points = zkube_core::ladder_points(
         ctx.accounts.arena_board.qualified_count,
         u32::from(prize.rank),
     )
     .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     ctx.accounts
         .player_state
-        .daily_record
+        .daily_record_mut(board)
         .record_prize(prize.rank, prize.amount)?;
-    ctx.accounts.player_state.record_ladder_points(points)?;
+    let points = ctx
+        .accounts
+        .player_state
+        .record_ladder_points(base_points)?;
     set_board_bitmap(
         &board_info,
         &ctx.accounts.arena_board,

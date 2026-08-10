@@ -5,7 +5,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::arcade::RunMetrics as ArcadeRunMetrics;
+use crate::state::arcade::{DailyBoardKind, RunMetrics as ArcadeRunMetrics};
 use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
@@ -76,7 +76,12 @@ pub struct PlayerState {
     pub featured_emblem: u8,
     /// Incremented exactly once when one prepaid Kredit starts a ranked run.
     pub lifetime_paid_entries: u64,
-    pub daily_record: CompetitionRecord,
+    /// The two Daily boards keep separate records. They rank the same runs by
+    /// different metrics, so one aggregate cannot say whether a player wins by
+    /// total performance or by playing the day's theme — which is the whole
+    /// reason the pot splits in two.
+    pub score_record: CompetitionRecord,
+    pub theme_record: CompetitionRecord,
     /// Zero when the Campaign slot is idle.
     pub campaign_active_run_id: u64,
     /// One-way prepaid entries owned by this wallet identity.
@@ -95,7 +100,7 @@ pub struct PlayerState {
     /// Consecutive days carrying at least one paid entry.
     pub entry_streak_days: u16,
     /// Explicit zeroed expansion space for future profile fields.
-    pub reserved: [u8; 37],
+    pub reserved: [u8; 19],
     pub bump: u8,
 }
 
@@ -113,7 +118,8 @@ impl PlayerState {
             campaign_stars: [0; CAMPAIGN_STAR_BYTES],
             featured_emblem: EMBLEM_AUTO,
             lifetime_paid_entries: 0,
-            daily_record: CompetitionRecord::default(),
+            score_record: CompetitionRecord::default(),
+            theme_record: CompetitionRecord::default(),
             campaign_active_run_id: 0,
             kredit_balance: 0,
             ladder_points: 0,
@@ -121,7 +127,7 @@ impl PlayerState {
             best_daily_score: 0,
             last_entry_day_id: 0,
             entry_streak_days: 0,
-            reserved: [0; 37],
+            reserved: [0; 19],
             bump,
         }
     }
@@ -129,7 +135,7 @@ impl PlayerState {
     pub fn schema_valid(&self) -> bool {
         self.version == PLAYER_STATE_VERSION
             && self.highest_ladder_tier == ladder_tier_for_points(self.ladder_points)
-            && self.reserved == [0; 37]
+            && self.reserved == [0; 19]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -349,8 +355,23 @@ impl PlayerState {
         Ok(())
     }
 
-    pub fn record_ladder_points(&mut self, points: u32) -> Result<()> {
+    /// Credit one ladder award, scaled by the entry streak, and return the
+    /// amount actually added.
+    ///
+    /// The streak read here is the live one rather than a snapshot of the day
+    /// being awarded. The qualifying half is credited while the entry is being
+    /// scored, so there it is exact. The placement half is credited by the
+    /// permissionless profile sync, which the keeper runs in the pass that
+    /// finalizes the day — but a sync delayed past a broken streak would pay
+    /// the smaller bonus. Snapshotting per day costs either a required
+    /// `ArenaPlayer` on a permissionless instruction, which anyone could then
+    /// deny by closing that account first, or two more bytes on every board
+    /// row; a bounded, rarely reachable difference in a total that pays no SOL
+    /// is the cheapest of the three.
+    pub fn record_ladder_points(&mut self, base_points: u32) -> Result<u32> {
         self.require_schema()?;
+        let points =
+            zkube_core::apply_ladder_streak_bonus(base_points, u32::from(self.entry_streak_days));
         self.ladder_points = self
             .ladder_points
             .checked_add(u64::from(points))
@@ -358,7 +379,15 @@ impl PlayerState {
         self.highest_ladder_tier = self
             .highest_ladder_tier
             .max(ladder_tier_for_points(self.ladder_points));
-        Ok(())
+        Ok(points)
+    }
+
+    /// The Daily record for one board.
+    pub fn daily_record_mut(&mut self, board: DailyBoardKind) -> &mut CompetitionRecord {
+        match board {
+            DailyBoardKind::Score => &mut self.score_record,
+            DailyBoardKind::Theme => &mut self.theme_record,
+        }
     }
 }
 
@@ -694,7 +723,7 @@ mod tests {
     fn player_state_rejects_nonzero_reserved_bytes() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert!(player.schema_valid());
-        player.reserved[36] = 1;
+        player.reserved[18] = 1;
         assert!(!player.schema_valid());
         assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
     }
@@ -702,13 +731,37 @@ mod tests {
     #[test]
     fn ladder_points_accumulate_and_promote_without_consuming_padding() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        player.record_ladder_points(999).unwrap();
+        assert_eq!(player.record_ladder_points(999).unwrap(), 999);
         assert_eq!(player.ladder_points, 999);
         assert_eq!(player.highest_ladder_tier, 0);
         player.record_ladder_points(1).unwrap();
         assert_eq!(player.highest_ladder_tier, 1);
-        assert_eq!(player.reserved, [0; 37]);
+        assert_eq!(player.reserved, [0; 19]);
         assert!(player.schema_valid());
+    }
+
+    #[test]
+    fn a_streak_scales_every_ladder_award_it_is_credited_beside() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(40).unwrap();
+        for day in 0..40 {
+            player.record_paid_entry(20_000 + day).unwrap();
+        }
+        assert_eq!(player.entry_streak_days, 40);
+        // Forty consecutive days is +40%, applied to whichever award lands.
+        assert_eq!(player.record_ladder_points(200).unwrap(), 280);
+        assert_eq!(player.ladder_points, 280);
+    }
+
+    #[test]
+    fn the_streak_bonus_stops_growing_at_the_core_cap() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(400).unwrap();
+        for day in 0..400 {
+            player.record_paid_entry(20_000 + day).unwrap();
+        }
+        assert_eq!(player.entry_streak_days, 400);
+        assert_eq!(player.record_ladder_points(200).unwrap(), 400);
     }
 
     #[test]
@@ -751,6 +804,18 @@ mod tests {
         player.record_paid_entry(20_003).unwrap();
         assert_eq!(player.entry_streak_days, 1);
         assert_eq!(player.last_entry_day_id, 20_003);
+    }
+
+    #[test]
+    fn a_broken_streak_takes_the_bonus_with_it() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        player.record_kredit_purchase(10).unwrap();
+        player.record_paid_entry(20_000).unwrap();
+        player.record_paid_entry(20_001).unwrap();
+        // The bonus floors away below a hundred base points at two days.
+        assert_eq!(player.record_ladder_points(100).unwrap(), 102);
+        player.record_paid_entry(20_010).unwrap();
+        assert_eq!(player.record_ladder_points(100).unwrap(), 101);
     }
 
     #[test]

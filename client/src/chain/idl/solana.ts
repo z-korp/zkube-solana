@@ -7490,7 +7490,21 @@ export type Solana = {
             "type": "u64"
           },
           {
-            "name": "dailyRecord",
+            "name": "scoreRecord",
+            "docs": [
+              "The two Daily boards keep separate records. They rank the same runs by",
+              "different metrics, so one aggregate cannot say whether a player wins by",
+              "total performance or by playing the day's theme — which is the whole",
+              "reason the pot splits in two."
+            ],
+            "type": {
+              "defined": {
+                "name": "competitionRecord"
+              }
+            }
+          },
+          {
+            "name": "themeRecord",
             "type": {
               "defined": {
                 "name": "competitionRecord"
@@ -7557,7 +7571,7 @@ export type Solana = {
             "type": {
               "array": [
                 "u8",
-                37
+                19
               ]
             }
           },

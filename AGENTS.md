@@ -27,10 +27,10 @@ Source implements v5 partially. Current state:
 | Deterministic core 1.0.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — Campaign stars, one Daily record, Kredit balance, ladder total and highest tier, and 47 reserved bytes validated as zero |
+| `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, entry streak, and 19 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
-| Points ladder | Built — integer Q64 `ln` in the core, points applied in the Daily profile-sync pass |
+| Points ladder | Built — integer Q64 `ln` in the core, points applied in the Daily profile-sync pass, every award scaled by the entry streak |
 
 ## Product truth
 
@@ -99,7 +99,8 @@ this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
 open: how many entries the pool ships with and what each carries, per-entry
 difficulty bands and thresholds, starting heights, `DailyPressureRules` values,
-ladder tier boundaries, and Kredit pack sizes and prices.
+ladder tier boundaries, the flat qualifying credit, and Kredit pack sizes and
+prices.
 
 - **The pool is the content unit, and there is no calendar.** Every authored
   daily is a pool entry carrying its realm, active mutator, objective family,
@@ -255,6 +256,24 @@ ladder tier boundaries, and Kredit pack sizes and prices.
   participant-account cleanup. It is never per entry: buying twenty entries
   earns it exactly once, so the ladder cannot be bought. Its value is balance
   and belongs in a named constant.
+- **A consecutive-entry streak scales every ladder award by one percent a day,
+  capped at one hundred.** The streak counts days carrying at least one paid
+  entry, so a second entry the same day never advances it and the bonus rewards
+  returning rather than spending — buying a hundred entries at once earns
+  nothing. The cap exists because an uncapped attendance multiplier eventually
+  dwarfs the play it multiplies; at two hundred days a mediocre run would
+  outscore a stranger's win, which inverts what the ladder measures. Because the
+  ladder pays no SOL, the bonus is legible loyalty and never a money path.
+- **The streak read at award time is the live one, not a per-day snapshot.**
+  The qualifying half is credited while the entry is scored, so there it is
+  exact. The placement half is credited by the permissionless profile sync,
+  which the keeper runs in the pass that finalizes the day — a sync delayed past
+  a broken streak would pay the smaller bonus. The two ways to snapshot it are
+  both worse: requiring `ArenaPlayer` on profile sync hands anyone a denial by
+  closing that account first, since participant closure is permissionless and
+  does not wait for sync; widening the board row costs two bytes on every row of
+  every board. A bounded, rarely reachable difference in a total that pays no
+  SOL is cheaper than either.
 - **Elo was cut on 2026-08-09, and log-rank replaced it rather than standing in
   for it.** Elo's one advantage over a running total is that a rating can fall,
   and the no-decay rule had already removed that; a rating also rewards playing
@@ -460,12 +479,17 @@ become scoreable later.
 
 ### Competitive profile
 
-Player state keeps lifetime paid entries and one compact Daily record holding
-best payout-bearing rank, podiums, wins, and awarded rewards in lamports. A
-non-paying leaderboard place stays visible on the period board but is not a
-profile best rank. The Weekly and Season records are gone; the Kredit balance,
-the cumulative ladder total, and the highest tier ever reached are live, and
-forty-seven reserved bytes, validated as zero, remain for later profile fields.
+Player state keeps lifetime paid entries and one compact Daily record per board
+— Score and Theme separately — each holding best payout-bearing rank, podiums,
+wins, and awarded rewards in lamports. They stay separate because the two boards
+rank the same runs by different metrics, so one aggregate cannot say whether a
+player wins on total performance or on playing the day's theme, which is the
+whole reason the pot splits in two. A non-paying leaderboard place stays visible
+on the period board but is not a profile best rank. The Weekly and Season
+records are gone; the Kredit balance, the cumulative ladder total, the highest
+tier ever reached, the lifetime best `daily_score`, and the consecutive-entry
+streak are live, and nineteen reserved bytes, validated as zero, remain for
+later profile fields.
 
 Payouts are settled before profile metadata synchronizes. A permissionless Daily
 profile-sync instruction recomputes the exact settled payout from the finalized
