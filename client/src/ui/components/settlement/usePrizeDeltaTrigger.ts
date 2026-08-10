@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { PERIOD_LABELS, type PeriodKind } from "@/chain/settlementEvents";
+import {
+  PERIOD_LABELS,
+  type PeriodKind,
+  type PeriodLabel,
+} from "@/chain/settlementEvents";
 import { useSettlementResult } from "@/hooks/useSettlementResult";
 import { browserLocalStorage, type StorageLike } from "@/platform/browserStorage";
 
 export type { PeriodKind };
 
-/** Per-wallet localStorage key: the last-seen Daily reward total. */
+/** Both boards paid in the same burst, so neither name alone is honest. */
+export type PrizeLabel = PeriodLabel | "Daily";
+
+/** Per-wallet localStorage key: the last-seen total across both boards. */
 const SEEN_KEY_PREFIX = "zkube:v5:rewards-seen:";
 
 export interface PrizeDelta {
-  /** Daily — the period whose record grew. */
-  periodKind: PeriodKind;
-  periodLabel: "Daily";
+  /** The board whose record grew, or null when the burst paid both. */
+  periodKind: PeriodKind | null;
+  periodLabel: PrizeLabel;
   /** How much the attributed period's lifetime rewards grew, in lamports. */
   amountLamports: bigint;
   /**
@@ -51,7 +58,7 @@ export interface PrizeDeltaTrigger {
  * Precise, real-time celebration trigger for the guardian-delivers moment.
  *
  * Driven by `useSettlementResult`, which subscribes to the connected player's
- * PlayerState and surfaces a landed Daily prize the instant the
+ * PlayerState and surfaces a landed board prize the instant the
  * keeper's push confirms (not at a render poll). A pushed prize is the only way a
  * period's lifetime `rewardsLamports` grows, so an increase is always a real paid
  * win — never a fabricated "scored vs expired" outcome (that per-run distinction
@@ -69,9 +76,19 @@ export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
   const { publicKey } = useConnectedPlayer();
   const address = publicKey?.toBase58() ?? null;
   const { periods, latestEvent, loading, error } = useSettlementResult();
-  const daily = periods[0];
-  const dailyRewards = daily?.rewardsLamports ?? 0n;
-  const dailyRank = daily?.bestPrizeRank ?? 0;
+  // One entry places on both boards, so the celebration reconciles their sum
+  // and names the board only when exactly one of them moved.
+  const dailyRewards = periods.reduce(
+    (total, period) => total + period.rewardsLamports,
+    0n,
+  );
+  const dailyRank = periods.reduce(
+    (best, period) =>
+      period.bestPrizeRank > 0 && (best === 0 || period.bestPrizeRank < best)
+        ? period.bestPrizeRank
+        : best,
+    0,
+  );
 
   const [prize, setPrize] = useState<PrizeDelta | null>(null);
 
@@ -91,24 +108,21 @@ export function usePrizeDeltaTrigger(): PrizeDeltaTrigger {
       return;
     }
 
-    const bestKind: PeriodKind = 0;
     const bestDelta = current - seen;
     if (bestDelta <= 0n) return;
 
     // Persist immediately so a refresh or re-render never re-fires this prize.
     writeSeen(storage, key, current);
-    // `latestEvent` is the same snapshot's largest increase and carries the
-    // period record's rank; fall back to the reconciled period's own rank if the
-    // subscription has not surfaced the event yet (e.g. a manual refresh path).
-    const rank =
-      latestEvent && latestEvent.periodKind === bestKind
-        ? latestEvent.bestPrizeRank
-        : dailyRank;
+    // `latestEvent` is the same snapshot's largest increase and carries both
+    // the board it landed on and that record's rank; fall back to the
+    // reconciled best rank when the subscription has not surfaced the event yet
+    // (e.g. a manual refresh path), and to the neutral name with it.
+    const bestKind = latestEvent?.periodKind ?? null;
     setPrize({
       periodKind: bestKind,
-      periodLabel: PERIOD_LABELS[bestKind],
+      periodLabel: bestKind === null ? "Daily" : PERIOD_LABELS[bestKind],
       amountLamports: bestDelta,
-      bestPrizeRank: rank,
+      bestPrizeRank: latestEvent?.bestPrizeRank ?? dailyRank,
     });
   }, [
     address,

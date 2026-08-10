@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useDaily } from "@/contexts/daily";
-import { PERIOD_LABELS, type PeriodKind } from "@/chain/settlementEvents";
+import { PERIOD_LABELS } from "@/chain/settlementEvents";
 import { useSettlementResult } from "@/hooks/useSettlementResult";
 import {
   browserLocalStorage,
@@ -195,8 +195,12 @@ export function useNotifications(): NotificationsController {
   // retroactively fires historical wins.
   const { publicKey } = useConnectedPlayer();
   const address = publicKey?.toBase58() ?? null;
-  const { periods, loading, error } = useSettlementResult();
-  const dailyRewards = periods[0]?.rewardsLamports ?? 0n;
+  const { periods, latestEvent, loading, error } = useSettlementResult();
+  // One entry places on both boards, so reconcile their sum.
+  const dailyRewards = periods.reduce(
+    (total, period) => total + period.rewardsLamports,
+    0n,
+  );
 
   useEffect(() => {
     // Never trust an in-flight or failed read; money never gates on it either.
@@ -215,16 +219,16 @@ export function useNotifications(): NotificationsController {
       return;
     }
 
-    const bestKind: PeriodKind = 0;
     const bestDelta = current - seen;
     if (bestDelta <= 0n) return;
 
     // Persist before firing so a re-render or reload never re-announces it.
     writeSeen(storage, key, current);
+    const bestKind = latestEvent?.periodKind ?? null;
     notify(`You won ${formatSolBalanceLamports(bestDelta)} SOL`, {
-      body: `${PERIOD_LABELS[bestKind]} prize settled to your wallet.`,
+      body: `${bestKind === null ? "Daily" : PERIOD_LABELS[bestKind]} prize settled to your wallet.`,
       // OS-level dedupe key, independent of our storage baseline.
-      tag: `zkube-prize-${bestKind}-${current.toString()}`,
+      tag: `zkube-prize-${bestKind ?? "daily"}-${current.toString()}`,
       data: { url: "/" },
     });
   }, [
@@ -232,6 +236,7 @@ export function useNotifications(): NotificationsController {
     loading,
     error,
     dailyRewards,
+    latestEvent,
     notify,
   ]);
 

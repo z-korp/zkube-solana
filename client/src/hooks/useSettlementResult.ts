@@ -1,15 +1,21 @@
 import { useMemo } from "react";
 
 import type { CompetitionRecord } from "@/chain/campaignClient";
-import type { PeriodKind, SettlementEvent } from "@/chain/settlementEvents";
+import {
+  PERIOD_LABELS,
+  periodRecord,
+  type PeriodKind,
+  type PeriodLabel,
+  type SettlementEvent,
+} from "@/chain/settlementEvents";
 import { useSettlementWatcher } from "./useSettlementWatcher";
 
-export type { PeriodKind } from "@/chain/settlementEvents";
+export type { PeriodKind, PeriodLabel } from "@/chain/settlementEvents";
 
 export interface PeriodSettlement {
-  /** Daily — matches competitionProfileSynced.periodKind. */
+  /** Which Daily board — matches `competitionProfileSynced.board`. */
   periodKind: PeriodKind;
-  label: "Daily";
+  label: PeriodLabel;
   /** Best payout-bearing rank ever reached (0 = none). */
   bestPrizeRank: number;
   podiums: number;
@@ -49,12 +55,14 @@ const EMPTY_RECORD: CompetitionRecord = {
   rewardsLamports: 0n,
 };
 
-const PERIODS: readonly { kind: PeriodKind; label: PeriodSettlement["label"] }[] =
-  [{ kind: 0, label: "Daily" }];
+const PERIODS: readonly { kind: PeriodKind; label: PeriodLabel }[] = [
+  { kind: 0, label: PERIOD_LABELS[0] },
+  { kind: 1, label: PERIOD_LABELS[1] },
+];
 
 function toPeriod(
   kind: PeriodKind,
-  label: PeriodSettlement["label"],
+  label: PeriodLabel,
   record: CompetitionRecord,
 ): PeriodSettlement {
   return {
@@ -70,7 +78,7 @@ function toPeriod(
 
 /**
  * Real-time settlement summary for the connected player, derived from the
- * live-subscribed Daily competition record on PlayerState (via
+ * live-subscribed Score and Theme competition records on PlayerState (via
  * `useSettlementWatcher`). Profile synchronization may be late; the account
  * updates whenever the keeper pushes a profile sync, so this reflects the latest
  * confirmed prize state — including the most recent pushed prize as
@@ -79,19 +87,19 @@ function toPeriod(
 export function useSettlementResult(): SettlementResult {
   const { view, latestEvent, loading, error, refresh } = useSettlementWatcher();
 
-  const daily = view?.dailyRecord ?? EMPTY_RECORD;
+  const score = view ? periodRecord(view, 0) : EMPTY_RECORD;
+  const theme = view ? periodRecord(view, 1) : EMPTY_RECORD;
 
   const periods = useMemo<PeriodSettlement[]>(() => {
-    const records: Record<PeriodKind, CompetitionRecord> = {
-      0: daily,
-    };
+    const records: Record<PeriodKind, CompetitionRecord> = { 0: score, 1: theme };
     return PERIODS.map(({ kind, label }) => toPeriod(kind, label, records[kind]));
-  }, [daily]);
+  }, [score, theme]);
 
   return {
     periods,
-    totalRewardsLamports: daily.rewardsLamports,
-    totalWins: daily.wins,
+    // One entry places on both boards, so lifetime earnings are their sum.
+    totalRewardsLamports: score.rewardsLamports + theme.rewardsLamports,
+    totalWins: score.wins + theme.wins,
     latestEvent,
     loading,
     error,

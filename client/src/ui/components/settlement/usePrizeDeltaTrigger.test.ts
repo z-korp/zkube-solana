@@ -82,7 +82,7 @@ describe("usePrizeDeltaTrigger", () => {
 
     expect(result.current.prize).toEqual({
       periodKind: 0,
-      periodLabel: "Daily",
+      periodLabel: "Score",
       amountLamports: 250_000_000n,
       bestPrizeRank: 2,
     });

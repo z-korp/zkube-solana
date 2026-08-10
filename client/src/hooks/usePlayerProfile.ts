@@ -23,7 +23,10 @@ export interface PlayerProfile {
   /** Stored emblem id (0 = auto). Resolve to a descriptor with config/emblems. */
   featuredEmblem: number;
   lifetimePaidEntries: bigint;
-  dailyRecord: CompetitionRecord;
+  /** Best Daily results on the Score board, which ranks total performance. */
+  scoreRecord: CompetitionRecord;
+  /** Best Daily results on the Theme board, which ranks the day's objective. */
+  themeRecord: CompetitionRecord;
   /** Display-time sum of wins across competition records. */
   totalWins: number;
   /** Display-time sum of rewards (lamports) across competition records. */
@@ -48,7 +51,7 @@ export interface PlayerProfileResult extends PlayerProfile {
 
 /**
  * Competitive profile for the connected player. Reads PlayerState directly for
- * the emblem, lifetime paid entries, and the Daily prize record;
+ * the emblem, lifetime paid entries, and the two Daily prize records;
  * Campaign stars/totalStars are reused from useZoneProgress (which projects the
  * shared campaign controller) rather than re-reading the account. Fields fall
  * back to zeros when disconnected or before the first paid entry, so the UI
@@ -93,13 +96,16 @@ export function usePlayerProfile(): PlayerProfileResult {
   }, [refresh]);
 
   const profile = useMemo<PlayerProfile>(() => {
-    const daily = state?.dailyRecord ?? EMPTY_RECORD;
+    const score = state?.scoreRecord ?? EMPTY_RECORD;
+    const theme = state?.themeRecord ?? EMPTY_RECORD;
     return {
       featuredEmblem: state?.featuredEmblem ?? 0,
       lifetimePaidEntries: state?.lifetimePaidEntries ?? 0n,
-      dailyRecord: daily,
-      totalWins: daily.wins,
-      totalRewardsLamports: daily.rewardsLamports,
+      scoreRecord: score,
+      themeRecord: theme,
+      // One entry places on both boards, so lifetime figures are their sum.
+      totalWins: score.wins + theme.wins,
+      totalRewardsLamports: score.rewardsLamports + theme.rewardsLamports,
       ladderPoints: state?.ladderPoints ?? 0n,
       highestLadderTier: state?.highestLadderTier ?? 0,
       bestDailyScore: state?.bestDailyScore ?? 0,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Timer, Users } from "lucide-react";
+import { Plus, Timer, Users } from "lucide-react";
+import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { getThemeId } from "@/config/themes";
@@ -18,7 +19,9 @@ import {
 import EnterCoinKey from "@/ui/components/arcade/EnterCoinKey";
 import InfoTip from "@/ui/components/shared/InfoTip";
 import {
+  KreditCoin,
   GuardianFaceBlock,
+  KreditShopSheet,
   MONEY_GOLD,
   SolMark,
 } from "@/ui/components/economy";
@@ -63,6 +66,8 @@ const ArcadePage: React.FC = () => {
 
   // Spending an already-owner-funded Kredit is device-session authorized.
   const [coinSheetOpen, setCoinSheetOpen] = useState(false);
+  // Buying is owner work, so the shop is its own surface rather than a verb.
+  const [shopOpen, setShopOpen] = useState(false);
   // DEV-ONLY sheet preview (?demo=coin with the wallet bypass) — the coin
   // sheet lives here, so its fixture preview does too. Folds away in prod.
   useEffect(() => {
@@ -109,43 +114,38 @@ const ArcadePage: React.FC = () => {
     void enterRanked().catch(() => setCoinSheetOpen(false));
   const entrySeconds = useCountdown(view?.runsCloseAt);
 
-  // The pinned key: one verb per lifecycle; only "Enter" carries the coin.
+  // The pinned key: one verb per lifecycle. An entry is always exactly one
+  // Kredit, so the key never prices it — only buying carries a SOL amount.
   let primaryLabel = "Enter";
-  let primaryAmount: string | null = view?.kreditBalance ? "1" : entrySol;
+  let primaryAmount: string | null = null;
   let primaryDisabled = false;
   let primaryOnClick: () => void = () => {};
 
   if (lifecycle === "resume") {
     primaryLabel = "Resume run";
-    primaryAmount = null;
     primaryOnClick = () => {
       if (activeDaily) navigate("play", activeDaily.gameId);
     };
   } else if (lifecycle === "entries-open") {
     if (!arcadeDiscoveryReady) {
       primaryLabel = "Checking run…";
-      primaryAmount = null;
       primaryDisabled = true;
     } else if (view?.followingDailyLamports === null) {
       primaryLabel = "Ranked paused";
-      primaryAmount = null;
       primaryDisabled = true;
     } else if (daily.action === "enter:kredit") {
       primaryLabel = "Spending Kredit…";
-      primaryAmount = null;
       primaryDisabled = true;
     } else if (daily.action === "buy:kredits") {
-      primaryLabel = "Buying Kredit…";
-      primaryAmount = null;
+      primaryLabel = "Buying Kredits…";
       primaryDisabled = true;
     } else if ((view?.kreditBalance ?? 0n) === 0n) {
-      primaryLabel = "Buy Kredit";
+      primaryLabel = "Buy Kredits";
       primaryAmount = entrySol;
       primaryDisabled = busy || !player.wallet;
-      primaryOnClick = () => void daily.buyKredits(1).catch(() => undefined);
+      primaryOnClick = () => setShopOpen(true);
     } else {
       primaryDisabled = busy || !player.wallet;
-      primaryAmount = "1";
       // Tap the key → confirm one prepaid Kredit → session-authorized play.
       primaryOnClick = () => setCoinSheetOpen(true);
     }
@@ -208,9 +208,18 @@ const ArcadePage: React.FC = () => {
                       <Users size={12} className="text-white/50" />
                       {view.uniquePlayers}
                     </span>
-                    <span className={`${CHIP_CLASS} flex-1`}>
-                      {view.kreditBalance.toString()} Kredits
-                    </span>
+                    <motion.button
+                      type="button"
+                      onClick={() => setShopOpen(true)}
+                      whileTap={{ y: 2 }}
+                      className={`${CHIP_CLASS} flex-1`}
+                      style={{ color: MONEY_GOLD }}
+                      aria-label="Buy Kredits"
+                    >
+                      <KreditCoin size={15} />
+                      {view.kreditBalance.toString()}
+                      <Plus size={12} className="text-white/45" />
+                    </motion.button>
                     {scoringRule && (
                       <span className={`${CHIP_CLASS} flex-1 truncate`}>
                         {dailyScoringRuleName(scoringRule)}
@@ -257,6 +266,22 @@ const ArcadePage: React.FC = () => {
           onClick={primaryOnClick}
         />
       </div>
+
+      {view && (
+        <KreditShopSheet
+          open={shopOpen}
+          onClose={() => setShopOpen(false)}
+          balance={view.kreditBalance}
+          unitLamports={view.entryLamports}
+          busy={daily.action === "buy:kredits"}
+          onBuy={(kredits) => {
+            void daily
+              .buyKredits(kredits)
+              .then(() => setShopOpen(false))
+              .catch(() => undefined);
+          }}
+        />
+      )}
 
       {view && (
         <InsertCoinSheet

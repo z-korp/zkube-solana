@@ -16,8 +16,12 @@ import CampaignDoor, {
   type CampaignShelfItem,
 } from "@/ui/components/arcade/CampaignDoor";
 import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
-import TomorrowStrip from "@/ui/components/arcade/TomorrowStrip";
-import { MONEY_GOLD, SolMark } from "@/ui/components/economy";
+import {
+  KreditCoin,
+  KreditShopSheet,
+  MONEY_GOLD,
+  SolMark,
+} from "@/ui/components/economy";
 import { GuardianPrizeResult } from "@/ui/components/settlement";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
@@ -74,7 +78,7 @@ const HomePage: React.FC = () => {
   }, [zones]);
 
   // The door's shelf: the realm being conquered and up to two behind it, each
-  // wearing its earned rim.
+  // wearing its earned mastery star.
   const shelf = useMemo<CampaignShelfItem[]>(
     () =>
       [campaignZoneId - 2, campaignZoneId - 1, campaignZoneId]
@@ -86,11 +90,11 @@ const HomePage: React.FC = () => {
             (zone.perfectionClaimed || zone.stars >= zone.maxStars);
           return {
             zoneId: id,
-            rim: perfected
-              ? ("gold" as const)
+            badge: perfected
+              ? ("perfected" as const)
               : zone?.bossCleared
-                ? ("silver" as const)
-                : ("white" as const),
+                ? ("cleared" as const)
+                : null,
           };
         }),
     [campaignZoneId, zones],
@@ -104,6 +108,9 @@ const HomePage: React.FC = () => {
       ? new URLSearchParams(window.location.search).get("demo")
       : null;
   const [demoPrizeOpen, setDemoPrizeOpen] = useState(demoSheet === "prize");
+  // Buying is owner work, and the balance readout is where a player looks
+  // when they wonder whether they can play — so it is also the shop door.
+  const [shopOpen, setShopOpen] = useState(false);
 
   // One verb, chosen by lifecycle. Entering (and paying) lives on the Arcade;
   // Home's key only resumes a live run directly.
@@ -136,17 +143,30 @@ const HomePage: React.FC = () => {
       {/* The crown row: balance and gear sit on the title's line, centred on
           the middle of the big zKube. */}
       <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
-        <span className="justify-self-start">
+        <span className="flex items-center gap-1.5 justify-self-start">
           {balance !== null && (
             <motion.button
               type="button"
               onClick={() => navigate("profile")}
               whileTap={{ y: 2, boxShadow: "0 1px 0 #04070F" }}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 font-mono text-xs font-bold tabular-nums"
+              className="flex items-center gap-1.5 rounded-xl px-2 py-2 font-mono text-xs font-bold tabular-nums"
               style={{ ...PLATE_STYLE, color: themeColors.text }}
             >
               {balance}
               <SolMark size={11} />
+            </motion.button>
+          )}
+          {view && (
+            <motion.button
+              type="button"
+              aria-label="Buy Kredits"
+              onClick={() => setShopOpen(true)}
+              whileTap={{ y: 2, boxShadow: "0 1px 0 #04070F" }}
+              className="flex items-center gap-1 rounded-xl px-2 py-2 font-mono text-xs font-bold tabular-nums"
+              style={{ ...PLATE_STYLE, color: MONEY_GOLD }}
+            >
+              <KreditCoin size={15} />
+              {view.kreditBalance.toString()}
             </motion.button>
           )}
         </span>
@@ -187,22 +207,39 @@ const HomePage: React.FC = () => {
             {playLabel}
           </ArcadeButton>
         </DailyMarquee>
+        {/* The door carries the evening hook: tomorrow's realm is already
+            knowable, and practising it for free is behind this same tap. */}
         <CampaignDoor
           shelf={shelf}
           totalStars={totalStars}
+          tomorrow={
+            view?.followingMapId != null && view.followingScoringRule
+              ? {
+                  mapId: view.followingMapId,
+                  scoringRule: view.followingScoringRule,
+                }
+              : null
+          }
           onClick={() => navigate("campaign")}
         />
-        {/* The evening hook: tomorrow's realm is already knowable, and the
-            only actionable thing to do with it is practise it for free. */}
-        {view?.followingMapId != null && view.followingScoringRule && (
-          <TomorrowStrip
-            mapId={view.followingMapId}
-            scoringRule={view.followingScoringRule}
-            onClick={() => navigate("campaign")}
-          />
-        )}
         <div className="flex-[2]" />
       </div>
+
+      {view && (
+        <KreditShopSheet
+          open={shopOpen}
+          onClose={() => setShopOpen(false)}
+          balance={view.kreditBalance}
+          unitLamports={view.entryLamports}
+          busy={daily.action === "buy:kredits"}
+          onBuy={(kredits) => {
+            void daily
+              .buyKredits(kredits)
+              .then(() => setShopOpen(false))
+              .catch(() => undefined);
+          }}
+        />
+      )}
 
       {import.meta.env.DEV && demoPrizeOpen && (
         <GuardianPrizeResult
@@ -210,7 +247,7 @@ const HomePage: React.FC = () => {
           onDismiss={() => setDemoPrizeOpen(false)}
           zoneId={2}
           amountLamports={310_000_000n}
-          periodLabel="Daily"
+          periodLabel="Score"
           bestPrizeRank={2}
         />
       )}

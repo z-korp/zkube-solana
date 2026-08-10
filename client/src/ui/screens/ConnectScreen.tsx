@@ -24,7 +24,7 @@ interface ConnectScreenProps {
 // Pre-wallet there is no progress to wear: the first realm's block alone
 // stands on the locked door.
 const LOCKED_SHELF: readonly CampaignShelfItem[] = [
-  { zoneId: 1, rim: "white" },
+  { zoneId: 1, badge: null },
 ];
 
 /**

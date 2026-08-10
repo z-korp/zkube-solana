@@ -37,12 +37,16 @@ const OFFSET = {
   campaignStars: 106,
   featuredEmblem: 131,
   lifetimePaidEntries: 132,
-  dailyRecord: 140,
-  campaignActiveRunId: 158,
-  kreditBalance: 166,
-  ladderPoints: 174,
-  highestLadderTier: 182,
-  reserved: 183,
+  scoreRecord: 140,
+  themeRecord: 158,
+  campaignActiveRunId: 176,
+  kreditBalance: 184,
+  ladderPoints: 192,
+  highestLadderTier: 200,
+  bestDailyScore: 201,
+  lastEntryDayId: 205,
+  entryStreakDays: 209,
+  reserved: 211,
   bump: 230,
 } as const;
 
@@ -95,10 +99,14 @@ function playerStateBuffer(
   });
   data.writeUInt8(5, OFFSET.featuredEmblem);
   data.writeBigUInt64LE(42n, OFFSET.lifetimePaidEntries);
-  writeRecord(data, OFFSET.dailyRecord, 1, 2, 3, 1_000n);
+  writeRecord(data, OFFSET.scoreRecord, 1, 2, 3, 1_000n);
+  writeRecord(data, OFFSET.themeRecord, 4, 5, 6, 2_000n);
   data.writeBigUInt64LE(9n, OFFSET.kreditBalance);
   data.writeBigUInt64LE(1_234n, OFFSET.ladderPoints);
   data.writeUInt8(1, OFFSET.highestLadderTier);
+  data.writeUInt32LE(18_940, OFFSET.bestDailyScore);
+  data.writeUInt32LE(20_651, OFFSET.lastEntryDayId);
+  data.writeUInt16LE(6, OFFSET.entryStreakDays);
   data.writeUInt8(254, OFFSET.bump);
   return data;
 }
@@ -139,11 +147,22 @@ describe("decodePlayerStateAccount", () => {
     expect(view.kreditBalance).toBe(9n);
     expect(view.ladderPoints).toBe(1_234n);
     expect(view.highestLadderTier).toBe(1);
-    expect(view.dailyRecord).toEqual({
+    expect(view.bestDailyScore).toBe(18_940);
+    expect(view.lastEntryDayId).toBe(20_651);
+    expect(view.entryStreakDays).toBe(6);
+    // The two boards are separate records at separate offsets: a decoder that
+    // read one for the other would silently swap a player's two histories.
+    expect(view.scoreRecord).toEqual({
       bestPrizeRank: 1,
       podiums: 2,
       wins: 3,
       rewardsLamports: 1_000n,
+    });
+    expect(view.themeRecord).toEqual({
+      bestPrizeRank: 4,
+      podiums: 5,
+      wins: 6,
+      rewardsLamports: 2_000n,
     });
   });
 
@@ -162,7 +181,7 @@ describe("decodePlayerStateAccount", () => {
   it("rejects nonzero reserved padding", () => {
     const owner = Keypair.generate();
     const data = playerStateBuffer(owner);
-    data[OFFSET.reserved + 46] = 1;
+    data[OFFSET.reserved + 18] = 1;
     expect(() =>
       decodePlayerStateAccount(
         program(),

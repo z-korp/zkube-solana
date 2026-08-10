@@ -1,23 +1,26 @@
 import type { CompetitionRecord, PlayerStateView } from "./campaignClient.js";
 
-/** Daily — matches competitionProfileSynced.periodKind. */
-export type PeriodKind = 0;
+/** The two Daily boards, matching `competitionProfileSynced.board`. */
+export type PeriodKind = 0 | 1;
 
-export const PERIOD_LABELS: Record<PeriodKind, "Daily"> = {
-  0: "Daily",
+export type PeriodLabel = "Score" | "Theme";
+
+export const PERIOD_LABELS: Record<PeriodKind, PeriodLabel> = {
+  0: "Score",
+  1: "Theme",
 };
 
-const PERIOD_KINDS: readonly PeriodKind[] = [0];
+const PERIOD_KINDS: readonly PeriodKind[] = [0, 1];
 
 /**
- * A single, precise profile-prize signal: one Daily competition
+ * A single, precise profile-prize signal: one Daily board's competition
  * record whose lifetime `rewardsLamports` grew between two confirmed PlayerState
  * snapshots. This is durable awarded-prize metadata, independent of whether the
  * owner has submitted the corresponding claim.
  */
 export interface SettlementEvent {
   periodKind: PeriodKind;
-  label: "Daily";
+  label: PeriodLabel;
   /** How much this period's lifetime rewards grew across the two snapshots. */
   deltaLamports: bigint;
   /** The new lifetime rewards total for this period after the increase. */
@@ -41,16 +44,16 @@ export function periodRecord(
   view: PlayerStateView,
   kind: PeriodKind,
 ): CompetitionRecord {
-  void kind;
-  return view.dailyRecord;
+  return kind === 0 ? view.scoreRecord : view.themeRecord;
 }
 
 /**
  * Diff two decoded PlayerState snapshots and return one event per period whose
  * rewards increased. When `previous` is null (the first observation for a wallet)
  * this returns [] so a returning player with existing winnings is baselined
- * silently rather than falsely congratulated. A single keeper settlement burst can
- * pay several boards, so callers must be ready for more than one event.
+ * silently rather than falsely congratulated. One entry places on both boards, so
+ * a single keeper settlement burst can pay both and callers must be ready for
+ * more than one event.
  */
 export function detectSettlementEvents(
   previous: PlayerStateView | null,

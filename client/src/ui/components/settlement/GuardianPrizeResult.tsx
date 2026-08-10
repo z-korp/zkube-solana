@@ -8,6 +8,7 @@ import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import GuardianTalkScene from "@/ui/components/settlement/GuardianTalkScene";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
+import type { PrizeLabel } from "./usePrizeDeltaTrigger";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
 interface GuardianPrizeResultProps {
@@ -18,7 +19,7 @@ interface GuardianPrizeResultProps {
   /** The delta being celebrated, in lamports. */
   amountLamports: bigint;
   /** Which period paid. */
-  periodLabel: "Daily";
+  periodLabel: PrizeLabel;
   /**
    * Best payout-bearing rank on the period record (0 = none, hidden). This is the
    * lifetime-best rank carried on PlayerState, not necessarily this exact

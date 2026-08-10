@@ -23,6 +23,12 @@ import {
   MONEY_GOLD,
   SolMark,
 } from "@/ui/components/economy";
+import type { MasteryBadge } from "@/ui/components/economy/GuardianFaceBlock";
+import {
+  LADDER_TIER_THRESHOLDS,
+  ladderTierColor,
+  ladderTierName,
+} from "@/config/ladderTiers";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalance, formatSolBalanceLamports } from "@/utils/currency";
@@ -39,13 +45,14 @@ const PANEL_STYLE: React.CSSProperties = {
 const SECTION_CLASS =
   "font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45";
 
-function rimForZone(
+/** Campaign mastery for a realm, worn as a corner star rather than as a rim. */
+function masteryForZone(
   zone: ZoneProgressData | undefined,
-): "white" | "silver" | "gold" {
-  if (!zone) return "white";
-  if (zone.perfectionClaimed || zone.stars >= zone.maxStars) return "gold";
-  if (zone.bossCleared) return "silver";
-  return "white";
+): MasteryBadge | null {
+  if (!zone) return null;
+  if (zone.perfectionClaimed || zone.stars >= zone.maxStars) return "perfected";
+  if (zone.bossCleared) return "cleared";
+  return null;
 }
 
 /**
@@ -108,9 +115,19 @@ const ProfilePage: React.FC = () => {
       ? formatSolBalance(player.balanceLamports)
       : null;
 
-  const records: Array<{ label: string; record: CompetitionRecord }> = [
-    { label: "Daily", record: profile.dailyRecord },
+  // One entry places on both boards, so the two records together say how a
+  // player wins: on total performance, or on playing the day's theme.
+  const records: Array<{ label: string; hint: string; record: CompetitionRecord }> = [
+    { label: "Score", hint: "Total performance", record: profile.scoreRecord },
+    { label: "Theme", hint: "The day's objective", record: profile.themeRecord },
   ];
+
+  // The tier the current total has actually reached, which is what the rim and
+  // the name beside the identity both read from.
+  const currentTier =
+    LADDER_TIER_THRESHOLDS.filter(
+      (threshold) => profile.ladderPoints >= threshold,
+    ).length - 1;
 
   const saveName = () => {
     void playerLabel
@@ -153,10 +170,13 @@ const ProfilePage: React.FC = () => {
         <div className="flex items-center gap-3">
           <span className="flex-none">
             {featuredEmblem >= 1 && featuredEmblem <= 10 ? (
+              // The rim is the ladder tier: the same edge shows up on every
+              // leaderboard row, so a player learns to read rank from it.
               <GuardianFaceBlock
                 zoneId={featuredEmblem}
                 size={92}
-                rim={rimForZone(
+                rimColor={ladderTierColor(currentTier)}
+                badge={masteryForZone(
                   zones.find((zone) => zone.zoneId === featuredEmblem),
                 )}
               />
@@ -209,6 +229,15 @@ const ProfilePage: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <span className="truncate font-display text-[28px] leading-tight text-white">
                   {displayName}
+                </span>
+                <span
+                  className="flex-none rounded-md px-1.5 py-0.5 font-sans text-[9px] font-bold uppercase tracking-[0.14em]"
+                  style={{
+                    color: ladderTierColor(currentTier),
+                    boxShadow: `inset 0 0 0 1px ${ladderTierColor(currentTier)}66`,
+                  }}
+                >
+                  {ladderTierName(currentTier)}
                 </span>
                 <button
                   type="button"
@@ -267,11 +296,14 @@ const ProfilePage: React.FC = () => {
         entries={profile.lifetimePaidEntries}
       />
 
-      {/* Competition records — did last night pay? */}
+      {/* Competition records, split the way the pot is. The two boards rank the
+          same runs by different metrics, so a player who never wins Score can
+          still own Theme — one aggregate row could not say that, and a total
+          underneath would only restate the identity chip above. */}
       <section className="relative z-10 rounded-2xl p-4" style={PANEL_STYLE}>
-        <p className={SECTION_CLASS}>Competition records</p>
+        <p className={SECTION_CLASS}>Daily boards</p>
         <div className="mt-1">
-          {records.map(({ label, record }) => (
+          {records.map(({ label, hint, record }) => (
             <div
               key={label}
               className="flex items-center gap-3 border-t border-white/[0.05] py-3 first:border-t-0"
@@ -291,6 +323,9 @@ const ProfilePage: React.FC = () => {
               <span className="min-w-0 flex-1">
                 <span className="block font-sans text-[15px] font-extrabold text-white">
                   {label}
+                  <span className="ml-1.5 font-sans text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+                    {hint}
+                  </span>
                 </span>
                 <span className="block font-sans text-[11px] font-semibold text-white/45">
                   {record.wins} {record.wins === 1 ? "win" : "wins"} ·{" "}
@@ -306,18 +341,6 @@ const ProfilePage: React.FC = () => {
               </span>
             </div>
           ))}
-          <div className="flex items-center gap-3 border-t border-white/[0.10] pt-3">
-            <span className="min-w-0 flex-1 font-sans text-[13px] font-extrabold uppercase tracking-[0.08em] text-white/70">
-              Total earned
-            </span>
-            <span
-              className="flex items-center gap-1.5 font-mono text-[17px] font-bold tabular-nums"
-              style={{ color: MONEY_GOLD }}
-            >
-              {formatSolBalanceLamports(profile.totalRewardsLamports)}
-              <SolMark size={12} />
-            </span>
-          </div>
         </div>
       </section>
 
@@ -345,7 +368,7 @@ const ProfilePage: React.FC = () => {
                   <GuardianFaceBlock
                     zoneId={zone.zoneId}
                     size={54}
-                    rim={rimForZone(zone)}
+                    badge={masteryForZone(zone)}
                   />
                 ) : (
                   <span

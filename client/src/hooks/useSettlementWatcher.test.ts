@@ -25,11 +25,23 @@ vi.mock("@/chain/campaignClient", () => ({
       campaignStars: [],
       featuredEmblem: 0,
       lifetimePaidEntries: 0n,
-      dailyRecord: {
+      kreditBalance: 0n,
+      ladderPoints: 0n,
+      highestLadderTier: 0,
+      bestDailyScore: 0,
+      lastEntryDayId: 0,
+      entryStreakDays: 0,
+      scoreRecord: {
         bestPrizeRank: info.data[1] ?? 0,
         podiums: 0,
         wins: 0,
         rewardsLamports: units * 100_000_000n,
+      },
+      themeRecord: {
+        bestPrizeRank: 0,
+        podiums: 0,
+        wins: 0,
+        rewardsLamports: 0n,
       },
     };
   },
@@ -92,23 +104,23 @@ beforeEach(() => {
 
 describe("useSettlementWatcher", () => {
   it("baselines the initial snapshot silently, then emits on a real increase", async () => {
-    harness.getAccountInfo.mockResolvedValue(accountInfo([5, 0])); // 0.5 SOL Daily
+    harness.getAccountInfo.mockResolvedValue(accountInfo([5, 0])); // 0.5 SOL Score
     const { result } = renderHook(() => useSettlementWatcher());
 
     await waitFor(() =>
-      expect(result.current.view?.dailyRecord.rewardsLamports).toBe(
+      expect(result.current.view?.scoreRecord.rewardsLamports).toBe(
         500_000_000n,
       ),
     );
     // First observation is a silent baseline — no prize event.
     expect(result.current.latestEvent).toBeNull();
 
-    // A settlement push grows Daily to 0.7 SOL at rank 3.
+    // A settlement push grows Score to 0.7 SOL at rank 3.
     act(() => harness.changeCb?.(accountInfo([7, 3])));
 
     expect(result.current.latestEvent).toEqual({
       periodKind: 0,
-      label: "Daily",
+      label: "Score",
       deltaLamports: 200_000_000n,
       newTotalLamports: 700_000_000n,
       bestPrizeRank: 3,
@@ -119,14 +131,14 @@ describe("useSettlementWatcher", () => {
     harness.getAccountInfo.mockResolvedValue(accountInfo([5, 0]));
     const { result } = renderHook(() => useSettlementWatcher());
     await waitFor(() =>
-      expect(result.current.view?.dailyRecord.rewardsLamports).toBe(
+      expect(result.current.view?.scoreRecord.rewardsLamports).toBe(
         500_000_000n,
       ),
     );
 
     act(() => harness.changeCb?.(accountInfo([0xff]))); // decoder throws
 
-    expect(result.current.view?.dailyRecord.rewardsLamports).toBe(500_000_000n);
+    expect(result.current.view?.scoreRecord.rewardsLamports).toBe(500_000_000n);
     expect(result.current.latestEvent).toBeNull();
   });
 

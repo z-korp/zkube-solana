@@ -77,11 +77,12 @@ export default function CampaignPage() {
     selectedZone !== undefined &&
     (selectedZone.perfectionClaimed ||
       selectedZone.stars >= selectedZone.maxStars);
-  const rim = perfected
-    ? ("gold" as const)
+  // Mastery is worn as a corner star; the rim is reserved for ladder rank.
+  const mastery = perfected
+    ? ("perfected" as const)
     : selectedZone?.bossCleared
-      ? ("silver" as const)
-      : ("white" as const);
+      ? ("cleared" as const)
+      : null;
 
   const openZone = (zoneId: number) => {
     setMapZoneId(zoneId);
@@ -166,7 +167,7 @@ export default function CampaignPage() {
               <GuardianFaceBlock
                 zoneId={selectedZoneId}
                 size={148}
-                rim={rim}
+                badge={mastery}
                 breathe
               />
             ) : (

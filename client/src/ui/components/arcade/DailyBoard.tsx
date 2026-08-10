@@ -1,6 +1,8 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import type { DailyView } from "@/chain/dailyClient";
+import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
+import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
 import {
   PaidCutLine,
   RankMedal,
@@ -43,6 +45,11 @@ interface DailyBoardProps {
  * the prize zone except the connected player's own row when they sit outside
  * it, so they always know where they stand. The percentage split lives in
  * the ? popup.
+ *
+ * Every row wears its player's ladder tier as the rim of their block. The
+ * ladder pays no SOL, so the board is the only place it can mean anything: a
+ * tier the field can see is a tier worth climbing, and one that lived on the
+ * owner's own profile alone would be a private number.
  */
 const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
   const [board, setBoard] = useState<"score" | "theme">("score");
@@ -56,11 +63,21 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
   const myIndex = address
     ? rows.findIndex((entry) => entry.player.toBase58() === address)
     : -1;
+  const owners = useMemo(
+    () =>
+      [...view.leaderboard, ...view.themeLeaderboard].map(
+        (entry) => entry.player,
+      ),
+    [view.leaderboard, view.themeLeaderboard],
+  );
+  const emblems = useLeaderboardEmblems(owners);
   const rowFor = (index: number, withDivider: boolean) => {
     const entry = rows[index];
     const rank = index + 1;
     const isYou = index === myIndex;
     const prize = payouts[index] ?? 0n;
+    const emblem = entry ? emblems.get(entry.player.toBase58()) : undefined;
+    const tier = emblem?.highestLadderTier ?? 0;
     return (
       <div
         key={rank}
@@ -74,13 +91,29 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
         style={isYou ? YOU_RING : undefined}
       >
         <RankMedal rank={rank} />
-        <span className="min-w-0 flex-1 truncate text-left font-sans text-[15px] font-bold text-white/90">
-          {isYou
-            ? "You"
-            : entry
-              ? (entry.playerName ??
-                playerLabelWithWallet(null, entry.player.toBase58()))
-              : "—"}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="min-w-0 truncate text-left font-sans text-[15px] font-bold text-white/90">
+            {isYou
+              ? "You"
+              : entry
+                ? (entry.playerName ??
+                  playerLabelWithWallet(null, entry.player.toBase58()))
+                : "—"}
+          </span>
+          {/* The tier is named, not numbered: a numeral here would read as a
+              second rank, and a bare colour would need a legend. Rows whose
+              profile has not resolved simply carry none. */}
+          {emblem && (
+            <span
+              className="flex-none rounded px-1 py-px font-sans text-[8px] font-bold uppercase tracking-[0.1em]"
+              style={{
+                color: ladderTierColor(tier),
+                boxShadow: `inset 0 0 0 1px ${ladderTierColor(tier)}55`,
+              }}
+            >
+              {ladderTierName(tier)}
+            </span>
+          )}
         </span>
         <span className="w-20 flex-none text-right font-mono text-[15px] font-bold tabular-nums text-white">
           {entry

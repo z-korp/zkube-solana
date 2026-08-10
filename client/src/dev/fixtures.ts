@@ -246,19 +246,29 @@ export function buildDevConnectedPlayer(): ConnectedPlayerValue {
 export function applyDevPlayerProfile(
   base: PlayerProfileResult,
 ): PlayerProfileResult {
-  const dailyRecord: CompetitionRecord = {
+  // Deliberately lopsided: a Theme specialist reads very differently from a
+  // Score one, and the profile only says so if the fixture lets it.
+  const scoreRecord: CompetitionRecord = {
+    bestPrizeRank: 7,
+    podiums: 0,
+    wins: 0,
+    rewardsLamports: 4n * (SOL / 10n),
+  };
+  const themeRecord: CompetitionRecord = {
     bestPrizeRank: 2,
     podiums: 5,
     wins: 1,
-    rewardsLamports: 15n * (SOL / 10n),
+    rewardsLamports: 11n * (SOL / 10n),
   };
   return {
     ...base,
     featuredEmblem: DEV_FEATURED_EMBLEM,
     lifetimePaidEntries: 42n,
-    dailyRecord,
-    totalWins: dailyRecord.wins,
-    totalRewardsLamports: dailyRecord.rewardsLamports,
+    scoreRecord,
+    themeRecord,
+    totalWins: scoreRecord.wins + themeRecord.wins,
+    totalRewardsLamports:
+      scoreRecord.rewardsLamports + themeRecord.rewardsLamports,
     // Mid-Jade: far enough in to show a partly filled bar rather than an
     // empty or complete one.
     ladderPoints: 7_480n,
