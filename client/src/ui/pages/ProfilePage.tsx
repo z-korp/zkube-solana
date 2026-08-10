@@ -114,9 +114,22 @@ const ProfilePage: React.FC = () => {
     [zones],
   );
 
-  const wearEmblem = (emblemId: number) => {
-    if (emblem.saving || emblemId === featuredEmblem) return;
-    void emblem.save(emblemId).catch(() => undefined);
+  // The border the player wears, which any tier they ever reached unlocks.
+  const wornFrameTier = Math.min(
+    emblem.featuredFrameTier ?? profile.featuredFrameTier,
+    profile.highestLadderTier,
+  );
+
+  // Emblem and border are one decision — what you look like on a board — so
+  // they travel together in one signature.
+  const wearIdentity = (emblemId: number, frameTier: number) => {
+    if (
+      emblem.saving ||
+      (emblemId === featuredEmblem && frameTier === wornFrameTier)
+    ) {
+      return;
+    }
+    void emblem.save(emblemId, frameTier).catch(() => undefined);
   };
 
   const wornRing = (worn: boolean): React.CSSProperties | undefined =>
@@ -150,6 +163,11 @@ const ProfilePage: React.FC = () => {
     currentTier,
   );
   const atTopTier = isTopLadderTier(currentTier);
+  // The better of the two boards: a card brags with one number, not two.
+  const bestRankAcrossBoards = records
+    .map(({ record }) => record.bestPrizeRank)
+    .filter((rank) => rank > 0)
+    .reduce((best, rank) => (best === 0 ? rank : Math.min(best, rank)), 0);
   const bonusPct = ladderStreakBonusPct(profile.entryStreakDays);
 
   const saveName = () => {
@@ -187,9 +205,9 @@ const ProfilePage: React.FC = () => {
           {/* No mastery star inside the frame — the two ornaments collide on
               the same corner, and the Campaign rack below already carries it
               on every realm. */}
-          <TierFrame tier={currentTier} size={68}>
+          <TierFrame tier={wornFrameTier} size={68}>
             {featuredEmblem >= 1 && featuredEmblem <= 10 ? (
-              <GuardianFaceBlock zoneId={featuredEmblem} size={68} />
+              <GuardianFaceBlock zoneId={featuredEmblem} size={68} framed />
             ) : (
               <EmblemBadge
                 emblemId={featuredEmblem}
@@ -365,6 +383,48 @@ const ProfilePage: React.FC = () => {
           </span>
         </div>
 
+        {/* The borders. A rank you reached stays yours to wear, so this is a
+            picker rather than a trophy shelf — and it is the only place the
+            higher ranks are visible before you hold them. */}
+        <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-white/[0.07] pt-2.5">
+          {LADDER_TIER_THRESHOLDS.map((_, tier) => {
+            const unlocked = tier <= profile.highestLadderTier;
+            const worn = tier === wornFrameTier;
+            return (
+              <button
+                key={tier}
+                type="button"
+                disabled={!unlocked || emblem.saving}
+                title={ladderTierName(tier)}
+                aria-label={`Wear the ${ladderTierName(tier)} border`}
+                aria-pressed={worn}
+                onClick={() => wearIdentity(featuredEmblem, tier)}
+                className="relative grid place-items-center rounded-xl disabled:cursor-not-allowed"
+                style={{
+                  width: 56,
+                  height: 56,
+                  opacity: unlocked ? 1 : 0.32,
+                  filter: unlocked ? undefined : "grayscale(1)",
+                  boxShadow: worn
+                    ? `inset 0 0 0 1.5px ${ladderTierColor(tier)}, 0 0 14px ${ladderTierColor(tier)}55`
+                    : undefined,
+                }}
+              >
+                <TierFrame tier={tier} size={26}>
+                  <span
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: "24%",
+                      background: "rgba(4,7,15,0.75)",
+                    }}
+                  />
+                </TierFrame>
+              </button>
+            );
+          })}
+        </div>
+
         {/* The two figures a board cannot keep: its rows hold only payout
             places and its accounts are recycled. */}
         <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-white/[0.07] pt-2.5">
@@ -452,13 +512,13 @@ const ProfilePage: React.FC = () => {
                 title={state.descriptor.name}
                 aria-label={`Wear the ${state.descriptor.name} emblem`}
                 aria-pressed={state.descriptor.id === featuredEmblem}
-                onClick={() => wearEmblem(state.descriptor.id)}
+                onClick={() => wearIdentity(state.descriptor.id, wornFrameTier)}
                 className="rounded-xl p-0.5 disabled:cursor-not-allowed"
                 style={wornRing(state.descriptor.id === featuredEmblem)}
               >
                 <EmblemBadge
                   emblemId={state.descriptor.id}
-                  size={28}
+                  size={34}
                   state={
                     state.gold ? "gold" : state.unlocked ? "unlocked" : "locked"
                   }
@@ -482,7 +542,7 @@ const ProfilePage: React.FC = () => {
               disabled={!zone.unlocked || emblem.saving}
               aria-label={`Wear the ${getZoneGuardian(zone.zoneId).name} emblem`}
               aria-pressed={zone.zoneId === featuredEmblem}
-              onClick={() => wearEmblem(zone.zoneId)}
+              onClick={() => wearIdentity(zone.zoneId, wornFrameTier)}
               className="flex flex-col items-center gap-0.5 disabled:cursor-not-allowed"
             >
               <span
@@ -492,15 +552,15 @@ const ProfilePage: React.FC = () => {
                 {zone.unlocked ? (
                   <GuardianFaceBlock
                     zoneId={zone.zoneId}
-                    size={46}
+                    size={58}
                     badge={masteryForZone(zone)}
                   />
                 ) : (
                   <span
                     className="grid place-items-center text-white/35"
                     style={{
-                      width: 46,
-                      height: 46,
+                      width: 58,
+                      height: 58,
                       borderRadius: "24%",
                       background:
                         "linear-gradient(135deg, #2A3850 0%, #16202F 100%)",
@@ -537,14 +597,13 @@ const ProfilePage: React.FC = () => {
         onClose={() => setShareOpen(false)}
         data={{
           displayName,
-          address,
           featuredEmblem,
+          frameTier: wornFrameTier,
+          ladderPoints: profile.ladderPoints,
           totalStars,
           totalEarnedLamports: profile.totalRewardsLamports,
-          tier: currentTier,
-          ladderPoints: profile.ladderPoints,
           entryStreakDays: profile.entryStreakDays,
-          records,
+          bestPrizeRank: bestRankAcrossBoards,
         }}
       />
     </div>

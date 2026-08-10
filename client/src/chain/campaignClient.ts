@@ -68,6 +68,8 @@ export interface PlayerStateView {
   lastEntryDayId: number;
   /** Consecutive days carrying at least one paid entry. */
   entryStreakDays: number;
+  /** Ladder border the player wears; any tier they ever reached is wearable. */
+  featuredFrameTier: number;
   /** Best Daily results on the Score board, which ranks `dailyScore`. */
   scoreRecord: CompetitionRecord;
   /** Best Daily results on the Theme board, which ranks `objectiveTotal`. */
@@ -230,6 +232,7 @@ interface RawPlayerState {
   kreditBalance: { toString(): string } | number | bigint;
   ladderPoints: { toString(): string } | number | bigint;
   highestLadderTier: number | bigint;
+  featuredFrameTier: number | bigint;
   bestDailyScore: number | bigint;
   lastEntryDayId: number | bigint;
   entryStreakDays: number | bigint;
@@ -286,7 +289,8 @@ export function decodePlayerStateAccount(
     !address.equals(derivePlayerStatePda(owner)) ||
     campaignStars.length !== CAMPAIGN_STAR_BYTES ||
     Number(raw.highestLadderTier) > 4 ||
-    reserved.length !== 19 ||
+    Number(raw.featuredFrameTier) > Number(raw.highestLadderTier) ||
+    reserved.length !== 18 ||
     reserved.some((byte) => byte !== 0)
   ) {
     throw new Error("PlayerState relationship is invalid");
@@ -300,6 +304,7 @@ export function decodePlayerStateAccount(
     kreditBalance: toBigint(raw.kreditBalance),
     ladderPoints: toBigint(raw.ladderPoints),
     highestLadderTier: Number(raw.highestLadderTier),
+    featuredFrameTier: Number(raw.featuredFrameTier),
     bestDailyScore: Number(raw.bestDailyScore),
     lastEntryDayId: Number(raw.lastEntryDayId),
     entryStreakDays: Number(raw.entryStreakDays),

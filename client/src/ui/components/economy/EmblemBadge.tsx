@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Globe2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import {
@@ -37,9 +37,11 @@ interface EmblemBadgeProps {
 
 /**
  * Presentational emblem tile. Guardians (1..10) render their portrait with an
- * emoji fallback; the auto slot (0) shows a ✦ mark, Realm Conqueror (11) a
- * crown, World Perfect (12) a globe. Gold gets a gold ring and glow, locked is
- * dimmed and desaturated, selected adds the accent ring.
+ * emoji fallback; the auto slot (0) shows a ✦ mark. The two mastery crests
+ * (11, 12) render their own painted medallions and drop the tile chrome —
+ * they are already ornate, and a bordered box around a badge reads as a badge
+ * in a box. Gold gets a gold ring and glow, locked is dimmed and desaturated,
+ * selected adds the accent ring.
  */
 const EmblemBadge: React.FC<EmblemBadgeProps> = ({
   emblemId,
@@ -66,17 +68,27 @@ const EmblemBadge: React.FC<EmblemBadgeProps> = ({
   const dimension = size ?? 56;
   const isAuto = emblemId === 0;
   const isGuardian = emblemId >= 1 && emblemId <= 10;
+  const crest =
+    emblemId === REALM_CONQUEROR_EMBLEM_ID
+      ? "/assets/common/crest-realm.png"
+      : emblemId === WORLD_PERFECT_EMBLEM_ID
+        ? "/assets/common/crest-world.png"
+        : null;
 
-  const style: React.CSSProperties = {
-    width: dimension,
-    height: dimension,
-    borderColor: "rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-  };
-  if (resolvedState === "gold") {
+  const style: React.CSSProperties = crest
+    ? { width: dimension, height: dimension }
+    : {
+        width: dimension,
+        height: dimension,
+        borderColor: "rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+      };
+  if (resolvedState === "gold" && !crest) {
     style.borderColor = MONEY_GOLD;
     style.background = `${MONEY_GOLD}1a`;
     style.boxShadow = `0 0 14px ${MONEY_GOLD}66`;
+  } else if (resolvedState === "gold") {
+    style.filter = `drop-shadow(0 0 ${dimension * 0.16}px ${MONEY_GOLD}aa)`;
   } else if (resolvedState === "locked") {
     style.filter = "grayscale(1)";
     style.opacity = 0.4;
@@ -88,12 +100,19 @@ const EmblemBadge: React.FC<EmblemBadgeProps> = ({
     }`;
   }
 
-  const glyph =
-    emblemId === REALM_CONQUEROR_EMBLEM_ID
-      ? <Crown className="h-1/2 w-1/2" />
-      : emblemId === WORLD_PERFECT_EMBLEM_ID
-        ? <Globe2 className="h-1/2 w-1/2" />
-        : <Sparkles className="h-1/2 w-1/2" />;
+  const glyph = <Sparkles className="h-1/2 w-1/2" />;
+
+  if (crest) {
+    return (
+      <img
+        src={crest}
+        alt=""
+        draggable={false}
+        className={cn("relative select-none", className)}
+        style={style}
+      />
+    );
+  }
 
   return (
     <div

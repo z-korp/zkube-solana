@@ -11,7 +11,7 @@ import { ladderTierName } from "@/config/ladderTiers";
  * thicker. A higher tier legitimately reaches further past the block, which is
  * what makes the rack of them read as a climb.
  */
-const TIER_FRAME_OPENINGS = [0.8237, 0.6677, 0.6903, 0.4848, 0.5767] as const;
+const TIER_FRAME_OPENINGS = [0.8255, 0.6673, 0.7078, 0.5886, 0.6177] as const;
 
 /** Overlap: the block tucks under the band instead of leaving a seam. */
 const TUCK = 1.03;

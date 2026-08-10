@@ -25,7 +25,16 @@ pub struct SetFeaturedEmblem<'info> {
     pub actor: Signer<'info>,
 }
 
-pub fn handler_set_featured_emblem(ctx: Context<SetFeaturedEmblem>, emblem_id: u8) -> Result<()> {
+/// Set the worn identity: the emblem, and the ladder border framing it.
+///
+/// Both in one instruction because they are one decision — what the player
+/// looks like on a board — and splitting them would double the signatures for
+/// a change to a single avatar.
+pub fn handler_set_featured_emblem(
+    ctx: Context<SetFeaturedEmblem>,
+    emblem_id: u8,
+    frame_tier: u8,
+) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
@@ -35,10 +44,17 @@ pub fn handler_set_featured_emblem(ctx: Context<SetFeaturedEmblem>, emblem_id: u
         ctx.accounts.player_state.emblem_unlocked(emblem_id),
         ErrorCode::InvalidEmblem
     );
+    // Any rank ever reached stays wearable; nothing above it ever is.
+    require!(
+        frame_tier <= ctx.accounts.player_state.highest_ladder_tier,
+        ErrorCode::InvalidEmblem
+    );
     ctx.accounts.player_state.featured_emblem = emblem_id;
+    ctx.accounts.player_state.featured_frame_tier = frame_tier;
     emit!(FeaturedEmblemSet {
         owner: ctx.accounts.player_state.owner,
         emblem_id,
+        frame_tier,
     });
     Ok(())
 }
@@ -139,6 +155,7 @@ pub fn handler_sync_daily_profile(
 pub struct FeaturedEmblemSet {
     pub owner: Pubkey,
     pub emblem_id: u8,
+    pub frame_tier: u8,
 }
 
 #[event]

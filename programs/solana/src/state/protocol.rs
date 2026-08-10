@@ -90,6 +90,10 @@ pub struct PlayerState {
     pub ladder_points: u64,
     /// Highest placeholder tier ever reached; it never decreases.
     pub highest_ladder_tier: u8,
+    /// Ladder border the player has chosen to wear. Any tier they have ever
+    /// reached stays available: a rank is earned once, and a border the player
+    /// liked should not be taken back by a later reset.
+    pub featured_frame_tier: u8,
     /// Best `daily_score` ever recorded on a scored ranked run. A board keeps
     /// only payout-bearing rows and its accounts are recycled, so a personal
     /// best has nowhere else to survive.
@@ -100,7 +104,7 @@ pub struct PlayerState {
     /// Consecutive days carrying at least one paid entry.
     pub entry_streak_days: u16,
     /// Explicit zeroed expansion space for future profile fields.
-    pub reserved: [u8; 19],
+    pub reserved: [u8; 18],
     pub bump: u8,
 }
 
@@ -124,10 +128,11 @@ impl PlayerState {
             kredit_balance: 0,
             ladder_points: 0,
             highest_ladder_tier: 0,
+            featured_frame_tier: 0,
             best_daily_score: 0,
             last_entry_day_id: 0,
             entry_streak_days: 0,
-            reserved: [0; 19],
+            reserved: [0; 18],
             bump,
         }
     }
@@ -135,7 +140,8 @@ impl PlayerState {
     pub fn schema_valid(&self) -> bool {
         self.version == PLAYER_STATE_VERSION
             && self.highest_ladder_tier == ladder_tier_for_points(self.ladder_points)
-            && self.reserved == [0; 19]
+            && self.featured_frame_tier <= self.highest_ladder_tier
+            && self.reserved == [0; 18]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -723,7 +729,7 @@ mod tests {
     fn player_state_rejects_nonzero_reserved_bytes() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert!(player.schema_valid());
-        player.reserved[18] = 1;
+        player.reserved[17] = 1;
         assert!(!player.schema_valid());
         assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
     }
@@ -736,7 +742,7 @@ mod tests {
         assert_eq!(player.highest_ladder_tier, 0);
         player.record_ladder_points(1).unwrap();
         assert_eq!(player.highest_ladder_tier, 1);
-        assert_eq!(player.reserved, [0; 19]);
+        assert_eq!(player.reserved, [0; 18]);
         assert!(player.schema_valid());
     }
 

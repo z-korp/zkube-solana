@@ -23,6 +23,8 @@ export interface PlayerEmblemView {
   featuredEmblem: number;
   totalStars: number;
   highestLadderTier: number;
+  /** The border this player wears, which is what a board should draw. */
+  featuredFrameTier: number;
 }
 
 const PLAYER_STATE_CACHE_MS = 60_000;
@@ -112,9 +114,17 @@ export function validateEmblemId(emblemId: number): number {
   return emblemId;
 }
 
+export function validateFrameTier(frameTier: number): number {
+  if (!Number.isInteger(frameTier) || frameTier < 0 || frameTier > 4) {
+    throw new Error("Frame tier must be between 0 and 4");
+  }
+  return frameTier;
+}
+
 /**
  * Build the owner-authorized setFeaturedEmblem transaction. This is the only
- * emblem write path. It mirrors playerLabelClient.buildSetPlayerLabelPlan: the
+ * worn-identity write path — emblem and border move together, because they are
+ * one decision about what the player looks like on a board. It mirrors playerLabelClient.buildSetPlayerLabelPlan: the
  * owner authority and its optional device session token gate the write, and the
  * device session signer is the fee-paying actor. The instruction touches only
  * the player's own PlayerState PDA.
@@ -125,11 +135,14 @@ export async function buildSetFeaturedEmblemPlan(args: {
   ownerAuthority: PublicKey;
   sessionToken: PublicKey;
   emblemId: number;
+  /** Ladder border to wear; the program rejects a tier never reached. */
+  frameTier: number;
 }): Promise<TransactionPlan> {
   const emblemId = validateEmblemId(args.emblemId);
+  const frameTier = validateFrameTier(args.frameTier);
   const actor = args.wallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.setFeaturedEmblem(emblemId)
+    .methods.setFeaturedEmblem(emblemId, frameTier)
     .accountsPartial({
       playerState: derivePlayerStatePda(args.ownerAuthority),
       ownerAuthority: args.ownerAuthority,
@@ -137,7 +150,7 @@ export async function buildSetFeaturedEmblemPlan(args: {
       actor,
     })
     .instruction();
-  return plan("Set featured emblem", args.connection, actor, instruction);
+  return plan("Set featured identity", args.connection, actor, instruction);
 }
 
 function toEmblemView(view: PlayerStateView): PlayerEmblemView {
@@ -146,6 +159,7 @@ function toEmblemView(view: PlayerStateView): PlayerEmblemView {
     featuredEmblem: view.featuredEmblem,
     totalStars: campaignTotalStars(view.campaignStars),
     highestLadderTier: view.highestLadderTier,
+    featuredFrameTier: view.featuredFrameTier,
   };
 }
 

@@ -35,6 +35,8 @@ export interface PlayerProfile {
   ladderPoints: bigint;
   /** Highest tier ever reached, which a later reset cannot take away. */
   highestLadderTier: number;
+  /** Ladder border the player wears. */
+  featuredFrameTier: number;
   /** Best daily score ever recorded on a scored ranked run. */
   bestDailyScore: number;
   /** Consecutive days carrying at least one paid entry. */
@@ -108,6 +110,7 @@ export function usePlayerProfile(): PlayerProfileResult {
       totalRewardsLamports: score.rewardsLamports + theme.rewardsLamports,
       ladderPoints: state?.ladderPoints ?? 0n,
       highestLadderTier: state?.highestLadderTier ?? 0,
+      featuredFrameTier: state?.featuredFrameTier ?? 0,
       bestDailyScore: state?.bestDailyScore ?? 0,
       entryStreakDays: state?.entryStreakDays ?? 0,
       totalStars,

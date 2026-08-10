@@ -43,10 +43,11 @@ const OFFSET = {
   kreditBalance: 184,
   ladderPoints: 192,
   highestLadderTier: 200,
-  bestDailyScore: 201,
-  lastEntryDayId: 205,
-  entryStreakDays: 209,
-  reserved: 211,
+  featuredFrameTier: 201,
+  bestDailyScore: 202,
+  lastEntryDayId: 206,
+  entryStreakDays: 210,
+  reserved: 212,
   bump: 230,
 } as const;
 
@@ -104,6 +105,7 @@ function playerStateBuffer(
   data.writeBigUInt64LE(9n, OFFSET.kreditBalance);
   data.writeBigUInt64LE(1_234n, OFFSET.ladderPoints);
   data.writeUInt8(1, OFFSET.highestLadderTier);
+  data.writeUInt8(1, OFFSET.featuredFrameTier);
   data.writeUInt32LE(18_940, OFFSET.bestDailyScore);
   data.writeUInt32LE(20_651, OFFSET.lastEntryDayId);
   data.writeUInt16LE(6, OFFSET.entryStreakDays);
@@ -147,6 +149,7 @@ describe("decodePlayerStateAccount", () => {
     expect(view.kreditBalance).toBe(9n);
     expect(view.ladderPoints).toBe(1_234n);
     expect(view.highestLadderTier).toBe(1);
+    expect(view.featuredFrameTier).toBe(1);
     expect(view.bestDailyScore).toBe(18_940);
     expect(view.lastEntryDayId).toBe(20_651);
     expect(view.entryStreakDays).toBe(6);
@@ -181,7 +184,7 @@ describe("decodePlayerStateAccount", () => {
   it("rejects nonzero reserved padding", () => {
     const owner = Keypair.generate();
     const data = playerStateBuffer(owner);
-    data[OFFSET.reserved + 18] = 1;
+    data[OFFSET.reserved + 17] = 1;
     expect(() =>
       decodePlayerStateAccount(
         program(),

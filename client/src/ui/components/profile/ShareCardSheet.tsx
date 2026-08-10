@@ -1,36 +1,37 @@
 import { useEffect, useState } from "react";
 
-import type { CompetitionRecord } from "@/chain/campaignClient";
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import {
   GUARDIAN_FACE_CROPS,
   GUARDIAN_TIER_COLORS,
 } from "@/config/guardianBlocks";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
+import { getThemeId, getThemeImages } from "@/config/themes";
 import { SOL_LOGO_PATH } from "@/ui/components/economy/SolMark";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
-import { truncatePublicKey } from "@/utils/solanaDisplay";
 
 const GOLD = "#FACC15";
 const CREAM = "#FFF4D7";
+const WIDTH = 1080;
+const HEIGHT = 1350;
+
+/** Per-tier opening fractions; mirrors TierFrame. */
+const TIER_FRAME_OPENINGS = [0.8255, 0.6673, 0.7078, 0.5886, 0.6177];
 
 export interface ShareCardData {
   displayName: string;
-  address: string;
-  /** Featured emblem id; guardian faces render for 1..10, a star otherwise. */
+  /** Featured emblem id; a guardian face renders for 1..10, zone 1 otherwise. */
   featuredEmblem: number;
+  /** Ladder border the player wears, drawn around the emblem. */
+  frameTier: number;
+  ladderPoints: bigint;
   totalStars: number;
   totalEarnedLamports: bigint;
-  /** Ladder tier index, drawn as the frame around the emblem. */
-  tier: number;
-  ladderPoints: bigint;
   entryStreakDays: number;
-  records: Array<{ label: string; record: CompetitionRecord }>;
+  /** Best payout-bearing rank across both boards; 0 when never placed. */
+  bestPrizeRank: number;
 }
-
-/** Per-tier opening fractions; mirrors TierFrame. */
-const TIER_FRAME_OPENINGS = [0.8237, 0.6677, 0.6903, 0.4848, 0.5767];
 
 interface ShareCardSheetProps {
   open: boolean;
@@ -76,158 +77,227 @@ function faceCrop(zoneId: number): [number, number, number] {
   return [sx, sy, side];
 }
 
+/**
+ * The one number worth leading with.
+ *
+ * A card with four equal figures brags about nothing. Money first when there
+ * is money, then a placement, then the climb — so a player who has never been
+ * paid still has something to post.
+ */
+function headline(data: ShareCardData): {
+  label: string;
+  value: string;
+  sol: boolean;
+} {
+  if (data.totalEarnedLamports > 0n) {
+    return {
+      label: "WON ON ZKUBE",
+      value: formatSolBalanceLamports(data.totalEarnedLamports),
+      sol: true,
+    };
+  }
+  if (data.bestPrizeRank > 0) {
+    return { label: "BEST FINISH", value: `#${data.bestPrizeRank}`, sol: false };
+  }
+  return {
+    label: "LADDER POINTS",
+    value: Number(data.ladderPoints).toLocaleString(),
+    sol: false,
+  };
+}
+
+/**
+ * The card a player posts to show off.
+ *
+ * Built around the two things they chose — the guardian they wear and the
+ * border they earned — over that realm's own painted art, because those are
+ * what a stranger sees first. One headline number carries the brag and the
+ * supporting figures stay small.
+ *
+ * The wallet address is gone: nobody flexes a truncated base58, and it was the
+ * only line on the card that helped no one. The invitation at the foot is the
+ * point of sharing at all — a card a stranger cannot act on is a card that
+ * brings nobody back.
+ */
 async function drawCard(data: ShareCardData): Promise<string> {
   await document.fonts.load('80px "Fredericka the Great"').catch(() => []);
   const canvas = document.createElement("canvas");
-  canvas.width = 1080;
-  canvas.height = 1350;
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("share card: no canvas context");
 
-  // Ground + panel.
-  ctx.fillStyle = "#070C18";
-  ctx.fillRect(0, 0, 1080, 1350);
-  const panel = ctx.createLinearGradient(0, 90, 0, 1260);
-  panel.addColorStop(0, "#131F35");
-  panel.addColorStop(1, "#0D1626");
-  roundedRect(ctx, 60, 90, 960, 1170, 48);
-  ctx.fillStyle = panel;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.textAlign = "center";
-
-  // The app title.
-  ctx.fillStyle = CREAM;
-  ctx.font = '86px "Fredericka the Great"';
-  ctx.fillText("zKube", 540, 210);
-
-  // The emblem block, inside its rank frame — the same pairing the profile
-  // shows, so a shared card and the app agree on what a rank looks like.
-  const size = 292;
-  const bx = 540 - size / 2;
-  const by = 262;
   const zoneId =
     data.featuredEmblem >= 1 && data.featuredEmblem <= 10
       ? data.featuredEmblem
-      : null;
-  const base = zoneId ? GUARDIAN_TIER_COLORS[zoneId] : "#4E7BE0";
+      : 1;
+  const accent = GUARDIAN_TIER_COLORS[zoneId] ?? "#4E7BE0";
+  const tierColor = ladderTierColor(data.frameTier);
+
+  // The realm's own art is the ground, pushed back far enough that the
+  // guardian block stays the subject.
+  ctx.fillStyle = "#05070F";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  try {
+    const art = await loadImage(getThemeImages(getThemeId(zoneId)).background);
+    const scale = Math.max(WIDTH / art.width, HEIGHT / art.height);
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(
+      art,
+      (WIDTH - art.width * scale) / 2,
+      (HEIGHT - art.height * scale) / 2,
+      art.width * scale,
+      art.height * scale,
+    );
+    ctx.restore();
+  } catch {
+    // realm art unavailable — the accent wash below still carries the card
+  }
+  const wash = ctx.createRadialGradient(
+    WIDTH / 2,
+    HEIGHT * 0.32,
+    80,
+    WIDTH / 2,
+    HEIGHT * 0.32,
+    HEIGHT * 0.85,
+  );
+  wash.addColorStop(0, `${accent}4d`);
+  wash.addColorStop(0.45, "rgba(5,7,15,0.68)");
+  wash.addColorStop(1, "rgba(5,7,15,0.95)");
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = CREAM;
+  ctx.font = '64px "Fredericka the Great"';
+  ctx.fillText("zKube", WIDTH / 2, 128);
+
+  // The guardian block inside the border — the two things the player chose.
+  const size = 356;
+  const bx = WIDTH / 2 - size / 2;
+  const by = 214;
   const body = ctx.createLinearGradient(bx, by, bx + size, by + size);
   body.addColorStop(0, "#FFFFFF");
-  body.addColorStop(0.45, base);
+  body.addColorStop(0.45, accent);
   body.addColorStop(1, "#10141E");
   roundedRect(ctx, bx, by, size, size, size * 0.24);
   ctx.fillStyle = body;
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.92)";
-  ctx.lineWidth = 12;
+  // A dark seat, not a white sticker: the border is the frame here.
+  ctx.strokeStyle = "rgba(6,10,20,0.72)";
+  ctx.lineWidth = 14;
   ctx.stroke();
-  if (zoneId) {
-    const inset = size * 0.085;
-    roundedRect(
-      ctx,
+  const inset = size * 0.085;
+  roundedRect(
+    ctx,
+    bx + inset,
+    by + inset,
+    size - inset * 2,
+    size - inset * 2,
+    size * 0.2,
+  );
+  ctx.save();
+  ctx.clip();
+  try {
+    const img = await loadImage(getGuardianPortrait(zoneId));
+    const [sx, sy, side] = faceCrop(zoneId);
+    ctx.filter = "brightness(1.3) saturate(1.25)";
+    ctx.drawImage(
+      img,
+      sx,
+      sy,
+      side,
+      side,
       bx + inset,
       by + inset,
       size - inset * 2,
       size - inset * 2,
-      size * 0.2,
     );
-    ctx.save();
-    ctx.clip();
-    try {
-      const img = await loadImage(getGuardianPortrait(zoneId));
-      const [sx, sy, side] = faceCrop(zoneId);
-      ctx.filter = "brightness(1.3) saturate(1.25)";
-      ctx.drawImage(
-        img,
-        sx,
-        sy,
-        side,
-        side,
-        bx + inset,
-        by + inset,
-        size - inset * 2,
-        size - inset * 2,
-      );
-      ctx.filter = "none";
-    } catch {
-      // face art unavailable — the tier block alone still reads
-    }
-    const gloss = ctx.createLinearGradient(0, by, 0, by + size * 0.4);
-    gloss.addColorStop(0, "rgba(255,255,255,0.35)");
-    gloss.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = gloss;
-    ctx.fillRect(bx + inset, by + inset, size - inset * 2, size * 0.34);
-    ctx.restore();
-  } else {
-    ctx.fillStyle = GOLD;
-    ctx.font = "148px sans-serif";
-    ctx.fillText("\u2605", 540, by + size * 0.66);
-  }
-  try {
-    const frame = await loadImage(`/assets/common/tier-${data.tier}.png`);
-    const outer = (size * 1.03) / (TIER_FRAME_OPENINGS[data.tier] ?? 0.8237);
-    ctx.drawImage(frame, 540 - outer / 2, by + size / 2 - outer / 2, outer, outer);
+    ctx.filter = "none";
   } catch {
-    // frame art unavailable — the block alone still reads
+    // face art unavailable — the block alone still reads
+  }
+  const gloss = ctx.createLinearGradient(0, by, 0, by + size * 0.4);
+  gloss.addColorStop(0, "rgba(255,255,255,0.35)");
+  gloss.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gloss;
+  ctx.fillRect(bx + inset, by + inset, size - inset * 2, size * 0.34);
+  ctx.restore();
+  try {
+    const frame = await loadImage(`/assets/common/tier-${data.frameTier}.png`);
+    const outer = (size * 1.03) / (TIER_FRAME_OPENINGS[data.frameTier] ?? 0.8255);
+    ctx.drawImage(
+      frame,
+      WIDTH / 2 - outer / 2,
+      by + size / 2 - outer / 2,
+      outer,
+      outer,
+    );
+  } catch {
+    // border art unavailable — the block alone still reads
   }
 
-  // Name, rank, wallet.
+  // Name and rank.
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = '78px "Fredericka the Great"';
-  ctx.fillText(data.displayName, 540, 700);
-  ctx.fillStyle = ladderTierColor(data.tier);
-  ctx.font = "700 34px Outfit, sans-serif";
+  ctx.font = '84px "Fredericka the Great"';
+  ctx.fillText(data.displayName, WIDTH / 2, 722);
+  ctx.fillStyle = tierColor;
+  ctx.font = "800 34px Outfit, sans-serif";
   ctx.fillText(
-    `${ladderTierName(data.tier).toUpperCase()}  \u00B7  ${Number(data.ladderPoints).toLocaleString()} PTS`,
-    540,
-    752,
+    `${ladderTierName(data.frameTier).toUpperCase()}  ·  ${Number(data.ladderPoints).toLocaleString()} PTS`,
+    WIDTH / 2,
+    776,
   );
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.font = "600 28px ui-monospace, monospace";
-  ctx.fillText(truncatePublicKey(data.address), 540, 800);
 
-  // Total earned.
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.font = "700 26px Outfit, sans-serif";
-  ctx.fillText("T O T A L   E A R N E D", 540, 880);
-  const amount = formatSolBalanceLamports(data.totalEarnedLamports);
+  // The brag.
+  const hero = headline(data);
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "800 28px Outfit, sans-serif";
+  ctx.fillText(hero.label.split("").join(" "), WIDTH / 2, 878);
   ctx.fillStyle = GOLD;
-  ctx.font = '104px "Fredericka the Great"';
-  const amountWidth = ctx.measureText(amount).width;
-  ctx.fillText(amount, 540 - 38, 985);
-  // The official mark rides AFTER the amount — the unit sits on the right.
-  ctx.save();
-  ctx.translate(540 - 38 + amountWidth / 2 + 30, 952 - 32);
-  ctx.scale(0.6, 0.6);
-  ctx.fillStyle = GOLD;
-  ctx.fill(new Path2D(SOL_LOGO_PATH));
-  ctx.restore();
+  ctx.font = '138px "Fredericka the Great"';
+  const heroWidth = ctx.measureText(hero.value).width;
+  const heroX = hero.sol ? WIDTH / 2 - 46 : WIDTH / 2;
+  ctx.fillText(hero.value, heroX, 1008);
+  if (hero.sol) {
+    // The official mark rides AFTER the amount — the unit sits on the right.
+    ctx.save();
+    ctx.translate(heroX + heroWidth / 2 + 42, 966 - 40);
+    ctx.scale(0.78, 0.78);
+    ctx.fillStyle = GOLD;
+    ctx.fill(new Path2D(SOL_LOGO_PATH));
+    ctx.restore();
+  }
 
-  // Best rank per board, then the free mode's own total.
-  ctx.font = "700 34px ui-monospace, monospace";
-  const parts = data.records.map(({ label, record }) =>
-    record.bestPrizeRank > 0 ? `${label} #${record.bestPrizeRank}` : `${label} \u2014`,
-  );
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText(parts.join("   \u00B7   "), 540, 1075);
-  ctx.fillStyle = GOLD;
-  ctx.font = "700 38px ui-monospace, monospace";
-  ctx.fillText(`\u2605 ${data.totalStars}/300`, 540, 1145);
+  // Supporting figures, small and on one line.
+  const support = [
+    data.bestPrizeRank > 0 ? `BEST #${data.bestPrizeRank}` : null,
+    data.entryStreakDays > 0 ? `${data.entryStreakDays}-DAY STREAK` : null,
+    `★ ${data.totalStars}/300`,
+  ].filter(Boolean) as string[];
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.font = "700 32px ui-monospace, monospace";
+  ctx.fillText(support.join("   ·   "), WIDTH / 2, 1104);
 
-  // Footer.
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  // The invitation.
+  roundedRect(ctx, WIDTH / 2 - 330, 1172, 660, 94, 47);
+  ctx.fillStyle = "rgba(250,204,21,0.14)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(250,204,21,0.5)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = GOLD;
+  ctx.font = "800 38px Outfit, sans-serif";
+  ctx.fillText("BEAT ME ON TODAY'S DAILY", WIDTH / 2, 1232);
+
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
   ctx.font = "700 26px Outfit, sans-serif";
   ctx.fillText(
-    data.entryStreakDays > 1
-      ? `${data.entryStreakDays} days running`
-      : zoneId
-        ? `${getZoneGuardian(zoneId).name} rides with me`
-        : "Solana arcade",
-    540,
-    1210,
+    `${getZoneGuardian(zoneId).name}'s realm · Solana`,
+    WIDTH / 2,
+    1308,
   );
 
   return canvas.toDataURL("image/png");
@@ -237,6 +307,9 @@ async function drawCard(data: ShareCardData): Promise<string> {
  * The profile share card: rendered to a canvas in the app's own furniture,
  * previewed in a sheet, then handed to the native share tray (or downloaded
  * where sharing files is unsupported).
+ *
+ * The preview is height-capped so the Share key is always on screen. A share
+ * sheet whose share button sits below the fold is a share nobody completes.
  */
 const ShareCardSheet: React.FC<ShareCardSheetProps> = ({
   open,
@@ -288,13 +361,13 @@ const ShareCardSheet: React.FC<ShareCardSheetProps> = ({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Share card">
-      <div className="flex flex-col gap-3 pb-2">
+    <Sheet open={open} onClose={onClose} srTitle="Share your profile card">
+      <div className="flex flex-col gap-3 pb-1">
         {dataUrl ? (
           <img
             src={dataUrl}
             alt="Your zKube profile card"
-            className="w-full rounded-2xl border border-white/[0.12]"
+            className="mx-auto max-h-[56vh] w-auto rounded-2xl"
           />
         ) : error ? (
           <p role="alert" className="py-10 text-center font-sans text-sm text-red-300">

@@ -13,6 +13,14 @@ interface GuardianFaceBlockProps {
   /** Square size in px. */
   size: number;
   /**
+   * Drop the white sticker rim, for a block sitting inside a `TierFrame`.
+   *
+   * The frame is already the border. Leaving the sticker on puts a white
+   * outline between the guardian and the ornament, which reads as a label
+   * nobody peeled off.
+   */
+  framed?: boolean;
+  /**
    * Campaign mastery, worn as a corner star rather than as a rim.
    *
    * Mastery and ladder rank are different achievements and used to compete for
@@ -35,6 +43,8 @@ function mix(hex: string, target: number, amount: number): string {
 }
 
 const NEUTRAL_RIM = "rgba(255,255,255,0.92)";
+/** Inside a frame the block seats into the ornament rather than onto it. */
+const FRAMED_RIM = "rgba(6,10,20,0.72)";
 const BADGE_COLORS: Record<MasteryBadge, string> = {
   cleared: "#B9CADB",
   perfected: "#FACC15",
@@ -49,6 +59,7 @@ const BADGE_COLORS: Record<MasteryBadge, string> = {
 const GuardianFaceBlock: React.FC<GuardianFaceBlockProps> = ({
   zoneId,
   size,
+  framed = false,
   badge = null,
   breathe = false,
   className = "",
@@ -70,7 +81,7 @@ const GuardianFaceBlock: React.FC<GuardianFaceBlockProps> = ({
         borderRadius: "24%",
         background: `linear-gradient(135deg, ${mix(base, 255, 0.5)} 0%, ${base} 55%, ${mix(base, 0, 0.38)} 100%)`,
         boxShadow: [
-          `inset 0 0 0 ${rimWidth}px ${NEUTRAL_RIM}`,
+          `inset 0 0 0 ${rimWidth}px ${framed ? FRAMED_RIM : NEUTRAL_RIM}`,
           badge === "perfected" ? `0 0 ${size * 0.28}px rgba(250,204,21,0.35)` : "",
           `0 ${size * 0.055}px ${size * 0.1}px rgba(0,0,0,0.45)`,
         ]

@@ -4420,6 +4420,10 @@
         {
           "name": "emblem_id",
           "type": "u8"
+        },
+        {
+          "name": "frame_tier",
+          "type": "u8"
         }
       ]
     },
@@ -7080,6 +7084,10 @@
           {
             "name": "emblem_id",
             "type": "u8"
+          },
+          {
+            "name": "frame_tier",
+            "type": "u8"
           }
         ]
       }
@@ -7534,6 +7542,15 @@
             "type": "u8"
           },
           {
+            "name": "featured_frame_tier",
+            "docs": [
+              "Ladder border the player has chosen to wear. Any tier they have ever",
+              "reached stays available: a rank is earned once, and a border the player",
+              "liked should not be taken back by a later reset."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "best_daily_score",
             "docs": [
               "Best `daily_score` ever recorded on a scored ranked run. A board keeps",
@@ -7565,7 +7582,7 @@
             "type": {
               "array": [
                 "u8",
-                19
+                18
               ]
             }
           },

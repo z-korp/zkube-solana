@@ -24,6 +24,7 @@ export function useFeaturedEmblemController() {
   const { connection } = useSolanaConnection();
   const player = useConnectedPlayer();
   const [featuredEmblem, setFeaturedEmblem] = useState<number | null>(null);
+  const [featuredFrameTier, setFeaturedFrameTier] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export function useFeaturedEmblemController() {
     const owner = player.publicKey;
     if (!owner) {
       setFeaturedEmblem(null);
+      setFeaturedFrameTier(null);
       return null;
     }
     setLoading(true);
@@ -42,11 +44,13 @@ export function useFeaturedEmblemController() {
         owner,
       });
       const next = view?.featuredEmblem ?? 0;
-      setFeaturedEmblem(next);
+      setFeaturedEmblem(view ? view.featuredEmblem : null);
+      setFeaturedFrameTier(view ? view.featuredFrameTier : null);
       setError(null);
       return next;
     } catch (cause) {
       setFeaturedEmblem(null);
+      setFeaturedFrameTier(null);
       setError(errorMessage(cause));
       return null;
     } finally {
@@ -59,7 +63,7 @@ export function useFeaturedEmblemController() {
   }, [refresh]);
 
   const save = useCallback(
-    async (emblemId: number) => {
+    async (emblemId: number, frameTier: number) => {
       const owner = player.publicKey;
       if (!owner) throw new Error("Connect a wallet before choosing an emblem");
       const device = player.requireSession();
@@ -84,6 +88,7 @@ export function useFeaturedEmblemController() {
           ownerAuthority: owner,
           sessionToken: device.sessionToken,
           emblemId,
+          frameTier,
         });
         const signature = await submitVersionedTransactionPlan({
           transactionPlan,
@@ -122,5 +127,13 @@ export function useFeaturedEmblemController() {
     [connection, player, refresh],
   );
 
-  return { featuredEmblem, loading, saving, error, refresh, save };
+  return {
+    featuredEmblem,
+    featuredFrameTier,
+    loading,
+    saving,
+    error,
+    refresh,
+    save,
+  };
 }

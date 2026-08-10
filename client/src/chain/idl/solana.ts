@@ -4426,6 +4426,10 @@ export type Solana = {
         {
           "name": "emblemId",
           "type": "u8"
+        },
+        {
+          "name": "frameTier",
+          "type": "u8"
         }
       ]
     },
@@ -7086,6 +7090,10 @@ export type Solana = {
           {
             "name": "emblemId",
             "type": "u8"
+          },
+          {
+            "name": "frameTier",
+            "type": "u8"
           }
         ]
       }
@@ -7540,6 +7548,15 @@ export type Solana = {
             "type": "u8"
           },
           {
+            "name": "featuredFrameTier",
+            "docs": [
+              "Ladder border the player has chosen to wear. Any tier they have ever",
+              "reached stays available: a rank is earned once, and a border the player",
+              "liked should not be taken back by a later reset."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bestDailyScore",
             "docs": [
               "Best `daily_score` ever recorded on a scored ranked run. A board keeps",
@@ -7571,7 +7588,7 @@ export type Solana = {
             "type": {
               "array": [
                 "u8",
-                19
+                18
               ]
             }
           },

@@ -273,6 +273,7 @@ export function applyDevPlayerProfile(
     // empty or complete one.
     ladderPoints: 14_000n,
     highestLadderTier: 2,
+    featuredFrameTier: 2,
     bestDailyScore: 18_940,
     entryStreakDays: 6,
     loading: false,

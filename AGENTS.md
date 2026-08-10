@@ -27,7 +27,7 @@ Source implements v5 partially. Current state:
 | Deterministic core 1.0.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, entry streak, and 19 reserved bytes validated as zero |
+| `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
 | Points ladder | Built — integer Q64 `ln` in the core, points applied in the Daily profile-sync pass, every award scaled by the entry streak |
@@ -488,8 +488,15 @@ whole reason the pot splits in two. A non-paying leaderboard place stays visible
 on the period board but is not a profile best rank. The Weekly and Season
 records are gone; the Kredit balance, the cumulative ladder total, the highest
 tier ever reached, the lifetime best `daily_score`, and the consecutive-entry
-streak are live, and nineteen reserved bytes, validated as zero, remain for
+streak are live, and eighteen reserved bytes, validated as zero, remain for
 later profile fields.
+
+The worn identity is one field pair — featured emblem and featured ladder
+border — set together by one instruction, because they are one decision about
+what a player looks like on a board. Any tier ever reached stays wearable and
+nothing above it ever is: a rank is earned once, and a later reset must not
+take back a border a player chose. Both are display only and carry no monetary
+effect.
 
 Payouts are settled before profile metadata synchronizes. A permissionless Daily
 profile-sync instruction recomputes the exact settled payout from the finalized
@@ -497,7 +504,7 @@ board and ledger, then uses a per-period winner-position bitmask for idempotence
 A missing or failed profile sync can never delay, cancel, repeat, or affect a SOL
 transfer.
 
-The featured emblem is owner- or device-session-selectable. ID 0 automatically
+The featured emblem and ladder border are owner- or device-session-selectable. ID 0 automatically
 chooses the strongest unlocked emblem; IDs 1-10 are zone guardians, 11 is Realm
 Conqueror for all ten guardians, and 12 is World Perfect for 300/300 stars.
 Emblems are identity display only with no monetary effect.

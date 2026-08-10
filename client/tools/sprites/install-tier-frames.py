@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Key, centre and install generated ladder tier frames.
+"""Centre and install matted ladder tier frames.
 
-Three fixes, all needed before a frame can be composited.
+Input is the output of ``matte-alpha.mjs``, not the raw generation: GPT Image
+never returns an alpha channel here, and chroma-keying its background left
+white residue in the ornament. Frames arrive already cut and this script
+refuses any that are not.
 
-**Transparency.** GPT Image does not return an alpha channel here — it *paints*
-a grey-and-white checkerboard where the transparency should be, so the file
-looks correct in a viewer and is fully opaque in fact. The checker is keyed by
-flood-filling from the corners and from the centre, so an ornament highlight
-that happens to be near-white survives: it is not connected to the background.
+Two fixes remain.
 
 **Centring.** The block must sit in the middle of the opening, not the middle
 of the artwork — jade's lower leaves are far heavier than its top, so the two
@@ -19,7 +18,8 @@ elaborate tiers, so instead each frame keeps its own overhang and this script
 prints the per-tier ratio table for `TierFrame` to render against. A higher
 tier legitimately reaches further past the block than a lower one.
 
-    python3 client/tools/sprites/install-tier-frames.py <generated-dir>
+    node client/tools/sprites/matte-alpha.mjs raw/*.png --out matted
+    python3 client/tools/sprites/install-tier-frames.py matted
 """
 
 import sys
@@ -30,55 +30,21 @@ from PIL import Image
 
 OUT_SIZE = 512
 OPEN_ALPHA = 24
-# The painted checkerboard's two greys, and how far a pixel may stray from
-# either and still count as background.
-CHECKER = ((250, 250, 250), (232, 232, 232))
-CHECKER_TOLERANCE = 10
 DEST = Path(__file__).resolve().parents[2] / "public" / "assets" / "common"
 
 
-def key_checkerboard(image: Image.Image) -> Image.Image:
-    """Replace the painted checkerboard with real transparency."""
-    rgb = np.array(image.convert("RGB")).astype(np.int16)
-    background = np.zeros(rgb.shape[:2], dtype=bool)
-    for colour in CHECKER:
-        background |= np.all(np.abs(rgb - np.array(colour)) <= CHECKER_TOLERANCE, axis=2)
+def require_matted(alpha: np.ndarray, name: str) -> None:
+    """Refuse art that still carries its background.
 
-    height, width = background.shape
-    seeds = [
-        (0, 0),
-        (0, width - 1),
-        (height - 1, 0),
-        (height - 1, width - 1),
-        (height // 2, width // 2),
-    ]
-    reached = np.zeros_like(background)
-    stack = [seed for seed in seeds if background[seed]]
-    for seed in stack:
-        reached[seed] = True
-    while stack:
-        y, x = stack.pop()
-        left = x
-        while left > 0 and background[y, left - 1] and not reached[y, left - 1]:
-            left -= 1
-            reached[y, left] = True
-        right = x
-        while right < width - 1 and background[y, right + 1] and not reached[y, right + 1]:
-            right += 1
-            reached[y, right] = True
-        for neighbour in (y - 1, y + 1):
-            if 0 <= neighbour < height:
-                span = background[neighbour, left : right + 1] & ~reached[neighbour, left : right + 1]
-                for offset in np.flatnonzero(span):
-                    column = left + int(offset)
-                    reached[neighbour, column] = True
-                    stack.append((neighbour, column))
-
-    out = image.convert("RGBA")
-    alpha = np.array(out)[..., 3]
-    alpha[reached] = 0
-    out.putalpha(Image.fromarray(alpha))
-    return out
+    The failure this catches is silent otherwise: a checkerboard painted into
+    the pixels looks transparent in every viewer and composites as a grey grid
+    behind the ornament.
+    """
+    corners = [alpha[0, 0], alpha[0, -1], alpha[-1, 0], alpha[-1, -1]]
+    if max(corners) > OPEN_ALPHA:
+        raise SystemExit(
+            f"{name}: corners are opaque — run matte-alpha.mjs on it first"
+        )
 
 
 def opening_box(alpha: np.ndarray) -> tuple[float, float, float]:
@@ -116,8 +82,9 @@ def main() -> None:
     ratios = []
     for path in frames:
         tier = int(path.name.split("-")[1])
-        image = key_checkerboard(Image.open(path))
+        image = Image.open(path).convert("RGBA")
         alpha = np.array(image)[..., 3]
+        require_matted(alpha, path.name)
         cx, cy, side = opening_box(alpha)
 
         # Square the canvas around the OPENING's centre, wide enough to hold

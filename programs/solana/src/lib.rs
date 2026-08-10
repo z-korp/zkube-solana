@@ -54,8 +54,12 @@ pub mod solana {
         instructions::player_label_instructions::handler_set_player_label(ctx, args)
     }
 
-    pub fn set_featured_emblem(ctx: Context<SetFeaturedEmblem>, emblem_id: u8) -> Result<()> {
-        instructions::profile_instructions::handler_set_featured_emblem(ctx, emblem_id)
+    pub fn set_featured_emblem(
+        ctx: Context<SetFeaturedEmblem>,
+        emblem_id: u8,
+        frame_tier: u8,
+    ) -> Result<()> {
+        instructions::profile_instructions::handler_set_featured_emblem(ctx, emblem_id, frame_tier)
     }
 
     pub fn withdraw_player_funding(

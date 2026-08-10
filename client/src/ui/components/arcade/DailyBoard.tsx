@@ -9,8 +9,10 @@ import {
 } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
+  GuardianFaceBlock,
   MONEY_GOLD,
   SolMark,
+  TierFrame,
   computeRankPayouts,
   dailyBoardPools,
 } from "@/ui/components/economy";
@@ -46,10 +48,11 @@ interface DailyBoardProps {
  * it, so they always know where they stand. The percentage split lives in
  * the ? popup.
  *
- * Every row wears its player's ladder tier as the rim of their block. The
- * ladder pays no SOL, so the board is the only place it can mean anything: a
- * tier the field can see is a tier worth climbing, and one that lived on the
- * owner's own profile alone would be a private number.
+ * Every row wears the border and guardian its player chose. The ladder pays no
+ * SOL, so the board is the only place a rank can mean anything: a border the
+ * field can see is a border worth climbing for, and one that lived on the
+ * owner's own profile would be a private number. The tier is named beside the
+ * wallet too, because an ornament is not readable at row height on its own.
  */
 const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
   const [board, setBoard] = useState<"score" | "theme">("score");
@@ -77,7 +80,7 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
     const isYou = index === myIndex;
     const prize = payouts[index] ?? 0n;
     const emblem = entry ? emblems.get(entry.player.toBase58()) : undefined;
-    const tier = emblem?.highestLadderTier ?? 0;
+    const tier = emblem?.featuredFrameTier ?? 0;
     return (
       <div
         key={rank}
@@ -91,6 +94,26 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
         style={isYou ? YOU_RING : undefined}
       >
         <RankMedal rank={rank} />
+        {emblem && (
+          <TierFrame tier={tier} size={22}>
+            {emblem.featuredEmblem >= 1 && emblem.featuredEmblem <= 10 ? (
+              <GuardianFaceBlock
+                zoneId={emblem.featuredEmblem}
+                size={22}
+                framed
+              />
+            ) : (
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "24%",
+                  background: "rgba(4,7,15,0.75)",
+                }}
+              />
+            )}
+          </TierFrame>
+        )}
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className="min-w-0 truncate text-left font-sans text-[15px] font-bold text-white/90">
             {isYou
