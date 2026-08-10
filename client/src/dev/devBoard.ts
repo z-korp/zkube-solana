@@ -19,6 +19,7 @@
  */
 import { PublicKey } from "@solana/web3.js";
 
+import { BonusType } from "@/chain/bonusTypes";
 import { CANONICAL_DAILY_PRESSURE, CANONICAL_DAILY_SCORING_RULES } from "@/chain/dailyRules";
 import {
   CAMPAIGN_CONTENT_VERSION,
@@ -103,9 +104,9 @@ const ARENA_RULES: ActiveRunRulesView = {
   passiveMutatorId: 0,
   bossId: 0,
   starThresholdModifier: 128,
-  bonusType: 1,
-  bonusTriggerType: 1,
-  bonusThreshold: 2,
+  bonusType: BonusType.Hammer,
+  bonusTriggerType: 2,
+  bonusThreshold: 4,
   startingCharges: 1,
 };
 
@@ -156,9 +157,9 @@ export function buildDevActiveRun(
     totalLinesCleared: 11,
     bonusUses: 1,
     currentDifficulty: isArena ? 4 : 3,
-    // Charges on every slot, so the action bar is reviewable in the state that
-    // actually has furniture in it rather than four empty sockets.
-    bonusType: 15,
+    // A run carries exactly one bonus type, and an id outside the enum falls
+    // back to "None" — which renders an empty slot that reads as a wiring bug.
+    bonusType: rules.bonusType,
     bonusCharges: 2,
     grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),
     nextRow: [...NEXT_ROW],

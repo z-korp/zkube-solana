@@ -30,6 +30,9 @@ import GameActionBar, {
 } from "@/ui/components/actionbar/GameActionBar";
 import { buildTriggerDescription } from "@/ui/components/actionbar/bonusDescription";
 import GameHud from "@/ui/components/hud/GameHud";
+import { devHudVariantFromUrl } from "@/dev/devBypass";
+import PrototypeHud from "@/dev/hudPrototypes/PrototypeHud";
+import PrototypeActionBar from "@/dev/hudPrototypes/PrototypeActionBar";
 import ImageAssets from "@/ui/theme/ImageAssets";
 import {
   describeRunStartError,
@@ -39,6 +42,7 @@ import {
 import "../../grid.css";
 
 export default function PlayScreen() {
+  const hudVariant = useMemo(() => devHudVariantFromUrl(), []);
   const pendingBonusEarnRef = useRef(false);
   const lastBonusReceiptActionRef = useRef<number | null>(null);
   const handleActionReceipt = useCallback((receipt: ActionReceipt) => {
@@ -616,6 +620,43 @@ export default function PlayScreen() {
         />
       )}
 
+      {/* DEV-only: `&hud=` stages a header prototype in place of the shipped
+          HUD so the layouts can be compared on the real screen. The branch
+          folds away in production with the rest of the harness. */}
+      {hudVariant ? (
+        <PrototypeHud
+          variant={hudVariant}
+          isDaily={game.mode === 1}
+          zoneId={game.zoneId}
+          level={hudGame.level}
+          score={game.mode === 1 ? hudGame.totalScore : hudGame.levelScore}
+          targetScore={gameLevel.pointsRequired}
+          engineScore={hudGame.engineScore}
+          challengeBonus={hudGame.challengeBonus}
+          pressureScore={hudGame.pressureScore}
+          currentDifficulty={hudGame.currentDifficulty}
+          endlessThresholds={activeRun.endlessThresholds}
+          endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
+          movesRemaining={movesDisplay}
+          maxMoves={gameLevel.maxMoves}
+          combo={hudGame.combo}
+          starsEarned={devStarsEarned(gameLevel, hudGame.levelMoves)}
+          gameLevel={gameLevel}
+          constraintProgress={hudGame.constraintProgress}
+          constraint2Progress={hudGame.constraint2Progress}
+          objectiveName={
+            game.mode === 1
+              ? dailyScoringRuleName(activeRun.dailyScoringRule)
+              : undefined
+          }
+          field={game.mode === 1 ? devFieldStanding(hudGame.totalScore) : null}
+          onBack={
+            chainTerminal || basePhase || run.busy
+              ? undefined
+              : () => navigate(game.mode === 1 ? "arcade" : "map")
+          }
+        />
+      ) : (
       <GameHud
         level={hudGame.level}
         levelScore={hudGame.levelScore}
@@ -656,6 +697,7 @@ export default function PlayScreen() {
             : () => navigate(game.mode === 1 ? "arcade" : "map")
         }
       />
+      )}
 
       {run.error && (
         <div className="bg-red-950/85 px-3 py-1 text-center font-sans text-xs text-red-200">
@@ -663,7 +705,10 @@ export default function PlayScreen() {
         </div>
       )}
 
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden px-2 py-1">
+      {/* No horizontal padding: eight columns on a phone means the cell size is
+          decided by width alone, so any inset here is taken straight out of the
+          blocks. GameBoard reserves exactly the frame it draws. */}
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden py-1">
         <div
           className={`flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
         >
@@ -813,6 +858,21 @@ export default function PlayScreen() {
       {/* Always mounted: unmounting the bar changes the flex space above it,
           which resizes every grid cell via GameBoard's ResizeObserver. During
           the terminal/settlement window it stays as an inert height-holder. */}
+      {hudVariant ? (
+        <PrototypeActionBar
+          variant={hudVariant === "towers" ? "flank" : "rail"}
+          bonusSlots={bonusSlots}
+          activeBonus={activeBonus}
+          onSurrender={handleQuit}
+          field={game.mode === 1 ? devFieldStanding(hudGame.totalScore) : null}
+          yourScore={hudGame.totalScore}
+          objectiveLine={
+            game.mode === 1
+              ? undefined
+              : dailyScoringRuleDescription(activeRun.dailyScoringRule)
+          }
+        />
+      ) : (
       <GameActionBar
         bonusSlots={bonusSlots}
         activeBonus={activeBonus}
@@ -826,8 +886,31 @@ export default function PlayScreen() {
         zoneId={game.zoneId}
         activeMutatorId={activeRun.rules.activeMutatorId}
       />
+      )}
     </PlaySurface>
   );
+}
+
+/**
+ * DEV-only stand-ins for data the prototypes need and the chain does not carry
+ * yet: there is no live board during the day, so a rank has to be faked to be
+ * looked at. Nothing outside the harness may read these.
+ */
+function devFieldStanding(score: number) {
+  return {
+    rank: 4,
+    entrants: 147,
+    nextScore: Math.round(score * 1.09),
+    nextName: "Jade_Serpent",
+  };
+}
+
+function devStarsEarned(
+  gameLevel: { star3Threshold: number; star2Threshold: number },
+  movesUsed: number,
+): number {
+  if (movesUsed <= gameLevel.star3Threshold) return 3;
+  return movesUsed <= gameLevel.star2Threshold ? 2 : 1;
 }
 
 function PlaySurface({ children }: { children: ReactNode }) {

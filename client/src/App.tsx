@@ -20,7 +20,7 @@ import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
 import { useNotifications } from "@/hooks/useNotifications";
 import BootReveal from "@/ui/components/shared/BootReveal";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
-import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { DEV_BYPASS_ACTIVE, devBoardModeFromUrl } from "@/dev/devBypass";
 import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
 import { CapabilityDiagnostics } from "@/dev/CapabilityDiagnostics";
 
@@ -111,7 +111,10 @@ export default function App() {
         <TooltipProvider>
           <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
           <SettingsSheet />
-          <CapabilityDiagnostics />
+          {/* The diagnostics drawer is pinned to the bottom edge, which is
+              exactly where the in-run action bar lives — hide it while a board
+              is staged so the bar can be judged. */}
+          {devBoardModeFromUrl() === null && <CapabilityDiagnostics />}
           <Toaster position={getToastPlacement()} />
         </TooltipProvider>
       </DevFixturesProvider>

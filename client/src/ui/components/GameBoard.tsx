@@ -43,8 +43,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const ROWS = 10;
   const COLS = 8;
   const NEXT_LINE_ROWS = 1;
-  const HORIZONTAL_PADDING = 24;
-  const VERTICAL_CHROME = 36;
+  // Grid.tsx draws a 9px decorative frame on each side; the budget is that
+  // frame and nothing else. It used to reserve 24px, which on a 430px phone
+  // cost a whole cell — the board is the product, so every pixel it does not
+  // need belongs to it.
+  const HORIZONTAL_PADDING = 20;
+  /** The "next row" caption and its gaps, which sit under the frame. */
+  const VERTICAL_CHROME = 28;
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
 
@@ -123,7 +128,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
       const cellByWidth = Math.floor(safeWidth / COLS);
       const cellByHeight = Math.floor(safeHeight / (ROWS + NEXT_LINE_ROWS));
       const cellSize = Math.min(cellByWidth, cellByHeight);
-      setGridSize(Math.max(28, Math.min(cellSize, 72)));
+      // The ceiling is for tablets and desktop, where height stops binding
+      // long before the board stops being able to grow; 72 capped a 10-inch
+      // screen at a phone-sized board.
+      setGridSize(Math.max(28, Math.min(cellSize, 96)));
     });
 
     observer.observe(el);
@@ -151,12 +159,12 @@ const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative flex h-full min-h-0 w-full flex-col p-2 md:p-3 ${
+      className={`relative flex h-full min-h-0 w-full flex-col p-1 ${
         effectiveTxProcessing ? "cursor-wait" : ""
       }`}
     >
       <div
-        className={`flex min-h-0 flex-1 flex-col items-center ${!effectiveTxProcessing ? "cursor-move" : ""}`}
+        className={`flex min-h-0 flex-1 flex-col items-center justify-center ${!effectiveTxProcessing ? "cursor-move" : ""}`}
       >
         <Grid
           gameId={game.id}

@@ -50,6 +50,18 @@ export const DEV_BYPASS_ACTIVE: boolean =
  * of the harness. Absent means no fixture run at all and the real (empty) run
  * controller stays in place — the menus must keep reading "no run".
  */
+/**
+ * Which in-run header prototype to stage, from `&hud=slab|towers|hero`.
+ *
+ * Absent means the shipped HUD, so the harness can still show what exists
+ * today — a comparison needs the incumbent in it.
+ */
+export function devHudVariantFromUrl(): "slab" | "towers" | "hero" | null {
+  if (!import.meta.env.DEV || !DEV_BYPASS_ACTIVE) return null;
+  const hud = new URLSearchParams(window.location.search).get("hud");
+  return hud === "slab" || hud === "towers" || hud === "hero" ? hud : null;
+}
+
 export function devBoardModeFromUrl(): "arena" | "campaign" | null {
   if (!import.meta.env.DEV || !DEV_BYPASS_ACTIVE) return null;
   const board = new URLSearchParams(window.location.search).get("board");
