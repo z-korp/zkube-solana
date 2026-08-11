@@ -21,6 +21,7 @@ interface GameBoardProps {
   activeBonus: BonusType;
   bonusDescription: string;
   onCascadeComplete?: () => void;
+  onPerfectClear?: () => void;
   /**
    * The board's outer frame width in px, reported whenever it changes.
    *
@@ -43,6 +44,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   activeBonus,
   bonusDescription,
   onCascadeComplete,
+  onPerfectClear,
   onFrameWidth,
   forceTxProcessing = false,
   outcomeAnimation = null,
@@ -191,6 +193,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           setIsTxProcessing={setIsTxProcessing}
           outcomeAnimation={outcomeAnimation}
           onCascadeComplete={onCascadeComplete}
+          onPerfectClear={onPerfectClear}
           onNextLineUpdate={handleNextLineUpdate}
           onMove={handleMove}
           onBonus={handleBonus}

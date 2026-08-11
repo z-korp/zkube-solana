@@ -71,6 +71,8 @@ export interface GridProps {
     columnIndex: number,
   ) => Promise<ReceiptProjection | void>;
   onLocalGameOver?: () => void;
+  /** Fires once per perfect clear, for whatever wants to celebrate it. */
+  onPerfectClear?: () => void;
   themeId?: ThemeId;
   outcomeAnimation?: OutcomeAnimation | null;
 }
@@ -98,6 +100,7 @@ const Grid: React.FC<GridProps> = ({
   onMove,
   onBonus,
   onLocalGameOver,
+  onPerfectClear,
   themeId: themeIdOverride,
   outcomeAnimation = null,
 }) => {
@@ -827,6 +830,7 @@ const Grid: React.FC<GridProps> = ({
           // from claiming the reward.
           if (lineExplodedCount > 0 && blocks.length === 0) {
             setPerfectClears((n) => n + 1);
+            onPerfectClear?.();
           }
           setLineExplodedCount(0);
 

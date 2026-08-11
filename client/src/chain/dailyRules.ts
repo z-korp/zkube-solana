@@ -82,7 +82,7 @@ function assertDayId(dayId: number): void {
 }
 
 const DAILY_SCORE_CLASSIC = 0;
-const DAILY_SCORE_COMBO = 1;
+export const DAILY_SCORE_COMBO = 1;
 const DAILY_SCORE_EXACT_LINES = 2;
 const DAILY_SCORE_BLOCKS = 4;
 const DAILY_SCORE_CLUTCH = 5;

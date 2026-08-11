@@ -160,8 +160,8 @@ vi.mock("@/ui/components/GameBoard", () => ({
     return <div data-testid="game-board" />;
   },
 }));
-vi.mock("@/ui/components/hud/GameHud", () => ({ default: () => null }));
-vi.mock("@/ui/components/actionbar/GameActionBar", () => ({
+vi.mock("@/ui/components/hud/BoardHud", () => ({ default: () => null }));
+vi.mock("@/ui/components/hud/BoardRail", () => ({
   default: (props: Record<string, unknown>) => {
     fixtures.actionBarProps = props;
     return null;

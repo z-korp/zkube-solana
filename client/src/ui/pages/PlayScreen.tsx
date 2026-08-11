@@ -10,11 +10,7 @@ import {
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
 import type { Game } from "@/game/model";
-import {
-  dailyScoringRuleDescription,
-  dailyScoringRuleName,
-  dailyScoringRuleStatus,
-} from "@/chain/dailyRules";
+import { DAILY_SCORE_COMBO, dailyScoringRuleName } from "@/chain/dailyRules";
 import { getBonusType } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
@@ -25,15 +21,13 @@ import GameBoard from "@/ui/components/GameBoard";
 import GameOverDialog from "@/ui/components/GameOverDialog";
 import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import VictoryDialog from "@/ui/components/VictoryDialog";
-import GameActionBar, {
-  type BonusSlot,
-} from "@/ui/components/actionbar/GameActionBar";
 import { buildTriggerDescription } from "@/ui/components/actionbar/bonusDescription";
-import GameHud from "@/ui/components/hud/GameHud";
-import { devHudVariantFromUrl } from "@/dev/devBypass";
-import PrototypeHud from "@/dev/hudPrototypes/PrototypeHud";
-import PrototypeActionBar from "@/dev/hudPrototypes/PrototypeActionBar";
+import BoardHud from "@/ui/components/hud/BoardHud";
+import BoardRail from "@/ui/components/hud/BoardRail";
+import type { BonusSlot } from "@/ui/components/hud/bonusSlot";
+import { useGuardianMood } from "@/ui/components/hud/useGuardianMood";
 import ImageAssets from "@/ui/theme/ImageAssets";
+import { BOARD_WELL, stoneSurface } from "@/ui/theme/stoneSurface";
 import {
   describeRunStartError,
   usePlayController,
@@ -42,10 +36,6 @@ import {
 import "../../grid.css";
 
 export default function PlayScreen() {
-  const hudVariant = useMemo(() => devHudVariantFromUrl(), []);
-  // The header and tray line up with the grid's own frame rather than the
-  // viewport, so the three panes read as one tablet.
-  const [boardFrameWidth, setBoardFrameWidth] = useState<number | null>(null);
   const pendingBonusEarnRef = useRef(false);
   const lastBonusReceiptActionRef = useRef<number | null>(null);
   const handleActionReceipt = useCallback((receipt: ActionReceipt) => {
@@ -238,6 +228,28 @@ export default function PlayScreen() {
       playSfx("coin");
     }
   }, [onCascadeCompleteFromController, playSfx]);
+
+  // He answers the board, so the board is what he is given: the ceiling rows,
+  // the live chain, and a counter that only moves on a perfect clear.
+  const [perfectSignal, setPerfectSignal] = useState(0);
+  const moodGrid =
+    authoritativeGrid.length > 0 ? authoritativeGrid : (game?.blocks ?? []);
+  const dangerAtCeiling =
+    moodGrid.length > 1 &&
+    (moodGrid[0]!.some((cell) => cell !== 0) ||
+      moodGrid[1]!.some((cell) => cell !== 0));
+  const guardianMood = useGuardianMood({
+    runId: activeRun?.runId,
+    combo: game?.combo ?? 0,
+    danger: dangerAtCeiling,
+    perfectSignal,
+    ended:
+      activeRun?.lifecycle === "finished" || activeRun?.lifecycle === "levelComplete"
+        ? controller.terminalSnapshot?.completed
+          ? "won"
+          : "lost"
+        : false,
+  });
 
   const abandonRun = run.abandonRun;
   const resumePreparedRun = run.resumePreparedRun;
@@ -570,11 +582,6 @@ export default function PlayScreen() {
     basePhase ||
     !run.sessionAuthorized;
   const grid = authoritativeGrid.length > 0 ? authoritativeGrid : game.blocks;
-  const firstOccupiedRow = grid.findIndex((row) =>
-    row.some((cell) => cell !== 0),
-  );
-  const occupiedHeight =
-    firstOccupiedRow < 0 ? 0 : grid.length - firstOccupiedRow;
   const nextLine = terminal ? [] : game.nextRow;
   // What the top bar displays: pre-move values while a cascade is in flight.
   const hudGame = held?.game ?? game;
@@ -582,6 +589,13 @@ export default function PlayScreen() {
     hudGame.mode === 1
       ? hudGame.levelMoves
       : Math.max(0, gameLevel.maxMoves - hudGame.levelMoves);
+
+  // The chain the day actually pays for. Only the combo family names one; for
+  // every other rule two lines is the point a chain starts being a chain.
+  const dailyComboThreshold =
+    activeRun.dailyScoringRule?.kind === DAILY_SCORE_COMBO
+      ? Number(activeRun.dailyScoringRule.parameter)
+      : 2;
 
   return (
     <PlaySurface>
@@ -623,81 +637,29 @@ export default function PlayScreen() {
         />
       )}
 
-      {/* DEV-only: `&hud=` stages a header prototype in place of the shipped
-          HUD so the layouts can be compared on the real screen. The branch
-          folds away in production with the rest of the harness. */}
-      {hudVariant ? (
-        <PrototypeHud
-          isDaily={game.mode === 1}
-          zoneId={game.zoneId}
-          level={hudGame.level}
-          score={game.mode === 1 ? hudGame.totalScore : hudGame.levelScore}
-          themeScore={hudGame.challengeBonus}
-          targetScore={gameLevel.pointsRequired}
-          pressureScore={hudGame.pressureScore}
-          currentDifficulty={hudGame.currentDifficulty}
-          endlessThresholds={activeRun.endlessThresholds}
-          endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
-          movesUsed={hudGame.levelMoves}
-          movesRemaining={movesDisplay}
-          combo={hudGame.combo}
-          gameLevel={gameLevel}
-          constraintProgress={hudGame.constraintProgress}
-          constraint2Progress={hudGame.constraint2Progress}
-          objectiveName={
-            game.mode === 1
-              ? dailyScoringRuleName(activeRun.dailyScoringRule)
-              : undefined
-          }
-          standings={
-            game.mode === 1
-              ? devStandings(hudGame.totalScore, hudGame.challengeBonus)
-              : null
-          }
-          frameWidth={boardFrameWidth}
-        />
-      ) : (
-      <GameHud
-        level={hudGame.level}
-        levelScore={hudGame.levelScore}
+      <BoardHud
+        isDaily={game.mode === 1}
+        zoneId={game.zoneId}
+        mood={guardianMood}
+        score={game.mode === 1 ? hudGame.totalScore : hudGame.levelScore}
         targetScore={gameLevel.pointsRequired}
-        movesRemaining={movesDisplay}
-        combo={hudGame.combo}
-        constraintProgress={hudGame.constraintProgress}
-        constraint2Progress={hudGame.constraint2Progress}
-        gameLevel={gameLevel}
-        activeMutatorId={activeRun.rules.activeMutatorId}
-        mode={game.mode}
-        totalScore={hudGame.totalScore}
-        engineScore={hudGame.engineScore}
-        challengeBonus={hudGame.challengeBonus}
-        pressureScore={hudGame.pressureScore}
-        dailyRuleName={
+        themeScore={hudGame.challengeBonus}
+        objectiveName={
           game.mode === 1
             ? dailyScoringRuleName(activeRun.dailyScoringRule)
             : undefined
         }
-        dailyRuleDescription={
-          game.mode === 1
-            ? dailyScoringRuleDescription(activeRun.dailyScoringRule)
-            : undefined
-        }
-        dailyObjectiveState={
-          game.mode === 1
-            ? dailyScoringRuleStatus(activeRun.dailyScoringRule, occupiedHeight)
-            : undefined
-        }
+        level={hudGame.level}
+        combo={hudGame.combo}
+        comboThreshold={dailyComboThreshold}
+        pressureScore={hudGame.pressureScore}
         currentDifficulty={hudGame.currentDifficulty}
         endlessThresholds={activeRun.endlessThresholds}
         endlessScoreMultipliersX100={activeRun.endlessScoreMultipliersX100}
-        zoneId={game.zoneId}
-        onBack={
-          chainTerminal || basePhase || run.busy
-            ? undefined
-            : () => navigate(game.mode === 1 ? "arcade" : "map")
-        }
+        gameLevel={gameLevel}
+        constraintProgress={hudGame.constraintProgress}
+        constraint2Progress={hudGame.constraint2Progress}
       />
-      )}
 
       {run.error && (
         <div className="bg-red-950/85 px-3 py-1 text-center font-sans text-xs text-red-200">
@@ -710,7 +672,8 @@ export default function PlayScreen() {
           blocks. GameBoard reserves exactly the frame it draws. */}
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden py-1">
         <div
-          className={`flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
+          className={`relative flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
+          style={BOARD_WELL}
         >
           <GameBoard
             initialGrid={grid}
@@ -719,7 +682,7 @@ export default function PlayScreen() {
             activeBonus={activeBonus}
             bonusDescription={bonusDescription}
             onCascadeComplete={handleCascadeComplete}
-            onFrameWidth={setBoardFrameWidth}
+            onPerfectClear={() => setPerfectSignal((n) => n + 1)}
             forceTxProcessing={locked}
             outcomeAnimation={outcomeAnimation}
             onMove={handleMove}
@@ -856,72 +819,49 @@ export default function PlayScreen() {
         )}
       </div>
 
-      {/* Always mounted: unmounting the bar changes the flex space above it,
+      {/* Always mounted: unmounting the rail changes the flex space above it,
           which resizes every grid cell via GameBoard's ResizeObserver. During
           the terminal/settlement window it stays as an inert height-holder. */}
-      {hudVariant ? (
-        <PrototypeActionBar
-          bonusSlots={bonusSlots}
-          activeBonus={activeBonus}
-          onSurrender={handleQuit}
-          onHome={
-            chainTerminal || basePhase || run.busy
-              ? undefined
-              : () => navigate("home")
-          }
-        />
-      ) : (
-      <GameActionBar
+      <BoardRail
+        themeId={themeTemplate as ThemeId}
         bonusSlots={bonusSlots}
         activeBonus={activeBonus}
-        bonusDescription={bonusDescription}
+        bonusEarnSignal={bonusEarnSignal}
+        disabled={chainTerminal || basePhase || !run.sessionAuthorized}
+        movesRemaining={movesDisplay}
+        maxMoves={gameLevel.maxMoves}
+        movesUsed={hudGame.levelMoves}
+        starThresholds={
+          game.mode === 1
+            ? undefined
+            : [gameLevel.star3Threshold, gameLevel.star2Threshold]
+        }
+        onHome={
+          chainTerminal || basePhase || run.busy
+            ? undefined
+            : () => navigate(game.mode === 1 ? "arcade" : "map")
+        }
         onSurrender={handleQuit}
         surrenderDisabled={
           run.busy || chainTerminal || basePhase || !run.sessionAuthorized
         }
-        disabled={chainTerminal || basePhase || !run.sessionAuthorized}
-        bonusEarnSignal={bonusEarnSignal}
-        zoneId={game.zoneId}
-        activeMutatorId={activeRun.rules.activeMutatorId}
       />
-      )}
     </PlaySurface>
   );
 }
 
-/**
- * DEV-only stand-in for the live field, which the chain does not carry during
- * the day: board accounts are built after the freeze, so a rank has to be
- * faked to be looked at. Nothing outside the harness may read this, and the
- * real version is a sliced scan of today's ArenaPlayer accounts.
- *
- * The Theme gap is deliberately the cheaper of the two here, so the rail can be
- * seen choosing it.
- */
-function devStandings(score: number, themeScore: number) {
-  return {
-    score: { rank: 4, entrants: 147, gapToNext: Math.round(score * 0.09) },
-    theme:
-      themeScore > 0
-        ? { rank: 2, entrants: 61, gapToNext: Math.round(themeScore * 0.05) }
-        : null,
-  };
-}
 
 function PlaySurface({ children }: { children: ReactNode }) {
-  // In-game background is the themed stone tablet (matching the original), not
-  // the scenic zone art — blocks read clearly on it. The scenic background
-  // stays on Arcade/Campaign. Both come from the active `data-theme` CSS variables.
+  // One stone, floor to ceiling, and the board is a well cut into it. The
+  // scenic realm art stays on the menus: three painted grounds fighting is a
+  // collage, and the one the blocks sit on has to win.
+  const { themeTemplate } = useTheme();
+  const stone = useMemo(
+    () => stoneSurface(getThemeColors(themeTemplate as ThemeId)),
+    [themeTemplate],
+  );
   return (
-    <div
-      className="relative flex h-full min-h-0 flex-col"
-      style={{
-        backgroundImage: "var(--theme-grid-bg-image, none)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundColor: "var(--theme-grid-bg, #10172A)",
-      }}
-    >
+    <div className="relative flex h-full min-h-0 flex-col" style={stone}>
       {children}
     </div>
   );
