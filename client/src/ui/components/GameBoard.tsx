@@ -52,13 +52,12 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const ROWS = 10;
   const COLS = 8;
   const NEXT_LINE_ROWS = 1;
-  // Grid.tsx draws a 9px decorative frame on each side; the budget is that
-  // frame and nothing else. It used to reserve 24px, which on a 430px phone
-  // cost a whole cell — the board is the product, so every pixel it does not
-  // need belongs to it.
-  const HORIZONTAL_PADDING = 20;
-  /** The "next row" caption and its gaps, which sit under the frame. */
-  const VERTICAL_CHROME = 28;
+  // The board has no side frame: it runs to the edges of the phone with a
+  // hairline of ground either side. Eight columns means the cell is decided by
+  // width alone, so this is the only lever there is on how big the blocks are.
+  const HORIZONTAL_PADDING = 6;
+  /** The seam above the next row, its label, and the gap under it. */
+  const VERTICAL_CHROME = 26;
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
 
@@ -147,9 +146,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Grid.tsx draws a 9px frame on each side of the cells.
   useEffect(() => {
-    onFrameWidth?.(gridSize * COLS + 18);
+    onFrameWidth?.(gridSize * COLS);
   }, [gridSize, onFrameWidth]);
 
   const memoizedInitialData = useMemo(() => {
@@ -173,7 +171,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative flex h-full min-h-0 w-full flex-col p-1 ${
+      className={`relative flex h-full min-h-0 w-full flex-col px-0 py-1 ${
         effectiveTxProcessing ? "cursor-wait" : ""
       }`}
     >
@@ -197,13 +195,30 @@ const GameBoard: React.FC<GameBoardProps> = ({
           onMove={handleMove}
           onBonus={handleBonus}
         />
-        <div className="mt-1 flex items-center justify-center gap-1 py-0.5">
-          <div className="chevron-pulse">
-            <ChevronUp size={14} className="text-white/50" />
-          </div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
-            Next Row
+        {/* The one seam on the screen. Everything else is continuous, because
+            this is the only separation that carries information: what is below
+            the line is what pushes in next and ends the run. */}
+        <div className="mt-2 flex w-full items-center gap-2 px-1">
+          <span
+            className="h-px flex-1"
+            style={{
+              background:
+                "linear-gradient(90deg,transparent,rgba(201,169,110,0.55),rgba(201,169,110,0.55),transparent)",
+            }}
+          />
+          <span className="chevron-pulse flex items-center gap-1">
+            <ChevronUp size={12} className="text-[#C9A96E]" />
+            <span className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-[#C9A96E]">
+              Next row
+            </span>
           </span>
+          <span
+            className="h-px flex-1"
+            style={{
+              background:
+                "linear-gradient(90deg,transparent,rgba(201,169,110,0.55),rgba(201,169,110,0.55),transparent)",
+            }}
+          />
         </div>
         <div>
           <NextLine

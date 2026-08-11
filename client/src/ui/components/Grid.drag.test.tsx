@@ -36,9 +36,12 @@ vi.mock("@/config/themes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/config/themes")>();
   return {
     ...actual,
-    // Minimal palette: the board reads explosion particles and the four tier
-    // fills (the line-clear confetti), so the stub has to carry both.
+    // Minimal palette: the board reads explosion particles, the four tier
+    // fills (the line-clear confetti), and — since the cells became a realm-
+    // toned rack — the realm's own background and accent.
     getThemeColors: () => ({
+      background: "#0A1A0A",
+      accent: "#4CAF50",
       particles: {
         explosion: ["#ffffff"],
       },

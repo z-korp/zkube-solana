@@ -30,6 +30,8 @@ import useGridAnimations from "@/hooks/useGridAnimations";
 import { useMoveStore } from "@/stores/moveTxStore";
 import { calculateFallDistance } from "@/utils/gridPhysics";
 import useTransitionBlocks from "@/hooks/useTransitionBlocks";
+import { boardTone } from "@/ui/theme/boardTone";
+import { useTintedBlocks } from "@/ui/theme/useTintedBlocks";
 
 export interface ReceiptProjection {
   blocks: number[][];
@@ -104,14 +106,17 @@ const Grid: React.FC<GridProps> = ({
   const activeThemeId = themeIdOverride ?? (themeTemplate as ThemeId);
   const themeColors = getThemeColors(activeThemeId);
   const themeImages = getThemeImages(activeThemeId);
+  const tone = useMemo(() => boardTone(themeColors), [themeColors]);
+  const tinted = useTintedBlocks(activeThemeId, tone.blockBacking);
   const blockImages = useMemo<Record<number, string>>(
-    () => ({
-      1: themeImages.block1,
-      2: themeImages.block2,
-      3: themeImages.block3,
-      4: themeImages.block4,
-    }),
-    [themeImages],
+    () =>
+      tinted ?? {
+        1: themeImages.block1,
+        2: themeImages.block2,
+        3: themeImages.block3,
+        4: themeImages.block4,
+      },
+    [themeImages, tinted],
   );
 
   // ==================== Refs ====================
@@ -196,12 +201,16 @@ const Grid: React.FC<GridProps> = ({
     [themeColors],
   );
 
-  const framePad = 9;
-  const frameW = svgW + framePad * 2;
-  const frameH = svgH + framePad * 2;
-  // Total perimeter for stroke-dasharray
-  const framePerimeter =
-    2 * (svgW + framePad * 2 - 16) + 2 * (svgH + framePad * 2 - 16); // approximate for rounded rect
+  // No side frame: the board runs to the edges of the phone, which is where
+  // the extra 12% of cell comes from. Everything that used to hang off the
+  // frame now draws on the board's own bounds.
+  const framePad = 0;
+  const frameW = svgW;
+  const frameH = svgH;
+  const framePerimeter = 2 * (svgW - 16) + 2 * (svgH - 16);
+  /** A cap's inset and corner, both proportional so they hold at any cell. */
+  const capInset = Math.max(1.5, gridSize * 0.05);
+  const capRadius = Math.max(3, gridSize * 0.17);
 
   const resetDragRefs = useCallback(() => {
     draggingRef.current = null;
@@ -936,36 +945,18 @@ const Grid: React.FC<GridProps> = ({
               floodOpacity="0.4"
             />
           </filter>
+          <linearGradient id="gf-cap" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={tone.capTop} />
+            <stop offset="100%" stopColor={tone.capBottom} />
+          </linearGradient>
           {/* Clip grid area so blocks sliding in/out are hidden beyond edges */}
           <clipPath id="grid-clip">
             <rect x={0} y={0} width={svgW} height={svgH} />
           </clipPath>
         </defs>
 
-        {/* ─── Frame border ─── */}
-        <rect
-          x={1}
-          y={1}
-          width={frameW - 2}
-          height={frameH - 2}
-          rx={8}
-          ry={8}
-          fill="none"
-          stroke="url(#gf-border)"
-          strokeWidth={2}
-          filter="url(#gf-shadow)"
-        />
-        <rect
-          x={3}
-          y={3}
-          width={frameW - 6}
-          height={frameH - 6}
-          rx={6}
-          ry={6}
-          fill="none"
-          stroke="url(#gf-inner)"
-          strokeWidth={1}
-        />
+        {/* ─── The realm's ground ─── */}
+        <rect x={0} y={0} width={frameW} height={frameH} fill={tone.ground} />
 
         {/* ─── Loading animation (rotating sweep, like old conic-gradient) ─── */}
         {isTxProcessing && !outcomeAnimation && (
@@ -1036,29 +1027,17 @@ const Grid: React.FC<GridProps> = ({
             outcomeAnimation === "lose-overflow" ? undefined : "url(#grid-clip)"
           }
         >
-          {/* Grid lines */}
-          {Array.from({ length: gridWidth + 1 }, (_, i) => (
-            <line
-              key={`v${i}`}
-              x1={i * gridSize}
-              y1={0}
-              x2={i * gridSize}
-              y2={svgH}
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth={1}
-            />
-          ))}
-          {Array.from({ length: gridHeight + 1 }, (_, i) => (
-            <line
-              key={`h${i}`}
-              x1={0}
-              y1={i * gridSize}
-              x2={svgW}
-              y2={i * gridSize}
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth={1}
-            />
-          ))}
+          {/* A cap per cell. Empty cells are the rack the stack is read
+              against; a placed block covers its own cap and, because the block
+              backing is the cap's face, the two read as one surface. */}
+          <CellCaps
+            gridWidth={gridWidth}
+            gridHeight={gridHeight}
+            gridSize={gridSize}
+            inset={capInset}
+            radius={capRadius}
+            rim={tone.rim}
+          />
 
           {/* Blocks */}
           {blocks.map((block) => (
@@ -1137,6 +1116,49 @@ const Grid: React.FC<GridProps> = ({
     </motion.div>
   );
 };
+
+/**
+ * The empty rack. Static for a whole run, so it is memoized on the four numbers
+ * that shape it rather than re-rendering eighty rects on every cascade tick.
+ */
+const CellCaps = React.memo(function CellCaps({
+  gridWidth,
+  gridHeight,
+  gridSize,
+  inset,
+  radius,
+  rim,
+}: {
+  gridWidth: number;
+  gridHeight: number;
+  gridSize: number;
+  inset: number;
+  radius: number;
+  rim: string;
+}) {
+  const size = gridSize - inset * 2;
+  return (
+    <>
+      {Array.from({ length: gridHeight }, (_, row) =>
+        Array.from({ length: gridWidth }, (_, column) => (
+          <rect
+            key={`cap${row}-${column}`}
+            x={column * gridSize + inset}
+            y={row * gridSize + inset}
+            width={size}
+            height={size}
+            rx={radius}
+            ry={radius}
+            fill="url(#gf-cap)"
+            stroke={rim}
+            strokeOpacity={0.1}
+            strokeWidth={2}
+          />
+        )),
+      )}
+    </>
+  );
+});
 
 // Deterministic spark field for the win show (no runtime randomness). The
 // last spark ends by ~1480ms, inside WIN_OUTCOME_ANIM_MS.
