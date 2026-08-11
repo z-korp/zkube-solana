@@ -75,7 +75,7 @@ export function useGuardianMood({
     });
   };
 
-  const runRef = useRef(runId);
+  const runRef = useRef<GuardianSignals["runId"]>(undefined);
   useEffect(() => {
     if (runId === undefined || runId === runRef.current) return;
     runRef.current = runId;

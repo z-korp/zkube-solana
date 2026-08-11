@@ -73,6 +73,11 @@ export interface GridProps {
   onLocalGameOver?: () => void;
   /** Fires once per perfect clear, for whatever wants to celebrate it. */
   onPerfectClear?: () => void;
+  /**
+   * Where a clear happened, in viewport coordinates — the centre of the rows
+   * that went. Whatever the gain turns into can then leave from there.
+   */
+  onClearAt?: (point: { x: number; y: number }) => void;
   themeId?: ThemeId;
   outcomeAnimation?: OutcomeAnimation | null;
 }
@@ -101,6 +106,7 @@ const Grid: React.FC<GridProps> = ({
   onBonus,
   onLocalGameOver,
   onPerfectClear,
+  onClearAt,
   themeId: themeIdOverride,
   outcomeAnimation = null,
 }) => {
@@ -688,6 +694,21 @@ const Grid: React.FC<GridProps> = ({
       playExplode();
       setLineExplodedCount(lineExplodedCount + completeRows.length);
       setExplodingRows(new Set(completeRows));
+      // Report the centre of what went, in viewport coordinates, while the
+      // SVG is still on screen to be measured.
+      if (onClearAt && completeRows.length > 0) {
+        const box = svgRef.current?.getBoundingClientRect();
+        if (box) {
+          const scale = box.height / frameH;
+          const middle =
+            completeRows.reduce((sum, row) => sum + row, 0) /
+            completeRows.length;
+          onClearAt({
+            x: box.left + box.width / 2,
+            y: box.top + (framePad + (middle + 0.5) * gridSize) * scale,
+          });
+        }
+      }
 
       setTimeout(() => {
         setExplodingRows(new Set());

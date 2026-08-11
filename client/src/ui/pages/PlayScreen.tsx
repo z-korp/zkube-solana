@@ -24,6 +24,11 @@ import VictoryDialog from "@/ui/components/VictoryDialog";
 import { buildTriggerDescription } from "@/ui/components/actionbar/bonusDescription";
 import BoardHud from "@/ui/components/hud/BoardHud";
 import BoardRail from "@/ui/components/hud/BoardRail";
+import ScoreChips, {
+  CHIP_FLIGHT_MS,
+  CHIP_STAGGER_MS,
+  type ScoreChip,
+} from "@/ui/components/hud/ScoreChips";
 import type { BonusSlot } from "@/ui/components/hud/bonusSlot";
 import { useGuardianMood } from "@/ui/components/hud/useGuardianMood";
 import ImageAssets from "@/ui/theme/ImageAssets";
@@ -34,6 +39,11 @@ import {
   type ActionReceipt,
 } from "@/play/usePlayController";
 import "../../grid.css";
+
+// The two recesses the two boards land in. Fixed by BoardHud's layout, and the
+// HUD sits at the very top of the play surface, so these are viewport points.
+const SCORE_SEAT = { x: 71, y: 85 };
+const OBJECTIVE_SEAT = { x: 359, y: 85 };
 
 export default function PlayScreen() {
   const pendingBonusEarnRef = useRef(false);
@@ -220,6 +230,48 @@ export default function PlayScreen() {
 
   const onCascadeCompleteFromController = controller.onCascadeComplete;
   const handleCascadeComplete = useCallback(() => {
+    // The gain is only knowable now: `held` is the pre-move snapshot, and the
+    // live game has the settled cascade.
+    const from = clearPointRef.current;
+    clearPointRef.current = null;
+    if (from && held?.game && game) {
+      const isDaily = game.mode === 1;
+      const scored =
+        (isDaily ? game.totalScore : game.levelScore) -
+        (isDaily ? held.game.totalScore : held.game.levelScore);
+      const themed = game.challengeBonus - held.game.challengeBonus;
+      const launched: ScoreChip[] = [];
+      if (scored > 0) {
+        launched.push({
+          id: (chipIdRef.current += 1),
+          from,
+          to: SCORE_SEAT,
+          amount: scored,
+          tone: "score",
+        });
+      }
+      // A move that also satisfies the day's rule feeds the other board, and
+      // the second chip is how that becomes visible.
+      if (isDaily && themed > 0) {
+        launched.push({
+          id: (chipIdRef.current += 1),
+          from,
+          to: OBJECTIVE_SEAT,
+          amount: themed,
+          tone: "objective",
+        });
+      }
+      if (launched.length > 0) {
+        setChips((current) => [...current, ...launched]);
+        window.setTimeout(
+          () =>
+            setChips((current) =>
+              current.filter((chip) => !launched.some((one) => one.id === chip.id)),
+            ),
+          CHIP_FLIGHT_MS + CHIP_STAGGER_MS * launched.length + 60,
+        );
+      }
+    }
     onCascadeCompleteFromController();
     setHeld(null);
     if (pendingBonusEarnRef.current) {
@@ -227,11 +279,16 @@ export default function PlayScreen() {
       setBonusEarnSignal((value) => value + 1);
       playSfx("coin");
     }
-  }, [onCascadeCompleteFromController, playSfx]);
+  }, [game, held, onCascadeCompleteFromController, playSfx]);
 
   // He answers the board, so the board is what he is given: the ceiling rows,
   // the live chain, and a counter that only moves on a perfect clear.
   const [perfectSignal, setPerfectSignal] = useState(0);
+  // Where the last clear happened, held until the cascade lands and the gain
+  // is known. The chip leaves from there.
+  const clearPointRef = useRef<{ x: number; y: number } | null>(null);
+  const [chips, setChips] = useState<ScoreChip[]>([]);
+  const chipIdRef = useRef(0);
   const moodGrid =
     authoritativeGrid.length > 0 ? authoritativeGrid : (game?.blocks ?? []);
   const dangerAtCeiling =
@@ -637,6 +694,8 @@ export default function PlayScreen() {
         />
       )}
 
+      <ScoreChips chips={chips} />
+
       <BoardHud
         isDaily={game.mode === 1}
         zoneId={game.zoneId}
@@ -670,7 +729,7 @@ export default function PlayScreen() {
       {/* No horizontal padding: eight columns on a phone means the cell size is
           decided by width alone, so any inset here is taken straight out of the
           blocks. GameBoard reserves exactly the frame it draws. */}
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden py-1">
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden">
         <div
           className={`relative flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
           style={BOARD_WELL}
@@ -683,6 +742,9 @@ export default function PlayScreen() {
             bonusDescription={bonusDescription}
             onCascadeComplete={handleCascadeComplete}
             onPerfectClear={() => setPerfectSignal((n) => n + 1)}
+            onClearAt={(point) => {
+              clearPointRef.current = point;
+            }}
             forceTxProcessing={locked}
             outcomeAnimation={outcomeAnimation}
             onMove={handleMove}

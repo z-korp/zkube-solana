@@ -22,6 +22,7 @@ interface GameBoardProps {
   bonusDescription: string;
   onCascadeComplete?: () => void;
   onPerfectClear?: () => void;
+  onClearAt?: (point: { x: number; y: number }) => void;
   /**
    * The board's outer frame width in px, reported whenever it changes.
    *
@@ -45,6 +46,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   bonusDescription,
   onCascadeComplete,
   onPerfectClear,
+  onClearAt,
   onFrameWidth,
   forceTxProcessing = false,
   outcomeAnimation = null,
@@ -58,8 +60,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
   // hairline of ground either side. Eight columns means the cell is decided by
   // width alone, so this is the only lever there is on how big the blocks are.
   const HORIZONTAL_PADDING = 6;
-  /** The seam above the next row, its label, and the gap under it. */
-  const VERTICAL_CHROME = 26;
+  /** The seam above the next row. The whole vertical budget is spent, so
+   *  this is the only place a stray pixel would come out of the cells. */
+  const VERTICAL_CHROME = 14;
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(40);
 
@@ -173,7 +176,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative flex h-full min-h-0 w-full flex-col px-0 py-1 ${
+      className={`relative flex h-full min-h-0 w-full flex-col p-0 ${
         effectiveTxProcessing ? "cursor-wait" : ""
       }`}
     >
@@ -194,6 +197,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           outcomeAnimation={outcomeAnimation}
           onCascadeComplete={onCascadeComplete}
           onPerfectClear={onPerfectClear}
+          onClearAt={onClearAt}
           onNextLineUpdate={handleNextLineUpdate}
           onMove={handleMove}
           onBonus={handleBonus}
@@ -201,7 +205,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
         {/* The one seam on the screen. Everything else is continuous, because
             this is the only separation that carries information: what is below
             the line is what pushes in next and ends the run. */}
-        <div className="mt-2 flex w-full items-center gap-2 px-1">
+        <div className="mt-0.5 flex w-full items-center gap-2 px-1">
           <span
             className="h-px flex-1"
             style={{
@@ -210,8 +214,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
             }}
           />
           <span className="chevron-pulse flex items-center gap-1">
-            <ChevronUp size={12} className="text-[#C9A96E]" />
-            <span className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-[#C9A96E]">
+            <ChevronUp size={10} className="text-[#C9A96E]" />
+            <span className="text-[8.5px] font-bold uppercase leading-[1] tracking-[0.18em] text-[#C9A96E]">
               Next row
             </span>
           </span>
