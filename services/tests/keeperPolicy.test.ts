@@ -93,6 +93,22 @@ describe("v5 keeper semantic policy", () => {
       .toThrow("routing");
   });
 
+  it("cleans a Campaign orphan without a recovery deadline, on base only", () => {
+    const context: KeeperPlanContext = {
+      owner: Keypair.generate().publicKey,
+      runId: 1n,
+      runMode: "campaign",
+      runLocation: "base",
+      includeArenaPlayer: false,
+    };
+    expect(() => policy(validationOnlyPlan("cleanup_orphan_active_run", context)))
+      .not.toThrow();
+    expect(() => policy(validationOnlyPlan("cleanup_orphan_active_run", {
+      ...context,
+      runLocation: "ephemeral_rollup",
+    }))).toThrow("routing");
+  });
+
   it("rejects non-floored or non-conserving Daily payouts", () => {
     const context: KeeperPlanContext = {
       competition: "daily",

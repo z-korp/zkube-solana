@@ -16,12 +16,9 @@ interface CampaignDoorProps {
 /**
  * The violet strip under the marquee — the free mode, named for what it is.
  *
- * It used to carry a shelf of three realms and, inside it, tomorrow's daily.
- * That was two unrelated ideas in one plate with neither explained: nothing
- * said what the faces meant, and nothing said why tomorrow's realm was filed
- * under Campaign. The nav already handles getting here, so the strip only has
- * to say what this mode is and how far you are — and tomorrow's realm moved to
- * the Campaign page, where practising it is a tap rather than a riddle.
+ * The nav already handles getting here, so the strip only has to say what
+ * this mode is and how far you are. The next day's content is deliberately
+ * unpublished, so nothing here (or anywhere) previews it.
  */
 const CampaignDoor: React.FC<CampaignDoorProps> = ({
   zoneId = 1,

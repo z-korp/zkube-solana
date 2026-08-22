@@ -12,6 +12,11 @@ pub const DAILY_SCORE_RULE_CAPACITY: usize = 16;
 pub const DAILY_SCORE_FAMILY_COUNT: usize = 7;
 pub const DAILY_PRESSURE_TIERS: usize = 8;
 pub const DAILY_POOL_ENTRY_CAPACITY: usize = zkube_core::DAILY_POOL_CAPACITY;
+
+/// A catalog revision must state an effective day at least this many days
+/// ahead: the entry count drives both the permutation and the modulus, so a
+/// nearer revision would re-map already-derivable days, including tomorrow.
+pub const DAILY_CATALOG_REVISION_MIN_LEAD_DAYS: u32 = 7;
 pub const DAILY_DIFFICULTY_BAND_CAPACITY: usize = 4;
 pub const DAILY_MAX_MOVES: u16 = 100;
 
@@ -117,6 +122,11 @@ impl DailyPoolEntry {
                 && (1..=32).contains(&self.passive_map_id)
                 && self.active_mutator_id > 0
                 && self.passive_mutator_id > 0
+                // The engine bonus range — Hammer, Totem, Wave, Reroll: an
+                // entry outside it would fail every run of its day at first
+                // bonus use.
+                && (1..=4).contains(&self.bonus_type)
+                && (1..=7).contains(&self.bonus_trigger_type)
                 && self.score_multiplier_x100 > 0
                 && self.combo_multiplier_x100 > 0
                 && self.bonus_threshold > 0
@@ -384,28 +394,6 @@ impl DailyRulesCatalog {
     }
 }
 
-pub fn daily_points_for_rank(rank: Option<usize>, participants: u32) -> u16 {
-    let Some(rank) = rank.map(|value| value + 1) else {
-        return 2;
-    };
-    let participants = u64::from(participants.max(1));
-    let in_band = |percent: u64, cap: usize| {
-        let percentile_rank = participants.saturating_mul(percent).div_ceil(100) as usize;
-        rank <= cap.min(percentile_rank.max(1))
-    };
-    if in_band(1, 3) {
-        100
-    } else if in_band(5, 10) {
-        60
-    } else if in_band(10, 20) {
-        30
-    } else if in_band(25, 50) {
-        10
-    } else {
-        2
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -430,6 +418,19 @@ mod tests {
             starting_rows: 4,
             difficulty_band: 0,
         }
+    }
+
+    #[test]
+    fn pool_entries_stay_inside_the_engine_bonus_range() {
+        let mut entry = pool_entry(1, 1, 1);
+        entry.bonus_type = 5;
+        assert!(entry.validate(1).is_err());
+        entry.bonus_type = 4;
+        entry.validate(1).unwrap();
+        entry.bonus_trigger_type = 8;
+        assert!(entry.validate(1).is_err());
+        entry.bonus_trigger_type = 1;
+        entry.validate(1).unwrap();
     }
 
     fn catalog(entry_count: u8) -> DailyRulesCatalog {

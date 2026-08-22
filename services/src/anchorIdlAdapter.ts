@@ -317,18 +317,25 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       };
       daily.snapshot.scoreSources = sources.score;
       daily.snapshot.themeSources = sources.theme;
-      const sourceSettlement = this.rankedSettlement(
-        sources.score,
-        sources.theme,
-        daily.snapshot.scoreQualifiedPlayers,
-        daily.snapshot.themeQualifiedPlayers,
-        daily.snapshot.potLamports,
-      );
-      if (daily.snapshot.settlement &&
-          !sameSettlementOwners(daily.snapshot.settlement, sourceSettlement)) {
-        throw new Error("sealed ArenaBoard rows do not match canonical ArenaPlayer ordering");
+      // Cadence-local corruption quarantines that Daily's plans; it must
+      // never take down independent cadences with a global fatal.
+      try {
+        const sourceSettlement = this.rankedSettlement(
+          sources.score,
+          sources.theme,
+          daily.snapshot.scoreQualifiedPlayers,
+          daily.snapshot.themeQualifiedPlayers,
+          daily.snapshot.potLamports,
+        );
+        if (daily.snapshot.settlement &&
+            !sameSettlementOwners(daily.snapshot.settlement, sourceSettlement)) {
+          throw new Error("sealed ArenaBoard rows do not match canonical ArenaPlayer ordering");
+        }
+        daily.snapshot.settlement = sourceSettlement;
+      } catch (error) {
+        daily.snapshot.integrityFailure =
+          error instanceof Error ? error.message : String(error);
       }
-      daily.snapshot.settlement = sourceSettlement;
     }
     const archive = await this.loadArchiveSnapshot(
       dailies,
@@ -1140,6 +1147,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       let scoreBoard: LoadedBoardSnapshot | undefined;
       let themeBoard: LoadedBoardSnapshot | undefined;
       let settlement: SettlementSnapshot | undefined;
+      let integrityFailure: string | undefined;
       if (status === "finalized") {
         const pools = dailyBoardPools(potLamports, themeQualifiedPlayers);
         scoreBoard = await this.loadArenaBoard(
@@ -1161,13 +1169,18 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         scoreProfileSyncMask = scoreBoard.profileSyncMask;
         themeProfileSyncMask = themeBoard.profileSyncMask;
         if (scoreBoard.construction.sealed && themeBoard.construction.sealed) {
-          settlement = this.rankedSettlement(
-            scoreBoard.entries,
-            themeBoard.entries,
-            scoreQualifiedPlayers,
-            themeQualifiedPlayers,
-            potLamports,
-          );
+          try {
+            settlement = this.rankedSettlement(
+              scoreBoard.entries,
+              themeBoard.entries,
+              scoreQualifiedPlayers,
+              themeQualifiedPlayers,
+              potLamports,
+            );
+          } catch (error) {
+            integrityFailure =
+              error instanceof Error ? error.message : String(error);
+          }
         }
       }
       const retainedClaims = status === "finalized" && !claimsExpired &&
@@ -1212,6 +1225,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           themeSources: themeBoard.entries,
         } : {}),
         ...(settlement ? { settlement } : {}),
+        ...(integrityFailure ? { integrityFailure } : {}),
       };
       output.push({
         loaded: item,

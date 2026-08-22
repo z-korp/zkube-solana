@@ -100,6 +100,9 @@ export interface DailySnapshot {
   scoreBoard?: BoardConstructionSnapshot;
   themeBoard?: BoardConstructionSnapshot;
   settlement?: SettlementSnapshot;
+  /** A cadence-local integrity failure recorded at snapshot time: quarantines
+   *  this Daily's plans instead of killing the whole pass. */
+  integrityFailure?: string;
 }
 
 export interface ArenaPlayerClosureSnapshot {
@@ -280,6 +283,9 @@ export function discoverReconciliation(args: {
       args.snapshot.catalogStartsDay,
       args.snapshot.poolEntries.length,
     );
+  // Preparation deliberately ignores `paused`: the staged launch initializes
+  // the protocol paused and still needs its cadences prepared, and stopping
+  // day spend is suspension's job — an unscheduled day is never missing.
   if (missingDay !== undefined && missingDay > args.snapshot.launchDayId &&
       missingDay >= oldestKeeperDay) {
     const content = dailyContentSelection(
@@ -363,7 +369,9 @@ function appendBoardConstructionPlans(
       Math.min(board.payoutCount, board.cursor + ARENA_BOARD_CHUNK_CAPACITY),
     );
     if (entries.length === 0) {
-      throw new Error(`${kind} board cannot advance to its computed width`);
+      // The integrity quarantine already reported this cadence; never plan a
+      // write that cannot advance the board.
+      continue;
     }
     plans.push(validationOnlyPlan("submit_arena_board_chunk", {
       competition: "daily",
@@ -505,8 +513,12 @@ function appendRunPlan(
     ));
     return;
   }
+  // Campaign runs carry no recovery deadline: an orphaned one is already
+  // unreferenced by its durable slot and can never score, so it cleans as
+  // soon as it sits undelegated on base.
   if (!run.reservationActive && run.location === "base" &&
-      run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
+      (run.mode === "campaign" ||
+        (run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt))) {
     plans.push(validationOnlyPlan("cleanup_orphan_active_run", context));
   }
 }
@@ -604,9 +616,24 @@ function collectDomainQuarantines(snapshot: ProtocolSnapshot): DomainQuarantine[
   const quarantines: DomainQuarantine[] = [];
   for (const daily of snapshot.dailies) {
     try {
+      if (daily.integrityFailure) {
+        throw new Error(daily.integrityFailure);
+      }
       if (daily.status === "finalized" &&
           daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
         throw new Error("finalized Daily retains unresolved paid entries");
+      }
+      for (const kind of ["score", "theme"] as const) {
+        const board = kind === "score" ? daily.scoreBoard : daily.themeBoard;
+        const sources = kind === "score" ? daily.scoreSources : daily.themeSources;
+        if (!board || board.sealed || !sources) continue;
+        const window = sources.slice(
+          board.cursor,
+          Math.min(board.payoutCount, board.cursor + ARENA_BOARD_CHUNK_CAPACITY),
+        );
+        if (window.length === 0) {
+          throw new Error(`${kind} board cannot advance to its computed width`);
+        }
       }
       validateSettlement(
         daily.potLamports,

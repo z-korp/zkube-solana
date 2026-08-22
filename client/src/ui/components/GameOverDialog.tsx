@@ -229,7 +229,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
           </motion.div>
 
           <p className="mt-3 text-center font-sans text-[11px] font-semibold text-white/50">
-            Paid ranked result · SOL payouts are pushed automatically
+            Paid ranked result · rewards collectable for 30 days
           </p>
 
           {/* Settlement error */}

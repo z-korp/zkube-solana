@@ -101,8 +101,9 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
     case "cleanup_orphan_active_run":
       assertAnyRunContext(context, today);
       if (context.runLocation !== "base" ||
-          context.recoveryDeadlineAt === undefined ||
-          context.recoveryDeadlineAt > input.nowUnix) {
+          (context.runMode !== "campaign" &&
+            (context.recoveryDeadlineAt === undefined ||
+              context.recoveryDeadlineAt > input.nowUnix))) {
         throw new Error("keeper policy rejects orphan cleanup timing or routing");
       }
       return;

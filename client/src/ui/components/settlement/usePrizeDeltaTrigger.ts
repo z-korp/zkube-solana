@@ -58,11 +58,11 @@ export interface PrizeDeltaTrigger {
  * Precise, real-time celebration trigger for the guardian-delivers moment.
  *
  * Driven by `useSettlementResult`, which subscribes to the connected player's
- * PlayerState and surfaces a landed board prize the instant the
- * keeper's push confirms (not at a render poll). A pushed prize is the only way a
- * period's lifetime `rewardsLamports` grows, so an increase is always a real paid
- * win — never a fabricated "scored vs expired" outcome (that per-run distinction
- * is not on PlayerState; see `useSettlementResult`).
+ * PlayerState and surfaces a landed board award the instant the
+ * post-settlement profile sync credits it (not at a render poll). That sync is
+ * the only way a period's lifetime `rewardsLamports` grows, so an increase is
+ * always a real award — never a fabricated "scored vs expired" outcome (that
+ * per-run distinction is not on PlayerState; see `useSettlementResult`).
  *
  * Dedup + baseline (bigint-safe, per wallet, persisted so a reload never
  * re-congratulates): the last-seen Daily total lives in localStorage. The

@@ -22,8 +22,11 @@ describe("Daily projection", () => {
       submittedAt: 500,
     }));
 
+    // Board rows arrive in the program's verified order and every position
+    // pays its own amount, so equal metrics never share a displayed rank.
     expect(dailyLeaderboardRank(entries, 0)).toBe(1);
-    expect(dailyLeaderboardRank(entries, 1)).toBe(1);
+    expect(dailyLeaderboardRank(entries, 1)).toBe(2);
+    expect(dailyLeaderboardRank(entries, 99)).toBe(0);
   });
 
   it("rejects unknown decoded Daily status variants", () => {

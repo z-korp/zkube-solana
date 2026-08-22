@@ -1,4 +1,4 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +7,7 @@ import {
   DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
+  ZKUBE_PROGRAM_ID,
   arcadeArchivePda,
   cadenceFundingPda,
   playerFundingPda,
@@ -18,6 +19,7 @@ import {
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation";
 import { operationPriority } from "../src/keeper";
+import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
@@ -103,6 +105,98 @@ describe("v5 Daily keeper reconciliation", () => {
     ]);
   });
 
+  it("emits run plans the keeper policy accepts, for every run operation", () => {
+    // The plan emitter and the policy are two hand-maintained mirrors of the
+    // same rules; the Campaign-orphan dead path existed because nothing made
+    // them agree. Every run operation must be producible AND accepted.
+    const plans = discoverReconciliationPlans({
+      snapshot: snapshot({
+        launchDayId: DAY,
+        dailies: [daily(DAY, "open")],
+        runs: [
+          {
+            owner: Keypair.generate().publicKey,
+            runId: 1n,
+            mode: "campaign",
+            arenaPlayerExists: false,
+            lifecycle: "terminal",
+            location: "base",
+            acceptedActions: 1,
+            reservationActive: true,
+          },
+          {
+            owner: Keypair.generate().publicKey,
+            runId: 3n,
+            mode: "campaign",
+            arenaPlayerExists: false,
+            lifecycle: "playing",
+            location: "base",
+            acceptedActions: 0,
+            reservationActive: false,
+          },
+          rankedRun(Keypair.generate().publicKey, "terminal", "ephemeral_rollup"),
+          { ...rankedRun(Keypair.generate().publicKey, "terminal", "base"), runId: 4n },
+          rankedRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
+          rankedRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
+          {
+            ...rankedRun(Keypair.generate().publicKey, "playing", "base"),
+            runId: 5n,
+            reservationActive: false,
+          },
+        ],
+      }),
+      nowUnix: NOW,
+    });
+    const runOperations = new Set([
+      "force_finish_deadline",
+      "expire_unresolved_arena_run",
+      "commit_run",
+      "consume_arena_run",
+      "consume_campaign_run",
+      "cleanup_orphan_active_run",
+    ]);
+    const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
+    expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
+    const keeper = Keypair.generate().publicKey;
+    for (const plan of runPlans) {
+      expect(() =>
+        assertKeeperPlanPolicy({
+          plan,
+          keeper,
+          programId: ZKUBE_PROGRAM_ID,
+          connection: {} as Connection,
+          nowUnix: NOW,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("cleans an orphaned Campaign run that has no recovery deadline", () => {
+    const plans = discoverReconciliationPlans({
+      snapshot: snapshot({
+        launchDayId: DAY,
+        dailies: [daily(DAY, "open")],
+        runs: [
+          {
+            owner: Keypair.generate().publicKey,
+            runId: 1n,
+            mode: "campaign",
+            arenaPlayerExists: false,
+            lifecycle: "playing",
+            location: "base",
+            acceptedActions: 0,
+            reservationActive: false,
+          },
+        ],
+      }),
+      nowUnix: NOW,
+    });
+    expect(plans.some(({ operation, context }) =>
+      operation === "cleanup_orphan_active_run" &&
+      context.runMode === "campaign" &&
+      context.recoveryDeadlineAt === undefined)).toBe(true);
+  });
+
   it("finishes reachable ER state and expires unavailable ranked state", () => {
     const plans = discoverReconciliationPlans({
       snapshot: snapshot({
@@ -169,6 +263,27 @@ describe("v5 Daily keeper reconciliation", () => {
           winnerPositionMask: 2n,
         }),
       })]);
+  });
+
+  it("quarantines a snapshot-time integrity failure without blocking preparation", () => {
+    const poisoned = daily(DAY, "finalized", [Keypair.generate().publicKey]);
+    poisoned.integrityFailure = "score board does not retain every claimable winner";
+    const discovery = discoverReconciliation({
+      snapshot: snapshot({
+        launchDayId: DAY,
+        dailies: [poisoned],
+      }),
+      nowUnix: NOW,
+    });
+    expect(discovery.quarantines).toEqual([
+      expect.objectContaining({
+        kind: "daily",
+        id: DAY,
+        reason: "score board does not retain every claimable winner",
+      }),
+    ]);
+    expect(discovery.plans.map(({ operation }) => operation))
+      .toEqual(["prepare_arena_daily"]);
   });
 
   it("quarantines a noncanonical Daily payout without blocking preparation", () => {

@@ -35,9 +35,9 @@ export interface SettlementWatcher {
  * player's PlayerState PDA with `onAccountChange` and decodes the pushed account
  * data directly with the shared, relationship-verified decoder — the same idiom
  * used by `useDailyController`, `usePlayerStateSync`, and `ActiveRunObserver`.
- * Because settlement writes to PlayerState the instant the keeper's push
- * confirms, a landed Daily prize surfaces immediately rather than
- * at the next render poll.
+ * Because the post-settlement profile sync writes the award to PlayerState
+ * the instant it confirms, a landed Daily prize surfaces immediately rather
+ * than at the next render poll.
  *
  * Untrusted RPC: every snapshot flows through `decodePlayerStateAccount`, which
  * verifies the owning program, account size, Anchor discriminator, version,

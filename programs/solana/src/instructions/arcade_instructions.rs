@@ -177,6 +177,14 @@ pub fn handler_publish_arena_rules(
         ErrorCode::InvalidState
     );
     require!(
+        catalog_revision_lead_time_ok(
+            ctx.accounts.protocol.daily_rules_version,
+            day_id_at(Clock::get()?.unix_timestamp)?,
+            args.starts_day,
+        ),
+        ErrorCode::InvalidState
+    );
+    require!(
         args.pool_entries.len() == usize::from(args.pool_entry_count)
             && args.pool_entries.len() <= DAILY_POOL_ENTRY_CAPACITY,
         ErrorCode::InvalidLevel
@@ -222,6 +230,14 @@ pub fn handler_activate_arena_rules(ctx: Context<ActivateArenaRules>) -> Result<
     require!(
         ctx.accounts.daily_rules_catalog.rules_version > ctx.accounts.protocol.daily_rules_version,
         ErrorCode::InvalidVersion
+    );
+    // A staged catalog activated on or after its stated day re-maps days that
+    // were already derivable; a revision must go live before its day arrives.
+    require!(
+        ctx.accounts.protocol.daily_rules_version == 0
+            || day_id_at(Clock::get()?.unix_timestamp)?
+                < ctx.accounts.daily_rules_catalog.starts_day,
+        ErrorCode::InvalidState
     );
     ctx.accounts.protocol.daily_rules_version = ctx.accounts.daily_rules_catalog.rules_version;
     ctx.accounts.arcade_config.rules_catalog = ctx.accounts.daily_rules_catalog.key();
@@ -2046,6 +2062,13 @@ fn arena_rules_staging_is_allowed(
     requested_content_version == active_content_version || paused
 }
 
+/// The first catalog is a bootstrap; every later one is a revision and must
+/// state its effective day at least the minimum lead ahead of today.
+fn catalog_revision_lead_time_ok(active_rules_version: u32, today: u32, starts_day: u32) -> bool {
+    active_rules_version == 0
+        || starts_day >= today.saturating_add(DAILY_CATALOG_REVISION_MIN_LEAD_DAYS)
+}
+
 fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
     left.checked_add(right)
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
@@ -2077,5 +2100,13 @@ mod tests {
         assert!(arena_rules_staging_is_allowed(7, 7, false));
         assert!(arena_rules_staging_is_allowed(7, 8, true));
         assert!(!arena_rules_staging_is_allowed(7, 8, false));
+    }
+
+    #[test]
+    fn catalog_revisions_state_a_day_at_least_a_week_ahead() {
+        // The bootstrap catalog is exempt: no rules are active yet.
+        assert!(catalog_revision_lead_time_ok(0, 20_000, 20_000));
+        assert!(!catalog_revision_lead_time_ok(3, 20_000, 20_006));
+        assert!(catalog_revision_lead_time_ok(3, 20_000, 20_007));
     }
 }

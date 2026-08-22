@@ -606,10 +606,6 @@ export function keeperSpendWithinLimit(spend: number, remaining: number): boolea
     spend >= 0 && remaining >= 0 && spend <= remaining;
 }
 
-export function expiredSessionCleanupAllowance(writes: number, maxWrites: number): number {
-  return Math.min(MAX_EXPIRED_SESSION_REVOKES, Math.max(0, maxWrites - writes));
-}
-
 export function boundedKeeperInteger(
   value: string | undefined,
   fallback: number,

@@ -129,48 +129,6 @@ export default function PlayScreen() {
     setActiveBonus(BonusType.None);
   }, [activeRun?.bonusCharges, activeRun?.bonusType, activeRun?.runId]);
 
-  const bonusSlots = useMemo<BonusSlot[]>(() => {
-    if (!activeRun || activeRun.bonusType <= 0) return [];
-    const type = activeRun.bonusType as BonusType;
-    const info = getBonusType(type);
-    return [
-      {
-        type,
-        // Displayed count is held until the cascade lands, so it bumps
-        // together with the badge-pop; the interaction guard below stays
-        // authoritative.
-        charges: held?.charges ?? activeRun.bonusCharges,
-        isActive: true,
-        icon: info.icon,
-        name: info.name,
-        description: info.description,
-        triggerDescription: buildTriggerDescription(
-          activeRun.rules.bonusTriggerType,
-          activeRun.rules.bonusThreshold,
-          activeRun.rules.startingCharges,
-        ),
-        // Only the cumulative line trigger exposes meaningful progress from
-        // the authoritative receipt counters. Per-move trigger families do
-        // not have a safe "toward next" value between actions.
-        lineProgress: activeRun.rules.bonusTriggerType === 2 &&
-          activeRun.rules.bonusThreshold > 0
-          ? {
-              current: activeRun.levelLinesCleared %
-                activeRun.rules.bonusThreshold,
-              threshold: activeRun.rules.bonusThreshold,
-            }
-          : undefined,
-        startingCharges: activeRun.rules.startingCharges,
-        onClick: () => {
-          if (activeRun.bonusCharges <= 0) return;
-          setActiveBonus((current) =>
-            current === type ? BonusType.None : type,
-          );
-        },
-      },
-    ];
-  }, [activeRun, held]);
-
   const bonusDescription =
     activeBonus !== BonusType.None && activeRun
       ? `TAP A BLOCK TO USE ${getBonusType(activeRun.bonusType).name.toUpperCase()}`
@@ -211,6 +169,56 @@ export default function PlayScreen() {
     },
     [activeRun, game, onRunBonus],
   );
+
+  const bonusSlots = useMemo<BonusSlot[]>(() => {
+    if (!activeRun || activeRun.bonusType <= 0) return [];
+    const type = activeRun.bonusType as BonusType;
+    const info = getBonusType(type);
+    return [
+      {
+        type,
+        // Displayed count is held until the cascade lands, so it bumps
+        // together with the badge-pop; the interaction guard below stays
+        // authoritative.
+        charges: held?.charges ?? activeRun.bonusCharges,
+        isActive: true,
+        icon: info.icon,
+        name: info.name,
+        description: info.description,
+        triggerDescription: buildTriggerDescription(
+          activeRun.rules.bonusTriggerType,
+          activeRun.rules.bonusThreshold,
+          activeRun.rules.startingCharges,
+        ),
+        // Only the cumulative line trigger exposes meaningful progress from
+        // the authoritative receipt counters. Per-move trigger families do
+        // not have a safe "toward next" value between actions.
+        lineProgress: activeRun.rules.bonusTriggerType === 2 &&
+          activeRun.rules.bonusThreshold > 0
+          ? {
+              current: activeRun.levelLinesCleared %
+                activeRun.rules.bonusThreshold,
+              threshold: activeRun.rules.bonusThreshold,
+            }
+          : undefined,
+        startingCharges: activeRun.rules.startingCharges,
+        onClick: () => {
+          if (activeRun.bonusCharges <= 0) return;
+          if (type === BonusType.Reroll) {
+            // Reroll has no board target and no cascade: the tap is the
+            // action, and the preview swaps when the VRF callback lands.
+            void onBonus(0, 0)
+              .catch(() => undefined)
+              .finally(() => setHeld(null));
+            return;
+          }
+          setActiveBonus((current) =>
+            current === type ? BonusType.None : type,
+          );
+        },
+      },
+    ];
+  }, [activeRun, held, onBonus]);
 
   // New run/level snapshot changes identity: never carry a hold across runs.
   const gameId = game?.id;

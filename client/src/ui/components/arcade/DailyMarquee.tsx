@@ -6,6 +6,7 @@ import type { DailyLeaderboardView } from "@/chain/dailyClient";
 import { dailyScoringRuleName } from "@/chain/dailyRules";
 import type { DailyScoringRuleView } from "@/chain/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
 import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
 import { RankBadge } from "@/ui/components/arena/LeaderboardRow";
@@ -134,6 +135,14 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
             : (entry.playerName ??
               playerLabelWithWallet(null, entry.player.toBase58()))}
         </span>
+        {emblem && (
+          <span
+            className="flex-none font-sans text-[9px] font-bold uppercase tracking-[0.14em]"
+            style={{ color: ladderTierColor(tier) }}
+          >
+            {ladderTierName(tier)}
+          </span>
+        )}
         <span className="font-mono text-[13px] font-bold tabular-nums text-white">
           {entry.dailyScore.toLocaleString()}
         </span>

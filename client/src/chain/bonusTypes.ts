@@ -3,4 +3,5 @@ export enum BonusType {
   Hammer = 1,
   Totem = 2,
   Wave = 3,
+  Reroll = 4,
 }

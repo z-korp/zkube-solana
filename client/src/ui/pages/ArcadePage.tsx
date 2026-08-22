@@ -231,7 +231,7 @@ const ArcadePage: React.FC = () => {
                   <section className="rounded-2xl p-3" style={PANEL_STYLE}>
                     <p className={SECTION_CLASS}>Settling</p>
                     <p className="mt-1 font-sans text-xs font-semibold text-white/60">
-                      Runs score {runsCloseLabel} · prizes push automatically
+                      Runs score {runsCloseLabel} · rewards collectable for 30 days
                     </p>
                   </section>
                 )}

@@ -45,8 +45,9 @@ const XLogo: React.FC<{ size?: number }> = ({ size = 15 }) => (
  * The "guardian pays you" ceremony, contained in the bottom sheet (never
  * full-screen): the guardian speaks its respect line Ace-Attorney style —
  * with real holds on punctuation — then flips to the celebrate frame while a
- * SOL coin drops into the amount pill and the figure counts up. Push-only
- * remains implicit — there is nothing to claim, so nothing says otherwise.
+ * SOL coin drops into the amount pill and the figure counts up. Claim
+ * settlement stays implicit — the next entry or the Home key collects the
+ * reward, so the ceremony sells the win rather than assigning a task.
  */
 const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   open,
@@ -136,7 +137,7 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
     <Sheet
       open={open}
       onClose={onDismiss}
-      srTitle={`${periodLabel} prize delivered`}
+      srTitle={`${periodLabel} prize won`}
       className="md:max-w-[540px]"
     >
       <div className="flex flex-col items-center gap-4 pb-1 pt-1">

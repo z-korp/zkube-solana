@@ -931,6 +931,13 @@ pub fn next_scheduled_daily(catalog: &DailyRulesCatalog, day_id: u32) -> Result<
     Ok(if first > day_id { first } else { following })
 }
 
+/// Entries accept any later daily rather than re-deriving the schedule: the
+/// expiry path pins `next_scheduled_daily` because it moves money
+/// permissionlessly, but an entry's target is already fenced by account
+/// existence (only the catalog-validated preparation path creates dailies)
+/// and the Funding-status gate, and a misdirected entry could only fund a
+/// real pot whose unclaimed balance rolls forward regardless. Re-deriving
+/// here would cost the catalog account in every entry for no reachable gain.
 pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool {
     successor_day_id > source_day_id
 }
@@ -1117,9 +1124,12 @@ pub fn verify_next_board_entry(
 
 pub fn verify_board_completion(next_cursor: u32, payout_count: u32, seal: bool) -> Result<()> {
     require!(next_cursor <= payout_count, ErrorCode::AccountingInvariant);
-    if seal {
-        require!(next_cursor == payout_count, ErrorCode::BoardIncomplete);
-    }
+    // Sealing is a program-computed fact. Submission is permissionless, and a
+    // completing chunk without the flag would strand the board unsealable.
+    require!(
+        seal == (next_cursor == payout_count),
+        ErrorCode::BoardIncomplete
+    );
     Ok(())
 }
 
@@ -1510,6 +1520,8 @@ mod tests {
     fn seal_requires_the_program_computed_count_and_partial_board_is_unclaimable() {
         assert!(verify_board_completion(9, 10, true).is_err());
         assert!(verify_board_completion(11, 10, false).is_err());
+        assert!(verify_board_completion(10, 10, false).is_err());
+        verify_board_completion(9, 10, false).unwrap();
         verify_board_completion(10, 10, true).unwrap();
 
         let board = ArenaBoard {

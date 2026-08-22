@@ -396,27 +396,48 @@ and archive contract version — those numbers must stay truthful.
 
 ## Validation gates
 
-Static GitHub validation is manual-dispatch-only; run these gates locally for
-steady-state validation without billed hosted compute.
+Static GitHub validation is manual-dispatch-only; validation is one local
+command, and every change ends with it green:
 
 ```bash
-NO_DNA=1 ./validate.sh program
-cd services
-NO_DNA=1 pnpm install --frozen-lockfile
-NO_DNA=1 pnpm run build
-NO_DNA=1 pnpm test
-cd ../client
-NO_DNA=1 pnpm idl:check
-NO_DNA=1 pnpm core:wasm:check
-NO_DNA=1 pnpm exec tsc -b --pretty false
-NO_DNA=1 pnpm lint
-NO_DNA=1 pnpm exec vitest run
-NO_DNA=1 pnpm build
+NO_DNA=1 ./validate.sh
 ```
+
+`validate.sh` is the single authority on what the gates are — do not restate
+its contents here or anywhere else. It defaults to the full suite; `program`
+and `frontend` scopes exist for iteration, but the full run is what finishes
+a change. A red gate is a defect that outranks whatever work surfaced it.
 
 Start with `README.md`, then inspect `state`/`instructions` for contract work,
 `services` for keeper work, and client chain/platform boundaries only when the
 client is explicitly in scope. Never infer deployed state from source.
+
+## Standing defect rules
+
+Bugs are fixed with their class, never alone: before patching, name the
+recurring source it is an instance of, and close that source in the same
+change. The known sources and the guard for each:
+
+- **Unrun gates.** Every change ends with `NO_DNA=1 ./validate.sh` green.
+- **Divergent mirrors.** One rule lives in one place. A document points at
+  the script or constant rather than restating it, and a second
+  implementation of the same rule is merged into the first. Cross-layer
+  pairs that must stay hand-synchronized — reconciliation plan and keeper
+  policy, core event and program producer, deployed config and release
+  policy — each carry an agreement test that fails when they drift.
+- **Superseded vocabulary.** A reversal deletes the dead model's code, copy,
+  and comments in the same change, and adds its phrases to
+  `services/tests/supersession.test.ts`. A reversal without a sweep is
+  incomplete.
+- **Derivable arguments.** An instruction never trusts an argument the
+  program can compute itself: it verifies equality or does not take the
+  argument.
+- **Unanchored spec sentences.** A normative "must/never" sentence added to
+  the v5 specification names, in the same change, the test or constraint
+  that enforces it.
+- **Trajectory-shaped invariants.** An invariant encodes the specified rule,
+  including announced future transitions such as a ladder reset or a claim
+  expiry — never the shape the data merely happens to have today.
 
 ## Protocol reference
 
@@ -571,13 +592,14 @@ commitment per Daily. Devnet volume storage is a recovery
 aid, not the Mainnet durability design; Mainnet requires replicated public
 archive storage.
 
-Archive contract v1 files remain append-only and are never rewritten. Contract
-v2 added `resultDataBase64`; new files use contract v3 and additionally retain
+Archive contract v1 is the single supported contract; there is no legacy
+reader, no supported-version list, and files are append-only and never
+rewritten. Each file carries the canonical result JSON, `resultDataBase64`, and
 the complete raw Score and Theme board accounts beside the raw Daily account.
 The exact immutable Borsh projection committed by `resultHash` and the rolling
 root therefore includes both board headers and every verified row, while mutable
 claim and profile-sync bitmaps remain point-in-time evidence. Closure reprojects
-supported v1-v3 evidence through the checked-in IDL and verifies the stored
+the stored evidence through the checked-in IDL and verifies the stored
 accounts, cadence, program, result hash, root, and immutable projection exactly.
 It does not require current raw-byte equality after permitted metadata changes.
 A missing or invalid committed file is never re-materialized; that cadence

@@ -2115,7 +2115,11 @@ fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
             actor: owner,
         }
         .to_account_metas(None),
-        data: zkube::instruction::SetFeaturedEmblem { emblem_id: 1 }.data(),
+        data: zkube::instruction::SetFeaturedEmblem {
+            emblem_id: 1,
+            frame_tier: 0,
+        }
+        .data(),
     };
     let accounts = vec![
         (
@@ -2130,7 +2134,11 @@ fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
     assert_eq!(updated.featured_emblem, 1);
 
     let locked = anchor_lang::solana_program::instruction::Instruction {
-        data: zkube::instruction::SetFeaturedEmblem { emblem_id: 2 }.data(),
+        data: zkube::instruction::SetFeaturedEmblem {
+            emblem_id: 2,
+            frame_tier: 0,
+        }
+        .data(),
         ..instruction
     };
     assert!(mollusk()

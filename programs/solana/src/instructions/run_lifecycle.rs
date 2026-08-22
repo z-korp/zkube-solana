@@ -16,9 +16,9 @@ use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 
 use crate::error::ErrorCode;
 use crate::game::{
-    calculate_level_stars, opening_from_vrf, row_from_vrf, sha256v, BlockWeights, Bonus,
-    Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError,
-    RunPhase,
+    calculate_level_stars, opening_from_vrf, reroll_row_from_vrf, row_from_vrf, sha256v,
+    BlockWeights, Bonus, Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules,
+    RunEngine, RunError, RunPhase,
 };
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
@@ -332,6 +332,16 @@ fn provide_verified_vrf_rows(
         return Ok(height.saturating_add(1));
     }
 
+    // A pending reroll is the one fulfillment that arrives while a preview is
+    // still visible — every other request follows a consumed preview — and it
+    // draws from its own committed domain, never the ordinary row stream.
+    if engine.reroll_pending() {
+        let row = reroll_row_from_vrf(randomness, request_counter, rules_hash, weights)
+            .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
+        engine.provide_reroll_row(row).map_err(map_run_error)?;
+        return Ok(1);
+    }
+
     // Clearing the board consumes the old preview as the action's inserted
     // row. One subsequent VRF must therefore provide both a new seed row and
     // an independent visible preview, or the run would remain AwaitingVrf
@@ -531,33 +541,41 @@ pub fn handler_apply_bonus(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
     );
-    let level = level_rules(&active.rules)?;
-    let difficulty_at_action = active.current_difficulty;
-    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
-    let combo_before = active.combo_counter;
-    let mut engine = engine_from_active(active)?;
-    let mut report = engine
-        .apply_bonus(row, column, level, mutator)
-        .map_err(map_run_error)?;
-    fold_replay_event(
-        active,
-        zkube_core::ReplayEvent::Bonus {
-            action: expected_action,
-            row,
-            column,
-        },
-    );
-    report.difficulty_at_action = difficulty_at_action;
-    let terminal_at = terminal_action_timestamp(engine.phase)?;
-    record_action_accounting(
-        active,
-        &engine,
-        &report,
-        combo_before,
-        ActionKind::Bonus,
-        pressure_multiplier_x100,
-        terminal_at,
-    )?;
+    if active.bonus_type == 4 {
+        // Reroll, the fourth bonus, replaces the preview through its own
+        // domain-separated VRF request instead of touching the board; the
+        // cell coordinates are meaningless and pinned to zero.
+        require!(row == 0 && column == 0, ErrorCode::InvalidState);
+        apply_reroll_request(active, expected_action)?;
+    } else {
+        let level = level_rules(&active.rules)?;
+        let difficulty_at_action = active.current_difficulty;
+        let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
+        let combo_before = active.combo_counter;
+        let mut engine = engine_from_active(active)?;
+        let mut report = engine
+            .apply_bonus(row, column, level, mutator)
+            .map_err(map_run_error)?;
+        fold_replay_event(
+            active,
+            zkube_core::ReplayEvent::Bonus {
+                action: expected_action,
+                row,
+                column,
+            },
+        );
+        report.difficulty_at_action = difficulty_at_action;
+        let terminal_at = terminal_action_timestamp(engine.phase)?;
+        record_action_accounting(
+            active,
+            &engine,
+            &report,
+            combo_before,
+            ActionKind::Bonus,
+            pressure_multiplier_x100,
+            terminal_at,
+        )?;
+    }
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -573,6 +591,32 @@ pub fn handler_apply_bonus(
         ctx.accounts
             .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
     }
+    Ok(())
+}
+
+/// A reroll is an accepted action: it consumes a charge, folds its own replay
+/// event, and leaves the run awaiting the domain-separated replacement
+/// preview, so a run holding a pending reroll and no move is scored rather
+/// than expired. The old preview stays visible until the callback lands.
+fn apply_reroll_request(active: &mut ActiveRun, expected_action: u32) -> Result<()> {
+    let mut engine = engine_from_active(active)?;
+    engine.request_reroll().map_err(map_run_error)?;
+    fold_replay_event(
+        active,
+        zkube_core::ReplayEvent::Reroll {
+            action: expected_action,
+        },
+    );
+    write_engine(active, &engine);
+    active.bonus_uses = active
+        .bonus_uses
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    active.action_counter = active
+        .action_counter
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    active.lifecycle = lifecycle_from_phase(engine.phase);
     Ok(())
 }
 
@@ -1667,6 +1711,119 @@ mod tests {
         assert_eq!(rows, 1);
         assert_eq!(engine.phase, RunPhase::Playing);
         assert!(engine.next_row.is_some());
+    }
+
+    #[test]
+    fn every_core_replay_event_has_an_on_chain_producer() {
+        // Wildcard-free on purpose: when zkube-core grows a replay event,
+        // this match stops compiling until the program names the instruction
+        // that folds it — the gap that let reroll ship core-side only.
+        fn producer(event: &zkube_core::ReplayEvent) -> &'static str {
+            match event {
+                zkube_core::ReplayEvent::Vrf { .. } => "fulfill_row_vrf",
+                zkube_core::ReplayEvent::Move { .. } => "play_move",
+                zkube_core::ReplayEvent::Bonus { .. } => "apply_bonus",
+                zkube_core::ReplayEvent::Reroll { .. } => "apply_bonus",
+                zkube_core::ReplayEvent::PlayerAbandon { .. } => "abandon_run",
+                zkube_core::ReplayEvent::DailyDeadline { .. } => "force_finish_deadline",
+            }
+        }
+        assert_eq!(
+            producer(&zkube_core::ReplayEvent::Reroll { action: 0 }),
+            "apply_bonus"
+        );
+    }
+
+    #[test]
+    fn reroll_request_is_an_accepted_action_that_awaits_its_own_vrf() {
+        let mut active = ActiveRun {
+            version: ACCOUNT_VERSION,
+            mode: RunMode::Daily,
+            lifecycle: RunLifecycle::Playing,
+            bonus_type: 4,
+            bonus_charges: 1,
+            has_next_row: true,
+            next_row: {
+                let mut row = [0u8; 8];
+                row[0] = 1;
+                row
+            },
+            ..ActiveRun::default()
+        };
+        let replay_before = active.replay_hash;
+        apply_reroll_request(&mut active, 0).unwrap();
+
+        assert_eq!(active.action_counter, 1);
+        assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
+        assert_eq!(active.bonus_charges, 0);
+        assert_eq!(active.bonus_uses, 1);
+        // The old preview stays visible while the replacement is pending.
+        assert!(active.has_next_row);
+        assert_eq!(
+            active.replay_hash,
+            zkube_core::ReplayCommitment(replay_before)
+                .fold_with::<SolanaSha256>(zkube_core::ReplayEvent::Reroll { action: 0 })
+                .to_bytes()
+        );
+        // Awaiting the callback, and out of charges: no second request.
+        assert!(apply_reroll_request(&mut active, 1).is_err());
+    }
+
+    #[test]
+    fn reroll_callback_replaces_only_the_preview_with_the_committed_row() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../fixtures/replays/golden-reroll-v1.json"
+        ))
+        .unwrap();
+        let bytes32 = |field: &str| -> [u8; 32] {
+            let value = fixture[field].as_str().unwrap();
+            assert_eq!(value.len(), 64);
+            std::array::from_fn(|index| {
+                u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
+            })
+        };
+        let randomness = bytes32("vrf_output_hex");
+        let rules_hash = bytes32("rules_hash_hex");
+        let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
+        let weights = BlockWeights {
+            values: std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16),
+        };
+        let rerolled: [u8; 8] =
+            std::array::from_fn(|index| fixture["rerolled_row"][index].as_u64().unwrap() as u8);
+        let ordinary: [u8; 8] = std::array::from_fn(|index| {
+            fixture["ordinary_next_row"][index].as_u64().unwrap() as u8
+        });
+
+        let mut cells = [0u8; 80];
+        cells[0] = 1;
+        let mut engine = RunEngine {
+            phase: RunPhase::AwaitingVrf,
+            bonus: Some(Bonus::Reroll),
+            next_row: Some({
+                let mut row = [0u8; 8];
+                row[0] = 1;
+                row
+            }),
+            grid: Grid::try_from_cells(cells).unwrap(),
+            ..RunEngine::default()
+        };
+        let rows = provide_verified_vrf_rows(
+            &mut engine,
+            randomness,
+            request_counter,
+            rules_hash,
+            weights,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(rows, 1);
+        assert_eq!(engine.phase, RunPhase::Playing);
+        // The board is untouched; only the preview moved, and it came from
+        // the committed reroll domain rather than the ordinary row stream.
+        assert_eq!(engine.grid.cells(), &cells);
+        assert_eq!(engine.next_row, Some(rerolled));
+        assert_ne!(engine.next_row, Some(ordinary));
     }
 
     #[test]

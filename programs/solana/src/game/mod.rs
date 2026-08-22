@@ -39,3 +39,17 @@ pub fn row_from_vrf(
 ) -> Result<Row, RandomnessError> {
     zkube_core::row_from_vrf_with::<SolanaSha256>(randomness, request_counter, weights)
 }
+
+pub fn reroll_row_from_vrf(
+    randomness: [u8; 32],
+    request_counter: u32,
+    rules_hash: [u8; 32],
+    weights: BlockWeights,
+) -> Result<Row, RandomnessError> {
+    zkube_core::reroll_row_from_vrf_with::<SolanaSha256>(
+        randomness,
+        request_counter,
+        rules_hash,
+        weights,
+    )
+}

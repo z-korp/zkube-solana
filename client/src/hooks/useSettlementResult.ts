@@ -30,7 +30,7 @@ export interface SettlementResult {
   totalRewardsLamports: bigint;
   totalWins: number;
   /**
-   * The single most recent pushed prize — the largest reward increase observed
+   * The single most recent prize award — the largest reward increase observed
    * since this session began watching PlayerState. Real-time and exact for the
    * period + amount; `bestPrizeRank` is the record's lifetime-best rank (see
    * `SettlementEvent`), not a claim about this specific placement.
@@ -80,9 +80,9 @@ function toPeriod(
  * Real-time settlement summary for the connected player, derived from the
  * live-subscribed Score and Theme competition records on PlayerState (via
  * `useSettlementWatcher`). Profile synchronization may be late; the account
- * updates whenever the keeper pushes a profile sync, so this reflects the latest
- * confirmed prize state — including the most recent pushed prize as
- * `latestEvent` — the instant it lands, without gating on money.
+ * updates whenever a profile sync confirms, so this reflects the latest
+ * settled prize state — including the most recent award as `latestEvent` —
+ * the instant it lands, without gating on money.
  */
 export function useSettlementResult(): SettlementResult {
   const { view, latestEvent, loading, error, refresh } = useSettlementWatcher();

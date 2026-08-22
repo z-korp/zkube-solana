@@ -139,7 +139,7 @@ impl PlayerState {
 
     pub fn schema_valid(&self) -> bool {
         self.version == PLAYER_STATE_VERSION
-            && self.highest_ladder_tier == ladder_tier_for_points(self.ladder_points)
+            && self.highest_ladder_tier >= ladder_tier_for_points(self.ladder_points)
             && self.featured_frame_tier <= self.highest_ladder_tier
             && self.reserved == [0; 18]
     }
@@ -744,6 +744,13 @@ mod tests {
         assert_eq!(player.highest_ladder_tier, 1);
         assert_eq!(player.reserved, [0; 18]);
         assert!(player.schema_valid());
+        // A reset compresses points downward; the earned tier is permanent.
+        player.ladder_points = 750;
+        assert!(player.schema_valid());
+        // The inverse — points implying a tier never recorded — stays invalid.
+        player.ladder_points = 1_500;
+        player.highest_ladder_tier = 0;
+        assert!(!player.schema_valid());
     }
 
     #[test]

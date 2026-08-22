@@ -191,10 +191,10 @@ export function useNotifications(): NotificationsController {
     // user does that in browser settings. Disabling only stops us from firing.
   }, []);
 
-  // ── Observer 1: a pushed prize newly landed → "You won X SOL" ──────────────
+  // ── Observer 1: a prize award newly landed → "You won X SOL" ───────────────
   // Driven by `useSettlementResult` (a real-time PlayerState subscription). A
-  // period's lifetime rewards can only grow from a genuine keeper settlement
-  // push, so an increase is always a real paid win — never fabricated. Baseline
+  // period's lifetime rewards can only grow from the post-settlement profile
+  // sync, so an increase is always a real award — never fabricated. Baseline
   // is per-wallet and advanced even while disabled, so enabling later never
   // retroactively fires historical wins.
   const { periods, latestEvent, loading, error } = useSettlementResult();

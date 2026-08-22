@@ -11,7 +11,7 @@ import {
 import { DAILY_POOL_CAPACITY } from "./protocolVersions.generated";
 
 describe("v5 Daily content pool", () => {
-  it("draws a full reproducible cycle and resolves tomorrow today", async () => {
+  it("draws a full reproducible cycle and resolves any future day", async () => {
     const seed = Uint8Array.from(CANONICAL_DAILY_POOL_SEED);
     const startsDay = 20_000;
     const selected = await Promise.all(

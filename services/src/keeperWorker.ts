@@ -36,7 +36,9 @@ import { keeperReleaseRecord } from "./keeperRelease.js";
  * Prize push is parked and deliberately not wired here.
  *
  * `webPush.ts`, `pushSubscriptions.ts`, `pushServer.ts` and `prizeNotifier.ts`
- * are complete and tested, but nothing in this worker imports them: a keeper
+ * are written — `webPush.ts` carries the only tests; the rest stay
+ * unexercised until a revival decision — and nothing in this worker imports
+ * them: a keeper
  * that serves an inbound HTTP port is a bigger process to reason about than one
  * that only reads chain and writes its volume, and a notification is polish
  * against a reward that is already collectable in the app for thirty days.
