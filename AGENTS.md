@@ -439,6 +439,32 @@ change. The known sources and the guard for each:
   including announced future transitions such as a ladder reset or a claim
   expiry — never the shape the data merely happens to have today.
 
+## Design rules — KISS and systemic design
+
+Simplicity is a requirement, not a preference. These rules apply to systems,
+balance, content, code, and copy alike.
+
+- **A system earns its place or it goes.** Every mechanism, field, instruction,
+  setting, and screen must serve a purpose a player or operator can feel. One
+  that serves no real purpose, or adds complexity without adding fun, is cut
+  rather than tuned, documented, or defended.
+- **Success of systemic work is deletion.** Prefer removing a rule to adding a
+  special case. A change that adds a flag, a mode, or a configuration value
+  where deleting a rule would do is the wrong change.
+- **Name the cost before adding.** A new system states what it replaces and
+  what it costs — accounts, instructions, bytes, tests, keeper writes, copy —
+  in the same change. If nothing is removed, the change says why that is
+  acceptable.
+- **Tune inside systems; challenge systems with evidence.** Balance and
+  content are tuned within a system's rules. A system itself is challenged
+  with a measurement or a playtest, never with taste alone. Cutting or
+  reshaping a system the v5 specification locks requires the owner's explicit
+  approval and amends the specification in the same change.
+- **Smallest change that closes the class.** No speculative generality, no
+  configuration for cases that do not exist, no abstraction with one caller.
+  This is the companion of the Standing defect rules above: fix the class,
+  with the least mechanism that does so.
+
 ## Protocol reference
 
 `README.md` states the product-level rules. This section holds the exact
