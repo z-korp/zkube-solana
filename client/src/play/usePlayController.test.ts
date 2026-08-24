@@ -49,6 +49,7 @@ const activeRun = (): ActiveRunView => ({
   endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
   bonusType: 1,
   bonusCharges: 2,
+  rerollAvailable: true,
   grid: Array.from({ length: 80 }, () => 0),
   nextRow: Array.from({ length: 8 }, () => 0),
   pendingVrfCounter: 0,
@@ -63,17 +64,19 @@ describe("play controller projections", () => {
   });
 
   it("latches a move-earned charge from the authoritative receipt", () => {
-    expect(bonusEarnReceipt(
-      { ...activeRun(), bonusCharges: 1, totalLinesCleared: 7 },
-      {
-        ...activeRun(),
-        actionCounter: 5,
-        bonusCharges: 2,
-        totalLinesCleared: 10,
-        levelLinesCleared: 6,
-      },
-      "move",
-    )).toEqual({
+    expect(
+      bonusEarnReceipt(
+        { ...activeRun(), bonusCharges: 1, totalLinesCleared: 7 },
+        {
+          ...activeRun(),
+          actionCounter: 5,
+          bonusCharges: 2,
+          totalLinesCleared: 10,
+          levelLinesCleared: 6,
+        },
+        "move",
+      ),
+    ).toEqual({
       actionCounter: 5,
       chargesGained: 1,
       linesCleared: 3,
@@ -83,11 +86,13 @@ describe("play controller projections", () => {
   });
 
   it("accounts for the spent charge before latching a bonus-earned charge", () => {
-    expect(bonusEarnReceipt(
-      { ...activeRun(), bonusCharges: 2 },
-      { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
-      "bonus",
-    )).toMatchObject({
+    expect(
+      bonusEarnReceipt(
+        { ...activeRun(), bonusCharges: 2 },
+        { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
+        "bonus",
+      ),
+    ).toMatchObject({
       actionCounter: 5,
       chargesGained: 1,
       source: "bonus",
@@ -95,11 +100,13 @@ describe("play controller projections", () => {
   });
 
   it("does not emit feedback when a move earns no charge", () => {
-    expect(bonusEarnReceipt(
-      { ...activeRun(), bonusCharges: 2 },
-      { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
-      "move",
-    )).toBeNull();
+    expect(
+      bonusEarnReceipt(
+        { ...activeRun(), bonusCharges: 2 },
+        { ...activeRun(), actionCounter: 5, bonusCharges: 2 },
+        "move",
+      ),
+    ).toBeNull();
   });
 
   it("snapshots pending completion before settlement", () => {
@@ -118,7 +125,9 @@ describe("play controller projections", () => {
   });
 
   it("does not project Arcade progression from Campaign completion", () => {
-    expect(pendingCompletionFromRun(activeRun())).not.toHaveProperty("xpAwarded");
+    expect(pendingCompletionFromRun(activeRun())).not.toHaveProperty(
+      "xpAwarded",
+    );
     expect(
       pendingCompletionFromRun({ ...activeRun(), mode: "daily" }),
     ).not.toHaveProperty("xpAwarded");

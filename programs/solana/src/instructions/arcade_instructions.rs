@@ -294,10 +294,9 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
     let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
     let content = ctx.accounts.daily_rules_catalog.content_for_day(day_id)?;
     let entry = content.entry;
-    let realm_account_id = entry.realm_map_id.max(1);
     validate_daily_map_catalog(
         &ctx.accounts.realm_map_catalog,
-        realm_account_id,
+        entry.realm_map_id,
         ctx.accounts.daily_rules_catalog.content_version,
     )?;
     validate_daily_pool_entry(entry, &ctx.accounts.realm_map_catalog.map_rules)?;
@@ -896,6 +895,7 @@ fn initialize_arena_run(
         daily_pressure: daily.pressure,
         starting_height_target: daily.rules.starting_rows,
         current_difficulty: 0,
+        reroll_available: true,
         replay_hash: canonical_initial_replay(
             replay_domain,
             daily_key,
@@ -1924,17 +1924,15 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
 }
 
 fn validate_daily_pool_entry(entry: DailyPoolEntry, realm: &CampaignMapRuleSnapshot) -> Result<()> {
-    if entry.realm_map_id > 0 {
-        require!(
-            entry.active_mutator_id == realm.active_mutator_id
-                && entry.bonus_type == realm.bonus_type
-                && entry.bonus_trigger_type == realm.bonus_trigger_type
-                && entry.bonus_threshold == realm.bonus_threshold
-                && entry.starting_charges == realm.starting_charges
-                && entry.starting_rows == realm.starting_rows,
-            ErrorCode::InvalidMap
-        );
-    }
+    require!(
+        entry.active_mutator_id == realm.active_mutator_id
+            && entry.bonus_type == realm.bonus_type
+            && entry.bonus_trigger_type == realm.bonus_trigger_type
+            && entry.bonus_threshold == realm.bonus_threshold
+            && entry.starting_charges == realm.starting_charges
+            && entry.starting_rows == realm.starting_rows,
+        ErrorCode::InvalidMap
+    );
     Ok(())
 }
 

@@ -95,7 +95,6 @@ impl Default for DailyPressureProfile {
 )]
 pub struct DailyPoolEntry {
     pub id: u8,
-    /// Zero is allowed for a standalone wildcard entry with no guardian realm.
     pub realm_map_id: u8,
     pub active_mutator_id: u8,
     pub scoring_rule: DailyScoringRule,
@@ -110,12 +109,11 @@ impl DailyPoolEntry {
     pub fn validate(self) -> Result<()> {
         require!(
             self.id > 0
-                && self.realm_map_id <= 32
+                && (1..=32).contains(&self.realm_map_id)
                 && self.active_mutator_id > 0
-                // The engine bonus range — Hammer, Totem, Wave, Reroll: an
-                // entry outside it would fail every run of its day at first
-                // bonus use.
-                && (1..=4).contains(&self.bonus_type)
+                // Guardian bonuses are Hammer, Totem, and Wave. Reroll is a
+                // separate run action and cannot be published as a pairing.
+                && (1..=3).contains(&self.bonus_type)
                 && matches!(self.bonus_trigger_type, 1 | 2 | 4..=7)
                 && zkube_core::bonus_trigger_threshold_is_valid(
                     self.bonus_trigger_type,
@@ -372,7 +370,7 @@ mod tests {
         DailyPoolEntry {
             id,
             realm_map_id,
-            active_mutator_id: realm_map_id.max(1),
+            active_mutator_id: realm_map_id,
             scoring_rule: scoring_rules[usize::from(id - 1) % (DAILY_SCORE_RULE_CAPACITY - 1)],
             bonus_type: 1,
             bonus_trigger_type: 1,
@@ -385,14 +383,16 @@ mod tests {
     #[test]
     fn pool_entries_stay_inside_the_engine_bonus_range() {
         let mut entry = pool_entry(1, 1);
-        entry.bonus_type = 5;
-        assert!(entry.validate().is_err());
         entry.bonus_type = 4;
+        assert!(entry.validate().is_err());
+        entry.bonus_type = 3;
         entry.validate().unwrap();
         entry.bonus_trigger_type = 8;
         assert!(entry.validate().is_err());
         entry.bonus_trigger_type = 1;
         entry.validate().unwrap();
+        entry.realm_map_id = 0;
+        assert!(entry.validate().is_err());
     }
 
     #[test]

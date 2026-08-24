@@ -6,7 +6,7 @@
 import type { BonusType } from "@/chain/bonusTypes";
 
 export interface BonusSlot {
-  type: BonusType;
+  type: BonusType | "reroll";
   charges: number;
   isActive: boolean; // This is the slot the game rolled
   icon: string;

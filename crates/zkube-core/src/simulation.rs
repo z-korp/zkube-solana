@@ -699,7 +699,6 @@ const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
-        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -815,9 +814,7 @@ mod tests {
 
     #[test]
     fn reroll_replaces_only_the_preview_after_a_distinct_vrf_request() {
-        let mut reroll_rules = rules();
-        reroll_rules.bonus = Some(Bonus::Reroll);
-        reroll_rules.starting_bonus_charges = 1;
+        let reroll_rules = rules();
         let mut reroll_config = config();
         reroll_config.rules = reroll_rules;
         let mut simulation = DailySimulation::new(reroll_config).unwrap();
@@ -832,7 +829,7 @@ mod tests {
         assert_eq!(simulation.engine.next_row, Some(preview));
         assert_eq!(simulation.engine.moves, 0);
         assert_eq!(simulation.action_counter, 1);
-        assert_eq!(simulation.engine.bonus_charges, 0);
+        assert!(!simulation.engine.reroll_available);
         assert_ne!(simulation.replay, replay_before);
 
         let replay_after_request = simulation.replay;
@@ -849,9 +846,7 @@ mod tests {
 
     #[test]
     fn pending_reroll_is_an_accepted_action_at_deadline() {
-        let mut reroll_rules = rules();
-        reroll_rules.bonus = Some(Bonus::Reroll);
-        reroll_rules.starting_bonus_charges = 1;
+        let reroll_rules = rules();
         let mut reroll_config = config();
         reroll_config.rules = reroll_rules;
         let mut simulation = DailySimulation::new(reroll_config).unwrap();

@@ -198,6 +198,7 @@ pub enum RunError {
     RowAlreadyAvailable,
     InvalidExpectedMove,
     NoBonusCharge,
+    NoRerollAvailable,
     RerollRequiresVrf,
     Grid(GridError),
 }
@@ -222,6 +223,9 @@ pub struct RunEngine {
     pub level_lines_cleared: u16,
     pub bonus: Option<Bonus>,
     pub bonus_charges: u8,
+    /// One protocol-granted preview replacement, independent of guardian
+    /// bonus identity and charges.
+    pub reroll_available: bool,
     pub perfect_trigger_available: bool,
     pub starting_height_target: u8,
 }
@@ -241,6 +245,7 @@ impl Default for RunEngine {
             level_lines_cleared: 0,
             bonus: None,
             bonus_charges: 0,
+            reroll_available: true,
             perfect_trigger_available: true,
             starting_height_target: 0,
         }
@@ -375,9 +380,6 @@ impl RunEngine {
         if self.bonus_charges == 0 {
             return Err(RunError::NoBonusCharge);
         }
-        if bonus == Bonus::Reroll {
-            return Err(RunError::RerollRequiresVrf);
-        }
         let height_before = self.grid.occupied_height();
         let block_cells_before =
             core::array::from_fn(|index| self.grid.count_cells_of_size(index as u8 + 1));
@@ -407,22 +409,23 @@ impl RunEngine {
         Ok(report)
     }
 
-    /// Consume one reroll charge and wait for a replacement preview row.
+    /// Consume the run's one universal reroll and wait for a replacement
+    /// preview row.
     ///
     /// The current preview stays visible in state until verified randomness
     /// atomically replaces it, so a failed callback cannot strand the run
     /// without a playable row.
     pub fn request_reroll(&mut self) -> Result<(), RunError> {
-        if self.phase != RunPhase::Playing || self.bonus != Some(Bonus::Reroll) {
+        if self.phase != RunPhase::Playing {
             return Err(RunError::RerollRequiresVrf);
         }
-        if self.bonus_charges == 0 {
-            return Err(RunError::NoBonusCharge);
+        if !self.reroll_available {
+            return Err(RunError::NoRerollAvailable);
         }
         if self.next_row.is_none() {
             return Err(RunError::MissingNextRow);
         }
-        self.bonus_charges -= 1;
+        self.reroll_available = false;
         self.phase = RunPhase::AwaitingVrf;
         Ok(())
     }
@@ -441,9 +444,7 @@ impl RunEngine {
 
     #[must_use]
     pub const fn reroll_pending(&self) -> bool {
-        matches!(self.phase, RunPhase::AwaitingVrf)
-            && matches!(self.bonus, Some(Bonus::Reroll))
-            && self.next_row.is_some()
+        matches!(self.phase, RunPhase::AwaitingVrf) && self.next_row.is_some()
     }
 
     pub fn level_satisfied(&self, rules: LevelRules) -> bool {
@@ -949,6 +950,25 @@ mod tests {
         assert_eq!(run.phase, RunPhase::Playing);
         assert_eq!(run.moves, 0);
         assert_eq!(run.bonus_charges, 0);
+    }
+
+    #[test]
+    fn universal_reroll_is_separate_from_guardian_bonus_inventory() {
+        let preview = [1, 0, 0, 0, 0, 0, 0, 0];
+        let replacement = [0, 0, 2, 2, 0, 0, 0, 0];
+        let mut run = RunEngine::start(Grid::EMPTY, preview).unwrap();
+        run.bonus = Some(Bonus::Hammer);
+        run.bonus_charges = 2;
+
+        run.request_reroll().unwrap();
+        assert!(!run.reroll_available);
+        assert_eq!(run.bonus, Some(Bonus::Hammer));
+        assert_eq!(run.bonus_charges, 2);
+        assert_eq!(run.next_row, Some(preview));
+        run.provide_reroll_row(replacement).unwrap();
+        assert_eq!(run.next_row, Some(replacement));
+        assert_eq!(run.bonus_charges, 2);
+        assert_eq!(run.request_reroll(), Err(RunError::NoRerollAvailable));
     }
 
     #[test]

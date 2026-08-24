@@ -20,7 +20,10 @@
 import { PublicKey } from "@solana/web3.js";
 
 import { BonusType } from "@/chain/bonusTypes";
-import { CANONICAL_DAILY_PRESSURE, CANONICAL_DAILY_SCORING_RULES } from "@/chain/dailyRules";
+import {
+  CANONICAL_DAILY_PRESSURE,
+  CANONICAL_DAILY_SCORING_RULES,
+} from "@/chain/dailyRules";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
@@ -161,12 +164,12 @@ export function buildDevActiveRun(
     // back to "None" — which renders an empty slot that reads as a wiring bug.
     bonusType: rules.bonusType,
     bonusCharges: 2,
+    rerollAvailable: true,
     grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),
     nextRow: [...NEXT_ROW],
     pendingVrfCounter: 0,
     vrfRequestCounter: 12,
     endlessThresholds: CANONICAL_DAILY_PRESSURE.thresholds,
-    endlessScoreMultipliersX100:
-      CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
+    endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
 }

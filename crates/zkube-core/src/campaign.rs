@@ -2,7 +2,7 @@ use crate::{
     BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
     RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
     bonus_trigger_threshold_is_valid, calculate_level_stars, continuation_from_vrf,
-    opening_from_vrf, row_from_vrf,
+    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -237,6 +237,42 @@ impl CampaignSimulation {
         next.accept_action(config, report)?;
         *self = next;
         Ok(report)
+    }
+
+    /// Spend the run's one universal reroll and synchronously derive its
+    /// domain-separated replacement preview.
+    ///
+    /// # Errors
+    ///
+    /// Returns a config, phase, engine, randomness, or overflow error without
+    /// mutating the accepted state.
+    pub fn request_reroll(
+        &mut self,
+        config: CampaignSimulationConfig,
+    ) -> Result<(), CampaignError> {
+        self.require_transition(config)?;
+        let mut next = *self;
+        next.engine.request_reroll()?;
+        let counter = next
+            .row_counter
+            .checked_add(1)
+            .ok_or(CampaignError::Overflow)?;
+        let output = derive_randomness(config, counter);
+        let row = reroll_row_from_vrf(
+            output,
+            counter,
+            config.content_hash,
+            config.rules.weights(next.current_difficulty),
+        )?;
+        next.engine.provide_reroll_row(row)?;
+        next.row_counter = counter;
+        next.action_counter = next
+            .action_counter
+            .checked_add(1)
+            .ok_or(CampaignError::Overflow)?;
+        next.last_report = MoveReport::default();
+        *self = next;
+        Ok(())
     }
 
     /// Abandon an active run without producing progression.
@@ -535,6 +571,27 @@ mod tests {
         assert_eq!(simulation.engine.grid, expected.grid);
         assert_eq!(simulation.engine.next_row, Some(expected.preview));
         assert_eq!(simulation.row_counter, request_counter);
+    }
+
+    #[test]
+    fn universal_reroll_is_once_per_run_and_keeps_guardian_inventory() {
+        let mut config = config();
+        config.rules.bonus = Some(Bonus::Hammer);
+        config.rules.starting_bonus_charges = 2;
+        let mut simulation = CampaignSimulation::new(config).unwrap();
+        let original_preview = simulation.engine.next_row;
+
+        simulation.request_reroll(config).unwrap();
+
+        assert!(!simulation.engine.reroll_available);
+        assert_eq!(simulation.engine.bonus, Some(Bonus::Hammer));
+        assert_eq!(simulation.engine.bonus_charges, 2);
+        assert_ne!(simulation.engine.next_row, original_preview);
+        assert_eq!(simulation.action_counter, 1);
+        assert_eq!(
+            simulation.request_reroll(config),
+            Err(CampaignError::Engine(RunError::NoRerollAvailable))
+        );
     }
 
     #[test]

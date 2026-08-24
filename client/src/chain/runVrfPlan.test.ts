@@ -13,6 +13,7 @@ import {
   VRF_QUEUE,
   buildApplyBonusPlan,
   buildPlayMovePlan,
+  buildRequestRerollPlan,
   decodeActiveRunAccount,
 } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
@@ -57,6 +58,27 @@ describe("atomic action + VRF plans", () => {
     });
 
     expectVrfAccounts(plan.transaction.instructions[0]!.keys, fixture);
+  });
+
+  it("builds reroll as its own action with the same scoped VRF boundary", async () => {
+    const fixture = setup();
+    const plan = await buildRequestRerollPlan({
+      ...fixture,
+      expectedAction: 9,
+      clientSeed: new Uint8Array(32).fill(12),
+    });
+
+    expectVrfAccounts(plan.transaction.instructions[0]!.keys, fixture);
+    const bonus = await buildApplyBonusPlan({
+      ...fixture,
+      expectedAction: 9,
+      row: 0,
+      column: 0,
+      clientSeed: new Uint8Array(32).fill(12),
+    });
+    expect(plan.transaction.instructions[0]!.data).not.toEqual(
+      bonus.transaction.instructions[0]!.data,
+    );
   });
 
   it("rejects untrusted ActiveRun owners and malformed account lengths", () => {

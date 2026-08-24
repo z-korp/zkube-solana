@@ -7,9 +7,9 @@ pub use campaign::{
     CAMPAIGN_SIMULATION_CONFIG_LEN, CAMPAIGN_SIMULATION_STATE_LEN, campaign_simulation_abandon,
     campaign_simulation_apply_bonus, campaign_simulation_earned_stars,
     campaign_simulation_end_reason, campaign_simulation_play_move,
-    decode_campaign_simulation_config, decode_campaign_simulation_state,
-    encode_campaign_simulation_config, encode_campaign_simulation_state,
-    initialize_campaign_simulation,
+    campaign_simulation_request_reroll, decode_campaign_simulation_config,
+    decode_campaign_simulation_state, encode_campaign_simulation_config,
+    encode_campaign_simulation_state, initialize_campaign_simulation,
 };
 pub use simulation::{
     DAILY_SIMULATION_CONFIG_LEN, DAILY_SIMULATION_STATE_LEN, decode_daily_simulation_config,
@@ -169,11 +169,11 @@ mod wasm {
     use super::{
         BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
         campaign_simulation_earned_stars, campaign_simulation_end_reason,
-        campaign_simulation_play_move, empty_continuation_rows, initial_replay_commitment,
-        initialize_campaign_simulation, initialize_daily_simulation, ladder_points, ladder_tier,
-        ladder_tier_count, ladder_tier_floor, qualified_player_id, simulation_apply_bonus,
-        simulation_apply_vrf, simulation_finish_deadline, simulation_play_move,
-        simulation_request_reroll, simulation_score_eligible,
+        campaign_simulation_play_move, campaign_simulation_request_reroll, empty_continuation_rows,
+        initial_replay_commitment, initialize_campaign_simulation, initialize_daily_simulation,
+        ladder_points, ladder_tier, ladder_tier_count, ladder_tier_floor, qualified_player_id,
+        simulation_apply_bonus, simulation_apply_vrf, simulation_finish_deadline,
+        simulation_play_move, simulation_request_reroll, simulation_score_eligible,
     };
     use wasm_bindgen::prelude::*;
 
@@ -316,6 +316,14 @@ mod wasm {
         action: u32,
     ) -> Result<Vec<u8>, JsError> {
         simulation_request_reroll(config, state, action).map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = requestCampaignSimulationReroll)]
+    pub fn js_campaign_simulation_request_reroll(
+        config: &[u8],
+        state: &[u8],
+    ) -> Result<Vec<u8>, JsError> {
+        campaign_simulation_request_reroll(config, state).map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = finishDailySimulationAtDeadline)]

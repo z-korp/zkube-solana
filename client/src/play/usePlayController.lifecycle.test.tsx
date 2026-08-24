@@ -75,6 +75,7 @@ function delegatedRun(
     startCampaignRun: vi.fn(),
     playMove: vi.fn(),
     applyBonus: vi.fn(),
+    requestReroll: vi.fn(),
     recoverSession,
     ...overrides,
   };
@@ -257,10 +258,9 @@ describe("usePlayController silent session renewal", () => {
     ).toHaveLength(1);
 
     // Win show duration elapses → card. Continue stays locked mid-settlement.
-    await waitFor(
-      () => expect(result.current.presentationPhase).toBe("card"),
-      { timeout: 4000 },
-    );
+    await waitFor(() => expect(result.current.presentationPhase).toBe("card"), {
+      timeout: 4000,
+    });
     expect(result.current.showLevelCard).toBe(true);
     act(() => result.current.continueFromTerminal());
     expect(fixtures.navigate).not.toHaveBeenCalled();

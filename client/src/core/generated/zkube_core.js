@@ -340,6 +340,25 @@ export function qualifiedPlayerId(chain_domain, raw_account) {
 /**
  * @param {Uint8Array} config
  * @param {Uint8Array} state
+ * @returns {Uint8Array}
+ */
+export function requestCampaignSimulationReroll(config, state) {
+    const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.requestCampaignSimulationReroll(ptr0, len0, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+
+/**
+ * @param {Uint8Array} config
+ * @param {Uint8Array} state
  * @param {number} action
  * @returns {Uint8Array}
  */

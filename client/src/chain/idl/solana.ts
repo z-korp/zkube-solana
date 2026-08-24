@@ -4310,6 +4310,92 @@ export type Solana = {
       ]
     },
     {
+      "name": "requestReroll",
+      "discriminator": [
+        143,
+        43,
+        219,
+        79,
+        85,
+        112,
+        137,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "activeRun",
+          "writable": true
+        },
+        {
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracleQueue",
+          "writable": true,
+          "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+        },
+        {
+          "name": "delegationRecordActive"
+        },
+        {
+          "name": "programIdentity",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrfProgram",
+          "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
+        },
+        {
+          "name": "slotHashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expectedAction",
+          "type": "u32"
+        },
+        {
+          "name": "clientSeed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "requestRowVrf",
       "discriminator": [
         9,
@@ -6070,6 +6156,13 @@ export type Solana = {
             "type": "u8"
           },
           {
+            "name": "rerollAvailable",
+            "docs": [
+              "Every run starts with one preview reroll beside its guardian bonus."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "perfectTriggerAvailable",
             "docs": [
               "Perfect-clear trigger may award at most once between player moves."
@@ -6929,9 +7022,6 @@ export type Solana = {
           },
           {
             "name": "realmMapId",
-            "docs": [
-              "Zero is allowed for a standalone wildcard entry with no guardian realm."
-            ],
             "type": "u8"
           },
           {

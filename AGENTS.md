@@ -24,7 +24,7 @@ Source implements v5 partially. Current state:
 
 | Area | Status |
 | --- | --- |
-| Deterministic core 1.0.0 | Built — `objective_total`, reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
+| Deterministic core 1.0.0 | Built — `objective_total`, universal once-per-run reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
 | `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
@@ -318,13 +318,15 @@ ladder tier boundaries, and the flat qualifying credit.
   a public formula over already public data, must be stated when it is
   announced and never settled afterwards. Funding it is a governance action
   requiring exact approval like any other operator spend.
-- **Reroll is a fourth bonus type**, replacing the next preview row rather than
-  altering the board. Because it consumes an additional VRF output it must fold
-  into the replay commitment as its own event under a distinct domain
-  separator, or determinism and independent recomputation break. Reroll is
-  categorically unlike Hammer, Totem and Wave: those alter the board, reroll
-  alters supply, attacking the one-row lookahead that is the game's core
-  tension.
+- **Reroll is a universal run action beside the guardian bonus.** Campaign and
+  Arcade each begin with exactly one reroll, and spending it replaces the next
+  preview without consuming or changing Hammer, Totem, or Wave charges. It is
+  never a guardian bonus type, a wildcard realm, or a second pairing on a map.
+  The replacement consumes an additional VRF output and folds into the replay
+  commitment as its own event under a distinct domain separator. The core
+  `universal_reroll_is_separate_from_guardian_bonus_inventory`, program
+  `reroll_request_is_an_accepted_action_that_awaits_its_own_vrf`, SBF reroll
+  contract, and source supersession guard enforce the split and one-use limit.
 - **A Kredit is never granted, discounted, or bundled as a bonus.** Every Kredit
   in existence was bought at the same price, so every entry contributes the same
   lamports and no entry dilutes another. Larger packs carry cosmetics only. Free
@@ -343,7 +345,9 @@ deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
 publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
 Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
-pairing are superseded too, as is the ladder streak multiplier.
+pairing are superseded too, as is the ladder streak multiplier. Reroll as a
+fourth guardian bonus type, wildcard Daily realms, and multi-bonus map pairings
+are also superseded.
 
 ## Transaction policy
 

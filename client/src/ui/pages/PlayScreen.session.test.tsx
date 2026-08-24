@@ -43,13 +43,15 @@ const fixtures = vi.hoisted(() => ({
   setThemeTemplate: vi.fn(),
   actionBarProps: null as Record<string, unknown> | null,
   gameBoardProps: null as Record<string, unknown> | null,
-  onActionReceipt: null as null | ((receipt: {
-    actionCounter: number;
-    chargesGained: number;
-    linesCleared: number;
-    levelLinesCleared: number;
-    source: "move" | "bonus";
-  }) => void),
+  onActionReceipt: null as
+    | null
+    | ((receipt: {
+        actionCounter: number;
+        chargesGained: number;
+        linesCleared: number;
+        levelLinesCleared: number;
+        source: "move" | "bonus";
+      }) => void),
 }));
 
 vi.mock("@/play/usePlayController", () => ({
@@ -62,14 +64,15 @@ vi.mock("@/play/usePlayController", () => ({
       mapId: 1,
       level: 1,
       lifecycle: fixtures.lifecycle,
-      bonusType: 0,
-      bonusCharges: 0,
+      bonusType: 1,
+      bonusCharges: 2,
+      rerollAvailable: true,
       rules: {
         bossId: 0,
         activeMutatorId: 0,
-        bonusTriggerType: 0,
-        bonusThreshold: 0,
-        startingCharges: 0,
+        bonusTriggerType: 2,
+        bonusThreshold: 3,
+        startingCharges: 1,
       },
       endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
       endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
@@ -110,6 +113,7 @@ vi.mock("@/play/usePlayController", () => ({
       activeRun: fixtures.gameAvailable ? activeRun : null,
       outcome: null,
       onBonus: vi.fn(),
+      onReroll: vi.fn(),
       onMove: vi.fn(),
       onCascadeComplete: vi.fn(),
       retrySettlement: fixtures.retrySettlement,
@@ -249,10 +253,23 @@ describe("PlayScreen bonus receipt feedback", () => {
         levelLinesCleared: 3,
         source: "move",
       });
-      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+      (fixtures.gameBoardProps?.onCascadeComplete as () => void)();
     });
     expect(fixtures.actionBarProps?.bonusEarnSignal).toBe(1);
     expect(fixtures.playSfx).toHaveBeenCalledWith("coin");
+  });
+
+  it("shows the universal reroll beside the guardian bonus", () => {
+    render(<PlayScreen />);
+    const slots = fixtures.actionBarProps?.bonusSlots as Array<{
+      name: string;
+      charges: number;
+    }>;
+
+    expect(slots.map(({ name, charges }) => ({ name, charges }))).toEqual([
+      { name: "Hammer", charges: 2 },
+      { name: "Reroll", charges: 1 },
+    ]);
   });
 
   it("deduplicates the same action receipt across both timing paths", () => {
@@ -267,9 +284,9 @@ describe("PlayScreen bonus receipt feedback", () => {
     act(() => {
       fixtures.onActionReceipt?.(receipt);
       fixtures.onActionReceipt?.(receipt);
-      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+      (fixtures.gameBoardProps?.onCascadeComplete as () => void)();
       fixtures.onActionReceipt?.(receipt);
-      (fixtures.gameBoardProps?.onCascadeComplete as (() => void))();
+      (fixtures.gameBoardProps?.onCascadeComplete as () => void)();
     });
     expect(fixtures.actionBarProps?.bonusEarnSignal).toBe(1);
     expect(fixtures.playSfx).toHaveBeenCalledTimes(1);

@@ -11,8 +11,8 @@
     "reroll": 6
   },
   "dailySimulationStateEncoding": {
-    "version": 2,
-    "length": 313,
+    "version": 3,
+    "length": 314,
     "objectiveTotal": "u64-le"
   },
   "dailyClaimWindowSeconds": 2592000,

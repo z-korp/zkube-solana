@@ -43,10 +43,7 @@ import {
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
 } from "./constants.js";
-import {
-  saveRunSession,
-  type RunSlot,
-} from "./runSessionStore.js";
+import { saveRunSession, type RunSlot } from "./runSessionStore.js";
 import { SessionWallet, type WalletLike } from "./sessionWallet.js";
 import {
   deriveArenaPlayerPda,
@@ -195,6 +192,7 @@ export interface ActiveRunView extends EndlessRulesView {
   currentDifficulty: number;
   bonusType: number;
   bonusCharges: number;
+  rerollAvailable: boolean;
   grid: number[];
   nextRow: number[] | null;
   pendingVrfCounter: number;
@@ -680,6 +678,40 @@ export async function buildApplyBonusPlan(args: {
   );
 }
 
+export async function buildRequestRerollPlan(args: {
+  owner: PublicKey;
+  sessionWallet: WalletLike;
+  sessionToken: PublicKey;
+  activeRun: PublicKey;
+  erConnection: Connection;
+  expectedAction: number;
+  clientSeed?: Uint8Array;
+}): Promise<TransactionPlan> {
+  const program = zkubeProgram(args.erConnection, args.sessionWallet);
+  const clientSeed =
+    args.clientSeed ?? crypto.getRandomValues(new Uint8Array(32));
+  if (clientSeed.length !== 32)
+    throw new Error("clientSeed must contain 32 bytes");
+  const instruction = await program.methods
+    .requestReroll(args.expectedAction, [...clientSeed])
+    .accountsPartial({
+      activeRun: args.activeRun,
+      ownerAuthority: args.owner,
+      sessionToken: args.sessionToken,
+      actor: args.sessionWallet.publicKey,
+      oracleQueue: VRF_QUEUE,
+      delegationRecordActive: getDelegationRecord(args.activeRun),
+    })
+    .instruction();
+  return plan(
+    "magicblock-er",
+    "Reroll preview",
+    args.erConnection,
+    args.sessionWallet.publicKey,
+    [instruction],
+  );
+}
+
 /**
  * Give up a non-terminal run on the ER: forces the delegated ActiveRun into
  * the `finished` lifecycle (kept score, zero stars) so the unchanged
@@ -914,6 +946,7 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
+    rerollAvailable: account.rerollAvailable,
     grid: [...account.grid].map(Number),
     nextRow: account.hasNextRow ? [...account.nextRow].map(Number) : null,
     pendingVrfCounter: Number(account.pendingVrfCounter),

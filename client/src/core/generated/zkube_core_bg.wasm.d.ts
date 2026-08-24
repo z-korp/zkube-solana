@@ -13,6 +13,7 @@ export const applyDailySimulationVrf: (a: number, b: number, c: number, d: numbe
 export const playDailySimulationMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
 export const applyDailySimulationBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
 export const requestDailySimulationReroll: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const requestCampaignSimulationReroll: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const finishDailySimulationAtDeadline: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const dailySimulationScoreEligible: (a: number, b: number) => [number, number, number];
 export const initializeCampaignSimulation: (a: number, b: number) => [number, number, number, number];

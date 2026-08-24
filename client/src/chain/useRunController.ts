@@ -15,6 +15,7 @@ import {
   buildPlayMovePlan,
   buildPrepareCampaignRunPlan,
   buildRequestRowPlan,
+  buildRequestRerollPlan,
   combinePreparedAndDelegatePlan,
   decodeActiveRunAccount,
   fetchActiveRun,
@@ -57,10 +58,7 @@ import {
   emitChainMetric,
   type ChainMetricLayer,
 } from "./telemetry";
-import {
-  isActiveRunConflict,
-  runDiscoveryPendingError,
-} from "./runStartError";
+import { isActiveRunConflict, runDiscoveryPendingError } from "./runStartError";
 import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
 
 const plog = (
@@ -94,10 +92,7 @@ const plogFailure = (
     layer,
     phase: phases[phases.length - 1] ?? label,
     ok: false,
-    error: errorMessage(error).slice(
-      0,
-      200,
-    ),
+    error: errorMessage(error).slice(0, 200),
     ...data,
   });
 };
@@ -1624,6 +1619,70 @@ export function useRunController(slot: RunSlot) {
     [ensureActiveRunObserver, player],
   );
 
+  const requestReroll = useCallback(async () => {
+    const run = currentRun.current;
+    if (!run) throw new Error("No delegated run is attached");
+    actionInFlight.current = true;
+    try {
+      return await withBusy(setState, async () => {
+        const device = player.requireSession();
+        const sessionWallet = new SessionWallet(device.signer);
+        const observer = await ensureActiveRunObserver(
+          run.connection,
+          run.marker.addresses.activeRun,
+          sessionWallet,
+        );
+        const expectedAction = run.activeRun.actionCounter + 1;
+        const rerollStartedAt = Date.now();
+        const plan = await buildRequestRerollPlan({
+          owner: run.marker.owner,
+          sessionWallet,
+          sessionToken: device.sessionToken,
+          activeRun: run.marker.addresses.activeRun,
+          erConnection: run.connection,
+          expectedAction: run.activeRun.actionCounter,
+        });
+        const submission = await submitErTransactionPlan({
+          transactionPlan: plan,
+          wallet: sessionWallet,
+        });
+        plogErSubmission(
+          telemetryTrace.current,
+          "reroll:submit",
+          run.connection,
+          submission,
+          { durationMs: Date.now() - rerollStartedAt },
+        );
+        const update = await observer.waitFor(
+          (active) =>
+            active.actionCounter >= expectedAction &&
+            active.lifecycle === "playing" &&
+            active.pendingVrfCounter === 0,
+          {
+            fallbackPollMs: 250,
+            timeoutMs: 20_000,
+            timeoutMessage: "Timed out waiting for reroll state",
+          },
+        );
+        const activeRun = update.state;
+        plog(telemetryTrace.current, "reroll:state-ready", "magicblock-er", {
+          durationMs: Date.now() - rerollStartedAt,
+          notificationSource: update.source,
+          requestCounter: activeRun.vrfRequestCounter,
+        });
+        run.activeRun = activeRun;
+        setState((value) => ({
+          ...value,
+          activeRun,
+          lastSignature: submission.signature,
+        }));
+        return activeRun;
+      });
+    } finally {
+      actionInFlight.current = false;
+    }
+  }, [ensureActiveRunObserver, player]);
+
   const cleanup = useCallback(async () => {
     if (!publicKey) throw new Error("Connect the run owner wallet");
     const marker = loadRunSession(publicKey, slot);
@@ -1696,6 +1755,7 @@ export function useRunController(slot: RunSlot) {
     resumePreparedRun,
     playMove,
     applyBonus,
+    requestReroll,
     settleAndAdvance,
     recoverSettlement,
     recoverBaseRun,
@@ -1812,10 +1872,7 @@ async function hydrateRows(args: {
 }
 
 function isTerminal(lifecycle: string): boolean {
-  return (
-    lifecycle === "levelComplete" ||
-    lifecycle === "finished"
-  );
+  return lifecycle === "levelComplete" || lifecycle === "finished";
 }
 
 function requirePositiveRunId(runId: bigint | null | undefined): bigint {

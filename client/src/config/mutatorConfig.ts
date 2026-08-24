@@ -472,11 +472,12 @@ const BONUS_TYPES: Record<
     icon: "/assets/common/bonus/wave.png",
     description: "Clear an entire row",
   },
-  4: {
-    name: "Reroll",
-    icon: "/assets/common/bonus/reroll.png",
-    description: "Replace the next preview row",
-  },
 };
 
 export const getBonusType = (id: number) => BONUS_TYPES[id] ?? BONUS_TYPES[0];
+
+export const REROLL_ACTION = {
+  name: "Reroll",
+  icon: "/assets/common/bonus/reroll.png",
+  description: "Replace the next preview row",
+} as const;

@@ -9,7 +9,6 @@ pub enum Bonus {
     Hammer,
     Totem,
     Wave,
-    Reroll,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,7 +21,6 @@ pub enum GridError {
     DestinationOccupied,
     IncoherentRow,
     CapacityExceeded,
-    RerollRequiresVrf,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,9 +160,6 @@ impl Grid {
     }
 
     pub fn apply_bonus(&mut self, bonus: Bonus, row: u8, column: u8) -> Result<(), GridError> {
-        if bonus == Bonus::Reroll {
-            return Err(GridError::RerollRequiresVrf);
-        }
         let row = row as usize;
         let column = column as usize;
         if row >= GRID_HEIGHT {
@@ -192,7 +187,6 @@ impl Grid {
                 }
             }
             Bonus::Wave => self.cells[offset..offset + GRID_WIDTH].fill(0),
-            Bonus::Reroll => return Err(GridError::RerollRequiresVrf),
         }
         Ok(())
     }

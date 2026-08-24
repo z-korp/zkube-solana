@@ -366,6 +366,14 @@ pub mod solana {
         )
     }
 
+    pub fn request_reroll(
+        ctx: Context<ApplyBonus>,
+        expected_action: u32,
+        client_seed: [u8; 32],
+    ) -> Result<()> {
+        instructions::run_lifecycle::handler_request_reroll(ctx, expected_action, client_seed)
+    }
+
     pub fn abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
         instructions::run_lifecycle::handler_abandon_run(ctx)
     }

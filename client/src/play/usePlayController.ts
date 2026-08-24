@@ -119,9 +119,10 @@ export function bonusEarnReceipt(
   after: ActiveRunView,
   source: ActionReceipt["source"],
 ): ActionReceipt | null {
-  const expectedCharges = source === "bonus"
-    ? Math.max(0, before.bonusCharges - 1)
-    : before.bonusCharges;
+  const expectedCharges =
+    source === "bonus"
+      ? Math.max(0, before.bonusCharges - 1)
+      : before.bonusCharges;
   const chargesGained = Math.max(0, after.bonusCharges - expectedCharges);
   if (chargesGained === 0) return null;
   return {
@@ -194,10 +195,11 @@ export function usePlayController(options: PlayControllerOptions = {}) {
   const onActionReceiptRef = useRef(options.onActionReceipt);
   onActionReceiptRef.current = options.onActionReceipt;
 
-  const finalCampaignMapId = campaign.campaign?.maps.reduce(
-    (highest, map) => Math.max(highest, map.mapId),
-    0,
-  ) ?? 0;
+  const finalCampaignMapId =
+    campaign.campaign?.maps.reduce(
+      (highest, map) => Math.max(highest, map.mapId),
+      0,
+    ) ?? 0;
 
   const rememberTerminal = useCallback(
     (activeRun: ActiveRunView) => {
@@ -261,6 +263,16 @@ export function usePlayController(options: PlayControllerOptions = {}) {
     },
     [applyBonus, rememberTerminal, run.activeRun],
   );
+
+  const requestReroll = run.requestReroll;
+  const onReroll = useCallback(async () => {
+    setLocalActionPending(true);
+    try {
+      return projectRunResult(await requestReroll());
+    } finally {
+      setLocalActionPending(false);
+    }
+  }, [requestReroll]);
 
   const onCascadeComplete = useCallback(() => {
     terminalAwaitingCascadeRef.current = null;
@@ -410,9 +422,10 @@ export function usePlayController(options: PlayControllerOptions = {}) {
       // Start commit/copyback as soon as terminal state is observed. The
       // display-only Campaign-star refresh runs concurrently and never delays
       // the settlement boundary or waits for the local cascade animation.
-      const refreshBeforeConsumption = terminalRun.mode !== "campaign"
-        ? Promise.resolve(null)
-        : campaignRefresh().catch(() => null);
+      const refreshBeforeConsumption =
+        terminalRun.mode !== "campaign"
+          ? Promise.resolve(null)
+          : campaignRefresh().catch(() => null);
       const settlement = settle().then(
         () => null,
         (cause: unknown) => cause,
@@ -525,13 +538,7 @@ export function usePlayController(options: PlayControllerOptions = {}) {
       navigate("map");
       return signature;
     },
-    [
-      campaignRefresh,
-      dailyRefresh,
-      navigate,
-      recoverBaseRun,
-      setRecoveryRunId,
-    ],
+    [campaignRefresh, dailyRefresh, navigate, recoverBaseRun, setRecoveryRunId],
   );
 
   const activeGame = useMemo(() => {
@@ -586,6 +593,7 @@ export function usePlayController(options: PlayControllerOptions = {}) {
     continueFromTerminal,
     onMove,
     onBonus,
+    onReroll,
     onCascadeComplete,
     awaitingTerminalCascade,
     retrySettlement,

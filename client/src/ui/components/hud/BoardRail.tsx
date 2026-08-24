@@ -68,11 +68,8 @@ export default function BoardRail({
   surrenderDisabled = false,
 }: BoardRailProps) {
   const accent = getThemeColors(themeId).accent;
-  const slot = bonusSlots[0];
-  const selected = slot !== undefined && activeBonus === slot.type;
-  const spent = slot === undefined || slot.charges <= 0;
-
-  const left = maxMoves > 0 ? Math.max(0, Math.min(1, movesRemaining / maxMoves)) : 0;
+  const left =
+    maxMoves > 0 ? Math.max(0, Math.min(1, movesRemaining / maxMoves)) : 0;
   const meter = left <= 0.25 ? "#EF4444" : left <= 0.5 ? "#F59E0B" : accent;
 
   return (
@@ -133,67 +130,79 @@ export default function BoardRail({
         <Home size={16} />
       </button>
 
-      <motion.button
-        type="button"
-        aria-label={slot ? `${slot.name}: ${slot.charges} charges` : "No bonus"}
-        onClick={spent || disabled ? undefined : slot?.onClick}
-        disabled={spent || disabled}
-        key={slot?.type ?? "none"}
-        animate={bonusEarnSignal > 0 ? { scale: [1, 1.12, 1] } : {}}
-        transition={{ duration: 0.3 }}
-        className="absolute grid place-items-center rounded-full transition-transform active:translate-y-[3px] disabled:translate-y-0"
-        style={{
-          left: "50%",
-          marginLeft: -39,
-          top: 44,
-          width: 78,
-          height: 78,
-          background: spent
-            ? "linear-gradient(170deg,#232B3D,#121826)"
-            : "linear-gradient(170deg,#FFF3C4,#FACC15 48%,#8A6B08)",
-          boxShadow: spent
-            ? "0 4px 0 #05080F, inset 0 1px 0 rgba(255,255,255,0.08)"
-            : `inset 0 2px 0 rgba(255,255,255,0.55), 0 5px 0 #5C4805, 0 10px 16px rgba(0,0,0,0.55)${
-                selected ? ", 0 0 22px rgba(250,204,21,0.65)" : ""
-              }`,
-        }}
+      <div
+        className="absolute flex items-center justify-center gap-2"
+        style={{ left: "50%", top: 50, transform: "translateX(-50%)" }}
       >
-        {slot && (
-          <img
-            src={slot.icon}
-            alt=""
-            className="h-[44%] w-[44%] object-contain"
-            style={{ opacity: spent ? 0.35 : 1 }}
-          />
-        )}
-        {slot && (
-          <span
-            className="absolute -bottom-0.5 -right-0.5 grid h-[25px] min-w-[25px] place-items-center rounded-full px-1 font-sans text-[12px] font-black tabular-nums"
-            style={{
-              background: spent
-                ? "linear-gradient(180deg,#3A4459,#202836)"
-                : "linear-gradient(180deg,#FFF3C4,#E0A800)",
-              color: spent ? "rgba(255,255,255,0.4)" : "#241903",
-              boxShadow: "0 2px 0 rgba(0,0,0,0.6)",
-            }}
-          >
-            {slot.charges}
-          </span>
-        )}
-        {slot?.lineProgress && (
-          <span
-            className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-[1px] font-sans text-[10px] font-black tabular-nums text-[#FDE68A]"
-            style={{
-              background: "rgba(6,10,18,0.92)",
-              boxShadow: "inset 0 0 0 1px rgba(250,204,21,0.32)",
-            }}
-          >
-            {slot.lineProgress.current}/{slot.lineProgress.threshold}
-          </span>
-        )}
-      </motion.button>
+        {bonusSlots.map((slot, index) => {
+          const selected =
+            typeof slot.type === "number" && activeBonus === slot.type;
+          const spent = slot.charges <= 0;
+          return (
+            <motion.button
+              type="button"
+              aria-label={`${slot.name}: ${slot.charges} charges`}
+              onClick={spent || disabled ? undefined : slot.onClick}
+              disabled={spent || disabled}
+              key={slot.type}
+              animate={
+                index === 0 && bonusEarnSignal > 0
+                  ? { scale: [1, 1.12, 1] }
+                  : {}
+              }
+              transition={{ duration: 0.3 }}
+              className="relative grid place-items-center rounded-full transition-transform active:translate-y-[3px] disabled:translate-y-0"
+              style={{
+                width: bonusSlots.length > 1 ? 64 : 78,
+                height: bonusSlots.length > 1 ? 64 : 78,
+                background: spent
+                  ? "linear-gradient(170deg,#232B3D,#121826)"
+                  : "linear-gradient(170deg,#FFF3C4,#FACC15 48%,#8A6B08)",
+                boxShadow: spent
+                  ? "0 4px 0 #05080F, inset 0 1px 0 rgba(255,255,255,0.08)"
+                  : `inset 0 2px 0 rgba(255,255,255,0.55), 0 5px 0 #5C4805, 0 10px 16px rgba(0,0,0,0.55)${
+                      selected ? ", 0 0 22px rgba(250,204,21,0.65)" : ""
+                    }`,
+              }}
+            >
+              <img
+                src={slot.icon}
+                alt=""
+                className="h-[44%] w-[44%] object-contain"
+                style={{ opacity: spent ? 0.35 : 1 }}
+              />
+              <span
+                className="absolute -bottom-0.5 -right-0.5 grid h-[25px] min-w-[25px] place-items-center rounded-full px-1 font-sans text-[12px] font-black tabular-nums"
+                style={{
+                  background: spent
+                    ? "linear-gradient(180deg,#3A4459,#202836)"
+                    : "linear-gradient(180deg,#FFF3C4,#E0A800)",
+                  color: spent ? "rgba(255,255,255,0.4)" : "#241903",
+                  boxShadow: "0 2px 0 rgba(0,0,0,0.6)",
+                }}
+              >
+                {slot.charges}
+              </span>
+              {slot.lineProgress && (
+                <span
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-[1px] font-sans text-[10px] font-black tabular-nums text-[#FDE68A]"
+                  style={{
+                    background: "rgba(6,10,18,0.92)",
+                    boxShadow: "inset 0 0 0 1px rgba(250,204,21,0.32)",
+                  }}
+                >
+                  {slot.lineProgress.current}/{slot.lineProgress.threshold}
+                </span>
+              )}
+            </motion.button>
+          );
+        })}
+      </div>
 
-      <SettingsSeat onSurrender={onSurrender} surrenderDisabled={surrenderDisabled} />
+      <SettingsSeat
+        onSurrender={onSurrender}
+        surrenderDisabled={surrenderDisabled}
+      />
     </div>
   );
 }
@@ -295,7 +304,9 @@ function SettingsSeat({
           className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-950/40 px-4 py-3 font-sans text-sm font-bold text-red-200 disabled:opacity-40"
         >
           <Flag size={15} />
-          {confirming ? "Give up — this ends the run for good" : "Give up this run"}
+          {confirming
+            ? "Give up — this ends the run for good"
+            : "Give up this run"}
         </button>
       </DialogContent>
     </Dialog>

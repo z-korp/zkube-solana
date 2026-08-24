@@ -39,7 +39,6 @@ interface DailyFixture {
   themeBoardDataBase64: string;
   themeBoardDataSha256: string;
 }
-
 const fixture = JSON.parse(readFileSync(
   new URL("./fixtures/devnet-cadence-snapshots.json", import.meta.url),
   "utf8",
@@ -57,7 +56,7 @@ const idl = convertIdlToCamelCase(JSON.parse(readFileSync(
 const coder = new BorshAccountsCoder(idl);
 const temporaryRoots: string[] = [];
 const SOURCE_IDL_SHA256 =
-  "bd969be2368f222a1cc82c59b837741b9f0c0305162bbc34e719d3f8a113d043";
+  "31877314935bd91616683a683742f288f1ff32ee7d2c7a9936a934930a9b76b5";
 let adapter: AnchorKeeperAdapter;
 
 beforeAll(async () => {

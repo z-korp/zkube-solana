@@ -122,10 +122,10 @@ recompute and verify them. The entry streak remains visible attendance but does
 not multiply points. A championship is discretionary,
 unscheduled, and funded separately rather than skimmed from Daily pots.
 
-Bonuses gain a fourth type, a reroll of the incoming row, and each pool entry
-pins its active bonus so a day plays differently rather than only scoring
-differently. Mainnet remains gated on the same counsel, economic, and
-distribution review as before.
+Every Campaign and Arcade run carries one reroll of the incoming row beside its
+guardian bonus. Daily pool entries still pin that guardian bonus, with no
+wildcard realm or second bonus pairing. Mainnet remains gated on the same
+counsel, economic, and distribution review as before.
 
 ## Architecture
 

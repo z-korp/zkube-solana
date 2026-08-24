@@ -830,8 +830,9 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         grid,
         next_row: old_preview,
         has_next_row: true,
-        bonus_type: 4,
-        bonus_charges: 1,
+        bonus_type: 1,
+        bonus_charges: 2,
+        reroll_available: true,
         action_counter: reroll_action,
         vrf_request_counter: request_counter - 1,
         replay_hash: initial_replay,
@@ -875,10 +876,8 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::ApplyBonus {
+        data: zkube::instruction::RequestReroll {
             expected_action: reroll_action,
-            row: 0,
-            column: 0,
             client_seed: [0; 32],
         }
         .data(),
@@ -940,7 +939,8 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_eq!(pending.lifecycle, RunLifecycle::AwaitingVrf);
     assert_eq!(pending.action_counter, reroll_action + 1);
     assert_eq!(pending.moves, 0);
-    assert_eq!(pending.bonus_charges, 0);
+    assert_eq!(pending.bonus_charges, 2);
+    assert!(!pending.reroll_available);
     assert_eq!(pending.pending_vrf_counter, request_counter);
     assert_eq!(pending.replay_hash, replay_after_request);
 
@@ -984,6 +984,8 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_ne!(rerolled.next_row, ordinary_row);
     assert_eq!(rerolled.lifecycle, RunLifecycle::Playing);
     assert_eq!(rerolled.pending_vrf_counter, 0);
+    assert_eq!(rerolled.bonus_charges, 2);
+    assert!(!rerolled.reroll_available);
     assert_eq!(rerolled.replay_hash, replay_after_callback);
 
     let force_finish = anchor_lang::solana_program::instruction::Instruction {

@@ -88,13 +88,27 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
     pattern: /\bpassive_map_id\b|\bpassiveMapId\b|\bpassiveMapCatalog\b/,
     trees: [CLIENT, SERVICES, PROGRAM],
-    reversal: "Daily has no passive map pairing; Campaign passives stay in Campaign",
+    reversal:
+      "Daily has no passive map pairing; Campaign passives stay in Campaign",
   },
   {
     pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "the visible entry streak does not multiply ladder points",
+  },
+  {
+    pattern:
+      /Bonus::Reroll|BonusType\.Reroll|\bBonusShape\b|bonus_type\s*==\s*4|RealmPlusUniversalReroll/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Reroll is one universal run action beside the three guardian bonuses",
+  },
+  {
+    pattern:
+      /realm_map_id\.max\(1\)|realm_map_id\s*>\s*0|standalone wildcard entry/i,
+    trees: [PROGRAM],
+    reversal: "every Daily entry pins one real guardian realm",
   },
 ];
 

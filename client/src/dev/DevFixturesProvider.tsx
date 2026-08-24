@@ -58,6 +58,7 @@ function useDevRunController(realRun: RunController): RunController {
       publicKey: DEV_PLAYER_PUBLIC_KEY,
       playMove: reject,
       applyBonus: reject,
+      requestReroll: reject,
       settleAndAdvance: reject,
       abandonRun: reject,
     };

@@ -18,16 +18,16 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "bd969be2368f222a1cc82c59b837741b9f0c0305162bbc34e719d3f8a113d043";
+  "31877314935bd91616683a683742f288f1ff32ee7d2c7a9936a934930a9b76b5";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 53 instructions and 13 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 54 instructions and 13 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(53);
+    expect(idl.instructions).toHaveLength(54);
     expect(idl.accounts).toHaveLength(13);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
@@ -167,7 +167,6 @@ async function createAdapter(): Promise<AnchorKeeperAdapter> {
     testExpectedIdlSha256: SOURCE_IDL_SHA256,
   });
 }
-
 function ranked(
   owner: PublicKey,
   runLocation: "base" | "ephemeral_rollup" | "unavailable",

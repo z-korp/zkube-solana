@@ -18,8 +18,8 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 282;
 /// grid, optional next row, nine metrics, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 313;
-const STATE_VERSION: u8 = 2;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 314;
+const STATE_VERSION: u8 = 3;
 
 /// Encode a typed configuration for the frontend WASM boundary.
 #[must_use]
@@ -87,6 +87,7 @@ pub fn encode_daily_simulation_state(
     writer.write(&[u8::from(simulation.engine.next_row.is_some())]);
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
     writer.write(&[simulation.engine.bonus_charges]);
+    writer.write(&[u8::from(simulation.engine.reroll_available)]);
     writer.write(&[u8::from(simulation.engine.perfect_trigger_available)]);
     writer.write(&[simulation.engine.starting_height_target]);
     writer.write(&[simulation.current_difficulty]);
@@ -131,6 +132,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let has_next_row = reader.bool()?;
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
+    let reroll_available = reader.bool()?;
     let perfect_trigger_available = reader.bool()?;
     let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
@@ -167,7 +169,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     if current_difficulty > 7
         || (deadline_finished && phase != RunPhase::Finished)
         || (phase == RunPhase::Playing && next_row.is_none())
-        || (phase == RunPhase::AwaitingVrf && next_row.is_some() && bonus != Some(Bonus::Reroll))
+        || (phase == RunPhase::AwaitingVrf && next_row.is_some() && reroll_available)
     {
         return Err(BoundaryError::InvalidEncoding);
     }
@@ -185,6 +187,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             level_lines_cleared,
             bonus,
             bonus_charges,
+            reroll_available,
             perfect_trigger_available,
             starting_height_target,
         },
@@ -450,7 +453,6 @@ const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
-        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -460,7 +462,6 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
         1 => Ok(Some(Bonus::Hammer)),
         2 => Ok(Some(Bonus::Totem)),
         3 => Ok(Some(Bonus::Wave)),
-        4 => Ok(Some(Bonus::Reroll)),
         _ => Err(BoundaryError::InvalidEncoding),
     }
 }
@@ -674,7 +675,6 @@ mod tests {
     #[test]
     fn reroll_round_trips_through_the_stateless_boundary() {
         let mut config = config();
-        config.rules.bonus = Some(Bonus::Reroll);
         config.rules_hash = zkube_core::daily_challenge_rules_hash(
             42,
             config.rules.snapshot_hash().to_bytes(),

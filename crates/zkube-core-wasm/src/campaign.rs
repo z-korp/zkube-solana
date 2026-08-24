@@ -5,9 +5,9 @@ use zkube_core::{
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 187;
-pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 182;
+pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
 const CONFIG_VERSION: u8 = 2;
-const STATE_VERSION: u8 = 2;
+const STATE_VERSION: u8 = 3;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -106,6 +106,7 @@ pub fn encode_campaign_simulation_state(
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
     writer.write(&[
         simulation.engine.bonus_charges,
+        u8::from(simulation.engine.reroll_available),
         u8::from(simulation.engine.perfect_trigger_available),
         simulation.engine.starting_height_target,
         simulation.current_difficulty,
@@ -147,6 +148,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let has_next_row = reader.bool()?;
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
+    let reroll_available = reader.bool()?;
     let perfect_trigger_available = reader.bool()?;
     let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
@@ -205,6 +207,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             level_lines_cleared,
             bonus,
             bonus_charges,
+            reroll_available,
             perfect_trigger_available,
             starting_height_target,
         },
@@ -252,6 +255,19 @@ pub fn campaign_simulation_apply_bonus(
 ) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut simulation) = decode_for_transition(config, state)?;
     simulation.apply_bonus(config, row, column)?;
+    Ok(encode_campaign_simulation_state(simulation).to_vec())
+}
+
+/// # Errors
+///
+/// Returns a codec or rejected universal-reroll transition without partial
+/// state.
+pub fn campaign_simulation_request_reroll(
+    config: &[u8],
+    state: &[u8],
+) -> Result<Vec<u8>, BoundaryError> {
+    let (config, mut simulation) = decode_for_transition(config, state)?;
+    simulation.request_reroll(config)?;
     Ok(encode_campaign_simulation_state(simulation).to_vec())
 }
 
@@ -420,7 +436,6 @@ const fn bonus_tag(value: Option<Bonus>) -> u8 {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
-        Some(Bonus::Reroll) => 4,
     }
 }
 
@@ -430,7 +445,6 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
         1 => Ok(Some(Bonus::Hammer)),
         2 => Ok(Some(Bonus::Totem)),
         3 => Ok(Some(Bonus::Wave)),
-        4 => Ok(Some(Bonus::Reroll)),
         _ => Err(BoundaryError::InvalidEncoding),
     }
 }
@@ -577,5 +591,21 @@ mod tests {
             decode_campaign_simulation_state(&corrupted),
             Err(BoundaryError::InvalidEncoding)
         );
+    }
+
+    #[test]
+    fn campaign_reroll_round_trips_once_without_spending_guardian_charges() {
+        let mut config = config();
+        config.rules.bonus = Some(Bonus::Wave);
+        config.rules.starting_bonus_charges = 2;
+        let config_bytes = encode_campaign_simulation_config(config);
+        let state = initialize_campaign_simulation(&config_bytes).unwrap();
+
+        let rerolled = campaign_simulation_request_reroll(&config_bytes, &state).unwrap();
+        let decoded = decode_campaign_simulation_state(&rerolled).unwrap();
+        assert!(!decoded.engine.reroll_available);
+        assert_eq!(decoded.engine.bonus, Some(Bonus::Wave));
+        assert_eq!(decoded.engine.bonus_charges, 2);
+        assert!(campaign_simulation_request_reroll(&config_bytes, &rerolled).is_err());
     }
 }

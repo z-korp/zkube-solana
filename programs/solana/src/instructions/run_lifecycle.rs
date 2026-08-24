@@ -541,41 +541,33 @@ pub fn handler_apply_bonus(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
     );
-    if active.bonus_type == 4 {
-        // Reroll, the fourth bonus, replaces the preview through its own
-        // domain-separated VRF request instead of touching the board; the
-        // cell coordinates are meaningless and pinned to zero.
-        require!(row == 0 && column == 0, ErrorCode::InvalidState);
-        apply_reroll_request(active, expected_action)?;
-    } else {
-        let level = level_rules(&active.rules)?;
-        let difficulty_at_action = active.current_difficulty;
-        let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
-        let combo_before = active.combo_counter;
-        let mut engine = engine_from_active(active)?;
-        let mut report = engine
-            .apply_bonus(row, column, level, mutator)
-            .map_err(map_run_error)?;
-        fold_replay_event(
-            active,
-            zkube_core::ReplayEvent::Bonus {
-                action: expected_action,
-                row,
-                column,
-            },
-        );
-        report.difficulty_at_action = difficulty_at_action;
-        let terminal_at = terminal_action_timestamp(engine.phase)?;
-        record_action_accounting(
-            active,
-            &engine,
-            &report,
-            combo_before,
-            ActionKind::Bonus,
-            pressure_multiplier_x100,
-            terminal_at,
-        )?;
-    }
+    let level = level_rules(&active.rules)?;
+    let difficulty_at_action = active.current_difficulty;
+    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
+    let combo_before = active.combo_counter;
+    let mut engine = engine_from_active(active)?;
+    let mut report = engine
+        .apply_bonus(row, column, level, mutator)
+        .map_err(map_run_error)?;
+    fold_replay_event(
+        active,
+        zkube_core::ReplayEvent::Bonus {
+            action: expected_action,
+            row,
+            column,
+        },
+    );
+    report.difficulty_at_action = difficulty_at_action;
+    let terminal_at = terminal_action_timestamp(engine.phase)?;
+    record_action_accounting(
+        active,
+        &engine,
+        &report,
+        combo_before,
+        ActionKind::Bonus,
+        pressure_multiplier_x100,
+        terminal_at,
+    )?;
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -594,10 +586,51 @@ pub fn handler_apply_bonus(
     Ok(())
 }
 
-/// A reroll is an accepted action: it consumes a charge, folds its own replay
-/// event, and leaves the run awaiting the domain-separated replacement
-/// preview, so a run holding a pending reroll and no move is scored rather
-/// than expired. The old preview stays visible until the callback lands.
+#[session_auth_or(
+    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
+    SessionError::InvalidToken
+)]
+pub fn handler_request_reroll(
+    ctx: Context<ApplyBonus>,
+    expected_action: u32,
+    client_seed: [u8; 32],
+) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.active_run.owner,
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
+    require!(
+        ctx.accounts.active_run.lifecycle == RunLifecycle::Playing,
+        ErrorCode::InvalidState
+    );
+    let active = &mut ctx.accounts.active_run;
+    require_before_arcade_deadline(active, Clock::get()?.unix_timestamp)?;
+    require!(
+        active.action_counter == expected_action,
+        ErrorCode::InvalidMoveOrder
+    );
+    apply_reroll_request(active, expected_action)?;
+    let validator =
+        delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
+    let active_key = active.key();
+    let ix = prepare_row_vrf_request(
+        active,
+        active_key,
+        ctx.accounts.actor.key(),
+        ctx.accounts.oracle_queue.key(),
+        validator,
+        client_seed,
+    )?;
+    ctx.accounts
+        .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+    Ok(())
+}
+
+/// A reroll is an accepted action. It folds its own replay event and leaves
+/// the run awaiting the domain-separated replacement preview, so a pending
+/// reroll with no move still scores at the deadline. The old preview remains
+/// visible until the callback lands.
 fn apply_reroll_request(active: &mut ActiveRun, expected_action: u32) -> Result<()> {
     let mut engine = engine_from_active(active)?;
     engine.request_reroll().map_err(map_run_error)?;
@@ -608,10 +641,6 @@ fn apply_reroll_request(active: &mut ActiveRun, expected_action: u32) -> Result<
         },
     );
     write_engine(active, &engine);
-    active.bonus_uses = active
-        .bonus_uses
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
     active.action_counter = active
         .action_counter
         .checked_add(1)
@@ -1189,7 +1218,6 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         1 => Some(Bonus::Hammer),
         2 => Some(Bonus::Totem),
         3 => Some(Bonus::Wave),
-        4 => Some(Bonus::Reroll),
         _ => return err!(ErrorCode::InvalidState),
     };
     let phase = match active.lifecycle {
@@ -1212,6 +1240,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         level_lines_cleared: active.level_lines_cleared,
         bonus,
         bonus_charges: active.bonus_charges,
+        reroll_available: active.reroll_available,
         perfect_trigger_available: active.perfect_trigger_available,
         starting_height_target: active.starting_height_target,
     })
@@ -1233,9 +1262,9 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
         Some(Bonus::Hammer) => 1,
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
-        Some(Bonus::Reroll) => 4,
     };
     active.bonus_charges = engine.bonus_charges;
+    active.reroll_available = engine.reroll_available;
     active.perfect_trigger_available = engine.perfect_trigger_available;
     active.starting_height_target = engine.starting_height_target;
 }
@@ -1259,6 +1288,7 @@ fn map_run_error(error: RunError) -> anchor_lang::error::Error {
         | RunError::MissingNextRow
         | RunError::RowAlreadyAvailable
         | RunError::NoBonusCharge
+        | RunError::NoRerollAvailable
         | RunError::RerollRequiresVrf => error!(ErrorCode::InvalidState),
     }
 }
@@ -1723,14 +1753,14 @@ mod tests {
                 zkube_core::ReplayEvent::Vrf { .. } => "fulfill_row_vrf",
                 zkube_core::ReplayEvent::Move { .. } => "play_move",
                 zkube_core::ReplayEvent::Bonus { .. } => "apply_bonus",
-                zkube_core::ReplayEvent::Reroll { .. } => "apply_bonus",
+                zkube_core::ReplayEvent::Reroll { .. } => "request_reroll",
                 zkube_core::ReplayEvent::PlayerAbandon { .. } => "abandon_run",
                 zkube_core::ReplayEvent::DailyDeadline { .. } => "force_finish_deadline",
             }
         }
         assert_eq!(
             producer(&zkube_core::ReplayEvent::Reroll { action: 0 }),
-            "apply_bonus"
+            "request_reroll"
         );
     }
 
@@ -1740,8 +1770,9 @@ mod tests {
             version: ACCOUNT_VERSION,
             mode: RunMode::Daily,
             lifecycle: RunLifecycle::Playing,
-            bonus_type: 4,
-            bonus_charges: 1,
+            bonus_type: 1,
+            bonus_charges: 2,
+            reroll_available: true,
             has_next_row: true,
             next_row: {
                 let mut row = [0u8; 8];
@@ -1755,8 +1786,9 @@ mod tests {
 
         assert_eq!(active.action_counter, 1);
         assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
-        assert_eq!(active.bonus_charges, 0);
-        assert_eq!(active.bonus_uses, 1);
+        assert_eq!(active.bonus_charges, 2);
+        assert_eq!(active.bonus_uses, 0);
+        assert!(!active.reroll_available);
         // The old preview stays visible while the replacement is pending.
         assert!(active.has_next_row);
         assert_eq!(
@@ -1765,7 +1797,7 @@ mod tests {
                 .fold_with::<SolanaSha256>(zkube_core::ReplayEvent::Reroll { action: 0 })
                 .to_bytes()
         );
-        // Awaiting the callback, and out of charges: no second request.
+        // Awaiting the callback, and the run's reroll is spent: no second request.
         assert!(apply_reroll_request(&mut active, 1).is_err());
     }
 
@@ -1798,7 +1830,9 @@ mod tests {
         cells[0] = 1;
         let mut engine = RunEngine {
             phase: RunPhase::AwaitingVrf,
-            bonus: Some(Bonus::Reroll),
+            bonus: Some(Bonus::Hammer),
+            bonus_charges: 2,
+            reroll_available: false,
             next_row: Some({
                 let mut row = [0u8; 8];
                 row[0] = 1;

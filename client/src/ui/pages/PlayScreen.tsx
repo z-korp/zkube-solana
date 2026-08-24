@@ -11,7 +11,7 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
 import type { Game } from "@/game/model";
 import { DAILY_SCORE_COMBO, dailyScoringRuleName } from "@/chain/dailyRules";
-import { getBonusType } from "@/config/mutatorConfig";
+import { getBonusType, REROLL_ACTION } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { canSubmitRunMove } from "@/chain/useRunController";
@@ -49,8 +49,11 @@ export default function PlayScreen() {
   const pendingBonusEarnRef = useRef(false);
   const lastBonusReceiptActionRef = useRef<number | null>(null);
   const handleActionReceipt = useCallback((receipt: ActionReceipt) => {
-    if (receipt.chargesGained <= 0 ||
-        lastBonusReceiptActionRef.current === receipt.actionCounter) return;
+    if (
+      receipt.chargesGained <= 0 ||
+      lastBonusReceiptActionRef.current === receipt.actionCounter
+    )
+      return;
     lastBonusReceiptActionRef.current = receipt.actionCounter;
     pendingBonusEarnRef.current = true;
   }, []);
@@ -81,6 +84,7 @@ export default function PlayScreen() {
     shouldLog: false,
   });
   const onRunBonus = controller.onBonus;
+  const onRunReroll = controller.onReroll;
   const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
   const recoveryOwner = run.publicKey?.toBase58() ?? "disconnected wallet";
@@ -112,7 +116,14 @@ export default function PlayScreen() {
     const boss = activeRunLevel === 10 || activeRunBossId > 0;
     setMusicMood(boss ? "boss" : "level");
     if (boss) playSfx("boss-intro");
-  }, [activeRunBossId, activeRunId, activeRunLevel, playSfx, run.phase, setMusicMood]);
+  }, [
+    activeRunBossId,
+    activeRunId,
+    activeRunLevel,
+    playSfx,
+    run.phase,
+    setMusicMood,
+  ]);
 
   // Restore the full menu rotation only when leaving the play surface.
   useEffect(() => () => setMusicMoodRef.current("menu"), []);
@@ -171,11 +182,12 @@ export default function PlayScreen() {
   );
 
   const bonusSlots = useMemo<BonusSlot[]>(() => {
-    if (!activeRun || activeRun.bonusType <= 0) return [];
-    const type = activeRun.bonusType as BonusType;
-    const info = getBonusType(type);
-    return [
-      {
+    if (!activeRun) return [];
+    const slots: BonusSlot[] = [];
+    if (activeRun.bonusType > 0) {
+      const type = activeRun.bonusType as BonusType;
+      const info = getBonusType(type);
+      slots.push({
         type,
         // Displayed count is held until the cascade lands, so it bumps
         // together with the badge-pop; the interaction guard below stays
@@ -193,32 +205,40 @@ export default function PlayScreen() {
         // Only the cumulative line trigger exposes meaningful progress from
         // the authoritative receipt counters. Per-move trigger families do
         // not have a safe "toward next" value between actions.
-        lineProgress: activeRun.rules.bonusTriggerType === 2 &&
+        lineProgress:
+          activeRun.rules.bonusTriggerType === 2 &&
           activeRun.rules.bonusThreshold > 0
-          ? {
-              current: activeRun.levelLinesCleared %
-                activeRun.rules.bonusThreshold,
-              threshold: activeRun.rules.bonusThreshold,
-            }
-          : undefined,
+            ? {
+                current:
+                  activeRun.levelLinesCleared % activeRun.rules.bonusThreshold,
+                threshold: activeRun.rules.bonusThreshold,
+              }
+            : undefined,
         startingCharges: activeRun.rules.startingCharges,
         onClick: () => {
           if (activeRun.bonusCharges <= 0) return;
-          if (type === BonusType.Reroll) {
-            // Reroll has no board target and no cascade: the tap is the
-            // action, and the preview swaps when the VRF callback lands.
-            void onBonus(0, 0)
-              .catch(() => undefined)
-              .finally(() => setHeld(null));
-            return;
-          }
           setActiveBonus((current) =>
             current === type ? BonusType.None : type,
           );
         },
+      });
+    }
+    slots.push({
+      type: "reroll",
+      charges: activeRun.rerollAvailable ? 1 : 0,
+      isActive: true,
+      icon: REROLL_ACTION.icon,
+      name: REROLL_ACTION.name,
+      description: REROLL_ACTION.description,
+      triggerDescription: "Once per run",
+      startingCharges: 1,
+      onClick: () => {
+        if (!activeRun.rerollAvailable) return;
+        void onRunReroll().catch(() => undefined);
       },
-    ];
-  }, [activeRun, held, onBonus]);
+    });
+    return slots;
+  }, [activeRun, held, onRunReroll]);
 
   // New run/level snapshot changes identity: never carry a hold across runs.
   const gameId = game?.id;
@@ -274,7 +294,9 @@ export default function PlayScreen() {
         window.setTimeout(
           () =>
             setChips((current) =>
-              current.filter((chip) => !launched.some((one) => one.id === chip.id)),
+              current.filter(
+                (chip) => !launched.some((one) => one.id === chip.id),
+              ),
             ),
           CHIP_FLIGHT_MS + CHIP_STAGGER_MS * launched.length + 60,
         );
@@ -309,7 +331,8 @@ export default function PlayScreen() {
     danger: dangerAtCeiling,
     perfectSignal,
     ended:
-      activeRun?.lifecycle === "finished" || activeRun?.lifecycle === "levelComplete"
+      activeRun?.lifecycle === "finished" ||
+      activeRun?.lifecycle === "levelComplete"
         ? controller.terminalSnapshot?.completed
           ? "won"
           : "lost"
@@ -593,9 +616,8 @@ export default function PlayScreen() {
       <PlaySurface>
         <StatePanel title="Daily window closed">
           <p className="max-w-sm text-center text-sm text-white/70">
-            Your current on-chain score is frozen. The keeper is closing the
-            run at its recorded deadline and the result will settle
-            automatically.
+            Your current on-chain score is frozen. The keeper is closing the run
+            at its recorded deadline and the result will settle automatically.
           </p>
         </StatePanel>
       </PlaySurface>
@@ -624,9 +646,7 @@ export default function PlayScreen() {
     controller.terminalSnapshot
       ? controller.terminalSnapshot.completed
         ? ("win" as const)
-        : controller.terminalSnapshot.game.blocks[0]?.some(
-              (cell) => cell !== 0,
-            )
+        : controller.terminalSnapshot.game.blocks[0]?.some((cell) => cell !== 0)
           ? ("lose-overflow" as const)
           : ("lose-sink" as const)
       : null;
@@ -919,7 +939,6 @@ export default function PlayScreen() {
     </PlaySurface>
   );
 }
-
 
 function PlaySurface({ children }: { children: ReactNode }) {
   // One stone, floor to ceiling, and the board is a well cut into it. The

@@ -1,8 +1,8 @@
 use std::{env, process::ExitCode};
 
 use zkube_core::sim_harness::{
-    BonusShape, FieldAssumptions, PlayerModel, SeedPartition, campaign_catalog, daily_catalog,
-    draw_summary, golden_smoke, run_campaign, run_daily, simulate_field,
+    FieldAssumptions, PlayerModel, SeedPartition, campaign_catalog, daily_catalog, draw_summary,
+    golden_smoke, run_campaign, run_daily, simulate_field,
 };
 
 fn main() -> ExitCode {
@@ -34,23 +34,13 @@ fn run() -> Result<String, String> {
                     PlayerModel::DailyScore,
                     PlayerModel::Theme,
                 ] {
-                    for shape in [
-                        BonusShape::Realm,
-                        BonusShape::None,
-                        BonusShape::UniversalReroll,
-                        BonusShape::RealmPlusUniversalReroll,
-                        BonusShape::RealmNoPassive,
-                        BonusShape::RealmNoPressure,
-                        BonusShape::RealmThreeTierPressure,
-                    ] {
-                        for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
-                            for seed_index in 0..seeds {
-                                let seed = partition_seed(partition, seed_index);
-                                records.push(
-                                    run_daily(entry, model, shape, partition, seed)
-                                        .map_err(|error| format!("Daily run failed: {error:?}"))?,
-                                );
-                            }
+                    for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
+                        for seed_index in 0..seeds {
+                            let seed = partition_seed(partition, seed_index);
+                            records.push(
+                                run_daily(entry, model, partition, seed)
+                                    .map_err(|error| format!("Daily run failed: {error:?}"))?,
+                            );
                         }
                     }
                 }

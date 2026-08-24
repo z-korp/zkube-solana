@@ -93,18 +93,6 @@ impl PlayerModel {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BonusShape {
-    Realm,
-    None,
-    UniversalReroll,
-    RealmPlusUniversalReroll,
-    RealmNoPassive,
-    RealmNoPressure,
-    RealmThreeTierPressure,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
 pub enum TerminalCause {
     Completion,
     Overflow,
@@ -130,7 +118,6 @@ pub struct RunRecord {
     pub difficulty_band: u8,
     pub authored_rules_valid: bool,
     pub model: PlayerModel,
-    pub bonus_shape: BonusShape,
     pub partition: SeedPartition,
     pub seed: u64,
     pub terminal_cause: TerminalCause,
@@ -421,85 +408,6 @@ fn daily_objective(index: usize) -> (u8, DailyObjectiveRule) {
     )
 }
 
-fn rules_for_shape(mut rules: DailyRunRules, shape: BonusShape) -> DailyRunRules {
-    match shape {
-        BonusShape::Realm | BonusShape::RealmPlusUniversalReroll => rules,
-        BonusShape::None => {
-            rules.bonus = None;
-            rules.starting_bonus_charges = 0;
-            rules.mutator.bonus_trigger_type = 0;
-            rules.mutator.bonus_threshold = 0;
-            rules
-        }
-        BonusShape::UniversalReroll => {
-            rules.bonus = Some(Bonus::Reroll);
-            rules.starting_bonus_charges = 1;
-            rules.mutator.bonus_trigger_type = 0;
-            rules.mutator.bonus_threshold = 0;
-            rules
-        }
-        BonusShape::RealmNoPassive => {
-            rules.mutator.score_multiplier_x100 = 100;
-            rules.mutator.combo_multiplier_x100 = 100;
-            rules.mutator.line_clear_bonus = 0;
-            rules.mutator.perfect_clear_bonus = 0;
-            rules
-        }
-        BonusShape::RealmNoPressure => {
-            let baseline = rules.pressure.block_weights[0];
-            rules.pressure = DailyPressureRules {
-                thresholds: [
-                    u32::MAX - 6,
-                    u32::MAX - 5,
-                    u32::MAX - 4,
-                    u32::MAX - 3,
-                    u32::MAX - 2,
-                    u32::MAX - 1,
-                    u32::MAX,
-                ],
-                score_multipliers_x100: [100; 8],
-                block_weights: [baseline; 8],
-            };
-            rules
-        }
-        BonusShape::RealmThreeTierPressure => {
-            let canonical = rules.pressure;
-            rules.pressure = DailyPressureRules {
-                thresholds: [
-                    canonical.thresholds[1],
-                    canonical.thresholds[3],
-                    u32::MAX - 4,
-                    u32::MAX - 3,
-                    u32::MAX - 2,
-                    u32::MAX - 1,
-                    u32::MAX,
-                ],
-                score_multipliers_x100: [
-                    canonical.score_multipliers_x100[0],
-                    canonical.score_multipliers_x100[3],
-                    canonical.score_multipliers_x100[7],
-                    canonical.score_multipliers_x100[7],
-                    canonical.score_multipliers_x100[7],
-                    canonical.score_multipliers_x100[7],
-                    canonical.score_multipliers_x100[7],
-                    canonical.score_multipliers_x100[7],
-                ],
-                block_weights: [
-                    canonical.block_weights[0],
-                    canonical.block_weights[3],
-                    canonical.block_weights[7],
-                    canonical.block_weights[7],
-                    canonical.block_weights[7],
-                    canonical.block_weights[7],
-                    canonical.block_weights[7],
-                    canonical.block_weights[7],
-                ],
-            };
-            rules
-        }
-    }
-}
-
 /// Run one authored Daily through its real simulation and VRF paths.
 ///
 /// # Errors
@@ -508,11 +416,10 @@ fn rules_for_shape(mut rules: DailyRunRules, shape: BonusShape) -> DailyRunRules
 pub fn run_daily(
     entry: DailyCatalogEntry,
     model: PlayerModel,
-    shape: BonusShape,
     partition: SeedPartition,
     seed: u64,
 ) -> Result<RunRecord, SimulationError> {
-    let rules = rules_for_shape(entry.rules, shape);
+    let rules = entry.rules;
     let identity = [entry.id; 32];
     let config = DailySimulationConfig {
         chain_domain: ChainDomain([0x51; 32]),
@@ -520,10 +427,8 @@ pub fn run_daily(
         raw_account: identity,
         run_id: seed,
         mode: ReplayMode::Ranked,
-        // Counterfactual shapes deliberately share one experimental rules
-        // identity so their opening and ordinary preview rows stay paired.
-        // The record still carries the shape; this hash is not a publishable
-        // protocol rules hash.
+        // The harness identity pairs seeds within each authored entry and
+        // partition. It is not a publishable protocol rules hash.
         rules_hash: RulesHash(SoftwareSha256::hashv(&[
             HARNESS_DAILY_RULES_DOMAIN,
             &[entry.id, partition.tag()],
@@ -533,7 +438,7 @@ pub fn run_daily(
     let mut simulation = DailySimulation::new(config)?;
     simulation.apply_vrf(rules, 1, vrf_bytes(seed, entry.id, 1))?;
     let (simulation, counters, terminal_cause) =
-        play_daily_to_terminal(simulation, rules, entry.id, model, shape, seed)?;
+        play_daily_to_terminal(simulation, rules, entry.id, model, seed)?;
     Ok(RunRecord {
         mode: String::from("daily"),
         catalog_id: u16::from(entry.id),
@@ -543,7 +448,6 @@ pub fn run_daily(
         difficulty_band: 0,
         authored_rules_valid: entry.authored_rules_valid,
         model,
-        bonus_shape: shape,
         partition,
         seed,
         terminal_cause,
@@ -572,23 +476,15 @@ fn play_daily_to_terminal(
     rules: DailyRunRules,
     entry_id: u8,
     model: PlayerModel,
-    shape: BonusShape,
     seed: u64,
 ) -> Result<(DailySimulation, Counters, TerminalCause), SimulationError> {
     let mut counters = Counters::default();
     let mut terminal = None;
-    let mut side_rerolls = u8::from(shape == BonusShape::RealmPlusUniversalReroll);
-    let mut pending_realm_charges = None;
 
     while terminal.is_none() && simulation.action_counter < MAX_HARNESS_PLIES {
         if simulation.engine.phase == RunPhase::AwaitingVrf {
             let counter = simulation.last_vrf_counter.saturating_add(1);
             simulation.apply_vrf(rules, counter, vrf_bytes(seed, entry_id, counter))?;
-            if let Some(realm_charges) = pending_realm_charges.take() {
-                side_rerolls = simulation.engine.bonus_charges;
-                simulation.engine.bonus = rules.bonus;
-                simulation.engine.bonus_charges = realm_charges;
-            }
             continue;
         }
         if simulation.engine.phase == RunPhase::Finished {
@@ -600,25 +496,10 @@ fn play_daily_to_terminal(
         let best_move = choose_daily(&moves, seed, simulation.action_counter, model)
             .ok_or(SimulationError::InvalidPhase)?;
 
-        let can_side_reroll = shape == BonusShape::RealmPlusUniversalReroll && side_rerolls > 0;
-        let can_realm_reroll =
-            simulation.engine.bonus == Some(Bonus::Reroll) && simulation.engine.bonus_charges > 0;
-        if (can_side_reroll || can_realm_reroll)
+        if simulation.engine.reroll_available
             && should_reroll(model, simulation.action_counter, &best_move.report)
         {
-            if can_side_reroll {
-                let realm_charges = simulation.engine.bonus_charges;
-                simulation.engine.bonus = Some(Bonus::Reroll);
-                simulation.engine.bonus_charges = side_rerolls;
-                simulation.request_reroll(rules, simulation.action_counter)?;
-                side_rerolls = simulation.engine.bonus_charges;
-                // Preserve realm inventory outside the single experimental
-                // engine slot until the exact reroll callback completes.
-                pending_realm_charges = Some(realm_charges);
-            } else {
-                simulation.request_reroll(rules, simulation.action_counter)?;
-            }
-            counters.charges_spent = counters.charges_spent.saturating_add(1);
+            simulation.request_reroll(rules, simulation.action_counter)?;
             counters.rerolls_used = counters.rerolls_used.saturating_add(1);
             counters.observe_decision(ActionKind::Reroll);
             continue;
@@ -704,6 +585,14 @@ pub fn run_campaign(
             engine_stalled = true;
             break;
         };
+        if simulation.engine.reroll_available
+            && should_reroll(model, simulation.action_counter, &best_move.report)
+        {
+            simulation.request_reroll(config)?;
+            counters.rerolls_used = counters.rerolls_used.saturating_add(1);
+            counters.observe_decision(ActionKind::Reroll);
+            continue;
+        }
         let bonuses = campaign_bonus_candidates(simulation, config, model);
         let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
         let selected =
@@ -748,7 +637,6 @@ pub fn run_campaign(
         difficulty_band: level.rules.level_difficulty,
         authored_rules_valid: true,
         model,
-        bonus_shape: BonusShape::Realm,
         partition,
         seed,
         terminal_cause,
@@ -764,7 +652,7 @@ pub fn run_campaign(
         charges_spent: counters.charges_spent,
         charges_discarded_at_cap: counters.charges_discarded,
         bonuses_used: counters.bonuses_used,
-        rerolls_used: 0,
+        rerolls_used: counters.rerolls_used,
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
@@ -817,9 +705,7 @@ fn daily_bonus_candidates(
     rules: DailyRunRules,
     model: PlayerModel,
 ) -> Vec<DailyCandidate> {
-    if simulation.engine.bonus_charges == 0
-        || matches!(simulation.engine.bonus, None | Some(Bonus::Reroll))
-    {
+    if simulation.engine.bonus_charges == 0 || simulation.engine.bonus.is_none() {
         return Vec::new();
     }
     let mut candidates = Vec::new();
@@ -1451,22 +1337,12 @@ pub fn golden_smoke() -> Result<SmokeSummary, String> {
     let daily_entries = daily_catalog();
     let campaign_levels = campaign_catalog();
     let mut records = Vec::new();
-    for (entry, model, shape, seed) in [
-        (
-            daily_entries[1],
-            PlayerModel::DailyScore,
-            BonusShape::Realm,
-            41,
-        ),
-        (
-            daily_entries[6],
-            PlayerModel::Theme,
-            BonusShape::UniversalReroll,
-            73,
-        ),
+    for (entry, model, seed) in [
+        (daily_entries[1], PlayerModel::DailyScore, 41),
+        (daily_entries[6], PlayerModel::Theme, 73),
     ] {
         records.push(
-            run_daily(entry, model, shape, SeedPartition::Holdout, seed)
+            run_daily(entry, model, SeedPartition::Holdout, seed)
                 .map_err(|error| format!("Daily smoke failed: {error:?}"))?,
         );
     }
@@ -1527,7 +1403,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":360,\"objectiveSum\":96,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"b96b76f4bd2917dd14deb7a943efe7f0ce023d1da83b509a77c01bc6f5505697\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":150,\"objectiveSum\":46,\"campaignScoreSum\":32,\"completedCampaignRuns\":1,\"chargesEarned\":4,\"digestHex\":\"78dd859cfe4941ee2a0cc771f46dafcfdbff62fade06541849d255f385aeee8c\"}"
         );
     }
 
