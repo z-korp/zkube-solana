@@ -103,8 +103,7 @@ this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
 open: how many entries the pool ships with and what each carries, per-entry
 starting heights, the global pressure thresholds and `DailyPressureRules` values,
-ladder tier boundaries, the flat qualifying credit, and Kredit pack sizes and
-prices.
+ladder tier boundaries, and the flat qualifying credit.
 
 - **The pool is the content unit, and there is no calendar.** Every authored
   daily is a pool entry carrying its realm, active mutator, objective family,
@@ -338,7 +337,9 @@ prices.
   and airdropped Kredits, bulk bonus Kredits, and per-unit bulk discounts are
   all prohibited on the paid boards — a discount reduces the per-entry
   contribution and is the same dilution wearing a different label. Unpaid
-  prestige boards are the only place an unbacked entry may exist.
+  prestige boards are the only place an unbacked entry may exist. The shipped
+  shop offers packs of exactly 1, 10, and 25 Kredits; `kreditPacks.test.ts`
+  guards both the sizes and their invariant unit pricing.
 
 Superseded on implementation, and only then: the Weekly pot and its 60/25/15
 skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
@@ -347,7 +348,7 @@ lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
 publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
-Score-threshold bonus triggers.
+Score-threshold bonus triggers. A five-Kredit shop pack is superseded too.
 
 ## Transaction policy
 

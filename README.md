@@ -76,7 +76,8 @@ Daily boards, direct claim settlement, and the points ladder are in source.
 **Kredits replace the per-run signature.** Entries are prepaid in bundles rather
 than signed one at a time, because a wallet prompt before every run is fatal to
 impulse play. Kredits are one-way — no withdrawal, transfer, or cash-out — and
-prizes still pay in SOL.
+prizes still pay in SOL. The shop offers 1-, 10-, and 25-Kredit packs at the
+same 0.01 SOL unit price.
 
 **Playing funds the pot, not buying.** Spending a Kredit sends 90% of its price
 to the following paid Daily's pot; the other 10% is operator revenue. Prior play

@@ -80,6 +80,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",
   },
+  {
+    pattern: /KREDIT_PACK_SIZES[^;\n]*\b5\b/,
+    trees: [CLIENT],
+    reversal: "the shop offers only 1-, 10-, and 25-Kredit packs",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

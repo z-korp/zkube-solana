@@ -1547,8 +1547,8 @@ mod tests {
     fn draw_and_field_samples_are_reproducible() {
         let draw = draw_summary(10, 365).unwrap();
         assert_eq!(draw.appearances.iter().sum::<u32>(), 365);
-        let first = simulate_field(FieldAssumptions::base(), &[1, 5, 10]).unwrap();
-        let second = simulate_field(FieldAssumptions::base(), &[1, 5, 10]).unwrap();
+        let first = simulate_field(FieldAssumptions::base(), &[1, 10, 25]).unwrap();
+        let second = simulate_field(FieldAssumptions::base(), &[1, 10, 25]).unwrap();
         assert_eq!(first, second);
         assert!(first.warmup_entries > 0);
         assert!(first.measured_entries > u64::from(first.unique_attending_wallets));

@@ -10,7 +10,7 @@
  * The sizes themselves are a balance pass. The systems contract is only that
  * every pack is a whole number of identically priced Kredits.
  */
-export const KREDIT_PACK_SIZES: readonly number[] = [1, 5, 10, 25];
+export const KREDIT_PACK_SIZES: readonly number[] = [1, 10, 25];
 
 /** Lamports for a pack, at the protocol's fixed unit price. */
 export function kreditPackLamports(

@@ -93,9 +93,7 @@ fn run() -> Result<String, String> {
                 FieldAssumptions::base(),
                 FieldAssumptions::streak_sensitive(),
             ] {
-                for packs in [&[1u8][..], &[1, 5][..], &[1, 5, 10][..], &[5, 10, 25][..]] {
-                    summaries.push(simulate_field(assumptions, packs)?);
-                }
+                summaries.push(simulate_field(assumptions, &[1, 10, 25])?);
             }
             serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
         }
