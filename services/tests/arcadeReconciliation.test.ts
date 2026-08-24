@@ -433,7 +433,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
 function dailyPoolEntries() {
   return Array.from({ length: 10 }, (_, index) => ({
     realmMapId: index + 1,
-    passiveMapId: index + 1,
   }));
 }
 

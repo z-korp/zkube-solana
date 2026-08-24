@@ -655,7 +655,7 @@ const rankedDependencyCoder = new BorshAccountsCoder(
 const RANKED_ACCOUNT_SPACES = {
   protocolConfig: 156,
   arcadeConfig: 103,
-  arenaDaily: 405,
+  arenaDaily: 404,
   creditVault: 58,
 } as const;
 
@@ -922,10 +922,6 @@ export async function buildOpenDailyChallengePlan(args: {
       realmMapCatalog: deriveMapCatalogPda(
         contentVersion,
         Math.max(Number(entry.realmMapId), 1),
-      ),
-      passiveMapCatalog: deriveMapCatalogPda(
-        contentVersion,
-        Number(entry.passiveMapId),
       ),
       arenaDaily: challenge,
       payer: args.payer ?? args.wallet.publicKey,

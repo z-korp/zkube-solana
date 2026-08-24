@@ -3045,9 +3045,6 @@
           "name": "realm_map_catalog"
         },
         {
-          "name": "passive_map_catalog"
-        },
-        {
           "name": "arena_daily",
           "writable": true
         },
@@ -3755,9 +3752,6 @@
         },
         {
           "name": "realm_map_catalog"
-        },
-        {
-          "name": "passive_map_catalog"
         },
         {
           "name": "arena_daily",
@@ -6399,10 +6393,6 @@
             "type": "u8"
           },
           {
-            "name": "passive_map_id",
-            "type": "u8"
-          },
-          {
             "name": "scoring_rule",
             "type": {
               "defined": {
@@ -6918,10 +6908,11 @@
       "docs": [
         "One complete authored Daily in the published pool.",
         "",
-        "Map identifiers bind the entry back to the Campaign catalogs. The copied",
-        "active and passive fields make the selected Daily independently immutable;",
-        "preparation verifies them against those catalogs so a guardian's mutator",
-        "can never be re-paired with another realm."
+        "The realm identifier binds the entry back to the Campaign catalog. The",
+        "copied active fields make the selected Daily independently immutable;",
+        "preparation verifies them against that catalog so a guardian's active",
+        "mutator can never be re-paired with another realm. Campaign passives do not",
+        "cross into Daily play."
       ],
       "type": {
         "kind": "struct",
@@ -6938,15 +6929,7 @@
             "type": "u8"
           },
           {
-            "name": "passive_map_id",
-            "type": "u8"
-          },
-          {
             "name": "active_mutator_id",
-            "type": "u8"
-          },
-          {
-            "name": "passive_mutator_id",
             "type": "u8"
           },
           {
@@ -6956,22 +6939,6 @@
                 "name": "DailyScoringRule"
               }
             }
-          },
-          {
-            "name": "score_multiplier_x100",
-            "type": "u16"
-          },
-          {
-            "name": "combo_multiplier_x100",
-            "type": "u16"
-          },
-          {
-            "name": "line_clear_bonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfect_clear_bonus",
-            "type": "u16"
           },
           {
             "name": "bonus_type",

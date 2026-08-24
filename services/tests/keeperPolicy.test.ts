@@ -31,7 +31,6 @@ describe("v5 keeper semantic policy", () => {
     const catalogStartsDay = DAY - 10;
     const poolEntries = Array.from({ length: 10 }, (_, index) => ({
       realmMapId: index + 1,
-      passiveMapId: index + 1,
     }));
     const content = dailyContentSelection(
       catalogStartsDay,
@@ -49,7 +48,6 @@ describe("v5 keeper semantic policy", () => {
       poolEntryCount: poolEntries.length,
       poolEntries,
       realmMapId: selected.realmMapId,
-      passiveMapId: selected.passiveMapId,
       ...content,
       cadenceFunding: cadenceFundingPda(),
     });

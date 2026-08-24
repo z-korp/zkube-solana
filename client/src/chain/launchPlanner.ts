@@ -51,12 +51,12 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: 156,
   mapCatalog: 275,
-  dailyRulesCatalog: 3_960,
+  dailyRulesCatalog: 2_141,
   arcadeConfig: 103,
   operatorRevenueVault: 58,
   creditVault: 58,
   arcadeArchive: 82,
-  arenaDaily: 405,
+  arenaDaily: 404,
 } as const;
 
 export interface LaunchPlannerInput {

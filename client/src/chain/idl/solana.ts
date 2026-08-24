@@ -3051,9 +3051,6 @@ export type Solana = {
           "name": "realmMapCatalog"
         },
         {
-          "name": "passiveMapCatalog"
-        },
-        {
           "name": "arenaDaily",
           "writable": true
         },
@@ -3761,9 +3758,6 @@ export type Solana = {
         },
         {
           "name": "realmMapCatalog"
-        },
-        {
-          "name": "passiveMapCatalog"
         },
         {
           "name": "arenaDaily",
@@ -6405,10 +6399,6 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "passiveMapId",
-            "type": "u8"
-          },
-          {
             "name": "scoringRule",
             "type": {
               "defined": {
@@ -6924,10 +6914,11 @@ export type Solana = {
       "docs": [
         "One complete authored Daily in the published pool.",
         "",
-        "Map identifiers bind the entry back to the Campaign catalogs. The copied",
-        "active and passive fields make the selected Daily independently immutable;",
-        "preparation verifies them against those catalogs so a guardian's mutator",
-        "can never be re-paired with another realm."
+        "The realm identifier binds the entry back to the Campaign catalog. The",
+        "copied active fields make the selected Daily independently immutable;",
+        "preparation verifies them against that catalog so a guardian's active",
+        "mutator can never be re-paired with another realm. Campaign passives do not",
+        "cross into Daily play."
       ],
       "type": {
         "kind": "struct",
@@ -6944,15 +6935,7 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "passiveMapId",
-            "type": "u8"
-          },
-          {
             "name": "activeMutatorId",
-            "type": "u8"
-          },
-          {
-            "name": "passiveMutatorId",
             "type": "u8"
           },
           {
@@ -6962,22 +6945,6 @@ export type Solana = {
                 "name": "dailyScoringRule"
               }
             }
-          },
-          {
-            "name": "scoreMultiplierX100",
-            "type": "u16"
-          },
-          {
-            "name": "comboMultiplierX100",
-            "type": "u16"
-          },
-          {
-            "name": "lineClearBonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfectClearBonus",
-            "type": "u16"
           },
           {
             "name": "bonusType",

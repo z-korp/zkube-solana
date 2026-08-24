@@ -158,7 +158,6 @@ export interface ProtocolSnapshot {
   catalogStartsDay: number;
   poolEntries: readonly {
     realmMapId: number;
-    passiveMapId: number;
   }[];
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
@@ -306,7 +305,6 @@ export function discoverReconciliation(args: {
       poolIndex: content.poolIndex,
       poolEntries: args.snapshot.poolEntries,
       realmMapId: entry.realmMapId,
-      passiveMapId: entry.passiveMapId,
       cadenceFunding: cadenceFundingPda(),
     }));
   }
@@ -532,8 +530,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   if (snapshot.contentVersion === 0 ||
       snapshot.poolEntries.length > DAILY_POOL_CAPACITY || snapshot.poolEntries.some((entry) =>
         !Number.isSafeInteger(entry.realmMapId) || entry.realmMapId < 0 ||
-        entry.realmMapId > 32 || !Number.isSafeInteger(entry.passiveMapId) ||
-        entry.passiveMapId < 1 || entry.passiveMapId > 32)) {
+        entry.realmMapId > 32)) {
     throw new Error("Daily content catalog or launch day is invalid");
   }
   assertUnique(snapshot.dailies.map(({ dayId }) => dayId), "Daily id");

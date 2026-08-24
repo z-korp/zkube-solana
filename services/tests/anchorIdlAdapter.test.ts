@@ -18,7 +18,7 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "df98a002e761ed07c103a2b1b58de2327497bf2215f3e228085492ebdf9e0400";
+  "bd969be2368f222a1cc82c59b837741b9f0c0305162bbc34e719d3f8a113d043";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
@@ -74,7 +74,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         rulesCatalog: rulesCatalogPda(7),
         contentVersion: 2,
         realmMapId: 1,
-        passiveMapId: 2,
       }, "funded_prepare_arena_daily"],
       ["activate_arena_daily", {
         dayId: DAY,

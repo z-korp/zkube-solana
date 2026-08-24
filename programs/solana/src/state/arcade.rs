@@ -439,7 +439,6 @@ pub struct ArenaDaily {
     pub catalog_hash: [u8; 32],
     pub rules_hash: [u8; 32],
     pub map_id: u8,
-    pub passive_map_id: u8,
     pub scoring_rule: DailyScoringRule,
     pub rules: LevelRuleSnapshot,
     pub pressure: DailyPressureProfile,
@@ -979,7 +978,6 @@ pub fn daily_result_hash(
     daily.catalog_hash.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
     daily.map_id.serialize(&mut bytes)?;
-    daily.passive_map_id.serialize(&mut bytes)?;
     daily.scoring_rule.serialize(&mut bytes)?;
     daily.rules.serialize(&mut bytes)?;
     daily.pressure.serialize(&mut bytes)?;
@@ -1386,10 +1384,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 405);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 404);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 397);
+        assert_eq!(daily_bytes.len(), 396);
         assert_eq!(ArenaBoard::INIT_SPACE, 121);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_537);
         assert_eq!(

@@ -275,7 +275,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         const entry = record(value, `rules pool entry ${index}`);
         return {
           realmMapId: u8(entry.realmMapId, `rules pool entry ${index} realm`),
-          passiveMapId: u8(entry.passiveMapId, `rules pool entry ${index} passive`),
         };
       });
     requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
@@ -769,7 +768,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         const following = requiredNumber(context.followingDayId, "following day id");
         const contentVersion = requiredNumber(context.contentVersion, "content version");
         const realmMapId = requiredMapId(context.realmMapId, true, "realm map id");
-        const passiveMapId = requiredMapId(context.passiveMapId, false, "passive map id");
         return {
           name: this.preferredInstructionName(
             "fundedPrepareArenaDaily",
@@ -783,7 +781,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             arcadeArchive: arcadeArchivePda(),
             dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
             realmMapCatalog: mapCatalogPda(contentVersion, Math.max(realmMapId, 1)),
-            passiveMapCatalog: mapCatalogPda(contentVersion, passiveMapId),
             arenaDaily: arenaDailyPda(following),
             cadenceFunding: cadenceFundingPda(),
             zkubeProgram: ZKUBE_PROGRAM_ID,
@@ -1932,7 +1929,6 @@ const RESULT_FIELDS = {
     "catalogHash",
     "rulesHash",
     "mapId",
-    "passiveMapId",
     "scoringRule",
     "rules",
     "pressure",

@@ -373,10 +373,6 @@ export async function buildPrepareLaunchPeriodPlans(args: {
           args.contentVersion,
           Math.max(entry.realmMapId, 1),
         ),
-        passiveMapCatalog: deriveMapCatalogPda(
-          args.contentVersion,
-          entry.passiveMapId,
-        ),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
         caller: args.authority.publicKey,
@@ -546,19 +542,12 @@ function canonicalDailyPoolEntries(contentVersion: number) {
     { length: CANONICAL_CAMPAIGN_MAP_COUNT },
     (_, index) => {
       const realm = canonicalCampaignMap(contentVersion, index + 1);
-      const passive = canonicalCampaignMap(contentVersion, index + 1);
       const scoringRule = CANONICAL_DAILY_SCORING_RULES[scoringIndexes[index]!]!;
       return {
         id: index + 1,
         realmMapId: realm.mapId,
-        passiveMapId: passive.mapId,
         activeMutatorId: realm.mapRules.activeMutatorId,
-        passiveMutatorId: passive.mapRules.passiveMutatorId,
         scoringRule: { ...scoringRule },
-        scoreMultiplierX100: passive.mapRules.scoreMultiplierX100,
-        comboMultiplierX100: passive.mapRules.comboMultiplierX100,
-        lineClearBonus: passive.mapRules.lineClearBonus,
-        perfectClearBonus: passive.mapRules.perfectClearBonus,
         bonusType: realm.mapRules.bonusType,
         bonusTriggerType: realm.mapRules.bonusTriggerType,
         bonusThreshold: realm.mapRules.bonusThreshold,

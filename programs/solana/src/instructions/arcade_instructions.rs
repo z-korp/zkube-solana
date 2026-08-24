@@ -268,12 +268,6 @@ pub struct PrepareArenaDaily<'info> {
         constraint = realm_map_catalog.enabled @ ErrorCode::MapDisabled
     )]
     pub realm_map_catalog: Box<Account<'info, MapCatalog>>,
-    #[account(
-        constraint = passive_map_catalog.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = passive_map_catalog.content_version == daily_rules_catalog.content_version @ ErrorCode::ContentVersionMismatch,
-        constraint = passive_map_catalog.enabled @ ErrorCode::MapDisabled
-    )]
-    pub passive_map_catalog: Box<Account<'info, MapCatalog>>,
     #[account(init, payer = payer, space = 8 + ArenaDaily::INIT_SPACE,
         seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
@@ -306,16 +300,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         realm_account_id,
         ctx.accounts.daily_rules_catalog.content_version,
     )?;
-    validate_daily_map_catalog(
-        &ctx.accounts.passive_map_catalog,
-        entry.passive_map_id,
-        ctx.accounts.daily_rules_catalog.content_version,
-    )?;
-    validate_daily_pool_entry(
-        entry,
-        &ctx.accounts.realm_map_catalog.map_rules,
-        &ctx.accounts.passive_map_catalog.map_rules,
-    )?;
+    validate_daily_pool_entry(entry, &ctx.accounts.realm_map_catalog.map_rules)?;
     let rules = daily_level_rules(entry, content.pressure);
     let rules_hash = zkube_core::daily_challenge_rules_hash_with::<SolanaSha256>(
         day_id,
@@ -336,7 +321,6 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         catalog_hash: ctx.accounts.daily_rules_catalog.catalog_hash,
         rules_hash,
         map_id: entry.realm_map_id,
-        passive_map_id: entry.passive_map_id,
         scoring_rule: entry.scoring_rule,
         rules,
         pressure: content.pressure,
@@ -1923,13 +1907,13 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
         primary: ConstraintSnapshot::default(),
         secondary: ConstraintSnapshot::default(),
         active_mutator_id: entry.active_mutator_id,
-        passive_mutator_id: entry.passive_mutator_id,
+        passive_mutator_id: 0,
         boss_id: 0,
         block_weights: pressure.block_weights[0],
-        score_multiplier_x100: entry.score_multiplier_x100,
-        combo_multiplier_x100: entry.combo_multiplier_x100,
-        line_clear_bonus: entry.line_clear_bonus,
-        perfect_clear_bonus: entry.perfect_clear_bonus,
+        score_multiplier_x100: 100,
+        combo_multiplier_x100: 100,
+        line_clear_bonus: 0,
+        perfect_clear_bonus: 0,
         star_threshold_modifier: 128,
         bonus_type: entry.bonus_type,
         bonus_trigger_type: entry.bonus_trigger_type,
@@ -1939,11 +1923,7 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
     }
 }
 
-fn validate_daily_pool_entry(
-    entry: DailyPoolEntry,
-    realm: &CampaignMapRuleSnapshot,
-    passive: &CampaignMapRuleSnapshot,
-) -> Result<()> {
+fn validate_daily_pool_entry(entry: DailyPoolEntry, realm: &CampaignMapRuleSnapshot) -> Result<()> {
     if entry.realm_map_id > 0 {
         require!(
             entry.active_mutator_id == realm.active_mutator_id
@@ -1955,14 +1935,6 @@ fn validate_daily_pool_entry(
             ErrorCode::InvalidMap
         );
     }
-    require!(
-        entry.passive_mutator_id == passive.passive_mutator_id
-            && entry.score_multiplier_x100 == passive.score_multiplier_x100
-            && entry.combo_multiplier_x100 == passive.combo_multiplier_x100
-            && entry.line_clear_bonus == passive.line_clear_bonus
-            && entry.perfect_clear_bonus == passive.perfect_clear_bonus,
-        ErrorCode::InvalidMap
-    );
     Ok(())
 }
 

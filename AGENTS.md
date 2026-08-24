@@ -107,8 +107,8 @@ ladder tier boundaries, and the flat qualifying credit.
 
 - **The pool is the content unit, and there is no calendar.** Every authored
   daily is a pool entry carrying its realm, active mutator, objective family,
-  and passive. Entries are added, edited, or retired at
-  any time by publishing a catalog revision. There are no sets, seasons,
+  guardian bonus, and starting height. Entries are added, edited, or retired
+  at any time by publishing a catalog revision. There are no sets, seasons,
   gauntlets, or scheduled boundaries of any kind. A thirteen-week set calendar
   was designed and deliberately cut: it obliged the studio to ship content on a
   timer, forced a dark stretch costing roughly 4.9% of annual entry revenue
@@ -159,6 +159,12 @@ ladder tier boundaries, and the flat qualifying credit.
   record is invalidated by rules that moved underneath it. Variety comes from
   new entries and retuned global pressure, never from reassigning a guardian's
   ability.
+- **Daily has no passive pairing.** A Daily inherits its realm's active mutator
+  and guardian bonus, then uses the neutral passive scoring baseline: no passive
+  mutator, 1x score and combo multipliers, and no passive line-clear or
+  perfect-clear bonus. Campaign realms keep their authored passives. Daily pool
+  entries and preparation must never carry a passive map identity;
+  `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, and Combo Meter triggers carry a positive threshold. Perfect-clear
   and all-block-sizes triggers carry zero because their conditions are complete
@@ -348,7 +354,8 @@ lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
 publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
-Score-threshold bonus triggers. A five-Kredit shop pack is superseded too.
+Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
+pairing are superseded too.
 
 ## Transaction policy
 

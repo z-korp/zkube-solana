@@ -485,8 +485,7 @@ function assertDailyContent(context: KeeperPlanContext): void {
   );
   const entry = context.poolEntries[selected.poolIndex];
   if (context.poolIndex !== selected.poolIndex || !entry ||
-      context.realmMapId !== entry.realmMapId ||
-      context.passiveMapId !== entry.passiveMapId) {
+      context.realmMapId !== entry.realmMapId) {
     throw new Error("keeper policy rejects Daily content selection");
   }
 }

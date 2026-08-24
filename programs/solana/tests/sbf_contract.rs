@@ -77,14 +77,8 @@ fn daily_pool_entry_fixture() -> DailyPoolEntry {
     DailyPoolEntry {
         id: 1,
         realm_map_id: 1,
-        passive_map_id: 2,
         active_mutator_id: 1,
-        passive_mutator_id: 2,
         scoring_rule: canonical_daily_scoring_rules()[0],
-        score_multiplier_x100: 100,
-        combo_multiplier_x100: 100,
-        line_clear_bonus: 1,
-        perfect_clear_bonus: 2,
         bonus_type: 1,
         bonus_trigger_type: 1,
         bonus_threshold: 10,
@@ -1678,7 +1672,6 @@ fn daily_fixture(
             catalog_hash: [1; 32],
             rules_hash: [2; 32],
             map_id: 1,
-            passive_map_id: 2,
             scoring_rule: canonical_daily_scoring_rules()[0],
             rules: LevelRuleSnapshot::default(),
             pressure: DailyPressureProfile::canonical(),
@@ -2586,7 +2579,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
         )
     };
     let (realm_map_catalog, realm_map_account) = map_fixture(realm_map_id);
-    let (passive_map_catalog, passive_map_account) = map_fixture(content.entry.passive_map_id);
     let (missing, _) =
         Pubkey::find_program_address(&[ARENA_DAILY_SEED, &missing_day.to_le_bytes()], &zkube::ID);
     let (arcade_archive, archive_bump) =
@@ -2602,7 +2594,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             arcade_archive,
             daily_rules_catalog: rules,
             realm_map_catalog,
-            passive_map_catalog,
             arena_daily: missing,
             cadence_funding,
             caller,
@@ -2634,7 +2625,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
         ),
         (realm_map_catalog, realm_map_account),
-        (passive_map_catalog, passive_map_account),
         (missing, system_account(0)),
         (cadence_funding, system_account(funding_before)),
         (caller, system_account(ACCOUNT_LAMPORTS)),
@@ -2654,6 +2644,15 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     assert_eq!(after.day_id, missing_day);
     assert_eq!(after.status, PeriodStatus::Funding);
     assert!(!after.predecessor_rollover_applied);
+    assert_eq!(
+        after.rules.active_mutator_id,
+        content.entry.active_mutator_id
+    );
+    assert_eq!(after.rules.passive_mutator_id, 0);
+    assert_eq!(after.rules.score_multiplier_x100, 100);
+    assert_eq!(after.rules.combo_multiplier_x100, 100);
+    assert_eq!(after.rules.line_clear_bonus, 0);
+    assert_eq!(after.rules.perfect_clear_bonus, 0);
     assert_eq!(
         resulting_account(&result, &cadence_funding).lamports
             + resulting_account(&result, &missing).lamports,

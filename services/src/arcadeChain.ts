@@ -84,10 +84,8 @@ export interface KeeperPlanContext {
   poolIndex?: number;
   poolEntries?: readonly {
     realmMapId: number;
-    passiveMapId: number;
   }[];
   realmMapId?: number;
-  passiveMapId?: number;
   launchCadenceId?: number;
   owner?: PublicKey;
   runId?: bigint;

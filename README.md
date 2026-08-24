@@ -48,8 +48,10 @@ expired entry, with no refund path, and the on-chain invariant is
 `entries_scored + entries_expired == entries_paid`.
 
 Each Daily uses one complete configuration from a published content pool. Its
-realm, permanent guardian mutator, objective, and passive scoring are fixed for
-the whole field, while one global pressure profile governs every Daily.
+realm, permanent guardian mutator, guardian bonus, objective, and starting
+height are fixed for the whole field, while one global pressure profile governs
+every Daily. Daily uses neutral passive scoring; Campaign realms keep their
+authored passives.
 Selection is derived from a protocol seed and the day identifier, so tomorrow
 is independently recomputable today and a pool cycles without replacement
 before repeating.
@@ -70,7 +72,7 @@ Daily boards, direct claim settlement, and the points ladder are in source.
 
 | Unit | Length | Carries |
 | --- | --- | --- |
-| Day | 24h | the money, and the objective and passive that shape it |
+| Day | 24h | the money, realm, active mutator, and objective that shape it |
 | Pool revision | Until replaced | authored Daily configurations and global pressure |
 
 **Kredits replace the per-run signature.** Entries are prepaid in bundles rather

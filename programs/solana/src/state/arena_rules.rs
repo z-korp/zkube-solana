@@ -85,10 +85,11 @@ impl Default for DailyPressureProfile {
 
 /// One complete authored Daily in the published pool.
 ///
-/// Map identifiers bind the entry back to the Campaign catalogs. The copied
-/// active and passive fields make the selected Daily independently immutable;
-/// preparation verifies them against those catalogs so a guardian's mutator
-/// can never be re-paired with another realm.
+/// The realm identifier binds the entry back to the Campaign catalog. The
+/// copied active fields make the selected Daily independently immutable;
+/// preparation verifies them against that catalog so a guardian's active
+/// mutator can never be re-paired with another realm. Campaign passives do not
+/// cross into Daily play.
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
@@ -96,14 +97,8 @@ pub struct DailyPoolEntry {
     pub id: u8,
     /// Zero is allowed for a standalone wildcard entry with no guardian realm.
     pub realm_map_id: u8,
-    pub passive_map_id: u8,
     pub active_mutator_id: u8,
-    pub passive_mutator_id: u8,
     pub scoring_rule: DailyScoringRule,
-    pub score_multiplier_x100: u16,
-    pub combo_multiplier_x100: u16,
-    pub line_clear_bonus: u16,
-    pub perfect_clear_bonus: u16,
     pub bonus_type: u8,
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
@@ -116,9 +111,7 @@ impl DailyPoolEntry {
         require!(
             self.id > 0
                 && self.realm_map_id <= 32
-                && (1..=32).contains(&self.passive_map_id)
                 && self.active_mutator_id > 0
-                && self.passive_mutator_id > 0
                 // The engine bonus range — Hammer, Totem, Wave, Reroll: an
                 // entry outside it would fail every run of its day at first
                 // bonus use.
@@ -128,8 +121,6 @@ impl DailyPoolEntry {
                     self.bonus_trigger_type,
                     self.bonus_threshold,
                 )
-                && self.score_multiplier_x100 > 0
-                && self.combo_multiplier_x100 > 0
                 && self.starting_charges <= 15,
             ErrorCode::InvalidLevel
         );
@@ -376,19 +367,13 @@ impl DailyRulesCatalog {
 mod tests {
     use super::*;
 
-    fn pool_entry(id: u8, realm_map_id: u8, passive_map_id: u8) -> DailyPoolEntry {
+    fn pool_entry(id: u8, realm_map_id: u8) -> DailyPoolEntry {
         let scoring_rules = canonical_daily_scoring_rules();
         DailyPoolEntry {
             id,
             realm_map_id,
-            passive_map_id,
             active_mutator_id: realm_map_id.max(1),
-            passive_mutator_id: passive_map_id,
             scoring_rule: scoring_rules[usize::from(id - 1) % (DAILY_SCORE_RULE_CAPACITY - 1)],
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
-            line_clear_bonus: 1,
-            perfect_clear_bonus: 2,
             bonus_type: 1,
             bonus_trigger_type: 1,
             bonus_threshold: 10,
@@ -399,7 +384,7 @@ mod tests {
 
     #[test]
     fn pool_entries_stay_inside_the_engine_bonus_range() {
-        let mut entry = pool_entry(1, 1, 1);
+        let mut entry = pool_entry(1, 1);
         entry.bonus_type = 5;
         assert!(entry.validate().is_err());
         entry.bonus_type = 4;
@@ -412,7 +397,7 @@ mod tests {
 
     #[test]
     fn daily_publication_agrees_with_core_trigger_threshold_semantics() {
-        let mut entry = pool_entry(1, 1, 1);
+        let mut entry = pool_entry(1, 1);
         for trigger_type in 1..=8 {
             for threshold in 0..=1 {
                 entry.bonus_trigger_type = trigger_type;
@@ -426,7 +411,7 @@ mod tests {
 
     #[test]
     fn pool_entry_is_the_only_daily_starting_height_authority() {
-        let mut entry = pool_entry(1, 1, 1);
+        let mut entry = pool_entry(1, 1);
         entry.starting_rows = crate::game::MIN_OPENING_HEIGHT - 1;
         assert!(entry.validate().is_err());
         entry.starting_rows = crate::game::MAX_OPENING_HEIGHT + 1;
@@ -440,7 +425,6 @@ mod tests {
             .map(|index| {
                 pool_entry(
                     u8::try_from(index + 1).unwrap(),
-                    u8::try_from(index % 32 + 1).unwrap(),
                     u8::try_from(index % 32 + 1).unwrap(),
                 )
             })
@@ -462,8 +446,8 @@ mod tests {
 
     #[test]
     fn published_pool_draws_a_complete_reproducible_cycle() {
-        assert_eq!(DailyPoolEntry::INIT_SPACE, 25);
-        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_421);
+        assert_eq!(DailyPoolEntry::INIT_SPACE, 15);
+        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 2_141);
         let catalog = catalog(10);
         catalog.validate().unwrap();
         let first = (catalog.starts_day..catalog.starts_day + 10)

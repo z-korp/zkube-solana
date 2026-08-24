@@ -85,6 +85,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [CLIENT],
     reversal: "the shop offers only 1-, 10-, and 25-Kredit packs",
   },
+  {
+    pattern: /\bpassive_map_id\b|\bpassiveMapId\b|\bpassiveMapCatalog\b/,
+    trees: [CLIENT, SERVICES, PROGRAM],
+    reversal: "Daily has no passive map pairing; Campaign passives stay in Campaign",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

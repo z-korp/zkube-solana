@@ -394,7 +394,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot>): ProtocolSnapshot {
     catalogStartsDay: DAY - 10,
     poolEntries: Array.from({ length: 10 }, (_, index) => ({
       realmMapId: index + 1,
-      passiveMapId: index + 1,
     })),
     dailies: [],
     runs: [],
