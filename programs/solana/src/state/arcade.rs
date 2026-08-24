@@ -755,7 +755,7 @@ pub struct RankedPrize {
     pub amount: u64,
 }
 
-pub fn validate_finalized_board(
+pub fn validate_finalized_board_binding(
     daily: &ArenaDaily,
     daily_key: Pubkey,
     board: &ArenaBoard,
@@ -777,11 +777,30 @@ pub fn validate_finalized_board(
         DailyBoardKind::Score => (pools.score, daily.score_qualified_players),
         DailyBoardKind::Theme => (pools.theme, daily.theme_qualified_players),
     };
-    let plan = board_payout_plan(expected_pool, qualified)?;
     require!(
         board.qualified_count == qualified
             && board.pool_lamports == expected_pool
-            && board.payout_count == plan.count
+            && board
+                .paid_lamports
+                .checked_add(board.rollover_lamports)
+                .is_some_and(|accounted| accounted == expected_pool)
+            && board.claimed_lamports <= board.paid_lamports,
+        ErrorCode::AccountingInvariant
+    );
+    Ok(())
+}
+
+pub fn validate_finalized_board(
+    daily: &ArenaDaily,
+    daily_key: Pubkey,
+    board: &ArenaBoard,
+    board_data_len: usize,
+    kind: DailyBoardKind,
+) -> Result<()> {
+    validate_finalized_board_binding(daily, daily_key, board, board_data_len, kind)?;
+    let plan = board_payout_plan(board.pool_lamports, board.qualified_count)?;
+    require!(
+        board.payout_count == plan.count
             && board.width_count == plan.width_count
             && board.denominator == plan.denominator
             && board.capacity_limited == plan.capacity_limited
@@ -896,18 +915,49 @@ pub fn ranked_prize(
         board.sealed && board.cursor == board.payout_count,
         ErrorCode::BoardIncomplete
     );
-    for position in 0..board.payout_count {
-        if read_board_entry(board_info, position)?.player == owner {
-            let amount = board.payout_for_position(position)?;
-            require!(amount > 0, ErrorCode::NoPrize);
-            return Ok(RankedPrize {
-                position,
-                rank: u16::try_from(position + 1).map_err(|_| ErrorCode::ArithmeticOverflow)?,
-                amount,
-            });
-        }
-    }
-    err!(ErrorCode::NoPrize)
+    let row_count =
+        usize::try_from(board.payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    let rows_len = row_count
+        .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let rows_end = ArenaBoard::HEADER_SIZE
+        .checked_add(rows_len)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let data = board_info.try_borrow_data()?;
+    let rows = data
+        .get(ArenaBoard::HEADER_SIZE..rows_end)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    let owner_bytes = owner.to_bytes();
+    let position = rows
+        .chunks_exact(ARENA_BOARD_ENTRY_SIZE)
+        .position(|row| row[..32] == owner_bytes)
+        .ok_or(ErrorCode::NoPrize)?;
+    let position = u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+    ranked_prize_at_position(board, board_info, owner, position)
+}
+
+pub fn ranked_prize_at_position(
+    board: &ArenaBoard,
+    board_info: &AccountInfo<'_>,
+    owner: Pubkey,
+    position: u32,
+) -> Result<RankedPrize> {
+    require!(
+        board.sealed && board.cursor == board.payout_count,
+        ErrorCode::BoardIncomplete
+    );
+    require_keys_eq!(
+        read_board_entry(board_info, position)?.player,
+        owner,
+        ErrorCode::NoPrize
+    );
+    let amount = board.payout_for_position(position)?;
+    require!(amount > 0, ErrorCode::NoPrize);
+    Ok(RankedPrize {
+        position,
+        rank: u16::try_from(position + 1).map_err(|_| ErrorCode::ArithmeticOverflow)?,
+        amount,
+    })
 }
 
 pub fn day_id_at(timestamp: i64) -> Result<u32> {

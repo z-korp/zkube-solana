@@ -2235,6 +2235,240 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
 }
 
 #[test]
+fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
+    let authority = Pubkey::new_unique();
+    let team = Pubkey::new_unique();
+    let owner = Pubkey::new_unique();
+    let actor = Pubkey::new_unique();
+    let (protocol, protocol_state) = protocol_fixture(authority, team, false);
+    let (arcade, arcade_state) = arcade_fixture(protocol);
+    let day_id = 32;
+    let (current_daily, current_daily_state) =
+        daily_fixture(day_id, arcade, PeriodStatus::Open, false);
+    let (following_daily, following_daily_state) =
+        daily_fixture(day_id + 1, arcade, PeriodStatus::Funding, false);
+    let (credit_vault, credit_vault_state) = credit_vault_fixture(protocol);
+    let (player, mut player_state) = player_fixture(owner);
+    player_state.record_kredit_purchase(1).unwrap();
+
+    let qualified_count = u32::try_from(ARENA_BOARD_CAPACITY).unwrap();
+    let entries = (0..qualified_count)
+        .map(|position| {
+            let metric = qualified_count - position;
+            ArenaBoardEntry {
+                player: if position + 1 == qualified_count {
+                    owner
+                } else {
+                    Pubkey::new_unique()
+                },
+                score: metric,
+                objective_total: u64::from(metric),
+                finalized_at: i64::from(position),
+                replay_hash: [u8::try_from(position % 251).unwrap(); 32],
+            }
+        })
+        .collect::<Vec<_>>();
+    let total_pool = u64::MAX / 2;
+    let pools = daily_board_pools(total_pool, qualified_count);
+    let (claim_daily, mut claim_daily_state) =
+        daily_fixture(day_id - 1, arcade, PeriodStatus::Finalized, true);
+    claim_daily_state.score_qualified_players = qualified_count;
+    claim_daily_state.theme_qualified_players = qualified_count;
+    claim_daily_state.ledger = PoolLedger {
+        payout_lamports: total_pool,
+        ..PoolLedger::default()
+    };
+    let (score_board, score_board_state, score_board_account, score_plan) = board_fixture(
+        claim_daily,
+        day_id - 1,
+        DailyBoardKind::Score,
+        qualified_count,
+        pools.score,
+        &entries,
+        (&[], &[]),
+    );
+    let (theme_board, theme_board_state, theme_board_account, theme_plan) = board_fixture(
+        claim_daily,
+        day_id - 1,
+        DailyBoardKind::Theme,
+        qualified_count,
+        pools.theme,
+        &entries,
+        (&[], &[]),
+    );
+    assert_eq!(score_plan.count, qualified_count);
+    assert_eq!(theme_plan.count, qualified_count);
+    let last_position = qualified_count - 1;
+    let expected_claims = score_board_state
+        .payout_for_position(last_position)
+        .unwrap()
+        + theme_board_state
+            .payout_for_position(last_position)
+            .unwrap();
+
+    let session_token = session_token_address(owner, actor);
+    let session_state = SessionTokenV2 {
+        authority: owner,
+        target_program: zkube::ID,
+        session_signer: actor,
+        fee_payer: owner,
+        valid_until: current_daily_state.runs_close_at,
+    };
+    let (arena_player, _) = Pubkey::find_program_address(
+        &[ARENA_PLAYER_SEED, current_daily.as_ref(), owner.as_ref()],
+        &zkube::ID,
+    );
+    let run_id = INITIAL_RUN_ID;
+    let (active_run, _) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let (player_funding, _) =
+        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
+    let mut instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::FundedEnterArena {
+            protocol,
+            arcade_config: arcade,
+            player_state: player,
+            current_daily,
+            arena_player,
+            following_daily,
+            credit_vault,
+            active_run,
+            player_funding,
+            owner_authority: owner,
+            session_token,
+            actor,
+            system_program: anchor_lang::system_program::ID,
+            zkube_program: zkube::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::FundedEnterArena {
+            run_id,
+            expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
+        }
+        .data(),
+    };
+    instruction.accounts.extend([
+        anchor_lang::solana_program::instruction::AccountMeta::new(claim_daily, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(score_board, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(claim_daily, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(theme_board, false),
+    ]);
+    let accounts = vec![
+        (
+            protocol,
+            program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+        ),
+        (
+            arcade,
+            program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+        ),
+        (
+            player,
+            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+        ),
+        (
+            current_daily,
+            program_account(&current_daily_state, 8 + ArenaDaily::INIT_SPACE),
+        ),
+        (arena_player, system_account(0)),
+        (
+            following_daily,
+            program_account(&following_daily_state, 8 + ArenaDaily::INIT_SPACE),
+        ),
+        (
+            credit_vault,
+            serialized_account(
+                &credit_vault_state,
+                8 + CreditVault::INIT_SPACE,
+                zkube::ID,
+                ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS,
+            ),
+        ),
+        (active_run, system_account(0)),
+        (
+            player_funding,
+            system_account(PLAYER_FUNDING_TARGET_LAMPORTS),
+        ),
+        (owner, system_account(0)),
+        (
+            session_token,
+            serialized_account(
+                &session_state,
+                SessionTokenV2::LEN,
+                session_keys::ID,
+                ACCOUNT_LAMPORTS,
+            ),
+        ),
+        (actor, system_account(ACCOUNT_LAMPORTS)),
+        (anchor_lang::system_program::ID, system_program_account()),
+        (
+            zkube::ID,
+            executable_program_account(Pubkey::from_str_const(
+                "BPFLoaderUpgradeab1e11111111111111111111111",
+            )),
+        ),
+        (
+            claim_daily,
+            serialized_account(
+                &claim_daily_state,
+                8 + ArenaDaily::INIT_SPACE,
+                zkube::ID,
+                ACCOUNT_LAMPORTS + score_plan.paid_lamports + theme_plan.paid_lamports,
+            ),
+        ),
+        (score_board, score_board_account),
+        (theme_board, theme_board_account),
+    ];
+    let mut runtime = mollusk();
+    runtime.sysvars.clock.unix_timestamp = current_daily_state.runs_close_at - 1;
+    let wrong_position = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ClaimDailyPrize {
+            arena_daily: claim_daily,
+            arena_board: score_board,
+            player_state: player,
+            owner_authority: owner,
+            session_token: Some(session_token),
+            actor,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ClaimDailyPrizeAtPosition {
+            board: DailyBoardKind::Score,
+            position: 0,
+        }
+        .data(),
+    };
+    let wrong_position_result = runtime.process_instruction(&wrong_position, &accounts);
+    let no_prize = 6_000 + zkube::error::ErrorCode::NoPrize as u32;
+    assert!(
+        format!("{:?}", wrong_position_result.program_result)
+            .contains(&format!("Custom({no_prize})")),
+        "an attached position must be verified against its owner: {:?}",
+        wrong_position_result.program_result
+    );
+    let result = runtime.process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    eprintln!(
+        "SBF_COMPUTE funded_entry_two_maximum_boards={}",
+        result.compute_units_consumed
+    );
+    assert!(result.compute_units_consumed < 360_000);
+    assert_eq!(resulting_account(&result, &owner).lamports, expected_claims);
+    let score_after: ArenaBoard = decode(resulting_account(&result, &score_board));
+    let theme_after: ArenaBoard = decode(resulting_account(&result, &theme_board));
+    assert_eq!(score_after.claimed_count, 1);
+    assert_eq!(theme_after.claimed_count, 1);
+}
+
+#[test]
 fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
     let authority = Pubkey::new_unique();
     let caller = Pubkey::new_unique();

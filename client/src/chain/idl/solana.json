@@ -695,6 +695,130 @@
       ]
     },
     {
+      "name": "claim_daily_prize_at_position",
+      "discriminator": [
+        191,
+        203,
+        51,
+        29,
+        121,
+        5,
+        206,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily"
+              },
+              {
+                "kind": "arg",
+                "path": "board"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority",
+          "writable": true
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "board",
+          "type": {
+            "defined": {
+              "name": "DailyBoardKind"
+            }
+          }
+        },
+        {
+          "name": "position",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "cleanup_orphan_active_run",
       "discriminator": [
         181,

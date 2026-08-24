@@ -701,6 +701,130 @@ export type Solana = {
       ]
     },
     {
+      "name": "claimDailyPrizeAtPosition",
+      "discriminator": [
+        191,
+        203,
+        51,
+        29,
+        121,
+        5,
+        206,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "arenaDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "arenaBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arenaDaily"
+              },
+              {
+                "kind": "arg",
+                "path": "board"
+              }
+            ]
+          }
+        },
+        {
+          "name": "playerState",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ownerAuthority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerAuthority",
+          "writable": true
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "board",
+          "type": {
+            "defined": {
+              "name": "dailyBoardKind"
+            }
+          }
+        },
+        {
+          "name": "position",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "cleanupOrphanActiveRun",
       "discriminator": [
         181,

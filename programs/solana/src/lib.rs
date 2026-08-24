@@ -217,6 +217,16 @@ pub mod solana {
         instructions::arcade_instructions::handler_claim_daily_prize(ctx, board)
     }
 
+    pub fn claim_daily_prize_at_position(
+        ctx: Context<ClaimDailyPrize>,
+        board: DailyBoardKind,
+        position: u32,
+    ) -> Result<()> {
+        instructions::arcade_instructions::handler_claim_daily_prize_at_position(
+            ctx, board, position,
+        )
+    }
+
     pub fn archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {
         instructions::arcade_instructions::handler_archive_arena_daily(ctx)
     }

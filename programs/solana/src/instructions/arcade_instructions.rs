@@ -777,9 +777,9 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>) {
         let Some(kind) = attached_board_kind(board) else {
             continue;
         };
-        if attached_claim_is_eligible(ctx, daily, board, kind).is_err() {
+        let Ok(position) = attached_claim_position(ctx, daily, board, kind) else {
             continue;
-        }
+        };
         let accounts = crate::accounts::ClaimDailyPrize {
             arena_daily: *daily.key,
             arena_board: *board.key,
@@ -795,7 +795,11 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>) {
         let instruction = Instruction {
             program_id: crate::ID,
             accounts: accounts.to_account_metas(None),
-            data: crate::instruction::ClaimDailyPrize { board: kind }.data(),
+            data: crate::instruction::ClaimDailyPrizeAtPosition {
+                board: kind,
+                position,
+            }
+            .data(),
         };
         let mut infos = Vec::with_capacity(7);
         infos.push(daily.clone());
@@ -807,9 +811,9 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>) {
         }
         infos.push(ctx.accounts.actor.to_account_info());
         infos.push(ctx.accounts.zkube_program.to_account_info());
-        // A failed CPI rolls back its own writes. Entry deliberately ignores
-        // the error so absent, stale, unsealed, expired, or duplicate claims
-        // can never block spending the Kredit.
+        // The preflight filters every expected skip case. The CPI remains
+        // authoritative and verifies that the derived position belongs to the
+        // owner before moving lamports.
         let _ = invoke(&instruction, &infos);
     }
 }
@@ -823,12 +827,14 @@ fn attached_board_kind(info: &AccountInfo<'_>) -> Option<DailyBoardKind> {
     }
 }
 
-fn attached_claim_is_eligible<'info>(
+fn attached_claim_position<'info>(
     ctx: &Context<'info, EnterArena<'info>>,
     daily_info: &'info AccountInfo<'info>,
     board_info: &'info AccountInfo<'info>,
     kind: DailyBoardKind,
-) -> Result<()> {
+) -> Result<u32> {
+    require_keys_eq!(*daily_info.owner, crate::ID, ErrorCode::InvalidOwner);
+    require_keys_eq!(*board_info.owner, crate::ID, ErrorCode::InvalidOwner);
     let daily = Account::<ArenaDaily>::try_from(daily_info)?;
     let board = Account::<ArenaBoard>::try_from(board_info)?;
     let (daily_key, daily_bump) =
@@ -841,7 +847,10 @@ fn attached_claim_is_eligible<'info>(
     );
     require_keys_eq!(board.key(), board_key, ErrorCode::InvalidOwner);
     require!(board.bump == board_bump, ErrorCode::InvalidOwner);
-    validate_finalized_board(&daily, daily.key(), &board, board_info.data_len(), kind)?;
+    // Keep this best-effort preflight cheap, but reject every known claim
+    // failure before self-CPI: a failed nested invocation aborts the outer
+    // instruction in SBF even when its return value is ignored.
+    validate_finalized_board_binding(&daily, daily.key(), &board, board_info.data_len(), kind)?;
     let now = Clock::get()?.unix_timestamp;
     require!(
         !daily.claims_expired && now <= board_claim_deadline(board.sealed_at)?,
@@ -857,10 +866,14 @@ fn attached_claim_is_eligible<'info>(
         ctx.accounts.player_state.owner,
     )?;
     require_spendable(daily_info, prize.amount)?;
-    board
+    let claimed_lamports = board
         .claimed_lamports
         .checked_add(prize.amount)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
+    require!(
+        claimed_lamports <= board.paid_lamports,
+        ErrorCode::AccountingInvariant
+    );
     board
         .claimed_count
         .checked_add(1)
@@ -870,7 +883,7 @@ fn attached_claim_is_eligible<'info>(
         .lamports()
         .checked_add(prize.amount)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok(())
+    Ok(prize.position)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1418,13 +1431,32 @@ pub fn handler_claim_daily_prize(
     ctx: Context<ClaimDailyPrize>,
     board: DailyBoardKind,
 ) -> Result<()> {
+    claim_daily_prize(ctx, board, None)
+}
+
+pub fn handler_claim_daily_prize_at_position(
+    ctx: Context<ClaimDailyPrize>,
+    board: DailyBoardKind,
+    position: u32,
+) -> Result<()> {
+    claim_daily_prize(ctx, board, Some(position))
+}
+
+fn claim_daily_prize(
+    ctx: Context<ClaimDailyPrize>,
+    board: DailyBoardKind,
+    requested_position: Option<u32>,
+) -> Result<()> {
     require_player_authorization(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
     let board_info = ctx.accounts.arena_board.to_account_info();
-    validate_finalized_board(
+    // The program computed and stored the payout plan when it allocated this
+    // board. Claims recheck the sealed board's structural and ledger binding;
+    // the immutable plan is not rebuilt once per claim.
+    validate_finalized_board_binding(
         &ctx.accounts.arena_daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.arena_board,
@@ -1437,11 +1469,19 @@ pub fn handler_claim_daily_prize(
             && now <= board_claim_deadline(ctx.accounts.arena_board.sealed_at)?,
         ErrorCode::ClaimWindowClosed
     );
-    let prize = ranked_prize(
-        &ctx.accounts.arena_board,
-        &board_info,
-        ctx.accounts.owner_authority.key(),
-    )?;
+    let prize = match requested_position {
+        Some(position) => ranked_prize_at_position(
+            &ctx.accounts.arena_board,
+            &board_info,
+            ctx.accounts.owner_authority.key(),
+            position,
+        )?,
+        None => ranked_prize(
+            &ctx.accounts.arena_board,
+            &board_info,
+            ctx.accounts.owner_authority.key(),
+        )?,
+    };
     require!(
         !board_bitmap_is_set(
             &board_info,
@@ -1455,6 +1495,16 @@ pub fn handler_claim_daily_prize(
     let destination = ctx.accounts.owner_authority.to_account_info();
     validate_wallet(&destination, ctx.accounts.player_state.owner)?;
     require_spendable(&source, prize.amount)?;
+    let claimed_lamports = ctx
+        .accounts
+        .arena_board
+        .claimed_lamports
+        .checked_add(prize.amount)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    require!(
+        claimed_lamports <= ctx.accounts.arena_board.paid_lamports,
+        ErrorCode::AccountingInvariant
+    );
     move_program_lamports(&source, &destination, prize.amount)?;
     set_board_bitmap(
         &board_info,
@@ -1462,12 +1512,7 @@ pub fn handler_claim_daily_prize(
         BoardBitmap::Claimed,
         prize.position,
     )?;
-    ctx.accounts.arena_board.claimed_lamports = ctx
-        .accounts
-        .arena_board
-        .claimed_lamports
-        .checked_add(prize.amount)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.arena_board.claimed_lamports = claimed_lamports;
     ctx.accounts.arena_board.claimed_count = ctx
         .accounts
         .arena_board
