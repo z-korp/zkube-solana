@@ -44,6 +44,8 @@ describe("manual prize top-up command", () => {
         "daily:current:1SOL",
         "--top-up",
         "daily:following:3SOL",
+        "--manifest",
+        "/approved/zkube-v5-devnet.json",
         "--reserve-lamports",
         "100000000",
       ],
@@ -52,9 +54,13 @@ describe("manual prize top-up command", () => {
     expect(parsed.mode).toBe("plan");
     expect(parsed.topUps).toHaveLength(2);
     expect(parsed.authorityReserveLamports).toBe(100_000_000);
-    expect(parsed.manifestPath).toBe(
-      "/workspace/client/deployment/devnet-v4.json",
-    );
+    expect(parsed.manifestPath).toBe("/approved/zkube-v5-devnet.json");
+  });
+
+  it("never falls back to an abandoned deployment manifest", () => {
+    expect(() =>
+      parsePrizeTopUpCliArgs(["plan", "--top-up", "daily:current:1SOL"]),
+    ).toThrow("requires --manifest");
   });
 
   it("requires an exact bundle for execute and rejects operation drift", () => {

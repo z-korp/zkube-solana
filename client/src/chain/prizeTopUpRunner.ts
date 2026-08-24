@@ -49,7 +49,7 @@ export interface PrizeTopUpCliOptions {
   mode: PrizeTopUpMode;
   topUps: RequestedPrizeTopUp[];
   bundlePath?: string;
-  manifestPath: string;
+  manifestPath?: string;
   rpcOverride?: string;
   authorityReserveLamports: number;
 }
@@ -156,7 +156,6 @@ export interface PrizeTopUpResult {
   signature?: string;
 }
 
-const DEFAULT_MANIFEST_PATH = "deployment/devnet-v4.json";
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const MAX_TOP_UPS = 6;
 const U64_MAX = (1n << 64n) - 1n;
@@ -177,7 +176,7 @@ export function parsePrizeTopUpCliArgs(
   }
   const topUps: RequestedPrizeTopUp[] = [];
   let bundlePath: string | undefined;
-  let manifestPath = resolve(cwd, DEFAULT_MANIFEST_PATH);
+  let manifestPath: string | undefined;
   let rpcOverride: string | undefined;
   let authorityReserveLamports = DEFAULT_AUTHORITY_RESERVE_LAMPORTS;
 
@@ -216,6 +215,11 @@ export function parsePrizeTopUpCliArgs(
   if (mode === "plan" && topUps.length === 0) {
     throw new Error("plan mode requires at least one --top-up");
   }
+  if (mode === "plan" && !manifestPath) {
+    throw new Error(
+      "plan mode requires --manifest for the approved v5 deployment",
+    );
+  }
   if (mode === "execute" && topUps.length > 0) {
     throw new Error("execute mode reads exact top-ups from its bundle");
   }
@@ -229,7 +233,7 @@ export function parsePrizeTopUpCliArgs(
     mode,
     topUps,
     ...(bundlePath ? { bundlePath } : {}),
-    manifestPath,
+    ...(manifestPath ? { manifestPath } : {}),
     ...(rpcOverride ? { rpcOverride } : {}),
     authorityReserveLamports,
   };
@@ -266,7 +270,7 @@ export async function runPrizeTopUpCommand(
   if (options.mode === "execute") {
     return executePrizeTopUp(options.bundlePath!, env);
   }
-  const manifest = readApprovedDevnetManifest(options.manifestPath);
+  const manifest = readApprovedDevnetManifest(options.manifestPath!);
   const rpc = options.rpcOverride ?? devnetEndpoint(manifest.rpc.base);
   const connection = new Connection(rpc, "confirmed");
   const payload = await buildPrizeTopUpApproval({

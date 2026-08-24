@@ -706,56 +706,53 @@ then close.
 ## Operator procedures
 
 Every procedure here is approval-gated by the transaction policy above. The
-canonical deployed binding is committed at `client/deployment/devnet-v4.json`
-(manifest schema v5); read it rather than restating live values here. Program
-`Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd` with ProgramData
-`2RAkctsFpaHEJZcF5337G3uAkXUsj1djfnLtDrjBM3qS` is the only v4 target. The
-retired v3 address `Apyuy9VZvg7DLcQhe6KGv3sw2MNzriMjtCx2q7zac1QR` is a legacy
-artifact and its approvals never authorize v4.
+repository has no current deployed binding. `client/deployment/devnet-v4.json`
+is the abandoned deployment's frozen record and is never a v5 release input.
+The source program ID is not evidence that corresponding ProgramData or
+protocol accounts are current. A fresh v5 pass must derive and approve every
+live value from its own read-only observations.
 
-Manifest schema v5 binds deployed ProgramData, allocation, content/rules
-catalogs, exact launch day and seed plan, and keeper release. The dependency is
-one-way: unique Fly keeper release tag, keeper fingerprint, launch-plan
-fingerprint, then final manifest. The obsolete v3 manifest is intentionally not
-a reusable release input. Fly exposes a unique `deployment-<ULID>` release tag
-to the worker and that tag is part of the keeper fingerprint, so any later Fly
-deploy invalidates write authority.
+Manifest schema v6 binds the deployed ProgramData and allocation, content and
+rules catalogs, exact launch day and seed plan, and keeper release. The v5
+dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
+tag and optional operator-attested image digest, keeper fingerprint,
+launch-plan fingerprint, then the final manifest. Fly exposes a unique
+`deployment-<ULID>` release tag to the worker; any later Fly deploy invalidates
+write authority. No v4 manifest, fingerprint, account, or approval is reusable.
 
 ### Deployment
 
 Preparation is two exact, independently approved bundles. From `client`,
-`NO_DNA=1 pnpm chain:devnet:deploy` plans an explicit `initial` or `upgrade`
-operation from an already frozen SBF. Its live read-only preflight binds Devnet
-genesis, the canonical ProgramData address, artifact and padded ProgramData
-hashes, allocation, rent, fees, signer public keys, spend, and reserve; a fresh
-initial deployment reserves 10,240 bytes of headroom. The planner never rebuilds
-the artifact or copies a program keypair.
+`NO_DNA=1 pnpm chain:devnet:deploy` plans the v5 program operation from an
+already frozen SBF. Its live read-only preflight binds Devnet genesis, the
+derived ProgramData address, artifact and padded ProgramData hashes, allocation,
+rent, fees, signer public keys, spend, and reserve. The planner never rebuilds
+the artifact or copies a program keypair. The observed result, not an abandoned
+manifest, supplies the deployed inputs for the rest of the bootstrap.
 
 After the program and independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused, initializes the Arcade archive
-with a 0.5 SOL recyclable cadence-rent float, publishes Campaign v2 and Arena
-rules, prepares the current and following Daily accounts, and ends with one
-atomic transaction that seeds the first Daily, unpauses, and activates it. Its
-approval expires at the specified pre-entry cutoff. The planner has no signing
-or sending path. The transaction indices quoted below are from the retired
-multi-pool shape and must be re-read from the planner's own output rather than
-assumed. The current 0.5 SOL rent float predates separate board accounts and is
-not sufficient for maximum-width boards; its replacement funding amount is an
-explicit fresh-bootstrap approval input, not an inherited default.
+with the explicitly approved recyclable cadence-rent float, publishes Campaign
+v2 and Arena rules, prepares the current and following Daily accounts, and ends
+with one atomic transaction that seeds the first Daily, unpauses, and activates
+it. Its approval expires at the specified pre-entry cutoff. The planner has no
+signing or sending path. Transaction indices and the cadence-rent funding amount
+come only from that v5 plan and are never inherited from an earlier shape.
 
 `NO_DNA=1 pnpm chain:devnet:launch` is the separate approval-gated executor. Its
-`stage` mode simulates, signs once, confirms, and re-reads only transactions
-0–20, leaving the protocol paused and writing a public launch bundle under
-`/tmp`. A signed receipt is atomically persisted before each submission, so
-`resume` can verify the exact approved message, signer, signature status, and
-blockhash before relaying or re-signing an interrupted pass. The deployed keeper
-must then report `staged_launch_ready` for the approved release fingerprint.
-Only `activate` mode can submit transaction 21; it re-verifies the bundle hash,
-Devnet genesis, ProgramData, account contents, cutoff, signer, keeper evidence,
-and exact instruction bytes before the atomic seed/unpause. No client or Fly
-process contains an unconditional launch path.
+`stage` mode simulates, signs once, confirms, and re-reads the planner-declared
+staging transactions, leaving the protocol paused and writing a public launch
+bundle under `/tmp`. A signed receipt is atomically persisted before each
+submission, so `resume` can verify the exact approved message, signer, signature
+status, and blockhash before relaying or re-signing an interrupted pass. The
+deployed keeper must then report `staged_launch_ready` for the approved release
+fingerprint. Only `activate` mode can submit the planner-declared activation
+transaction; it re-verifies the bundle hash, Devnet genesis, ProgramData,
+account contents, cutoff, signer, keeper evidence, and exact instruction bytes
+before the atomic seed/unpause. No client or Fly process contains an
+unconditional launch path.
 
 No initialization has been performed and no keeper release is write-enabled.
 The abandoned v4 deployment's recovery state, release fingerprint, and recurring
@@ -765,21 +762,21 @@ exactly and none inherited.
 
 ### Manual prize top-up
 
-Never transfer SOL directly to a Daily PDA; that does not
-update its seeded-funds ledger. From `client`, this read-only plan resolves the
-confirmed current cadences, validates the approved deployment and live accounts,
-combines instructions atomically, simulates without a signer, and writes a
-public bundle under `/tmp`:
+Never transfer SOL directly to a Daily PDA; that does not update its seeded-funds
+ledger. This procedure exists only after a fresh v5 manifest has been generated
+and approved. From `client`, this read-only plan resolves the confirmed Daily,
+validates that manifest and the live accounts, combines instructions atomically,
+simulates without a signer, and writes a public bundle under `/tmp`:
 
 ```bash
 NO_DNA=1 pnpm chain:devnet:top-up -- plan \
-  --top-up daily:current:1SOL \
-  --top-up weekly:current:3SOL
+  --manifest <approved-v5-manifest-path> \
+  --top-up daily:current:1SOL
 ```
 
-Amounts require an explicit `SOL` or `lamports` suffix, and a cadence may be
+Amounts require an explicit `SOL` or `lamports` suffix, and the Daily may be
 `current`, `following`, or an exact numeric ID. The printed bundle pins Devnet
-genesis, ProgramData hash and allocation, protocol authority, exact pool PDAs,
+genesis, ProgramData hash and allocation, protocol authority, exact Daily PDAs,
 instruction bytes, seeded balances, maximum fee and spend, and the post-write
 authority reserve. Execution is a separate command, valid only after the entire
 printed bundle receives exact approval:

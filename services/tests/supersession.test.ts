@@ -10,7 +10,9 @@ import { describe, expect, it } from "vitest";
 // names a reversal and the phrases that may never reappear in source. A
 // reversal is not complete until its phrases are on this list.
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const AGENT_RULES = join(ROOT, "AGENTS.md");
 const CLIENT = join(ROOT, "client/src");
+const CLIENT_TOOLS = join(ROOT, "client/tools");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
@@ -19,19 +21,31 @@ const SKIPPED = [join(CLIENT, "core/generated"), join(CLIENT, "chain/idl")];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
-    pattern: /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize/i,
+    pattern:
+      /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize/i,
     trees: [CLIENT, SERVICES, PROGRAM],
     reversal: "settlement is claim-based (2026-08-08); nothing is pushed",
   },
   {
     pattern: /\btomorrow\b/i,
     trees: [CLIENT],
-    reversal: "the next day's content is unpublished (2026-08-10); no surface hints at it",
+    reversal:
+      "the next day's content is unpublished (2026-08-10); no surface hints at it",
   },
   {
     pattern: /\bweekly\b|\bseason\b/i,
     trees: [CLIENT, PROGRAM],
     reversal: "Daily is the only competition; Weekly and Season died with v4",
+  },
+  {
+    pattern: /weekly:current:3SOL/i,
+    trees: [CLIENT_TOOLS],
+    reversal: "the manual top-up surface is Daily-only",
+  },
+  {
+    pattern: /devnet-v4\.json/i,
+    trees: [CLIENT, CLIENT_TOOLS],
+    reversal: "the abandoned deployment record is never a v5 runtime default",
   },
 ];
 
@@ -68,5 +82,11 @@ describe("supersession", () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+
+  it("keeps abandoned deployment language out of operator procedures", async () => {
+    const rules = await readFile(AGENT_RULES, "utf8");
+    expect(rules).not.toMatch(/canonical deployed binding/i);
+    expect(rules).not.toMatch(/weekly:current:3SOL/i);
   });
 });
