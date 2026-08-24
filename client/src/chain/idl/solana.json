@@ -6992,10 +6992,6 @@
           {
             "name": "starting_rows",
             "type": "u8"
-          },
-          {
-            "name": "difficulty_band",
-            "type": "u8"
           }
         ]
       }
@@ -7129,20 +7125,11 @@
             }
           },
           {
-            "name": "difficulty_band_count",
-            "type": "u8"
-          },
-          {
-            "name": "difficulty_bands",
+            "name": "pressure",
             "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "DailyPressureProfile"
-                  }
-                },
-                4
-              ]
+              "defined": {
+                "name": "DailyPressureProfile"
+              }
             }
           },
           {
@@ -7899,20 +7886,11 @@
             }
           },
           {
-            "name": "difficulty_band_count",
-            "type": "u8"
-          },
-          {
-            "name": "difficulty_bands",
+            "name": "pressure",
             "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "DailyPressureProfile"
-                  }
-                },
-                4
-              ]
+              "defined": {
+                "name": "DailyPressureProfile"
+              }
             }
           }
         ]

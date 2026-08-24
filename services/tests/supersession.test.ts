@@ -69,6 +69,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal:
       "the Daily selection seed is protocol code, not catalog or keeper state",
   },
+  {
+    pattern: /\bdifficulty_band\b|\bdifficultyBand\b/,
+    trees: [CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Daily uses one catalog-wide pressure profile without per-entry bands",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

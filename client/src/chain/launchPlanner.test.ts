@@ -76,7 +76,7 @@ describe("read-only paused bootstrap and launch planner", () => {
         .digest("hex"),
     );
     expect(plan.rulesCatalogSha256).toBe(
-      "0f2dd6861f2a3d92dc6f2f1c183f5f2ae191da075c30740b156cc0db9158039c",
+      "ab01a8211f7d92ed32bc638ed210dd77efeb291ea55d02c8e06a4195dfacaa8a",
     );
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(

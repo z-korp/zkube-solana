@@ -138,8 +138,7 @@ pub struct PublishArenaRulesArgs {
     pub starts_day: u32,
     pub pool_entry_count: u8,
     pub pool_entries: Vec<DailyPoolEntry>,
-    pub difficulty_band_count: u8,
-    pub difficulty_bands: [DailyPressureProfile; DAILY_DIFFICULTY_BAND_CAPACITY],
+    pub pressure: DailyPressureProfile,
 }
 
 #[derive(Accounts)]
@@ -205,8 +204,7 @@ pub fn handler_publish_arena_rules(
     catalog.starts_day = args.starts_day;
     catalog.pool_entry_count = args.pool_entry_count;
     catalog.pool_entries = args.pool_entries;
-    catalog.difficulty_band_count = args.difficulty_band_count;
-    catalog.difficulty_bands = args.difficulty_bands;
+    catalog.pressure = args.pressure;
     catalog.bump = ctx.bumps.daily_rules_catalog;
     catalog.validate()?;
     Ok(())

@@ -254,10 +254,6 @@ export async function buildPublishCanonicalArenaRulesPlan(args: {
   assertPositiveInteger(args.rulesVersion, "rulesVersion");
   assertU32(args.startsDay, "startsDay");
   const poolEntries = canonicalDailyPoolEntries(args.contentVersion);
-  const difficultyBands = Array.from(
-    { length: 4 },
-    () => cloneDailyPressure(),
-  );
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.publishArenaRules({
       contentVersion: args.contentVersion,
@@ -266,8 +262,7 @@ export async function buildPublishCanonicalArenaRulesPlan(args: {
       startsDay: args.startsDay,
       poolEntryCount: CANONICAL_CAMPAIGN_MAP_COUNT,
       poolEntries,
-      difficultyBandCount: 1,
-      difficultyBands,
+      pressure: cloneDailyPressure(),
     })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
@@ -569,7 +564,6 @@ function canonicalDailyPoolEntries(contentVersion: number) {
         bonusThreshold: realm.mapRules.bonusThreshold,
         startingCharges: realm.mapRules.startingCharges,
         startingRows: realm.mapRules.startingRows,
-        difficultyBand: 0,
       };
     },
   );

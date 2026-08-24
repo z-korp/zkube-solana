@@ -17,7 +17,6 @@ pub const DAILY_POOL_ENTRY_CAPACITY: usize = zkube_core::DAILY_POOL_CAPACITY;
 /// ahead: the entry count drives both the permutation and the modulus, so a
 /// nearer revision would re-map already-derivable days, including tomorrow.
 pub const DAILY_CATALOG_REVISION_MIN_LEAD_DAYS: u32 = 7;
-pub const DAILY_DIFFICULTY_BAND_CAPACITY: usize = 4;
 pub const DAILY_MAX_MOVES: u16 = 100;
 
 pub const DAILY_FAMILY_CLASSIC: u8 = 0;
@@ -110,11 +109,10 @@ pub struct DailyPoolEntry {
     pub bonus_threshold: u16,
     pub starting_charges: u8,
     pub starting_rows: u8,
-    pub difficulty_band: u8,
 }
 
 impl DailyPoolEntry {
-    pub fn validate(self, difficulty_band_count: u8) -> Result<()> {
+    pub fn validate(self) -> Result<()> {
         require!(
             self.id > 0
                 && self.realm_map_id <= 32
@@ -132,8 +130,7 @@ impl DailyPoolEntry {
                 )
                 && self.score_multiplier_x100 > 0
                 && self.combo_multiplier_x100 > 0
-                && self.starting_charges <= 15
-                && self.difficulty_band < difficulty_band_count,
+                && self.starting_charges <= 15,
             ErrorCode::InvalidLevel
         );
         require!(
@@ -323,8 +320,7 @@ pub struct DailyRulesCatalog {
     pub pool_entry_count: u8,
     #[max_len(DAILY_POOL_ENTRY_CAPACITY)]
     pub pool_entries: Vec<DailyPoolEntry>,
-    pub difficulty_band_count: u8,
-    pub difficulty_bands: [DailyPressureProfile; DAILY_DIFFICULTY_BAND_CAPACITY],
+    pub pressure: DailyPressureProfile,
     pub bump: u8,
 }
 
@@ -342,20 +338,12 @@ impl DailyRulesCatalog {
                 && self.rules_version > 0
                 && self.pool_revision > 0
                 && usize::from(self.pool_entry_count) <= DAILY_POOL_ENTRY_CAPACITY
-                && self.pool_entries.len() == usize::from(self.pool_entry_count)
-                && usize::from(self.difficulty_band_count) <= DAILY_DIFFICULTY_BAND_CAPACITY,
+                && self.pool_entries.len() == usize::from(self.pool_entry_count),
             ErrorCode::InvalidVersion
         );
-        if self.pool_entry_count == 0 {
-            require!(self.difficulty_band_count == 0, ErrorCode::InvalidLevel);
-            return Ok(());
-        }
-        require!(self.difficulty_band_count > 0, ErrorCode::InvalidLevel);
-        for pressure in &self.difficulty_bands[..usize::from(self.difficulty_band_count)] {
-            pressure.validate()?;
-        }
+        self.pressure.validate()?;
         for (index, entry) in self.pool_entries.iter().enumerate() {
-            entry.validate(self.difficulty_band_count)?;
+            entry.validate()?;
             require!(
                 index == 0 || self.pool_entries[index - 1].id < entry.id,
                 ErrorCode::InvalidLevel
@@ -379,7 +367,7 @@ impl DailyRulesCatalog {
         Ok(DailyContentSelection {
             pool_index,
             entry,
-            pressure: self.difficulty_bands[usize::from(entry.difficulty_band)],
+            pressure: self.pressure,
         })
     }
 }
@@ -406,7 +394,6 @@ mod tests {
             bonus_threshold: 10,
             starting_charges: 0,
             starting_rows: 4,
-            difficulty_band: 0,
         }
     }
 
@@ -414,13 +401,13 @@ mod tests {
     fn pool_entries_stay_inside_the_engine_bonus_range() {
         let mut entry = pool_entry(1, 1, 1);
         entry.bonus_type = 5;
-        assert!(entry.validate(1).is_err());
+        assert!(entry.validate().is_err());
         entry.bonus_type = 4;
-        entry.validate(1).unwrap();
+        entry.validate().unwrap();
         entry.bonus_trigger_type = 8;
-        assert!(entry.validate(1).is_err());
+        assert!(entry.validate().is_err());
         entry.bonus_trigger_type = 1;
-        entry.validate(1).unwrap();
+        entry.validate().unwrap();
     }
 
     #[test]
@@ -432,7 +419,7 @@ mod tests {
                 entry.bonus_threshold = threshold;
                 let expected = (1..=7).contains(&trigger_type)
                     && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold);
-                assert_eq!(entry.validate(1).is_ok(), expected);
+                assert_eq!(entry.validate().is_ok(), expected);
             }
         }
     }
@@ -441,11 +428,11 @@ mod tests {
     fn pool_entry_is_the_only_daily_starting_height_authority() {
         let mut entry = pool_entry(1, 1, 1);
         entry.starting_rows = crate::game::MIN_OPENING_HEIGHT - 1;
-        assert!(entry.validate(1).is_err());
+        assert!(entry.validate().is_err());
         entry.starting_rows = crate::game::MAX_OPENING_HEIGHT + 1;
-        assert!(entry.validate(1).is_err());
+        assert!(entry.validate().is_err());
         entry.starting_rows = crate::game::MAX_OPENING_HEIGHT;
-        entry.validate(1).unwrap();
+        entry.validate().unwrap();
     }
 
     fn catalog(entry_count: u8) -> DailyRulesCatalog {
@@ -458,9 +445,6 @@ mod tests {
                 )
             })
             .collect();
-        let mut difficulty_bands =
-            [DailyPressureProfile::default(); DAILY_DIFFICULTY_BAND_CAPACITY];
-        difficulty_bands[0] = DailyPressureProfile::canonical();
         DailyRulesCatalog {
             version: RULES_ACCOUNT_VERSION,
             rules_version: 1,
@@ -471,16 +455,15 @@ mod tests {
             starts_day: 20_000,
             pool_entry_count: entry_count,
             pool_entries,
-            difficulty_band_count: u8::from(entry_count > 0),
-            difficulty_bands,
+            pressure: DailyPressureProfile::canonical(),
             bump: 1,
         }
     }
 
     #[test]
     fn published_pool_draws_a_complete_reproducible_cycle() {
-        assert_eq!(DailyPoolEntry::INIT_SPACE, 26);
-        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_928);
+        assert_eq!(DailyPoolEntry::INIT_SPACE, 25);
+        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_421);
         let catalog = catalog(10);
         catalog.validate().unwrap();
         let first = (catalog.starts_day..catalog.starts_day + 10)
@@ -496,6 +479,13 @@ mod tests {
         assert_eq!(
             catalog.content_for_day(catalog.starts_day + 1).unwrap(),
             catalog.content_for_day(catalog.starts_day + 1).unwrap()
+        );
+        assert!(
+            (catalog.starts_day..catalog.starts_day + 10).all(|day| catalog
+                .content_for_day(day)
+                .unwrap()
+                .pressure
+                == catalog.pressure)
         );
     }
 

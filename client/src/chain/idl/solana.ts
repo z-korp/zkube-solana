@@ -6998,10 +6998,6 @@ export type Solana = {
           {
             "name": "startingRows",
             "type": "u8"
-          },
-          {
-            "name": "difficultyBand",
-            "type": "u8"
           }
         ]
       }
@@ -7135,20 +7131,11 @@ export type Solana = {
             }
           },
           {
-            "name": "difficultyBandCount",
-            "type": "u8"
-          },
-          {
-            "name": "difficultyBands",
+            "name": "pressure",
             "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "dailyPressureProfile"
-                  }
-                },
-                4
-              ]
+              "defined": {
+                "name": "dailyPressureProfile"
+              }
             }
           },
           {
@@ -7905,20 +7892,11 @@ export type Solana = {
             }
           },
           {
-            "name": "difficultyBandCount",
-            "type": "u8"
-          },
-          {
-            "name": "difficultyBands",
+            "name": "pressure",
             "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "dailyPressureProfile"
-                  }
-                },
-                4
-              ]
+              "defined": {
+                "name": "dailyPressureProfile"
+              }
             }
           }
         ]

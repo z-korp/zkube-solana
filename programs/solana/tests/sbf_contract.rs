@@ -90,7 +90,6 @@ fn daily_pool_entry_fixture() -> DailyPoolEntry {
         bonus_threshold: 10,
         starting_charges: 0,
         starting_rows: 4,
-        difficulty_band: 0,
     }
 }
 
@@ -102,8 +101,6 @@ fn daily_rules_fixture(
     bump: u8,
 ) -> DailyRulesCatalog {
     let pool_entries = vec![daily_pool_entry_fixture()];
-    let mut difficulty_bands = [DailyPressureProfile::default(); DAILY_DIFFICULTY_BAND_CAPACITY];
-    difficulty_bands[0] = DailyPressureProfile::canonical();
     DailyRulesCatalog {
         version: RULES_ACCOUNT_VERSION,
         rules_version,
@@ -114,8 +111,7 @@ fn daily_rules_fixture(
         starts_day,
         pool_entry_count: 1,
         pool_entries,
-        difficulty_band_count: 1,
-        difficulty_bands,
+        pressure: DailyPressureProfile::canonical(),
         bump,
     }
 }

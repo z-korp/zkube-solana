@@ -102,13 +102,13 @@ and approved on 2026-08-08.
 this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
 open: how many entries the pool ships with and what each carries, per-entry
-difficulty bands and thresholds, starting heights, `DailyPressureRules` values,
+starting heights, the global pressure thresholds and `DailyPressureRules` values,
 ladder tier boundaries, the flat qualifying credit, and Kredit pack sizes and
 prices.
 
 - **The pool is the content unit, and there is no calendar.** Every authored
   daily is a pool entry carrying its realm, active mutator, objective family,
-  passive, and its own difficulty band. Entries are added, edited, or retired at
+  and passive. Entries are added, edited, or retired at
   any time by publishing a catalog revision. There are no sets, seasons,
   gauntlets, or scheduled boundaries of any kind. A thirteen-week set calendar
   was designed and deliberately cut: it obliged the studio to ship content on a
@@ -150,15 +150,16 @@ prices.
   renders it. Do not reintroduce a tomorrow panel, an evening hook, or an
   ambient hint. Suspension notice is unaffected: the operator's per-day veto
   above depends on suspension needing no notice, never on publication.
-- **Each entry pins its own difficulty band.** Every player faces the same day,
-  so a hard day is hard for the whole field and competitiveness is untouched. A
-  globally uniform difficulty is simply a pool whose entries all carry the same
-  band, so the per-entry schema costs nothing and may be authored uniformly.
+- **Daily pressure is one global profile, not an entry property.** Every player
+  faces the same thresholds, score ramp, block weights, and move limit. The
+  catalog stores that profile once, and `published_pool_draws_a_complete_reproducible_cycle`
+  verifies that every selected entry receives it.
 - **A guardian's active mutator is permanent and is never re-paired.** The
   mutators are named for their guardians and a realm's Arcade appearance must
   match its Campaign zone, or the practice bridge breaks and a completed star
   record is invalidated by rules that moved underneath it. Variety comes from
-  new entries and retuned bands, never from reassigning a guardian's ability.
+  new entries and retuned global pressure, never from reassigning a guardian's
+  ability.
 - **Trigger thresholds exist only when the trigger reads one.** Line, score,
   exact-line, and Combo Meter triggers carry a positive threshold. Perfect-clear
   and all-block-sizes triggers carry zero because their conditions are complete
@@ -344,7 +345,7 @@ the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
-publisher-supplied Daily selection seed.
+publisher-supplied Daily selection seed; per-entry Daily difficulty bands.
 
 ## Transaction policy
 

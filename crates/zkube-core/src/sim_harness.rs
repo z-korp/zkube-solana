@@ -157,7 +157,6 @@ pub struct RunRecord {
 pub struct DailyCatalogEntry {
     pub id: u8,
     pub family: u8,
-    pub difficulty_band: u8,
     pub authored_rules_valid: bool,
     pub rules: DailyRunRules,
 }
@@ -372,9 +371,6 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
             DailyCatalogEntry {
                 id: map.map_id,
                 family,
-                // Every currently-authored entry is in band zero. Retaining
-                // the field makes that absence measurable rather than hidden.
-                difficulty_band: 0,
                 authored_rules_valid,
                 rules,
             }
@@ -552,7 +548,9 @@ pub fn run_daily(
         mode: String::from("daily"),
         catalog_id: u16::from(entry.id),
         family: entry.family,
-        difficulty_band: entry.difficulty_band,
+        // Daily has one global pressure profile; zero distinguishes it from
+        // Campaign's authored level-difficulty axis in combined reports.
+        difficulty_band: 0,
         authored_rules_valid: entry.authored_rules_valid,
         model,
         bonus_shape: shape,
