@@ -249,6 +249,8 @@ pub struct DailySimulation {
     pub rules_hash: RulesHash,
     pub rules_snapshot_hash: RulesHash,
     pub deadline_finished: bool,
+    #[cfg(feature = "sim-harness")]
+    pub harness_last_report: crate::MoveReport,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -339,6 +341,8 @@ impl DailySimulation {
             rules_hash,
             rules_snapshot_hash,
             deadline_finished: false,
+            #[cfg(feature = "sim-harness")]
+            harness_last_report: crate::MoveReport::default(),
         })
     }
 
@@ -445,6 +449,10 @@ impl DailySimulation {
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;
+        #[cfg(feature = "sim-harness")]
+        {
+            next.harness_last_report = report;
+        }
         next.replay = next.replay.fold(ReplayEvent::Move {
             action,
             expected_move,
@@ -454,6 +462,28 @@ impl DailySimulation {
         });
         *self = next;
         Ok(())
+    }
+
+    /// Apply a move and return the engine observation used by the feature-gated
+    /// simulation harness.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same ordering, rules, engine, scoring, metrics, or
+    /// arithmetic error as [`Self::play_move`].
+    #[cfg(feature = "sim-harness")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn harness_play_move(
+        &mut self,
+        rules: DailyRunRules,
+        action: u32,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+    ) -> Result<crate::MoveReport, SimulationError> {
+        self.play_move(rules, action, expected_move, row, start, destination)?;
+        Ok(self.harness_last_report)
     }
 
     /// Apply one ordered bonus action and update competition accounting.
@@ -485,6 +515,10 @@ impl DailySimulation {
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;
+        #[cfg(feature = "sim-harness")]
+        {
+            next.harness_last_report = report;
+        }
         next.replay = next.replay.fold(ReplayEvent::Bonus {
             action,
             row,
@@ -492,6 +526,25 @@ impl DailySimulation {
         });
         *self = next;
         Ok(())
+    }
+
+    /// Apply a bonus and return the engine observation used by the
+    /// feature-gated simulation harness.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same ordering, rules, engine, scoring, metrics, or
+    /// arithmetic error as [`Self::apply_bonus`].
+    #[cfg(feature = "sim-harness")]
+    pub fn harness_apply_bonus(
+        &mut self,
+        rules: DailyRunRules,
+        action: u32,
+        row: u8,
+        column: u8,
+    ) -> Result<crate::MoveReport, SimulationError> {
+        self.apply_bonus(rules, action, row, column)?;
+        Ok(self.harness_last_report)
     }
 
     /// Consume a reroll charge and request a domain-separated replacement for

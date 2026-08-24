@@ -1,0 +1,124 @@
+use std::{env, process::ExitCode};
+
+use zkube_core::sim_harness::{
+    BonusShape, FieldAssumptions, PlayerModel, SeedPartition, campaign_catalog, daily_catalog,
+    draw_summary, golden_smoke, run_campaign, run_daily, simulate_field,
+};
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(json) => {
+            println!("{json}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<String, String> {
+    let args = env::args().collect::<Vec<_>>();
+    match args.get(1).map(String::as_str) {
+        None | Some("smoke") => {
+            serde_json::to_string_pretty(&golden_smoke()?).map_err(|error| error.to_string())
+        }
+        Some("daily") => {
+            let seeds = parse_seeds(args.get(2))?;
+            let mut records = Vec::new();
+            for entry in daily_catalog() {
+                for model in [
+                    PlayerModel::Naive,
+                    PlayerModel::LineClearer,
+                    PlayerModel::DailyScore,
+                    PlayerModel::Theme,
+                ] {
+                    for shape in [
+                        BonusShape::Realm,
+                        BonusShape::None,
+                        BonusShape::UniversalReroll,
+                        BonusShape::RealmPlusUniversalReroll,
+                    ] {
+                        for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
+                            for seed_index in 0..seeds {
+                                let seed = partition_seed(partition, seed_index);
+                                records.push(
+                                    run_daily(entry, model, shape, partition, seed)
+                                        .map_err(|error| format!("Daily run failed: {error:?}"))?,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            serde_json::to_string(&records).map_err(|error| error.to_string())
+        }
+        Some("campaign") => {
+            let seeds = parse_seeds(args.get(2))?;
+            let mut records = Vec::new();
+            for level in campaign_catalog() {
+                for model in [
+                    PlayerModel::Naive,
+                    PlayerModel::LineClearer,
+                    PlayerModel::CampaignConstraints,
+                ] {
+                    for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
+                        for seed_index in 0..seeds {
+                            let seed = partition_seed(partition, seed_index);
+                            records.push(
+                                run_campaign(level, model, partition, seed)
+                                    .map_err(|error| format!("Campaign run failed: {error:?}"))?,
+                            );
+                        }
+                    }
+                }
+            }
+            serde_json::to_string(&records).map_err(|error| error.to_string())
+        }
+        Some("draw") => {
+            let summaries = [1, 5, 10, 20, 40, 64]
+                .into_iter()
+                .map(|count| draw_summary(count, 365))
+                .collect::<Result<Vec<_>, _>>()?;
+            serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
+        }
+        Some("field") => {
+            let mut summaries = Vec::new();
+            for assumptions in [
+                FieldAssumptions::low_retention(),
+                FieldAssumptions::base(),
+                FieldAssumptions::streak_sensitive(),
+            ] {
+                for packs in [&[1u8][..], &[1, 5][..], &[1, 5, 10][..], &[5, 10, 25][..]] {
+                    summaries.push(simulate_field(assumptions, packs)?);
+                }
+            }
+            serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
+        }
+        Some(command) => Err(format!(
+            "unknown command {command:?}; use smoke, daily [seeds], campaign [seeds], draw, or field"
+        )),
+    }
+}
+
+fn parse_seeds(value: Option<&String>) -> Result<u64, String> {
+    value.map_or(Ok(16), |raw| {
+        raw.parse::<u64>()
+            .map_err(|error| format!("invalid seed count: {error}"))
+            .and_then(|value| {
+                if value == 0 {
+                    Err(String::from("seed count must be positive"))
+                } else {
+                    Ok(value)
+                }
+            })
+    })
+}
+
+const fn partition_seed(partition: SeedPartition, index: u64) -> u64 {
+    match partition {
+        SeedPartition::Tuning => 0x1000_0000_0000_0000 | index,
+        SeedPartition::Holdout => 0x9000_0000_0000_0000 | index,
+    }
+}

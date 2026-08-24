@@ -159,6 +159,14 @@ pub struct MoveReport {
     pub neutral_points_earned: u32,
     /// Difficulty tier used to score the action.
     pub difficulty_at_action: u8,
+    /// Charges produced by this transition before the engine's inventory cap.
+    /// This is measurement-only state and is never present in program builds.
+    #[cfg(feature = "sim-harness")]
+    pub harness_charges_earned: u8,
+    /// Whether the consumed preview could not enter after the first settle.
+    /// This distinguishes overflow from move-budget exhaustion in experiments.
+    #[cfg(feature = "sim-harness")]
+    pub harness_preview_insertion_blocked: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -498,6 +506,10 @@ impl RunEngine {
             blocks_destroyed_by_size,
             neutral_points_earned: neutral_points,
             difficulty_at_action: 0,
+            #[cfg(feature = "sim-harness")]
+            harness_charges_earned: 0,
+            #[cfg(feature = "sim-harness")]
+            harness_preview_insertion_blocked: row_insertion_blocked,
         };
         let charges = match mutator.bonus_trigger_type {
             1 if needs_next_row
@@ -534,6 +546,10 @@ impl RunEngine {
             }
             _ => 0,
         };
+        #[cfg(feature = "sim-harness")]
+        {
+            report.harness_charges_earned = charges.min(u16::from(u8::MAX)) as u8;
+        }
         self.bonus_charges = self
             .bonus_charges
             .saturating_add(charges.min(u16::from(u8::MAX)) as u8)
