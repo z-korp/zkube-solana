@@ -100,17 +100,6 @@ pub enum BonusShape {
     RealmPlusUniversalReroll,
 }
 
-impl BonusShape {
-    const fn tag(self) -> u8 {
-        match self {
-            Self::Realm => 0,
-            Self::None => 1,
-            Self::UniversalReroll => 2,
-            Self::RealmPlusUniversalReroll => 3,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalCause {
@@ -452,14 +441,18 @@ pub fn run_daily(
         raw_account: identity,
         run_id: seed,
         mode: ReplayMode::Ranked,
+        // Counterfactual shapes deliberately share one experimental rules
+        // identity so their opening and ordinary preview rows stay paired.
+        // The record still carries the shape; this hash is not a publishable
+        // protocol rules hash.
         rules_hash: RulesHash(SoftwareSha256::hashv(&[
             HARNESS_DAILY_RULES_DOMAIN,
-            &[entry.id, shape.tag(), partition.tag()],
+            &[entry.id, partition.tag()],
         ])),
         rules,
     };
     let mut simulation = DailySimulation::new(config)?;
-    simulation.apply_vrf(rules, 1, vrf_bytes(seed, entry.id, shape, 1))?;
+    simulation.apply_vrf(rules, 1, vrf_bytes(seed, entry.id, 1))?;
     let (simulation, counters, terminal_cause) =
         play_daily_to_terminal(simulation, rules, entry.id, model, shape, seed)?;
     Ok(RunRecord {
@@ -508,7 +501,7 @@ fn play_daily_to_terminal(
     while terminal.is_none() && simulation.action_counter < MAX_HARNESS_PLIES {
         if simulation.engine.phase == RunPhase::AwaitingVrf {
             let counter = simulation.last_vrf_counter.saturating_add(1);
-            simulation.apply_vrf(rules, counter, vrf_bytes(seed, entry_id, shape, counter))?;
+            simulation.apply_vrf(rules, counter, vrf_bytes(seed, entry_id, counter))?;
             if let Some(realm_charges) = pending_realm_charges.take() {
                 side_rerolls = simulation.engine.bonus_charges;
                 simulation.engine.bonus = rules.bonus;
@@ -1038,11 +1031,11 @@ fn policy_index(seed: u64, action: u32, model: PlayerModel, len: usize) -> usize
     usize::try_from(value % len as u64).expect("modulo result fits usize")
 }
 
-fn vrf_bytes(seed: u64, entry_id: u8, shape: BonusShape, counter: u32) -> [u8; 32] {
+fn vrf_bytes(seed: u64, entry_id: u8, counter: u32) -> [u8; 32] {
     SoftwareSha256::hashv(&[
         HARNESS_VRF_DOMAIN,
         &seed.to_le_bytes(),
-        &[entry_id, shape.tag()],
+        &[entry_id],
         &counter.to_le_bytes(),
     ])
 }
@@ -1436,13 +1429,13 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":385,\"objectiveSum\":102,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":6,\"digestHex\":\"09035c1b8f898e7a4e165ef03d9d093fa0490e324f6484d840a71b08bad53cf7\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":360,\"objectiveSum\":96,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"bf7ee5713aef9403c66473680cde0f88347d9f7d121d134e7e31a7c71f245e92\"}"
         );
     }
 
     #[test]
     fn policy_and_vrf_streams_are_domain_separated() {
-        let vrf = vrf_bytes(9, 1, BonusShape::Realm, 3);
+        let vrf = vrf_bytes(9, 1, 3);
         let policy = SoftwareSha256::hashv(&[
             HARNESS_POLICY_DOMAIN,
             &9u64.to_le_bytes(),
