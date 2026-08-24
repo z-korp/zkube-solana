@@ -4,7 +4,6 @@ import { PublicKey, type Connection } from "@solana/web3.js";
 
 import {
   ARENA_BOARD_CAPACITY,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
   KEEPER_RECENT_DAILY_CADENCES,
@@ -474,16 +473,12 @@ function assertBoardCount(value: number | undefined, label: string): void {
 
 function assertDailyContent(context: KeeperPlanContext): void {
   if (context.followingDayId === undefined || context.contentVersion === undefined ||
-      context.contentVersion < 1 || !context.selectionSeed ||
-      context.selectionSeed.length !== 32 || context.selectionSeed.some(
-        (byte, index) => byte !== DAILY_POOL_SELECTION_SEED[index],
-      ) || context.catalogStartsDay === undefined ||
+      context.contentVersion < 1 || context.catalogStartsDay === undefined ||
       context.poolEntryCount === undefined || !context.poolEntries ||
       context.poolEntries.length !== context.poolEntryCount) {
     throw new Error("keeper policy rejects Daily content context");
   }
   const selected = dailyContentSelection(
-    context.selectionSeed,
     context.catalogStartsDay,
     context.followingDayId,
     context.poolEntryCount,

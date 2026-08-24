@@ -15,7 +15,7 @@ pub enum DailyPoolError {
 
 /// Resolve one authored pool entry from published catalog data alone.
 ///
-/// Fisher-Yates derives one seed- and cycle-keyed permutation. Consecutive
+/// Fisher-Yates derives one protocol-seed- and cycle-keyed permutation. Consecutive
 /// scheduled day identifiers traverse the current cycle, so every entry appears
 /// exactly once before the next independently shuffled cycle begins.
 ///
@@ -28,12 +28,11 @@ pub enum DailyPoolError {
 /// Returns an error for an empty or oversized pool, or a day before the
 /// catalog's published start.
 pub fn daily_pool_entry_index(
-    selection_seed: [u8; 32],
     starts_day: u32,
     day_id: u32,
     entry_count: u8,
 ) -> Result<u8, DailyPoolError> {
-    daily_pool_entry_index_with::<SoftwareSha256>(selection_seed, starts_day, day_id, entry_count)
+    daily_pool_entry_index_with::<SoftwareSha256>(starts_day, day_id, entry_count)
 }
 
 /// Chain-adaptable form of [`daily_pool_entry_index`].
@@ -43,7 +42,6 @@ pub fn daily_pool_entry_index(
 /// Returns an error for an empty or oversized pool, or a day before the
 /// catalog's published start.
 pub fn daily_pool_entry_index_with<H: Sha256Provider>(
-    selection_seed: [u8; 32],
     starts_day: u32,
     day_id: u32,
     entry_count: u8,
@@ -65,11 +63,7 @@ pub fn daily_pool_entry_index_with<H: Sha256Provider>(
     for index in (1..count).rev() {
         let upper_bound = u64::try_from(index + 1).unwrap_or(1);
         let swap = usize::try_from(
-            pool_hash_u64_with::<H>(
-                selection_seed,
-                cycle_index,
-                u8::try_from(index).unwrap_or(0),
-            ) % upper_bound,
+            pool_hash_u64_with::<H>(cycle_index, u8::try_from(index).unwrap_or(0)) % upper_bound,
         )
         .unwrap_or(0);
         permutation.swap(index, swap);
@@ -80,10 +74,10 @@ pub fn daily_pool_entry_index_with<H: Sha256Provider>(
     Ok(permutation[usize::try_from(day_id % entry_count).unwrap_or(0)])
 }
 
-fn pool_hash_u64_with<H: Sha256Provider>(seed: [u8; 32], cycle_index: u32, index: u8) -> u64 {
+fn pool_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
     let digest = H::hashv(&[
         DAILY_POOL_DRAW_DOMAIN,
-        &seed,
+        &DAILY_POOL_SELECTION_SEED,
         &cycle_index.to_le_bytes(),
         &[index],
     ]);
@@ -101,16 +95,15 @@ mod tests {
 
     #[test]
     fn a_full_pool_cycle_uses_every_entry_before_any_repeat() {
-        let seed = [7; 32];
         let starts_day = 20_000;
         let first_cycle = (starts_day..starts_day + 10)
-            .map(|day| daily_pool_entry_index(seed, starts_day, day, 10).unwrap())
+            .map(|day| daily_pool_entry_index(starts_day, day, 10).unwrap())
             .collect::<std::vec::Vec<_>>();
         let mut sorted = first_cycle.clone();
         sorted.sort_unstable();
         assert_eq!(sorted, (0..10u8).collect::<std::vec::Vec<_>>());
         let second_cycle = (starts_day + 10..starts_day + 20)
-            .map(|day| daily_pool_entry_index(seed, starts_day, day, 10).unwrap())
+            .map(|day| daily_pool_entry_index(starts_day, day, 10).unwrap())
             .collect::<std::vec::Vec<_>>();
         let mut second_sorted = second_cycle.clone();
         second_sorted.sort_unstable();
@@ -120,28 +113,26 @@ mod tests {
 
     #[test]
     fn draw_is_reproducible_and_tomorrow_is_resolvable_today() {
-        let published_seed = [19; 32];
         let today = 31_415;
-        let today_entry = daily_pool_entry_index(published_seed, today, today, 16).unwrap();
-        let tomorrow_entry = daily_pool_entry_index(published_seed, today, today + 1, 16).unwrap();
+        let today_entry = daily_pool_entry_index(today, today, 16).unwrap();
+        let tomorrow_entry = daily_pool_entry_index(today, today + 1, 16).unwrap();
         assert_eq!(
             today_entry,
-            daily_pool_entry_index(published_seed, today, today, 16).unwrap()
+            daily_pool_entry_index(today, today, 16).unwrap()
         );
         assert_eq!(
             tomorrow_entry,
-            daily_pool_entry_index(published_seed, today, today + 1, 16).unwrap()
+            daily_pool_entry_index(today, today + 1, 16).unwrap()
         );
         assert_ne!(today_entry, tomorrow_entry);
     }
 
     #[test]
     fn catalog_start_cannot_rotate_a_day_selection() {
-        let seed = [23; 32];
         let day = 31_415;
         assert_eq!(
-            daily_pool_entry_index(seed, day - 20, day, 10),
-            daily_pool_entry_index(seed, day, day, 10),
+            daily_pool_entry_index(day - 20, day, 10),
+            daily_pool_entry_index(day, day, 10),
         );
     }
 
@@ -150,7 +141,7 @@ mod tests {
         let count = u8::try_from(DAILY_POOL_CAPACITY).unwrap();
         let starts_day = 128 * 200;
         let mut cycle = (starts_day..starts_day + u32::from(count))
-            .map(|day| daily_pool_entry_index([29; 32], starts_day, day, count).unwrap())
+            .map(|day| daily_pool_entry_index(starts_day, day, count).unwrap())
             .collect::<std::vec::Vec<_>>();
         cycle.sort_unstable();
         assert_eq!(cycle, (0..count).collect::<std::vec::Vec<_>>());
@@ -172,7 +163,6 @@ mod tests {
             .enumerate()
             .map(|(offset, _)| {
                 daily_pool_entry_index(
-                    DAILY_POOL_SELECTION_SEED,
                     starts_day,
                     starts_day + u32::try_from(offset).unwrap(),
                     entry_count,
@@ -203,11 +193,11 @@ mod tests {
     #[test]
     fn suspended_and_not_yet_started_catalogs_do_not_draw() {
         assert_eq!(
-            daily_pool_entry_index([1; 32], 10, 10, 0),
+            daily_pool_entry_index(10, 10, 0),
             Err(DailyPoolError::EmptyPool)
         );
         assert_eq!(
-            daily_pool_entry_index([1; 32], 10, 9, 1),
+            daily_pool_entry_index(10, 9, 1),
             Err(DailyPoolError::BeforeCatalogStart)
         );
     }

@@ -62,6 +62,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal:
       "one perfect-clear output derives both the board reseed and preview",
   },
+  {
+    pattern:
+      /\bselection_seed\s*:\s*\[u8;\s*32\]|\bselectionSeed\??\s*:\s*Uint8Array/,
+    trees: [CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "the Daily selection seed is protocol code, not catalog or keeper state",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

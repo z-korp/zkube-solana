@@ -320,7 +320,6 @@ pub struct DailyRulesCatalog {
     pub catalog_hash: [u8; 32],
     pub pool_revision: u32,
     pub starts_day: u32,
-    pub selection_seed: [u8; 32],
     pub pool_entry_count: u8,
     #[max_len(DAILY_POOL_ENTRY_CAPACITY)]
     pub pool_entries: Vec<DailyPoolEntry>,
@@ -342,7 +341,6 @@ impl DailyRulesCatalog {
             self.version == RULES_ACCOUNT_VERSION
                 && self.rules_version > 0
                 && self.pool_revision > 0
-                && self.selection_seed == zkube_core::DAILY_POOL_SELECTION_SEED
                 && usize::from(self.pool_entry_count) <= DAILY_POOL_ENTRY_CAPACITY
                 && self.pool_entries.len() == usize::from(self.pool_entry_count)
                 && usize::from(self.difficulty_band_count) <= DAILY_DIFFICULTY_BAND_CAPACITY,
@@ -373,14 +371,10 @@ impl DailyRulesCatalog {
     pub fn content_for_day(&self, day_id: u32) -> Result<DailyContentSelection> {
         self.validate()?;
         require!(self.is_scheduled(day_id), ErrorCode::DailyNotScheduled);
-        let pool_index =
-            zkube_core::daily_pool_entry_index_with::<crate::state::arcade::SolanaSha256>(
-                self.selection_seed,
-                self.starts_day,
-                day_id,
-                self.pool_entry_count,
-            )
-            .map_err(|_| error!(ErrorCode::DailyNotScheduled))?;
+        let pool_index = zkube_core::daily_pool_entry_index_with::<
+            crate::state::arcade::SolanaSha256,
+        >(self.starts_day, day_id, self.pool_entry_count)
+        .map_err(|_| error!(ErrorCode::DailyNotScheduled))?;
         let entry = self.pool_entries[usize::from(pool_index)];
         Ok(DailyContentSelection {
             pool_index,
@@ -475,7 +469,6 @@ mod tests {
             catalog_hash: [1; 32],
             pool_revision: 1,
             starts_day: 20_000,
-            selection_seed: zkube_core::DAILY_POOL_SELECTION_SEED,
             pool_entry_count: entry_count,
             pool_entries,
             difficulty_band_count: u8::from(entry_count > 0),
@@ -487,7 +480,7 @@ mod tests {
     #[test]
     fn published_pool_draws_a_complete_reproducible_cycle() {
         assert_eq!(DailyPoolEntry::INIT_SPACE, 26);
-        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_960);
+        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_928);
         let catalog = catalog(10);
         catalog.validate().unwrap();
         let first = (catalog.starts_day..catalog.starts_day + 10)

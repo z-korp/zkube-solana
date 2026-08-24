@@ -3,7 +3,6 @@ import { PublicKey } from "@solana/web3.js";
 import {
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RECOVERY_DEADLINE_OFFSET,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
   KEEPER_RECENT_DAILY_CADENCES,
   ARENA_BOARD_CAPACITY,
@@ -156,7 +155,6 @@ export interface ProtocolSnapshot {
   launchDayId: number;
   rulesCatalog: PublicKey;
   contentVersion: number;
-  selectionSeed: Uint8Array;
   catalogStartsDay: number;
   poolEntries: readonly {
     realmMapId: number;
@@ -188,7 +186,6 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   launchDayId: 4,
   rulesCatalog: PublicKey.default,
   contentVersion: 0,
-  selectionSeed: new Uint8Array(32),
   catalogStartsDay: 0,
   poolEntries: Object.freeze([]),
   dailies: Object.freeze([]),
@@ -289,7 +286,6 @@ export function discoverReconciliation(args: {
   if (missingDay !== undefined && missingDay > args.snapshot.launchDayId &&
       missingDay >= oldestKeeperDay) {
     const content = dailyContentSelection(
-      args.snapshot.selectionSeed,
       args.snapshot.catalogStartsDay,
       missingDay,
       args.snapshot.poolEntries.length,
@@ -305,7 +301,6 @@ export function discoverReconciliation(args: {
       launchCadenceId: args.snapshot.launchDayId,
       rulesCatalog: args.snapshot.rulesCatalog,
       contentVersion: args.snapshot.contentVersion,
-      selectionSeed: args.snapshot.selectionSeed,
       catalogStartsDay: args.snapshot.catalogStartsDay,
       poolEntryCount: args.snapshot.poolEntries.length,
       poolIndex: content.poolIndex,
@@ -534,9 +529,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   assertCadenceId(snapshot.launchDayId, "launch day id");
   assertCadenceId(snapshot.contentVersion, "content version");
   assertCadenceId(snapshot.catalogStartsDay, "catalog start day");
-  if (snapshot.contentVersion === 0 || snapshot.selectionSeed.length !== 32 ||
-      snapshot.selectionSeed.some((byte, index) =>
-        byte !== DAILY_POOL_SELECTION_SEED[index]) ||
+  if (snapshot.contentVersion === 0 ||
       snapshot.poolEntries.length > DAILY_POOL_CAPACITY || snapshot.poolEntries.some((entry) =>
         !Number.isSafeInteger(entry.realmMapId) || entry.realmMapId < 0 ||
         entry.realmMapId > 32 || !Number.isSafeInteger(entry.passiveMapId) ||

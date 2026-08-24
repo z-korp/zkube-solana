@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
@@ -420,7 +419,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
     launchDayId: DAY,
     rulesCatalog: RULES,
     contentVersion: 2,
-    selectionSeed: Uint8Array.from(DAILY_POOL_SELECTION_SEED),
     catalogStartsDay: DAY - 10,
     poolEntries: dailyPoolEntries(),
     dailies: [],

@@ -905,7 +905,6 @@ export async function buildOpenDailyChallengePlan(args: {
     config.rulesCatalog,
   );
   const content = await dailyContentSelection(
-    Uint8Array.from(catalog.selectionSeed),
     Number(catalog.startsDay),
     dayId,
     Number(catalog.poolEntryCount),

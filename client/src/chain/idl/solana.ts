@@ -7121,15 +7121,6 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "selectionSeed",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
             "name": "poolEntryCount",
             "type": "u8"
           },

@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   DAILY_RECOVERY_DEADLINE_OFFSET,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
@@ -29,14 +28,12 @@ const KEEPER = Keypair.generate().publicKey;
 
 describe("v5 keeper semantic policy", () => {
   it("accepts only the exact missing Daily successor", () => {
-    const selectionSeed = Uint8Array.from(DAILY_POOL_SELECTION_SEED);
     const catalogStartsDay = DAY - 10;
     const poolEntries = Array.from({ length: 10 }, (_, index) => ({
       realmMapId: index + 1,
       passiveMapId: index + 1,
     }));
     const content = dailyContentSelection(
-      selectionSeed,
       catalogStartsDay,
       DAY,
       poolEntries.length,
@@ -48,7 +45,6 @@ describe("v5 keeper semantic policy", () => {
       launchCadenceId: DAY - 10,
       rulesCatalog: rulesCatalogPda(1),
       contentVersion: 2,
-      selectionSeed,
       catalogStartsDay,
       poolEntryCount: poolEntries.length,
       poolEntries,

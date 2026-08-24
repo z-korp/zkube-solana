@@ -7115,15 +7115,6 @@
             "type": "u32"
           },
           {
-            "name": "selection_seed",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
             "name": "pool_entry_count",
             "type": "u8"
           },

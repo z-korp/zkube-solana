@@ -5,7 +5,6 @@ import {
   DAILY_POOL_CAPACITY,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
-  DAILY_POOL_SELECTION_SEED,
   ENTRY_SPLIT_LAMPORTS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
@@ -40,12 +39,10 @@ describe("v5 Daily cadence constants", () => {
   it("does not let a catalog start rotate a day's pool selection", () => {
     const dayId = 31_415;
     expect(dailyContentSelection(
-      Uint8Array.from(DAILY_POOL_SELECTION_SEED),
       dayId - 20,
       dayId,
       10,
     )).toEqual(dailyContentSelection(
-      Uint8Array.from(DAILY_POOL_SELECTION_SEED),
       dayId,
       dayId,
       10,
@@ -57,7 +54,6 @@ describe("v5 Daily cadence constants", () => {
     const cycle = (cycleIndex: number) => Array.from(
       { length: DAILY_POOL_CAPACITY },
       (_, offset) => dailyContentSelection(
-        Uint8Array.from(DAILY_POOL_SELECTION_SEED),
         startsDay,
         startsDay + cycleIndex * DAILY_POOL_CAPACITY + offset,
         DAILY_POOL_CAPACITY,

@@ -116,11 +116,13 @@ prices.
   purely to satisfy week arithmetic, and reserved a championship week whether or
   not a championship existed.
 - **The draw is derived, never chosen.** Which entry runs on a given day is
-  derived from a committed seed and the day identifier, drawn without
+  derived from the protocol-fixed seed and the day identifier, drawn without
   replacement so the pool cycles fully before repeating. The operator controls
   what is in the pool and never which entry runs; an operator who could pick the
   day could pick who gets their best day, which is unacceptable in a game paying
-  real SOL. Selection must be independently recomputable from published data.
+  real SOL. The seed is code, not catalog state, and
+  `published_pool_draws_a_complete_reproducible_cycle` guards the account
+  boundary. Selection must be independently recomputable from published data.
 - **Closing that lever takes four constraints, not one.** The seed is
   protocol-fixed, entry ordering is canonical, and the cycle is anchored to the
   absolute day rather than to the catalog's start. But the **entry count drives
@@ -341,7 +343,8 @@ skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
 the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
-all-block-sizes triggers; a two-request perfect-clear continuation.
+all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
+publisher-supplied Daily selection seed.
 
 ## Transaction policy
 

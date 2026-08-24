@@ -203,7 +203,6 @@ pub fn handler_publish_arena_rules(
     catalog.catalog_hash = catalog_hash;
     catalog.pool_revision = args.pool_revision;
     catalog.starts_day = args.starts_day;
-    catalog.selection_seed = zkube_core::DAILY_POOL_SELECTION_SEED;
     catalog.pool_entry_count = args.pool_entry_count;
     catalog.pool_entries = args.pool_entries;
     catalog.difficulty_band_count = args.difficulty_band_count;

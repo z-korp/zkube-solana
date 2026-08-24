@@ -4,7 +4,6 @@ import {
 } from "./protocolVersions.generated";
 
 export const DAILY_SCORING_RULE_COUNT = 15;
-export const CANONICAL_DAILY_POOL_SEED = DAILY_POOL_SELECTION_SEED;
 export function dailyIsScheduled(
   dayId: number,
   startsDay: number,
@@ -30,12 +29,10 @@ export function nextScheduledDaily(
 }
 
 export async function dailyContentSelection(
-  selectionSeed: Uint8Array,
   startsDay: number,
   dayId: number,
   entryCount: number,
 ): Promise<{ poolIndex: number }> {
-  if (selectionSeed.length !== 32) throw new Error("selection seed must be 32 bytes");
   if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
     throw new Error("no paid Daily is scheduled");
   }
@@ -43,7 +40,7 @@ export async function dailyContentSelection(
   const cycleIndex = Math.floor(dayId / entryCount);
   for (let index = entryCount - 1; index > 0; index -= 1) {
     const swap = Number(
-      (await poolHashU64(selectionSeed, cycleIndex, index)) % BigInt(index + 1),
+      (await poolHashU64(cycleIndex, index)) % BigInt(index + 1),
     );
     [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
   }
@@ -51,14 +48,13 @@ export async function dailyContentSelection(
 }
 
 async function poolHashU64(
-  seed: Uint8Array,
   cycleIndex: number,
   index: number,
 ): Promise<bigint> {
   const domainRoot = new TextEncoder().encode("zkube-daily-pool-draw-v2");
   const input = new Uint8Array(domainRoot.length + 32 + 4 + 1);
   let offset = 0;
-  for (const bytes of [domainRoot, seed]) {
+  for (const bytes of [domainRoot, Uint8Array.from(DAILY_POOL_SELECTION_SEED)]) {
     input.set(bytes, offset);
     offset += bytes.length;
   }

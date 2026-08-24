@@ -25,7 +25,6 @@ import {
   ARENA_BOARD_ENTRY_SIZE,
   ARENA_ENTRY_LAMPORTS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_RUN_CLOSE_OFFSET,
   ENTRY_SPLIT_LAMPORTS,
   KEEPER_RECENT_DAILY_CADENCES,
@@ -268,11 +267,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     this.requireReleaseCatalog(catalog.value, rulesVersion);
     const contentVersion = u32(catalog.value.contentVersion, "rules content version");
-    const selectionSeed = bytes32(catalog.value.selectionSeed, "rules selection seed");
-    if (selectionSeed.some((byte, index) =>
-      byte !== DAILY_POOL_SELECTION_SEED[index])) {
-      throw new Error("keeper rejects a publisher-chosen Daily selection seed");
-    }
     const catalogStartsDay = u32(catalog.value.startsDay, "rules start day");
     const poolEntryCount = u8(catalog.value.poolEntryCount, "rules pool entry count");
     const poolEntries = array(catalog.value.poolEntries, "rules pool entries")
@@ -346,7 +340,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       launchDayId,
       rulesCatalog,
       contentVersion,
-      selectionSeed,
       catalogStartsDay,
       poolEntries,
       dailies: dailies.map(({ snapshot }) => snapshot),

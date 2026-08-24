@@ -29,7 +29,6 @@ import BN from "bn.js";
 import {
   CANONICAL_DAILY_PRESSURE,
   CANONICAL_DAILY_SCORING_RULES,
-  CANONICAL_DAILY_POOL_SEED,
   dailyContentSelection,
 } from "./dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
@@ -362,7 +361,6 @@ export async function buildPrepareLaunchPeriodPlans(args: {
   for (const dayId of [args.dayId, args.dayId + 1]) {
     assertU32(dayId, "dayId");
     const content = await dailyContentSelection(
-      Uint8Array.from(CANONICAL_DAILY_POOL_SEED),
       args.dayId,
       dayId,
       CANONICAL_CAMPAIGN_MAP_COUNT,

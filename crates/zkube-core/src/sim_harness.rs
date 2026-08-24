@@ -30,11 +30,10 @@
 
 use crate::{
     Bonus, CampaignEndReason, CampaignError, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint, ConstraintKind,
-    DAILY_POOL_SELECTION_SEED, DailyObjective, DailyObjectiveRule, DailyPressureRules,
-    DailyRunRules, DailySimulation, DailySimulationConfig, GRID_HEIGHT, GRID_WIDTH, Grid,
-    MoveReport, MutatorRules, ReplayMode, RulesHash, RunPhase, Sha256Provider, SimulationError,
-    SoftwareSha256, daily_pool_entry_index,
+    CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint, ConstraintKind, DailyObjective,
+    DailyObjectiveRule, DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig,
+    GRID_HEIGHT, GRID_WIDTH, Grid, MoveReport, MutatorRules, ReplayMode, RulesHash, RunPhase,
+    Sha256Provider, SimulationError, SoftwareSha256, daily_pool_entry_index,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1179,7 +1178,7 @@ pub fn draw_summary(entry_count: u8, measured_days: u32) -> Result<DrawSummary, 
     // start at one so no first-day special case can flatter repeat behavior.
     for day in 0..=measured_days {
         let index = usize::from(
-            daily_pool_entry_index(DAILY_POOL_SELECTION_SEED, 0, day, entry_count)
+            daily_pool_entry_index(0, day, entry_count)
                 .map_err(|error| format!("draw failed: {error:?}"))?,
         );
         if day > 0 {

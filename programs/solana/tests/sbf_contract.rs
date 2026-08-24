@@ -112,7 +112,6 @@ fn daily_rules_fixture(
         catalog_hash: [7; 32],
         pool_revision: 1,
         starts_day,
-        selection_seed: zkube_core::DAILY_POOL_SELECTION_SEED,
         pool_entry_count: 1,
         pool_entries,
         difficulty_band_count: 1,

@@ -79,7 +79,6 @@ export interface KeeperPlanContext {
   competition?: CompetitionKind;
   rulesCatalog?: PublicKey;
   contentVersion?: number;
-  selectionSeed?: Uint8Array;
   catalogStartsDay?: number;
   poolEntryCount?: number;
   poolIndex?: number;
@@ -252,32 +251,29 @@ export function nextScheduledDaily(
 }
 
 export function dailyContentSelection(
-  selectionSeed: Uint8Array,
   startsDay: number,
   dayId: number,
   entryCount: number,
 ): { poolIndex: number } {
-  if (selectionSeed.length !== 32) throw new Error("Daily selection seed must be 32 bytes");
   if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
     throw new Error("no paid Daily is scheduled");
   }
   const pool = Array.from({ length: DAILY_POOL_CAPACITY }, (_, index) => index);
   const cycleIndex = Math.floor(dayId / entryCount);
   for (let index = entryCount - 1; index > 0; index -= 1) {
-    const swap = Number(poolHashU64(selectionSeed, cycleIndex, index) % BigInt(index + 1));
+    const swap = Number(poolHashU64(cycleIndex, index) % BigInt(index + 1));
     [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
   }
   return { poolIndex: pool[dayId % entryCount]! };
 }
 
 function poolHashU64(
-  seed: Uint8Array,
   cycleIndex: number,
   index: number,
 ): bigint {
   const digest = createHash("sha256")
     .update(DAILY_POOL_DRAW_DOMAIN)
-    .update(seed)
+    .update(Uint8Array.from(DAILY_POOL_SELECTION_SEED))
     .update(u32(cycleIndex))
     .update(Uint8Array.from([index]))
     .digest();
