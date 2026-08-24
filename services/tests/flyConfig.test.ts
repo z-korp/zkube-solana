@@ -25,5 +25,9 @@ describe("deployed keeper config", () => {
     expect(env("ZKUBE_ARCHIVE_DIRECTORY")).toBe(
       KEEPER_RELEASE_POLICY.archiveDirectory,
     );
+    // Fly supplies only the unique deployment tag at runtime. A digest may be
+    // operator-attested while fingerprinting, but this config must not present
+    // one as though the worker had verified it against the Machines API.
+    expect(env("ZKUBE_KEEPER_IMAGE_DIGEST")).toBeUndefined();
   });
 });

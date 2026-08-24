@@ -675,13 +675,17 @@ relationships before decoding or planning a write. It reconciles:
   the canonical player funding PDA.
 
 The recurring signer cannot deploy, initialize, seed pots, change rules,
-withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. A
-write-enabled release is pinned to Devnet genesis, deployed ProgramData hash,
-program ID, keeper signer, image digest, rules/replay/schema/IDL hashes,
-instruction allowlist, a six-write general limit, a separate 32-write board
-construction limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling,
-  a separate 1,804,936,800-lamport recyclable board-rent ceiling, a separate
-one-participant-account closure limit, and a 0.1 SOL keeper reserve floor.
+withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
+runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
+The release fingerprint also pins Devnet genesis, deployed ProgramData hash,
+program ID, keeper signer, rules/replay/schema/IDL hashes, instruction
+allowlist, a six-write general limit, a separate 32-write board construction
+limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling, a separate
+1,804,936,800-lamport recyclable board-rent ceiling, a separate
+one-participant-account closure limit, and a 0.1 SOL keeper reserve floor. An
+optional image digest copied from `fly machine status --json` is attested by the
+operator at fingerprint time and carried into the fingerprint; the worker does
+not verify that digest at runtime.
 
 Keeper release-policy source schema v1 fingerprints the single archive contract
 v1, the 1,536-row board bound, and the keeper's 300,000-byte fail-closed

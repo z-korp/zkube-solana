@@ -10,6 +10,7 @@ const [
   idlHash,
   rawRulesVersion,
   rawLaunchDayId,
+  keeperImageDigest,
 ] = process.argv.slice(2);
 const rulesVersion = Number(rawRulesVersion);
 const launchDayId = Number(rawLaunchDayId);
@@ -22,7 +23,7 @@ if (!programId || !keeperPublicKey || !deployedProgramDataSha256 ||
     "usage: keeperReleaseCli <program-id> <keeper-public-key> " +
       "<deployed-programdata-sha256> <keeper-image-reference> " +
       "<replay-domain-hex> <rules-catalog-hash> <idl-hash> " +
-      "<rules-version> <launch-day-id>",
+      "<rules-version> <launch-day-id> [keeper-image-sha256:digest]",
   );
 }
 
@@ -31,6 +32,7 @@ process.stdout.write(`${JSON.stringify(keeperReleaseRecord({
   keeperPublicKey,
   deployedProgramDataSha256,
   keeperImageReference,
+  ...(keeperImageDigest === undefined ? {} : { keeperImageDigest }),
   replayDomainHex,
   rulesCatalogHash,
   idlHash,

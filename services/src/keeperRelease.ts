@@ -102,6 +102,12 @@ export interface KeeperReleaseInput {
   keeperPublicKey: string;
   deployedProgramDataSha256: string;
   keeperImageReference: string;
+  /**
+   * Optional operator attestation copied from `fly machine status --json`
+   * when the release is fingerprinted. The worker cannot verify the Machines
+   * API digest at runtime; its runtime image identity remains `FLY_IMAGE_REF`.
+   */
+  keeperImageDigest?: string;
   replayDomainHex: string;
   rulesCatalogHash: string;
   idlHash: string;
@@ -129,6 +135,10 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
   )) {
     throw new Error("keeper image reference must be the Fly deployment tag");
   }
+  if (input.keeperImageDigest !== undefined &&
+      !/^sha256:[0-9a-f]{64}$/.test(input.keeperImageDigest)) {
+    throw new Error("keeper image digest must be sha256:<lowercase hex>");
+  }
   assertHash(input.replayDomainHex, "replay domain");
   if (input.replayDomainHex !== canonicalDevnetReplayDomainHex(programId)) {
     throw new Error("replay domain does not match the canonical Devnet deployment domain");
@@ -152,6 +162,9 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     keeper: keeper.toBase58(),
     deployedProgramDataSha256: input.deployedProgramDataSha256,
     keeperImageReference: input.keeperImageReference,
+    ...(input.keeperImageDigest === undefined
+      ? {}
+      : { keeperImageDigest: input.keeperImageDigest }),
     replayDomainHex: input.replayDomainHex,
     rulesCatalogHash: input.rulesCatalogHash,
     idlHash: input.idlHash,
