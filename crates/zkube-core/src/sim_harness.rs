@@ -1568,13 +1568,13 @@ mod tests {
     }
 
     #[test]
-    fn invalid_authored_daily_triggers_remain_visible() {
+    fn authored_daily_triggers_follow_shared_threshold_semantics() {
         let invalid = daily_catalog()
             .into_iter()
             .filter(|entry| !entry.authored_rules_valid)
             .map(|entry| entry.id)
             .collect::<Vec<_>>();
-        assert_eq!(invalid, [4, 6, 8]);
+        assert!(invalid.is_empty());
     }
 
     #[test]

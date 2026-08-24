@@ -157,6 +157,12 @@ prices.
   match its Campaign zone, or the practice bridge breaks and a completed star
   record is invalidated by rules that moved underneath it. Variety comes from
   new entries and retuned bands, never from reassigning a guardian's ability.
+- **Trigger thresholds exist only when the trigger reads one.** Line, score,
+  exact-line, and Combo Meter triggers carry a positive threshold. Perfect-clear
+  and all-block-sizes triggers carry zero because their conditions are complete
+  without an authored number. `bonus_trigger_threshold_is_valid` is the shared
+  core/program constraint, and the Campaign catalog parity test binds the client
+  publication to the core-validated fixture.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
   the next paid day whenever that arrives, so a pause never strands a pot and
@@ -334,7 +340,8 @@ Superseded on implementation, and only then: the Weekly pot and its 60/25/15
 skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
 the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
-deposits, prize claims, and ratings.
+deposits, prize claims, and ratings; positive thresholds on perfect-clear and
+all-block-sizes triggers.
 
 ## Transaction policy
 

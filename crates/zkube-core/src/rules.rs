@@ -88,6 +88,19 @@ pub struct MutatorRules {
     pub bonus_threshold: u16,
 }
 
+/// Validates the one shared threshold convention for renewable bonus triggers.
+/// Event-shaped triggers (perfect clear and all block sizes) carry zero because
+/// their condition has no authored numeric parameter; every numeric trigger
+/// carries a positive threshold.
+#[must_use]
+pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
+    match trigger_type {
+        0 | 5 | 6 => threshold == 0,
+        1..=4 | 7 => threshold > 0,
+        _ => false,
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EndlessRules {
     /// Score at which each difficulty tier 1..7 begins. Tier 0 begins at zero.
@@ -623,6 +636,20 @@ mod tests {
     use crate::GRID_CELLS;
     use serde_json::Value;
     use std::{vec, vec::Vec};
+
+    #[test]
+    fn trigger_threshold_semantics_are_exhaustive() {
+        for trigger_type in 0..=8 {
+            assert_eq!(
+                bonus_trigger_threshold_is_valid(trigger_type, 0),
+                matches!(trigger_type, 0 | 5 | 6),
+            );
+            assert_eq!(
+                bonus_trigger_threshold_is_valid(trigger_type, 1),
+                matches!(trigger_type, 1..=4 | 7),
+            );
+        }
+    }
 
     fn grid(rows: &[(usize, Row)]) -> Grid {
         let mut cells = [0; GRID_CELLS];

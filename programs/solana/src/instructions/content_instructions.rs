@@ -270,6 +270,13 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
         (1..=7).contains(&rules.bonus_trigger_type),
         ErrorCode::InvalidLevel
     );
+    require!(
+        zkube_core::bonus_trigger_threshold_is_valid(
+            rules.bonus_trigger_type,
+            rules.bonus_threshold,
+        ),
+        ErrorCode::InvalidLevel
+    );
     require!(rules.starting_charges <= 15, ErrorCode::InvalidLevel);
     require!(
         (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
@@ -277,12 +284,8 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
         ErrorCode::InvalidLevel
     );
     match rules.bonus_trigger_type {
-        1 | 4 => require!(
-            (1..=8).contains(&rules.bonus_threshold),
-            ErrorCode::InvalidLevel
-        ),
-        2 | 3 | 7 => require!(rules.bonus_threshold > 0, ErrorCode::InvalidLevel),
-        5 | 6 => require!(rules.bonus_threshold == 0, ErrorCode::InvalidLevel),
+        1 | 4 => require!(rules.bonus_threshold <= 8, ErrorCode::InvalidLevel),
+        2 | 3 | 5 | 6 | 7 => {}
         _ => return err!(ErrorCode::InvalidLevel),
     }
     Ok(())
@@ -671,6 +674,20 @@ mod tests {
             ..valid
         })
         .is_err());
+
+        for trigger_type in 1..=7 {
+            for threshold in 0..=1 {
+                let snapshot = CampaignMapRuleSnapshot {
+                    bonus_trigger_type: trigger_type,
+                    bonus_threshold: threshold,
+                    ..valid
+                };
+                assert_eq!(
+                    validate_campaign_map_rules(&snapshot).is_ok(),
+                    zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold),
+                );
+            }
+        }
     }
 
     #[test]

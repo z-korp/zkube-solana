@@ -13,6 +13,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AGENT_RULES = join(ROOT, "AGENTS.md");
 const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
+const CORE = join(ROOT, "crates/zkube-core/src");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
@@ -46,6 +47,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     pattern: /devnet-v4\.json/i,
     trees: [CLIENT, CLIENT_TOOLS],
     reversal: "the abandoned deployment record is never a v5 runtime default",
+  },
+  {
+    pattern:
+      /positive thresholds? (?:for|on) (?:perfect[- ]clear|all[- ]block[- ]sizes)|(?:perfect[- ]clear|all[- ]block[- ]sizes).{0,40}positive thresholds?/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "perfect-clear and all-block-sizes triggers carry no numeric threshold",
   },
 ];
 

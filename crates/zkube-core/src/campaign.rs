@@ -1,7 +1,7 @@
 use crate::{
     BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
-    RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256, calculate_level_stars,
-    opening_from_vrf, row_from_vrf,
+    RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
+    bonus_trigger_threshold_is_valid, calculate_level_stars, opening_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -54,11 +54,10 @@ impl CampaignRules {
             && constraint_is_valid(self.level.secondary)
             && self.mutator.score_multiplier_x100 > 0
             && self.mutator.combo_multiplier_x100 > 0
-            && match self.mutator.bonus_trigger_type {
-                0 | 5 | 6 => self.mutator.bonus_threshold == 0,
-                1..=4 | 7 => self.mutator.bonus_threshold > 0,
-                _ => false,
-            }
+            && bonus_trigger_threshold_is_valid(
+                self.mutator.bonus_trigger_type,
+                self.mutator.bonus_threshold,
+            )
             && match self.bonus {
                 None => self.starting_bonus_charges == 0,
                 Some(_) => self.starting_bonus_charges <= 15,

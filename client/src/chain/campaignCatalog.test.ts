@@ -114,6 +114,11 @@ describe("Campaign content v2", () => {
     expect(rules.map((rule) => rule.bonusThreshold)).toEqual([
       3, 2, 3, 0, 15, 0, 3, 0, 8, 4,
     ]);
+    for (const rule of rules) {
+      const readsThreshold = rule.bonusTriggerType !== 5 &&
+        rule.bonusTriggerType !== 6;
+      expect(rule.bonusThreshold > 0).toBe(readsThreshold);
+    }
     expect(rules.map((rule) => rule.startingCharges)).toEqual([
       1, 1, 1, 1, 1, 1, 1, 2, 1, 1,
     ]);

@@ -126,9 +126,12 @@ impl DailyPoolEntry {
                 // bonus use.
                 && (1..=4).contains(&self.bonus_type)
                 && (1..=7).contains(&self.bonus_trigger_type)
+                && zkube_core::bonus_trigger_threshold_is_valid(
+                    self.bonus_trigger_type,
+                    self.bonus_threshold,
+                )
                 && self.score_multiplier_x100 > 0
                 && self.combo_multiplier_x100 > 0
-                && self.bonus_threshold > 0
                 && self.starting_charges <= 15
                 && self.difficulty_band < difficulty_band_count,
             ErrorCode::InvalidLevel
@@ -424,6 +427,20 @@ mod tests {
         assert!(entry.validate(1).is_err());
         entry.bonus_trigger_type = 1;
         entry.validate(1).unwrap();
+    }
+
+    #[test]
+    fn daily_publication_agrees_with_core_trigger_threshold_semantics() {
+        let mut entry = pool_entry(1, 1, 1);
+        for trigger_type in 1..=8 {
+            for threshold in 0..=1 {
+                entry.bonus_trigger_type = trigger_type;
+                entry.bonus_threshold = threshold;
+                let expected = (1..=7).contains(&trigger_type)
+                    && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold);
+                assert_eq!(entry.validate(1).is_ok(), expected);
+            }
+        }
     }
 
     #[test]

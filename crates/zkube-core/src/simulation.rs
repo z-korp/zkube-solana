@@ -2,8 +2,9 @@ use crate::{
     ActionMetrics, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
     DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
     ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics,
-    RunPhase, Sha256Provider, SoftwareSha256, continuation_from_vrf, derive_player_id,
-    opening_from_vrf, reroll_row_from_vrf, row_from_vrf, score_daily_objective,
+    RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
+    continuation_from_vrf, derive_player_id, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
+    score_daily_objective,
 };
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
@@ -95,11 +96,6 @@ pub struct DailyRunRules {
 impl DailyRunRules {
     #[must_use]
     pub fn is_valid(self) -> bool {
-        let trigger_valid = match self.mutator.bonus_trigger_type {
-            0 => self.mutator.bonus_threshold == 0,
-            1..=7 => self.mutator.bonus_threshold > 0,
-            _ => false,
-        };
         let bonus_valid = match self.bonus {
             None => self.starting_bonus_charges == 0,
             Some(_) => self.starting_bonus_charges <= 15,
@@ -107,7 +103,10 @@ impl DailyRunRules {
         self.max_moves > 0
             && self.mutator.score_multiplier_x100 > 0
             && self.mutator.combo_multiplier_x100 > 0
-            && trigger_valid
+            && bonus_trigger_threshold_is_valid(
+                self.mutator.bonus_trigger_type,
+                self.mutator.bonus_threshold,
+            )
             && bonus_valid
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)

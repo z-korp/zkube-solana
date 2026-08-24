@@ -92,7 +92,7 @@ pub use replay::{
 };
 pub use rules::{
     Constraint, ConstraintKind, EndlessRules, LevelRules, MoveReport, MutatorRules, RunEngine,
-    RunError, RunPhase, calculate_level_stars,
+    RunError, RunPhase, bonus_trigger_threshold_is_valid, calculate_level_stars,
 };
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DailyPressureRules, DailyRunRules,
