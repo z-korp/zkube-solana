@@ -2316,6 +2316,275 @@ fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
 }
 
 #[test]
+fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards() {
+    fn submitted(entry: ArenaBoardEntry) -> SubmittedBoardEntry {
+        SubmittedBoardEntry {
+            score: entry.score,
+            objective_total: entry.objective_total,
+            finalized_at: entry.finalized_at,
+            replay_hash: entry.replay_hash,
+        }
+    }
+
+    fn submit_instruction(
+        daily: Pubkey,
+        board: Pubkey,
+        caller: Pubkey,
+        kind: DailyBoardKind,
+        entries: &[ArenaBoardEntry],
+        source_accounts: &[Pubkey],
+        seal: bool,
+    ) -> anchor_lang::solana_program::instruction::Instruction {
+        assert_eq!(entries.len(), source_accounts.len());
+        let mut accounts = zkube::accounts::SubmitArenaBoardChunk {
+            arena_daily: daily,
+            arena_board: board,
+            caller,
+        }
+        .to_account_metas(None);
+        accounts.extend(source_accounts.iter().map(|source| {
+            anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*source, false)
+        }));
+        anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts,
+            data: zkube::instruction::SubmitArenaBoardChunk {
+                kind,
+                entries: entries.iter().copied().map(submitted).collect(),
+                seal,
+            }
+            .data(),
+        }
+    }
+
+    let caller = Pubkey::new_unique();
+    let day_id = 20_652;
+    let (daily, mut daily_state) =
+        daily_fixture(day_id, Pubkey::new_unique(), PeriodStatus::Finalized, true);
+    let entries = (0..12u32)
+        .map(|position| ArenaBoardEntry {
+            player: Pubkey::new_unique(),
+            score: 1_000 - position,
+            objective_total: u64::from(500 - position),
+            finalized_at: i64::from(position + 1),
+            replay_hash: [u8::try_from(position + 1).unwrap(); 32],
+        })
+        .collect::<Vec<_>>();
+    daily_state.score_qualified_players = 12;
+    daily_state.theme_qualified_players = 12;
+    daily_state.finalized_at = daily_state.runs_close_at;
+    let arena_players = entries
+        .iter()
+        .map(|entry| {
+            let (address, bump) = Pubkey::find_program_address(
+                &[ARENA_PLAYER_SEED, daily.as_ref(), entry.player.as_ref()],
+                &zkube::ID,
+            );
+            let mut player = ArenaPlayer::initialize(daily, entry.player, bump);
+            player.paid_entries = 1;
+            player.resolved_entries = 1;
+            player.has_score_best = true;
+            player.score_best_entry = *entry;
+            player.has_theme_best = true;
+            player.theme_best_entry = *entry;
+            (
+                address,
+                program_account(&player, 8 + ArenaPlayer::INIT_SPACE),
+            )
+        })
+        .collect::<Vec<_>>();
+    let source_keys = arena_players
+        .iter()
+        .map(|(address, _)| *address)
+        .collect::<Vec<_>>();
+    let daily_account = program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE);
+    let pool_lamports = 1_000_000_000;
+    let plan = board_payout_plan(pool_lamports, 12).unwrap();
+    assert_eq!(plan.count, 12);
+
+    for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
+        let (board, bump) = Pubkey::find_program_address(
+            &[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()],
+            &zkube::ID,
+        );
+        let board_state = ArenaBoard {
+            version: ARCADE_ACCOUNT_VERSION,
+            arena_daily: daily,
+            day_id,
+            kind,
+            qualified_count: 12,
+            width_count: plan.width_count,
+            payout_count: plan.count,
+            denominator: plan.denominator,
+            pool_lamports,
+            paid_lamports: plan.paid_lamports,
+            rollover_lamports: plan.rollover_lamports,
+            capacity_limited: plan.capacity_limited,
+            cursor: 0,
+            sealed: false,
+            sealed_at: 0,
+            claimed_lamports: 0,
+            claimed_count: 0,
+            profile_sync_count: 0,
+            bump,
+        };
+        let empty_board =
+            program_account(&board_state, ArenaBoard::account_space(plan.count).unwrap());
+        let accounts = |board_account: Account| {
+            let mut accounts = vec![
+                (daily, daily_account.clone()),
+                (board, board_account),
+                (caller, system_account(ACCOUNT_LAMPORTS)),
+            ];
+            accounts.extend(arena_players.iter().cloned());
+            accounts
+        };
+        let mut runtime = mollusk();
+        runtime.sysvars.clock.unix_timestamp = daily_state.finalized_at + 1;
+
+        let out_of_order = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &[entries[1], entries[0]],
+                &[source_keys[1], source_keys[0]],
+                false,
+            ),
+            &accounts(empty_board.clone()),
+        );
+        assert!(out_of_order.program_result.is_err());
+        assert_eq!(
+            decode::<ArenaBoard>(resulting_account(&out_of_order, &board)).cursor,
+            0
+        );
+
+        let duplicate = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &[entries[0], entries[0]],
+                &[source_keys[0], source_keys[0]],
+                false,
+            ),
+            &accounts(empty_board.clone()),
+        );
+        assert!(duplicate.program_result.is_err());
+        assert_eq!(
+            decode::<ArenaBoard>(resulting_account(&duplicate, &board)).cursor,
+            0
+        );
+
+        let mut mismatched = entries[0];
+        match kind {
+            DailyBoardKind::Score => mismatched.score -= 1,
+            DailyBoardKind::Theme => mismatched.objective_total -= 1,
+        }
+        let metric_mismatch = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &[mismatched],
+                &[source_keys[0]],
+                false,
+            ),
+            &accounts(empty_board.clone()),
+        );
+        assert!(metric_mismatch.program_result.is_err());
+        assert_eq!(
+            decode::<ArenaBoard>(resulting_account(&metric_mismatch, &board)).cursor,
+            0
+        );
+
+        let early_seal = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &entries[..10],
+                &source_keys[..10],
+                true,
+            ),
+            &accounts(empty_board.clone()),
+        );
+        assert!(early_seal.program_result.is_err());
+        assert_eq!(
+            decode::<ArenaBoard>(resulting_account(&early_seal, &board)).cursor,
+            0
+        );
+
+        let first_chunk = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &entries[..10],
+                &source_keys[..10],
+                false,
+            ),
+            &accounts(empty_board),
+        );
+        assert!(
+            first_chunk.program_result.is_ok(),
+            "{:?}",
+            first_chunk.program_result
+        );
+        let partial_board = resulting_account(&first_chunk, &board).clone();
+        let partial: ArenaBoard = decode(&partial_board);
+        assert_eq!(partial.cursor, 10);
+        assert!(!partial.sealed);
+
+        let missing_seal = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &entries[10..],
+                &source_keys[10..],
+                false,
+            ),
+            &accounts(partial_board.clone()),
+        );
+        assert!(missing_seal.program_result.is_err());
+        assert_eq!(
+            decode::<ArenaBoard>(resulting_account(&missing_seal, &board)).cursor,
+            10
+        );
+
+        let completed = runtime.process_instruction(
+            &submit_instruction(
+                daily,
+                board,
+                caller,
+                kind,
+                &entries[10..],
+                &source_keys[10..],
+                true,
+            ),
+            &accounts(partial_board),
+        );
+        assert!(
+            completed.program_result.is_ok(),
+            "{:?}",
+            completed.program_result
+        );
+        let sealed: ArenaBoard = decode(resulting_account(&completed, &board));
+        assert_eq!(sealed.cursor, plan.count);
+        assert_eq!(sealed.payout_count, plan.count);
+        assert!(sealed.sealed);
+        assert_eq!(sealed.sealed_at, daily_state.finalized_at + 1);
+    }
+}
+
+#[test]
 fn sbf_daily_claim_uses_its_board_seal_time_and_rejects_duplicates_and_nonwinners() {
     let owner = Pubkey::new_unique();
     let outsider = Pubkey::new_unique();
