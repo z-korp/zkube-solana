@@ -20,10 +20,16 @@ import {
   arenaBoardPda,
   cadenceFundingPda,
   playerFundingPda,
+  type KeeperInstructionPlan,
 } from "../src/arcadeChain";
 import { canonicalArchive, cadenceResultHash } from "../src/archiveContract";
 import { ArchiveIntegrityError } from "../src/archiveStore";
-import type { DailySnapshot, ProtocolSnapshot } from "../src/arcadeReconciliation";
+import { rankWeightedPayoutPlan } from "../src/arcadeEconomy";
+import {
+  discoverReconciliationPlans,
+  type DailySnapshot,
+  type ProtocolSnapshot,
+} from "../src/arcadeReconciliation";
 import { runKeeperPass } from "../src/keeper";
 
 const DAY = 20_651;
@@ -57,6 +63,112 @@ describe("keeper read-only planning", () => {
       backlog: 2,
     });
     expect(materialize).toHaveBeenCalledTimes(6);
+  });
+
+  it("slices unsealed Score and Theme boards at ten rows and resumes at the cursor", () => {
+    const launchDay = DAY - 1;
+    const first = constructingDaily(DAY - 1, launchDay);
+    const second = constructingDaily(DAY, launchDay);
+    const interleaved = discoverReconciliationPlans({
+      snapshot: snapshot({
+        launchDayId: launchDay,
+        dailies: [first, second, fundingDaily(DAY + 1, launchDay)],
+      }),
+      nowUnix: PASS_NOW,
+    }).filter(({ operation }) => operation === "submit_arena_board_chunk");
+    expect(interleaved.map(({ context }) => ({
+      dayId: context.dayId,
+      boardKind: context.boardKind,
+      cursor: context.boardCursor,
+      rows: context.boardEntries?.length,
+      seal: context.sealBoard,
+    }))).toEqual([
+      { dayId: DAY - 1, boardKind: "score", cursor: 0, rows: 10, seal: false },
+      { dayId: DAY - 1, boardKind: "theme", cursor: 0, rows: 10, seal: false },
+      { dayId: DAY, boardKind: "score", cursor: 0, rows: 10, seal: false },
+      { dayId: DAY, boardKind: "theme", cursor: 0, rows: 10, seal: false },
+    ]);
+
+    sealBoard(first, "theme");
+    for (const [cursor, rows, seal] of [
+      [0, 10, false],
+      [10, 10, false],
+      [20, 5, true],
+    ] as const) {
+      first.scoreBoard!.cursor = cursor;
+      const [plan] = discoverReconciliationPlans({
+        snapshot: snapshot({
+          launchDayId: launchDay,
+          dailies: [first, fundingDaily(DAY + 1, launchDay)],
+        }),
+        nowUnix: PASS_NOW,
+      }).filter(({ operation }) => operation === "submit_arena_board_chunk");
+      expect(plan?.context).toMatchObject({
+        boardKind: "score",
+        boardCursor: cursor,
+        sealBoard: seal,
+      });
+      expect(plan?.context.boardEntries).toHaveLength(rows);
+      expect(plan?.context.boardEntries?.[0]?.source)
+        .toEqual(first.scoreSources?.[cursor]?.source);
+    }
+  });
+
+  it("uses all 32 board-write slots, carries cursors forward, and skips quarantine", async () => {
+    const keeper = Keypair.generate().publicKey;
+    const launchDay = DAY - 17;
+    const poisoned = constructingDaily(launchDay, launchDay);
+    poisoned.integrityFailure = "poisoned board source";
+    const scoreOnly = constructingDaily(DAY - 16, launchDay);
+    sealBoard(scoreOnly, "theme");
+    const dailies = [
+      poisoned,
+      scoreOnly,
+      ...Array.from({ length: 16 }, (_, index) =>
+        constructingDaily(DAY - 15 + index, launchDay)),
+      fundingDaily(DAY + 1, launchDay),
+    ];
+    const materialize = vi.fn(materializer(keeper));
+    const runPass = () => runKeeperPass({
+      connection: connection(),
+      keeper: { publicKey: keeper },
+      now: () => PASS_NOW * 1_000,
+      protocolSnapshot: snapshot({ launchDayId: launchDay, dailies }),
+      protocolMaterializer: { materialize },
+    });
+
+    const firstPass = await runPass();
+    expect(firstPass).toMatchObject({ plannedWrites: 32, backlog: 1 });
+    let boardPlans = materialize.mock.calls.map(([plan]) => plan)
+      .filter(({ operation }) => operation === "submit_arena_board_chunk");
+    expect(boardPlans).toHaveLength(32);
+    expect(boardPlans.some(({ context }) => context.dayId === launchDay)).toBe(false);
+    expect(boardPlans.at(-1)?.context).toMatchObject({
+      dayId: DAY,
+      boardKind: "score",
+      boardCursor: 0,
+    });
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      applyBoardPlans(dailies, boardPlans);
+      materialize.mockClear();
+      const nextPass = await runPass();
+      boardPlans = materialize.mock.calls.map(([plan]) => plan)
+        .filter(({ operation }) => operation === "submit_arena_board_chunk");
+      if (pass < 2) {
+        expect(nextPass.plannedWrites).toBe(32);
+        expect(boardPlans[0]?.context.boardCursor).toBe((pass + 1) * 10);
+      } else {
+        expect(nextPass).toMatchObject({ plannedWrites: 1, backlog: 0 });
+        expect(boardPlans).toEqual([expect.objectContaining({
+          context: expect.objectContaining({
+            dayId: DAY,
+            boardKind: "theme",
+            boardCursor: 0,
+          }),
+        })]);
+      }
+    }
   });
 
   it("closes at most one finalized participant account per pass", async () => {
@@ -145,6 +257,53 @@ describe("keeper read-only planning", () => {
       context: { dayId: DAY, owner: independentOwner },
     });
   });
+
+  it("does not charge the general quota for archive quarantine or its suppressed sync", async () => {
+    const keeper = Keypair.generate().publicKey;
+    const archivedOwner = Keypair.generate().publicKey;
+    const archived = finalizedDaily(DAY - 1, archivedOwner, DAY - 1);
+    const independent = constructingDaily(DAY, DAY - 1);
+    sealBoard(independent, "score");
+    sealBoard(independent, "theme");
+    const owners = independent.scoreSources!.slice(0, 6).map(({ owner }) => owner);
+    const prepare = vi.fn(async () => {
+      throw new ArchiveIntegrityError(
+        "existing_archive_invalid",
+        "daily",
+        DAY - 1,
+        "invalid archive",
+      );
+    });
+    const materialize = vi.fn(materializer(keeper));
+    const result = await runKeeperPass({
+      connection: connection(),
+      keeper: { publicKey: keeper },
+      now: () => PASS_NOW * 1_000,
+      protocolSnapshot: snapshot({
+        launchDayId: DAY - 1,
+        dailies: [archived, independent, fundingDaily(DAY + 1, DAY - 1)],
+        playerStateOwners: [archivedOwner, ...owners],
+        archiveState: {
+          address: arcadeArchivePda(),
+          cadenceFunding: cadenceFundingPda(),
+          firstDailyId: DAY - 1,
+          lastDailyId: DAY - 2,
+          dailyRoot: "00".repeat(32),
+        },
+        archiveCandidates: [archiveCandidate(DAY - 1, false, false)],
+      }),
+      protocolMaterializer: { materialize },
+      archiveStore: { prepare },
+    });
+    expect(result).toMatchObject({
+      operationFailures: 1,
+      archiveQuarantines: 1,
+      plannedWrites: 6,
+    });
+    expect(materialize).toHaveBeenCalledTimes(6);
+    expect(materialize.mock.calls.every(([plan]) =>
+      plan.operation === "sync_daily_profile" && plan.context.dayId === DAY)).toBe(true);
+  });
 });
 
 function snapshot(overrides: Partial<ProtocolSnapshot>): ProtocolSnapshot {
@@ -206,6 +365,114 @@ function finalizedDaily(
       themeCapacityLimited: false,
     },
   };
+}
+
+function constructingDaily(dayId: number, launchDayId: number): DailySnapshot {
+  const potLamports = 2_000_000_000n;
+  const boardPool = potLamports / 2n;
+  const scorePlan = rankWeightedPayoutPlan(boardPool, 25, 1_536);
+  const themePlan = rankWeightedPayoutPlan(boardPool, 25, 1_536);
+  if (scorePlan.winnerCount !== 25 || themePlan.winnerCount !== 25) {
+    throw new Error("test board must retain all 25 rows");
+  }
+  const sources = Array.from({ length: 25 }, (_, index) => {
+    const owner = Keypair.generate().publicKey;
+    return {
+      source: Keypair.generate().publicKey,
+      owner,
+      score: 10_000 - index,
+      objectiveTotal: BigInt(5_000 - index),
+      finalizedAt: dayId * SECONDS_PER_DAY + index,
+      replayHash: new Uint8Array(32).fill(index + 1),
+    };
+  });
+  return {
+    dayId,
+    status: "finalized",
+    finalizedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+    runsCloseAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+    recoveryDeadlineAt: dayId * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
+    entriesPaid: 25n,
+    entriesScored: 25n,
+    entriesExpired: 0n,
+    potLamports,
+    predecessorRolloverRequired: dayId !== launchDayId,
+    predecessorRolloverApplied: dayId !== launchDayId,
+    scoreQualifiedPlayers: 25,
+    themeQualifiedPlayers: 25,
+    scoreClaimedMask: 0n,
+    themeClaimedMask: 0n,
+    scoreProfileSyncMask: 0n,
+    themeProfileSyncMask: 0n,
+    claimsExpired: false,
+    scoreSources: sources,
+    themeSources: sources,
+    scoreBoard: constructionBoard("score", 25),
+    themeBoard: constructionBoard("theme", 25),
+    settlement: {
+      winners: [
+        ...sources.map(({ owner }, index) => ({
+          board: "score" as const,
+          owner,
+          rank: index + 1,
+          payoutLamports: scorePlan.payouts[index]!,
+        })),
+        ...sources.map(({ owner }, index) => ({
+          board: "theme" as const,
+          owner,
+          rank: index + 1,
+          payoutLamports: themePlan.payouts[index]!,
+        })),
+      ],
+      rolloverLamports: scorePlan.rolloverLamports + themePlan.rolloverLamports,
+      scoreCapacityLimited: false,
+      themeCapacityLimited: false,
+    },
+  };
+}
+
+function constructionBoard(kind: "score" | "theme", payoutCount: number) {
+  return {
+    kind,
+    payoutCount,
+    widthCount: payoutCount,
+    cursor: 0,
+    sealed: false,
+    sealedAt: 0,
+    claimedLamports: 0n,
+    claimedCount: 0,
+    profileSyncCount: 0,
+    capacityLimited: false,
+  };
+}
+
+function sealBoard(daily: DailySnapshot, kind: "score" | "theme"): void {
+  const board = kind === "score" ? daily.scoreBoard : daily.themeBoard;
+  if (!board) throw new Error("test board is missing");
+  board.cursor = board.payoutCount;
+  board.sealed = true;
+  board.sealedAt = daily.finalizedAt;
+}
+
+function applyBoardPlans(
+  dailies: readonly DailySnapshot[],
+  plans: readonly KeeperInstructionPlan[],
+): void {
+  for (const plan of plans) {
+    const daily = dailies.find(({ dayId }) => dayId === plan.context.dayId);
+    const board = plan.context.boardKind === "score"
+      ? daily?.scoreBoard
+      : daily?.themeBoard;
+    const rows = plan.context.boardEntries?.length;
+    if (!daily || !board || rows === undefined || board.cursor !== plan.context.boardCursor) {
+      throw new Error("board carry-over fixture does not match its plan");
+    }
+    board.cursor += rows;
+    if (plan.context.sealBoard) {
+      board.sealed = true;
+      board.sealedAt = daily.finalizedAt;
+    }
+  }
 }
 
 function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
