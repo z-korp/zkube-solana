@@ -770,6 +770,325 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
 }
 
 #[test]
+fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/replays/golden-reroll-v1.json"
+    ))
+    .unwrap();
+    let bytes32 = |field: &str| -> [u8; 32] {
+        let value = fixture[field].as_str().unwrap();
+        std::array::from_fn(|index| {
+            u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
+        })
+    };
+    let randomness = bytes32("vrf_output_hex");
+    let rules_hash = bytes32("rules_hash_hex");
+    let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
+    let reroll_action = fixture["reroll_event"]["action"].as_u64().unwrap() as u32;
+    let weights: [u16; 5] =
+        std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16);
+    let rerolled_row: [u8; 8] =
+        std::array::from_fn(|index| fixture["rerolled_row"][index].as_u64().unwrap() as u8);
+    let ordinary_row: [u8; 8] =
+        std::array::from_fn(|index| fixture["ordinary_next_row"][index].as_u64().unwrap() as u8);
+    let canonical_event = zkube_core::ReplayEvent::Reroll {
+        action: reroll_action,
+    }
+    .canonical_bytes();
+    assert_eq!(
+        canonical_event.as_slice(),
+        &[6, reroll_action as u8, 0, 0, 0]
+    );
+
+    let owner = Pubkey::new_unique();
+    let caller = Pubkey::new_unique();
+    let run_id = 1u64;
+    let day_id = 20_653;
+    let (daily, mut daily_state) =
+        daily_fixture(day_id, Pubkey::new_unique(), PeriodStatus::Open, true);
+    daily_state.entries_paid = 1;
+    let deadline_at = daily_state.runs_close_at;
+    let (active_run, bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let mut grid = [0u8; 80];
+    grid[0] = 1;
+    let old_preview = [1, 0, 0, 0, 0, 0, 0, 0];
+    let initial_replay = [7u8; 32];
+    let mut pressure = DailyPressureProfile::canonical();
+    pressure.block_weights[0] = weights;
+    let active_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        daily_challenge: daily,
+        run_id,
+        mode: RunMode::Daily,
+        lifecycle: RunLifecycle::Playing,
+        rules_hash,
+        rules: LevelRuleSnapshot {
+            points_required: u32::MAX,
+            max_moves: DAILY_MAX_MOVES,
+            block_weights: weights,
+            ..LevelRuleSnapshot::default()
+        },
+        daily_pressure: pressure,
+        grid,
+        next_row: old_preview,
+        has_next_row: true,
+        bonus_type: 4,
+        bonus_charges: 1,
+        action_counter: reroll_action,
+        vrf_request_counter: request_counter - 1,
+        replay_hash: initial_replay,
+        deadline_at,
+        bump,
+        ..ActiveRun::default()
+    };
+
+    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
+        .to_bytes()
+        .into();
+    let delegation_record: Pubkey =
+        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
+            &active_run.to_bytes().into(),
+        )
+        .to_bytes()
+        .into();
+    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
+    let validator = Pubkey::new_unique();
+    let mut delegation_data =
+        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
+    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
+    delegation_data[8..40].copy_from_slice(validator.as_ref());
+    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
+    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
+        .to_bytes()
+        .into();
+    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
+    let apply = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ApplyBonus {
+            active_run,
+            owner_authority: owner,
+            session_token: None,
+            actor: owner,
+            oracle_queue,
+            delegation_record_active: delegation_record,
+            program_identity,
+            vrf_program,
+            slot_hashes,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ApplyBonus {
+            expected_action: reroll_action,
+            row: 0,
+            column: 0,
+            client_seed: [0; 32],
+        }
+        .data(),
+    };
+    let mut request_runtime = mollusk();
+    request_runtime.program_cache.add_program(
+        &vrf_program,
+        &mollusk_svm::program::loader_keys::LOADER_V3,
+        &noop_sbf_elf(),
+    );
+    request_runtime.sysvars.clock.unix_timestamp = daily_state.opens_at + 1;
+    let (_, slot_hashes_account) = request_runtime
+        .sysvars
+        .keyed_account_for_slot_hashes_sysvar();
+    let requested = request_runtime.process_instruction(
+        &apply,
+        &[
+            (
+                active_run,
+                program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
+            ),
+            (owner, system_account(ACCOUNT_LAMPORTS)),
+            (oracle_queue, system_account(0)),
+            (
+                delegation_record,
+                Account {
+                    lamports: 1,
+                    data: delegation_data,
+                    owner: delegation_owner,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            ),
+            (program_identity, system_account(0)),
+            (
+                vrf_program,
+                executable_program_account(Pubkey::from_str_const(
+                    "BPFLoaderUpgradeab1e11111111111111111111111",
+                )),
+            ),
+            (slot_hashes, slot_hashes_account),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ],
+    );
+    assert!(
+        requested.program_result.is_ok(),
+        "{:?}",
+        requested.program_result
+    );
+    let pending: ActiveRun = decode(resulting_account(&requested, &active_run));
+    let replay_after_request = zkube_core::ReplayCommitment(initial_replay)
+        .fold(zkube_core::ReplayEvent::Reroll {
+            action: reroll_action,
+        })
+        .to_bytes();
+    assert_eq!(pending.grid, grid);
+    assert_eq!(pending.next_row, old_preview);
+    assert!(pending.has_next_row);
+    assert_eq!(pending.lifecycle, RunLifecycle::AwaitingVrf);
+    assert_eq!(pending.action_counter, reroll_action + 1);
+    assert_eq!(pending.moves, 0);
+    assert_eq!(pending.bonus_charges, 0);
+    assert_eq!(pending.pending_vrf_counter, request_counter);
+    assert_eq!(pending.replay_hash, replay_after_request);
+
+    let vrf_program_identity: Pubkey =
+        ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
+            .to_bytes()
+            .into();
+    let magic_fee_vault = Pubkey::new_unique();
+    let callback = fulfill_row_instruction(
+        vrf_program_identity,
+        active_run,
+        magic_fee_vault,
+        randomness,
+        request_counter,
+    );
+    let callback_result = mollusk().process_instruction(
+        &callback,
+        &[
+            (vrf_program_identity, system_account(0)),
+            (
+                active_run,
+                resulting_account(&requested, &active_run).clone(),
+            ),
+            (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
+        ],
+    );
+    assert!(
+        callback_result.program_result.is_ok(),
+        "{:?}",
+        callback_result.program_result
+    );
+    let rerolled: ActiveRun = decode(resulting_account(&callback_result, &active_run));
+    let replay_after_callback = zkube_core::ReplayCommitment(replay_after_request)
+        .fold(zkube_core::ReplayEvent::Vrf {
+            request_counter,
+            output: randomness,
+        })
+        .to_bytes();
+    assert_eq!(rerolled.grid, grid);
+    assert_eq!(rerolled.next_row, rerolled_row);
+    assert_ne!(rerolled.next_row, ordinary_row);
+    assert_eq!(rerolled.lifecycle, RunLifecycle::Playing);
+    assert_eq!(rerolled.pending_vrf_counter, 0);
+    assert_eq!(rerolled.replay_hash, replay_after_callback);
+
+    let force_finish = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ForceFinishDeadline { active_run, caller }
+            .to_account_metas(None),
+        data: zkube::instruction::ForceFinishDeadline {}.data(),
+    };
+    let mut deadline_runtime = mollusk();
+    deadline_runtime.sysvars.clock.unix_timestamp = deadline_at;
+    let finished_result = deadline_runtime.process_instruction(
+        &force_finish,
+        &[
+            (
+                active_run,
+                resulting_account(&requested, &active_run).clone(),
+            ),
+            (caller, system_account(ACCOUNT_LAMPORTS)),
+        ],
+    );
+    assert!(
+        finished_result.program_result.is_ok(),
+        "{:?}",
+        finished_result.program_result
+    );
+    let finished: ActiveRun = decode(resulting_account(&finished_result, &active_run));
+    assert_eq!(finished.lifecycle, RunLifecycle::Finished);
+    assert_eq!(finished.finished_at, deadline_at);
+    assert_eq!(finished.pending_vrf_counter, 0);
+    assert_eq!(finished.action_counter, reroll_action + 1);
+    assert_eq!(finished.moves, 0);
+
+    let (player, mut player_state) = player_fixture(owner);
+    player_state.kredit_balance = 1;
+    player_state.record_paid_entry(day_id).unwrap();
+    player_state
+        .reserve_arcade_run(run_id, daily, RunMode::Daily, deadline_at)
+        .unwrap();
+    let (arena_player, arena_player_bump) = Pubkey::find_program_address(
+        &[ARENA_PLAYER_SEED, daily.as_ref(), owner.as_ref()],
+        &zkube::ID,
+    );
+    let mut arena_player_state = ArenaPlayer::initialize(daily, owner, arena_player_bump);
+    arena_player_state.paid_entries = 1;
+    arena_player_state.active_paid_run_id = run_id;
+    let (rent_recipient, _) =
+        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
+    let consume = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ConsumeArenaRun {
+            player_state: player,
+            arena_daily: daily,
+            arena_player,
+            active_run,
+            rent_recipient,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ConsumeArenaRun {}.data(),
+    };
+    let consumed = mollusk().process_instruction(
+        &consume,
+        &[
+            (
+                player,
+                program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+            ),
+            (
+                daily,
+                program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
+            ),
+            (
+                arena_player,
+                program_account(&arena_player_state, 8 + ArenaPlayer::INIT_SPACE),
+            ),
+            (
+                active_run,
+                resulting_account(&finished_result, &active_run).clone(),
+            ),
+            (rent_recipient, system_account(ACCOUNT_LAMPORTS)),
+        ],
+    );
+    assert!(
+        consumed.program_result.is_ok(),
+        "{:?}",
+        consumed.program_result
+    );
+    let scored_daily: ArenaDaily = decode(resulting_account(&consumed, &daily));
+    let scored_player: ArenaPlayer = decode(resulting_account(&consumed, &arena_player));
+    assert_eq!(scored_daily.entries_scored, 1);
+    assert_eq!(scored_daily.entries_expired, 0);
+    assert_eq!(scored_player.resolved_entries, 1);
+}
+
+#[test]
 fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
