@@ -337,7 +337,7 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
         .zip(DAILY_SCORING_INDEXES)
         .map(|(map, scoring_index)| {
             let (family, objective) = daily_objective(scoring_index);
-            let mut rules = DailyRunRules {
+            let rules = DailyRunRules {
                 max_moves: 100,
                 mutator: MutatorRules {
                     score_multiplier_x100: map.rules[0],
@@ -358,16 +358,6 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
                 pressure: DailyPressureRules::canonical(),
             };
             let authored_rules_valid = rules.is_valid();
-            // Daily validation currently rejects the authored zero threshold
-            // for perfect-clear and all-block-size triggers even though those
-            // two engine branches never read it. Threshold one is therefore a
-            // behavior-identical harness stand-in, not a proposed balance.
-            if !authored_rules_valid
-                && matches!(rules.mutator.bonus_trigger_type, 5 | 6)
-                && rules.mutator.bonus_threshold == 0
-            {
-                rules.mutator.bonus_threshold = 1;
-            }
             DailyCatalogEntry {
                 id: map.map_id,
                 family,

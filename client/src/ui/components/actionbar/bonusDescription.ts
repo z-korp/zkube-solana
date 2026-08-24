@@ -10,10 +10,6 @@ export function buildTriggerDescription(
     parts.push(`Clear ${triggerThreshold}+ lines in a move`);
   } else if (triggerType === 2) {
     parts.push(`Every ${triggerThreshold} lines cleared by moves`);
-  } else if (triggerType === 3) {
-    parts.push(
-      `Charge when a move carries your score past each ${triggerThreshold} points`,
-    );
   } else if (triggerType === 4) {
     parts.push(`Clear exactly ${triggerThreshold} lines in a move`);
   } else if (triggerType === 5) {

@@ -81,9 +81,8 @@ pub struct MutatorRules {
     /// Bias-128 encoding from zkube: every point is a five percentage-point
     /// change to the neutral 3-star (50%) and 2-star (75%) move thresholds.
     pub star_threshold_modifier: u8,
-    /// 0=None, 1=N+ move lines, 2=cumulative move lines, 3=cumulative move
-    /// score, 4=exact move lines, 5=perfect clear, 6=all block sizes in one
-    /// move, 7=Combo Meter boundary.
+    /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
+    /// 5=perfect clear, 6=all block sizes in one move, 7=Combo Meter boundary.
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
 }
@@ -96,7 +95,7 @@ pub struct MutatorRules {
 pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
     match trigger_type {
         0 | 5 | 6 => threshold == 0,
-        1..=4 | 7 => threshold > 0,
+        1 | 2 | 4 | 7 => threshold > 0,
         _ => false,
     }
 }
@@ -486,7 +485,6 @@ impl RunEngine {
             self.max_combo = self.max_combo.max(lines);
         }
         let perfect_clear = self.grid.is_empty();
-        let score_before = self.score;
         let lines_before = self.level_lines_cleared;
         // Cairo applies the flat multiplier to each settle phase separately,
         // so preserve the same integer-floor behavior instead of multiplying
@@ -534,10 +532,6 @@ impl RunEngine {
             2 if needs_next_row && mutator.bonus_threshold > 0 => {
                 self.level_lines_cleared / mutator.bonus_threshold
                     - lines_before / mutator.bonus_threshold
-            }
-            3 if needs_next_row && mutator.bonus_threshold > 0 => {
-                let threshold = u32::from(mutator.bonus_threshold);
-                (self.score / threshold - score_before / threshold).min(u32::from(u8::MAX)) as u16
             }
             4 if needs_next_row && u16::from(lines) == mutator.bonus_threshold => 1,
             5 if perfect_clear && self.perfect_trigger_available => {
@@ -646,7 +640,7 @@ mod tests {
             );
             assert_eq!(
                 bonus_trigger_threshold_is_valid(trigger_type, 1),
-                matches!(trigger_type, 1..=4 | 7),
+                matches!(trigger_type, 1 | 2 | 4 | 7),
             );
         }
     }
@@ -1377,7 +1371,7 @@ mod tests {
                 level,
                 MutatorRules {
                     line_clear_bonus: 1,
-                    bonus_trigger_type: 3,
+                    bonus_trigger_type: 1,
                     bonus_threshold: 1,
                     ..MutatorRules::default()
                 },

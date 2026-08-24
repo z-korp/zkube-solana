@@ -160,12 +160,13 @@ prices.
   record is invalidated by rules that moved underneath it. Variety comes from
   new entries and retuned global pressure, never from reassigning a guardian's
   ability.
-- **Trigger thresholds exist only when the trigger reads one.** Line, score,
+- **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, and Combo Meter triggers carry a positive threshold. Perfect-clear
   and all-block-sizes triggers carry zero because their conditions are complete
   without an authored number. `bonus_trigger_threshold_is_valid` is the shared
   core/program constraint, and the Campaign catalog parity test binds the client
-  publication to the core-validated fixture.
+  publication to the core-validated fixture. Type 3 is unsupported;
+  `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
   the next paid day whenever that arrives, so a pause never strands a pot and
@@ -345,7 +346,8 @@ the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
-publisher-supplied Daily selection seed; per-entry Daily difficulty bands.
+publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
+Score-threshold bonus triggers.
 
 ## Transaction policy
 

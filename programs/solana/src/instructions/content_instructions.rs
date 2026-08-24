@@ -267,7 +267,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     require!(rules.combo_multiplier_x100 > 0, ErrorCode::InvalidLevel);
     require!((1..=3).contains(&rules.bonus_type), ErrorCode::InvalidLevel);
     require!(
-        (1..=7).contains(&rules.bonus_trigger_type),
+        matches!(rules.bonus_trigger_type, 1 | 2 | 4..=7),
         ErrorCode::InvalidLevel
     );
     require!(
@@ -285,7 +285,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     );
     match rules.bonus_trigger_type {
         1 | 4 => require!(rules.bonus_threshold <= 8, ErrorCode::InvalidLevel),
-        2 | 3 | 5 | 6 | 7 => {}
+        2 | 5 | 6 | 7 => {}
         _ => return err!(ErrorCode::InvalidLevel),
     }
     Ok(())

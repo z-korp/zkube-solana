@@ -123,7 +123,7 @@ impl DailyPoolEntry {
                 // entry outside it would fail every run of its day at first
                 // bonus use.
                 && (1..=4).contains(&self.bonus_type)
-                && (1..=7).contains(&self.bonus_trigger_type)
+                && matches!(self.bonus_trigger_type, 1 | 2 | 4..=7)
                 && zkube_core::bonus_trigger_threshold_is_valid(
                     self.bonus_trigger_type,
                     self.bonus_threshold,
@@ -417,7 +417,7 @@ mod tests {
             for threshold in 0..=1 {
                 entry.bonus_trigger_type = trigger_type;
                 entry.bonus_threshold = threshold;
-                let expected = (1..=7).contains(&trigger_type)
+                let expected = matches!(trigger_type, 1 | 2 | 4..=7)
                     && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold);
                 assert_eq!(entry.validate().is_ok(), expected);
             }

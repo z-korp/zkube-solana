@@ -9,8 +9,6 @@ describe("campaign bonus descriptions", () => {
       .toBe("Clear 3+ lines in a move · Start with 1");
     expect(buildTriggerDescription(2, 15, 1))
       .toBe("Every 15 lines cleared by moves · Start with 1");
-    expect(buildTriggerDescription(3, 100, 1))
-      .toBe("Charge when a move carries your score past each 100 points · Start with 1");
     expect(buildTriggerDescription(4, 3, 1))
       .toBe("Clear exactly 3 lines in a move · Start with 1");
     expect(buildTriggerDescription(5, 0, 1))

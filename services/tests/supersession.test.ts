@@ -75,6 +75,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal:
       "Daily uses one catalog-wide pressure profile without per-entry bands",
   },
+  {
+    pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "bonus trigger type 3 is unsupported",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

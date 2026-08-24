@@ -67,6 +67,7 @@ describe("shared game parity fixtures", () => {
     expect(maps.map((map) => map.mapRules.bonusTriggerType)).toEqual([
       1, 4, 1, 5, 2, 6, 4, 5, 7, 4,
     ]);
+    expect(maps.map((map) => map.mapRules.bonusTriggerType)).not.toContain(3);
 
     for (const map of maps) {
       expect(map.levels).toHaveLength(10);
