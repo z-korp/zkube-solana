@@ -70,9 +70,8 @@ pub use economics::{
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};
 pub use ladder::{
-    LADDER_QUALIFY_POINTS, LADDER_STREAK_BONUS_CAP_DAYS, LADDER_TIER_COUNT,
-    LADDER_TIER_POINT_THRESHOLDS, LadderError, apply_ladder_streak_bonus, ladder_points,
-    ladder_streak_bonus_pct, ladder_tier_floor, ladder_tier_for_points,
+    LADDER_QUALIFY_POINTS, LADDER_TIER_COUNT, LADDER_TIER_POINT_THRESHOLDS, LadderError,
+    ladder_points, ladder_tier_floor, ladder_tier_for_points,
 };
 pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{

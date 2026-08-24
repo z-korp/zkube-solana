@@ -118,7 +118,8 @@ earns `50 · ln(entrants / rank)`, so a strong finish in a deep field is worth
 more than the same rank in a thin one. Points only ever accumulate, never decay,
 and pay no SOL; the reward is a named tier shown beside you on every
 leaderboard. They are computed on chain from the finalized board, so anyone can
-recompute and verify them. A championship is discretionary,
+recompute and verify them. The entry streak remains visible attendance but does
+not multiply points. A championship is discretionary,
 unscheduled, and funded separately rather than skimmed from Daily pots.
 
 Bonuses gain a fourth type, a reroll of the incoming row, and each pool entry

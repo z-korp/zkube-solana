@@ -30,7 +30,7 @@ Source implements v5 partially. Current state:
 | `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
-| Points ladder | Built — integer Q64 `ln` in the core, points applied in the Daily profile-sync pass, every award scaled by the entry streak |
+| Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied in the Daily profile-sync pass |
 
 ## Product truth
 
@@ -282,24 +282,12 @@ ladder tier boundaries, and the flat qualifying credit.
   participant-account cleanup. It is never per entry: buying twenty entries
   earns it exactly once, so the ladder cannot be bought. Its value is balance
   and belongs in a named constant.
-- **A consecutive-entry streak scales every ladder award by one percent a day,
-  capped at one hundred.** The streak counts days carrying at least one paid
-  entry, so a second entry the same day never advances it and the bonus rewards
-  returning rather than spending — buying a hundred entries at once earns
-  nothing. The cap exists because an uncapped attendance multiplier eventually
-  dwarfs the play it multiplies; at two hundred days a mediocre run would
-  outscore a stranger's win, which inverts what the ladder measures. Because the
-  ladder pays no SOL, the bonus is legible loyalty and never a money path.
-- **The streak read at award time is the live one, not a per-day snapshot.**
-  The qualifying half is credited while the entry is scored, so there it is
-  exact. The placement half is credited by the permissionless profile sync,
-  which the keeper runs in the pass that finalizes the day — a sync delayed past
-  a broken streak would pay the smaller bonus. The two ways to snapshot it are
-  both worse: requiring `ArenaPlayer` on profile sync hands anyone a denial by
-  closing that account first, since participant closure is permissionless and
-  does not wait for sync; widening the board row costs two bytes on every row of
-  every board. A bounded, rarely reachable difference in a total that pays no
-  SOL is cheaper than either.
+- **The consecutive-entry streak is visible attendance, not a points
+  multiplier.** It counts days carrying at least one paid entry, so a second
+  entry the same day never advances it and a missed day restarts it at one. It
+  remains on the profile and share card, but must never alter either the flat
+  qualifying credit or log-rank points;
+  `the_visible_streak_does_not_change_ladder_awards` guards the boundary.
 - **Elo was cut on 2026-08-09, and log-rank replaced it rather than standing in
   for it.** Elo's one advantage over a running total is that a rating can fall,
   and the no-decay rule had already removed that; a rating also rewards playing
@@ -355,7 +343,7 @@ deposits, prize claims, and ratings; positive thresholds on perfect-clear and
 all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
 publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
 Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
-pairing are superseded too.
+pairing are superseded too, as is the ladder streak multiplier.
 
 ## Transaction policy
 

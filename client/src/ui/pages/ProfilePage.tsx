@@ -12,10 +12,8 @@ import {
 } from "@/config/emblems";
 import type { CompetitionRecord } from "@/chain/campaignClient";
 import {
-  LADDER_STREAK_BONUS_CAP_DAYS,
   LADDER_TIER_THRESHOLDS,
   isTopLadderTier,
-  ladderStreakBonusPct,
   ladderTierColor,
   ladderTierName,
   ladderTierProgress,
@@ -168,7 +166,7 @@ const ProfilePage: React.FC = () => {
     .map(({ record }) => record.bestPrizeRank)
     .filter((rank) => rank > 0)
     .reduce((best, rank) => (best === 0 ? rank : Math.min(best, rank)), 0);
-  const bonusPct = ladderStreakBonusPct(profile.entryStreakDays);
+  const hasEntryStreak = profile.entryStreakDays > 0;
 
   const saveName = () => {
     void playerLabel
@@ -388,16 +386,14 @@ const ProfilePage: React.FC = () => {
           </p>
         )}
 
-        {/* The streak states what it does. Every ladder award is scaled by it,
-            so it belongs against the points above rather than filed as a
-            third lifetime figure. */}
+        {/* Attendance remains visible without changing competitive points. */}
         <div
           className="mt-2.5 flex items-center gap-2 rounded-xl px-2.5 py-1.5"
           style={{
             background:
-              bonusPct > 0 ? "rgba(250,204,21,0.09)" : "rgba(255,255,255,0.03)",
+              hasEntryStreak ? "rgba(250,204,21,0.09)" : "rgba(255,255,255,0.03)",
             boxShadow:
-              bonusPct > 0
+              hasEntryStreak
                 ? "inset 0 0 0 1px rgba(250,204,21,0.3)"
                 : "inset 0 0 0 1px rgba(255,255,255,0.06)",
           }}
@@ -405,24 +401,18 @@ const ProfilePage: React.FC = () => {
           <Flame
             size={14}
             className="flex-none"
-            style={{ color: bonusPct > 0 ? MONEY_GOLD : "rgba(255,255,255,0.3)" }}
+            style={{ color: hasEntryStreak ? MONEY_GOLD : "rgba(255,255,255,0.3)" }}
           />
           <span className="min-w-0 flex-1 font-sans text-[12px] font-bold text-white/85">
             {profile.entryStreakDays > 0
-              ? `${profile.entryStreakDays}-day streak`
+              ? `${profile.entryStreakDays}-day entry streak`
               : "Play today to start a streak"}
           </span>
-          <span
-            className="flex-none font-mono text-[13px] font-bold tabular-nums"
-            style={{ color: bonusPct > 0 ? MONEY_GOLD : "rgba(255,255,255,0.35)" }}
-          >
-            +{bonusPct}%
-            {bonusPct >= LADDER_STREAK_BONUS_CAP_DAYS && (
-              <span className="ml-1 font-sans text-[8px] font-bold uppercase tracking-[0.12em] text-white/45">
-                max
-              </span>
-            )}
-          </span>
+          {hasEntryStreak && (
+            <span className="flex-none font-sans text-[9px] font-bold uppercase tracking-[0.12em] text-white/45">
+              current
+            </span>
+          )}
         </div>
 
         {/* The two figures a board cannot keep: its rows hold only payout

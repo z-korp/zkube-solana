@@ -90,6 +90,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [CLIENT, SERVICES, PROGRAM],
     reversal: "Daily has no passive map pairing; Campaign passives stay in Campaign",
   },
+  {
+    pattern:
+      /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "the visible entry streak does not multiply ladder points",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

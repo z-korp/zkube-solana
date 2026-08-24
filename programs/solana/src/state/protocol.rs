@@ -361,23 +361,10 @@ impl PlayerState {
         Ok(())
     }
 
-    /// Credit one ladder award, scaled by the entry streak, and return the
-    /// amount actually added.
-    ///
-    /// The streak read here is the live one rather than a snapshot of the day
-    /// being awarded. The qualifying half is credited while the entry is being
-    /// scored, so there it is exact. The placement half is credited by the
-    /// permissionless profile sync, which the keeper runs in the pass that
-    /// finalizes the day — but a sync delayed past a broken streak would pay
-    /// the smaller bonus. Snapshotting per day costs either a required
-    /// `ArenaPlayer` on a permissionless instruction, which anyone could then
-    /// deny by closing that account first, or two more bytes on every board
-    /// row; a bounded, rarely reachable difference in a total that pays no SOL
-    /// is the cheapest of the three.
-    pub fn record_ladder_points(&mut self, base_points: u32) -> Result<u32> {
+    /// Credit one ladder award and return the amount added. The entry streak is
+    /// visible attendance metadata and does not alter points.
+    pub fn record_ladder_points(&mut self, points: u32) -> Result<u32> {
         self.require_schema()?;
-        let points =
-            zkube_core::apply_ladder_streak_bonus(base_points, u32::from(self.entry_streak_days));
         self.ladder_points = self
             .ladder_points
             .checked_add(u64::from(points))
@@ -754,27 +741,15 @@ mod tests {
     }
 
     #[test]
-    fn a_streak_scales_every_ladder_award_it_is_credited_beside() {
+    fn the_visible_streak_does_not_change_ladder_awards() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         player.record_kredit_purchase(40).unwrap();
         for day in 0..40 {
             player.record_paid_entry(20_000 + day).unwrap();
         }
         assert_eq!(player.entry_streak_days, 40);
-        // Forty consecutive days is +40%, applied to whichever award lands.
-        assert_eq!(player.record_ladder_points(200).unwrap(), 280);
-        assert_eq!(player.ladder_points, 280);
-    }
-
-    #[test]
-    fn the_streak_bonus_stops_growing_at_the_core_cap() {
-        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        player.record_kredit_purchase(400).unwrap();
-        for day in 0..400 {
-            player.record_paid_entry(20_000 + day).unwrap();
-        }
-        assert_eq!(player.entry_streak_days, 400);
-        assert_eq!(player.record_ladder_points(200).unwrap(), 400);
+        assert_eq!(player.record_ladder_points(200).unwrap(), 200);
+        assert_eq!(player.ladder_points, 200);
     }
 
     #[test]
@@ -820,15 +795,15 @@ mod tests {
     }
 
     #[test]
-    fn a_broken_streak_takes_the_bonus_with_it() {
+    fn a_broken_streak_remains_visible_without_changing_points() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         player.record_kredit_purchase(10).unwrap();
         player.record_paid_entry(20_000).unwrap();
         player.record_paid_entry(20_001).unwrap();
-        // The bonus floors away below a hundred base points at two days.
-        assert_eq!(player.record_ladder_points(100).unwrap(), 102);
+        assert_eq!(player.record_ladder_points(100).unwrap(), 100);
         player.record_paid_entry(20_010).unwrap();
-        assert_eq!(player.record_ladder_points(100).unwrap(), 101);
+        assert_eq!(player.entry_streak_days, 1);
+        assert_eq!(player.record_ladder_points(100).unwrap(), 100);
     }
 
     #[test]

@@ -15,11 +15,7 @@ const LN_2_Q64: u128 = 0xb172_17f7_d1cf_79ab;
 /// It is deliberately independent of field size, rank and pot: everyone
 /// receives the same amount on any day, so no day is worth farming.
 ///
-/// The magnitude is not arbitrary. It has to be large enough that a streak
-/// percentage survives integer division — at ten, a six-day streak added
-/// `floor(10 * 6 / 100)` = nothing, so the bonus was invisible to exactly the
-/// players the flat credit exists to reach. At a hundred, every streak day
-/// moves it, and placing still pays several times more: rank one of a
+/// At a hundred, placing still pays several times more: rank one of a
 /// thirty-player board is 170 and of a five-thousand-player board is 425.
 pub const LADDER_QUALIFY_POINTS: u32 = 100;
 
@@ -28,42 +24,12 @@ pub const LADDER_QUALIFY_POINTS: u32 = 100;
 /// pass may retune this number but may not remove it.
 const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 
-/// Longest consecutive-entry streak the ladder bonus counts, in days.
-///
-/// The bonus is one percent per day, so the cap is also the maximum bonus: a
-/// hundred-day streak doubles a day's ladder award and a longer one does not
-/// grow further. The cap exists because an uncapped attendance multiplier
-/// eventually dwarfs the play itself — at two hundred days a mediocre run would
-/// outscore a stranger's win, which inverts what the ladder measures.
-pub const LADDER_STREAK_BONUS_CAP_DAYS: u32 = 100;
-
-/// Ladder bonus percentage earned by a consecutive-entry streak.
-#[must_use]
-pub fn ladder_streak_bonus_pct(streak_days: u32) -> u32 {
-    streak_days.min(LADDER_STREAK_BONUS_CAP_DAYS)
-}
-
-/// Apply a streak's bonus percentage to one ladder award, rounding down.
-///
-/// Every award the ladder actually grants is at least
-/// [`LADDER_QUALIFY_POINTS`], so a single streak day always moves the total.
-/// The rounding only bites on awards under a hundred points, which the
-/// placement half alone can produce at the very bottom of a small board — a
-/// rank whose award is already a handful of points.
-#[must_use]
-pub fn apply_ladder_streak_bonus(base_points: u32, streak_days: u32) -> u32 {
-    let bonus = u64::from(base_points) * u64::from(ladder_streak_bonus_pct(streak_days)) / 100;
-    base_points.saturating_add(u32::try_from(bonus).unwrap_or(u32::MAX))
-}
-
 /// Cumulative-point floor of each named tier, ascending.
 ///
 /// Spaced against what the ladder actually pays. A player who qualifies on
-/// both boards every day and never places earns
-/// `sum(200 * (1 + min(day, 100)/100))`, which reaches roughly 1,450 in a
-/// week, 6,900 in a month, 26,000 in three months and 75,000 in seven — so
-/// the boundaries below read as about a week, a month, a quarter and most of
-/// a year of showing up. Anyone who also places arrives sooner.
+/// both boards every day and never places earns 200 points a day, so the
+/// boundaries below read as about a week, five weeks, four months and one year
+/// of showing up. Anyone who also places arrives sooner.
 ///
 /// Still balance rather than systems: the contract is one monotonic total and
 /// a permanent highest tier. They live here rather than in the program because
@@ -170,59 +136,14 @@ mod tests {
     }
 
     #[test]
-    fn a_streak_adds_one_percent_a_day_and_stops_doubling() {
-        // The shape the product states: six days is +6%, a hundred days is
-        // +100%, and nothing beyond a hundred moves.
-        assert_eq!(apply_ladder_streak_bonus(1_000, 0), 1_000);
-        assert_eq!(apply_ladder_streak_bonus(1_000, 6), 1_060);
-        assert_eq!(apply_ladder_streak_bonus(1_000, 100), 2_000);
-        assert_eq!(apply_ladder_streak_bonus(1_000, 5_000), 2_000);
-        assert_eq!(
-            ladder_streak_bonus_pct(u32::MAX),
-            LADDER_STREAK_BONUS_CAP_DAYS
-        );
-    }
-
-    #[test]
-    fn every_streak_day_moves_the_qualifying_half() {
-        // Why the credit is a hundred rather than ten: at ten this whole
-        // range floored to zero, so the bonus reached only players who placed.
-        for days in 1..=20 {
-            assert_eq!(
-                apply_ladder_streak_bonus(LADDER_QUALIFY_POINTS, days),
-                LADDER_QUALIFY_POINTS + days,
-                "streak of {days} days"
-            );
-        }
-    }
-
-    #[test]
-    fn the_streak_bonus_rounds_down_and_never_overflows() {
-        // Rounding still bites below a hundred points, which only the very
-        // bottom of a small board can produce.
-        assert_eq!(apply_ladder_streak_bonus(9, 10), 9);
-        assert_eq!(apply_ladder_streak_bonus(10, 10), 11);
-        assert_eq!(apply_ladder_streak_bonus(u32::MAX, 100), u32::MAX);
-    }
-
-    #[test]
     fn the_tiers_are_spaced_against_what_a_daily_player_actually_earns() {
-        // Both boards qualified every day, never placing, streak compounding.
-        let total_after = |days: u64| -> u64 {
-            (1..=days)
-                .map(|day| {
-                    u64::from(apply_ladder_streak_bonus(
-                        LADDER_QUALIFY_POINTS * 2,
-                        u32::try_from(day).unwrap(),
-                    ))
-                })
-                .sum()
-        };
+        // Both boards qualified every day, never placing.
+        let total_after = |days: u64| -> u64 { days * u64::from(LADDER_QUALIFY_POINTS * 2) };
         assert_eq!(ladder_tier_for_points(total_after(7)), 0);
         assert_eq!(ladder_tier_for_points(total_after(8)), 1);
-        assert_eq!(ladder_tier_for_points(total_after(31)), 2);
-        assert_eq!(ladder_tier_for_points(total_after(88)), 3);
-        assert_eq!(ladder_tier_for_points(total_after(213)), 4);
+        assert_eq!(ladder_tier_for_points(total_after(35)), 2);
+        assert_eq!(ladder_tier_for_points(total_after(125)), 3);
+        assert_eq!(ladder_tier_for_points(total_after(375)), 4);
     }
 
     #[test]

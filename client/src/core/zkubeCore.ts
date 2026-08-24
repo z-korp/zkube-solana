@@ -4,7 +4,6 @@ import {
   emptyContinuationRows,
   initialReplayCommitment,
   ladderPoints,
-  ladderStreakBonusPct,
   ladderTier,
   ladderTierCount,
   ladderTierFloor,
@@ -113,18 +112,6 @@ export function coreLadderTierFloor(tier: number): bigint {
 export function coreLadderTierCount(): number {
   assertInitialized();
   return ladderTierCount();
-}
-
-/**
- * Ladder bonus percentage a consecutive-entry streak earns, read from the core
- * for the same reason the tier is: the program scales every award by this, so a
- * client that restated the rate or the cap could promise points the chain never
- * credits.
- */
-export function coreLadderStreakBonusPct(streakDays: number): number {
-  assertInitialized();
-  assertU32(streakDays, "streakDays");
-  return ladderStreakBonusPct(streakDays);
 }
 
 export function coreInitialReplayCommitment(args: {
