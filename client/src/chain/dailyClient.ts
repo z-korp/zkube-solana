@@ -89,16 +89,6 @@ export interface DailyPlayerView {
   activePaidRunId: bigint;
 }
 
-export function dailyLeaderboardRank(
-  entries: readonly DailyLeaderboardView[],
-  index: number,
-): number {
-  // Rows come from the sealed board account, already in the program's
-  // verified order (metric desc, earliest finalized, wallet bytes), and every
-  // position pays its own amount — so rank IS the position, never shared.
-  return entries[index] ? index + 1 : 0;
-}
-
 export type DailyStatus = "funding" | "open" | "finalized" | "unknown";
 
 export function parseDailyStatus(value: unknown): DailyStatus {

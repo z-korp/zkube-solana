@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { dailyLeaderboardRank } from "@/chain/dailyClient";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import {
   computeRankPayouts,
@@ -91,7 +90,9 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
     const board = daily.daily?.leaderboard ?? [];
     if (!owner) return null;
     const index = board.findIndex((entry) => entry.player.equals(owner));
-    return index >= 0 ? dailyLeaderboardRank(board, index) : null;
+    // Sealed board rows are already in the program's verified order and each
+    // position has its own payout, so the one-based position is the rank.
+    return index >= 0 ? index + 1 : null;
   }, [daily.daily?.leaderboard, owner]);
 
   const previousBest = daily.daily?.player?.bestDailyScore ?? 0;

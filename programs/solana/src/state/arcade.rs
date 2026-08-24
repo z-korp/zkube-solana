@@ -589,72 +589,6 @@ impl ArenaPlayer {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PayoutPlan<const N: usize> {
-    pub amounts: [u64; N],
-    /// Payable places after applying `N`.
-    pub count: u32,
-    /// Unbounded width-rule result used to preserve its denominator.
-    pub width_count: u32,
-    pub denominator: u128,
-    pub capacity_limited: bool,
-    pub paid_lamports: u64,
-    pub rollover_lamports: u64,
-}
-
-impl<const N: usize> Default for PayoutPlan<N> {
-    fn default() -> Self {
-        Self {
-            amounts: [0; N],
-            count: 0,
-            width_count: 0,
-            denominator: 0,
-            capacity_limited: false,
-            paid_lamports: 0,
-            rollover_lamports: 0,
-        }
-    }
-}
-
-pub fn rounded_payouts<const N: usize>(pool: u64, qualified_winners: u32) -> Result<PayoutPlan<N>> {
-    let width = zkube_core::board_width(
-        pool,
-        qualified_winners,
-        ARENA_ENTRY_LAMPORTS,
-        zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
-    )
-    .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
-    let bounded_count = width
-        .winner_count
-        .min(u32::try_from(N).map_err(|_| ErrorCode::ArithmeticOverflow)?);
-    let winner_count = usize::try_from(bounded_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-    let mut amounts = [0u64; N];
-    let mut paid_lamports = 0u64;
-    for (position, amount) in amounts[..winner_count].iter_mut().enumerate() {
-        *amount = zkube_core::payout_for_rank(
-            pool,
-            width.denominator,
-            u32::try_from(position + 1).map_err(|_| ErrorCode::ArithmeticOverflow)?,
-            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
-        )
-        .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
-        paid_lamports = paid_lamports
-            .checked_add(*amount)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    Ok(PayoutPlan {
-        amounts,
-        count: bounded_count,
-        width_count: width.winner_count,
-        denominator: width.denominator,
-        capacity_limited: bounded_count < width.winner_count,
-        paid_lamports,
-        rollover_lamports: pool
-            .checked_sub(paid_lamports)
-            .ok_or(ErrorCode::AccountingInvariant)?,
-    })
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BoardPayoutPlan {
     pub count: u32,
@@ -1273,11 +1207,22 @@ mod tests {
 
     #[test]
     fn rank_weighted_payouts_conserve_the_board_pool() {
-        let plan = rounded_payouts::<ARENA_BOARD_CAPACITY>(101_990_000, 5).unwrap();
+        let plan = board_payout_plan(101_990_000, 5).unwrap();
         assert_eq!(plan.count, 4);
-        assert!(plan.amounts[..4].windows(2).all(|pair| pair[0] >= pair[1]));
+        let amounts = (1..=plan.count)
+            .map(|rank| {
+                zkube_core::payout_for_rank(
+                    101_990_000,
+                    plan.denominator,
+                    rank,
+                    zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert!(amounts.windows(2).all(|pair| pair[0] >= pair[1]));
         assert_eq!(plan.paid_lamports + plan.rollover_lamports, 101_990_000);
-        let fewer = rounded_payouts::<ARENA_BOARD_CAPACITY>(101_500_000, 2).unwrap();
+        let fewer = board_payout_plan(101_500_000, 2).unwrap();
         assert_eq!(fewer.count, 2);
         assert_eq!(fewer.paid_lamports + fewer.rollover_lamports, 101_500_000);
     }
