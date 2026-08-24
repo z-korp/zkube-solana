@@ -75,7 +75,6 @@ pub struct DailyPressureProfile {
     pub thresholds: [u32; 7],
     pub score_multipliers_x100: [u16; DAILY_PRESSURE_TIERS],
     pub block_weights: [[u16; 5]; DAILY_PRESSURE_TIERS],
-    pub starting_height: u8,
     pub max_moves: u16,
 }
 
@@ -158,7 +157,6 @@ impl DailyPressureProfile {
                 [12, 16, 18, 28, 26],
                 [10, 14, 16, 30, 30],
             ],
-            starting_height: 4,
             max_moves: DAILY_MAX_MOVES,
         }
     }
@@ -180,12 +178,7 @@ impl DailyPressureProfile {
             }),
             ErrorCode::InvalidBlockWeights
         );
-        require!(
-            (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
-                .contains(&self.starting_height)
-                && self.max_moves == DAILY_MAX_MOVES,
-            ErrorCode::InvalidLevel
-        );
+        require!(self.max_moves == DAILY_MAX_MOVES, ErrorCode::InvalidLevel);
         Ok(())
     }
 
@@ -433,6 +426,17 @@ mod tests {
         entry.validate(1).unwrap();
     }
 
+    #[test]
+    fn pool_entry_is_the_only_daily_starting_height_authority() {
+        let mut entry = pool_entry(1, 1, 1);
+        entry.starting_rows = crate::game::MIN_OPENING_HEIGHT - 1;
+        assert!(entry.validate(1).is_err());
+        entry.starting_rows = crate::game::MAX_OPENING_HEIGHT + 1;
+        assert!(entry.validate(1).is_err());
+        entry.starting_rows = crate::game::MAX_OPENING_HEIGHT;
+        entry.validate(1).unwrap();
+    }
+
     fn catalog(entry_count: u8) -> DailyRulesCatalog {
         let pool_entries = (0..usize::from(entry_count))
             .map(|index| {
@@ -466,7 +470,7 @@ mod tests {
     #[test]
     fn published_pool_draws_a_complete_reproducible_cycle() {
         assert_eq!(DailyPoolEntry::INIT_SPACE, 26);
-        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_964);
+        assert_eq!(8 + DailyRulesCatalog::INIT_SPACE, 3_960);
         let catalog = catalog(10);
         catalog.validate().unwrap();
         let first = (catalog.starts_day..catalog.starts_day + 10)

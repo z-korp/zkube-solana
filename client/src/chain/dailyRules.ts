@@ -131,7 +131,6 @@ export interface DailyPressureProfileView {
     DailyBlockWeights,
     DailyBlockWeights,
   ];
-  startingHeight: number;
   maxMoves: number;
 }
 
@@ -147,7 +146,6 @@ export interface RawDailyPressureProfile {
   thresholds: readonly unknown[];
   scoreMultipliersX100: readonly unknown[];
   blockWeights: readonly (readonly unknown[])[];
-  startingHeight: unknown;
   maxMoves: unknown;
 }
 
@@ -273,7 +271,6 @@ export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
     [12, 16, 18, 28, 26],
     [10, 14, 16, 30, 30],
   ],
-  startingHeight: 4,
   maxMoves: 100,
 };
 
@@ -315,7 +312,6 @@ export function mapDailyPressureProfile(
       Number,
     ) as DailyPressureMultipliers,
     blockWeights,
-    startingHeight: Number(pressure.startingHeight),
     maxMoves: Number(pressure.maxMoves),
   };
 }

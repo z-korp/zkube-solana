@@ -18,6 +18,7 @@
     },
     "bonus": "wave",
     "starting_bonus_charges": 1,
+    "starting_height": 4,
     "objective": {
       "kind": "survival",
       "parameter": 0,
@@ -35,11 +36,10 @@
         [14, 18, 20, 26, 22],
         [12, 16, 18, 28, 26],
         [10, 14, 16, 30, 30]
-      ],
-      "starting_height": 4
+      ]
     }
   },
-  "rules_snapshot_hash_hex": "bbd1b7f332b8e311426c69c28b1f3b4b2191fc935d0dcd67484bfa58c7308ad9",
+  "rules_snapshot_hash_hex": "4568421f98ff452ae1686f32051aae29e9dd6b41edd59c3d2d2aaf6c11ca1f74",
   "day_id": 42,
   "catalog_hash_hex": "bbd1b7f332b8e311426c69c28b1f3b4b2191fc935d0dcd67484bfa58c7308ad9",
   "rules_version": 7,

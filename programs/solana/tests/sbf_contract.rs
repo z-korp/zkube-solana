@@ -585,15 +585,17 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
     let magic_fee_vault = Pubkey::new_unique();
     let opening_run = Pubkey::new_unique();
     let opening_randomness = [37; 32];
+    let opening_rules = LevelRuleSnapshot {
+        block_weights: [15, 30, 30, 15, 10],
+        starting_rows: 8,
+        ..LevelRuleSnapshot::default()
+    };
     let opening_state = ActiveRun {
         version: ACCOUNT_VERSION,
         lifecycle: RunLifecycle::AwaitingVrf,
         rules_hash: [19; 32],
-        rules: LevelRuleSnapshot {
-            block_weights: [15, 30, 30, 15, 10],
-            ..LevelRuleSnapshot::default()
-        },
-        starting_height_target: 8,
+        rules: opening_rules,
+        starting_height_target: opening_rules.starting_rows,
         vrf_request_counter: 1,
         pending_vrf_counter: 1,
         ..ActiveRun::default()
@@ -626,6 +628,18 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
     assert!(opening_result.compute_units_consumed < 200_000);
     let opened: ActiveRun = decode(resulting_account(&opening_result, &opening_run));
     let opening_grid = Grid::try_from_cells(opened.grid).unwrap();
+    let core_opening = zkube_core::opening_from_vrf(
+        opening_randomness,
+        1,
+        opening_state.rules_hash,
+        opening_rules.starting_rows,
+        zkube_core::BlockWeights {
+            values: opening_rules.block_weights,
+        },
+    )
+    .unwrap();
+    assert_eq!(opening_grid, core_opening.grid);
+    assert_eq!(opened.next_row, core_opening.preview);
     let mut settled = opening_grid;
     settled.apply_gravity();
     assert_eq!(settled, opening_grid);

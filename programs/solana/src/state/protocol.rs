@@ -852,7 +852,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 551);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 550);
     }
 
     #[test]

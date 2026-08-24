@@ -25,7 +25,6 @@ struct GoldenPressure {
     thresholds: [u32; 7],
     score_multipliers_x100: [u16; 8],
     block_weights: [[u16; 5]; 8],
-    starting_height: u8,
 }
 
 #[derive(Deserialize)]
@@ -34,6 +33,7 @@ struct GoldenRules {
     mutator: GoldenMutator,
     bonus: String,
     starting_bonus_charges: u8,
+    starting_height: u8,
     objective: GoldenObjective,
     pressure: GoldenPressure,
 }
@@ -178,6 +178,7 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
         },
         bonus: bonus(&value.bonus),
         starting_bonus_charges: value.starting_bonus_charges,
+        starting_height: value.starting_height,
         objective: DailyObjectiveRule {
             objective,
             bonus_multiplier_x100: value.objective.bonus_multiplier_x100,
@@ -186,7 +187,6 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
             thresholds: value.pressure.thresholds,
             score_multipliers_x100: value.pressure.score_multipliers_x100,
             block_weights: value.pressure.block_weights,
-            starting_height: value.pressure.starting_height,
         },
     }
 }

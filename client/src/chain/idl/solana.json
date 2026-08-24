@@ -6914,10 +6914,6 @@
             }
           },
           {
-            "name": "starting_height",
-            "type": "u8"
-          },
-          {
             "name": "max_moves",
             "type": "u16"
           }

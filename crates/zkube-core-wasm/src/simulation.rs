@@ -337,6 +337,7 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
     };
     let bonus = decode_bonus(reader.u8()?)?;
     let starting_bonus_charges = reader.u8()?;
+    let starting_height = reader.u8()?;
     let objective_tag = reader.u8()?;
     let objective_parameter = reader.u8()?;
     let objective = match objective_tag {
@@ -377,18 +378,17 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
             *weight = reader.u16()?;
         }
     }
-    let starting_height = reader.u8()?;
     Ok(DailyRunRules {
         max_moves,
         mutator,
         bonus,
         starting_bonus_charges,
+        starting_height,
         objective,
         pressure: DailyPressureRules {
             thresholds,
             score_multipliers_x100,
             block_weights,
-            starting_height,
         },
     })
 }
@@ -558,6 +558,7 @@ mod tests {
             mutator: MutatorRules::default(),
             bonus: Some(Bonus::Wave),
             starting_bonus_charges: 1,
+            starting_height: 4,
             objective: DailyObjectiveRule {
                 objective: DailyObjective::Survival,
                 bonus_multiplier_x100: 100,
@@ -628,8 +629,21 @@ mod tests {
         state = simulation_apply_bonus(&config_bytes, &state, 0, 0, 0).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
-        expected.play_move(config.rules, 1, 0, 0, 1, 0).unwrap();
-        state = simulation_play_move(&config_bytes, &state, 1, 0, 0, 1, 0).unwrap();
+        let (row, start, destination, moved) = (0..10)
+            .flat_map(|row| {
+                (0..8)
+                    .flat_map(move |start| (0..8).map(move |destination| (row, start, destination)))
+            })
+            .find_map(|(row, start, destination)| {
+                let mut moved = expected;
+                moved
+                    .play_move(config.rules, 1, row, start, destination, 0)
+                    .ok()
+                    .map(|()| (row, start, destination, moved))
+            })
+            .expect("opening must contain a valid move");
+        expected = moved;
+        state = simulation_play_move(&config_bytes, &state, 1, row, start, destination, 0).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
         expected.apply_vrf(config.rules, 2, [0x22; 32]).unwrap();

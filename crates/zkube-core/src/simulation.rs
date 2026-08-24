@@ -17,7 +17,6 @@ pub struct DailyPressureRules {
     pub thresholds: [u32; 7],
     pub score_multipliers_x100: [u16; PRESSURE_TIER_COUNT],
     pub block_weights: [[u16; 5]; PRESSURE_TIER_COUNT],
-    pub starting_height: u8,
 }
 
 impl DailyPressureRules {
@@ -36,7 +35,6 @@ impl DailyPressureRules {
                 [12, 16, 18, 28, 26],
                 [10, 14, 16, 30, 30],
             ],
-            starting_height: 4,
         }
     }
 
@@ -51,8 +49,6 @@ impl DailyPressureRules {
                 BlockWeights { values: *weights }.validate().is_ok()
                     && weights.iter().map(|weight| u32::from(*weight)).sum::<u32>() == 100
             })
-            && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
-                .contains(&self.starting_height)
     }
 
     #[must_use]
@@ -90,6 +86,8 @@ pub struct DailyRunRules {
     pub mutator: MutatorRules,
     pub bonus: Option<Bonus>,
     pub starting_bonus_charges: u8,
+    /// Pool-entry opening height snapshotted with the run.
+    pub starting_height: u8,
     pub objective: DailyObjectiveRule,
     pub pressure: DailyPressureRules,
 }
@@ -111,6 +109,8 @@ impl DailyRunRules {
             && self.mutator.combo_multiplier_x100 > 0
             && trigger_valid
             && bonus_valid
+            && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
+                .contains(&self.starting_height)
             && self.objective.is_valid()
             && self.pressure.is_valid()
             && self
@@ -131,7 +131,11 @@ impl DailyRunRules {
         encoded.push(&[self.mutator.star_threshold_modifier]);
         encoded.push(&[self.mutator.bonus_trigger_type]);
         encoded.push(&self.mutator.bonus_threshold.to_le_bytes());
-        encoded.push(&[bonus_tag(self.bonus), self.starting_bonus_charges]);
+        encoded.push(&[
+            bonus_tag(self.bonus),
+            self.starting_bonus_charges,
+            self.starting_height,
+        ]);
         let (objective_tag, objective_parameter) = objective_encoding(self.objective.objective);
         encoded.push(&[objective_tag, objective_parameter]);
         encoded.push(&self.objective.bonus_multiplier_x100.to_le_bytes());
@@ -146,7 +150,6 @@ impl DailyRunRules {
                 encoded.push(&weight.to_le_bytes());
             }
         }
-        encoded.push(&[self.pressure.starting_height]);
         debug_assert_eq!(encoded.len(), CANONICAL_DAILY_RULES_LEN);
         encoded
     }
@@ -321,7 +324,7 @@ impl DailySimulation {
                 phase: RunPhase::AwaitingVrf,
                 bonus: config.rules.bonus,
                 bonus_charges: config.rules.starting_bonus_charges,
-                starting_height_target: config.rules.pressure.starting_height,
+                starting_height_target: config.rules.starting_height,
                 ..RunEngine::default()
             },
             metrics: RunMetrics::default(),
@@ -366,7 +369,7 @@ impl DailySimulation {
                 output,
                 request_counter,
                 next.rules_hash.to_bytes(),
-                rules.pressure.starting_height,
+                rules.starting_height,
                 rules.pressure.weights(next.current_difficulty),
             )?;
             next.engine.grid = opening.grid;
@@ -670,6 +673,7 @@ mod tests {
             mutator: MutatorRules::default(),
             bonus: None,
             starting_bonus_charges: 0,
+            starting_height: 4,
             objective: DailyObjectiveRule {
                 objective: DailyObjective::Survival,
                 bonus_multiplier_x100: 100,
@@ -737,6 +741,13 @@ mod tests {
             bonus_multiplier_x100: 200,
         };
         assert_ne!(baseline.snapshot_hash(), changed.snapshot_hash());
+        changed = baseline;
+        changed.starting_height += 1;
+        assert_ne!(baseline.snapshot_hash(), changed.snapshot_hash());
+        changed.starting_height = crate::MIN_OPENING_HEIGHT - 1;
+        assert!(!changed.is_valid());
+        changed.starting_height = crate::MAX_OPENING_HEIGHT + 1;
+        assert!(!changed.is_valid());
     }
 
     #[test]

@@ -6920,10 +6920,6 @@ export type Solana = {
             }
           },
           {
-            "name": "startingHeight",
-            "type": "u8"
-          },
-          {
             "name": "maxMoves",
             "type": "u16"
           }

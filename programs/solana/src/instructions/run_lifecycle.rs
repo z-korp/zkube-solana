@@ -2226,7 +2226,7 @@ mod tests {
         );
         for rule in canonical_daily_scoring_rules().into_iter().take(15) {
             let attempts = (0..seed_count)
-                .map(|seed| simulate_daily_attempt(rule, pressure, seed))
+                .map(|seed| simulate_daily_attempt(rule, pressure, 4, seed))
                 .collect::<Vec<_>>();
             assert!(attempts
                 .iter()
@@ -2317,6 +2317,7 @@ mod tests {
     fn simulate_daily_attempt(
         rule: DailyScoringRule,
         pressure: DailyPressureProfile,
+        starting_rows: u8,
         seed: u32,
     ) -> SimulatedDailyAttempt {
         let level = LevelRules {
@@ -2327,7 +2328,7 @@ mod tests {
         };
         let mut engine = RunEngine {
             phase: RunPhase::AwaitingVrf,
-            starting_height_target: pressure.starting_height,
+            starting_height_target: starting_rows,
             ..RunEngine::default()
         };
         let mut row_counter = 0u32;
