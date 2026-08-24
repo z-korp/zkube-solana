@@ -304,6 +304,86 @@ describe("keeper read-only planning", () => {
     expect(materialize.mock.calls.every(([plan]) =>
       plan.operation === "sync_daily_profile" && plan.context.dayId === DAY)).toBe(true);
   });
+
+  it("keeps a poisoned cadence local while unrelated Daily and Campaign work proceeds", async () => {
+    const keeper = Keypair.generate().publicKey;
+    const poisonedOwner = Keypair.generate().publicKey;
+    const independentOwner = Keypair.generate().publicKey;
+    const campaignOwner = Keypair.generate().publicKey;
+    const poisoned = finalizedDaily(DAY - 1, poisonedOwner, DAY - 1);
+    poisoned.integrityFailure = "poisoned finalized board";
+    poisoned.claimsExpired = true;
+    const poisonCandidate = {
+      ...archiveCandidate(DAY - 1, true, true),
+      claimsExpired: true,
+    };
+    const materialize = vi.fn(materializer(keeper));
+    const result = await runKeeperPass({
+      connection: connection(),
+      keeper: { publicKey: keeper },
+      now: () => PASS_NOW * 1_000,
+      protocolSnapshot: snapshot({
+        launchDayId: DAY - 1,
+        dailies: [
+          poisoned,
+          finalizedDaily(DAY, independentOwner, DAY - 1),
+          fundingDaily(DAY + 1, DAY - 1),
+        ],
+        runs: [{
+          owner: campaignOwner,
+          runId: 1n,
+          mode: "campaign",
+          arenaPlayerExists: false,
+          lifecycle: "terminal",
+          location: "base",
+          acceptedActions: 1,
+          reservationActive: true,
+        }],
+        playerStateOwners: [poisonedOwner, independentOwner],
+        arenaPlayerClosures: [{
+          dayId: DAY - 1,
+          owner: poisonedOwner,
+          rentRecipient: playerFundingPda(poisonedOwner),
+        }],
+        archiveState: {
+          address: arcadeArchivePda(),
+          cadenceFunding: cadenceFundingPda(),
+          firstDailyId: DAY - 1,
+          lastDailyId: DAY - 1,
+          dailyRoot: "44".repeat(32),
+        },
+        archiveCandidates: [poisonCandidate],
+      }),
+      protocolMaterializer: { materialize },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      plannedWrites: 2,
+      backlog: 0,
+    });
+    expect(materialize.mock.calls.map(([plan]) => ({
+      operation: plan.operation,
+      dayId: plan.context.dayId,
+      owner: plan.context.owner,
+    }))).toEqual([
+      {
+        operation: "consume_campaign_run",
+        dayId: undefined,
+        owner: campaignOwner,
+      },
+      {
+        operation: "sync_daily_profile",
+        dayId: DAY,
+        owner: independentOwner,
+      },
+    ]);
+    expect(materialize.mock.calls.some(([plan]) =>
+      plan.context.dayId === DAY - 1 && [
+        "sync_daily_profile",
+        "close_arena_daily",
+        "close_arena_player",
+      ].includes(plan.operation))).toBe(false);
+  });
 });
 
 function snapshot(overrides: Partial<ProtocolSnapshot>): ProtocolSnapshot {
