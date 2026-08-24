@@ -1022,7 +1022,7 @@ pub fn daily_result_hash(
         .get(ArenaBoard::HEADER_SIZE..theme_rows_end)
         .ok_or(ErrorCode::AccountingInvariant)?;
     Ok(crate::game::sha256v(&[
-        b"zkube-arcade-daily-result-v4",
+        zkube_core::ARCADE_DAILY_RESULT_HASH_DOMAIN.as_bytes(),
         &bytes,
         &score_header,
         score_rows,

@@ -5,12 +5,12 @@ use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use zkube_core::{
-    ARCADE_ACCOUNT_VERSION, ARENA_ENTRY_LAMPORTS, Bonus, CampaignRules, Constraint, ConstraintKind,
-    DAILY_POOL_CAPACITY, DAILY_POOL_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, LevelRules, MutatorRules,
-    PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION,
-    RULES_ACCOUNT_VERSION, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256,
+    ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_CATALOG_HASH_DOMAIN,
+    ARENA_ENTRY_LAMPORTS, Bonus, CampaignRules, Constraint, ConstraintKind, DAILY_POOL_CAPACITY,
+    DAILY_POOL_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, ENTRY_DAILY_LAMPORTS,
+    ENTRY_OPERATOR_LAMPORTS, LevelRules, MutatorRules, PLAYER_LABEL_ACCOUNT_VERSION,
+    PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION, RULES_ACCOUNT_VERSION, SECONDS_PER_DAY,
+    SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SoftwareSha256,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -279,6 +279,8 @@ fn render_protocol_constants() -> String {
          export const ARCADE_ACCOUNT_VERSION = {ARCADE_ACCOUNT_VERSION} as const;\n\
          export const RULES_ACCOUNT_VERSION = {RULES_ACCOUNT_VERSION} as const;\n\
          export const PLAYER_LABEL_ACCOUNT_VERSION = {PLAYER_LABEL_ACCOUNT_VERSION} as const;\n\
+         export const ARENA_CATALOG_HASH_DOMAIN = \"{ARENA_CATALOG_HASH_DOMAIN}\" as const;\n\
+         export const ARCADE_DAILY_RESULT_HASH_DOMAIN = \"{ARCADE_DAILY_RESULT_HASH_DOMAIN}\" as const;\n\
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\
          export const ENTRY_DAILY_LAMPORTS = {ENTRY_DAILY_LAMPORTS}n;\n\
          export const ENTRY_OPERATOR_LAMPORTS = {ENTRY_OPERATOR_LAMPORTS}n;\n\
@@ -307,6 +309,10 @@ mod tests {
         assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 1"));
         assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 1"));
         assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 1"));
+        assert!(versions.contains("ARENA_CATALOG_HASH_DOMAIN = \"zkube-arena-catalog-v5\""));
+        assert!(
+            versions.contains("ARCADE_DAILY_RESULT_HASH_DOMAIN = \"zkube-arcade-daily-result-v5\"")
+        );
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
     }

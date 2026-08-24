@@ -31,7 +31,10 @@ import {
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas";
-import { SECONDS_PER_DAY } from "./protocolVersions.generated";
+import {
+  ARENA_CATALOG_HASH_DOMAIN,
+  SECONDS_PER_DAY,
+} from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import type { TransactionPlan } from "./runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
@@ -559,7 +562,7 @@ function arenaRulesCatalogHash(plan: TransactionPlan | undefined): string {
     throw new Error("canonical Arena rules instruction is missing or malformed");
   }
   return createHash("sha256")
-    .update(Buffer.from("zkube-arena-catalog-v2", "utf8"))
+    .update(Buffer.from(ARENA_CATALOG_HASH_DOMAIN, "utf8"))
     .update(instruction.data.subarray(8))
     .digest("hex");
 }

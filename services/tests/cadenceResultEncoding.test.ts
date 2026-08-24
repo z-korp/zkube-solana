@@ -90,7 +90,7 @@ describe("v5 bounded Daily result encoding", () => {
       "ca21c22c7f503d47b803d18a98ae29088d7ea71a06d0fdeb285a246332e138b4",
     );
     expect(cadenceResultHash("daily", result)).toBe(
-      "f51d4b3e7720210d4b97378a86c6cfffa8eaa9fd1c308bc12249505da9a99ed2",
+      "715cc03315023cffde0b6a1da4260c7296a437c11401ba85fe61bc07814342ae",
     );
   });
 

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
 
 import type { CompetitionKind } from "./arcadeChain.js";
+import { ARCADE_DAILY_RESULT_HASH_DOMAIN } from "./protocolVersions.generated.js";
 
 export const CURRENT_ARCHIVE_SCHEMA_VERSION = 1;
 const MAX_ARCHIVE_DATA_BYTES = 130_000;
@@ -42,8 +43,11 @@ export function cadenceResultHash(
   competition: CompetitionKind,
   resultData: Buffer,
 ): string {
+  if (competition !== "daily") {
+    throw new Error(`unsupported archive competition: ${String(competition)}`);
+  }
   return createHash("sha256")
-    .update(Buffer.from(`zkube-arcade-${competition}-result-v4`, "utf8"))
+    .update(Buffer.from(ARCADE_DAILY_RESULT_HASH_DOMAIN, "utf8"))
     .update(resultData)
     .digest("hex");
 }

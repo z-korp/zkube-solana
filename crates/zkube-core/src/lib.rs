@@ -44,6 +44,8 @@ pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 1;
 pub const ARCADE_ACCOUNT_VERSION: u8 = 1;
 pub const RULES_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
+pub const ARENA_CATALOG_HASH_DOMAIN: &str = "zkube-arena-catalog-v5";
+pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use campaign::{

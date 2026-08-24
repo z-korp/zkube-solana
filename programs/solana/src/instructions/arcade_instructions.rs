@@ -191,7 +191,10 @@ pub fn handler_publish_arena_rules(
     );
     let mut serialized = Vec::new();
     args.serialize(&mut serialized)?;
-    let catalog_hash = sha256v(&[b"zkube-arena-catalog-v4", &serialized]);
+    let catalog_hash = sha256v(&[
+        zkube_core::ARENA_CATALOG_HASH_DOMAIN.as_bytes(),
+        &serialized,
+    ]);
     let catalog = &mut ctx.accounts.daily_rules_catalog;
     catalog.version = RULES_ACCOUNT_VERSION;
     catalog.rules_version = args.rules_version;

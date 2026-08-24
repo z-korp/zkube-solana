@@ -15,6 +15,7 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
+import { ARENA_CATALOG_HASH_DOMAIN } from "./protocolVersions.generated";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 const TEST_WILDCARD_MUTATOR = {
@@ -66,7 +67,17 @@ describe("read-only paused bootstrap and launch planner", () => {
     });
     expect(plan.costs.seedLamports).toBe(1_500_000_000);
     expect(plan.costs.transactionCount).toBe(18);
-    expect(plan.rulesCatalogSha256).toMatch(/^[0-9a-f]{64}$/);
+    const rulesInstruction = plan.plans[11]?.transaction.instructions[0];
+    expect(rulesInstruction).toBeDefined();
+    expect(plan.rulesCatalogSha256).toBe(
+      createHash("sha256")
+        .update(Buffer.from(ARENA_CATALOG_HASH_DOMAIN, "utf8"))
+        .update(rulesInstruction!.data.subarray(8))
+        .digest("hex"),
+    );
+    expect(plan.rulesCatalogSha256).toBe(
+      "f4c7ef556cddaa0a56f517f1344cf33d0490bef38d5d3fd7c70734188523d46f",
+    );
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
       "No transaction was signed or sent. This planner has no send path.",
