@@ -55,6 +55,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal:
       "perfect-clear and all-block-sizes triggers carry no numeric threshold",
   },
+  {
+    pattern:
+      /two[- ](?:request|vrf).{0,40}perfect[- ]clear|perfect[- ]clear.{0,40}(?:second|two).{0,16}vrf/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "one perfect-clear output derives both the board reseed and preview",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

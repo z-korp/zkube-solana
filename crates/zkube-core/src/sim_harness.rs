@@ -120,8 +120,8 @@ pub enum TerminalCause {
 /// The order matters because Campaign completion intentionally wins when the
 /// same action both satisfies the level and would otherwise overflow. An
 /// `EngineStall` is recorded only when the real transition path leaves a
-/// non-terminal run with no legal next action; it is an observed defect, not a
-/// simulated terminal rule.
+/// non-terminal run with no legal next action; it is a regression sentinel,
+/// not a simulated terminal rule.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunRecord {
@@ -1578,7 +1578,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_transition_stalls_are_measurement_outcomes() {
+    fn campaign_transition_stalls_are_closed() {
         let mut stalls = 0usize;
         for level in campaign_catalog() {
             for model in [
@@ -1587,10 +1587,10 @@ mod tests {
                 PlayerModel::CampaignConstraints,
             ] {
                 let record = run_campaign(level, model, SeedPartition::Tuning, 1_u64 << 60)
-                    .expect("a transition stall must remain a record, not abort the matrix");
+                    .expect("Campaign transitions must remain measurable");
                 stalls += usize::from(record.terminal_cause == TerminalCause::EngineStall);
             }
         }
-        assert!(stalls > 0);
+        assert_eq!(stalls, 0);
     }
 }

@@ -1,7 +1,8 @@
 use crate::{
     BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
     RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
-    bonus_trigger_threshold_is_valid, calculate_level_stars, opening_from_vrf, row_from_vrf,
+    bonus_trigger_threshold_is_valid, calculate_level_stars, continuation_from_vrf,
+    opening_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -302,12 +303,17 @@ impl CampaignSimulation {
             .checked_add(1)
             .ok_or(CampaignError::Overflow)?;
         let output = derive_randomness(config, counter);
-        let row = row_from_vrf(
-            output,
-            counter,
-            config.rules.weights(self.current_difficulty),
-        )?;
-        self.engine.provide_vrf_row(row)?;
+        let weights = config.rules.weights(self.current_difficulty);
+        if self.engine.grid.is_empty() {
+            let continuation =
+                continuation_from_vrf(output, counter, config.content_hash, weights)?;
+            self.engine.grid = continuation.grid;
+            self.engine.next_row = Some(continuation.preview);
+            self.engine.phase = RunPhase::Playing;
+        } else {
+            let row = row_from_vrf(output, counter, weights)?;
+            self.engine.provide_vrf_row(row)?;
+        }
         self.row_counter = counter;
         Ok(())
     }
@@ -504,6 +510,31 @@ mod tests {
             first.engine.grid,
             CampaignSimulation::new(changed).unwrap().engine.grid
         );
+    }
+
+    #[test]
+    fn campaign_perfect_clear_reseeds_board_and_preview_from_one_output() {
+        let config = config();
+        let mut simulation = CampaignSimulation::new(config).unwrap();
+        simulation.engine.grid = crate::Grid::EMPTY;
+        simulation.engine.next_row = None;
+        simulation.engine.phase = RunPhase::AwaitingVrf;
+        let request_counter = simulation.row_counter + 1;
+        let output = derive_randomness(config, request_counter);
+        let expected = continuation_from_vrf(
+            output,
+            request_counter,
+            config.content_hash,
+            config.rules.weights(simulation.current_difficulty),
+        )
+        .unwrap();
+
+        simulation.provide_next_row(config).unwrap();
+
+        assert_eq!(simulation.engine.phase, RunPhase::Playing);
+        assert_eq!(simulation.engine.grid, expected.grid);
+        assert_eq!(simulation.engine.next_row, Some(expected.preview));
+        assert_eq!(simulation.row_counter, request_counter);
     }
 
     #[test]

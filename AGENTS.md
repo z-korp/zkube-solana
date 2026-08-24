@@ -341,7 +341,7 @@ skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
 the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
 deposits, prize claims, and ratings; positive thresholds on perfect-clear and
-all-block-sizes triggers.
+all-block-sizes triggers; a two-request perfect-clear continuation.
 
 ## Transaction policy
 
@@ -534,7 +534,10 @@ lists may stay off-chain and be independently recomputed.
 After a perfect clear, one domain-separated VRF output deterministically derives
 both the one-row board reseed and the next visible preview. The committed
 continuation vector prevents a run stranded between two oracle requests or
-accepting a stale move without a preview.
+accepting a stale move without a preview. The program, Daily simulation, and
+offline Campaign simulation all call the same `continuation_from_vrf`
+implementation; `campaign_perfect_clear_reseeds_board_and_preview_from_one_output`
+guards the Campaign boundary.
 
 At the run deadline the resolved ER freezes the last fully accepted state and
 adds a replay deadline event. A run with at least one accepted action is scored
