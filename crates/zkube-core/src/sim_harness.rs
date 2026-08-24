@@ -132,6 +132,7 @@ pub struct RunRecord {
     pub catalog_id: u16,
     pub family: u8,
     pub difficulty_band: u8,
+    pub authored_rules_valid: bool,
     pub model: PlayerModel,
     pub bonus_shape: BonusShape,
     pub partition: SeedPartition,
@@ -160,6 +161,7 @@ pub struct DailyCatalogEntry {
     pub id: u8,
     pub family: u8,
     pub difficulty_band: u8,
+    pub authored_rules_valid: bool,
     pub rules: DailyRunRules,
 }
 
@@ -309,32 +311,45 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
         .zip(DAILY_SCORING_INDEXES)
         .map(|(map, scoring_index)| {
             let (family, objective) = daily_objective(scoring_index);
+            let mut rules = DailyRunRules {
+                max_moves: 100,
+                mutator: MutatorRules {
+                    score_multiplier_x100: map.rules[0],
+                    combo_multiplier_x100: map.rules[1],
+                    line_clear_bonus: map.rules[2],
+                    perfect_clear_bonus: map.rules[3],
+                    star_threshold_modifier: u8::try_from(map.rules[4])
+                        .expect("validated star modifier fits u8"),
+                    bonus_trigger_type: u8::try_from(map.rules[6])
+                        .expect("validated trigger fits u8"),
+                    bonus_threshold: map.rules[7],
+                },
+                bonus: bonus_from_tag(map.rules[5]),
+                starting_bonus_charges: u8::try_from(map.rules[8])
+                    .expect("validated charges fit u8"),
+                starting_height: u8::try_from(map.rules[9]).expect("validated height fits u8"),
+                objective,
+                pressure: DailyPressureRules::canonical(),
+            };
+            let authored_rules_valid = rules.is_valid();
+            // Daily validation currently rejects the authored zero threshold
+            // for perfect-clear and all-block-size triggers even though those
+            // two engine branches never read it. Threshold one is therefore a
+            // behavior-identical harness stand-in, not a proposed balance.
+            if !authored_rules_valid
+                && matches!(rules.mutator.bonus_trigger_type, 5 | 6)
+                && rules.mutator.bonus_threshold == 0
+            {
+                rules.mutator.bonus_threshold = 1;
+            }
             DailyCatalogEntry {
                 id: map.map_id,
                 family,
                 // Every currently-authored entry is in band zero. Retaining
                 // the field makes that absence measurable rather than hidden.
                 difficulty_band: 0,
-                rules: DailyRunRules {
-                    max_moves: 100,
-                    mutator: MutatorRules {
-                        score_multiplier_x100: map.rules[0],
-                        combo_multiplier_x100: map.rules[1],
-                        line_clear_bonus: map.rules[2],
-                        perfect_clear_bonus: map.rules[3],
-                        star_threshold_modifier: u8::try_from(map.rules[4])
-                            .expect("validated star modifier fits u8"),
-                        bonus_trigger_type: u8::try_from(map.rules[6])
-                            .expect("validated trigger fits u8"),
-                        bonus_threshold: map.rules[7],
-                    },
-                    bonus: bonus_from_tag(map.rules[5]),
-                    starting_bonus_charges: u8::try_from(map.rules[8])
-                        .expect("validated charges fit u8"),
-                    starting_height: u8::try_from(map.rules[9]).expect("validated height fits u8"),
-                    objective,
-                    pressure: DailyPressureRules::canonical(),
-                },
+                authored_rules_valid,
+                rules,
             }
         })
         .collect()
@@ -448,6 +463,7 @@ pub fn run_daily(
         catalog_id: u16::from(entry.id),
         family: entry.family,
         difficulty_band: entry.difficulty_band,
+        authored_rules_valid: entry.authored_rules_valid,
         model,
         bonus_shape: shape,
         partition,
@@ -640,6 +656,7 @@ pub fn run_campaign(
         catalog_id: level.catalog_id,
         family: constraint_family(level.rules.level.primary),
         difficulty_band: level.rules.level_difficulty,
+        authored_rules_valid: true,
         model,
         bonus_shape: BonusShape::Realm,
         partition,
@@ -1407,7 +1424,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":385,\"objectiveSum\":102,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":6,\"digestHex\":\"776c174c3fc4417def52953bb2d6b97188fae0e08c9bafd66758361218f29c40\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":385,\"objectiveSum\":102,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":6,\"digestHex\":\"09035c1b8f898e7a4e165ef03d9d093fa0490e324f6484d840a71b08bad53cf7\"}"
         );
     }
 
@@ -1432,5 +1449,15 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.warmup_entries > 0);
         assert!(first.measured_entries > u64::from(first.unique_attending_wallets));
+    }
+
+    #[test]
+    fn invalid_authored_daily_triggers_remain_visible() {
+        let invalid = daily_catalog()
+            .into_iter()
+            .filter(|entry| !entry.authored_rules_valid)
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>();
+        assert_eq!(invalid, [4, 6, 8]);
     }
 }
