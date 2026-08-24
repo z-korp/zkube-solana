@@ -39,6 +39,9 @@ fn run() -> Result<String, String> {
                         BonusShape::None,
                         BonusShape::UniversalReroll,
                         BonusShape::RealmPlusUniversalReroll,
+                        BonusShape::RealmNoPassive,
+                        BonusShape::RealmNoPressure,
+                        BonusShape::RealmThreeTierPressure,
                     ] {
                         for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                             for seed_index in 0..seeds {

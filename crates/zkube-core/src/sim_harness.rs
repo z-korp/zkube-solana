@@ -47,6 +47,7 @@ use std::{
 
 const HARNESS_VRF_DOMAIN: &[u8] = b"zkube-sim-harness-vrf-v1";
 const HARNESS_POLICY_DOMAIN: &[u8] = b"zkube-sim-harness-policy-v1";
+const HARNESS_DECISION_DOMAIN: &[u8] = b"zkube-sim-harness-decision-v1";
 const HARNESS_CAMPAIGN_SEED_DOMAIN: &[u8] = b"zkube-sim-harness-campaign-seed-v1";
 const HARNESS_DAILY_RULES_DOMAIN: &[u8] = b"zkube-sim-harness-daily-rules-v1";
 const HARNESS_FIELD_DOMAIN: &[u8] = b"zkube-sim-harness-field-v1";
@@ -98,6 +99,9 @@ pub enum BonusShape {
     None,
     UniversalReroll,
     RealmPlusUniversalReroll,
+    RealmNoPassive,
+    RealmNoPressure,
+    RealmThreeTierPressure,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -144,6 +148,7 @@ pub struct RunRecord {
     pub charges_discarded_at_cap: u16,
     pub bonuses_used: u16,
     pub rerolls_used: u16,
+    pub decision_digest_hex: String,
     pub primary_progress: u8,
     pub secondary_progress: u8,
     pub stars: u8,
@@ -175,10 +180,19 @@ struct Counters {
     rerolls_used: u16,
     max_difficulty: u8,
     tier_actions: [u16; 8],
+    decision_commitment: [u8; 32],
 }
 
 impl Counters {
-    fn observe(&mut self, before_charges: u8, spent: u8, after_charges: u8, report: MoveReport) {
+    fn observe(
+        &mut self,
+        action: ActionKind,
+        before_charges: u8,
+        spent: u8,
+        after_charges: u8,
+        report: MoveReport,
+    ) {
+        self.observe_decision(action);
         let earned = report.harness_charges_earned;
         self.charges_earned = self.charges_earned.saturating_add(u32::from(earned));
         self.charges_spent = self.charges_spent.saturating_add(u16::from(spent));
@@ -190,12 +204,33 @@ impl Counters {
         self.tier_actions[tier] = self.tier_actions[tier].saturating_add(1);
         self.max_difficulty = self.max_difficulty.max(report.difficulty_at_action);
     }
+
+    fn observe_decision(&mut self, action: ActionKind) {
+        let encoded = action.encoded();
+        self.decision_commitment =
+            SoftwareSha256::hashv(&[HARNESS_DECISION_DOMAIN, &self.decision_commitment, &encoded]);
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 enum ActionKind {
-    Move,
-    Bonus,
+    Move { row: u8, start: u8, destination: u8 },
+    Bonus { row: u8, column: u8 },
+    Reroll,
+}
+
+impl ActionKind {
+    const fn encoded(self) -> [u8; 4] {
+        match self {
+            Self::Move {
+                row,
+                start,
+                destination,
+            } => [1, row, start, destination],
+            Self::Bonus { row, column } => [2, row, column, 0],
+            Self::Reroll => [3, 0, 0, 0],
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -418,6 +453,65 @@ fn rules_for_shape(mut rules: DailyRunRules, shape: BonusShape) -> DailyRunRules
             rules.mutator.bonus_threshold = 0;
             rules
         }
+        BonusShape::RealmNoPassive => {
+            rules.mutator.score_multiplier_x100 = 100;
+            rules.mutator.combo_multiplier_x100 = 100;
+            rules.mutator.line_clear_bonus = 0;
+            rules.mutator.perfect_clear_bonus = 0;
+            rules
+        }
+        BonusShape::RealmNoPressure => {
+            let baseline = rules.pressure.block_weights[0];
+            rules.pressure = DailyPressureRules {
+                thresholds: [
+                    u32::MAX - 6,
+                    u32::MAX - 5,
+                    u32::MAX - 4,
+                    u32::MAX - 3,
+                    u32::MAX - 2,
+                    u32::MAX - 1,
+                    u32::MAX,
+                ],
+                score_multipliers_x100: [100; 8],
+                block_weights: [baseline; 8],
+            };
+            rules
+        }
+        BonusShape::RealmThreeTierPressure => {
+            let canonical = rules.pressure;
+            rules.pressure = DailyPressureRules {
+                thresholds: [
+                    canonical.thresholds[1],
+                    canonical.thresholds[3],
+                    u32::MAX - 4,
+                    u32::MAX - 3,
+                    u32::MAX - 2,
+                    u32::MAX - 1,
+                    u32::MAX,
+                ],
+                score_multipliers_x100: [
+                    canonical.score_multipliers_x100[0],
+                    canonical.score_multipliers_x100[3],
+                    canonical.score_multipliers_x100[7],
+                    canonical.score_multipliers_x100[7],
+                    canonical.score_multipliers_x100[7],
+                    canonical.score_multipliers_x100[7],
+                    canonical.score_multipliers_x100[7],
+                    canonical.score_multipliers_x100[7],
+                ],
+                block_weights: [
+                    canonical.block_weights[0],
+                    canonical.block_weights[3],
+                    canonical.block_weights[7],
+                    canonical.block_weights[7],
+                    canonical.block_weights[7],
+                    canonical.block_weights[7],
+                    canonical.block_weights[7],
+                    canonical.block_weights[7],
+                ],
+            };
+            rules
+        }
     }
 }
 
@@ -479,6 +573,7 @@ pub fn run_daily(
         charges_discarded_at_cap: counters.charges_discarded,
         bonuses_used: counters.bonuses_used,
         rerolls_used: counters.rerolls_used,
+        decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
         stars: 0,
@@ -538,6 +633,7 @@ fn play_daily_to_terminal(
             }
             counters.charges_spent = counters.charges_spent.saturating_add(1);
             counters.rerolls_used = counters.rerolls_used.saturating_add(1);
+            counters.observe_decision(ActionKind::Reroll);
             continue;
         }
 
@@ -549,9 +645,10 @@ fn play_daily_to_terminal(
             best_move
         };
         let before_charges = simulation.engine.bonus_charges;
-        let spent = u8::from(matches!(selected.action, ActionKind::Bonus));
+        let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
         simulation = selected.next;
         counters.observe(
+            selected.action,
             before_charges,
             spent,
             simulation.engine.bonus_charges,
@@ -629,9 +726,10 @@ pub fn run_campaign(
                 best_move
             };
         let before_charges = simulation.engine.bonus_charges;
-        let spent = u8::from(matches!(selected.action, ActionKind::Bonus));
+        let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
         simulation = selected.next;
         counters.observe(
+            selected.action,
             before_charges,
             spent,
             simulation.engine.bonus_charges,
@@ -680,6 +778,7 @@ pub fn run_campaign(
         charges_discarded_at_cap: counters.charges_discarded,
         bonuses_used: counters.bonuses_used,
         rerolls_used: 0,
+        decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
         stars: simulation.earned_stars,
@@ -712,7 +811,11 @@ fn daily_move_candidates(
             destination,
         ) {
             candidates.push(DailyCandidate {
-                action: ActionKind::Move,
+                action: ActionKind::Move {
+                    row,
+                    start,
+                    destination,
+                },
                 key: daily_key(model, simulation, &next, report),
                 next,
                 report,
@@ -738,7 +841,7 @@ fn daily_bonus_candidates(
         if let Ok(report) = next.harness_apply_bonus(rules, simulation.action_counter, row, column)
         {
             candidates.push(DailyCandidate {
-                action: ActionKind::Bonus,
+                action: ActionKind::Bonus { row, column },
                 key: daily_key(model, simulation, &next, report),
                 next,
                 report,
@@ -761,7 +864,11 @@ fn campaign_move_candidates(
         {
             report.difficulty_at_action = simulation.current_difficulty;
             candidates.push(CampaignCandidate {
-                action: ActionKind::Move,
+                action: ActionKind::Move {
+                    row,
+                    start,
+                    destination,
+                },
                 key: campaign_key(model, simulation, next, report),
                 next,
                 report,
@@ -785,7 +892,7 @@ fn campaign_bonus_candidates(
         if let Ok(mut report) = next.apply_bonus(config, row, column) {
             report.difficulty_at_action = simulation.current_difficulty;
             candidates.push(CampaignCandidate {
-                action: ActionKind::Bonus,
+                action: ActionKind::Bonus { row, column },
                 key: campaign_key(model, simulation, next, report),
                 next,
                 report,
@@ -1327,6 +1434,13 @@ fn field_draw(seed: u64, day: u32, wallet: u32, purpose: u8) -> u32 {
     u32::from_le_bytes(digest[..4].try_into().expect("four digest bytes")) % 10_000
 }
 
+fn bytes_to_hex(bytes: [u8; 32]) -> String {
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+        output
+    })
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SmokeSummary {
@@ -1407,10 +1521,7 @@ pub fn golden_smoke() -> Result<SmokeSummary, String> {
             .iter()
             .map(|record| u64::from(record.charges_earned_before_cap))
             .sum(),
-        digest_hex: digest.iter().fold(String::new(), |mut output, byte| {
-            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-            output
-        }),
+        digest_hex: bytes_to_hex(digest),
     })
 }
 
@@ -1429,7 +1540,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":360,\"objectiveSum\":96,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"bf7ee5713aef9403c66473680cde0f88347d9f7d121d134e7e31a7c71f245e92\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":360,\"objectiveSum\":96,\"campaignScoreSum\":29,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"b96b76f4bd2917dd14deb7a943efe7f0ce023d1da83b509a77c01bc6f5505697\"}"
         );
     }
 
