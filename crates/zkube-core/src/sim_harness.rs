@@ -119,12 +119,16 @@ pub enum TerminalCause {
     MoveBudget,
     Deadline,
     Abandoned,
+    EngineStall,
 }
 
 /// Run termination is classified in this order: completion, overflow while
 /// inserting the consumed preview, move budget, explicit deadline, abandon.
 /// The order matters because Campaign completion intentionally wins when the
-/// same action both satisfies the level and would otherwise overflow.
+/// same action both satisfies the level and would otherwise overflow. An
+/// `EngineStall` is recorded only when the real transition path leaves a
+/// non-terminal run with no legal next action; it is an observed defect, not a
+/// simulated terminal rule.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunRecord {
@@ -614,11 +618,15 @@ pub fn run_campaign(
     let mut simulation = CampaignSimulation::new(config)?;
     let mut counters = Counters::default();
     let mut last_blocked = false;
+    let mut engine_stalled = false;
 
     while !simulation.is_terminal() && simulation.action_counter < MAX_HARNESS_PLIES {
         let moves = campaign_move_candidates(simulation, config, model);
-        let best_move = choose_campaign(&moves, seed, simulation.action_counter, model)
-            .ok_or(CampaignError::InvalidPhase)?;
+        let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model)
+        else {
+            engine_stalled = true;
+            break;
+        };
         let bonuses = campaign_bonus_candidates(simulation, config, model);
         let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
         let selected =
@@ -642,14 +650,18 @@ pub fn run_campaign(
         last_blocked = selected.report.harness_preview_insertion_blocked;
     }
 
-    if !simulation.is_terminal() {
+    if !simulation.is_terminal() && !engine_stalled {
         simulation.abandon(config)?;
     }
-    let terminal_cause = match simulation.end_reason {
-        Some(CampaignEndReason::Completed) => TerminalCause::Completion,
-        Some(CampaignEndReason::Exhausted) if last_blocked => TerminalCause::Overflow,
-        Some(CampaignEndReason::Exhausted) => TerminalCause::MoveBudget,
-        Some(CampaignEndReason::Abandoned) | None => TerminalCause::Abandoned,
+    let terminal_cause = if engine_stalled {
+        TerminalCause::EngineStall
+    } else {
+        match simulation.end_reason {
+            Some(CampaignEndReason::Completed) => TerminalCause::Completion,
+            Some(CampaignEndReason::Exhausted) if last_blocked => TerminalCause::Overflow,
+            Some(CampaignEndReason::Exhausted) => TerminalCause::MoveBudget,
+            Some(CampaignEndReason::Abandoned) | None => TerminalCause::Abandoned,
+        }
     };
     Ok(RunRecord {
         mode: String::from("campaign"),
@@ -1459,5 +1471,22 @@ mod tests {
             .map(|entry| entry.id)
             .collect::<Vec<_>>();
         assert_eq!(invalid, [4, 6, 8]);
+    }
+
+    #[test]
+    fn campaign_transition_stalls_are_measurement_outcomes() {
+        let mut stalls = 0usize;
+        for level in campaign_catalog() {
+            for model in [
+                PlayerModel::Naive,
+                PlayerModel::LineClearer,
+                PlayerModel::CampaignConstraints,
+            ] {
+                let record = run_campaign(level, model, SeedPartition::Tuning, 1_u64 << 60)
+                    .expect("a transition stall must remain a record, not abort the matrix");
+                stalls += usize::from(record.terminal_cause == TerminalCause::EngineStall);
+            }
+        }
+        assert!(stalls > 0);
     }
 }
