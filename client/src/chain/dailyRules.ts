@@ -1,6 +1,10 @@
 import {
+  DAILY_MAX_MOVES,
   DAILY_POOL_CAPACITY,
   DAILY_POOL_SELECTION_SEED,
+  DAILY_PRESSURE_BLOCK_WEIGHTS,
+  DAILY_PRESSURE_SCORE_MULTIPLIERS_X100,
+  DAILY_PRESSURE_THRESHOLDS,
 } from "./protocolVersions.generated";
 
 export const DAILY_SCORING_RULE_COUNT = 15;
@@ -255,19 +259,12 @@ export const CANONICAL_DAILY_SCORING_RULES: readonly DailyScoringRuleView[] = [
 ] as const;
 
 export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
-  thresholds: [8, 18, 30, 42, 54, 66, 78],
-  scoreMultipliersX100: [100, 110, 125, 140, 160, 180, 210, 250],
-  blockWeights: [
-    [25, 30, 25, 15, 5],
-    [22, 28, 25, 18, 7],
-    [20, 25, 25, 20, 10],
-    [18, 22, 24, 22, 14],
-    [16, 20, 22, 24, 18],
-    [14, 18, 20, 26, 22],
-    [12, 16, 18, 28, 26],
-    [10, 14, 16, 30, 30],
-  ],
-  maxMoves: 100,
+  thresholds: [...DAILY_PRESSURE_THRESHOLDS],
+  scoreMultipliersX100: [...DAILY_PRESSURE_SCORE_MULTIPLIERS_X100],
+  blockWeights: DAILY_PRESSURE_BLOCK_WEIGHTS.map((weights) => [
+    ...weights,
+  ]) as DailyPressureProfileView["blockWeights"],
+  maxMoves: DAILY_MAX_MOVES,
 };
 
 export function mapDailyScoringRule(

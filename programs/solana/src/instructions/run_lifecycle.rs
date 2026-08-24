@@ -1533,7 +1533,10 @@ mod tests {
         assert_eq!((move_run.combo2_hits, move_run.high_combo_hits), (1, 1));
         assert_eq!(move_run.daily_score, 35);
         assert_eq!(move_run.pressure_score, 20);
-        assert_eq!(move_run.current_difficulty, 2);
+        assert_eq!(
+            move_run.current_difficulty,
+            DailyPressureProfile::canonical().difficulty_for_score(move_run.pressure_score)
+        );
         assert_eq!(move_run.current_difficulty, bonus_run.current_difficulty);
         assert_eq!(move_run.daily_bonus_triggers, 1);
         assert_eq!(

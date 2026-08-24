@@ -14,3 +14,7 @@ export const SECONDS_PER_DAY = 86400 as const;
 export const DAILY_POOL_CAPACITY = 128 as const;
 export const DAILY_POOL_SELECTION_SEED = [122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 112, 111, 111, 108, 45, 118, 48, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100] as const;
 export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = 2592000 as const;
+export const DAILY_MAX_MOVES = 100 as const;
+export const DAILY_PRESSURE_THRESHOLDS = [12, 28, 48, 70, 95, 125, 155] as const;
+export const DAILY_PRESSURE_SCORE_MULTIPLIERS_X100 = [100, 110, 125, 140, 160, 180, 210, 250] as const;
+export const DAILY_PRESSURE_BLOCK_WEIGHTS = [[25, 30, 25, 15, 5], [22, 28, 25, 18, 7], [20, 25, 25, 20, 10], [18, 22, 24, 22, 14], [16, 20, 22, 24, 18], [14, 18, 20, 26, 22], [12, 16, 18, 28, 26], [10, 14, 16, 30, 30]] as const;

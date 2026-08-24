@@ -94,7 +94,7 @@ pub use rules::{
     RunError, RunPhase, bonus_trigger_threshold_is_valid, calculate_level_stars,
 };
 pub use simulation::{
-    CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DailyPressureRules, DailyRunRules,
-    DailySimulation, DailySimulationConfig, SimulationError, daily_challenge_rules_hash,
-    daily_challenge_rules_hash_with,
+    CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
+    DailyRunRules, DailySimulation, DailySimulationConfig, SimulationError,
+    daily_challenge_rules_hash, daily_challenge_rules_hash_with,
 };

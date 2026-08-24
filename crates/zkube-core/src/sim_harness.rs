@@ -124,6 +124,7 @@ pub struct RunRecord {
     pub actions: u32,
     pub moves: u16,
     pub engine_score: u32,
+    pub pressure_score: u32,
     pub daily_score: u32,
     pub objective_total: u64,
     pub final_height: u8,
@@ -325,7 +326,7 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
         .map(|(map, scoring_index)| {
             let (family, objective) = daily_objective(scoring_index);
             let rules = DailyRunRules {
-                max_moves: 100,
+                max_moves: crate::DAILY_MAX_MOVES,
                 mutator: MutatorRules {
                     score_multiplier_x100: map.rules[0],
                     combo_multiplier_x100: map.rules[1],
@@ -454,6 +455,7 @@ pub fn run_daily(
         actions: simulation.action_counter,
         moves: simulation.engine.moves,
         engine_score: simulation.engine.score,
+        pressure_score: simulation.pressure_score,
         daily_score: simulation.daily_score,
         objective_total: simulation.objective_total,
         final_height: simulation.engine.grid.occupied_height(),
@@ -643,6 +645,7 @@ pub fn run_campaign(
         actions: simulation.action_counter,
         moves: simulation.engine.moves,
         engine_score: simulation.engine.score,
+        pressure_score: 0,
         daily_score: 0,
         objective_total: 0,
         final_height: simulation.engine.grid.occupied_height(),
@@ -1403,7 +1406,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":150,\"objectiveSum\":46,\"campaignScoreSum\":32,\"completedCampaignRuns\":1,\"chargesEarned\":4,\"digestHex\":\"78dd859cfe4941ee2a0cc771f46dafcfdbff62fade06541849d255f385aeee8c\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":525,\"objectiveSum\":157,\"campaignScoreSum\":32,\"completedCampaignRuns\":1,\"chargesEarned\":14,\"digestHex\":\"2ae76b0e314d27618ca5285eb80d3ec2680c970ba42cc6bd02a0e60e0955323e\"}"
         );
     }
 

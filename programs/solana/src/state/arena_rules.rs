@@ -17,7 +17,7 @@ pub const DAILY_POOL_ENTRY_CAPACITY: usize = zkube_core::DAILY_POOL_CAPACITY;
 /// ahead: the entry count drives both the permutation and the modulus, so a
 /// nearer revision would re-map already-derivable days, including tomorrow.
 pub const DAILY_CATALOG_REVISION_MIN_LEAD_DAYS: u32 = 7;
-pub const DAILY_MAX_MOVES: u16 = 100;
+pub const DAILY_MAX_MOVES: u16 = zkube_core::DAILY_MAX_MOVES;
 
 pub const DAILY_FAMILY_CLASSIC: u8 = 0;
 pub const DAILY_FAMILY_COMBO: u8 = 1;
@@ -133,19 +133,11 @@ impl DailyPoolEntry {
 
 impl DailyPressureProfile {
     pub const fn canonical() -> Self {
+        let pressure = zkube_core::DailyPressureRules::canonical();
         Self {
-            thresholds: [8, 18, 30, 42, 54, 66, 78],
-            score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
-            block_weights: [
-                [25, 30, 25, 15, 5],
-                [22, 28, 25, 18, 7],
-                [20, 25, 25, 20, 10],
-                [18, 22, 24, 22, 14],
-                [16, 20, 22, 24, 18],
-                [14, 18, 20, 26, 22],
-                [12, 16, 18, 28, 26],
-                [10, 14, 16, 30, 30],
-            ],
+            thresholds: pressure.thresholds,
+            score_multipliers_x100: pressure.score_multipliers_x100,
+            block_weights: pressure.block_weights,
             max_moves: DAILY_MAX_MOVES,
         }
     }

@@ -10,6 +10,7 @@ use crate::{
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v2";
 pub const CANONICAL_DAILY_RULES_LEN: usize = 145;
+pub const DAILY_MAX_MOVES: u16 = 100;
 const PRESSURE_TIER_COUNT: usize = 8;
 
 /// The score-driven pressure schedule snapshotted into a Daily run.
@@ -24,7 +25,11 @@ impl DailyPressureRules {
     #[must_use]
     pub const fn canonical() -> Self {
         Self {
-            thresholds: [8, 18, 30, 42, 54, 66, 78],
+            // Balance holdout: 64 seeds per model and entry. Targets for
+            // competent policies are 70-90% overflow, 10-25% tier-7 reach,
+            // and at least 3% of actions in every tier. Measured: 82.08%,
+            // 18.28%, and 4.48% at the narrowest tier.
+            thresholds: [12, 28, 48, 70, 95, 125, 155],
             score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
             block_weights: [
                 [25, 30, 25, 15, 5],
