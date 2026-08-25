@@ -537,6 +537,10 @@ function cloneDailyPressure() {
 }
 
 function canonicalDailyPoolEntries(contentVersion: number) {
+  // Ten is the minimum complete pool: one entry per realm, all seven objective
+  // families, and three alternate family variants. Across 365 real draw days
+  // every entry appears 36-37 times; four cycle-boundary repeats (1.1%) do not
+  // justify authoring padding or adding a repeat-suppression rule.
   const scoringIndexes = [0, 1, 3, 6, 10, 12, 14, 2, 5, 9] as const;
   const entries = Array.from(
     { length: CANONICAL_CAMPAIGN_MAP_COUNT },

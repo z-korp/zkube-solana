@@ -36,7 +36,7 @@ export const LADDER_TIER_THRESHOLDS: readonly bigint[] = [
   1_500n,
   7_000n,
   25_000n,
-  75_000n,
+  35_000n,
 ];
 
 /** Name of a tier index, clamped so an unknown index still renders. */

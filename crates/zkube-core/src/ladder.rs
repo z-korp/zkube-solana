@@ -26,16 +26,19 @@ const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 
 /// Cumulative-point floor of each named tier, ascending.
 ///
-/// Spaced against what the ladder actually pays. A player who qualifies on
-/// both boards every day and never places earns 200 points a day, so the
-/// boundaries below read as about a week, five weeks, four months and one year
-/// of showing up. Anyone who also places arrives sooner.
+/// Spaced against the 365-day field model rather than perfect attendance. The
+/// target is tier one within three months for typical players, tier two within
+/// six months for competent players, tier three within a year for
+/// high-attendance competent players, and the top tier within a year only at
+/// the modeled frontier. The fresh field holdout reached the first three in
+/// 20-141, 89-278, and 312-358 median days respectively; its best wallet ended
+/// at 36,075, just over the 35,000 top-tier floor.
 ///
 /// Still balance rather than systems: the contract is one monotonic total and
 /// a permanent highest tier. They live here rather than in the program because
 /// the program stores a tier and the client displays one, and the two may
 /// never disagree.
-pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 75_000];
+pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 35_000];
 
 /// Number of named tiers.
 pub const LADDER_TIER_COUNT: u8 = {
@@ -143,7 +146,7 @@ mod tests {
         assert_eq!(ladder_tier_for_points(total_after(8)), 1);
         assert_eq!(ladder_tier_for_points(total_after(35)), 2);
         assert_eq!(ladder_tier_for_points(total_after(125)), 3);
-        assert_eq!(ladder_tier_for_points(total_after(375)), 4);
+        assert_eq!(ladder_tier_for_points(total_after(175)), 4);
     }
 
     #[test]

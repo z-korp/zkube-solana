@@ -29,11 +29,13 @@
 //! accounting are integers.
 
 use crate::{
-    Bonus, CampaignEndReason, CampaignError, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint, ConstraintKind, DailyObjective,
-    DailyObjectiveRule, DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig,
-    GRID_HEIGHT, GRID_WIDTH, Grid, MoveReport, MutatorRules, ReplayMode, RulesHash, RunPhase,
-    Sha256Provider, SimulationError, SoftwareSha256, daily_pool_entry_index,
+    ARENA_ENTRY_LAMPORTS, Bonus, CampaignEndReason, CampaignError, CampaignRules,
+    CampaignSimulation, CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint,
+    ConstraintKind, DailyObjective, DailyObjectiveRule, DailyPressureRules, DailyRunRules,
+    DailySimulation, DailySimulationConfig, ENTRY_DAILY_LAMPORTS, GRID_HEIGHT, GRID_WIDTH, Grid,
+    LADDER_QUALIFY_POINTS, LADDER_TIER_POINT_THRESHOLDS, MoveReport, MutatorRules, ReplayMode,
+    RulesHash, RunPhase, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SimulationError, SoftwareSha256,
+    board_width, daily_pool_entry_index, ladder_points, ladder_tier_for_points,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -52,6 +54,18 @@ const HARNESS_DAILY_RULES_DOMAIN: &[u8] = b"zkube-sim-harness-daily-rules-v1";
 const HARNESS_FIELD_DOMAIN: &[u8] = b"zkube-sim-harness-field-v1";
 const DAILY_SCORING_INDEXES: [usize; 10] = [0, 1, 3, 6, 10, 12, 14, 2, 5, 9];
 const MAX_HARNESS_PLIES: u32 = 256;
+const FIELD_LADDER_TIERS: usize = LADDER_TIER_POINT_THRESHOLDS.len();
+
+// Fresh 64-seed holdout starting at index 1024, measured per real Daily run.
+// Score qualification was 93.91%, 100%, 100%, and 100%; non-Classic Theme
+// qualification was 55.21%, 88.19%, 88.54%, and 89.24% for the four field
+// abilities. Mean Score metrics were 21, 257, 267, and 247; Theme means were
+// 6, 58, 61, and 59. The field uses those rounded anchors and independent
+// deterministic variation, then the real board-width and log-rank functions.
+const FIELD_SCORE_QUALIFICATION_BPS: [u16; 4] = [9_391, 10_000, 10_000, 10_000];
+const FIELD_THEME_QUALIFICATION_BPS: [u16; 4] = [5_521, 8_819, 8_854, 8_924];
+const FIELD_SCORE_ANCHORS: [u32; 4] = [21, 257, 267, 247];
+const FIELD_THEME_ANCHORS: [u32; 4] = [6, 58, 61, 59];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -1100,18 +1114,22 @@ pub struct FieldAssumptions {
 }
 
 impl FieldAssumptions {
+    // Pack target: a just-in-time player exercises 1 and 10, a seven-Kredit
+    // reorder exercises 10 and 25, and a ten-Kredit reorder exercises 25. The
+    // 365-day field holdout bought [50,553, 5,790, 0], [0, 20,056, 1,237], and
+    // [0, 0, 16,739] packs in those three scenarios respectively.
     #[must_use]
     pub const fn low_retention() -> Self {
         Self {
             seed: 0x4610,
-            measured_days: 90,
+            measured_days: 365,
             wallets: 2_000,
             ability_mix_bps: [2_500, 3_000, 3_000, 1_500],
             base_attendance_bps: [700, 1_200, 1_500, 1_700],
             streak_response_bps_per_day: 8,
             multi_entry_wallet_bps: 1_000,
             maximum_entries_per_attendance: 3,
-            reorder_target: 5,
+            reorder_target: 0,
         }
     }
 
@@ -1119,7 +1137,7 @@ impl FieldAssumptions {
     pub const fn base() -> Self {
         Self {
             seed: 0x4611,
-            measured_days: 90,
+            measured_days: 365,
             wallets: 2_000,
             ability_mix_bps: [2_000, 3_000, 3_000, 2_000],
             base_attendance_bps: [1_200, 2_000, 2_400, 2_600],
@@ -1134,7 +1152,7 @@ impl FieldAssumptions {
     pub const fn streak_sensitive() -> Self {
         Self {
             seed: 0x4612,
-            measured_days: 90,
+            measured_days: 365,
             wallets: 2_000,
             ability_mix_bps: [1_500, 3_000, 3_000, 2_500],
             base_attendance_bps: [1_800, 2_700, 3_000, 3_200],
@@ -1159,6 +1177,13 @@ pub struct FieldSummary {
     pub pack_purchases: Vec<u64>,
     pub ending_kredits: u64,
     pub longest_streak: u16,
+    pub wallets_by_ability: [u32; 4],
+    pub ending_ladder_tiers_by_ability: [[u32; FIELD_LADDER_TIERS]; 4],
+    /// Median first-reach day among wallets of that ability that reached the
+    /// tier; zero means no wallet reached it in the measured window.
+    pub median_ladder_reach_day_by_ability: [[u16; FIELD_LADDER_TIERS]; 4],
+    pub median_ladder_points_by_ability: [u64; 4],
+    pub top_ladder_points_by_ability: [u64; 4],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -1167,6 +1192,14 @@ struct WalletState {
     balance: u16,
     streak: u16,
     attended_ever: bool,
+    ladder_points: u64,
+    ladder_reach_day: [u16; FIELD_LADDER_TIERS],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct QualifiedWallet {
+    wallet_index: usize,
+    metric: u32,
 }
 
 /// Simulate wallet attendance and Kredit reorders without assigning unbacked
@@ -1215,8 +1248,21 @@ pub fn simulate_field(
     let mut wallet_days = [0u64; 4];
     let mut pack_purchases = vec![0u64; pack_sizes.len()];
     let mut longest_streak = 0u16;
+    let daily_entries = daily_catalog();
+    let entry_count = u8::try_from(daily_entries.len())
+        .map_err(|_| String::from("Daily field catalog exceeds u8"))?;
+    let mut current_daily_pot = 0u64;
 
     for day in 0..=u32::from(assumptions.measured_days) {
+        let entry_index = usize::from(
+            daily_pool_entry_index(0, day, entry_count)
+                .map_err(|error| format!("field draw failed: {error:?}"))?,
+        );
+        let classic =
+            daily_entries[entry_index].rules.objective.objective == DailyObjective::Classic;
+        let mut score_qualified = Vec::new();
+        let mut theme_qualified = Vec::new();
+        let mut next_daily_pot = 0u64;
         for (wallet_id, wallet) in (0..assumptions.wallets).zip(wallets.iter_mut()) {
             let attendance = u32::from(assumptions.base_attendance_bps[wallet.ability])
                 .saturating_add(
@@ -1259,6 +1305,13 @@ pub fn simulate_field(
                 }
             }
             wallet.balance = wallet.balance.saturating_sub(entries);
+            next_daily_pot = next_daily_pot
+                .checked_add(
+                    u64::from(entries)
+                        .checked_mul(ENTRY_DAILY_LAMPORTS)
+                        .ok_or_else(|| String::from("field contribution overflow"))?,
+                )
+                .ok_or_else(|| String::from("field pot overflow"))?;
             if day == 0 {
                 warmup_entries = warmup_entries.saturating_add(u32::from(entries));
             } else {
@@ -1266,7 +1319,84 @@ pub fn simulate_field(
                 entries_by_ability[wallet.ability] =
                     entries_by_ability[wallet.ability].saturating_add(u64::from(entries));
                 wallet_days[wallet.ability] = wallet_days[wallet.ability].saturating_add(1);
+                let wallet_index = usize::try_from(wallet_id)
+                    .map_err(|_| String::from("wallet index exceeds usize"))?;
+                if let Some(metric) = field_best_metric(
+                    assumptions.seed,
+                    day,
+                    wallet_id,
+                    entries,
+                    FIELD_SCORE_QUALIFICATION_BPS[wallet.ability],
+                    FIELD_SCORE_ANCHORS[wallet.ability],
+                    16,
+                ) {
+                    score_qualified.push(QualifiedWallet {
+                        wallet_index,
+                        metric,
+                    });
+                }
+                if !classic {
+                    if let Some(metric) = field_best_metric(
+                        assumptions.seed,
+                        day,
+                        wallet_id,
+                        entries,
+                        FIELD_THEME_QUALIFICATION_BPS[wallet.ability],
+                        FIELD_THEME_ANCHORS[wallet.ability],
+                        32,
+                    ) {
+                        theme_qualified.push(QualifiedWallet {
+                            wallet_index,
+                            metric,
+                        });
+                    }
+                }
             }
+        }
+        if day > 0 {
+            let score_pool = if classic {
+                current_daily_pot
+            } else {
+                current_daily_pot / 2
+            };
+            let theme_pool = current_daily_pot.saturating_sub(score_pool);
+            award_field_ladder_board(day, score_pool, &mut score_qualified, &mut wallets)?;
+            award_field_ladder_board(day, theme_pool, &mut theme_qualified, &mut wallets)?;
+        }
+        current_daily_pot = next_daily_pot;
+    }
+    let mut wallets_by_ability = [0u32; 4];
+    let mut ending_ladder_tiers_by_ability = [[0u32; FIELD_LADDER_TIERS]; 4];
+    let mut ladder_points_by_ability: [Vec<u64>; 4] = core::array::from_fn(|_| Vec::new());
+    let mut ladder_days_by_ability: [[Vec<u16>; FIELD_LADDER_TIERS]; 4] =
+        core::array::from_fn(|_| core::array::from_fn(|_| Vec::new()));
+    for wallet in &wallets {
+        wallets_by_ability[wallet.ability] = wallets_by_ability[wallet.ability].saturating_add(1);
+        let tier = usize::from(ladder_tier_for_points(wallet.ladder_points));
+        ending_ladder_tiers_by_ability[wallet.ability][tier] =
+            ending_ladder_tiers_by_ability[wallet.ability][tier].saturating_add(1);
+        ladder_points_by_ability[wallet.ability].push(wallet.ladder_points);
+        for (tier, day) in wallet.ladder_reach_day.iter().copied().enumerate().skip(1) {
+            if day > 0 {
+                ladder_days_by_ability[wallet.ability][tier].push(day);
+            }
+        }
+    }
+    let mut median_ladder_reach_day_by_ability = [[0u16; FIELD_LADDER_TIERS]; 4];
+    let mut median_ladder_points_by_ability = [0u64; 4];
+    let mut top_ladder_points_by_ability = [0u64; 4];
+    for ability in 0..4 {
+        ladder_points_by_ability[ability].sort_unstable();
+        median_ladder_points_by_ability[ability] =
+            median(&ladder_points_by_ability[ability]).unwrap_or(0);
+        top_ladder_points_by_ability[ability] = ladder_points_by_ability[ability]
+            .last()
+            .copied()
+            .unwrap_or(0);
+        for tier in 1..FIELD_LADDER_TIERS {
+            ladder_days_by_ability[ability][tier].sort_unstable();
+            median_ladder_reach_day_by_ability[ability][tier] =
+                median(&ladder_days_by_ability[ability][tier]).unwrap_or(0);
         }
     }
     Ok(FieldSummary {
@@ -1283,7 +1413,105 @@ pub fn simulate_field(
         pack_purchases,
         ending_kredits: wallets.iter().map(|wallet| u64::from(wallet.balance)).sum(),
         longest_streak,
+        wallets_by_ability,
+        ending_ladder_tiers_by_ability,
+        median_ladder_reach_day_by_ability,
+        median_ladder_points_by_ability,
+        top_ladder_points_by_ability,
     })
+}
+
+fn field_best_metric(
+    seed: u64,
+    day: u32,
+    wallet: u32,
+    entries: u16,
+    qualification_bps: u16,
+    anchor: u32,
+    purpose_base: u8,
+) -> Option<u32> {
+    let mut best = None;
+    for attempt in 0..u8::try_from(entries).ok()? {
+        let purpose = purpose_base.checked_add(attempt.checked_mul(2)?)?;
+        if field_draw(seed, day, wallet, purpose) >= u32::from(qualification_bps) {
+            continue;
+        }
+        let variation = field_draw(seed, day, wallet, purpose.checked_add(1)?);
+        best = Some(
+            best.unwrap_or(0)
+                .max(anchor.saturating_mul(100) + variation),
+        );
+    }
+    best
+}
+
+fn award_field_ladder_board(
+    day: u32,
+    pool: u64,
+    qualified: &mut [QualifiedWallet],
+    wallets: &mut [WalletState],
+) -> Result<(), String> {
+    let qualified_count = u32::try_from(qualified.len())
+        .map_err(|_| String::from("field qualified count exceeds u32"))?;
+    if qualified_count == 0 {
+        return Ok(());
+    }
+    qualified.sort_unstable_by(|left, right| {
+        right
+            .metric
+            .cmp(&left.metric)
+            .then_with(|| left.wallet_index.cmp(&right.wallet_index))
+    });
+    for row in qualified.iter() {
+        record_field_ladder_points(
+            &mut wallets[row.wallet_index],
+            u64::from(LADDER_QUALIFY_POINTS),
+            day,
+        )?;
+    }
+    let width = board_width(
+        pool,
+        qualified_count,
+        ARENA_ENTRY_LAMPORTS,
+        SOL_PAYOUT_UNIT_LAMPORTS,
+    )
+    .map_err(|error| format!("field board width failed: {error:?}"))?;
+    let winner_count = usize::try_from(width.winner_count)
+        .map_err(|_| String::from("field winner count exceeds usize"))?;
+    for (index, row) in qualified[..winner_count].iter().enumerate() {
+        let rank = u32::try_from(index + 1).map_err(|_| String::from("field rank exceeds u32"))?;
+        let points = ladder_points(qualified_count, rank)
+            .map_err(|error| format!("field ladder points failed: {error:?}"))?;
+        record_field_ladder_points(&mut wallets[row.wallet_index], u64::from(points), day)?;
+    }
+    Ok(())
+}
+
+fn record_field_ladder_points(
+    wallet: &mut WalletState,
+    points: u64,
+    day: u32,
+) -> Result<(), String> {
+    wallet.ladder_points = wallet
+        .ladder_points
+        .checked_add(points)
+        .ok_or_else(|| String::from("field ladder points overflow"))?;
+    let day = u16::try_from(day).map_err(|_| String::from("field day exceeds u16"))?;
+    for (tier, threshold) in LADDER_TIER_POINT_THRESHOLDS
+        .iter()
+        .copied()
+        .enumerate()
+        .skip(1)
+    {
+        if wallet.ladder_reach_day[tier] == 0 && wallet.ladder_points >= threshold {
+            wallet.ladder_reach_day[tier] = day;
+        }
+    }
+    Ok(())
+}
+
+fn median<T: Copy>(sorted: &[T]) -> Option<T> {
+    sorted.get(sorted.len() / 2).copied()
 }
 
 fn field_ability(assumptions: FieldAssumptions, wallet: u32) -> usize {
@@ -1431,6 +1659,31 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.warmup_entries > 0);
         assert!(first.measured_entries > u64::from(first.unique_attending_wallets));
+    }
+
+    #[test]
+    fn field_model_keeps_packs_useful_and_the_ladder_climbable() {
+        let low = simulate_field(FieldAssumptions::low_retention(), &[1, 10, 25]).unwrap();
+        let base = simulate_field(FieldAssumptions::base(), &[1, 10, 25]).unwrap();
+        let high = simulate_field(FieldAssumptions::streak_sensitive(), &[1, 10, 25]).unwrap();
+        for pack in 0..3 {
+            assert!(
+                low.pack_purchases[pack] + base.pack_purchases[pack] + high.pack_purchases[pack]
+                    > 0
+            );
+        }
+
+        // Base-attendance naive players reach tier one within three months;
+        // every competent base cohort reaches tier two within six. Under high
+        // attendance every competent cohort reaches tier three within a year,
+        // while only the Daily-score frontier reaches the top tier.
+        assert!(base.median_ladder_reach_day_by_ability[0][1] <= 90);
+        for ability in 1..4 {
+            assert!(base.median_ladder_reach_day_by_ability[ability][2] <= 180);
+            assert!(high.median_ladder_reach_day_by_ability[ability][3] <= 365);
+        }
+        assert!(high.ending_ladder_tiers_by_ability[2][4] > 0);
+        assert!(high.median_ladder_reach_day_by_ability[2][4] <= 365);
     }
 
     #[test]
