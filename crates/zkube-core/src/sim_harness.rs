@@ -16,8 +16,10 @@
 //!   height, neutral engine points, and destroyed blocks.
 //! - `DailyScore` maximizes the exact one-ply change in `daily_score`, then
 //!   lines, lower height, and theme score.
-//! - `Theme` maximizes the exact one-ply change in `objective_total`, then
-//!   Daily score, lines, and lower height.
+//! - `Theme` maximizes the exact one-ply change in `objective_total`. On the
+//!   three-line objectives, it preserves a dense, non-terminal setup instead
+//!   of cashing a sub-threshold clear; other objectives use Daily score,
+//!   lines, and lower height as tie-breakers.
 //! - `CampaignConstraints` maximizes completion, primary and secondary
 //!   progress, engine score, lines, then lower height.
 //!
@@ -869,7 +871,7 @@ fn daily_move_candidates(
                     start,
                     destination,
                 },
-                key: daily_key(model, simulation, &next, report),
+                key: daily_key(model, rules.objective.objective, simulation, &next, report),
                 next,
                 report,
             });
@@ -892,7 +894,7 @@ fn daily_bonus_candidates(
         if let Ok(report) = next.apply_bonus(rules, simulation.action_counter, row, column) {
             candidates.push(DailyCandidate {
                 action: ActionKind::Bonus { row, column },
-                key: daily_key(model, simulation, &next, report),
+                key: daily_key(model, rules.objective.objective, simulation, &next, report),
                 next,
                 report,
             });
@@ -1000,6 +1002,7 @@ fn occupied_coordinates(grid: Grid) -> Vec<(u8, u8)> {
 
 fn daily_key(
     model: PlayerModel,
+    objective: DailyObjective,
     before: &DailySimulation,
     after: &DailySimulation,
     report: MoveReport,
@@ -1035,17 +1038,59 @@ fn daily_key(
             0,
             0,
         ],
-        PlayerModel::Theme => [
-            theme_delta,
-            daily_delta,
-            i64::from(report.lines_cleared),
-            lower_height,
-            i64::from(report.perfect_clear),
-            destroyed,
-            0,
-            0,
-        ],
+        PlayerModel::Theme => theme_key(objective, after, report, theme_delta, daily_delta),
     }
+}
+
+fn theme_key(
+    objective: DailyObjective,
+    after: &DailySimulation,
+    report: MoveReport,
+    theme_delta: i64,
+    daily_delta: i64,
+) -> [i64; 8] {
+    if matches!(
+        objective,
+        DailyObjective::Combo { minimum_lines: 3 } | DailyObjective::ExactLines { lines: 3 }
+    ) {
+        // A one- or two-line clear pays no Theme points here and destroys the
+        // dense stack from which a three-line cascade is made. The old generic
+        // Daily-score tie-break preferred that immediate score, so Theme never
+        // built the state its own threshold required. Keep the run alive,
+        // defer sub-threshold clears, then retain cells until a scoring action
+        // is available.
+        let occupied_cells = after
+            .engine
+            .grid
+            .cells()
+            .iter()
+            .filter(|cell| **cell != 0)
+            .count();
+        return [
+            theme_delta,
+            i64::from(!report.preview_insertion_blocked),
+            -i64::from(report.lines_cleared),
+            i64::try_from(occupied_cells).expect("the fixed grid size fits i64"),
+            daily_delta,
+            -i64::from(report.height_after),
+            i64::from(report.perfect_clear),
+            0,
+        ];
+    }
+    [
+        theme_delta,
+        daily_delta,
+        i64::from(report.lines_cleared),
+        -i64::from(report.height_after),
+        i64::from(report.perfect_clear),
+        report
+            .blocks_destroyed_by_size
+            .into_iter()
+            .map(i64::from)
+            .sum(),
+        0,
+        0,
+    ]
 }
 
 fn campaign_key(
@@ -1883,6 +1928,8 @@ pub fn golden_smoke() -> Result<SmokeSummary, String> {
 mod tests {
     use super::*;
 
+    const HOLDOUT_SEED_PREFIX: u64 = 0x9000_0000_0000_0000;
+
     #[test]
     fn golden_smoke_uses_both_real_simulations() {
         let summary = golden_smoke().unwrap();
@@ -1972,6 +2019,34 @@ mod tests {
             );
             assert!(record.reroll_granted_events.is_empty());
             assert!(record.reroll_grant_discarded_events.is_empty());
+        }
+    }
+
+    #[test]
+    fn theme_policy_qualifies_on_every_non_classic_entry() {
+        const RUNS: u64 = 32;
+        const START: u64 = 1_024;
+
+        for entry in daily_catalog()
+            .into_iter()
+            .filter(|entry| entry.rules.objective.objective != DailyObjective::Classic)
+        {
+            let qualified = (START..START + RUNS)
+                .filter(|seed_index| {
+                    run_daily(
+                        entry,
+                        PlayerModel::Theme,
+                        SeedPartition::Holdout,
+                        HOLDOUT_SEED_PREFIX | seed_index,
+                    )
+                    .is_ok_and(|record| record.objective_total > 0)
+                })
+                .count();
+            assert!(
+                qualified * 10 >= usize::try_from(RUNS).unwrap() * 9,
+                "Daily entry {} qualified on Theme in {qualified}/{RUNS} holdout runs",
+                entry.id
+            );
         }
     }
 
