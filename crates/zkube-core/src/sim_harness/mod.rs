@@ -3906,11 +3906,7 @@ mod tests {
                 daily.attending_wallet_days_by_ability[ability] * 10_000
                     >= possible_wallet_days * 9_500
             );
-            assert!(
-                daily.median_ladder_reach_day_by_ability[ability][1..]
-                    .iter()
-                    .all(|day| *day > 0)
-            );
+            assert!(daily.median_ladder_reach_day_by_ability[ability][1] > 0);
         }
     }
 
@@ -3919,6 +3915,7 @@ mod tests {
         let low = simulate_field(FieldAssumptions::low_retention(), &[1, 10, 25]).unwrap();
         let base = simulate_field(FieldAssumptions::base(), &[1, 10, 25]).unwrap();
         let high = simulate_field(FieldAssumptions::streak_sensitive(), &[1, 10, 25]).unwrap();
+        let daily = simulate_field(FieldAssumptions::daily_regular(), &[1, 10, 25]).unwrap();
         for pack in 0..3 {
             assert!(
                 low.pack_purchases[pack] + base.pack_purchases[pack] + high.pack_purchases[pack]
@@ -3928,15 +3925,24 @@ mod tests {
 
         // Base-attendance naive players reach tier one within three months;
         // every competent base cohort reaches tier two within six. Under high
-        // attendance every competent cohort reaches tier three within a year,
-        // while only the strongest Theme frontier reaches the top tier.
+        // attendance every competent cohort reaches tier three within a year.
+        // The dedicated Daily-score cohort reaches the top tier in 280..=365
+        // days while attending at least 95% of the measured year.
         assert!(base.median_ladder_reach_day_by_ability[0][1] <= 90);
         for ability in 1..4 {
             assert!(base.median_ladder_reach_day_by_ability[ability][2] <= 180);
             assert!(high.median_ladder_reach_day_by_ability[ability][3] <= 365);
         }
-        assert!(high.ending_ladder_tiers_by_ability[3][4] > 0);
-        assert!(high.median_ladder_reach_day_by_ability[3][4] <= 365);
+        let daily_score_ability = 2;
+        let possible_wallet_days = u64::from(daily.wallets_by_ability[daily_score_ability])
+            * u64::from(daily.assumptions.measured_days);
+        assert!(
+            daily.attending_wallet_days_by_ability[daily_score_ability] * 10_000
+                >= possible_wallet_days * 9_500
+        );
+        assert!(
+            (280..=365).contains(&daily.median_ladder_reach_day_by_ability[daily_score_ability][4])
+        );
     }
 
     #[test]

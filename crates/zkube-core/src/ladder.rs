@@ -28,17 +28,16 @@ const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 ///
 /// Spaced against the 365-day field model rather than perfect attendance. The
 /// target is tier one within three months for typical players, tier two within
-/// six months for competent players, tier three within a year for
-/// high-attendance competent players, and the top tier within a year only at
-/// the modeled frontier. The fresh field holdout reached the first three in
-/// 20-141, 89-278, and 312-358 median days respectively; its best wallet ended
-/// at 36,075, just over the 35,000 top-tier floor.
+/// six months for competent players, and tier three within a year for
+/// high-attendance competent players. The top tier is calibrated separately
+/// against the single-entry Daily-score cohort: its field holdout reaches the
+/// 60,000-point floor on median day 307 at 96.0% measured attendance.
 ///
 /// Still balance rather than systems: the contract is one monotonic total and
 /// a permanent highest tier. They live here rather than in the program because
 /// the program stores a tier and the client displays one, and the two may
 /// never disagree.
-pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 35_000];
+pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 60_000];
 
 /// Number of named tiers.
 pub const LADDER_TIER_COUNT: u8 = {
@@ -146,7 +145,8 @@ mod tests {
         assert_eq!(ladder_tier_for_points(total_after(8)), 1);
         assert_eq!(ladder_tier_for_points(total_after(35)), 2);
         assert_eq!(ladder_tier_for_points(total_after(125)), 3);
-        assert_eq!(ladder_tier_for_points(total_after(175)), 4);
+        assert_eq!(ladder_tier_for_points(total_after(299)), 3);
+        assert_eq!(ladder_tier_for_points(total_after(300)), 4);
     }
 
     #[test]

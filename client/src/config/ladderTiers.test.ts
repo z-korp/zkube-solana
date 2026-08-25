@@ -41,7 +41,8 @@ describe("ladder tiers", () => {
       6_999n,
       7_000n,
       24_999n,
-      35_000n,
+      59_999n,
+      60_000n,
       10n ** 9n,
     ];
     for (const points of totals) {
