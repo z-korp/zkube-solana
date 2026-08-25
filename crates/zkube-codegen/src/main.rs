@@ -196,14 +196,9 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
             }
             if level_index > 0 {
                 let previous = map.levels[level_index - 1];
-                let move_budget_did_not_tighten = if level_index == 9 {
-                    level.1 > previous.1
-                } else {
-                    level.1 >= previous.1
-                };
-                if level.0 <= previous.0 || move_budget_did_not_tighten || level.2 < previous.2 {
+                if level.0 <= previous.0 || level.2 < previous.2 {
                     return Err(format!(
-                        "map {} level {} must raise score, tighten moves, and preserve difficulty",
+                        "map {} level {} must raise score and preserve difficulty",
                         map.map_id,
                         level_index + 1
                     ));
@@ -357,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_curve_guards_reject_flat_authored_data() {
+    fn campaign_structure_keeps_weight_divergence_without_a_move_trajectory() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         catalog.difficulty_weights[1] = catalog.difficulty_weights[0];
@@ -369,10 +364,6 @@ mod tests {
 
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         catalog.maps[0].levels[1].1 = catalog.maps[0].levels[0].1;
-        assert!(
-            validate_catalog(&catalog)
-                .unwrap_err()
-                .contains("must raise score, tighten moves, and preserve difficulty")
-        );
+        validate_catalog(&catalog).unwrap();
     }
 }
