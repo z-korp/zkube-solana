@@ -90,6 +90,7 @@ fn run() -> Result<String, String> {
                 FieldAssumptions::low_retention(),
                 FieldAssumptions::base(),
                 FieldAssumptions::streak_sensitive(),
+                FieldAssumptions::daily_regular(),
             ] {
                 summaries.push(simulate_field(assumptions, &[1, 10, 25])?);
             }

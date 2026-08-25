@@ -2866,6 +2866,24 @@ impl FieldAssumptions {
             reorder_target: 10,
         }
     }
+
+    /// One paid entry on at least 95% of days, across the same ability mix as
+    /// the base field. The 96% probability keeps the measured cohort above
+    /// that floor without making perfect attendance an assumption.
+    #[must_use]
+    pub const fn daily_regular() -> Self {
+        Self {
+            seed: 0x4613,
+            measured_days: 365,
+            wallets: 2_000,
+            ability_mix_bps: [2_000, 3_000, 3_000, 2_000],
+            base_attendance_bps: [9_600; 4],
+            streak_response_bps_per_day: 0,
+            multi_entry_wallet_bps: 0,
+            maximum_entries_per_attendance: 1,
+            reorder_target: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -3876,6 +3894,24 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.warmup_entries > 0);
         assert!(first.measured_entries > u64::from(first.unique_attending_wallets));
+    }
+
+    #[test]
+    fn daily_regular_reports_a_high_attendance_tier_walk() {
+        let daily = simulate_field(FieldAssumptions::daily_regular(), &[1, 10, 25]).unwrap();
+        for ability in 0..4 {
+            let possible_wallet_days = u64::from(daily.wallets_by_ability[ability])
+                * u64::from(daily.assumptions.measured_days);
+            assert!(
+                daily.attending_wallet_days_by_ability[ability] * 10_000
+                    >= possible_wallet_days * 9_500
+            );
+            assert!(
+                daily.median_ladder_reach_day_by_ability[ability][1..]
+                    .iter()
+                    .all(|day| *day > 0)
+            );
+        }
     }
 
     #[test]
