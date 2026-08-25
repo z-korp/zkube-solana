@@ -65,6 +65,7 @@ validate_program() {
   # The balance harness is feature-gated so the program never links it, but it
   # is still gated code: compile, lint, and run it with every pass.
   NO_DNA=1 cargo test --workspace --features zkube-core/sim-harness
+  NO_DNA=1 cargo run -p zkube-core --features sim-harness --bin zkube-sim -- gate
   NO_DNA=1 cargo clippy --workspace --all-targets --features zkube-core/sim-harness -- -D warnings
   validate_sbf
 }
@@ -84,6 +85,11 @@ validate_frontend() {
   NO_DNA=1 pnpm run lint
 }
 
+validate_harness_full() {
+  cd "$root"
+  NO_DNA=1 cargo run -p zkube-core --features sim-harness --bin zkube-sim -- assert 32 1024
+}
+
 validate_documentation_layout
 
 case "$scope" in
@@ -96,12 +102,15 @@ case "$scope" in
   frontend)
     validate_frontend
     ;;
+  harness-full)
+    validate_harness_full
+    ;;
   all)
     validate_program
     validate_frontend
     ;;
   *)
-    echo "usage: $0 [program|program-sbf|frontend|all]" >&2
+    echo "usage: $0 [program|program-sbf|frontend|harness-full|all]" >&2
     exit 2
     ;;
 esac

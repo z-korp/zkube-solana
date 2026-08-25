@@ -32,6 +32,7 @@
 //! clears no line and raises occupied height. All policy values and field-model
 //! accounting are integers.
 
+pub mod assertions;
 pub mod bands;
 
 use self::bands::{
@@ -113,6 +114,8 @@ pub enum PlayerModel {
     PlannerCasual,
     PlannerStrongTheme,
     PlannerStrongCombo,
+    /// Reduced-budget strong policy used only by the eight-seed gate.
+    PlannerGate,
 }
 
 impl PlayerModel {
@@ -127,6 +130,7 @@ impl PlayerModel {
             Self::PlannerCasual => 6,
             Self::PlannerStrongTheme => 7,
             Self::PlannerStrongCombo => 8,
+            Self::PlannerGate => 9,
         }
     }
 
@@ -147,6 +151,10 @@ impl PlayerModel {
             Self::PlannerStrongCombo => Some(PlannerSpec {
                 budget: PLANNER_STRONG,
                 value: PlannerValue::CampaignCombo,
+            }),
+            Self::PlannerGate => Some(PlannerSpec {
+                budget: bands::PLANNER_GATE,
+                value: PlannerValue::Default,
             }),
             Self::Naive
             | Self::LineClearer
@@ -1719,7 +1727,8 @@ fn daily_key(
         PlayerModel::DailyScore
         | PlayerModel::PlannerStrong
         | PlayerModel::PlannerCasual
-        | PlayerModel::PlannerStrongCombo => [
+        | PlayerModel::PlannerStrongCombo
+        | PlayerModel::PlannerGate => [
             daily_delta,
             i64::from(report.lines_cleared),
             lower_height,
@@ -1831,7 +1840,8 @@ fn campaign_key(
         | PlayerModel::PlannerStrong
         | PlayerModel::PlannerCasual
         | PlayerModel::PlannerStrongTheme
-        | PlayerModel::PlannerStrongCombo => [
+        | PlayerModel::PlannerStrongCombo
+        | PlayerModel::PlannerGate => [
             i64::from(report.lines_cleared),
             i64::from(report.perfect_clear),
             -i64::from(report.height_after),
@@ -3476,34 +3486,6 @@ mod tests {
             );
             assert!(record.reroll_granted_events.is_empty());
             assert!(record.reroll_grant_discarded_events.is_empty());
-        }
-    }
-
-    #[test]
-    fn theme_policy_qualifies_on_every_non_classic_entry() {
-        const RUNS: u64 = 32;
-        const START: u64 = 1_024;
-
-        for entry in daily_catalog()
-            .into_iter()
-            .filter(|entry| entry.rules.objective.objective != DailyObjective::Classic)
-        {
-            let qualified = (START..START + RUNS)
-                .filter(|seed_index| {
-                    run_daily(
-                        entry,
-                        PlayerModel::Theme,
-                        SeedPartition::Holdout,
-                        HOLDOUT_SEED_PREFIX | seed_index,
-                    )
-                    .is_ok_and(|record| record.objective_total > 0)
-                })
-                .count();
-            assert!(
-                qualified * 10 >= usize::try_from(RUNS).unwrap() * 9,
-                "Daily entry {} qualified on Theme in {qualified}/{RUNS} holdout runs",
-                entry.id
-            );
         }
     }
 

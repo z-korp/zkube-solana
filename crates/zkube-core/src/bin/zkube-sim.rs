@@ -1,9 +1,11 @@
 use std::{env, process::ExitCode};
 
+use zkube_core::sim_harness::bands::ACCEPTANCE_PLANNER_SEEDS;
 use zkube_core::sim_harness::{
     FieldAssumptions, PlayerModel, SeedPartition, campaign_catalog, daily_catalog, draw_summary,
     golden_smoke, run_campaign, run_daily, simulate_field,
 };
+use zkube_core::sim_harness::{assertions::acceptance_report, assertions::gate_report};
 
 fn main() -> ExitCode {
     match run() {
@@ -93,10 +95,36 @@ fn run() -> Result<String, String> {
             }
             serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
         }
+        Some("gate") => {
+            let report = gate_report()?;
+            let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+            if report.passed { Ok(json) } else { Err(json) }
+        }
+        Some("assert") => {
+            let seeds = parse_assertion_seeds(args.get(2))?;
+            let seed_start = parse_seed_start(args.get(3), u64::from(seeds))?;
+            let report = acceptance_report(seeds, seed_start)?;
+            let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+            if report.passed { Ok(json) } else { Err(json) }
+        }
         Some(command) => Err(format!(
-            "unknown command {command:?}; use smoke, daily [seeds] [seed-start], campaign [seeds] [seed-start], draw, or field"
+            "unknown command {command:?}; use smoke, daily [seeds] [seed-start], campaign [seeds] [seed-start], draw, field, gate, or assert [seeds] [seed-start]"
         )),
     }
+}
+
+fn parse_assertion_seeds(value: Option<&String>) -> Result<u32, String> {
+    value.map_or(Ok(ACCEPTANCE_PLANNER_SEEDS), |raw| {
+        raw.parse::<u32>()
+            .map_err(|error| format!("invalid assertion seed count: {error}"))
+            .and_then(|value| {
+                if value == 0 {
+                    Err(String::from("assertion seed count must be positive"))
+                } else {
+                    Ok(value)
+                }
+            })
+    })
 }
 
 fn parse_seeds(value: Option<&String>) -> Result<u64, String> {
