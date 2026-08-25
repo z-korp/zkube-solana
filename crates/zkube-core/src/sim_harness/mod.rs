@@ -978,6 +978,99 @@ pub fn run_campaign(
     })
 }
 
+/// Paired success measurement for one authored level at tier N and N+1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairedTierSummary {
+    pub catalog_id: u16,
+    pub model: PlayerModel,
+    pub partition: SeedPartition,
+    pub seed_start: u64,
+    pub seeds: u32,
+    pub base_tier: u8,
+    pub raised_tier: u8,
+    pub base_successes: u32,
+    pub raised_successes: u32,
+    pub base_engine_stalls: u32,
+    pub raised_engine_stalls: u32,
+    pub base_success_rate_bps: u32,
+    pub raised_success_rate_bps: u32,
+    /// Raised-tier rate minus base-tier rate. A harder next tier is negative.
+    pub success_rate_delta_bps: i32,
+}
+
+/// Run a level at its authored tier and the adjacent harder tier over the same
+/// seed indexes. The raw randomness inputs are identical in each pair; only
+/// the block weights selected by `level_difficulty` change.
+///
+/// # Errors
+///
+/// Rejects an empty sample, a tier-seven level, seed overflow, or a Campaign
+/// transition error.
+pub fn paired_tier_summary(
+    level: CampaignCatalogLevel,
+    model: PlayerModel,
+    partition: SeedPartition,
+    seed_start: u64,
+    seeds: u32,
+) -> Result<PairedTierSummary, String> {
+    if seeds == 0 {
+        return Err(String::from("paired-tier sample must not be empty"));
+    }
+    if level.rules.level_difficulty >= 7 {
+        return Err(String::from("paired-tier level must be below tier seven"));
+    }
+    let mut raised = level;
+    raised.rules.level_difficulty = raised.rules.level_difficulty.saturating_add(1);
+    let mut base_successes = 0u32;
+    let mut raised_successes = 0u32;
+    let mut base_engine_stalls = 0u32;
+    let mut raised_engine_stalls = 0u32;
+    for offset in 0..seeds {
+        let seed = seed_start
+            .checked_add(u64::from(offset))
+            .ok_or_else(|| String::from("paired-tier seed range overflow"))?;
+        let base_record = run_campaign(level, model, partition, seed)
+            .map_err(|error| format!("base-tier Campaign failed: {error:?}"))?;
+        let raised_record = run_campaign(raised, model, partition, seed)
+            .map_err(|error| format!("raised-tier Campaign failed: {error:?}"))?;
+        base_successes = base_successes.saturating_add(u32::from(base_record.earned_stars > 0));
+        raised_successes =
+            raised_successes.saturating_add(u32::from(raised_record.earned_stars > 0));
+        base_engine_stalls = base_engine_stalls.saturating_add(u32::from(
+            base_record.terminal_cause == TerminalCause::EngineStall,
+        ));
+        raised_engine_stalls = raised_engine_stalls.saturating_add(u32::from(
+            raised_record.terminal_cause == TerminalCause::EngineStall,
+        ));
+    }
+    let base_success_rate_bps = rate_bps(base_successes, seeds);
+    let raised_success_rate_bps = rate_bps(raised_successes, seeds);
+    let success_rate_delta_bps =
+        i32::try_from(i64::from(raised_success_rate_bps) - i64::from(base_success_rate_bps))
+            .map_err(|_| String::from("paired-tier rate delta overflow"))?;
+    Ok(PairedTierSummary {
+        catalog_id: level.catalog_id,
+        model,
+        partition,
+        seed_start,
+        seeds,
+        base_tier: level.rules.level_difficulty,
+        raised_tier: raised.rules.level_difficulty,
+        base_successes,
+        raised_successes,
+        base_engine_stalls,
+        raised_engine_stalls,
+        base_success_rate_bps,
+        raised_success_rate_bps,
+        success_rate_delta_bps,
+    })
+}
+
+fn rate_bps(hits: u32, samples: u32) -> u32 {
+    u32::try_from(u64::from(hits).saturating_mul(10_000) / u64::from(samples)).unwrap_or(u32::MAX)
+}
+
 fn campaign_simulation_config(
     level: CampaignCatalogLevel,
     partition: SeedPartition,
@@ -3398,6 +3491,81 @@ mod tests {
             assert!(record.actions > 0);
             assert_ne!(record.decision_digest_hex, bytes_to_hex([0; 32]));
         }
+    }
+
+    #[test]
+    fn paired_tier_runner_changes_only_the_weight_tier_for_each_seed() {
+        let level = campaign_catalog()[0];
+        let mut raised = level;
+        raised.rules.level_difficulty += 1;
+        let base_config = campaign_simulation_config(level, SeedPartition::Holdout, 1_024);
+        let raised_config = campaign_simulation_config(raised, SeedPartition::Holdout, 1_024);
+        assert_eq!(base_config.seed, raised_config.seed);
+        assert_eq!(base_config.attempt, raised_config.attempt);
+        assert_eq!(base_config.content_hash, raised_config.content_hash);
+        assert_eq!(base_config.map_id, raised_config.map_id);
+        assert_eq!(base_config.level_id, raised_config.level_id);
+        assert_eq!(
+            raised_config.rules.level_difficulty,
+            base_config.rules.level_difficulty + 1
+        );
+
+        let first = paired_tier_summary(
+            level,
+            PlayerModel::LineClearer,
+            SeedPartition::Holdout,
+            1_024,
+            4,
+        )
+        .unwrap();
+        let second = paired_tier_summary(
+            level,
+            PlayerModel::LineClearer,
+            SeedPartition::Holdout,
+            1_024,
+            4,
+        )
+        .unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.base_tier + 1, first.raised_tier);
+        assert!(first.base_successes <= first.seeds);
+        assert!(first.raised_successes <= first.seeds);
+        assert_eq!(
+            first.base_success_rate_bps,
+            rate_bps(first.base_successes, 4)
+        );
+        assert_eq!(
+            first.success_rate_delta_bps,
+            i32::try_from(first.raised_success_rate_bps).unwrap()
+                - i32::try_from(first.base_success_rate_bps).unwrap()
+        );
+    }
+
+    #[test]
+    fn paired_tier_runner_rejects_empty_and_tier_seven_samples() {
+        let level = campaign_catalog()[0];
+        assert!(
+            paired_tier_summary(
+                level,
+                PlayerModel::LineClearer,
+                SeedPartition::Holdout,
+                1_024,
+                0,
+            )
+            .is_err()
+        );
+        let mut tier_seven = level;
+        tier_seven.rules.level_difficulty = 7;
+        assert!(
+            paired_tier_summary(
+                tier_seven,
+                PlayerModel::LineClearer,
+                SeedPartition::Holdout,
+                1_024,
+                1,
+            )
+            .is_err()
+        );
     }
 
     #[test]
