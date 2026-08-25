@@ -110,6 +110,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [PROGRAM],
     reversal: "every Daily entry pins one real guardian realm",
   },
+  {
+    pattern: /starting_rows\s*==\s*realm\.starting_rows/,
+    trees: [PROGRAM],
+    reversal: "the Daily pool entry owns its starting rows, not its realm",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

@@ -32,6 +32,7 @@ import {
   dailyContentSelection,
 } from "./dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
+import { DAILY_POOL } from "./dailyPool.generated";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
 const U64_MAX = (1n << 64n) - 1n;
@@ -260,7 +261,7 @@ export async function buildPublishCanonicalArenaRulesPlan(args: {
       rulesVersion: args.rulesVersion,
       poolRevision: 1,
       startsDay: args.startsDay,
-      poolEntryCount: CANONICAL_CAMPAIGN_MAP_COUNT,
+      poolEntryCount: poolEntries.length,
       poolEntries,
       pressure: cloneDailyPressure(),
     })
@@ -358,7 +359,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
     const content = await dailyContentSelection(
       args.dayId,
       dayId,
-      CANONICAL_CAMPAIGN_MAP_COUNT,
+      poolEntries.length,
     );
     const entry = poolEntries[content.poolIndex];
     if (!entry) throw new Error("selected Daily pool entry is unavailable");
@@ -371,7 +372,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
         dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
         realmMapCatalog: deriveMapCatalogPda(
           args.contentVersion,
-          Math.max(entry.realmMapId, 1),
+          entry.realmMapId,
         ),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
@@ -541,24 +542,25 @@ function canonicalDailyPoolEntries(contentVersion: number) {
   // families, and three alternate family variants. Across 365 real draw days
   // every entry appears 36-37 times; four cycle-boundary repeats (1.1%) do not
   // justify authoring padding or adding a repeat-suppression rule.
-  const scoringIndexes = [0, 1, 3, 6, 10, 12, 14, 2, 5, 9] as const;
-  const entries = Array.from(
-    { length: CANONICAL_CAMPAIGN_MAP_COUNT },
-    (_, index) => {
-      const realm = canonicalCampaignMap(contentVersion, index + 1);
-      const scoringRule = CANONICAL_DAILY_SCORING_RULES[scoringIndexes[index]!]!;
-      return {
-        id: index + 1,
-        realmMapId: realm.mapId,
-        activeMutatorId: realm.mapRules.activeMutatorId,
-        scoringRule: { ...scoringRule },
-        bonusType: realm.mapRules.bonusType,
-        bonusTriggerType: realm.mapRules.bonusTriggerType,
-        bonusThreshold: realm.mapRules.bonusThreshold,
-        startingCharges: realm.mapRules.startingCharges,
-        startingRows: realm.mapRules.startingRows,
-      };
-    },
-  );
+  const entries = DAILY_POOL.entries.map((authored) => {
+    const realm = canonicalCampaignMap(contentVersion, authored.realmMapId);
+    const scoringRule = CANONICAL_DAILY_SCORING_RULES[authored.scoringIndex];
+    if (!scoringRule) {
+      throw new Error(
+        `Daily pool entry ${authored.id} has no canonical scoring rule`,
+      );
+    }
+    return {
+      id: authored.id,
+      realmMapId: authored.realmMapId,
+      activeMutatorId: realm.mapRules.activeMutatorId,
+      scoringRule: { ...scoringRule },
+      bonusType: realm.mapRules.bonusType,
+      bonusTriggerType: realm.mapRules.bonusTriggerType,
+      bonusThreshold: realm.mapRules.bonusThreshold,
+      startingCharges: realm.mapRules.startingCharges,
+      startingRows: authored.startingRows,
+    };
+  });
   return entries;
 }

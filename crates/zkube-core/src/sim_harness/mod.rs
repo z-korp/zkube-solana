@@ -70,7 +70,6 @@ const HARNESS_DECISION_DOMAIN: &[u8] = b"zkube-sim-harness-decision-v1";
 const HARNESS_CAMPAIGN_SEED_DOMAIN: &[u8] = b"zkube-sim-harness-campaign-seed-v1";
 const HARNESS_DAILY_RULES_DOMAIN: &[u8] = b"zkube-sim-harness-daily-rules-v1";
 const HARNESS_FIELD_DOMAIN: &[u8] = b"zkube-sim-harness-field-v1";
-const DAILY_SCORING_INDEXES: [usize; 10] = [0, 1, 3, 6, 10, 12, 14, 2, 5, 9];
 const MAX_HARNESS_PLIES: u32 = 256;
 const FIELD_LADDER_TIERS: usize = LADDER_TIER_POINT_THRESHOLDS.len();
 
@@ -251,6 +250,7 @@ pub struct TimedRunEvent {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DailyCatalogEntry {
     pub id: u8,
+    pub realm_map_id: u8,
     pub family: u8,
     pub authored_rules_valid: bool,
     pub rules: DailyRunRules,
@@ -628,6 +628,23 @@ struct CampaignFixtureMap {
 
 type CampaignFixtureLevel = (u32, u16, u8, [u8; 3], [u8; 3]);
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DailyPoolFixture {
+    schema_version: u32,
+    content_version: u32,
+    entries: Vec<DailyPoolFixtureEntry>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DailyPoolFixtureEntry {
+    id: u8,
+    realm_map_id: u8,
+    scoring_index: usize,
+    starting_rows: u8,
+}
+
 /// Load the authored Campaign catalog used by production codegen.
 ///
 /// # Panics
@@ -683,9 +700,9 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
     levels
 }
 
-/// Snapshot the ten currently-authored Daily entries. Production publication
-/// validates their realm/passive fields against the same Campaign fixture; the
-/// only Daily-specific authored choice is the scoring-rule index below.
+/// Snapshot the currently-authored Daily pool. The pool fixture owns entry
+/// identity, realm, scoring rule, and starting rows; guardian ability and
+/// inventory remain derived from the selected Campaign realm.
 ///
 /// # Panics
 ///
@@ -693,37 +710,52 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
 /// rejects the same condition.
 #[must_use]
 pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
-    let fixture: CampaignFixture =
+    let campaign: CampaignFixture =
         serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json"))
             .expect("Campaign fixture must parse");
-    fixture
+    let pool: DailyPoolFixture =
+        serde_json::from_str(include_str!("../../../../fixtures/daily-pool-v2.json"))
+            .expect("Daily pool fixture must parse");
+    let realms = campaign
         .maps
         .into_iter()
-        .zip(DAILY_SCORING_INDEXES)
-        .map(|(map, scoring_index)| {
-            let (family, objective) = daily_objective(scoring_index);
+        .map(|map| (map.map_id, map.rules))
+        .collect::<HashMap<_, _>>();
+    let entries = pool
+        .entries
+        .into_iter()
+        .map(|entry| {
+            let map_rules = realms
+                .get(&entry.realm_map_id)
+                .copied()
+                .expect("Daily pool realm must exist in Campaign");
+            let (family, objective) = daily_objective(entry.scoring_index);
             let rules = DailyRunRules {
                 max_moves: crate::DAILY_MAX_MOVES,
                 mutator: neutral_daily_mutator_rules(
-                    u8::try_from(map.rules[6]).expect("validated trigger fits u8"),
-                    map.rules[7],
+                    u8::try_from(map_rules[6]).expect("validated trigger fits u8"),
+                    map_rules[7],
                 ),
-                bonus: bonus_from_tag(map.rules[5]),
-                starting_bonus_charges: u8::try_from(map.rules[8])
+                bonus: bonus_from_tag(map_rules[5]),
+                starting_bonus_charges: u8::try_from(map_rules[8])
                     .expect("validated charges fit u8"),
-                starting_height: u8::try_from(map.rules[9]).expect("validated height fits u8"),
+                starting_height: entry.starting_rows,
                 objective,
                 pressure: DailyPressureRules::canonical(),
             };
             let authored_rules_valid = rules.is_valid();
             DailyCatalogEntry {
-                id: map.map_id,
+                id: entry.id,
+                realm_map_id: entry.realm_map_id,
                 family,
                 authored_rules_valid,
                 rules,
             }
         })
-        .collect()
+        .collect();
+    assert_eq!(pool.schema_version, 1);
+    assert_eq!(pool.content_version, campaign.content_version);
+    entries
 }
 
 fn bonus_from_tag(tag: u16) -> Option<Bonus> {

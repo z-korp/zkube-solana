@@ -1931,8 +1931,7 @@ fn validate_daily_pool_entry(entry: DailyPoolEntry, realm: &CampaignMapRuleSnaps
             && entry.bonus_type == realm.bonus_type
             && entry.bonus_trigger_type == realm.bonus_trigger_type
             && entry.bonus_threshold == realm.bonus_threshold
-            && entry.starting_charges == realm.starting_charges
-            && entry.starting_rows == realm.starting_rows,
+            && entry.starting_charges == realm.starting_charges,
         ErrorCode::InvalidMap
     );
     Ok(())
@@ -2156,8 +2155,8 @@ mod tests {
         };
         DailyPoolEntry {
             id: harness.id,
-            realm_map_id: harness.id,
-            active_mutator_id: harness.id,
+            realm_map_id: harness.realm_map_id,
+            active_mutator_id: harness.realm_map_id,
             scoring_rule,
             bonus_type,
             bonus_trigger_type: harness.rules.mutator.bonus_trigger_type,
@@ -2233,5 +2232,26 @@ mod tests {
             };
             assert_eq!(harness.rules, prepared, "Daily entry {} drifted", entry.id);
         }
+    }
+
+    #[test]
+    fn prepared_daily_uses_entry_rows_when_the_realm_differs() {
+        let harness = zkube_core::sim_harness::daily_catalog()[0];
+        let mut entry = program_pool_entry(harness);
+        entry.starting_rows = crate::game::MAX_OPENING_HEIGHT;
+        let realm = CampaignMapRuleSnapshot {
+            active_mutator_id: entry.active_mutator_id,
+            bonus_type: entry.bonus_type,
+            bonus_trigger_type: entry.bonus_trigger_type,
+            bonus_threshold: entry.bonus_threshold,
+            starting_charges: entry.starting_charges,
+            starting_rows: crate::game::MIN_OPENING_HEIGHT,
+            ..CampaignMapRuleSnapshot::default()
+        };
+
+        validate_daily_pool_entry(entry, &realm).unwrap();
+        let prepared = daily_level_rules(entry, DailyPressureProfile::canonical());
+        assert_eq!(prepared.starting_rows, crate::game::MAX_OPENING_HEIGHT);
+        assert_ne!(prepared.starting_rows, realm.starting_rows);
     }
 }

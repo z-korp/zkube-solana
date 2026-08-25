@@ -481,7 +481,7 @@ impl Evaluator {
                 |record| !record.bonus_charge_earned_events.is_empty(),
             )?;
             units.push(rate_unit(
-                format!("daily-realm-{}", entry.id),
+                format!("daily-realm-{}", entry.realm_map_id),
                 self.config.planner_seeds,
                 rate_bps(fired, self.config.planner_seeds),
                 bands::TRIGGER_LIVENESS_MIN_BPS,

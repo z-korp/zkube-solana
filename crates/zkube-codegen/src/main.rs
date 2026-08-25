@@ -8,18 +8,21 @@ use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_CATALOG_HASH_DOMAIN,
     ARENA_ENTRY_LAMPORTS, Bonus, CampaignRules, Constraint, ConstraintKind, DAILY_MAX_MOVES,
     DAILY_POOL_CAPACITY, DAILY_POOL_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-    DailyPressureRules, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, LevelRules, MutatorRules,
-    PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION,
-    RULES_ACCOUNT_VERSION, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256,
+    DailyPressureRules, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, LevelRules,
+    MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT, MutatorRules, PLAYER_LABEL_ACCOUNT_VERSION,
+    PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION, RULES_ACCOUNT_VERSION, SECONDS_PER_DAY,
+    SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SoftwareSha256,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
+const DAILY_POOL_FIXTURE: &str = "fixtures/daily-pool-v2.json";
 const GENERATED_TS: &str = "client/src/chain/campaignCatalog.generated.ts";
+const GENERATED_DAILY_POOL_TS: &str = "client/src/chain/dailyPool.generated.ts";
 const GENERATED_PROTOCOL_TS: [&str; 2] = [
     "client/src/chain/protocolVersions.generated.ts",
     "services/src/protocolVersions.generated.ts",
 ];
+const DAILY_SCORING_RULE_COUNT: u8 = 15;
 
 // Balance target: levels 1-2 complete at least 90%, levels 7-9 at least 55%
 // in aggregate, guardians complete 40-60% with 10-30% three-stars, and every
@@ -71,6 +74,23 @@ struct CampaignMap {
 
 type EncodedLevel = (u32, u16, u8, [u8; 3], [u8; 3]);
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DailyPoolFixture {
+    schema_version: u32,
+    content_version: u32,
+    entries: Vec<DailyPoolFixtureEntry>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DailyPoolFixtureEntry {
+    id: u8,
+    realm_map_id: u8,
+    scoring_index: u8,
+    starting_rows: u8,
+}
+
 fn main() -> ExitCode {
     match run(&Cli::parse()) {
         Ok(message) => {
@@ -91,9 +111,17 @@ fn run(cli: &Cli) -> Result<String, String> {
     let catalog: CampaignCatalog = serde_json::from_str(&source)
         .map_err(|error| format!("invalid {}: {error}", fixture_path.display()))?;
     validate_catalog(&catalog)?;
+    let daily_fixture_path = cli.root.join(DAILY_POOL_FIXTURE);
+    let daily_source = fs::read_to_string(&daily_fixture_path)
+        .map_err(|error| format!("cannot read {}: {error}", daily_fixture_path.display()))?;
+    let daily_pool: DailyPoolFixture = serde_json::from_str(&daily_source)
+        .map_err(|error| format!("invalid {}: {error}", daily_fixture_path.display()))?;
+    validate_daily_pool(&daily_pool, &catalog)?;
     let generated = render_typescript(&catalog)?;
+    let generated_daily_pool = render_daily_pool_typescript(&daily_pool)?;
     let generated_protocol = render_protocol_constants();
     let output = cli.root.join(GENERATED_TS);
+    let daily_output = cli.root.join(GENERATED_DAILY_POOL_TS);
     match &cli.command {
         Command::Generate => {
             if let Some(parent) = output.parent() {
@@ -102,6 +130,8 @@ fn run(cli: &Cli) -> Result<String, String> {
             }
             fs::write(&output, generated)
                 .map_err(|error| format!("cannot write {}: {error}", output.display()))?;
+            fs::write(&daily_output, generated_daily_pool)
+                .map_err(|error| format!("cannot write {}: {error}", daily_output.display()))?;
             for relative in GENERATED_PROTOCOL_TS {
                 let protocol_output = cli.root.join(relative);
                 if let Some(parent) = protocol_output.parent() {
@@ -112,7 +142,7 @@ fn run(cli: &Cli) -> Result<String, String> {
                     format!("cannot write {}: {error}", protocol_output.display())
                 })?;
             }
-            Ok("generated Campaign catalog and shared protocol constants".into())
+            Ok("generated Campaign catalog, Daily pool, and shared protocol constants".into())
         }
         Command::Check => {
             let actual = fs::read_to_string(&output)
@@ -121,6 +151,14 @@ fn run(cli: &Cli) -> Result<String, String> {
                 return Err(format!(
                     "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
                     output.display()
+                ));
+            }
+            let actual_daily = fs::read_to_string(&daily_output)
+                .map_err(|error| format!("cannot read {}: {error}", daily_output.display()))?;
+            if actual_daily != generated_daily_pool {
+                return Err(format!(
+                    "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
+                    daily_output.display()
                 ));
             }
             for relative in GENERATED_PROTOCOL_TS {
@@ -135,9 +173,47 @@ fn run(cli: &Cli) -> Result<String, String> {
                     ));
                 }
             }
-            Ok("checked Campaign catalog and shared protocol constants".into())
+            Ok("checked Campaign catalog, Daily pool, and shared protocol constants".into())
         }
     }
+}
+
+fn validate_daily_pool(pool: &DailyPoolFixture, campaign: &CampaignCatalog) -> Result<(), String> {
+    if pool.schema_version != 1 || pool.content_version != campaign.content_version {
+        return Err("Daily pool must use schemaVersion 1 and the Campaign contentVersion".into());
+    }
+    if pool.entries.is_empty() || pool.entries.len() > DAILY_POOL_CAPACITY {
+        return Err(format!(
+            "Daily pool must contain 1..={DAILY_POOL_CAPACITY} entries"
+        ));
+    }
+    for (index, entry) in pool.entries.iter().enumerate() {
+        let expected_id = u8::try_from(index + 1).map_err(|error| error.to_string())?;
+        if entry.id != expected_id {
+            return Err(format!(
+                "Daily pool IDs must be ordered; expected {expected_id}"
+            ));
+        }
+        if usize::from(entry.realm_map_id) > campaign.maps.len() || entry.realm_map_id == 0 {
+            return Err(format!(
+                "Daily pool entry {} references unknown realm {}",
+                entry.id, entry.realm_map_id
+            ));
+        }
+        if entry.scoring_index >= DAILY_SCORING_RULE_COUNT {
+            return Err(format!(
+                "Daily pool entry {} references unknown scoring index {}",
+                entry.id, entry.scoring_index
+            ));
+        }
+        if !(MIN_OPENING_HEIGHT..=MAX_OPENING_HEIGHT).contains(&entry.starting_rows) {
+            return Err(format!(
+                "Daily pool entry {} has invalid starting rows {}",
+                entry.id, entry.starting_rows
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
@@ -296,6 +372,15 @@ fn render_typescript(catalog: &CampaignCatalog) -> Result<String, String> {
     ))
 }
 
+fn render_daily_pool_typescript(pool: &DailyPoolFixture) -> Result<String, String> {
+    let json = serde_json::to_string_pretty(pool)
+        .map_err(|error| format!("cannot render Daily pool: {error}"))?;
+    Ok(format!(
+        "// Generated by zkube-codegen. Do not edit.\n\
+         export const DAILY_POOL = {json} as const;\n"
+    ))
+}
+
 fn render_protocol_constants() -> String {
     let pressure = DailyPressureRules::canonical();
     let thresholds = pressure.thresholds;
@@ -334,9 +419,15 @@ mod tests {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         validate_catalog(&catalog).unwrap();
+        let daily_source = include_str!("../../../fixtures/daily-pool-v2.json");
+        let daily_pool: DailyPoolFixture = serde_json::from_str(daily_source).unwrap();
+        validate_daily_pool(&daily_pool, &catalog).unwrap();
         let first = render_typescript(&catalog).unwrap();
         let second = render_typescript(&catalog).unwrap();
         assert_eq!(first, second);
+        let rendered_daily = render_daily_pool_typescript(&daily_pool).unwrap();
+        assert!(rendered_daily.contains("startingRows"));
+        assert!(!rendered_daily.contains("startingCharges"));
         assert!(first.contains("CAMPAIGN_CONTENT_HASH_HEX"));
         let versions = render_protocol_constants();
         assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 1"));
