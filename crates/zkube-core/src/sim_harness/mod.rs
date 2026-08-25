@@ -269,6 +269,28 @@ pub enum ApexPredicate {
     BlocksOfSizeInAction { size: u8, minimum: u8 },
 }
 
+/// Stable report vocabulary for harness-authored apex predicates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApexPredicateKind {
+    None,
+    ComboLines,
+    BreakBlocks,
+    ComboMeter,
+    PerfectClears,
+    LinesInAction,
+    BlocksOfSizeInAction,
+}
+
+/// Serializable apex definition carried by per-level reports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexDefinition {
+    pub kind: ApexPredicateKind,
+    pub value: u8,
+    pub required_count: u8,
+}
+
 impl ApexPredicate {
     const fn from_secondary(secondary: Constraint) -> Self {
         if matches!(secondary.kind, ConstraintKind::None) {
@@ -324,6 +346,41 @@ impl ApexPredicate {
             Self::LinesInAction { .. } | Self::BlocksOfSizeInAction { .. } => 1,
         };
         u64::from(progress.0.min(required)).saturating_mul(1_000) / u64::from(required)
+    }
+
+    const fn definition(self) -> ApexDefinition {
+        match self {
+            Self::None => ApexDefinition {
+                kind: ApexPredicateKind::None,
+                value: 0,
+                required_count: 0,
+            },
+            Self::SecondaryConstraint(constraint) => ApexDefinition {
+                kind: match constraint.kind {
+                    ConstraintKind::None => ApexPredicateKind::None,
+                    ConstraintKind::ComboLines => ApexPredicateKind::ComboLines,
+                    ConstraintKind::BreakBlocks => ApexPredicateKind::BreakBlocks,
+                    ConstraintKind::ComboMeter => ApexPredicateKind::ComboMeter,
+                },
+                value: constraint.value,
+                required_count: constraint.required_count,
+            },
+            Self::PerfectClears { required } => ApexDefinition {
+                kind: ApexPredicateKind::PerfectClears,
+                value: 0,
+                required_count: required,
+            },
+            Self::LinesInAction { minimum } => ApexDefinition {
+                kind: ApexPredicateKind::LinesInAction,
+                value: minimum,
+                required_count: 1,
+            },
+            Self::BlocksOfSizeInAction { size, minimum } => ApexDefinition {
+                kind: ApexPredicateKind::BlocksOfSizeInAction,
+                value: size,
+                required_count: minimum,
+            },
+        }
     }
 }
 
@@ -999,6 +1056,42 @@ pub struct PairedTierSummary {
     pub success_rate_delta_bps: i32,
 }
 
+/// Seed populations for the reachable/findable/luckable apex report.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexSamplePlan {
+    pub seed_start: u64,
+    pub oracle_seeds: u32,
+    pub naive_seeds: u32,
+    pub planner_seeds: u32,
+}
+
+/// Per-level apex measurements consumed by the assertion layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexLevelSummary {
+    pub catalog_id: u16,
+    pub apex: ApexDefinition,
+    pub partition: SeedPartition,
+    pub samples: ApexSamplePlan,
+    pub oracle_reachable_seeds: u32,
+    pub oracle_node_cap_hits: u32,
+    pub oracle_reachable_rate_bps: u32,
+    pub naive_hits: u32,
+    pub naive_engine_stalls: u32,
+    pub naive_hit_rate_bps: u32,
+    pub planner_hits: u32,
+    pub planner_engine_stalls: u32,
+    pub planner_hit_rate_bps: u32,
+    pub planner_decisive_hits: u32,
+    pub planner_decisive_share_bps: Option<u32>,
+    pub planner_no_hit_runs: u32,
+    pub planner_no_hit_successes: u32,
+    pub planner_success_without_apex_rate_bps: Option<u32>,
+    pub planner_set_up_hits: u32,
+    pub planner_set_up_share_bps: Option<u32>,
+}
+
 /// Run a level at its authored tier and the adjacent harder tier over the same
 /// seed indexes. The raw randomness inputs are identical in each pair; only
 /// the block weights selected by `level_difficulty` change.
@@ -1067,8 +1160,120 @@ pub fn paired_tier_summary(
     })
 }
 
+/// Measure one level's reachable/findable/luckable apex triple and the three
+/// conditional diagnostics over their pinned model populations.
+///
+/// # Errors
+///
+/// Rejects a level without an apex, an empty population, seed overflow, or a
+/// Campaign transition error.
+pub fn apex_level_summary(
+    level: CampaignCatalogLevel,
+    partition: SeedPartition,
+    samples: ApexSamplePlan,
+) -> Result<ApexLevelSummary, String> {
+    if matches!(level.apex, ApexPredicate::None) {
+        return Err(String::from("apex report requires an authored predicate"));
+    }
+    if samples.oracle_seeds == 0 || samples.naive_seeds == 0 || samples.planner_seeds == 0 {
+        return Err(String::from("apex sample populations must not be empty"));
+    }
+
+    let mut oracle_reachable_seeds = 0u32;
+    let mut oracle_node_cap_hits = 0u32;
+    for offset in 0..samples.oracle_seeds {
+        let seed = sample_seed(samples.seed_start, offset)?;
+        let result = oracle_campaign(level, partition, seed)
+            .map_err(|error| format!("apex oracle failed: {error:?}"))?;
+        oracle_reachable_seeds =
+            oracle_reachable_seeds.saturating_add(u32::from(result.reachability.apex_reachable));
+        oracle_node_cap_hits = oracle_node_cap_hits.saturating_add(u32::from(result.node_cap_hit));
+    }
+
+    let mut naive_hits = 0u32;
+    let mut naive_engine_stalls = 0u32;
+    for offset in 0..samples.naive_seeds {
+        let seed = sample_seed(samples.seed_start, offset)?;
+        let record = run_campaign(level, PlayerModel::Naive, partition, seed)
+            .map_err(|error| format!("apex naive run failed: {error:?}"))?;
+        naive_hits = naive_hits.saturating_add(u32::from(record.apex_hit_action.is_some()));
+        naive_engine_stalls = naive_engine_stalls.saturating_add(u32::from(
+            record.terminal_cause == TerminalCause::EngineStall,
+        ));
+    }
+
+    let mut planner_hits = 0u32;
+    let mut planner_engine_stalls = 0u32;
+    let mut planner_decisive_hits = 0u32;
+    let mut planner_no_hit_runs = 0u32;
+    let mut planner_no_hit_successes = 0u32;
+    let mut planner_set_up_hits = 0u32;
+    for offset in 0..samples.planner_seeds {
+        let seed = sample_seed(samples.seed_start, offset)?;
+        let record = run_campaign(level, PlayerModel::PlannerStrong, partition, seed)
+            .map_err(|error| format!("apex planner run failed: {error:?}"))?;
+        planner_engine_stalls = planner_engine_stalls.saturating_add(u32::from(
+            record.terminal_cause == TerminalCause::EngineStall,
+        ));
+        if let Some(hit_action) = record.apex_hit_action {
+            planner_hits = planner_hits.saturating_add(1);
+            planner_decisive_hits = planner_decisive_hits
+                .saturating_add(u32::from(record.terminal_action == Some(hit_action)));
+            planner_set_up_hits = planner_set_up_hits
+                .saturating_add(u32::from(apex_hit_has_recent_charge(&record, hit_action)));
+        } else {
+            planner_no_hit_runs = planner_no_hit_runs.saturating_add(1);
+            planner_no_hit_successes =
+                planner_no_hit_successes.saturating_add(u32::from(record.earned_stars > 0));
+        }
+    }
+
+    Ok(ApexLevelSummary {
+        catalog_id: level.catalog_id,
+        apex: level.apex.definition(),
+        partition,
+        samples,
+        oracle_reachable_seeds,
+        oracle_node_cap_hits,
+        oracle_reachable_rate_bps: rate_bps(oracle_reachable_seeds, samples.oracle_seeds),
+        naive_hits,
+        naive_engine_stalls,
+        naive_hit_rate_bps: rate_bps(naive_hits, samples.naive_seeds),
+        planner_hits,
+        planner_engine_stalls,
+        planner_hit_rate_bps: rate_bps(planner_hits, samples.planner_seeds),
+        planner_decisive_hits,
+        planner_decisive_share_bps: optional_rate_bps(planner_decisive_hits, planner_hits),
+        planner_no_hit_runs,
+        planner_no_hit_successes,
+        planner_success_without_apex_rate_bps: optional_rate_bps(
+            planner_no_hit_successes,
+            planner_no_hit_runs,
+        ),
+        planner_set_up_hits,
+        planner_set_up_share_bps: optional_rate_bps(planner_set_up_hits, planner_hits),
+    })
+}
+
+fn apex_hit_has_recent_charge(record: &RunRecord, hit_action: u32) -> bool {
+    record
+        .bonus_charge_earned_events
+        .iter()
+        .any(|event| event.action <= hit_action && hit_action.saturating_sub(event.action) <= 5)
+}
+
+fn sample_seed(seed_start: u64, offset: u32) -> Result<u64, String> {
+    seed_start
+        .checked_add(u64::from(offset))
+        .ok_or_else(|| String::from("sample seed range overflow"))
+}
+
 fn rate_bps(hits: u32, samples: u32) -> u32 {
     u32::try_from(u64::from(hits).saturating_mul(10_000) / u64::from(samples)).unwrap_or(u32::MAX)
+}
+
+fn optional_rate_bps(hits: u32, samples: u32) -> Option<u32> {
+    (samples > 0).then(|| rate_bps(hits, samples))
 }
 
 fn campaign_simulation_config(
@@ -3566,6 +3771,86 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn campaign_catalog_declares_exactly_the_current_forty_eight_apexes() {
+        let levels = campaign_catalog();
+        let apex_levels = levels
+            .iter()
+            .filter(|level| !matches!(level.apex, ApexPredicate::None))
+            .collect::<Vec<_>>();
+        assert_eq!(apex_levels.len(), 48);
+        for level in levels {
+            let secondary_present = level.rules.level.secondary.kind != ConstraintKind::None;
+            assert_eq!(
+                secondary_present,
+                !matches!(level.apex, ApexPredicate::None),
+                "Campaign level {} must declare its current apex explicitly",
+                level.catalog_id
+            );
+            if secondary_present {
+                assert_eq!(
+                    level.apex.definition(),
+                    ApexPredicate::SecondaryConstraint(level.rules.level.secondary).definition()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn apex_level_report_is_reproducible_and_preserves_empty_conditionals() {
+        let mut level = campaign_catalog()[0];
+        level.rules.level.points_required = u32::MAX;
+        level.rules.level.max_moves = 1;
+        let no_constraint = Constraint {
+            kind: ConstraintKind::None,
+            value: 0,
+            required_count: 0,
+        };
+        level.rules.level.primary = no_constraint;
+        level.rules.level.secondary = no_constraint;
+        level.rules.mutator = MutatorRules::default();
+        level.rules.bonus = None;
+        level.rules.starting_bonus_charges = 0;
+        level.apex = ApexPredicate::LinesInAction { minimum: 8 };
+        let samples = ApexSamplePlan {
+            seed_start: 1_024,
+            oracle_seeds: 2,
+            naive_seeds: 2,
+            planner_seeds: 2,
+        };
+        let first = apex_level_summary(level, SeedPartition::Holdout, samples).unwrap();
+        let second = apex_level_summary(level, SeedPartition::Holdout, samples).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.apex, level.apex.definition());
+        assert_eq!(first.oracle_reachable_rate_bps, 0);
+        assert_eq!(first.naive_hit_rate_bps, 0);
+        assert_eq!(first.planner_hit_rate_bps, 0);
+        assert_eq!(first.planner_decisive_share_bps, None);
+        assert_eq!(first.planner_set_up_share_bps, None);
+        assert_eq!(first.planner_no_hit_runs, samples.planner_seeds);
+        assert_eq!(first.planner_success_without_apex_rate_bps, Some(0));
+    }
+
+    #[test]
+    fn apex_setup_window_is_inclusive_and_never_counts_future_charges() {
+        let mut record = run_campaign(
+            campaign_catalog()[0],
+            PlayerModel::LineClearer,
+            SeedPartition::Holdout,
+            1_024,
+        )
+        .unwrap();
+        record.bonus_charge_earned_events = vec![TimedRunEvent {
+            action: 10,
+            board_height: 4,
+            count: 1,
+        }];
+        assert!(apex_hit_has_recent_charge(&record, 10));
+        assert!(apex_hit_has_recent_charge(&record, 15));
+        assert!(!apex_hit_has_recent_charge(&record, 16));
+        assert!(!apex_hit_has_recent_charge(&record, 9));
     }
 
     #[test]
