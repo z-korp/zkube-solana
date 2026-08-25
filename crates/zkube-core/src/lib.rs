@@ -96,5 +96,5 @@ pub use rules::{
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
     DailyRunRules, DailySimulation, DailySimulationConfig, SimulationError,
-    daily_challenge_rules_hash, daily_challenge_rules_hash_with,
+    daily_challenge_rules_hash, daily_challenge_rules_hash_with, neutral_daily_mutator_rules,
 };

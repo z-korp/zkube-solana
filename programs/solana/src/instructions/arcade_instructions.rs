@@ -1899,6 +1899,8 @@ pub fn handler_withdraw_operator_revenue(
 }
 
 fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> LevelRuleSnapshot {
+    let mutator =
+        zkube_core::neutral_daily_mutator_rules(entry.bonus_trigger_type, entry.bonus_threshold);
     LevelRuleSnapshot {
         level: 1,
         points_required: u32::MAX,
@@ -1910,14 +1912,14 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
         passive_mutator_id: 0,
         boss_id: 0,
         block_weights: pressure.block_weights[0],
-        score_multiplier_x100: 100,
-        combo_multiplier_x100: 100,
-        line_clear_bonus: 0,
-        perfect_clear_bonus: 0,
-        star_threshold_modifier: 128,
+        score_multiplier_x100: mutator.score_multiplier_x100,
+        combo_multiplier_x100: mutator.combo_multiplier_x100,
+        line_clear_bonus: mutator.line_clear_bonus,
+        perfect_clear_bonus: mutator.perfect_clear_bonus,
+        star_threshold_modifier: mutator.star_threshold_modifier,
         bonus_type: entry.bonus_type,
-        bonus_trigger_type: entry.bonus_trigger_type,
-        bonus_threshold: entry.bonus_threshold,
+        bonus_trigger_type: mutator.bonus_trigger_type,
+        bonus_threshold: mutator.bonus_threshold,
         starting_charges: entry.starting_charges,
         starting_rows: entry.starting_rows,
     }
@@ -2093,6 +2095,78 @@ fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
 mod tests {
     use super::*;
 
+    fn core_objective(rule: DailyScoringRule) -> zkube_core::DailyObjectiveRule {
+        let objective = match rule.kind {
+            DAILY_SCORE_CLASSIC => zkube_core::DailyObjective::Classic,
+            DAILY_SCORE_COMBO => zkube_core::DailyObjective::Combo {
+                minimum_lines: rule.parameter,
+            },
+            DAILY_SCORE_EXACT_LINES => zkube_core::DailyObjective::ExactLines {
+                lines: rule.parameter,
+            },
+            DAILY_SCORE_BLOCKS => zkube_core::DailyObjective::Blocks {
+                size: rule.parameter,
+            },
+            DAILY_SCORE_CLUTCH => zkube_core::DailyObjective::Clutch {
+                minimum_height: rule.parameter,
+            },
+            DAILY_SCORE_CLEAN => zkube_core::DailyObjective::Clean {
+                maximum_height: rule.parameter,
+            },
+            DAILY_SCORE_SURVIVAL => zkube_core::DailyObjective::Survival,
+            kind => panic!("unknown Daily scoring kind {kind}"),
+        };
+        zkube_core::DailyObjectiveRule {
+            objective,
+            bonus_multiplier_x100: rule.bonus_multiplier_x100,
+        }
+    }
+
+    fn program_pool_entry(harness: zkube_core::sim_harness::DailyCatalogEntry) -> DailyPoolEntry {
+        let objective = harness.rules.objective.objective;
+        let (kind, parameter) = match objective {
+            zkube_core::DailyObjective::Classic => (DAILY_SCORE_CLASSIC, 0),
+            zkube_core::DailyObjective::Combo { minimum_lines } => {
+                (DAILY_SCORE_COMBO, minimum_lines)
+            }
+            zkube_core::DailyObjective::ExactLines { lines } => (DAILY_SCORE_EXACT_LINES, lines),
+            zkube_core::DailyObjective::Blocks { size } => (DAILY_SCORE_BLOCKS, size),
+            zkube_core::DailyObjective::Clutch { minimum_height } => {
+                (DAILY_SCORE_CLUTCH, minimum_height)
+            }
+            zkube_core::DailyObjective::Clean { maximum_height } => {
+                (DAILY_SCORE_CLEAN, maximum_height)
+            }
+            zkube_core::DailyObjective::Survival => (DAILY_SCORE_SURVIVAL, 0),
+        };
+        let scoring_rule = canonical_daily_scoring_rules()
+            .into_iter()
+            .find(|rule| {
+                rule.family == harness.family
+                    && rule.kind == kind
+                    && rule.parameter == parameter
+                    && rule.bonus_multiplier_x100 == harness.rules.objective.bonus_multiplier_x100
+            })
+            .expect("every harness objective is an authored program rule");
+        let bonus_type = match harness.rules.bonus {
+            Some(zkube_core::Bonus::Hammer) => 1,
+            Some(zkube_core::Bonus::Totem) => 2,
+            Some(zkube_core::Bonus::Wave) => 3,
+            None => 0,
+        };
+        DailyPoolEntry {
+            id: harness.id,
+            realm_map_id: harness.id,
+            active_mutator_id: harness.id,
+            scoring_rule,
+            bonus_type,
+            bonus_trigger_type: harness.rules.mutator.bonus_trigger_type,
+            bonus_threshold: harness.rules.mutator.bonus_threshold,
+            starting_charges: harness.rules.starting_bonus_charges,
+            starting_rows: harness.rules.starting_height,
+        }
+    }
+
     #[test]
     fn launched_period_preparation_can_rebuild_only_bounded_history() {
         assert!(prepare_period_is_allowed(100, 104, true, 100, 100, 1));
@@ -2123,5 +2197,41 @@ mod tests {
         assert!(catalog_revision_lead_time_ok(0, 20_000, 20_000));
         assert!(!catalog_revision_lead_time_ok(3, 20_000, 20_006));
         assert!(catalog_revision_lead_time_ok(3, 20_000, 20_007));
+    }
+
+    #[test]
+    fn harness_daily_rules_match_every_program_preparation_snapshot() {
+        let pressure = DailyPressureProfile::canonical();
+        for harness in zkube_core::sim_harness::daily_catalog() {
+            let entry = program_pool_entry(harness);
+            let snapshot = daily_level_rules(entry, pressure);
+            let prepared = zkube_core::DailyRunRules {
+                max_moves: snapshot.max_moves,
+                mutator: zkube_core::MutatorRules {
+                    score_multiplier_x100: snapshot.score_multiplier_x100,
+                    combo_multiplier_x100: snapshot.combo_multiplier_x100,
+                    line_clear_bonus: snapshot.line_clear_bonus,
+                    perfect_clear_bonus: snapshot.perfect_clear_bonus,
+                    star_threshold_modifier: snapshot.star_threshold_modifier,
+                    bonus_trigger_type: snapshot.bonus_trigger_type,
+                    bonus_threshold: snapshot.bonus_threshold,
+                },
+                bonus: match snapshot.bonus_type {
+                    1 => Some(zkube_core::Bonus::Hammer),
+                    2 => Some(zkube_core::Bonus::Totem),
+                    3 => Some(zkube_core::Bonus::Wave),
+                    _ => None,
+                },
+                starting_bonus_charges: snapshot.starting_charges,
+                starting_height: snapshot.starting_rows,
+                objective: core_objective(entry.scoring_rule),
+                pressure: zkube_core::DailyPressureRules {
+                    thresholds: pressure.thresholds,
+                    score_multipliers_x100: pressure.score_multipliers_x100,
+                    block_weights: pressure.block_weights,
+                },
+            };
+            assert_eq!(harness.rules, prepared, "Daily entry {} drifted", entry.id);
+        }
     }
 }

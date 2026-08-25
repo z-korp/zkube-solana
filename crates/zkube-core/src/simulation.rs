@@ -98,6 +98,24 @@ pub struct DailyRunRules {
     pub pressure: DailyPressureRules,
 }
 
+/// Build the neutral passive baseline used by every Daily while retaining the
+/// selected guardian's authored charge trigger.
+#[must_use]
+pub const fn neutral_daily_mutator_rules(
+    bonus_trigger_type: u8,
+    bonus_threshold: u16,
+) -> MutatorRules {
+    MutatorRules {
+        score_multiplier_x100: 100,
+        combo_multiplier_x100: 100,
+        line_clear_bonus: 0,
+        perfect_clear_bonus: 0,
+        star_threshold_modifier: 128,
+        bonus_trigger_type,
+        bonus_threshold,
+    }
+}
+
 impl DailyRunRules {
     #[must_use]
     pub fn is_valid(self) -> bool {

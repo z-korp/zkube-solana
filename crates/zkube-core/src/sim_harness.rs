@@ -18,8 +18,8 @@
 //!   lines, lower height, and theme score.
 //! - `Theme` maximizes the exact one-ply change in `objective_total`. On the
 //!   three-line objectives, it preserves a dense, non-terminal setup instead
-//!   of cashing a sub-threshold clear; other objectives use Daily score,
-//!   lines, and lower height as tie-breakers.
+//!   of cashing a sub-threshold clear until its first Theme hit; other states
+//!   use Daily score, lines, and lower height as tie-breakers.
 //! - `CampaignConstraints` maximizes completion, primary and secondary
 //!   progress, engine score, lines, then lower height.
 //!
@@ -38,6 +38,7 @@ use crate::{
     LADDER_QUALIFY_POINTS, LADDER_TIER_POINT_THRESHOLDS, MoveReport, MutatorRules, ReplayMode,
     RulesHash, RunMetrics, RunPhase, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SimulationError,
     SoftwareSha256, board_width, daily_pool_entry_index, ladder_points, ladder_tier_for_points,
+    neutral_daily_mutator_rules,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -60,14 +61,15 @@ const FIELD_LADDER_TIERS: usize = LADDER_TIER_POINT_THRESHOLDS.len();
 
 // Fresh 64-seed holdout starting at index 1024, measured per real Daily run.
 // Score qualification was 93.91%, 100%, 100%, and 100%; non-Classic Theme
-// qualification was 55.21%, 88.19%, 88.54%, and 89.24% for the four field
-// abilities. Mean Score metrics were 21, 257, 267, and 247; Theme means were
-// 6, 58, 61, and 59. The field uses those rounded anchors and independent
-// deterministic variation, then the real board-width and log-rank functions.
+// qualification was 55.21%, 88.19%, 88.54%, and 99.48% for the four field
+// abilities. Mean Score metrics were 12, 132, 137, and 146; non-Classic Theme
+// means were 6, 65, 68, and 86. The field uses those rounded anchors and
+// independent deterministic variation, then the real board-width and log-rank
+// functions.
 const FIELD_SCORE_QUALIFICATION_BPS: [u16; 4] = [9_391, 10_000, 10_000, 10_000];
-const FIELD_THEME_QUALIFICATION_BPS: [u16; 4] = [5_521, 8_819, 8_854, 8_924];
-const FIELD_SCORE_ANCHORS: [u32; 4] = [21, 257, 267, 247];
-const FIELD_THEME_ANCHORS: [u32; 4] = [6, 58, 61, 59];
+const FIELD_THEME_QUALIFICATION_BPS: [u16; 4] = [5_521, 8_819, 8_854, 9_948];
+const FIELD_SCORE_ANCHORS: [u32; 4] = [12, 132, 137, 146];
+const FIELD_THEME_ANCHORS: [u32; 4] = [6, 65, 68, 86];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -446,17 +448,10 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
             let (family, objective) = daily_objective(scoring_index);
             let rules = DailyRunRules {
                 max_moves: crate::DAILY_MAX_MOVES,
-                mutator: MutatorRules {
-                    score_multiplier_x100: map.rules[0],
-                    combo_multiplier_x100: map.rules[1],
-                    line_clear_bonus: map.rules[2],
-                    perfect_clear_bonus: map.rules[3],
-                    star_threshold_modifier: u8::try_from(map.rules[4])
-                        .expect("validated star modifier fits u8"),
-                    bonus_trigger_type: u8::try_from(map.rules[6])
-                        .expect("validated trigger fits u8"),
-                    bonus_threshold: map.rules[7],
-                },
+                mutator: neutral_daily_mutator_rules(
+                    u8::try_from(map.rules[6]).expect("validated trigger fits u8"),
+                    map.rules[7],
+                ),
                 bonus: bonus_from_tag(map.rules[5]),
                 starting_bonus_charges: u8::try_from(map.rules[8])
                     .expect("validated charges fit u8"),
@@ -1038,27 +1033,38 @@ fn daily_key(
             0,
             0,
         ],
-        PlayerModel::Theme => theme_key(objective, after, report, theme_delta, daily_delta),
+        PlayerModel::Theme => theme_key(
+            objective,
+            before.objective_total == 0,
+            after,
+            report,
+            theme_delta,
+            daily_delta,
+        ),
     }
 }
 
 fn theme_key(
     objective: DailyObjective,
+    needs_first_hit: bool,
     after: &DailySimulation,
     report: MoveReport,
     theme_delta: i64,
     daily_delta: i64,
 ) -> [i64; 8] {
-    if matches!(
-        objective,
-        DailyObjective::Combo { minimum_lines: 3 } | DailyObjective::ExactLines { lines: 3 }
-    ) {
+    if needs_first_hit
+        && matches!(
+            objective,
+            DailyObjective::Combo { minimum_lines: 3 } | DailyObjective::ExactLines { lines: 3 }
+        )
+    {
         // A one- or two-line clear pays no Theme points here and destroys the
         // dense stack from which a three-line cascade is made. The old generic
         // Daily-score tie-break preferred that immediate score, so Theme never
         // built the state its own threshold required. Keep the run alive,
         // defer sub-threshold clears, then retain cells until a scoring action
-        // is available.
+        // is available. Once the first hit proves the policy can reach its
+        // objective, ordinary Theme tie-breakers resume.
         let occupied_cells = after
             .engine
             .grid
@@ -1941,7 +1947,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":605,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"96957664991c055d90177b0310a52649d45c40674f6b33287eed927e8089365c\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"71ffdaf1b49604116d7ef60b3f7f7e90274dc9e480da7948251b6d29e4df8874\"}"
         );
     }
 
@@ -2088,14 +2094,14 @@ mod tests {
         // Base-attendance naive players reach tier one within three months;
         // every competent base cohort reaches tier two within six. Under high
         // attendance every competent cohort reaches tier three within a year,
-        // while only the Daily-score frontier reaches the top tier.
+        // while only the strongest Theme frontier reaches the top tier.
         assert!(base.median_ladder_reach_day_by_ability[0][1] <= 90);
         for ability in 1..4 {
             assert!(base.median_ladder_reach_day_by_ability[ability][2] <= 180);
             assert!(high.median_ladder_reach_day_by_ability[ability][3] <= 365);
         }
-        assert!(high.ending_ladder_tiers_by_ability[2][4] > 0);
-        assert!(high.median_ladder_reach_day_by_ability[2][4] <= 365);
+        assert!(high.ending_ladder_tiers_by_ability[3][4] > 0);
+        assert!(high.median_ladder_reach_day_by_ability[3][4] <= 365);
     }
 
     #[test]
