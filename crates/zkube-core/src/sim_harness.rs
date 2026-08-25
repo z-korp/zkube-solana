@@ -1406,7 +1406,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":525,\"objectiveSum\":157,\"campaignScoreSum\":32,\"completedCampaignRuns\":1,\"chargesEarned\":14,\"digestHex\":\"2ae76b0e314d27618ca5285eb80d3ec2680c970ba42cc6bd02a0e60e0955323e\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":605,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"4ecbef3ceece04e55af47ba92ff653de1fc883bb5761270f6206a719489938d3\"}"
         );
     }
 

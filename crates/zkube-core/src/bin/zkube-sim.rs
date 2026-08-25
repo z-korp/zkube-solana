@@ -26,6 +26,7 @@ fn run() -> Result<String, String> {
         }
         Some("daily") => {
             let seeds = parse_seeds(args.get(2))?;
+            let seed_start = parse_seed_start(args.get(3), seeds)?;
             let mut records = Vec::new();
             for entry in daily_catalog() {
                 for model in [
@@ -36,7 +37,7 @@ fn run() -> Result<String, String> {
                 ] {
                     for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                         for seed_index in 0..seeds {
-                            let seed = partition_seed(partition, seed_index);
+                            let seed = partition_seed(partition, seed_start + seed_index);
                             records.push(
                                 run_daily(entry, model, partition, seed)
                                     .map_err(|error| format!("Daily run failed: {error:?}"))?,
@@ -49,6 +50,7 @@ fn run() -> Result<String, String> {
         }
         Some("campaign") => {
             let seeds = parse_seeds(args.get(2))?;
+            let seed_start = parse_seed_start(args.get(3), seeds)?;
             let mut records = Vec::new();
             for level in campaign_catalog() {
                 for model in [
@@ -58,7 +60,7 @@ fn run() -> Result<String, String> {
                 ] {
                     for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                         for seed_index in 0..seeds {
-                            let seed = partition_seed(partition, seed_index);
+                            let seed = partition_seed(partition, seed_start + seed_index);
                             records.push(
                                 run_campaign(level, model, partition, seed)
                                     .map_err(|error| format!("Campaign run failed: {error:?}"))?,
@@ -88,7 +90,7 @@ fn run() -> Result<String, String> {
             serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
         }
         Some(command) => Err(format!(
-            "unknown command {command:?}; use smoke, daily [seeds], campaign [seeds], draw, or field"
+            "unknown command {command:?}; use smoke, daily [seeds] [seed-start], campaign [seeds] [seed-start], draw, or field"
         )),
     }
 }
@@ -105,6 +107,21 @@ fn parse_seeds(value: Option<&String>) -> Result<u64, String> {
                 }
             })
     })
+}
+
+fn parse_seed_start(value: Option<&String>, seeds: u64) -> Result<u64, String> {
+    let start = value.map_or(Ok(0), |raw| {
+        raw.parse::<u64>()
+            .map_err(|error| format!("invalid seed start: {error}"))
+    })?;
+    let end = start
+        .checked_add(seeds)
+        .ok_or_else(|| String::from("seed range overflows"))?;
+    if end > (1_u64 << 60) {
+        Err(String::from("seed range must fit below the partition tag"))
+    } else {
+        Ok(start)
+    }
 }
 
 const fn partition_seed(partition: SeedPartition, index: u64) -> u64 {

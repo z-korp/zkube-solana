@@ -2,6 +2,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { CampaignMapView } from "@/chain/campaignClient";
+import {
+  CAMPAIGN_CONTENT_VERSION,
+  canonicalCampaignMap,
+} from "@/chain/campaignCatalog";
 import type { ActiveRunRulesView } from "@/chain/runPlan";
 import { generateMapData } from "./useMapData";
 import { UNINITIALIZED_MAP_1 } from "@/ui/components/map/mapLogic";
@@ -72,17 +76,16 @@ describe("generateMapData", () => {
 
   it("provides authored Map 1 preview rules before player initialization", () => {
     const result = generateMapData({ map: UNINITIALIZED_MAP_1 });
-    expect(result.nodes[0].levelConfig).toMatchObject({
-      level: 1,
-      pointsRequired: 10,
-      maxMoves: 16,
-      difficulty: 0,
-    });
-    expect(result.nodes[9].levelConfig).toMatchObject({
-      level: 10,
-      pointsRequired: 68,
-      maxMoves: 50,
-      difficulty: 3,
-    });
+    const authored = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
+    for (const levelIndex of [0, 9]) {
+      const { level, pointsRequired, maxMoves, difficulty } =
+        authored.levels[levelIndex];
+      expect(result.nodes[levelIndex].levelConfig).toMatchObject({
+        level,
+        pointsRequired,
+        maxMoves,
+        difficulty,
+      });
+    }
   });
 });

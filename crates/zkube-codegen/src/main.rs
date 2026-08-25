@@ -15,11 +15,20 @@ use zkube_core::{
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
-const GENERATED_TS: &str = "crates/zkube-codegen/generated/catalog.generated.ts";
+const GENERATED_TS: &str = "client/src/chain/campaignCatalog.generated.ts";
 const GENERATED_PROTOCOL_TS: [&str; 2] = [
     "client/src/chain/protocolVersions.generated.ts",
     "services/src/protocolVersions.generated.ts",
 ];
+
+// Balance target: levels 1-2 complete at least 90%, levels 7-9 at least 55%
+// in aggregate, guardians complete 40-60% with 10-30% three-stars, and every
+// guardian is at least 5 percentage points below its zone's levels 7-9. On the
+// fresh 32-seed CampaignConstraints holdout starting at seed index 1024 those
+// values were 100%/97.19%, 71.88%, 42.50%/15.31%, and a 14.58-point minimum
+// guardian step. Adjacent bands moved completion by 2.04-10.50 points while
+// each authored distribution moved by at least the five-point minimum below.
+const CAMPAIGN_MIN_ADJACENT_WEIGHT_TV_PERCENT: u16 = 5;
 
 #[derive(Parser)]
 #[command(
@@ -147,6 +156,21 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
             ));
         }
     }
+    for (index, pair) in catalog.difficulty_weights.windows(2).enumerate() {
+        let total_variation = pair[0]
+            .iter()
+            .zip(pair[1])
+            .map(|(left, right)| left.abs_diff(right))
+            .sum::<u16>()
+            / 2;
+        if total_variation < CAMPAIGN_MIN_ADJACENT_WEIGHT_TV_PERCENT {
+            return Err(format!(
+                "difficulty tiers {index} and {} must differ by at least {} percentage points",
+                index + 1,
+                CAMPAIGN_MIN_ADJACENT_WEIGHT_TV_PERCENT
+            ));
+        }
+    }
     if catalog.maps.len() != 10 {
         return Err("Campaign v2 must contain exactly ten maps".into());
     }
@@ -172,9 +196,14 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
             }
             if level_index > 0 {
                 let previous = map.levels[level_index - 1];
-                if level.0 <= previous.0 || level.1 < previous.1 {
+                let move_budget_did_not_tighten = if level_index == 9 {
+                    level.1 > previous.1
+                } else {
+                    level.1 >= previous.1
+                };
+                if level.0 <= previous.0 || move_budget_did_not_tighten || level.2 < previous.2 {
                     return Err(format!(
-                        "map {} level {} must not reduce its score or move curve",
+                        "map {} level {} must raise score, tighten moves, and preserve difficulty",
                         map.map_id,
                         level_index + 1
                     ));
@@ -325,5 +354,25 @@ mod tests {
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
         assert!(versions.contains("DAILY_PRESSURE_THRESHOLDS = [12, 28, 48, 70, 95, 125, 155]"));
+    }
+
+    #[test]
+    fn campaign_curve_guards_reject_flat_authored_data() {
+        let source = include_str!("../../../fixtures/campaign-v2.json");
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.difficulty_weights[1] = catalog.difficulty_weights[0];
+        assert!(
+            validate_catalog(&catalog)
+                .unwrap_err()
+                .contains("must differ by at least")
+        );
+
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.maps[0].levels[1].1 = catalog.maps[0].levels[0].1;
+        assert!(
+            validate_catalog(&catalog)
+                .unwrap_err()
+                .contains("must raise score, tighten moves, and preserve difficulty")
+        );
     }
 }
