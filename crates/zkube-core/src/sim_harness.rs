@@ -193,7 +193,7 @@ impl Counters {
         report: MoveReport,
     ) {
         self.observe_decision(action);
-        let earned = report.harness_charges_earned;
+        let earned = report.charges_earned;
         self.charges_earned = self.charges_earned.saturating_add(u32::from(earned));
         self.charges_spent = self.charges_spent.saturating_add(u16::from(spent));
         let uncapped = u16::from(before_charges.saturating_sub(spent)) + u16::from(earned);
@@ -542,7 +542,7 @@ fn play_daily_to_terminal(
             counters.bonuses_used = counters.bonuses_used.saturating_add(1);
         }
         if simulation.engine.phase == RunPhase::Finished {
-            terminal = Some(if selected.report.harness_preview_insertion_blocked {
+            terminal = Some(if selected.report.preview_insertion_blocked {
                 TerminalCause::Overflow
             } else {
                 TerminalCause::MoveBudget
@@ -630,7 +630,7 @@ pub fn run_campaign(
         if spent > 0 {
             counters.bonuses_used = counters.bonuses_used.saturating_add(1);
         }
-        last_blocked = selected.report.harness_preview_insertion_blocked;
+        last_blocked = selected.report.preview_insertion_blocked;
     }
 
     if !simulation.is_terminal() && !engine_stalled {
@@ -694,7 +694,7 @@ fn daily_move_candidates(
     let mut candidates = Vec::new();
     for (row, start, destination) in legal_move_coordinates(simulation.engine.grid) {
         let mut next = *simulation;
-        if let Ok(report) = next.harness_play_move(
+        if let Ok(report) = next.play_move(
             rules,
             simulation.action_counter,
             simulation.engine.moves,
@@ -728,8 +728,7 @@ fn daily_bonus_candidates(
     let mut candidates = Vec::new();
     for (row, column) in occupied_coordinates(simulation.engine.grid) {
         let mut next = *simulation;
-        if let Ok(report) = next.harness_apply_bonus(rules, simulation.action_counter, row, column)
-        {
+        if let Ok(report) = next.apply_bonus(rules, simulation.action_counter, row, column) {
             candidates.push(DailyCandidate {
                 action: ActionKind::Bonus { row, column },
                 key: daily_key(model, simulation, &next, report),
@@ -1217,37 +1216,17 @@ pub fn simulate_field(
     assumptions: FieldAssumptions,
     pack_sizes: &[u8],
 ) -> Result<FieldSummary, String> {
-    if assumptions.wallets == 0
-        || assumptions.measured_days == 0
-        || assumptions
-            .ability_mix_bps
-            .iter()
-            .map(|value| u32::from(*value))
-            .sum::<u32>()
-            != 10_000
-        || assumptions
-            .base_attendance_bps
-            .iter()
-            .any(|value| *value > 10_000)
-        || assumptions.maximum_entries_per_attendance == 0
-        || pack_sizes.is_empty()
-        || pack_sizes.contains(&0)
-        || !pack_sizes.windows(2).all(|pair| pair[0] < pair[1])
-    {
-        return Err(String::from("invalid field assumptions or pack sizes"));
-    }
+    validate_field_inputs(assumptions, pack_sizes)?;
     let mut wallets = (0..assumptions.wallets)
         .map(|wallet| WalletState {
             ability: field_ability(assumptions, wallet),
             ..WalletState::default()
         })
         .collect::<Vec<_>>();
-    let mut warmup_entries = 0u32;
-    let mut measured_entries = 0u64;
-    let mut entries_by_ability = [0u64; 4];
-    let mut wallet_days = [0u64; 4];
-    let mut pack_purchases = vec![0u64; pack_sizes.len()];
-    let mut longest_streak = 0u16;
+    let mut totals = FieldTotals {
+        pack_purchases: vec![0u64; pack_sizes.len()],
+        ..FieldTotals::default()
+    };
     let daily_entries = daily_catalog();
     let entry_count = u8::try_from(daily_entries.len())
         .map_err(|_| String::from("Daily field catalog exceeds u8"))?;
@@ -1264,113 +1243,233 @@ pub fn simulate_field(
         let mut theme_qualified = Vec::new();
         let mut next_daily_pot = 0u64;
         for (wallet_id, wallet) in (0..assumptions.wallets).zip(wallets.iter_mut()) {
-            let attendance = u32::from(assumptions.base_attendance_bps[wallet.ability])
-                .saturating_add(
-                    u32::from(wallet.streak)
-                        .saturating_mul(u32::from(assumptions.streak_response_bps_per_day)),
-                )
-                .min(10_000);
-            if field_draw(assumptions.seed, day, wallet_id, 0) >= attendance {
-                wallet.streak = 0;
+            let Some(entries) = wallet_entries_today(assumptions, day, wallet_id, wallet)? else {
                 continue;
-            }
-            wallet.streak = wallet.streak.saturating_add(1);
-            wallet.attended_ever = true;
-            longest_streak = longest_streak.max(wallet.streak);
-            let extra = if assumptions.maximum_entries_per_attendance > 1
-                && field_draw(assumptions.seed, day, wallet_id, 1)
-                    < u32::from(assumptions.multi_entry_wallet_bps)
-            {
-                1 + field_draw(assumptions.seed, day, wallet_id, 2)
-                    % u32::from(assumptions.maximum_entries_per_attendance - 1)
-            } else {
-                0
             };
-            let entries = 1u16.saturating_add(
-                u16::try_from(extra)
-                    .map_err(|_| String::from("per-attendance entries exceed u16"))?,
+            totals.longest_streak = totals.longest_streak.max(wallet.streak);
+            reorder_kredits(
+                wallet,
+                entries,
+                assumptions.reorder_target,
+                pack_sizes,
+                (day > 0).then_some(&mut totals.pack_purchases),
             );
-            while wallet.balance < entries {
-                let target = entries.saturating_add(u16::from(assumptions.reorder_target));
-                let needed = target.saturating_sub(wallet.balance);
-                let pack_index = pack_sizes
-                    .iter()
-                    .position(|size| u16::from(*size) >= needed)
-                    .unwrap_or(pack_sizes.len() - 1);
-                wallet.balance = wallet
-                    .balance
-                    .saturating_add(u16::from(pack_sizes[pack_index]));
-                if day > 0 {
-                    pack_purchases[pack_index] = pack_purchases[pack_index].saturating_add(1);
-                }
-            }
             wallet.balance = wallet.balance.saturating_sub(entries);
-            next_daily_pot = next_daily_pot
-                .checked_add(
-                    u64::from(entries)
-                        .checked_mul(ENTRY_DAILY_LAMPORTS)
-                        .ok_or_else(|| String::from("field contribution overflow"))?,
-                )
+            next_daily_pot = u64::from(entries)
+                .checked_mul(ENTRY_DAILY_LAMPORTS)
+                .and_then(|lamports| next_daily_pot.checked_add(lamports))
                 .ok_or_else(|| String::from("field pot overflow"))?;
             if day == 0 {
-                warmup_entries = warmup_entries.saturating_add(u32::from(entries));
+                totals.warmup_entries = totals.warmup_entries.saturating_add(u32::from(entries));
             } else {
-                measured_entries = measured_entries.saturating_add(u64::from(entries));
-                entries_by_ability[wallet.ability] =
-                    entries_by_ability[wallet.ability].saturating_add(u64::from(entries));
-                wallet_days[wallet.ability] = wallet_days[wallet.ability].saturating_add(1);
-                let wallet_index = usize::try_from(wallet_id)
-                    .map_err(|_| String::from("wallet index exceeds usize"))?;
-                if let Some(metric) = field_best_metric(
+                totals.record_measured(wallet.ability, entries);
+                let (score, theme) = qualify_wallet_day(
                     assumptions.seed,
                     day,
                     wallet_id,
+                    wallet.ability,
                     entries,
-                    FIELD_SCORE_QUALIFICATION_BPS[wallet.ability],
-                    FIELD_SCORE_ANCHORS[wallet.ability],
-                    16,
-                ) {
-                    score_qualified.push(QualifiedWallet {
-                        wallet_index,
-                        metric,
-                    });
-                }
-                if !classic {
-                    if let Some(metric) = field_best_metric(
-                        assumptions.seed,
-                        day,
-                        wallet_id,
-                        entries,
-                        FIELD_THEME_QUALIFICATION_BPS[wallet.ability],
-                        FIELD_THEME_ANCHORS[wallet.ability],
-                        32,
-                    ) {
-                        theme_qualified.push(QualifiedWallet {
-                            wallet_index,
-                            metric,
-                        });
-                    }
-                }
+                    classic,
+                );
+                let wallet_index = usize::try_from(wallet_id)
+                    .map_err(|_| String::from("wallet index exceeds usize"))?;
+                score_qualified.extend(score.map(|metric| QualifiedWallet {
+                    wallet_index,
+                    metric,
+                }));
+                theme_qualified.extend(theme.map(|metric| QualifiedWallet {
+                    wallet_index,
+                    metric,
+                }));
             }
         }
         if day > 0 {
-            let score_pool = if classic {
-                current_daily_pot
-            } else {
-                current_daily_pot / 2
-            };
-            let theme_pool = current_daily_pot.saturating_sub(score_pool);
-            award_field_ladder_board(day, score_pool, &mut score_qualified, &mut wallets)?;
-            award_field_ladder_board(day, theme_pool, &mut theme_qualified, &mut wallets)?;
+            award_field_ladder_day(
+                day,
+                current_daily_pot,
+                classic,
+                &mut score_qualified,
+                &mut theme_qualified,
+                &mut wallets,
+            )?;
         }
         current_daily_pot = next_daily_pot;
     }
+    summarize_field(assumptions, pack_sizes, &wallets, totals)
+}
+
+/// Decide whether the wallet attends today and, if so, how many entries it
+/// buys. Attendance is the ability's base rate plus the streak response;
+/// a missed day resets the streak. Returns `None` on a missed day.
+fn wallet_entries_today(
+    assumptions: FieldAssumptions,
+    day: u32,
+    wallet_id: u32,
+    wallet: &mut WalletState,
+) -> Result<Option<u16>, String> {
+    let attendance = u32::from(assumptions.base_attendance_bps[wallet.ability])
+        .saturating_add(
+            u32::from(wallet.streak)
+                .saturating_mul(u32::from(assumptions.streak_response_bps_per_day)),
+        )
+        .min(10_000);
+    if field_draw(assumptions.seed, day, wallet_id, 0) >= attendance {
+        wallet.streak = 0;
+        return Ok(None);
+    }
+    wallet.streak = wallet.streak.saturating_add(1);
+    wallet.attended_ever = true;
+    let extra = if assumptions.maximum_entries_per_attendance > 1
+        && field_draw(assumptions.seed, day, wallet_id, 1)
+            < u32::from(assumptions.multi_entry_wallet_bps)
+    {
+        1 + field_draw(assumptions.seed, day, wallet_id, 2)
+            % u32::from(assumptions.maximum_entries_per_attendance - 1)
+    } else {
+        0
+    };
+    let entries = 1u16.saturating_add(
+        u16::try_from(extra).map_err(|_| String::from("per-attendance entries exceed u16"))?,
+    );
+    Ok(Some(entries))
+}
+
+/// Split the day's pot across the two boards — all of it to Score on a
+/// Classic day — and award both ladders.
+fn award_field_ladder_day(
+    day: u32,
+    pot: u64,
+    classic: bool,
+    score_qualified: &mut [QualifiedWallet],
+    theme_qualified: &mut [QualifiedWallet],
+    wallets: &mut [WalletState],
+) -> Result<(), String> {
+    let score_pool = if classic { pot } else { pot / 2 };
+    let theme_pool = pot.saturating_sub(score_pool);
+    award_field_ladder_board(day, score_pool, score_qualified, wallets)?;
+    award_field_ladder_board(day, theme_pool, theme_qualified, wallets)
+}
+
+fn validate_field_inputs(assumptions: FieldAssumptions, pack_sizes: &[u8]) -> Result<(), String> {
+    let mix_sums_to_one = assumptions
+        .ability_mix_bps
+        .iter()
+        .map(|value| u32::from(*value))
+        .sum::<u32>()
+        == 10_000;
+    let attendance_is_probability = assumptions
+        .base_attendance_bps
+        .iter()
+        .all(|value| *value <= 10_000);
+    let packs_ascend = !pack_sizes.is_empty()
+        && !pack_sizes.contains(&0)
+        && pack_sizes.windows(2).all(|pair| pair[0] < pair[1]);
+    if assumptions.wallets == 0
+        || assumptions.measured_days == 0
+        || !mix_sums_to_one
+        || !attendance_is_probability
+        || assumptions.maximum_entries_per_attendance == 0
+        || !packs_ascend
+    {
+        return Err(String::from("invalid field assumptions or pack sizes"));
+    }
+    Ok(())
+}
+
+/// Buy the smallest pack that restores `entries + reorder_target` Kredits,
+/// falling back to the largest pack, until the day's entries are covered.
+/// Warm-up purchases pass `None` so they are not counted.
+fn reorder_kredits(
+    wallet: &mut WalletState,
+    entries: u16,
+    reorder_target: u8,
+    pack_sizes: &[u8],
+    mut pack_purchases: Option<&mut Vec<u64>>,
+) {
+    while wallet.balance < entries {
+        let target = entries.saturating_add(u16::from(reorder_target));
+        let needed = target.saturating_sub(wallet.balance);
+        let pack_index = pack_sizes
+            .iter()
+            .position(|size| u16::from(*size) >= needed)
+            .unwrap_or(pack_sizes.len() - 1);
+        wallet.balance = wallet
+            .balance
+            .saturating_add(u16::from(pack_sizes[pack_index]));
+        if let Some(purchases) = pack_purchases.as_deref_mut() {
+            purchases[pack_index] = purchases[pack_index].saturating_add(1);
+        }
+    }
+}
+
+/// The wallet's best qualifying Score and Theme metrics for the day, if any.
+/// A Classic day has no Theme board, so its Theme metric is always absent.
+fn qualify_wallet_day(
+    seed: u64,
+    day: u32,
+    wallet_id: u32,
+    ability: usize,
+    entries: u16,
+    classic: bool,
+) -> (Option<u32>, Option<u32>) {
+    let score = field_best_metric(
+        seed,
+        day,
+        wallet_id,
+        entries,
+        FIELD_SCORE_QUALIFICATION_BPS[ability],
+        FIELD_SCORE_ANCHORS[ability],
+        16,
+    );
+    let theme = if classic {
+        None
+    } else {
+        field_best_metric(
+            seed,
+            day,
+            wallet_id,
+            entries,
+            FIELD_THEME_QUALIFICATION_BPS[ability],
+            FIELD_THEME_ANCHORS[ability],
+            32,
+        )
+    };
+    (score, theme)
+}
+
+/// Per-run counters that the day loop accumulates before the wallets are
+/// summarised.
+#[derive(Default)]
+struct FieldTotals {
+    warmup_entries: u32,
+    measured_entries: u64,
+    entries_by_ability: [u64; 4],
+    wallet_days: [u64; 4],
+    pack_purchases: Vec<u64>,
+    longest_streak: u16,
+}
+
+impl FieldTotals {
+    fn record_measured(&mut self, ability: usize, entries: u16) {
+        self.measured_entries = self.measured_entries.saturating_add(u64::from(entries));
+        self.entries_by_ability[ability] =
+            self.entries_by_ability[ability].saturating_add(u64::from(entries));
+        self.wallet_days[ability] = self.wallet_days[ability].saturating_add(1);
+    }
+}
+
+fn summarize_field(
+    assumptions: FieldAssumptions,
+    pack_sizes: &[u8],
+    wallets: &[WalletState],
+    totals: FieldTotals,
+) -> Result<FieldSummary, String> {
     let mut wallets_by_ability = [0u32; 4];
     let mut ending_ladder_tiers_by_ability = [[0u32; FIELD_LADDER_TIERS]; 4];
     let mut ladder_points_by_ability: [Vec<u64>; 4] = core::array::from_fn(|_| Vec::new());
     let mut ladder_days_by_ability: [[Vec<u16>; FIELD_LADDER_TIERS]; 4] =
         core::array::from_fn(|_| core::array::from_fn(|_| Vec::new()));
-    for wallet in &wallets {
+    for wallet in wallets {
         wallets_by_ability[wallet.ability] = wallets_by_ability[wallet.ability].saturating_add(1);
         let tier = usize::from(ladder_tier_for_points(wallet.ladder_points));
         ending_ladder_tiers_by_ability[wallet.ability][tier] =
@@ -1402,17 +1501,17 @@ pub fn simulate_field(
     Ok(FieldSummary {
         assumptions,
         pack_sizes: pack_sizes.to_vec(),
-        warmup_entries,
-        measured_entries,
+        warmup_entries: totals.warmup_entries,
+        measured_entries: totals.measured_entries,
         unique_attending_wallets: u32::try_from(
             wallets.iter().filter(|wallet| wallet.attended_ever).count(),
         )
         .map_err(|_| String::from("attending wallet count exceeds u32"))?,
-        entries_by_ability,
-        attending_wallet_days_by_ability: wallet_days,
-        pack_purchases,
+        entries_by_ability: totals.entries_by_ability,
+        attending_wallet_days_by_ability: totals.wallet_days,
+        pack_purchases: totals.pack_purchases,
         ending_kredits: wallets.iter().map(|wallet| u64::from(wallet.balance)).sum(),
-        longest_streak,
+        longest_streak: totals.longest_streak,
         wallets_by_ability,
         ending_ladder_tiers_by_ability,
         median_ladder_reach_day_by_ability,

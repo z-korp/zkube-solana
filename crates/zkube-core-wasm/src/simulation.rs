@@ -640,7 +640,7 @@ mod tests {
                 moved
                     .play_move(config.rules, 1, row, start, destination, 0)
                     .ok()
-                    .map(|()| (row, start, destination, moved))
+                    .map(|_| (row, start, destination, moved))
             })
             .expect("opening must contain a valid move");
         expected = moved;

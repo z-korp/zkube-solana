@@ -397,6 +397,9 @@ fn decode_report(reader: &mut Reader<'_>) -> Result<MoveReport, BoundaryError> {
         blocks_destroyed_by_size: reader.array()?,
         neutral_points_earned: reader.u32()?,
         difficulty_at_action: reader.u8()?,
+        // Engine observations that the client boundary does not carry.
+        charges_earned: 0,
+        preview_insertion_blocked: false,
     })
 }
 

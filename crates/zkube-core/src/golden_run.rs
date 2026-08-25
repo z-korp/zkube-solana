@@ -245,14 +245,18 @@ fn verify_daily_run_vector(json: &str) {
                 row,
                 start,
                 destination,
-            } => simulation
-                .play_move(rules, action, expected_move, row, start, destination)
-                .unwrap(),
+            } => {
+                simulation
+                    .play_move(rules, action, expected_move, row, start, destination)
+                    .unwrap();
+            }
             GoldenEvent::Bonus {
                 action,
                 row,
                 column,
-            } => simulation.apply_bonus(rules, action, row, column).unwrap(),
+            } => {
+                simulation.apply_bonus(rules, action, row, column).unwrap();
+            }
             GoldenEvent::DailyDeadline { action } => {
                 assert_eq!(action, simulation.action_counter);
                 simulation.finish_at_deadline().unwrap();

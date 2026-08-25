@@ -62,8 +62,10 @@ validate_program() {
   cd "$root"
   NO_DNA=1 cargo run -p zkube-codegen -- check
   NO_DNA=1 cargo fmt --all -- --check
-  NO_DNA=1 cargo test --workspace
-  NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
+  # The balance harness is feature-gated so the program never links it, but it
+  # is still gated code: compile, lint, and run it with every pass.
+  NO_DNA=1 cargo test --workspace --features zkube-core/sim-harness
+  NO_DNA=1 cargo clippy --workspace --all-targets --features zkube-core/sim-harness -- -D warnings
   validate_sbf
 }
 
