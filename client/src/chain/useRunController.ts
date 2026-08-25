@@ -112,6 +112,23 @@ const plogErSubmission = (
   });
 };
 
+type DevPlaytestAction = "move" | "bonus" | "reroll";
+
+async function logDevPlaytestAction(
+  before: ActiveRunView,
+  after: ActiveRunView,
+  action: DevPlaytestAction,
+): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  try {
+    const { logAcceptedPlaytestAction } =
+      await import("@/dev/playtestActionLogger");
+    logAcceptedPlaytestAction(before, after, action);
+  } catch (error) {
+    console.warn(`Playtest action logging failed: ${errorMessage(error)}`);
+  }
+}
+
 export type SettleStage =
   | "abandoning"
   | "delegating"
@@ -935,6 +952,7 @@ export function useRunController(slot: RunSlot) {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
+          const beforeAction = run.activeRun;
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
           const observer = await ensureActiveRunObserver(
@@ -1028,6 +1046,7 @@ export function useRunController(slot: RunSlot) {
             activeRun,
             lastSignature: submission.signature,
           }));
+          await logDevPlaytestAction(beforeAction, activeRun, "move");
           return activeRun;
         });
       } catch (error) {
@@ -1556,6 +1575,7 @@ export function useRunController(slot: RunSlot) {
       actionInFlight.current = true;
       try {
         return await withBusy(setState, async () => {
+          const beforeAction = run.activeRun;
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
           const observer = await ensureActiveRunObserver(
@@ -1610,6 +1630,7 @@ export function useRunController(slot: RunSlot) {
             activeRun,
             lastSignature: submission.signature,
           }));
+          await logDevPlaytestAction(beforeAction, activeRun, "bonus");
           return activeRun;
         });
       } finally {
@@ -1625,6 +1646,7 @@ export function useRunController(slot: RunSlot) {
     actionInFlight.current = true;
     try {
       return await withBusy(setState, async () => {
+        const beforeAction = run.activeRun;
         const device = player.requireSession();
         const sessionWallet = new SessionWallet(device.signer);
         const observer = await ensureActiveRunObserver(
@@ -1676,6 +1698,7 @@ export function useRunController(slot: RunSlot) {
           activeRun,
           lastSignature: submission.signature,
         }));
+        await logDevPlaytestAction(beforeAction, activeRun, "reroll");
         return activeRun;
       });
     } finally {

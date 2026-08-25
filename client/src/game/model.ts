@@ -49,6 +49,14 @@ export class Game {
     return this.view.moves;
   }
 
+  /** Occupied board rows, measured from the floor. */
+  public get boardHeight(): number {
+    const firstOccupiedRow = this.blocks.findIndex((row) =>
+      row.some((cell) => cell !== 0),
+    );
+    return firstOccupiedRow < 0 ? 0 : this.blocks.length - firstOccupiedRow;
+  }
+
   public get constraintProgress(): number {
     return this.view.primaryProgress;
   }

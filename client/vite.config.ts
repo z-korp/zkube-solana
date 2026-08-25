@@ -11,6 +11,7 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 const SERVICE_WORKER_VERSION_PLACEHOLDER = "__ZKUBE_BUILD_VERSION__";
 const HTTPS_CERT_PATH_ENV = "ZKUBE_HTTPS_CERT_PATH";
 const HTTPS_KEY_PATH_ENV = "ZKUBE_HTTPS_KEY_PATH";
+const DEV_PLAYTEST_ACTION_SENTINEL = "zkube_playtest_action_v1";
 
 function localHttpsOptions():
   | Readonly<{ cert: Buffer; key: Buffer }>
@@ -76,6 +77,30 @@ function versionServiceWorker(): Plugin {
   };
 }
 
+/** Fails closed if dev-only playtest instrumentation enters a release asset. */
+function excludeDevPlaytestInstrumentation(): Plugin {
+  return {
+    name: "zkube-exclude-dev-playtest-instrumentation",
+    apply: "build",
+    enforce: "post",
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        const contents =
+          output.type === "chunk"
+            ? output.code
+            : typeof output.source === "string"
+              ? output.source
+              : Buffer.from(output.source).toString("utf8");
+        if (contents.includes(DEV_PLAYTEST_ACTION_SENTINEL)) {
+          throw new Error(
+            `Dev playtest instrumentation entered release asset ${output.fileName}`,
+          );
+        }
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -85,6 +110,7 @@ export default defineConfig({
     topLevelAwait(),
     nodePolyfills({ include: ["buffer", "process", "stream", "util"] }),
     versionServiceWorker(),
+    excludeDevPlaytestInstrumentation(),
   ],
   build: {
     target: "ES2022",
