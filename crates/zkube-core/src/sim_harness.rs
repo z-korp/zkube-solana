@@ -29,13 +29,13 @@
 //! accounting are integers.
 
 use crate::{
-    ARENA_ENTRY_LAMPORTS, Bonus, CampaignEndReason, CampaignError, CampaignRules,
+    ARENA_ENTRY_LAMPORTS, ActionMetrics, Bonus, CampaignEndReason, CampaignError, CampaignRules,
     CampaignSimulation, CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint,
     ConstraintKind, DailyObjective, DailyObjectiveRule, DailyPressureRules, DailyRunRules,
     DailySimulation, DailySimulationConfig, ENTRY_DAILY_LAMPORTS, GRID_HEIGHT, GRID_WIDTH, Grid,
     LADDER_QUALIFY_POINTS, LADDER_TIER_POINT_THRESHOLDS, MoveReport, MutatorRules, ReplayMode,
-    RulesHash, RunPhase, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SimulationError, SoftwareSha256,
-    board_width, daily_pool_entry_index, ladder_points, ladder_tier_for_points,
+    RulesHash, RunMetrics, RunPhase, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SimulationError,
+    SoftwareSha256, board_width, daily_pool_entry_index, ladder_points, ladder_tier_for_points,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -144,15 +144,35 @@ pub struct RunRecord {
     pub final_height: u8,
     pub max_difficulty: u8,
     pub tier_actions: [u16; 8],
+    pub metrics: RunMetrics,
     pub charges_earned_before_cap: u32,
     pub charges_spent: u16,
     pub charges_discarded_at_cap: u16,
     pub bonuses_used: u16,
     pub rerolls_used: u16,
+    pub bonus_charge_earned_events: Vec<TimedRunEvent>,
+    pub bonus_charge_discarded_events: Vec<TimedRunEvent>,
+    pub bonus_spent_events: Vec<TimedRunEvent>,
+    pub reroll_spent_events: Vec<TimedRunEvent>,
+    /// Populated once brief 04 adds deterministic reroll grants to `MoveReport`.
+    pub reroll_granted_events: Vec<TimedRunEvent>,
+    /// Populated once brief 04 reports grants discarded at the reroll cap.
+    pub reroll_grant_discarded_events: Vec<TimedRunEvent>,
+    pub apex_hit_action: Option<u32>,
+    pub terminal_action: Option<u32>,
     pub decision_digest_hex: String,
     pub primary_progress: u8,
     pub secondary_progress: u8,
-    pub stars: u8,
+    pub earned_stars: u8,
+}
+
+/// One measured inventory event at an accepted-action boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimedRunEvent {
+    pub action: u32,
+    pub board_height: u8,
+    pub count: u16,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,7 +191,7 @@ pub struct CampaignCatalogLevel {
     pub rules: CampaignRules,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Default)]
 struct Counters {
     charges_earned: u32,
     charges_spent: u16,
@@ -180,26 +200,99 @@ struct Counters {
     rerolls_used: u16,
     max_difficulty: u8,
     tier_actions: [u16; 8],
+    metrics: RunMetrics,
+    bonus_charge_earned_events: Vec<TimedRunEvent>,
+    bonus_charge_discarded_events: Vec<TimedRunEvent>,
+    bonus_spent_events: Vec<TimedRunEvent>,
+    reroll_spent_events: Vec<TimedRunEvent>,
+    reroll_granted_events: Vec<TimedRunEvent>,
+    reroll_grant_discarded_events: Vec<TimedRunEvent>,
+    apex_hit_action: Option<u32>,
+    terminal_action: Option<u32>,
     decision_commitment: [u8; 32],
 }
 
+#[derive(Clone, Copy, Debug)]
+struct MoveObservation {
+    action: ActionKind,
+    action_index: u32,
+    combo_before: u8,
+    before_charges: u8,
+    spent: u8,
+    after_charges: u8,
+    report: MoveReport,
+    secondary_was_satisfied: bool,
+    secondary_is_satisfied: bool,
+    terminal: bool,
+}
+
 impl Counters {
-    fn observe(
-        &mut self,
-        action: ActionKind,
-        before_charges: u8,
-        spent: u8,
-        after_charges: u8,
-        report: MoveReport,
-    ) {
+    fn observe(&mut self, observation: MoveObservation) {
+        let MoveObservation {
+            action,
+            action_index,
+            combo_before,
+            before_charges,
+            spent,
+            after_charges,
+            report,
+            secondary_was_satisfied,
+            secondary_is_satisfied,
+            terminal,
+        } = observation;
         self.observe_decision(action);
+        let blocks_destroyed = report
+            .blocks_destroyed_by_size
+            .into_iter()
+            .map(u32::from)
+            .sum();
+        self.metrics
+            .record_action(ActionMetrics {
+                score: u64::from(report.points_earned),
+                lines: u32::from(report.lines_cleared),
+                blocks_destroyed,
+                combo: u32::from(report.combo_counter),
+                combo_derived_score: if report.combo_counter > combo_before {
+                    u64::from(report.points_earned)
+                } else {
+                    0
+                },
+                perfect_clear: report.perfect_clear,
+            })
+            .expect("the bounded harness action count cannot overflow RunMetrics");
         let earned = report.charges_earned;
         self.charges_earned = self.charges_earned.saturating_add(u32::from(earned));
         self.charges_spent = self.charges_spent.saturating_add(u16::from(spent));
         let uncapped = u16::from(before_charges.saturating_sub(spent)) + u16::from(earned);
-        self.charges_discarded = self
-            .charges_discarded
-            .saturating_add(uncapped.saturating_sub(u16::from(after_charges)));
+        let discarded = uncapped.saturating_sub(u16::from(after_charges));
+        self.charges_discarded = self.charges_discarded.saturating_add(discarded);
+        if earned > 0 {
+            self.bonus_charge_earned_events.push(TimedRunEvent {
+                action: action_index,
+                board_height: report.height_after,
+                count: u16::from(earned),
+            });
+        }
+        if discarded > 0 {
+            self.bonus_charge_discarded_events.push(TimedRunEvent {
+                action: action_index,
+                board_height: report.height_after,
+                count: discarded,
+            });
+        }
+        if spent > 0 {
+            self.bonus_spent_events.push(TimedRunEvent {
+                action: action_index,
+                board_height: report.height_before,
+                count: u16::from(spent),
+            });
+        }
+        if self.apex_hit_action.is_none() && !secondary_was_satisfied && secondary_is_satisfied {
+            self.apex_hit_action = Some(action_index);
+        }
+        if terminal {
+            self.terminal_action = Some(action_index);
+        }
         let tier = usize::from(report.difficulty_at_action.min(7));
         self.tier_actions[tier] = self.tier_actions[tier].saturating_add(1);
         self.max_difficulty = self.max_difficulty.max(report.difficulty_at_action);
@@ -209,6 +302,16 @@ impl Counters {
         let encoded = action.encoded();
         self.decision_commitment =
             SoftwareSha256::hashv(&[HARNESS_DECISION_DOMAIN, &self.decision_commitment, &encoded]);
+    }
+
+    fn observe_reroll(&mut self, action_index: u32, board_height: u8) {
+        self.rerolls_used = self.rerolls_used.saturating_add(1);
+        self.reroll_spent_events.push(TimedRunEvent {
+            action: action_index,
+            board_height,
+            count: 1,
+        });
+        self.observe_decision(ActionKind::Reroll);
     }
 }
 
@@ -475,15 +578,24 @@ pub fn run_daily(
         final_height: simulation.engine.grid.occupied_height(),
         max_difficulty: counters.max_difficulty,
         tier_actions: counters.tier_actions,
+        metrics: simulation.metrics,
         charges_earned_before_cap: counters.charges_earned,
         charges_spent: counters.charges_spent,
         charges_discarded_at_cap: counters.charges_discarded,
         bonuses_used: counters.bonuses_used,
         rerolls_used: counters.rerolls_used,
+        bonus_charge_earned_events: counters.bonus_charge_earned_events,
+        bonus_charge_discarded_events: counters.bonus_charge_discarded_events,
+        bonus_spent_events: counters.bonus_spent_events,
+        reroll_spent_events: counters.reroll_spent_events,
+        reroll_granted_events: counters.reroll_granted_events,
+        reroll_grant_discarded_events: counters.reroll_grant_discarded_events,
+        apex_hit_action: counters.apex_hit_action,
+        terminal_action: counters.terminal_action,
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
-        stars: 0,
+        earned_stars: 0,
     })
 }
 
@@ -515,9 +627,10 @@ fn play_daily_to_terminal(
         if simulation.engine.reroll_available
             && should_reroll(model, simulation.action_counter, &best_move.report)
         {
+            let action = simulation.action_counter;
+            let height = simulation.engine.grid.occupied_height();
             simulation.request_reroll(rules, simulation.action_counter)?;
-            counters.rerolls_used = counters.rerolls_used.saturating_add(1);
-            counters.observe_decision(ActionKind::Reroll);
+            counters.observe_reroll(action, height);
             continue;
         }
 
@@ -528,16 +641,24 @@ fn play_daily_to_terminal(
         } else {
             best_move
         };
+        let action = simulation.action_counter;
+        let combo_before = simulation.engine.combo_counter;
         let before_charges = simulation.engine.bonus_charges;
         let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
         simulation = selected.next;
-        counters.observe(
-            selected.action,
+        let action_was_terminal = simulation.engine.phase == RunPhase::Finished;
+        counters.observe(MoveObservation {
+            action: selected.action,
+            action_index: action,
+            combo_before,
             before_charges,
             spent,
-            simulation.engine.bonus_charges,
-            selected.report,
-        );
+            after_charges: simulation.engine.bonus_charges,
+            report: selected.report,
+            secondary_was_satisfied: false,
+            secondary_is_satisfied: false,
+            terminal: action_was_terminal,
+        });
         if spent > 0 {
             counters.bonuses_used = counters.bonuses_used.saturating_add(1);
         }
@@ -561,6 +682,7 @@ fn play_daily_to_terminal(
         }
         TerminalCause::Deadline
     };
+    debug_assert_eq!(counters.metrics, simulation.metrics);
     Ok((simulation, counters, terminal_cause))
 }
 
@@ -589,63 +711,9 @@ pub fn run_campaign(
         seed: seed_bytes,
         rules: level.rules,
     };
-    let mut simulation = CampaignSimulation::new(config)?;
-    let mut counters = Counters::default();
-    let mut last_blocked = false;
-    let mut engine_stalled = false;
-
-    while !simulation.is_terminal() && simulation.action_counter < MAX_HARNESS_PLIES {
-        let moves = campaign_move_candidates(simulation, config, model);
-        let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model)
-        else {
-            engine_stalled = true;
-            break;
-        };
-        if simulation.engine.reroll_available
-            && should_reroll(model, simulation.action_counter, &best_move.report)
-        {
-            simulation.request_reroll(config)?;
-            counters.rerolls_used = counters.rerolls_used.saturating_add(1);
-            counters.observe_decision(ActionKind::Reroll);
-            continue;
-        }
-        let bonuses = campaign_bonus_candidates(simulation, config, model);
-        let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
-        let selected =
-            if should_spend_campaign_bonus(model, &simulation, &best_move, best_bonus.as_ref()) {
-                best_bonus.unwrap_or(best_move)
-            } else {
-                best_move
-            };
-        let before_charges = simulation.engine.bonus_charges;
-        let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
-        simulation = selected.next;
-        counters.observe(
-            selected.action,
-            before_charges,
-            spent,
-            simulation.engine.bonus_charges,
-            selected.report,
-        );
-        if spent > 0 {
-            counters.bonuses_used = counters.bonuses_used.saturating_add(1);
-        }
-        last_blocked = selected.report.preview_insertion_blocked;
-    }
-
-    if !simulation.is_terminal() && !engine_stalled {
-        simulation.abandon(config)?;
-    }
-    let terminal_cause = if engine_stalled {
-        TerminalCause::EngineStall
-    } else {
-        match simulation.end_reason {
-            Some(CampaignEndReason::Completed) => TerminalCause::Completion,
-            Some(CampaignEndReason::Exhausted) if last_blocked => TerminalCause::Overflow,
-            Some(CampaignEndReason::Exhausted) => TerminalCause::MoveBudget,
-            Some(CampaignEndReason::Abandoned) | None => TerminalCause::Abandoned,
-        }
-    };
+    let simulation = CampaignSimulation::new(config)?;
+    let (simulation, counters, terminal_cause) =
+        play_campaign_to_terminal(simulation, config, model, seed)?;
     Ok(RunRecord {
         mode: String::from("campaign"),
         catalog_id: level.catalog_id,
@@ -665,16 +733,109 @@ pub fn run_campaign(
         final_height: simulation.engine.grid.occupied_height(),
         max_difficulty: counters.max_difficulty,
         tier_actions: counters.tier_actions,
+        metrics: counters.metrics,
         charges_earned_before_cap: counters.charges_earned,
         charges_spent: counters.charges_spent,
         charges_discarded_at_cap: counters.charges_discarded,
         bonuses_used: counters.bonuses_used,
         rerolls_used: counters.rerolls_used,
+        bonus_charge_earned_events: counters.bonus_charge_earned_events,
+        bonus_charge_discarded_events: counters.bonus_charge_discarded_events,
+        bonus_spent_events: counters.bonus_spent_events,
+        reroll_spent_events: counters.reroll_spent_events,
+        reroll_granted_events: counters.reroll_granted_events,
+        reroll_grant_discarded_events: counters.reroll_grant_discarded_events,
+        apex_hit_action: counters.apex_hit_action,
+        terminal_action: counters.terminal_action,
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
-        stars: simulation.earned_stars,
+        earned_stars: simulation.earned_stars,
     })
+}
+
+fn play_campaign_to_terminal(
+    mut simulation: CampaignSimulation,
+    config: CampaignSimulationConfig,
+    model: PlayerModel,
+    seed: u64,
+) -> Result<(CampaignSimulation, Counters, TerminalCause), CampaignError> {
+    let mut counters = Counters::default();
+    let mut last_blocked = false;
+    let mut engine_stalled = false;
+
+    while !simulation.is_terminal() && simulation.action_counter < MAX_HARNESS_PLIES {
+        let moves = campaign_move_candidates(simulation, config, model);
+        let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model)
+        else {
+            engine_stalled = true;
+            break;
+        };
+        if simulation.engine.reroll_available
+            && should_reroll(model, simulation.action_counter, &best_move.report)
+        {
+            let action = simulation.action_counter;
+            let height = simulation.engine.grid.occupied_height();
+            simulation.request_reroll(config)?;
+            counters.observe_reroll(action, height);
+            continue;
+        }
+        let bonuses = campaign_bonus_candidates(simulation, config, model);
+        let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
+        let selected =
+            if should_spend_campaign_bonus(model, &simulation, &best_move, best_bonus.as_ref()) {
+                best_bonus.unwrap_or(best_move)
+            } else {
+                best_move
+            };
+        let action = simulation.action_counter;
+        let combo_before = simulation.engine.combo_counter;
+        let before_charges = simulation.engine.bonus_charges;
+        let secondary_was_satisfied = config
+            .rules
+            .level
+            .secondary
+            .is_satisfied(simulation.engine.secondary_progress);
+        let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
+        simulation = selected.next;
+        let secondary_is_satisfied = config
+            .rules
+            .level
+            .secondary
+            .is_satisfied(simulation.engine.secondary_progress);
+        let terminal = simulation.is_terminal();
+        counters.observe(MoveObservation {
+            action: selected.action,
+            action_index: action,
+            combo_before,
+            before_charges,
+            spent,
+            after_charges: simulation.engine.bonus_charges,
+            report: selected.report,
+            secondary_was_satisfied,
+            secondary_is_satisfied,
+            terminal,
+        });
+        if spent > 0 {
+            counters.bonuses_used = counters.bonuses_used.saturating_add(1);
+        }
+        last_blocked = selected.report.preview_insertion_blocked;
+    }
+
+    if !simulation.is_terminal() && !engine_stalled {
+        simulation.abandon(config)?;
+    }
+    let terminal_cause = if engine_stalled {
+        TerminalCause::EngineStall
+    } else {
+        match simulation.end_reason {
+            Some(CampaignEndReason::Completed) => TerminalCause::Completion,
+            Some(CampaignEndReason::Exhausted) if last_blocked => TerminalCause::Overflow,
+            Some(CampaignEndReason::Exhausted) => TerminalCause::MoveBudget,
+            Some(CampaignEndReason::Abandoned) | None => TerminalCause::Abandoned,
+        }
+    };
+    Ok((simulation, counters, terminal_cause))
 }
 
 fn constraint_family(constraint: Constraint) -> u8 {
@@ -1733,8 +1894,85 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":605,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"4ecbef3ceece04e55af47ba92ff653de1fc883bb5761270f6206a719489938d3\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":605,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"96957664991c055d90177b0310a52649d45c40674f6b33287eed927e8089365c\"}"
         );
+    }
+
+    #[test]
+    fn run_records_preserve_decisions_and_expose_canonical_instrumentation() {
+        let daily_entries = daily_catalog();
+        let campaign_levels = campaign_catalog();
+        let records = [
+            run_daily(
+                daily_entries[1],
+                PlayerModel::DailyScore,
+                SeedPartition::Holdout,
+                41,
+            )
+            .unwrap(),
+            run_daily(
+                daily_entries[6],
+                PlayerModel::Theme,
+                SeedPartition::Holdout,
+                73,
+            )
+            .unwrap(),
+            run_campaign(
+                campaign_levels[2],
+                PlayerModel::CampaignConstraints,
+                SeedPartition::Holdout,
+                101,
+            )
+            .unwrap(),
+            run_campaign(
+                campaign_levels[79],
+                PlayerModel::LineClearer,
+                SeedPartition::Holdout,
+                211,
+            )
+            .unwrap(),
+        ];
+        assert_eq!(
+            records
+                .iter()
+                .map(|record| record.decision_digest_hex.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "2ac947a6b92017582123e6d693df49817cc334977827bf4df8bfce4cd86ebde3",
+                "73a81721cf1d3c448efdea5a50c3955a160844fd487a771a9830ade6bda607a0",
+                "76a43dafd04e011185eb7e430a121167c66d5302e4c77e5b5ef8c04bb2bf2de1",
+                "b8381b2b18c1caa38c9ad62e41927353c2b4f0467aaf58267e4e96e29700fbad",
+            ]
+        );
+        for record in records {
+            assert_ne!(record.metrics, RunMetrics::default());
+            assert_eq!(
+                record
+                    .bonus_charge_earned_events
+                    .iter()
+                    .map(|event| u32::from(event.count))
+                    .sum::<u32>(),
+                record.charges_earned_before_cap
+            );
+            assert_eq!(
+                record
+                    .bonus_spent_events
+                    .iter()
+                    .map(|event| event.count)
+                    .sum::<u16>(),
+                record.charges_spent
+            );
+            assert_eq!(
+                record
+                    .reroll_spent_events
+                    .iter()
+                    .map(|event| event.count)
+                    .sum::<u16>(),
+                record.rerolls_used
+            );
+            assert!(record.reroll_granted_events.is_empty());
+            assert!(record.reroll_grant_discarded_events.is_empty());
+        }
     }
 
     #[test]

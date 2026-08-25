@@ -11,6 +11,8 @@ pub struct ActionMetrics {
 
 /// Canonical counters retained with every finalized run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "sim-harness", derive(serde::Serialize))]
+#[cfg_attr(feature = "sim-harness", serde(rename_all = "camelCase"))]
 pub struct RunMetrics {
     pub maximum_combo: u32,
     pub combo_scoring_actions: u32,
