@@ -32,8 +32,10 @@ fn run() -> Result<String, String> {
                 for model in [
                     PlayerModel::Naive,
                     PlayerModel::LineClearer,
-                    PlayerModel::DailyScore,
                     PlayerModel::Theme,
+                    PlayerModel::PlannerStrong,
+                    PlayerModel::PlannerCasual,
+                    PlayerModel::PlannerStrongTheme,
                 ] {
                     for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                         for seed_index in 0..seeds {
@@ -56,7 +58,9 @@ fn run() -> Result<String, String> {
                 for model in [
                     PlayerModel::Naive,
                     PlayerModel::LineClearer,
-                    PlayerModel::CampaignConstraints,
+                    PlayerModel::PlannerStrong,
+                    PlayerModel::PlannerCasual,
+                    PlayerModel::PlannerStrongCombo,
                 ] {
                     for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                         for seed_index in 0..seeds {

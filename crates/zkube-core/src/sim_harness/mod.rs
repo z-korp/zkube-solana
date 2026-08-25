@@ -1,13 +1,12 @@
-//! Deterministic, feature-gated balance instrumentation.
+//! Deterministic, feature-gated design instrumentation.
 //!
 //! A ply is one accepted player action: a move, a board bonus, or a reroll
 //! request. VRF callbacks are environment transitions and do not consume a
 //! ply. Every candidate is evaluated by copying the simulation and invoking
 //! its real transition; no grid, scoring, trigger, pressure, or constraint rule
-//! is reproduced here. Candidate search is one ply deep and never observes a
-//! future VRF output. Equal policy values are broken by a policy-only SHA-256
-//! stream, while Daily VRF bytes come from a separately domain-separated
-//! stream.
+//! is reproduced here. The greedy floors search one ply. Planner rollouts use
+//! sampled, policy-only futures and never observe the run's future VRF output.
+//! The oracle instead resolves the real seed output for each request counter.
 //!
 //! The player models are deliberately small and auditable:
 //! - `Naive` chooses uniformly among legal moves and spends a usable bonus on
@@ -22,6 +21,9 @@
 //!   use Daily score, lines, and lower height as tie-breakers.
 //! - `CampaignConstraints` maximizes completion, primary and secondary
 //!   progress, engine score, lines, then lower height.
+//! - planner variants use the same closed-loop Monte Carlo tree search with an
+//!   integer UCT selector. Role selects the budget; value selects Campaign
+//!   stars, combo play, Daily Score, or Daily Theme.
 //!
 //! A non-naive model spends a board bonus only when a legal bonus transition
 //! has a strictly better policy value than its best move and either clears a
@@ -30,6 +32,14 @@
 //! clears no line and raises occupied height. All policy values and field-model
 //! accounting are integers.
 
+pub mod bands;
+
+use self::bands::{
+    ORACLE_NODE_BUDGET, PLANNER_APEX_PROGRESS_RANGE, PLANNER_CAMPAIGN_COMBO_RANGE,
+    PLANNER_CAMPAIGN_PRIMARY_RANGE, PLANNER_DAILY_METRIC_CAP, PLANNER_DAILY_METRIC_RANGE,
+    PLANNER_HEIGHT_RANGE, PLANNER_SCORE_PROGRESS_RANGE, PLANNER_STAR_STEP, PLANNER_STRONG,
+    PLANNER_UCT_EXPLORATION, PlannerBudget,
+};
 use crate::{
     ARENA_ENTRY_LAMPORTS, ActionMetrics, Bonus, CampaignEndReason, CampaignError, CampaignRules,
     CampaignSimulation, CampaignSimulationConfig, ChainDomain, ChallengeId, Constraint,
@@ -42,6 +52,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{HashMap, HashSet, hash_map::Entry},
     fmt::Write as _,
     format,
     string::{String, ToString},
@@ -51,6 +62,9 @@ use std::{
 
 const HARNESS_VRF_DOMAIN: &[u8] = b"zkube-sim-harness-vrf-v1";
 const HARNESS_POLICY_DOMAIN: &[u8] = b"zkube-sim-harness-policy-v1";
+const HARNESS_PLANNER_DOMAIN: &[u8] = b"zkube-sim-harness-planner-v1";
+const HARNESS_PLANNER_STATE_DOMAIN: &[u8] = b"zkube-sim-harness-planner-state-v1";
+const HARNESS_ORACLE_STATE_DOMAIN: &[u8] = b"zkube-sim-harness-oracle-state-v1";
 const HARNESS_DECISION_DOMAIN: &[u8] = b"zkube-sim-harness-decision-v1";
 const HARNESS_CAMPAIGN_SEED_DOMAIN: &[u8] = b"zkube-sim-harness-campaign-seed-v1";
 const HARNESS_DAILY_RULES_DOMAIN: &[u8] = b"zkube-sim-harness-daily-rules-v1";
@@ -95,6 +109,10 @@ pub enum PlayerModel {
     DailyScore,
     Theme,
     CampaignConstraints,
+    PlannerStrong,
+    PlannerCasual,
+    PlannerStrongTheme,
+    PlannerStrongCombo,
 }
 
 impl PlayerModel {
@@ -105,8 +123,51 @@ impl PlayerModel {
             Self::DailyScore => 2,
             Self::Theme => 3,
             Self::CampaignConstraints => 4,
+            Self::PlannerStrong => 5,
+            Self::PlannerCasual => 6,
+            Self::PlannerStrongTheme => 7,
+            Self::PlannerStrongCombo => 8,
         }
     }
+
+    const fn planner(self) -> Option<PlannerSpec> {
+        match self {
+            Self::PlannerStrong => Some(PlannerSpec {
+                budget: PLANNER_STRONG,
+                value: PlannerValue::Default,
+            }),
+            Self::PlannerCasual => Some(PlannerSpec {
+                budget: bands::PLANNER_CASUAL,
+                value: PlannerValue::Default,
+            }),
+            Self::PlannerStrongTheme => Some(PlannerSpec {
+                budget: PLANNER_STRONG,
+                value: PlannerValue::DailyTheme,
+            }),
+            Self::PlannerStrongCombo => Some(PlannerSpec {
+                budget: PLANNER_STRONG,
+                value: PlannerValue::CampaignCombo,
+            }),
+            Self::Naive
+            | Self::LineClearer
+            | Self::DailyScore
+            | Self::Theme
+            | Self::CampaignConstraints => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlannerValue {
+    Default,
+    DailyTheme,
+    CampaignCombo,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlannerSpec {
+    budget: PlannerBudget,
+    value: PlannerValue,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -193,7 +254,81 @@ pub struct CampaignCatalogLevel {
     pub map_id: u8,
     pub level_id: u8,
     pub rules: CampaignRules,
+    pub apex: ApexPredicate,
 }
+
+/// Harness-side apex target until brief 04 makes the authored secondary the
+/// third star. Progress is kept beside search state so predicates that read a
+/// single action cannot be confused with cumulative engine counters.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ApexPredicate {
+    None,
+    SecondaryConstraint(Constraint),
+    PerfectClears { required: u8 },
+    LinesInAction { minimum: u8 },
+    BlocksOfSizeInAction { size: u8, minimum: u8 },
+}
+
+impl ApexPredicate {
+    const fn from_secondary(secondary: Constraint) -> Self {
+        if matches!(secondary.kind, ConstraintKind::None) {
+            Self::None
+        } else {
+            Self::SecondaryConstraint(secondary)
+        }
+    }
+
+    fn advance(
+        self,
+        progress: ApexProgress,
+        report: MoveReport,
+        engine: crate::RunEngine,
+    ) -> ApexProgress {
+        let next = match self {
+            Self::None => 0,
+            Self::SecondaryConstraint(_) => u16::from(engine.secondary_progress),
+            Self::PerfectClears { .. } => {
+                progress.0.saturating_add(u16::from(report.perfect_clear))
+            }
+            Self::LinesInAction { minimum } => {
+                u16::from(progress.0 > 0 || report.lines_cleared >= minimum)
+            }
+            Self::BlocksOfSizeInAction { size, minimum } => {
+                let destroyed = size
+                    .checked_sub(1)
+                    .and_then(|index| report.blocks_destroyed_by_size.get(usize::from(index)))
+                    .copied()
+                    .unwrap_or(0);
+                u16::from(progress.0 > 0 || destroyed >= minimum)
+            }
+        };
+        ApexProgress(next)
+    }
+
+    fn is_satisfied(self, progress: ApexProgress) -> bool {
+        match self {
+            Self::None => false,
+            Self::SecondaryConstraint(constraint) => {
+                constraint.is_satisfied(u8::try_from(progress.0).unwrap_or(u8::MAX))
+            }
+            Self::PerfectClears { required } => progress.0 >= u16::from(required),
+            Self::LinesInAction { .. } | Self::BlocksOfSizeInAction { .. } => progress.0 > 0,
+        }
+    }
+
+    fn progress_x1000(self, progress: ApexProgress) -> u64 {
+        let required = match self {
+            Self::None => return 0,
+            Self::SecondaryConstraint(constraint) => u16::from(constraint.required_count.max(1)),
+            Self::PerfectClears { required } => u16::from(required.max(1)),
+            Self::LinesInAction { .. } | Self::BlocksOfSizeInAction { .. } => 1,
+        };
+        u64::from(progress.0.min(required)).saturating_mul(1_000) / u64::from(required)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ApexProgress(u16);
 
 #[derive(Debug, Default)]
 struct Counters {
@@ -212,6 +347,7 @@ struct Counters {
     reroll_granted_events: Vec<TimedRunEvent>,
     reroll_grant_discarded_events: Vec<TimedRunEvent>,
     apex_hit_action: Option<u32>,
+    apex_progress: ApexProgress,
     terminal_action: Option<u32>,
     decision_commitment: [u8; 32],
 }
@@ -225,8 +361,9 @@ struct MoveObservation {
     spent: u8,
     after_charges: u8,
     report: MoveReport,
-    secondary_was_satisfied: bool,
-    secondary_is_satisfied: bool,
+    apex_before: ApexProgress,
+    apex_after: ApexProgress,
+    apex: ApexPredicate,
     terminal: bool,
 }
 
@@ -240,8 +377,9 @@ impl Counters {
             spent,
             after_charges,
             report,
-            secondary_was_satisfied,
-            secondary_is_satisfied,
+            apex_before,
+            apex_after,
+            apex,
             terminal,
         } = observation;
         self.observe_decision(action);
@@ -291,9 +429,13 @@ impl Counters {
                 count: u16::from(spent),
             });
         }
-        if self.apex_hit_action.is_none() && !secondary_was_satisfied && secondary_is_satisfied {
+        if self.apex_hit_action.is_none()
+            && !apex.is_satisfied(apex_before)
+            && apex.is_satisfied(apex_after)
+        {
             self.apex_hit_action = Some(action_index);
         }
+        self.apex_progress = apex_after;
         if terminal {
             self.terminal_action = Some(action_index);
         }
@@ -319,11 +461,51 @@ impl Counters {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ActionKind {
     Move { row: u8, start: u8, destination: u8 },
     Bonus { row: u8, column: u8 },
     Reroll,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CampaignPlannerState {
+    simulation: CampaignSimulation,
+    metrics: RunMetrics,
+    apex_progress: ApexProgress,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PlannerEdge {
+    action: ActionKind,
+    visits: u32,
+    value_sum: u128,
+}
+
+#[derive(Debug, Default)]
+struct PlannerNode {
+    visits: u32,
+    edges: Vec<PlannerEdge>,
+}
+
+/// The three independently measured reachability outcomes for one oracle run.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OracleReachability {
+    pub one_star_reachable: bool,
+    pub two_stars_reachable: bool,
+    pub apex_reachable: bool,
+}
+
+/// Bounded reachability result for one authored level and seed. A node-cap hit
+/// means a false reachability bit is unknown rather than proven impossible.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OracleResult {
+    #[serde(flatten)]
+    pub reachability: OracleReachability,
+    pub visited_states: usize,
+    pub node_cap_hit: bool,
 }
 
 impl ActionKind {
@@ -356,6 +538,13 @@ struct CampaignCandidate {
     key: [i64; 8],
 }
 
+#[derive(Clone, Copy, Debug)]
+enum SelectedAction<Candidate> {
+    Transition(Candidate),
+    Reroll,
+    NoLegalAction,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CampaignFixture {
@@ -383,13 +572,14 @@ type CampaignFixtureLevel = (u32, u16, u8, [u8; 3], [u8; 3]);
 #[must_use]
 pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
     let fixture: CampaignFixture =
-        serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json"))
+        serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json"))
             .expect("Campaign fixture must parse");
     let mut levels = Vec::with_capacity(100);
     for map in fixture.maps {
         let bonus = bonus_from_tag(map.rules[5]);
         for (level_index, level) in map.levels.into_iter().enumerate() {
             let level_id = u8::try_from(level_index + 1).expect("ten Campaign levels fit u8");
+            let secondary = constraint_from_tuple(level.4);
             levels.push(CampaignCatalogLevel {
                 catalog_id: u16::from(map.map_id) * 100 + u16::from(level_id),
                 map_id: map.map_id,
@@ -399,7 +589,7 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
                         points_required: level.0,
                         max_moves: level.1,
                         primary: constraint_from_tuple(level.3),
-                        secondary: constraint_from_tuple(level.4),
+                        secondary,
                     },
                     mutator: MutatorRules {
                         score_multiplier_x100: map.rules[0],
@@ -420,6 +610,7 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
                     level_difficulty: level.2,
                     block_weights: fixture.difficulty_weights,
                 },
+                apex: ApexPredicate::from_secondary(secondary),
             });
         }
     }
@@ -438,7 +629,7 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
 #[must_use]
 pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
     let fixture: CampaignFixture =
-        serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json"))
+        serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json"))
             .expect("Campaign fixture must parse");
     fixture
         .maps
@@ -596,6 +787,64 @@ pub fn run_daily(
     })
 }
 
+fn choose_daily_action(
+    simulation: &DailySimulation,
+    rules: DailyRunRules,
+    entry_id: u8,
+    model: PlayerModel,
+    seed: u64,
+) -> Result<SelectedAction<DailyCandidate>, SimulationError> {
+    if let Some(spec) = model.planner() {
+        let action = plan_daily_action(simulation, rules, entry_id, spec, seed)?
+            .ok_or(SimulationError::InvalidPhase)?;
+        if action == ActionKind::Reroll {
+            return Ok(SelectedAction::Reroll);
+        }
+        let mut next = *simulation;
+        let report = match action {
+            ActionKind::Move {
+                row,
+                start,
+                destination,
+            } => next.play_move(
+                rules,
+                simulation.action_counter,
+                simulation.engine.moves,
+                row,
+                start,
+                destination,
+            )?,
+            ActionKind::Bonus { row, column } => {
+                next.apply_bonus(rules, simulation.action_counter, row, column)?
+            }
+            ActionKind::Reroll => unreachable!("reroll returned above"),
+        };
+        return Ok(SelectedAction::Transition(DailyCandidate {
+            action,
+            next,
+            report,
+            key: [0; 8],
+        }));
+    }
+
+    let moves = daily_move_candidates(simulation, rules, model);
+    let best_move = choose_daily(&moves, seed, simulation.action_counter, model)
+        .ok_or(SimulationError::InvalidPhase)?;
+    if simulation.engine.reroll_available
+        && should_reroll(model, simulation.action_counter, &best_move.report)
+    {
+        return Ok(SelectedAction::Reroll);
+    }
+    let bonuses = daily_bonus_candidates(simulation, rules, model);
+    let best_bonus = choose_daily(&bonuses, seed, simulation.action_counter, model);
+    let selected = if should_spend_daily_bonus(model, &best_move, best_bonus.as_ref()) {
+        best_bonus.unwrap_or(best_move)
+    } else {
+        best_move
+    };
+    Ok(SelectedAction::Transition(selected))
+}
+
 fn play_daily_to_terminal(
     mut simulation: DailySimulation,
     rules: DailyRunRules,
@@ -617,26 +866,16 @@ fn play_daily_to_terminal(
             break;
         }
 
-        let moves = daily_move_candidates(&simulation, rules, model);
-        let best_move = choose_daily(&moves, seed, simulation.action_counter, model)
-            .ok_or(SimulationError::InvalidPhase)?;
-
-        if simulation.engine.reroll_available
-            && should_reroll(model, simulation.action_counter, &best_move.report)
-        {
-            let action = simulation.action_counter;
-            let height = simulation.engine.grid.occupied_height();
-            simulation.request_reroll(rules, simulation.action_counter)?;
-            counters.observe_reroll(action, height);
-            continue;
-        }
-
-        let bonuses = daily_bonus_candidates(&simulation, rules, model);
-        let best_bonus = choose_daily(&bonuses, seed, simulation.action_counter, model);
-        let selected = if should_spend_daily_bonus(model, &best_move, best_bonus.as_ref()) {
-            best_bonus.unwrap_or(best_move)
-        } else {
-            best_move
+        let selected = match choose_daily_action(&simulation, rules, entry_id, model, seed)? {
+            SelectedAction::Reroll => {
+                let action_index = simulation.action_counter;
+                let height = simulation.engine.grid.occupied_height();
+                simulation.request_reroll(rules, action_index)?;
+                counters.observe_reroll(action_index, height);
+                continue;
+            }
+            SelectedAction::Transition(selected) => selected,
+            SelectedAction::NoLegalAction => return Err(SimulationError::InvalidPhase),
         };
         let action = simulation.action_counter;
         let combo_before = simulation.engine.combo_counter;
@@ -652,8 +891,9 @@ fn play_daily_to_terminal(
             spent,
             after_charges: simulation.engine.bonus_charges,
             report: selected.report,
-            secondary_was_satisfied: false,
-            secondary_is_satisfied: false,
+            apex_before: counters.apex_progress,
+            apex_after: counters.apex_progress,
+            apex: ApexPredicate::None,
             terminal: action_was_terminal,
         });
         if spent > 0 {
@@ -694,23 +934,10 @@ pub fn run_campaign(
     partition: SeedPartition,
     seed: u64,
 ) -> Result<RunRecord, CampaignError> {
-    let seed_bytes = SoftwareSha256::hashv(&[
-        HARNESS_CAMPAIGN_SEED_DOMAIN,
-        &seed.to_le_bytes(),
-        &[partition.tag(), level.map_id, level.level_id],
-    ]);
-    let config = CampaignSimulationConfig {
-        content_version: 2,
-        content_hash: SoftwareSha256::hashv(&[b"zkube-sim-harness-campaign-content-v1"]),
-        map_id: level.map_id,
-        level_id: level.level_id,
-        attempt: seed,
-        seed: seed_bytes,
-        rules: level.rules,
-    };
+    let config = campaign_simulation_config(level, partition, seed);
     let simulation = CampaignSimulation::new(config)?;
     let (simulation, counters, terminal_cause) =
-        play_campaign_to_terminal(simulation, config, model, seed)?;
+        play_campaign_to_terminal(simulation, config, level.apex, model, seed)?;
     Ok(RunRecord {
         mode: String::from("campaign"),
         catalog_id: level.catalog_id,
@@ -751,9 +978,185 @@ pub fn run_campaign(
     })
 }
 
+fn campaign_simulation_config(
+    level: CampaignCatalogLevel,
+    partition: SeedPartition,
+    seed: u64,
+) -> CampaignSimulationConfig {
+    let seed_bytes = SoftwareSha256::hashv(&[
+        HARNESS_CAMPAIGN_SEED_DOMAIN,
+        &seed.to_le_bytes(),
+        &[partition.tag(), level.map_id, level.level_id],
+    ]);
+    CampaignSimulationConfig {
+        content_version: 2,
+        content_hash: SoftwareSha256::hashv(&[b"zkube-sim-harness-campaign-content-v1"]),
+        map_id: level.map_id,
+        level_id: level.level_id,
+        attempt: seed,
+        seed: seed_bytes,
+        rules: level.rules,
+    }
+}
+
+/// Search one seed with its real, counter-keyed Campaign randomness.
+///
+/// # Errors
+///
+/// Returns an authored-rule or engine transition error if the real Campaign
+/// simulation cannot be initialized or advanced.
+pub fn oracle_campaign(
+    level: CampaignCatalogLevel,
+    partition: SeedPartition,
+    seed: u64,
+) -> Result<OracleResult, CampaignError> {
+    let config = campaign_simulation_config(level, partition, seed);
+    let state = CampaignPlannerState {
+        simulation: CampaignSimulation::new(config)?,
+        metrics: RunMetrics::default(),
+        apex_progress: ApexProgress::default(),
+    };
+    let mut result = OracleResult::default();
+    let mut visited = HashSet::new();
+    oracle_search(state, config, level.apex, &mut visited, &mut result)?;
+    result.visited_states = visited.len();
+    Ok(result)
+}
+
+fn oracle_search(
+    state: CampaignPlannerState,
+    config: CampaignSimulationConfig,
+    apex: ApexPredicate,
+    visited: &mut HashSet<[u8; 32]>,
+    result: &mut OracleResult,
+) -> Result<(), CampaignError> {
+    result.reachability.one_star_reachable |= state.simulation.earned_stars >= 1;
+    result.reachability.two_stars_reachable |= state.simulation.earned_stars >= 2;
+    result.reachability.apex_reachable |= apex.is_satisfied(state.apex_progress);
+    if result.reachability.one_star_reachable
+        && result.reachability.two_stars_reachable
+        && result.reachability.apex_reachable
+    {
+        return Ok(());
+    }
+    if state.simulation.is_terminal() {
+        return Ok(());
+    }
+    let key = campaign_oracle_state_key(state);
+    if visited.contains(&key) {
+        return Ok(());
+    }
+    if visited.len() >= ORACLE_NODE_BUDGET {
+        result.node_cap_hit = true;
+        return Ok(());
+    }
+    visited.insert(key);
+
+    let mut candidates =
+        campaign_move_candidates(state.simulation, config, PlayerModel::LineClearer)
+            .into_iter()
+            .chain(campaign_bonus_candidates(
+                state.simulation,
+                config,
+                PlayerModel::LineClearer,
+            ))
+            .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        right
+            .key
+            .cmp(&left.key)
+            .then_with(|| left.action.encoded().cmp(&right.action.encoded()))
+    });
+    for candidate in candidates {
+        let combo_before = state.simulation.engine.combo_counter;
+        let next = CampaignPlannerState {
+            simulation: candidate.next,
+            metrics: record_campaign_metrics(state.metrics, combo_before, candidate.report),
+            apex_progress: apex.advance(
+                state.apex_progress,
+                candidate.report,
+                candidate.next.engine,
+            ),
+        };
+        oracle_search(next, config, apex, visited, result)?;
+        if result.reachability.one_star_reachable
+            && result.reachability.two_stars_reachable
+            && result.reachability.apex_reachable
+        {
+            return Ok(());
+        }
+    }
+    if state.simulation.engine.reroll_available {
+        let rerolled = apply_campaign_planner_action(state, config, apex, ActionKind::Reroll)?;
+        oracle_search(rerolled, config, apex, visited, result)?;
+    }
+    Ok(())
+}
+
+fn choose_campaign_action(
+    simulation: CampaignSimulation,
+    config: CampaignSimulationConfig,
+    apex: ApexPredicate,
+    model: PlayerModel,
+    seed: u64,
+    metrics: RunMetrics,
+    apex_progress: ApexProgress,
+) -> Result<SelectedAction<CampaignCandidate>, CampaignError> {
+    if let Some(spec) = model.planner() {
+        let state = CampaignPlannerState {
+            simulation,
+            metrics,
+            apex_progress,
+        };
+        let Some(action) = plan_campaign_action(state, config, apex, spec, seed)? else {
+            return Ok(SelectedAction::NoLegalAction);
+        };
+        if action == ActionKind::Reroll {
+            return Ok(SelectedAction::Reroll);
+        }
+        let mut next = simulation;
+        let mut report = match action {
+            ActionKind::Move {
+                row,
+                start,
+                destination,
+            } => next.play_move(config, simulation.engine.moves, row, start, destination)?,
+            ActionKind::Bonus { row, column } => next.apply_bonus(config, row, column)?,
+            ActionKind::Reroll => unreachable!("reroll returned above"),
+        };
+        report.difficulty_at_action = simulation.current_difficulty;
+        return Ok(SelectedAction::Transition(CampaignCandidate {
+            action,
+            next,
+            report,
+            key: [0; 8],
+        }));
+    }
+
+    let moves = campaign_move_candidates(simulation, config, model);
+    let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model) else {
+        return Ok(SelectedAction::NoLegalAction);
+    };
+    if simulation.engine.reroll_available
+        && should_reroll(model, simulation.action_counter, &best_move.report)
+    {
+        return Ok(SelectedAction::Reroll);
+    }
+    let bonuses = campaign_bonus_candidates(simulation, config, model);
+    let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
+    let selected =
+        if should_spend_campaign_bonus(model, &simulation, &best_move, best_bonus.as_ref()) {
+            best_bonus.unwrap_or(best_move)
+        } else {
+            best_move
+        };
+    Ok(SelectedAction::Transition(selected))
+}
+
 fn play_campaign_to_terminal(
     mut simulation: CampaignSimulation,
     config: CampaignSimulationConfig,
+    apex: ApexPredicate,
     model: PlayerModel,
     seed: u64,
 ) -> Result<(CampaignSimulation, Counters, TerminalCause), CampaignError> {
@@ -762,44 +1165,35 @@ fn play_campaign_to_terminal(
     let mut engine_stalled = false;
 
     while !simulation.is_terminal() && simulation.action_counter < MAX_HARNESS_PLIES {
-        let moves = campaign_move_candidates(simulation, config, model);
-        let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model)
-        else {
-            engine_stalled = true;
-            break;
+        let selected = match choose_campaign_action(
+            simulation,
+            config,
+            apex,
+            model,
+            seed,
+            counters.metrics,
+            counters.apex_progress,
+        )? {
+            SelectedAction::Reroll => {
+                let action_index = simulation.action_counter;
+                let height = simulation.engine.grid.occupied_height();
+                simulation.request_reroll(config)?;
+                counters.observe_reroll(action_index, height);
+                continue;
+            }
+            SelectedAction::NoLegalAction => {
+                engine_stalled = true;
+                break;
+            }
+            SelectedAction::Transition(selected) => selected,
         };
-        if simulation.engine.reroll_available
-            && should_reroll(model, simulation.action_counter, &best_move.report)
-        {
-            let action = simulation.action_counter;
-            let height = simulation.engine.grid.occupied_height();
-            simulation.request_reroll(config)?;
-            counters.observe_reroll(action, height);
-            continue;
-        }
-        let bonuses = campaign_bonus_candidates(simulation, config, model);
-        let best_bonus = choose_campaign(&bonuses, seed, simulation.action_counter, model);
-        let selected =
-            if should_spend_campaign_bonus(model, &simulation, &best_move, best_bonus.as_ref()) {
-                best_bonus.unwrap_or(best_move)
-            } else {
-                best_move
-            };
         let action = simulation.action_counter;
         let combo_before = simulation.engine.combo_counter;
         let before_charges = simulation.engine.bonus_charges;
-        let secondary_was_satisfied = config
-            .rules
-            .level
-            .secondary
-            .is_satisfied(simulation.engine.secondary_progress);
+        let apex_before = counters.apex_progress;
         let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
         simulation = selected.next;
-        let secondary_is_satisfied = config
-            .rules
-            .level
-            .secondary
-            .is_satisfied(simulation.engine.secondary_progress);
+        let apex_after = apex.advance(apex_before, selected.report, simulation.engine);
         let terminal = simulation.is_terminal();
         counters.observe(MoveObservation {
             action: selected.action,
@@ -809,8 +1203,9 @@ fn play_campaign_to_terminal(
             spent,
             after_charges: simulation.engine.bonus_charges,
             report: selected.report,
-            secondary_was_satisfied,
-            secondary_is_satisfied,
+            apex_before,
+            apex_after,
+            apex,
             terminal,
         });
         if spent > 0 {
@@ -1023,7 +1418,10 @@ fn daily_key(
             theme_delta,
             0,
         ],
-        PlayerModel::DailyScore => [
+        PlayerModel::DailyScore
+        | PlayerModel::PlannerStrong
+        | PlayerModel::PlannerCasual
+        | PlayerModel::PlannerStrongCombo => [
             daily_delta,
             i64::from(report.lines_cleared),
             lower_height,
@@ -1033,7 +1431,7 @@ fn daily_key(
             0,
             0,
         ],
-        PlayerModel::Theme => theme_key(
+        PlayerModel::Theme | PlayerModel::PlannerStrongTheme => theme_key(
             objective,
             before.objective_total == 0,
             after,
@@ -1129,7 +1527,13 @@ fn campaign_key(
             i64::from(report.perfect_clear),
             0,
         ],
-        _ => [
+        PlayerModel::LineClearer
+        | PlayerModel::DailyScore
+        | PlayerModel::Theme
+        | PlayerModel::PlannerStrong
+        | PlayerModel::PlannerCasual
+        | PlayerModel::PlannerStrongTheme
+        | PlayerModel::PlannerStrongCombo => [
             i64::from(report.lines_cleared),
             i64::from(report.perfect_clear),
             -i64::from(report.height_after),
@@ -1140,6 +1544,755 @@ fn campaign_key(
             0,
         ],
     }
+}
+
+/// Closed-loop Monte Carlo tree search shared by Campaign and Daily.
+///
+/// Each node is a fully observed state. Expansion is bounded by the role's
+/// action width, selection uses an integer UCT score, and the first unvisited
+/// edge receives a line-clearer rollout. Stochastic outputs are supplied only
+/// by the caller's policy-domain sampler, so the tree cannot inspect the run's
+/// future VRF stream.
+#[allow(clippy::too_many_arguments)]
+fn mcts_plan<S, E, Key, Actions, Apply, Rollout, Value, Terminal>(
+    initial: S,
+    budget: PlannerBudget,
+    seed: u64,
+    root_action: u32,
+    mut state_key: Key,
+    mut actions: Actions,
+    mut apply: Apply,
+    mut rollout: Rollout,
+    mut value: Value,
+    mut terminal: Terminal,
+) -> Result<Option<ActionKind>, E>
+where
+    S: Copy,
+    Key: FnMut(S) -> [u8; 32],
+    Actions: FnMut(S, u16, u8) -> Result<Vec<ActionKind>, E>,
+    Apply: FnMut(S, ActionKind, u16, u8) -> Result<S, E>,
+    Rollout: FnMut(S, u16, u8) -> Result<S, E>,
+    Value: FnMut(S) -> u64,
+    Terminal: FnMut(S) -> bool,
+{
+    let root_key = state_key(initial);
+    let mut nodes = HashMap::<[u8; 32], PlannerNode>::new();
+    for iteration in 0..budget.iterations {
+        let mut state = initial;
+        let mut path = Vec::<([u8; 32], usize)>::new();
+        let mut expanded = false;
+        for depth in 0..budget.tree_depth {
+            if terminal(state) {
+                break;
+            }
+            let key = state_key(state);
+            if let Entry::Vacant(entry) = nodes.entry(key) {
+                let edges = actions(state, iteration, depth)?
+                    .into_iter()
+                    .map(|action| PlannerEdge {
+                        action,
+                        visits: 0,
+                        value_sum: 0,
+                    })
+                    .collect();
+                entry.insert(PlannerNode { visits: 0, edges });
+            }
+            let Some(node) = nodes.get(&key) else {
+                unreachable!("the planner node was inserted above");
+            };
+            if node.edges.is_empty() {
+                break;
+            }
+            let unvisited = node
+                .edges
+                .iter()
+                .enumerate()
+                .filter_map(|(index, edge)| (edge.visits == 0).then_some(index))
+                .collect::<Vec<_>>();
+            let edge_index = if unvisited.is_empty() {
+                select_uct_edge(node)
+            } else {
+                let slot = planner_policy_index(
+                    seed,
+                    root_action,
+                    iteration,
+                    depth,
+                    &key,
+                    unvisited.len(),
+                );
+                unvisited[slot]
+            };
+            let action = node.edges[edge_index].action;
+            let was_unvisited = node.edges[edge_index].visits == 0;
+            path.push((key, edge_index));
+            state = apply(state, action, iteration, depth)?;
+            if was_unvisited {
+                state = rollout(state, iteration, depth.saturating_add(1))?;
+                expanded = true;
+                break;
+            }
+        }
+        if !expanded && !terminal(state) {
+            state = rollout(state, iteration, budget.tree_depth)?;
+        }
+        let reward = value(state);
+        for (key, edge_index) in path {
+            let node = nodes
+                .get_mut(&key)
+                .expect("every traversed planner node remains in the tree");
+            node.visits = node.visits.saturating_add(1);
+            let edge = &mut node.edges[edge_index];
+            edge.visits = edge.visits.saturating_add(1);
+            edge.value_sum = edge.value_sum.saturating_add(u128::from(reward));
+        }
+    }
+    Ok(nodes.get(&root_key).and_then(best_root_action))
+}
+
+fn select_uct_edge(node: &PlannerNode) -> usize {
+    node.edges
+        .iter()
+        .enumerate()
+        .max_by(|(_, left), (_, right)| {
+            uct_score(node.visits, left)
+                .cmp(&uct_score(node.visits, right))
+                .then_with(|| right.action.encoded().cmp(&left.action.encoded()))
+        })
+        .map_or(0, |(index, _)| index)
+}
+
+fn uct_score(parent_visits: u32, edge: &PlannerEdge) -> u128 {
+    if edge.visits == 0 {
+        return u128::MAX;
+    }
+    let mean = edge.value_sum / u128::from(edge.visits);
+    // `ilog2 + 1` is a deterministic integer surrogate for ln(N). The base
+    // changes only the exploration constant, not UCT's ordering or purpose.
+    let log_parent = u64::from(parent_visits.max(2).ilog2() + 1);
+    let exploration_ratio = log_parent.saturating_mul(1_000_000) / u64::from(edge.visits);
+    let exploration = PLANNER_UCT_EXPLORATION.saturating_mul(exploration_ratio.isqrt()) / 1_000;
+    mean.saturating_add(u128::from(exploration))
+}
+
+fn best_root_action(node: &PlannerNode) -> Option<ActionKind> {
+    node.edges
+        .iter()
+        .filter(|edge| edge.visits > 0)
+        .max_by(|left, right| {
+            let left_mean = left.value_sum / u128::from(left.visits);
+            let right_mean = right.value_sum / u128::from(right.visits);
+            left.visits
+                .cmp(&right.visits)
+                .then_with(|| left_mean.cmp(&right_mean))
+                .then_with(|| right.action.encoded().cmp(&left.action.encoded()))
+        })
+        .map(|edge| edge.action)
+}
+
+fn planner_policy_index(
+    seed: u64,
+    root_action: u32,
+    iteration: u16,
+    depth: u8,
+    state_key: &[u8; 32],
+    len: usize,
+) -> usize {
+    if len <= 1 {
+        return 0;
+    }
+    let digest = SoftwareSha256::hashv(&[
+        HARNESS_PLANNER_DOMAIN,
+        b"select",
+        &seed.to_le_bytes(),
+        &root_action.to_le_bytes(),
+        &iteration.to_le_bytes(),
+        &[depth],
+        state_key,
+    ]);
+    let value = u64::from_le_bytes(digest[..8].try_into().expect("eight digest bytes"));
+    usize::try_from(value % len as u64).expect("modulo result fits usize")
+}
+
+fn bounded_actions(
+    mut ranked: Vec<(ActionKind, [i64; 8])>,
+    reroll_available: bool,
+    width: u8,
+) -> Vec<ActionKind> {
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .cmp(&left.1)
+            .then_with(|| left.0.encoded().cmp(&right.0.encoded()))
+    });
+    ranked.dedup_by_key(|candidate| candidate.0.encoded());
+    let width = usize::from(width.max(1));
+    let best_bonus = ranked.iter().find_map(|candidate| {
+        matches!(candidate.0, ActionKind::Bonus { .. }).then_some(candidate.0)
+    });
+    let reserve_reroll = usize::from(reroll_available);
+    let reserve_bonus = usize::from(best_bonus.is_some() && width > reserve_reroll);
+    let ranked_capacity = width.saturating_sub(reserve_reroll + reserve_bonus);
+    let mut actions = ranked
+        .iter()
+        .take(ranked_capacity)
+        .map(|candidate| candidate.0)
+        .collect::<Vec<_>>();
+    if let Some(bonus) = best_bonus.filter(|bonus| !actions.contains(bonus)) {
+        actions.push(bonus);
+    }
+    if reroll_available {
+        actions.push(ActionKind::Reroll);
+    }
+    for (action, _) in ranked {
+        if actions.len() >= width {
+            break;
+        }
+        if !actions.contains(&action) {
+            actions.push(action);
+        }
+    }
+    actions.truncate(width);
+    actions
+}
+
+fn campaign_planner_actions(
+    state: CampaignPlannerState,
+    config: CampaignSimulationConfig,
+    width: u8,
+) -> Vec<ActionKind> {
+    let mut ranked = campaign_move_candidates(state.simulation, config, PlayerModel::LineClearer)
+        .into_iter()
+        .chain(campaign_bonus_candidates(
+            state.simulation,
+            config,
+            PlayerModel::LineClearer,
+        ))
+        .map(|candidate| (candidate.action, candidate.key))
+        .collect::<Vec<_>>();
+    let reroll_available = state.simulation.engine.reroll_available;
+    if ranked.is_empty() && !reroll_available {
+        return Vec::new();
+    }
+    bounded_actions(core::mem::take(&mut ranked), reroll_available, width)
+}
+
+fn daily_planner_actions(
+    simulation: &DailySimulation,
+    rules: DailyRunRules,
+    width: u8,
+) -> Vec<ActionKind> {
+    let mut ranked = daily_move_candidates(simulation, rules, PlayerModel::LineClearer)
+        .into_iter()
+        .chain(daily_bonus_candidates(
+            simulation,
+            rules,
+            PlayerModel::LineClearer,
+        ))
+        .map(|candidate| (candidate.action, candidate.key))
+        .collect::<Vec<_>>();
+    let reroll_available = simulation.engine.reroll_available;
+    if ranked.is_empty() && !reroll_available {
+        return Vec::new();
+    }
+    bounded_actions(core::mem::take(&mut ranked), reroll_available, width)
+}
+
+fn apply_campaign_planner_action(
+    mut state: CampaignPlannerState,
+    config: CampaignSimulationConfig,
+    apex: ApexPredicate,
+    action: ActionKind,
+) -> Result<CampaignPlannerState, CampaignError> {
+    if action == ActionKind::Reroll {
+        state.simulation.request_reroll(config)?;
+        return Ok(state);
+    }
+    let combo_before = state.simulation.engine.combo_counter;
+    let mut report = match action {
+        ActionKind::Move {
+            row,
+            start,
+            destination,
+        } => state.simulation.play_move(
+            config,
+            state.simulation.engine.moves,
+            row,
+            start,
+            destination,
+        )?,
+        ActionKind::Bonus { row, column } => state.simulation.apply_bonus(config, row, column)?,
+        ActionKind::Reroll => unreachable!("reroll returned above"),
+    };
+    report.difficulty_at_action = state.simulation.current_difficulty;
+    state.metrics = record_campaign_metrics(state.metrics, combo_before, report);
+    state.apex_progress = apex.advance(state.apex_progress, report, state.simulation.engine);
+    Ok(state)
+}
+
+fn record_campaign_metrics(
+    mut metrics: RunMetrics,
+    combo_before: u8,
+    report: MoveReport,
+) -> RunMetrics {
+    let blocks_destroyed = report
+        .blocks_destroyed_by_size
+        .into_iter()
+        .map(u32::from)
+        .sum();
+    metrics
+        .record_action(ActionMetrics {
+            score: u64::from(report.points_earned),
+            lines: u32::from(report.lines_cleared),
+            blocks_destroyed,
+            combo: u32::from(report.combo_counter),
+            combo_derived_score: if report.combo_counter > combo_before {
+                u64::from(report.points_earned)
+            } else {
+                0
+            },
+            perfect_clear: report.perfect_clear,
+        })
+        .expect("bounded Campaign planner metrics cannot overflow");
+    metrics
+}
+
+fn apply_daily_planner_action(
+    mut simulation: DailySimulation,
+    rules: DailyRunRules,
+    action: ActionKind,
+) -> Result<DailySimulation, SimulationError> {
+    match action {
+        ActionKind::Move {
+            row,
+            start,
+            destination,
+        } => {
+            simulation.play_move(
+                rules,
+                simulation.action_counter,
+                simulation.engine.moves,
+                row,
+                start,
+                destination,
+            )?;
+        }
+        ActionKind::Bonus { row, column } => {
+            simulation.apply_bonus(rules, simulation.action_counter, row, column)?;
+        }
+        ActionKind::Reroll => {
+            simulation.request_reroll(rules, simulation.action_counter)?;
+        }
+    }
+    Ok(simulation)
+}
+
+fn campaign_rollout(
+    mut state: CampaignPlannerState,
+    config: CampaignSimulationConfig,
+    apex: ApexPredicate,
+    action_budget: u16,
+) -> Result<CampaignPlannerState, CampaignError> {
+    let start = state.simulation.action_counter;
+    let policy_seed = u64::from_le_bytes(
+        config.seed[..8]
+            .try_into()
+            .expect("Campaign seed has eight prefix bytes"),
+    );
+    while !state.simulation.is_terminal()
+        && state.simulation.action_counter.saturating_sub(start) < u32::from(action_budget)
+    {
+        let moves = campaign_move_candidates(state.simulation, config, PlayerModel::LineClearer);
+        let Some(best_move) = choose_campaign(
+            &moves,
+            policy_seed,
+            state.simulation.action_counter,
+            PlayerModel::LineClearer,
+        ) else {
+            break;
+        };
+        let action = if state.simulation.engine.reroll_available
+            && should_reroll(
+                PlayerModel::LineClearer,
+                state.simulation.action_counter,
+                &best_move.report,
+            ) {
+            ActionKind::Reroll
+        } else {
+            let bonuses =
+                campaign_bonus_candidates(state.simulation, config, PlayerModel::LineClearer);
+            let best_bonus = choose_campaign(
+                &bonuses,
+                policy_seed,
+                state.simulation.action_counter,
+                PlayerModel::LineClearer,
+            );
+            if should_spend_campaign_bonus(
+                PlayerModel::LineClearer,
+                &state.simulation,
+                &best_move,
+                best_bonus.as_ref(),
+            ) {
+                best_bonus.map_or(best_move.action, |candidate| candidate.action)
+            } else {
+                best_move.action
+            }
+        };
+        state = apply_campaign_planner_action(state, config, apex, action)?;
+    }
+    Ok(state)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn daily_rollout(
+    mut simulation: DailySimulation,
+    rules: DailyRunRules,
+    entry_id: u8,
+    seed: u64,
+    root_action: u32,
+    iteration: u16,
+    action_budget: u16,
+) -> Result<DailySimulation, SimulationError> {
+    let start = simulation.action_counter;
+    while simulation.action_counter.saturating_sub(start) < u32::from(action_budget) {
+        resolve_daily_planner_vrf(
+            &mut simulation,
+            rules,
+            entry_id,
+            seed,
+            root_action,
+            iteration,
+        )?;
+        if simulation.engine.phase == RunPhase::Finished {
+            break;
+        }
+        let moves = daily_move_candidates(&simulation, rules, PlayerModel::LineClearer);
+        let Some(best_move) = choose_daily(
+            &moves,
+            seed,
+            simulation.action_counter,
+            PlayerModel::LineClearer,
+        ) else {
+            break;
+        };
+        let action = if simulation.engine.reroll_available
+            && should_reroll(
+                PlayerModel::LineClearer,
+                simulation.action_counter,
+                &best_move.report,
+            ) {
+            ActionKind::Reroll
+        } else {
+            let bonuses = daily_bonus_candidates(&simulation, rules, PlayerModel::LineClearer);
+            let best_bonus = choose_daily(
+                &bonuses,
+                seed,
+                simulation.action_counter,
+                PlayerModel::LineClearer,
+            );
+            if should_spend_daily_bonus(PlayerModel::LineClearer, &best_move, best_bonus.as_ref()) {
+                best_bonus.map_or(best_move.action, |candidate| candidate.action)
+            } else {
+                best_move.action
+            }
+        };
+        simulation = apply_daily_planner_action(simulation, rules, action)?;
+    }
+    Ok(simulation)
+}
+
+fn planner_campaign_config(
+    mut config: CampaignSimulationConfig,
+    seed: u64,
+    root_action: u32,
+    iteration: u16,
+) -> CampaignSimulationConfig {
+    config.seed = SoftwareSha256::hashv(&[
+        HARNESS_PLANNER_DOMAIN,
+        b"campaign-future",
+        &seed.to_le_bytes(),
+        &root_action.to_le_bytes(),
+        &iteration.to_le_bytes(),
+    ]);
+    config
+}
+
+fn resolve_daily_planner_vrf(
+    simulation: &mut DailySimulation,
+    rules: DailyRunRules,
+    entry_id: u8,
+    seed: u64,
+    root_action: u32,
+    iteration: u16,
+) -> Result<(), SimulationError> {
+    if simulation.engine.phase != RunPhase::AwaitingVrf {
+        return Ok(());
+    }
+    let counter = simulation.last_vrf_counter.saturating_add(1);
+    let output = SoftwareSha256::hashv(&[
+        HARNESS_PLANNER_DOMAIN,
+        b"daily-future",
+        &seed.to_le_bytes(),
+        &root_action.to_le_bytes(),
+        &iteration.to_le_bytes(),
+        &[entry_id],
+        &counter.to_le_bytes(),
+    ]);
+    simulation.apply_vrf(rules, counter, output)
+}
+
+fn campaign_planner_value(
+    state: CampaignPlannerState,
+    rules: CampaignRules,
+    apex: ApexPredicate,
+    value: PlannerValue,
+) -> u64 {
+    let star_value =
+        u64::from(state.simulation.earned_stars.min(3)).saturating_mul(PLANNER_STAR_STEP);
+    let score_target = u64::from(rules.level.points_required.max(1));
+    let score_progress = u64::from(state.simulation.engine.score)
+        .min(score_target)
+        .saturating_mul(PLANNER_SCORE_PROGRESS_RANGE)
+        / score_target;
+    let primary_required = u64::from(rules.level.primary.required_count.max(1));
+    let primary_progress = u64::from(state.simulation.engine.primary_progress)
+        .min(primary_required)
+        .saturating_mul(PLANNER_CAMPAIGN_PRIMARY_RANGE)
+        / primary_required;
+    let apex_progress = apex
+        .progress_x1000(state.apex_progress)
+        .saturating_mul(PLANNER_APEX_PROGRESS_RANGE)
+        / 1_000;
+    let combo = if value == PlannerValue::CampaignCombo {
+        u64::from(state.metrics.maximum_combo.min(8)).saturating_mul(PLANNER_CAMPAIGN_COMBO_RANGE)
+            / 8
+    } else {
+        0
+    };
+    let height = u64::try_from(GRID_HEIGHT)
+        .expect("grid height fits u64")
+        .saturating_sub(u64::from(state.simulation.engine.grid.occupied_height()))
+        .saturating_mul(PLANNER_HEIGHT_RANGE)
+        / u64::try_from(GRID_HEIGHT).expect("grid height fits u64");
+    star_value
+        .saturating_add(score_progress)
+        .saturating_add(primary_progress)
+        .saturating_add(apex_progress)
+        .saturating_add(combo)
+        .saturating_add(height)
+}
+
+fn daily_planner_value(simulation: &DailySimulation, value: PlannerValue) -> u64 {
+    let metric = if value == PlannerValue::DailyTheme {
+        simulation.objective_total
+    } else {
+        u64::from(simulation.daily_score)
+    };
+    let metric_value = metric
+        .min(PLANNER_DAILY_METRIC_CAP)
+        .saturating_mul(PLANNER_DAILY_METRIC_RANGE)
+        / PLANNER_DAILY_METRIC_CAP;
+    let height = u64::try_from(GRID_HEIGHT)
+        .expect("grid height fits u64")
+        .saturating_sub(u64::from(simulation.engine.grid.occupied_height()))
+        .saturating_mul(PLANNER_HEIGHT_RANGE)
+        / u64::try_from(GRID_HEIGHT).expect("grid height fits u64");
+    metric_value.saturating_add(height)
+}
+
+fn plan_campaign_action(
+    state: CampaignPlannerState,
+    config: CampaignSimulationConfig,
+    apex: ApexPredicate,
+    spec: PlannerSpec,
+    seed: u64,
+) -> Result<Option<ActionKind>, CampaignError> {
+    let root_action = state.simulation.action_counter;
+    mcts_plan(
+        state,
+        spec.budget,
+        seed,
+        root_action,
+        campaign_planner_state_key,
+        |current, iteration, _| {
+            let sampled = planner_campaign_config(config, seed, root_action, iteration);
+            Ok(campaign_planner_actions(
+                current,
+                sampled,
+                spec.budget.action_width,
+            ))
+        },
+        |current, action, iteration, _| {
+            let sampled = planner_campaign_config(config, seed, root_action, iteration);
+            apply_campaign_planner_action(current, sampled, apex, action)
+        },
+        |current, iteration, _| {
+            let sampled = planner_campaign_config(config, seed, root_action, iteration);
+            campaign_rollout(current, sampled, apex, spec.budget.rollout_actions)
+        },
+        |current| campaign_planner_value(current, config.rules, apex, spec.value),
+        |current| current.simulation.is_terminal(),
+    )
+}
+
+fn plan_daily_action(
+    simulation: &DailySimulation,
+    rules: DailyRunRules,
+    entry_id: u8,
+    spec: PlannerSpec,
+    seed: u64,
+) -> Result<Option<ActionKind>, SimulationError> {
+    let root_action = simulation.action_counter;
+    mcts_plan(
+        *simulation,
+        spec.budget,
+        seed,
+        root_action,
+        |current| daily_planner_state_key(&current),
+        |current, _, _| {
+            Ok(daily_planner_actions(
+                &current,
+                rules,
+                spec.budget.action_width,
+            ))
+        },
+        |current, action, iteration, _| {
+            let mut next = apply_daily_planner_action(current, rules, action)?;
+            resolve_daily_planner_vrf(&mut next, rules, entry_id, seed, root_action, iteration)?;
+            Ok(next)
+        },
+        |current, iteration, _| {
+            daily_rollout(
+                current,
+                rules,
+                entry_id,
+                seed,
+                root_action,
+                iteration,
+                spec.budget.rollout_actions,
+            )
+        },
+        |current| daily_planner_value(&current, spec.value),
+        |current| current.engine.phase == RunPhase::Finished,
+    )
+}
+
+fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
+    let crate::RunEngine {
+        grid,
+        next_row,
+        phase,
+        score,
+        moves,
+        combo_counter,
+        max_combo,
+        primary_progress,
+        secondary_progress,
+        level_lines_cleared,
+        bonus,
+        bonus_charges,
+        reroll_available,
+        perfect_trigger_available,
+        starting_height_target,
+    } = engine;
+    output.extend_from_slice(grid.cells());
+    output.push(u8::from(next_row.is_some()));
+    output.extend_from_slice(&next_row.unwrap_or([0; GRID_WIDTH]));
+    output.push(match phase {
+        RunPhase::Ready => 0,
+        RunPhase::Playing => 1,
+        RunPhase::AwaitingVrf => 2,
+        RunPhase::LevelComplete => 3,
+        RunPhase::Finished => 4,
+    });
+    output.extend_from_slice(&score.to_le_bytes());
+    output.extend_from_slice(&moves.to_le_bytes());
+    output.extend_from_slice(&[
+        combo_counter,
+        max_combo,
+        primary_progress,
+        secondary_progress,
+    ]);
+    output.extend_from_slice(&level_lines_cleared.to_le_bytes());
+    output.push(match bonus {
+        None => 0,
+        Some(Bonus::Hammer) => 1,
+        Some(Bonus::Totem) => 2,
+        Some(Bonus::Wave) => 3,
+    });
+    output.extend_from_slice(&[
+        bonus_charges,
+        u8::from(reroll_available),
+        u8::from(perfect_trigger_available),
+        starting_height_target,
+    ]);
+}
+
+fn encode_metrics(metrics: RunMetrics, output: &mut Vec<u8>) {
+    let RunMetrics {
+        maximum_combo,
+        combo_scoring_actions,
+        total_combo_derived_score,
+        highest_action_score,
+        most_lines_in_action,
+        most_blocks_destroyed_in_action,
+        total_lines,
+        total_blocks_destroyed,
+        perfect_clears,
+    } = metrics;
+    output.extend_from_slice(&maximum_combo.to_le_bytes());
+    output.extend_from_slice(&combo_scoring_actions.to_le_bytes());
+    output.extend_from_slice(&total_combo_derived_score.to_le_bytes());
+    output.extend_from_slice(&highest_action_score.to_le_bytes());
+    output.extend_from_slice(&most_lines_in_action.to_le_bytes());
+    output.extend_from_slice(&most_blocks_destroyed_in_action.to_le_bytes());
+    output.extend_from_slice(&total_lines.to_le_bytes());
+    output.extend_from_slice(&total_blocks_destroyed.to_le_bytes());
+    output.extend_from_slice(&perfect_clears.to_le_bytes());
+}
+
+fn campaign_planner_state_key(state: CampaignPlannerState) -> [u8; 32] {
+    let mut encoded = Vec::with_capacity(160);
+    encode_engine(state.simulation.engine, &mut encoded);
+    encoded.extend_from_slice(&state.simulation.action_counter.to_le_bytes());
+    encoded.extend_from_slice(&state.simulation.row_counter.to_le_bytes());
+    encoded.push(state.simulation.current_difficulty);
+    encoded.push(match state.simulation.end_reason {
+        None => 0,
+        Some(CampaignEndReason::Completed) => 1,
+        Some(CampaignEndReason::Exhausted) => 2,
+        Some(CampaignEndReason::Abandoned) => 3,
+    });
+    encoded.push(state.simulation.earned_stars);
+    encode_metrics(state.metrics, &mut encoded);
+    encoded.extend_from_slice(&state.apex_progress.0.to_le_bytes());
+    SoftwareSha256::hashv(&[HARNESS_PLANNER_STATE_DOMAIN, &encoded])
+}
+
+fn campaign_oracle_state_key(state: CampaignPlannerState) -> [u8; 32] {
+    let mut encoded = Vec::with_capacity(128);
+    encode_engine(state.simulation.engine, &mut encoded);
+    encoded.extend_from_slice(&state.simulation.action_counter.to_le_bytes());
+    encoded.extend_from_slice(&state.simulation.row_counter.to_le_bytes());
+    encoded.push(state.simulation.current_difficulty);
+    // Brief 04 moves this byte into the engine. Keeping it here until then
+    // makes today's search key equally complete across that transition.
+    encoded.push(state.simulation.earned_stars);
+    encoded.extend_from_slice(&state.apex_progress.0.to_le_bytes());
+    SoftwareSha256::hashv(&[HARNESS_ORACLE_STATE_DOMAIN, &encoded])
+}
+
+fn daily_planner_state_key(simulation: &DailySimulation) -> [u8; 32] {
+    let mut encoded = Vec::with_capacity(192);
+    encode_engine(simulation.engine, &mut encoded);
+    encode_metrics(simulation.metrics, &mut encoded);
+    encoded.extend_from_slice(&simulation.action_counter.to_le_bytes());
+    encoded.extend_from_slice(&simulation.daily_score.to_le_bytes());
+    encoded.extend_from_slice(&simulation.objective_total.to_le_bytes());
+    encoded.extend_from_slice(&simulation.pressure_score.to_le_bytes());
+    encoded.push(simulation.current_difficulty);
+    encoded.extend_from_slice(&simulation.last_vrf_counter.to_le_bytes());
+    encoded.push(u8::from(simulation.deadline_finished));
+    SoftwareSha256::hashv(&[HARNESS_PLANNER_STATE_DOMAIN, &encoded])
 }
 
 fn choose_daily(
@@ -2066,6 +3219,185 @@ mod tests {
             &[PlayerModel::Naive.tag()],
         ]);
         assert_ne!(vrf, policy);
+
+        let level = campaign_catalog()[0];
+        let actual = campaign_simulation_config(level, SeedPartition::Holdout, 9);
+        let sampled = planner_campaign_config(actual, 9, 3, 0);
+        assert_ne!(actual.seed, sampled.seed);
+        assert_ne!(vrf, sampled.seed);
+    }
+
+    #[test]
+    fn planner_is_future_blind_and_reproducible() {
+        let level = campaign_catalog()[0];
+        let config = campaign_simulation_config(level, SeedPartition::Holdout, 1_024);
+        let state = CampaignPlannerState {
+            simulation: CampaignSimulation::new(config).unwrap(),
+            metrics: RunMetrics::default(),
+            apex_progress: ApexProgress::default(),
+        };
+        let spec = PlayerModel::PlannerCasual.planner().unwrap();
+        let first = plan_campaign_action(state, config, level.apex, spec, 1_024).unwrap();
+        let second = plan_campaign_action(state, config, level.apex, spec, 1_024).unwrap();
+        assert_eq!(first, second);
+
+        // The observed state is held fixed while the run's hidden future is
+        // changed. Planning must remain unchanged because every rollout gets a
+        // policy-domain sample instead of that hidden stream.
+        let mut hidden_future_changed = config;
+        hidden_future_changed.seed = [0xa5; 32];
+        assert_eq!(
+            first,
+            plan_campaign_action(state, hidden_future_changed, level.apex, spec, 1_024,).unwrap()
+        );
+    }
+
+    #[test]
+    fn planner_gate_digest_covers_eight_holdout_seeds() {
+        let level = campaign_catalog()[0];
+        let spec = PlayerModel::PlannerStrong.planner().unwrap();
+        let mut digest = [0; 32];
+        for seed_index in 1_024..1_032 {
+            let seed = HOLDOUT_SEED_PREFIX | seed_index;
+            let config = campaign_simulation_config(level, SeedPartition::Holdout, seed);
+            let state = CampaignPlannerState {
+                simulation: CampaignSimulation::new(config).unwrap(),
+                metrics: RunMetrics::default(),
+                apex_progress: ApexProgress::default(),
+            };
+            let action = plan_campaign_action(state, config, level.apex, spec, seed)
+                .unwrap()
+                .expect("an authored opening has a legal action");
+            digest = SoftwareSha256::hashv(&[
+                b"zkube-sim-harness-planner-gate-v1",
+                &digest,
+                &seed.to_le_bytes(),
+                &action.encoded(),
+            ]);
+        }
+        assert_eq!(
+            bytes_to_hex(digest),
+            "c2e7641b3d7290de2a9472efabedea81ad1a8cd3547549fb73fa62849107d2dc"
+        );
+    }
+
+    #[test]
+    fn bounded_planner_expansion_retains_every_action_class() {
+        let level = campaign_catalog()[0];
+        let config = campaign_simulation_config(level, SeedPartition::Holdout, 1_024);
+        let mut simulation = CampaignSimulation::new(config).unwrap();
+        simulation.engine.bonus = Some(Bonus::Hammer);
+        simulation.engine.bonus_charges = 1;
+        simulation.engine.reroll_available = true;
+        let state = CampaignPlannerState {
+            simulation,
+            metrics: RunMetrics::default(),
+            apex_progress: ApexProgress::default(),
+        };
+        let actions = campaign_planner_actions(state, config, PLANNER_STRONG.action_width);
+        assert!(
+            actions
+                .iter()
+                .any(|action| matches!(action, ActionKind::Move { .. }))
+        );
+        assert!(
+            actions
+                .iter()
+                .any(|action| matches!(action, ActionKind::Bonus { .. }))
+        );
+        assert!(actions.contains(&ActionKind::Reroll));
+    }
+
+    #[test]
+    fn oracle_key_covers_transition_counters_and_predicate_progress() {
+        let level = campaign_catalog()[0];
+        let config = campaign_simulation_config(level, SeedPartition::Holdout, 1_024);
+        let state = CampaignPlannerState {
+            simulation: CampaignSimulation::new(config).unwrap(),
+            metrics: RunMetrics::default(),
+            apex_progress: ApexProgress::default(),
+        };
+        let key = campaign_oracle_state_key(state);
+
+        let mut changed = state;
+        changed.simulation.engine.bonus_charges =
+            changed.simulation.engine.bonus_charges.saturating_add(1);
+        assert_ne!(key, campaign_oracle_state_key(changed));
+        changed = state;
+        changed.simulation.engine.primary_progress = 1;
+        assert_ne!(key, campaign_oracle_state_key(changed));
+        changed = state;
+        changed.simulation.action_counter = 1;
+        assert_ne!(key, campaign_oracle_state_key(changed));
+        changed = state;
+        changed.simulation.row_counter = changed.simulation.row_counter.saturating_add(1);
+        assert_ne!(key, campaign_oracle_state_key(changed));
+        changed = state;
+        changed.simulation.current_difficulty =
+            changed.simulation.current_difficulty.saturating_add(1);
+        assert_ne!(key, campaign_oracle_state_key(changed));
+        changed = state;
+        changed.apex_progress = ApexProgress(1);
+        assert_ne!(key, campaign_oracle_state_key(changed));
+
+        let rerolled =
+            apply_campaign_planner_action(state, config, ApexPredicate::None, ActionKind::Reroll)
+                .unwrap();
+        assert_ne!(key, campaign_oracle_state_key(rerolled));
+        assert_eq!(
+            rerolled.simulation.row_counter,
+            state.simulation.row_counter + 1
+        );
+    }
+
+    #[test]
+    fn oracle_is_bounded_reproducible_and_targets_the_apex_predicate() {
+        let mut level = campaign_catalog()[0];
+        level.rules.level.points_required = u32::MAX;
+        level.rules.level.max_moves = 1;
+        let no_constraint = Constraint {
+            kind: ConstraintKind::None,
+            value: 0,
+            required_count: 0,
+        };
+        level.rules.level.primary = no_constraint;
+        level.rules.level.secondary = no_constraint;
+        level.rules.mutator = MutatorRules::default();
+        level.rules.bonus = None;
+        level.rules.starting_bonus_charges = 0;
+        level.apex = ApexPredicate::LinesInAction { minimum: 1 };
+
+        let first = oracle_campaign(level, SeedPartition::Holdout, 1_024).unwrap();
+        let second = oracle_campaign(level, SeedPartition::Holdout, 1_024).unwrap();
+        assert_eq!(first, second);
+        assert!(!first.reachability.one_star_reachable);
+        assert!(!first.reachability.two_stars_reachable);
+        assert!(first.reachability.apex_reachable);
+        assert!(!first.node_cap_hit);
+        assert!(first.visited_states <= ORACLE_NODE_BUDGET);
+    }
+
+    #[test]
+    fn casual_planner_drives_both_real_simulations_to_a_terminal_state() {
+        let campaign = run_campaign(
+            campaign_catalog()[0],
+            PlayerModel::PlannerCasual,
+            SeedPartition::Holdout,
+            1_024,
+        )
+        .unwrap();
+        let daily = run_daily(
+            daily_catalog()[0],
+            PlayerModel::PlannerCasual,
+            SeedPartition::Holdout,
+            1_024,
+        )
+        .unwrap();
+        for record in [campaign, daily] {
+            assert_ne!(record.terminal_cause, TerminalCause::EngineStall);
+            assert!(record.actions > 0);
+            assert_ne!(record.decision_digest_hex, bytes_to_hex([0; 32]));
+        }
     }
 
     #[test]
