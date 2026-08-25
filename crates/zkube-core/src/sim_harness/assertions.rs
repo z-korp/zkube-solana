@@ -8,14 +8,24 @@
 use super::{
     ApexPredicate, CampaignCatalogLevel, DailyCatalogEntry, OracleResult, PlayerModel, RunRecord,
     SeedPartition, TerminalCause, bands, campaign_catalog, daily_catalog, oracle_campaign,
-    run_campaign, run_daily,
+    parallel_map_ordered, run_campaign, run_daily,
 };
-use crate::{Constraint, ConstraintKind, DailyObjective};
+use crate::{Constraint, ConstraintKind, DailyObjective, Sha256Provider, SoftwareSha256};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{collections::HashMap, format, string::String, vec, vec::Vec};
+use std::{
+    boxed::Box,
+    collections::{BTreeMap, HashMap},
+    env, format,
+    string::{String, ToString},
+    time::Instant,
+    vec,
+    vec::Vec,
+};
 
 const HOLDOUT: SeedPartition = SeedPartition::Holdout;
+const ASSERTION_RESULT_DIGEST_DOMAIN: &[u8] = b"zkube-sim-assertion-result-v1";
+const MAX_HARNESS_THREADS: usize = 256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -73,7 +83,7 @@ pub struct AssertionResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AssertionReport {
+pub struct AssertionResultPayload {
     pub mode: EvaluationMode,
     pub partition: SeedPartition,
     pub seed_start: u64,
@@ -88,6 +98,31 @@ pub struct AssertionReport {
     /// Acceptance means every live assertion passed. Ignored measurements are
     /// still failures in their own records and never become friendly passes.
     pub passed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineReport {
+    pub name: String,
+    pub operating_system: String,
+    pub architecture: String,
+    pub available_parallelism: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionMetadata {
+    pub wall_time_millis: u64,
+    pub thread_count: usize,
+    pub machine: MachineReport,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssertionReport {
+    pub result_payload: AssertionResultPayload,
+    pub result_digest_hex: String,
+    pub execution: ExecutionMetadata,
 }
 
 #[derive(Clone, Copy)]
@@ -131,8 +166,85 @@ impl EvaluationConfig {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct RecordKey {
+    mode: u8,
+    unit: u16,
+    difficulty: u8,
+    model: u8,
+    seed: u64,
+}
+
+#[derive(Clone, Copy)]
+enum RecordTask {
+    Campaign {
+        level: CampaignCatalogLevel,
+        model: PlayerModel,
+        seed: u64,
+    },
+    Daily {
+        entry: DailyCatalogEntry,
+        model: PlayerModel,
+        seed: u64,
+    },
+    Oracle {
+        level: CampaignCatalogLevel,
+        seed: u64,
+    },
+}
+
+impl RecordTask {
+    fn key(self) -> RecordKey {
+        match self {
+            Self::Campaign { level, model, seed } => RecordKey {
+                mode: 0,
+                unit: level.catalog_id,
+                difficulty: level.rules.level_difficulty,
+                model: model.tag(),
+                seed,
+            },
+            Self::Daily { entry, model, seed } => RecordKey {
+                mode: 1,
+                unit: u16::from(entry.id),
+                difficulty: 0,
+                model: model.tag(),
+                seed,
+            },
+            Self::Oracle { level, seed } => RecordKey {
+                mode: 2,
+                unit: level.catalog_id,
+                difficulty: 0,
+                model: 0,
+                seed,
+            },
+        }
+    }
+
+    fn run(self) -> Result<RecordValue, String> {
+        match self {
+            Self::Campaign { level, model, seed } => run_campaign(level, model, HOLDOUT, seed)
+                .map(|record| RecordValue::Run(Box::new(record)))
+                .map_err(|error| format!("Campaign {} failed: {error:?}", level.catalog_id)),
+            Self::Daily { entry, model, seed } => run_daily(entry, model, HOLDOUT, seed)
+                .map(|record| RecordValue::Run(Box::new(record)))
+                .map_err(|error| format!("Daily {} failed: {error:?}", entry.id)),
+            Self::Oracle { level, seed } => oracle_campaign(level, HOLDOUT, seed)
+                .map(RecordValue::Oracle)
+                .map_err(|error| format!("Campaign oracle {} failed: {error:?}", level.catalog_id)),
+        }
+    }
+}
+
+enum RecordValue {
+    Run(Box<RunRecord>),
+    Oracle(OracleResult),
+}
+
 struct Evaluator {
     config: EvaluationConfig,
+    worker_count: usize,
+    started_at: Instant,
+    records_must_exist: bool,
     campaign: Vec<CampaignCatalogLevel>,
     daily: Vec<DailyCatalogEntry>,
     campaign_records: HashMap<(u16, u8, u8, u64), RunRecord>,
@@ -141,9 +253,12 @@ struct Evaluator {
 }
 
 impl Evaluator {
-    fn new(config: EvaluationConfig) -> Self {
+    fn new(config: EvaluationConfig, worker_count: usize, started_at: Instant) -> Self {
         Self {
             config,
+            worker_count,
+            started_at,
+            records_must_exist: false,
             campaign: campaign_catalog(),
             daily: daily_catalog(),
             campaign_records: HashMap::new(),
@@ -168,6 +283,13 @@ impl Evaluator {
         if let Some(record) = self.campaign_records.get(&key) {
             return Ok(record.clone());
         }
+        if self.records_must_exist {
+            return Err(format!(
+                "Campaign {} model {} seed {seed} was not prepared",
+                level.catalog_id,
+                model.tag(),
+            ));
+        }
         let record = run_campaign(level, model, HOLDOUT, seed)
             .map_err(|error| format!("Campaign {} failed: {error:?}", level.catalog_id))?;
         self.campaign_records.insert(key, record.clone());
@@ -185,6 +307,13 @@ impl Evaluator {
         if let Some(record) = self.daily_records.get(&key) {
             return Ok(record.clone());
         }
+        if self.records_must_exist {
+            return Err(format!(
+                "Daily {} model {} seed {seed} was not prepared",
+                entry.id,
+                model.tag(),
+            ));
+        }
         let record = run_daily(entry, model, HOLDOUT, seed)
             .map_err(|error| format!("Daily {} failed: {error:?}", entry.id))?;
         self.daily_records.insert(key, record.clone());
@@ -201,35 +330,338 @@ impl Evaluator {
         if let Some(result) = self.oracle_records.get(&key) {
             return Ok(*result);
         }
+        if self.records_must_exist {
+            return Err(format!(
+                "Campaign oracle {} seed {seed} was not prepared",
+                level.catalog_id,
+            ));
+        }
         let result = oracle_campaign(level, HOLDOUT, seed)
             .map_err(|error| format!("Campaign oracle {} failed: {error:?}", level.catalog_id))?;
         self.oracle_records.insert(key, result);
         Ok(result)
     }
 
+    fn add_campaign_tasks(
+        &self,
+        tasks: &mut Vec<RecordTask>,
+        levels: &[CampaignCatalogLevel],
+        models: &[PlayerModel],
+        seeds: u32,
+    ) -> Result<(), String> {
+        for level in levels.iter().copied() {
+            for model in models.iter().copied() {
+                for offset in 0..seeds {
+                    tasks.push(RecordTask::Campaign {
+                        level,
+                        model,
+                        seed: sample_seed(self.config.seed_start, offset)?,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn add_daily_tasks(
+        &self,
+        tasks: &mut Vec<RecordTask>,
+        entries: &[DailyCatalogEntry],
+        models: &[PlayerModel],
+        seeds: u32,
+    ) -> Result<(), String> {
+        for entry in entries.iter().copied() {
+            for model in models.iter().copied() {
+                for offset in 0..seeds {
+                    tasks.push(RecordTask::Daily {
+                        entry,
+                        model,
+                        seed: sample_seed(self.config.seed_start, offset)?,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn add_oracle_tasks(
+        &self,
+        tasks: &mut Vec<RecordTask>,
+        levels: &[CampaignCatalogLevel],
+        seeds: u32,
+    ) -> Result<(), String> {
+        for level in levels.iter().copied() {
+            for offset in 0..seeds {
+                tasks.push(RecordTask::Oracle {
+                    level,
+                    seed: sample_seed(self.config.seed_start, offset)?,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn assertion_has_samples(&self, name: &str) -> bool {
+        let (available, required) = match name {
+            "realm-identity" | "kind-variety" => return true,
+            "trigger-liveness" | "theme-policy-sanity" => {
+                (self.config.planner_seeds, bands::GATE_SEEDS)
+            }
+            "apex-reachable" => (self.config.oracle_seeds, bands::ACCEPTANCE_PLANNER_SEEDS),
+            "apex-luckable" => (self.config.naive_seeds, bands::ACCEPTANCE_NAIVE_SEEDS),
+            _ => (self.config.planner_seeds, bands::ACCEPTANCE_PLANNER_SEEDS),
+        };
+        available >= required
+    }
+
+    // Keeping the population dependency table exhaustive and adjacent makes a
+    // newly added assertion fail closed instead of acquiring implicit work.
+    #[allow(clippy::too_many_lines)]
+    fn prepare_assertion(&mut self, name: &str) -> Result<(), String> {
+        let mut tasks = Vec::new();
+        if self.assertion_has_samples(name) {
+            let campaign = self.campaign.clone();
+            let daily = self.daily.clone();
+            let planner = [self.config.planner_model];
+            match name {
+                "constraint-pursuit-gain" => {
+                    let levels = campaign
+                        .into_iter()
+                        .filter(|level| {
+                            (
+                                constraint_kind_tag(level.rules.level.primary.kind),
+                                constraint_kind_tag(level.rules.level.secondary.kind),
+                            ) != (0, 0)
+                        })
+                        .collect::<Vec<_>>();
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &levels,
+                        &[self.config.planner_model, PlayerModel::LineClearer],
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "first-star-rate" => self.add_campaign_tasks(
+                    &mut tasks,
+                    &campaign,
+                    &[PlayerModel::LineClearer],
+                    self.config.planner_seeds,
+                )?,
+                "second-star-rate" | "star-earn-rate" | "zone-monotonicity" | "apex-findable"
+                | "apex-decisive" | "apex-optional" | "apex-set-up" => {
+                    let levels = if name.starts_with("apex-") {
+                        self.apex_levels()
+                    } else {
+                        campaign
+                    };
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &levels,
+                        &planner,
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "trigger-liveness" => {
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &campaign,
+                        &planner,
+                        self.config.planner_seeds,
+                    )?;
+                    self.add_daily_tasks(&mut tasks, &daily, &planner, self.config.planner_seeds)?;
+                }
+                "tier-step" => {
+                    let base = campaign
+                        .into_iter()
+                        .filter(|level| level.rules.level_difficulty < 7)
+                        .collect::<Vec<_>>();
+                    let raised = base
+                        .iter()
+                        .copied()
+                        .map(|mut level| {
+                            level.rules.level_difficulty =
+                                level.rules.level_difficulty.saturating_add(1);
+                            level
+                        })
+                        .collect::<Vec<_>>();
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &base,
+                        &planner,
+                        self.config.planner_seeds,
+                    )?;
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &raised,
+                        &planner,
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "passive-relevance" => {
+                    let levels = campaign
+                        .into_iter()
+                        .filter(|level| level.rules.mutator.combo_multiplier_x100 >= 200)
+                        .collect::<Vec<_>>();
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &levels,
+                        &[self.config.planner_model, PlayerModel::PlannerStrongCombo],
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "board-divergence" => {
+                    let entries = daily
+                        .into_iter()
+                        .filter(|entry| entry.rules.objective.objective != DailyObjective::Classic)
+                        .collect::<Vec<_>>();
+                    self.add_daily_tasks(
+                        &mut tasks,
+                        &entries,
+                        &[
+                            self.config.planner_model,
+                            PlayerModel::PlannerStrongTheme,
+                            PlayerModel::LineClearer,
+                        ],
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "theme-policy-sanity" => {
+                    let entries = daily
+                        .into_iter()
+                        .filter(|entry| entry.rules.objective.objective != DailyObjective::Classic)
+                        .collect::<Vec<_>>();
+                    self.add_daily_tasks(
+                        &mut tasks,
+                        &entries,
+                        &[PlayerModel::Theme],
+                        self.config.planner_seeds,
+                    )?;
+                }
+                "apex-reachable" => self.add_oracle_tasks(
+                    &mut tasks,
+                    &self.apex_levels(),
+                    self.config.oracle_seeds,
+                )?,
+                "apex-luckable" => self.add_campaign_tasks(
+                    &mut tasks,
+                    &self.apex_levels(),
+                    &[PlayerModel::Naive],
+                    self.config.naive_seeds,
+                )?,
+                "reroll-held" | "reroll-grant" => {
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &campaign,
+                        &planner,
+                        self.config.planner_seeds,
+                    )?;
+                    self.add_daily_tasks(&mut tasks, &daily, &planner, self.config.planner_seeds)?;
+                }
+                "realm-identity" | "kind-variety" => {}
+                _ => return Err(format!("unknown design assertion {name:?}")),
+            }
+        }
+        self.prepare_records(name, tasks)
+    }
+
+    fn task_is_cached(&self, task: RecordTask) -> bool {
+        match task {
+            RecordTask::Campaign { level, model, seed } => self.campaign_records.contains_key(&(
+                level.catalog_id,
+                level.rules.level_difficulty,
+                model.tag(),
+                seed,
+            )),
+            RecordTask::Daily { entry, model, seed } => {
+                self.daily_records
+                    .contains_key(&(entry.id, model.tag(), seed))
+            }
+            RecordTask::Oracle { level, seed } => {
+                self.oracle_records.contains_key(&(level.catalog_id, seed))
+            }
+        }
+    }
+
+    fn prepare_records(&mut self, name: &str, mut tasks: Vec<RecordTask>) -> Result<(), String> {
+        tasks.sort_unstable_by_key(|task| task.key());
+        tasks.dedup_by_key(|task| task.key());
+        tasks.retain(|task| !self.task_is_cached(*task));
+        let total = tasks.len();
+        let phase_started = Instant::now();
+        let progress_step = (total / 20).max(1);
+        let values = parallel_map_ordered(
+            &tasks,
+            self.worker_count,
+            |task| task.run(),
+            |done, count| {
+                if count == 0 || done == 1 || done == count || done % progress_step == 0 {
+                    std::eprintln!(
+                        "[zkube-sim] assertion={name} records={done}/{count} phaseMs={} elapsedMs={}",
+                        phase_started.elapsed().as_millis(),
+                        self.started_at.elapsed().as_millis(),
+                    );
+                }
+            },
+        )?;
+        for (task, value) in tasks.into_iter().zip(values) {
+            match (task, value) {
+                (RecordTask::Campaign { level, model, seed }, RecordValue::Run(record)) => {
+                    self.campaign_records.insert(
+                        (
+                            level.catalog_id,
+                            level.rules.level_difficulty,
+                            model.tag(),
+                            seed,
+                        ),
+                        *record,
+                    );
+                }
+                (RecordTask::Daily { entry, model, seed }, RecordValue::Run(record)) => {
+                    self.daily_records
+                        .insert((entry.id, model.tag(), seed), *record);
+                }
+                (RecordTask::Oracle { level, seed }, RecordValue::Oracle(result)) => {
+                    self.oracle_records.insert((level.catalog_id, seed), result);
+                }
+                _ => return Err(String::from("harness record task returned the wrong value")),
+            }
+        }
+        Ok(())
+    }
+
     fn evaluate_all(&mut self) -> Result<Vec<AssertionResult>, String> {
-        Ok(vec![
-            self.constraint_pursuit_gain()?,
-            self.first_star_rate()?,
-            self.second_star_rate()?,
-            self.star_earn_rate()?,
-            self.trigger_liveness()?,
-            self.tier_step()?,
-            self.passive_relevance()?,
-            self.board_divergence()?,
-            self.theme_policy_sanity()?,
-            self.realm_identity(),
-            self.kind_variety(),
-            self.zone_monotonicity()?,
-            self.apex_reachable()?,
-            self.apex_luckable()?,
-            self.apex_findable()?,
-            self.apex_decisive()?,
-            self.apex_optional()?,
-            self.apex_set_up()?,
-            self.reroll_held()?,
-            self.reroll_grant()?,
-        ])
+        let mut results = Vec::with_capacity(20);
+        macro_rules! evaluate {
+            ($name:literal, $method:ident) => {{
+                self.prepare_assertion($name)?;
+                self.records_must_exist = true;
+                results.push(self.$method()?);
+                self.records_must_exist = false;
+            }};
+        }
+        evaluate!("constraint-pursuit-gain", constraint_pursuit_gain);
+        evaluate!("first-star-rate", first_star_rate);
+        evaluate!("second-star-rate", second_star_rate);
+        evaluate!("star-earn-rate", star_earn_rate);
+        evaluate!("trigger-liveness", trigger_liveness);
+        evaluate!("tier-step", tier_step);
+        evaluate!("passive-relevance", passive_relevance);
+        evaluate!("board-divergence", board_divergence);
+        evaluate!("theme-policy-sanity", theme_policy_sanity);
+        self.prepare_assertion("realm-identity")?;
+        results.push(self.realm_identity());
+        self.prepare_assertion("kind-variety")?;
+        results.push(self.kind_variety());
+        evaluate!("zone-monotonicity", zone_monotonicity);
+        evaluate!("apex-reachable", apex_reachable);
+        evaluate!("apex-luckable", apex_luckable);
+        evaluate!("apex-findable", apex_findable);
+        evaluate!("apex-decisive", apex_decisive);
+        evaluate!("apex-optional", apex_optional);
+        evaluate!("apex-set-up", apex_set_up);
+        evaluate!("reroll-held", reroll_held);
+        evaluate!("reroll-grant", reroll_grant);
+        Ok(results)
     }
 
     #[cfg(test)]
@@ -270,7 +702,7 @@ impl Evaluator {
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
         }
-        let mut groups = HashMap::<(u8, u8), Vec<CampaignCatalogLevel>>::new();
+        let mut groups = BTreeMap::<(u8, u8), Vec<CampaignCatalogLevel>>::new();
         for level in self.campaign.clone() {
             let pair = (
                 constraint_kind_tag(level.rules.level.primary.kind),
@@ -1229,7 +1661,17 @@ impl Metadata {
 /// Returns a deterministic simulation or serialization-independent evaluator
 /// error. Band failures are data in the returned report.
 pub fn gate_report() -> Result<AssertionReport, String> {
-    report(EvaluationConfig::gate())
+    gate_report_with_threads(default_harness_thread_count())
+}
+
+/// Evaluate the gate with an explicit worker count.
+///
+/// # Errors
+///
+/// Returns an error for an invalid worker count or deterministic simulation
+/// failure. Band failures remain data in the returned report.
+pub fn gate_report_with_threads(worker_count: usize) -> Result<AssertionReport, String> {
+    report(EvaluationConfig::gate(), worker_count)
 }
 
 /// Evaluate the full holdout population. Planner and oracle use `seeds`; the
@@ -1240,29 +1682,60 @@ pub fn gate_report() -> Result<AssertionReport, String> {
 /// Returns a deterministic simulation error. Too few requested seeds are
 /// reported as `insufficient_events` instead of silently widening a sample.
 pub fn acceptance_report(seeds: u32, seed_start: u64) -> Result<AssertionReport, String> {
-    report(EvaluationConfig::acceptance(seeds, seed_start))
+    acceptance_report_with_threads(seeds, seed_start, default_harness_thread_count())
 }
 
-fn report(config: EvaluationConfig) -> Result<AssertionReport, String> {
-    let mut evaluator = Evaluator::new(config);
+/// Evaluate the full holdout population with an explicit worker count.
+///
+/// # Errors
+///
+/// Returns an error for an invalid worker count or deterministic simulation
+/// failure. Too few seeds remain an `insufficient_events` result.
+pub fn acceptance_report_with_threads(
+    seeds: u32,
+    seed_start: u64,
+    worker_count: usize,
+) -> Result<AssertionReport, String> {
+    report(
+        EvaluationConfig::acceptance(seeds, seed_start),
+        worker_count,
+    )
+}
+
+/// Worker count used when the caller does not pin one explicitly.
+pub fn default_harness_thread_count() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
+}
+
+fn report(config: EvaluationConfig, worker_count: usize) -> Result<AssertionReport, String> {
+    if !(1..=MAX_HARNESS_THREADS).contains(&worker_count) {
+        return Err(format!(
+            "harness thread count must be in 1..={MAX_HARNESS_THREADS}"
+        ));
+    }
+    let started_at = Instant::now();
+    let mut evaluator = Evaluator::new(config, worker_count, started_at);
     let assertions = evaluator.evaluate_all()?;
-    let live_failures = assertions
+    let mut live_failures = assertions
         .iter()
         .filter(|assertion| assertion.live && assertion.passed != Some(true))
         .map(|assertion| assertion.name.clone())
         .collect::<Vec<_>>();
-    let ignored_failures = assertions
+    let mut ignored_failures = assertions
         .iter()
         .filter(|assertion| !assertion.live && assertion.passed == Some(false))
         .map(|assertion| assertion.name.clone())
         .collect::<Vec<_>>();
-    let not_evaluated = assertions
+    let mut not_evaluated = assertions
         .iter()
         .filter(|assertion| assertion.status == AssertionStatus::NotEvaluated)
         .map(|assertion| assertion.name.clone())
         .collect::<Vec<_>>();
+    live_failures.sort();
+    ignored_failures.sort();
+    not_evaluated.sort();
     let budget = config.budget();
-    Ok(AssertionReport {
+    let result_payload = AssertionResultPayload {
         mode: config.mode,
         partition: HOLDOUT,
         seed_start: config.seed_start,
@@ -1280,10 +1753,40 @@ fn report(config: EvaluationConfig) -> Result<AssertionReport, String> {
         live_failures,
         ignored_failures,
         not_evaluated,
+    };
+    let canonical = serde_json::to_vec(&result_payload).map_err(|error| error.to_string())?;
+    let digest = SoftwareSha256::hashv(&[ASSERTION_RESULT_DIGEST_DOMAIN, &canonical]);
+    Ok(AssertionReport {
+        result_payload,
+        result_digest_hex: hex_digest(digest),
+        execution: ExecutionMetadata {
+            wall_time_millis: u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX),
+            thread_count: worker_count,
+            machine: machine_report(),
+        },
     })
 }
 
-fn finish(metadata: Metadata, units: Vec<AssertionUnit>) -> AssertionResult {
+fn machine_report() -> MachineReport {
+    MachineReport {
+        name: env::var("HOSTNAME").unwrap_or_else(|_| String::from("unknown")),
+        operating_system: String::from(env::consts::OS),
+        architecture: String::from(env::consts::ARCH),
+        available_parallelism: default_harness_thread_count(),
+    }
+}
+
+fn hex_digest(digest: [u8; 32]) -> String {
+    use std::fmt::Write as _;
+
+    digest.iter().fold(String::new(), |mut output, byte| {
+        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+        output
+    })
+}
+
+fn finish(metadata: Metadata, mut units: Vec<AssertionUnit>) -> AssertionResult {
+    units.sort_by(|left, right| left.unit.cmp(&right.unit));
     let insufficient = units
         .iter()
         .any(|unit| unit.status == AssertionStatus::InsufficientEvents);
@@ -1736,7 +2239,7 @@ mod tests {
                 bands::ASSERTION_SEED_START,
             )
         };
-        let mut evaluator = Evaluator::new(config);
+        let mut evaluator = Evaluator::new(config, 1, Instant::now());
         let result = evaluator.evaluate_named(name).unwrap();
         assert_eq!(
             result.passed,
@@ -1847,7 +2350,7 @@ mod tests {
 
     #[test]
     fn minimum_sample_shortfall_is_never_reported_as_a_pass() {
-        let mut gate = Evaluator::new(EvaluationConfig::gate());
+        let mut gate = Evaluator::new(EvaluationConfig::gate(), 1, Instant::now());
         let skipped = gate.evaluate_named("first-star-rate").unwrap();
         assert_eq!(skipped.status, AssertionStatus::NotEvaluated);
         assert_eq!(skipped.passed, None);
@@ -1856,10 +2359,11 @@ mod tests {
             Some("not evaluated in gate (min_samples)")
         );
 
-        let mut acceptance = Evaluator::new(EvaluationConfig::acceptance(
-            bands::GATE_SEEDS,
-            bands::ASSERTION_SEED_START,
-        ));
+        let mut acceptance = Evaluator::new(
+            EvaluationConfig::acceptance(bands::GATE_SEEDS, bands::ASSERTION_SEED_START),
+            1,
+            Instant::now(),
+        );
         let insufficient = acceptance.evaluate_named("first-star-rate").unwrap();
         assert_eq!(insufficient.status, AssertionStatus::InsufficientEvents);
         assert_eq!(insufficient.passed, Some(false));

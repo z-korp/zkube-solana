@@ -57,7 +57,11 @@ use std::{
     fmt::Write as _,
     format,
     string::{String, ToString},
-    vec,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
+    thread, vec,
     vec::Vec,
 };
 
@@ -72,6 +76,77 @@ const HARNESS_DAILY_RULES_DOMAIN: &[u8] = b"zkube-sim-harness-daily-rules-v1";
 const HARNESS_FIELD_DOMAIN: &[u8] = b"zkube-sim-harness-field-v1";
 const MAX_HARNESS_PLIES: u32 = 256;
 const FIELD_LADDER_TIERS: usize = LADDER_TIER_POINT_THRESHOLDS.len();
+
+/// Map independent CPU work across bounded workers and return results in task
+/// order. Completion timing never reaches a caller's aggregation order.
+fn parallel_map_ordered<T, O>(
+    tasks: &[T],
+    worker_count: usize,
+    work: impl Fn(&T) -> Result<O, String> + Sync,
+    mut progress: impl FnMut(usize, usize),
+) -> Result<Vec<O>, String>
+where
+    T: Sync,
+    O: Send,
+{
+    if tasks.is_empty() {
+        progress(0, 0);
+        return Ok(Vec::new());
+    }
+    let workers = worker_count.max(1).min(tasks.len());
+    if workers == 1 {
+        let mut outputs = Vec::with_capacity(tasks.len());
+        for task in tasks {
+            outputs.push(work(task)?);
+            progress(outputs.len(), tasks.len());
+        }
+        return Ok(outputs);
+    }
+
+    let next = AtomicUsize::new(0);
+    let (sender, receiver) = mpsc::channel();
+    let mut completed = Vec::with_capacity(tasks.len());
+    let mut first_error = None;
+    let mut returned_count = 0usize;
+    thread::scope(|scope| {
+        for _ in 0..workers {
+            let sender = sender.clone();
+            let work = &work;
+            let next = &next;
+            scope.spawn(move || {
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(task) = tasks.get(index) else {
+                        break;
+                    };
+                    if sender.send((index, work(task))).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        drop(sender);
+        for (index, result) in receiver {
+            returned_count = returned_count.saturating_add(1);
+            match result {
+                Ok(output) => completed.push((index, output)),
+                Err(error) if first_error.is_none() => first_error = Some(error),
+                Err(_) => {}
+            }
+            progress(returned_count, tasks.len());
+        }
+    });
+    if let Some(error) = first_error {
+        return Err(error);
+    }
+    if completed.len() != tasks.len() {
+        return Err(String::from(
+            "parallel harness workers did not return every record",
+        ));
+    }
+    completed.sort_unstable_by_key(|(index, _)| *index);
+    Ok(completed.into_iter().map(|(_, output)| output).collect())
+}
 
 // Fresh 64-seed holdout starting at index 1024, measured per real Daily run.
 // Score qualification was 93.91%, 100%, 100%, and 100%; non-Classic Theme
@@ -3380,6 +3455,34 @@ pub struct SmokeSummary {
     pub digest_hex: String,
 }
 
+#[derive(Clone, Copy)]
+enum SmokeTask {
+    Daily(DailyCatalogEntry, PlayerModel, u64),
+    Campaign(CampaignCatalogLevel, PlayerModel, u64),
+}
+
+impl SmokeTask {
+    fn key(self) -> (u8, u16, u8, u64) {
+        match self {
+            Self::Daily(entry, model, seed) => (0, u16::from(entry.id), model.tag(), seed),
+            Self::Campaign(level, model, seed) => (1, level.catalog_id, model.tag(), seed),
+        }
+    }
+
+    fn run(self) -> Result<RunRecord, String> {
+        match self {
+            Self::Daily(entry, model, seed) => {
+                run_daily(entry, model, SeedPartition::Holdout, seed)
+                    .map_err(|error| format!("Daily smoke failed: {error:?}"))
+            }
+            Self::Campaign(level, model, seed) => {
+                run_campaign(level, model, SeedPartition::Holdout, seed)
+                    .map_err(|error| format!("Campaign smoke failed: {error:?}"))
+            }
+        }
+    }
+}
+
 /// Small deterministic end-to-end sample used as the committed golden smoke.
 ///
 /// # Errors
@@ -3387,27 +3490,26 @@ pub struct SmokeSummary {
 /// Returns an engine error if either real simulation path stops accepting the
 /// deterministic policy sequence.
 pub fn golden_smoke() -> Result<SmokeSummary, String> {
+    golden_smoke_with_threads(1)
+}
+
+/// Run the golden smoke through the same ordered worker boundary as the full
+/// harness. The returned summary is independent of `worker_count`.
+///
+/// # Errors
+///
+/// Returns an engine or worker error if the deterministic sample cannot finish.
+pub fn golden_smoke_with_threads(worker_count: usize) -> Result<SmokeSummary, String> {
     let daily_entries = daily_catalog();
     let campaign_levels = campaign_catalog();
-    let mut records = Vec::new();
-    for (entry, model, seed) in [
-        (daily_entries[1], PlayerModel::DailyScore, 41),
-        (daily_entries[6], PlayerModel::Theme, 73),
-    ] {
-        records.push(
-            run_daily(entry, model, SeedPartition::Holdout, seed)
-                .map_err(|error| format!("Daily smoke failed: {error:?}"))?,
-        );
-    }
-    for (level, model, seed) in [
-        (campaign_levels[2], PlayerModel::CampaignConstraints, 101),
-        (campaign_levels[79], PlayerModel::LineClearer, 211),
-    ] {
-        records.push(
-            run_campaign(level, model, SeedPartition::Holdout, seed)
-                .map_err(|error| format!("Campaign smoke failed: {error:?}"))?,
-        );
-    }
+    let mut tasks = vec![
+        SmokeTask::Daily(daily_entries[1], PlayerModel::DailyScore, 41),
+        SmokeTask::Daily(daily_entries[6], PlayerModel::Theme, 73),
+        SmokeTask::Campaign(campaign_levels[2], PlayerModel::CampaignConstraints, 101),
+        SmokeTask::Campaign(campaign_levels[79], PlayerModel::LineClearer, 211),
+    ];
+    tasks.sort_unstable_by_key(|task| task.key());
+    let records = parallel_map_ordered(&tasks, worker_count, |task| task.run(), |_, _| {})?;
     let canonical = serde_json::to_vec(&records).map_err(|error| error.to_string())?;
     let digest = SoftwareSha256::hashv(&[b"zkube-sim-harness-smoke-v1", &canonical]);
     Ok(SmokeSummary {
@@ -3460,6 +3562,14 @@ mod tests {
             serde_json::to_string(&summary).unwrap(),
             "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"71ffdaf1b49604116d7ef60b3f7f7e90274dc9e480da7948251b6d29e4df8874\"}"
         );
+    }
+
+    #[test]
+    fn golden_smoke_digest_is_thread_count_invariant() {
+        let serial = golden_smoke_with_threads(1).unwrap();
+        let parallel = golden_smoke_with_threads(4).unwrap();
+        assert_eq!(serial, parallel);
+        assert_eq!(serial.digest_hex, parallel.digest_hex);
     }
 
     #[test]

@@ -1,11 +1,15 @@
 use std::{env, process::ExitCode};
 
+use zkube_core::sim_harness::assertions::{
+    acceptance_report_with_threads, default_harness_thread_count, gate_report_with_threads,
+};
 use zkube_core::sim_harness::bands::ACCEPTANCE_PLANNER_SEEDS;
 use zkube_core::sim_harness::{
     FieldAssumptions, PlayerModel, SeedPartition, campaign_catalog, daily_catalog, draw_summary,
-    golden_smoke, run_campaign, run_daily, simulate_field,
+    golden_smoke_with_threads, run_campaign, run_daily, simulate_field,
 };
-use zkube_core::sim_harness::{assertions::acceptance_report, assertions::gate_report};
+
+const HARNESS_THREADS_ENV: &str = "ZKUBE_SIM_THREADS";
 
 fn main() -> ExitCode {
     match run() {
@@ -24,7 +28,8 @@ fn run() -> Result<String, String> {
     let args = env::args().collect::<Vec<_>>();
     match args.get(1).map(String::as_str) {
         None | Some("smoke") => {
-            serde_json::to_string_pretty(&golden_smoke()?).map_err(|error| error.to_string())
+            serde_json::to_string_pretty(&golden_smoke_with_threads(parse_thread_count()?))
+                .map_err(|error| error.to_string())
         }
         Some("daily") => {
             let seeds = parse_seeds(args.get(2))?;
@@ -97,21 +102,46 @@ fn run() -> Result<String, String> {
             serde_json::to_string_pretty(&summaries).map_err(|error| error.to_string())
         }
         Some("gate") => {
-            let report = gate_report()?;
+            let report = gate_report_with_threads(parse_thread_count()?)?;
             let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
-            if report.passed { Ok(json) } else { Err(json) }
+            if report.result_payload.passed {
+                Ok(json)
+            } else {
+                Err(json)
+            }
         }
         Some("assert") => {
             let seeds = parse_assertion_seeds(args.get(2))?;
             let seed_start = parse_seed_start(args.get(3), u64::from(seeds))?;
-            let report = acceptance_report(seeds, seed_start)?;
+            let report = acceptance_report_with_threads(seeds, seed_start, parse_thread_count()?)?;
             let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
-            if report.passed { Ok(json) } else { Err(json) }
+            if report.result_payload.passed {
+                Ok(json)
+            } else {
+                Err(json)
+            }
         }
         Some(command) => Err(format!(
-            "unknown command {command:?}; use smoke, daily [seeds] [seed-start], campaign [seeds] [seed-start], draw, field, gate, or assert [seeds] [seed-start]"
+            "unknown command {command:?}; use smoke, daily [seeds] [seed-start], campaign [seeds] [seed-start], draw, field, gate, or assert [seeds] [seed-start]; {HARNESS_THREADS_ENV} selects harness workers"
         )),
     }
+}
+
+fn parse_thread_count() -> Result<usize, String> {
+    env::var(HARNESS_THREADS_ENV).map_or_else(
+        |_| Ok(default_harness_thread_count()),
+        |raw| {
+            raw.parse::<usize>()
+                .map_err(|error| format!("invalid {HARNESS_THREADS_ENV}: {error}"))
+                .and_then(|threads| {
+                    if threads == 0 {
+                        Err(format!("{HARNESS_THREADS_ENV} must be positive"))
+                    } else {
+                        Ok(threads)
+                    }
+                })
+        },
+    )
 }
 
 fn parse_assertion_seeds(value: Option<&String>) -> Result<u32, String> {

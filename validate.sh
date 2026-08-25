@@ -87,7 +87,10 @@ validate_frontend() {
 
 validate_harness_full() {
   cd "$root"
-  NO_DNA=1 cargo run -p zkube-core --features sim-harness --bin zkube-sim -- assert 32 1024
+  # Full acceptance is release-only and uses 16 worker threads by default;
+  # ZKUBE_SIM_THREADS may pin another measured thread count for comparison.
+  NO_DNA=1 ZKUBE_SIM_THREADS="${ZKUBE_SIM_THREADS:-16}" \
+    cargo run --release -p zkube-core --features sim-harness --bin zkube-sim -- assert 32 1024
 }
 
 validate_documentation_layout
