@@ -701,7 +701,7 @@ impl Evaluator {
             "per constraint pairing",
             "mean stars gain >= 0.3 or >=2-star-rate gain >= 1000 bps",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 04",
+            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1146,7 +1146,7 @@ impl Evaluator {
             "per realm (catalog)",
             ">=4 distinct kinds per slot; max run 2; primary cumulative; secondary moment",
             0,
-            "brief 04",
+            "brief 05",
         );
         let mut units = Vec::new();
         for realm in 1..=10u8 {
@@ -2354,7 +2354,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "opens in brief 04: constraint-pursuit-gain"]
+    #[ignore = "opens in brief 05: constraint-pursuit-gain"]
     fn constraint_pursuit_gain() {
         assert_named("constraint-pursuit-gain");
     }
@@ -2402,7 +2402,7 @@ mod tests {
         assert_named("realm-identity");
     }
     #[test]
-    #[ignore = "opens in brief 04: kind-variety"]
+    #[ignore = "opens in brief 05: kind-variety"]
     fn kind_variety() {
         assert_named("kind-variety");
     }
