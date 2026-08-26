@@ -134,6 +134,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Reroll is one universal run action beside the three guardian bonuses",
   },
   {
+    pattern: /\breroll_available\b|\brerollAvailable\b|exactly one reroll/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "reroll is a capped inventory with Campaign and Daily grants",
+  },
+  {
     pattern:
       /realm_map_id\.max\(1\)|realm_map_id\s*>\s*0|standalone wildcard entry/i,
     trees: [PROGRAM],

@@ -41,6 +41,7 @@ pub enum AssertionStatus {
     Failed,
     InsufficientEvents,
     NotEvaluated,
+    Reported,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -56,6 +57,9 @@ pub struct PlannerBudgetReport {
 #[serde(rename_all = "camelCase")]
 pub struct AssertionUnit {
     pub unit: String,
+    pub live: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
     pub samples: u32,
     pub events: Option<u32>,
     pub measurement: Value,
@@ -1470,12 +1474,11 @@ impl Evaluator {
     }
 
     fn reroll_held(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::report_only(
             "reroll-held",
             "both modes",
-            "median reroll spend height >=6; >=20 spends",
+            "report median reroll spend height; >=20 spends",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 04",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1492,7 +1495,7 @@ impl Evaluator {
                 }));
             }
         }
-        units.push(median_height_unit(
+        units.push(reported_median_height_unit(
             "campaign",
             self.config.planner_seeds.saturating_mul(100),
             campaign_heights,
@@ -1506,7 +1509,7 @@ impl Evaluator {
                 }));
             }
         }
-        units.push(median_height_unit(
+        units.push(reported_median_height_unit(
             "daily",
             self.config.planner_seeds.saturating_mul(10),
             daily_heights,
@@ -1515,12 +1518,11 @@ impl Evaluator {
     }
 
     fn reroll_grant(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "reroll-grant",
             "per mode",
-            "grant in 1000..=4000 bps of runs; discarded share <=1000 bps",
+            "Campaign discard share <=1000 bps; Arcade grant rate 1000..=4000 bps and discard share <=1000 bps (brief 05)",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 04",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1541,13 +1543,16 @@ impl Evaluator {
                 daily_records.push(self.daily_record(entry, self.config.planner_model, offset)?);
             }
         }
-        Ok(finish(
-            metadata,
-            vec![
-                reroll_grant_unit("campaign", &campaign_records),
-                reroll_grant_unit("daily", &daily_records),
-            ],
-        ))
+        let campaign = reroll_grant_unit("campaign", &campaign_records, None);
+        let daily = ignored_unit(
+            reroll_grant_unit(
+                "daily",
+                &daily_records,
+                Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
+            ),
+            "brief 05",
+        );
+        Ok(finish(metadata, vec![campaign, daily]))
     }
 
     fn campaign_hits(
@@ -1652,6 +1657,22 @@ impl Metadata {
             owner: Some(owner),
         }
     }
+
+    const fn report_only(
+        name: &'static str,
+        scope: &'static str,
+        band: &'static str,
+        minimum_samples: u32,
+    ) -> Self {
+        Self {
+            name,
+            scope,
+            band,
+            minimum_samples,
+            live: false,
+            owner: None,
+        }
+    }
 }
 
 /// Evaluate the fast eight-seed gate population.
@@ -1718,13 +1739,31 @@ fn report(config: EvaluationConfig, worker_count: usize) -> Result<AssertionRepo
     let assertions = evaluator.evaluate_all()?;
     let mut live_failures = assertions
         .iter()
-        .filter(|assertion| assertion.live && assertion.passed != Some(true))
+        .filter(|assertion| {
+            assertion
+                .units
+                .iter()
+                .any(|unit| unit.live && unit.passed == Some(false))
+        })
         .map(|assertion| assertion.name.clone())
         .collect::<Vec<_>>();
     let mut ignored_failures = assertions
         .iter()
-        .filter(|assertion| !assertion.live && assertion.passed == Some(false))
-        .map(|assertion| assertion.name.clone())
+        .flat_map(|assertion| {
+            let mixed_policy = assertion.units.iter().any(|unit| unit.live)
+                && assertion.units.iter().any(|unit| unit.owner.is_some());
+            assertion
+                .units
+                .iter()
+                .filter(|unit| !unit.live && unit.owner.is_some() && unit.passed == Some(false))
+                .map(move |unit| {
+                    if mixed_policy {
+                        format!("{}:{}", assertion.name, unit.unit)
+                    } else {
+                        assertion.name.clone()
+                    }
+                })
+        })
         .collect::<Vec<_>>();
     let mut not_evaluated = assertions
         .iter()
@@ -1732,7 +1771,9 @@ fn report(config: EvaluationConfig, worker_count: usize) -> Result<AssertionRepo
         .map(|assertion| assertion.name.clone())
         .collect::<Vec<_>>();
     live_failures.sort();
+    live_failures.dedup();
     ignored_failures.sort();
+    ignored_failures.dedup();
     not_evaluated.sort();
     let budget = config.budget();
     let result_payload = AssertionResultPayload {
@@ -1786,6 +1827,12 @@ fn hex_digest(digest: [u8; 32]) -> String {
 }
 
 fn finish(metadata: Metadata, mut units: Vec<AssertionUnit>) -> AssertionResult {
+    if !metadata.live {
+        for unit in &mut units {
+            unit.live = false;
+            unit.owner = metadata.owner.map(String::from);
+        }
+    }
     units.sort_by(|left, right| left.unit.cmp(&right.unit));
     let insufficient = units
         .iter()
@@ -1793,17 +1840,25 @@ fn finish(metadata: Metadata, mut units: Vec<AssertionUnit>) -> AssertionResult 
     let failed = units
         .iter()
         .any(|unit| unit.status == AssertionStatus::Failed);
-    let status = if insufficient {
+    let reported = units
+        .iter()
+        .all(|unit| unit.status == AssertionStatus::Reported);
+    let status = if reported {
+        AssertionStatus::Reported
+    } else if insufficient {
         AssertionStatus::InsufficientEvents
     } else if failed {
         AssertionStatus::Failed
     } else {
         AssertionStatus::Passed
     };
-    let passed = Some(status == AssertionStatus::Passed);
+    let passed = match status {
+        AssertionStatus::Reported | AssertionStatus::NotEvaluated => None,
+        _ => Some(status == AssertionStatus::Passed),
+    };
     let failing_units = units
         .iter()
-        .filter(|unit| unit.passed != Some(true))
+        .filter(|unit| unit.passed == Some(false))
         .map(|unit| unit.unit.clone())
         .collect();
     AssertionResult {
@@ -1832,6 +1887,8 @@ fn not_evaluated(metadata: Metadata, available: u32) -> AssertionResult {
         passed: None,
         units: vec![AssertionUnit {
             unit: String::from("population"),
+            live: metadata.live,
+            owner: metadata.owner.map(String::from),
             samples: available,
             events: None,
             measurement: json!({"requiredSeeds": metadata.minimum_samples}),
@@ -1848,6 +1905,8 @@ fn insufficient_samples(metadata: Metadata, available: u32) -> AssertionResult {
         metadata,
         vec![AssertionUnit {
             unit: String::from("population"),
+            live: metadata.live,
+            owner: metadata.owner.map(String::from),
             samples: available,
             events: None,
             measurement: json!({"requiredSeeds": metadata.minimum_samples}),
@@ -1867,6 +1926,8 @@ fn unit(
 ) -> AssertionUnit {
     AssertionUnit {
         unit: name,
+        live: true,
+        owner: None,
         samples,
         events,
         measurement,
@@ -1902,6 +1963,8 @@ fn conditional_rate_unit(
     if events < minimum_events {
         return AssertionUnit {
             unit: name,
+            live: true,
+            owner: None,
             samples,
             events: Some(events),
             measurement: json!({"hits": hits, "minimumEvents": minimum_events}),
@@ -1921,12 +1984,14 @@ fn conditional_rate_unit(
     )
 }
 
-fn median_height_unit(name: &str, samples: u32, mut heights: Vec<u8>) -> AssertionUnit {
+fn reported_median_height_unit(name: &str, samples: u32, mut heights: Vec<u8>) -> AssertionUnit {
     heights.sort_unstable();
     let events = u32::try_from(heights.len()).unwrap_or(u32::MAX);
     if events < bands::REROLL_HELD_MIN_EVENTS {
         return AssertionUnit {
             unit: String::from(name),
+            live: true,
+            owner: None,
             samples,
             events: Some(events),
             measurement: json!({"minimumEvents": bands::REROLL_HELD_MIN_EVENTS}),
@@ -1936,16 +2001,24 @@ fn median_height_unit(name: &str, samples: u32, mut heights: Vec<u8>) -> Asserti
         };
     }
     let median = heights[heights.len() / 2];
-    unit(
-        String::from(name),
+    AssertionUnit {
+        unit: String::from(name),
+        live: true,
+        owner: None,
         samples,
-        Some(events),
-        json!({"medianSpendHeight": median}),
-        median >= bands::REROLL_HELD_MIN_HEIGHT,
-    )
+        events: Some(events),
+        measurement: json!({"medianSpendHeight": median}),
+        status: AssertionStatus::Reported,
+        passed: None,
+        detail: None,
+    }
 }
 
-fn reroll_grant_unit(name: &str, records: &[RunRecord]) -> AssertionUnit {
+fn reroll_grant_unit(
+    name: &str,
+    records: &[RunRecord],
+    rate_band: Option<(u32, u32)>,
+) -> AssertionUnit {
     let stalls = records
         .iter()
         .filter(|record| record.terminal_cause == TerminalCause::EngineStall)
@@ -1970,9 +2043,32 @@ fn reroll_grant_unit(name: &str, records: &[RunRecord]) -> AssertionUnit {
         .flat_map(|record| record.reroll_grant_discarded_events.iter())
         .map(|event| u32::from(event.count))
         .sum::<u32>();
-    if successful == 0 || grants == 0 {
+    reroll_grant_unit_from_counts(
+        name,
+        successful,
+        stalls,
+        granted_runs,
+        grants,
+        discarded,
+        rate_band,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reroll_grant_unit_from_counts(
+    name: &str,
+    successful: u32,
+    stalls: u32,
+    granted_runs: u32,
+    grants: u32,
+    discarded: u32,
+    rate_band: Option<(u32, u32)>,
+) -> AssertionUnit {
+    if successful == 0 || (rate_band.is_some() && grants == 0) {
         return AssertionUnit {
             unit: String::from(name),
+            live: true,
+            owner: None,
             samples: successful,
             events: Some(grants),
             measurement: json!({"engineStalls": stalls, "grantRuns": granted_runs, "grants": grants, "discardedGrants": discarded}),
@@ -1982,7 +2078,13 @@ fn reroll_grant_unit(name: &str, records: &[RunRecord]) -> AssertionUnit {
         };
     }
     let grant_rate = rate_bps(granted_runs, successful);
-    let discard_rate = rate_bps(discarded, grants);
+    let discard_rate = if grants == 0 {
+        0
+    } else {
+        rate_bps(discarded, grants)
+    };
+    let rate_passed =
+        rate_band.is_none_or(|(minimum, maximum)| (minimum..=maximum).contains(&grant_rate));
     unit(
         String::from(name),
         successful,
@@ -1995,9 +2097,14 @@ fn reroll_grant_unit(name: &str, records: &[RunRecord]) -> AssertionUnit {
             "discardedGrants": discarded,
             "discardRateBps": discard_rate,
         }),
-        (bands::REROLL_GRANT_MIN_BPS..=bands::REROLL_GRANT_MAX_BPS).contains(&grant_rate)
-            && discard_rate <= bands::REROLL_GRANT_MAX_DISCARD_BPS,
+        rate_passed && discard_rate <= bands::REROLL_GRANT_MAX_DISCARD_BPS,
     )
+}
+
+fn ignored_unit(mut unit: AssertionUnit, owner: &str) -> AssertionUnit {
+    unit.live = false;
+    unit.owner = Some(String::from(owner));
+    unit
 }
 
 fn success(record: &RunRecord) -> bool {
@@ -2233,9 +2340,14 @@ mod tests {
         };
         let mut evaluator = Evaluator::new(config, 1, Instant::now());
         let result = evaluator.evaluate_named(name).unwrap();
-        assert_eq!(
-            result.passed,
-            Some(true),
+        let live_failures = result
+            .units
+            .iter()
+            .filter(|unit| unit.live && unit.passed == Some(false))
+            .map(|unit| unit.unit.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            live_failures.is_empty(),
             "{}",
             serde_json::to_string_pretty(&result).unwrap()
         );
@@ -2330,14 +2442,50 @@ mod tests {
         assert_named("apex-set-up");
     }
     #[test]
-    #[ignore = "opens in brief 04: reroll-held"]
     fn reroll_held() {
-        assert_named("reroll-held");
+        let result = finish(
+            Metadata::report_only(
+                "reroll-held",
+                "both modes",
+                "report median reroll spend height; >=20 spends",
+                bands::ACCEPTANCE_PLANNER_SEEDS,
+            ),
+            vec![reported_median_height_unit("campaign", 20, vec![4; 20])],
+        );
+        assert_eq!(result.status, AssertionStatus::Reported);
+        assert_eq!(result.passed, None);
+        assert!(!result.units[0].live);
+        assert_eq!(result.units[0].measurement, json!({"medianSpendHeight": 4}));
     }
     #[test]
-    #[ignore = "opens in brief 04: reroll-grant"]
     fn reroll_grant() {
-        assert_named("reroll-grant");
+        let campaign = reroll_grant_unit_from_counts("campaign", 3_200, 0, 2_706, 2_706, 0, None);
+        let daily = ignored_unit(
+            reroll_grant_unit_from_counts(
+                "daily",
+                320,
+                0,
+                12,
+                13,
+                0,
+                Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
+            ),
+            "brief 05",
+        );
+        let result = finish(
+            Metadata::live(
+                "reroll-grant",
+                "per mode",
+                "mixed owner decision",
+                bands::ACCEPTANCE_PLANNER_SEEDS,
+            ),
+            vec![campaign, daily],
+        );
+        assert!(result.units[0].live, "Campaign discard share is live");
+        assert_eq!(result.units[0].passed, Some(true));
+        assert!(!result.units[1].live, "Arcade remains owned by brief 05");
+        assert_eq!(result.units[1].owner.as_deref(), Some("brief 05"));
+        assert_eq!(result.units[1].passed, Some(false));
     }
 
     #[test]

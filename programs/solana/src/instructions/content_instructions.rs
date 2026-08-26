@@ -611,7 +611,7 @@ pub fn handler_prepare_campaign_run(
     active.blocks_destroyed_by_size = [0; 4];
     active.bonus_type = rules.bonus_type;
     active.bonus_charges = rules.starting_charges;
-    active.reroll_available = true;
+    active.reroll_charges = 1;
     active.perfect_trigger_available = true;
     active.starting_height_target = rules.starting_rows.max(1);
     active.current_difficulty = rules.difficulty;

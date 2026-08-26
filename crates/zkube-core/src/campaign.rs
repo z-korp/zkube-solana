@@ -1,7 +1,7 @@
 use crate::{
-    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
-    Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid, continuation_from_vrf,
-    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
+    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunMode,
+    RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
+    continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -210,6 +210,7 @@ impl CampaignSimulation {
             destination,
             config.rules.level,
             config.rules.mutator,
+            RunMode::Campaign,
         )?;
         next.accept_action(config, report)?;
         *self = next;
@@ -230,15 +231,19 @@ impl CampaignSimulation {
     ) -> Result<MoveReport, CampaignError> {
         self.require_transition(config)?;
         let mut next = *self;
-        let report =
-            next.engine
-                .apply_bonus(row, column, config.rules.level, config.rules.mutator)?;
+        let report = next.engine.apply_bonus(
+            row,
+            column,
+            config.rules.level,
+            config.rules.mutator,
+            RunMode::Campaign,
+        )?;
         next.accept_action(config, report)?;
         *self = next;
         Ok(report)
     }
 
-    /// Spend the run's one universal reroll and synchronously derive its
+    /// Spend one held reroll and synchronously derive its
     /// domain-separated replacement preview.
     ///
     /// # Errors
@@ -583,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn universal_reroll_is_once_per_run_and_keeps_guardian_inventory() {
+    fn initial_reroll_charge_spends_without_changing_guardian_inventory() {
         let mut config = config();
         config.rules.bonus = Some(Bonus::Hammer);
         config.rules.starting_bonus_charges = 2;
@@ -592,7 +597,7 @@ mod tests {
 
         simulation.request_reroll(config).unwrap();
 
-        assert!(!simulation.engine.reroll_available);
+        assert_eq!(simulation.engine.reroll_charges, 0);
         assert_eq!(simulation.engine.bonus, Some(Bonus::Hammer));
         assert_eq!(simulation.engine.bonus_charges, 2);
         assert_ne!(simulation.engine.next_row, original_preview);

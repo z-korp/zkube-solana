@@ -1,7 +1,7 @@
 use crate::{
     ActionMetrics, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
     DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
-    ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics,
+    ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics, RunMode,
     RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
     continuation_from_vrf, derive_player_id, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
     score_daily_objective,
@@ -462,6 +462,7 @@ impl DailySimulation {
             destination,
             daily_level_rules(rules),
             rules.action_mutator(next.current_difficulty)?,
+            RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;
@@ -502,6 +503,7 @@ impl DailySimulation {
             column,
             daily_level_rules(rules),
             rules.action_mutator(next.current_difficulty)?,
+            RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;
@@ -801,7 +803,7 @@ mod tests {
         assert_eq!(simulation.engine.next_row, Some(preview));
         assert_eq!(simulation.engine.moves, 0);
         assert_eq!(simulation.action_counter, 1);
-        assert!(!simulation.engine.reroll_available);
+        assert_eq!(simulation.engine.reroll_charges, 0);
         assert_ne!(simulation.replay, replay_before);
 
         let replay_after_request = simulation.replay;

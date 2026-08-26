@@ -895,7 +895,7 @@ fn initialize_arena_run(
         daily_pressure: daily.pressure,
         starting_height_target: daily.rules.starting_rows,
         current_difficulty: 0,
-        reroll_available: true,
+        reroll_charges: 1,
         replay_hash: canonical_initial_replay(
             replay_domain,
             daily_key,

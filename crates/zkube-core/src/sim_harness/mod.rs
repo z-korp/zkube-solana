@@ -301,9 +301,7 @@ pub struct RunRecord {
     pub bonus_charge_discarded_events: Vec<TimedRunEvent>,
     pub bonus_spent_events: Vec<TimedRunEvent>,
     pub reroll_spent_events: Vec<TimedRunEvent>,
-    /// Populated once brief 04 adds deterministic reroll grants to `MoveReport`.
     pub reroll_granted_events: Vec<TimedRunEvent>,
-    /// Populated once brief 04 reports grants discarded at the reroll cap.
     pub reroll_grant_discarded_events: Vec<TimedRunEvent>,
     pub apex_hit_action: Option<u32>,
     pub terminal_action: Option<u32>,
@@ -597,6 +595,20 @@ impl Counters {
                 action: action_index,
                 board_height: report.height_before,
                 count: u16::from(spent),
+            });
+        }
+        if report.reroll_granted {
+            self.reroll_granted_events.push(TimedRunEvent {
+                action: action_index,
+                board_height: report.height_after,
+                count: 1,
+            });
+        }
+        if report.reroll_grant_discarded {
+            self.reroll_grant_discarded_events.push(TimedRunEvent {
+                action: action_index,
+                board_height: report.height_after,
+                count: 1,
             });
         }
         if self.apex_hit_action.is_none()
@@ -988,6 +1000,7 @@ fn choose_daily_action(
     entry_id: u8,
     model: PlayerModel,
     seed: u64,
+    rerolls_used: u16,
 ) -> Result<SelectedAction<DailyCandidate>, SimulationError> {
     if let Some(spec) = model.planner() {
         let action = plan_daily_action(simulation, rules, entry_id, spec, seed)?
@@ -1025,7 +1038,12 @@ fn choose_daily_action(
     let moves = daily_move_candidates(simulation, rules, model);
     let best_move = choose_daily(&moves, seed, simulation.action_counter, model)
         .ok_or(SimulationError::InvalidPhase)?;
-    if simulation.engine.reroll_available
+    // Theme is the named frozen one-ply regression floor. Preserve its
+    // original single-reroll policy when the real engine grants inventory;
+    // the Monte Carlo models still search and spend every held charge.
+    let frozen_theme_can_reroll = model != PlayerModel::Theme || rerolls_used == 0;
+    if frozen_theme_can_reroll
+        && simulation.engine.reroll_charges > 0
         && should_reroll(model, simulation.action_counter, &best_move.report)
     {
         return Ok(SelectedAction::Reroll);
@@ -1061,7 +1079,14 @@ fn play_daily_to_terminal(
             break;
         }
 
-        let selected = match choose_daily_action(&simulation, rules, entry_id, model, seed)? {
+        let selected = match choose_daily_action(
+            &simulation,
+            rules,
+            entry_id,
+            model,
+            seed,
+            counters.rerolls_used,
+        )? {
             SelectedAction::Reroll => {
                 let action_index = simulation.action_counter;
                 let height = simulation.engine.grid.occupied_height();
@@ -1522,7 +1547,7 @@ fn oracle_search(
             return Ok(());
         }
     }
-    if state.simulation.engine.reroll_available {
+    if state.simulation.engine.reroll_charges > 0 {
         let rerolled = apply_campaign_planner_action(state, config, apex, ActionKind::Reroll)?;
         oracle_search(rerolled, config, apex, visited, result)?;
     }
@@ -1573,7 +1598,7 @@ fn choose_campaign_action(
     let Some(best_move) = choose_campaign(&moves, seed, simulation.action_counter, model) else {
         return Ok(SelectedAction::NoLegalAction);
     };
-    if simulation.engine.reroll_available
+    if simulation.engine.reroll_charges > 0
         && should_reroll(model, simulation.action_counter, &best_move.report)
     {
         return Ok(SelectedAction::Reroll);
@@ -2148,7 +2173,7 @@ fn planner_policy_index(
 
 fn bounded_actions(
     mut ranked: Vec<(ActionKind, [i64; 8])>,
-    reroll_available: bool,
+    has_reroll: bool,
     width: u8,
 ) -> Vec<ActionKind> {
     ranked.sort_by(|left, right| {
@@ -2162,7 +2187,7 @@ fn bounded_actions(
     let best_bonus = ranked.iter().find_map(|candidate| {
         matches!(candidate.0, ActionKind::Bonus { .. }).then_some(candidate.0)
     });
-    let reserve_reroll = usize::from(reroll_available);
+    let reserve_reroll = usize::from(has_reroll);
     let reserve_bonus = usize::from(best_bonus.is_some() && width > reserve_reroll);
     let ranked_capacity = width.saturating_sub(reserve_reroll + reserve_bonus);
     let mut actions = ranked
@@ -2173,7 +2198,7 @@ fn bounded_actions(
     if let Some(bonus) = best_bonus.filter(|bonus| !actions.contains(bonus)) {
         actions.push(bonus);
     }
-    if reroll_available {
+    if has_reroll {
         actions.push(ActionKind::Reroll);
     }
     for (action, _) in ranked {
@@ -2202,11 +2227,11 @@ fn campaign_planner_actions(
         ))
         .map(|candidate| (candidate.action, candidate.key))
         .collect::<Vec<_>>();
-    let reroll_available = state.simulation.engine.reroll_available;
-    if ranked.is_empty() && !reroll_available {
+    let has_reroll = state.simulation.engine.reroll_charges > 0;
+    if ranked.is_empty() && !has_reroll {
         return Vec::new();
     }
-    bounded_actions(core::mem::take(&mut ranked), reroll_available, width)
+    bounded_actions(core::mem::take(&mut ranked), has_reroll, width)
 }
 
 fn daily_planner_actions(
@@ -2223,11 +2248,11 @@ fn daily_planner_actions(
         ))
         .map(|candidate| (candidate.action, candidate.key))
         .collect::<Vec<_>>();
-    let reroll_available = simulation.engine.reroll_available;
-    if ranked.is_empty() && !reroll_available {
+    let has_reroll = simulation.engine.reroll_charges > 0;
+    if ranked.is_empty() && !has_reroll {
         return Vec::new();
     }
-    bounded_actions(core::mem::take(&mut ranked), reroll_available, width)
+    bounded_actions(core::mem::take(&mut ranked), has_reroll, width)
 }
 
 fn apply_campaign_planner_action(
@@ -2347,7 +2372,7 @@ fn campaign_rollout(
         ) else {
             break;
         };
-        let action = if state.simulation.engine.reroll_available
+        let action = if state.simulation.engine.reroll_charges > 0
             && should_reroll(
                 PlayerModel::LineClearer,
                 state.simulation.action_counter,
@@ -2411,7 +2436,7 @@ fn daily_rollout(
         ) else {
             break;
         };
-        let action = if simulation.engine.reroll_available
+        let action = if simulation.engine.reroll_charges > 0
             && should_reroll(
                 PlayerModel::LineClearer,
                 simulation.action_counter,
@@ -2630,7 +2655,7 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         level_lines_cleared,
         bonus,
         bonus_charges,
-        reroll_available,
+        reroll_charges,
         perfect_trigger_available,
         starting_height_target,
     } = engine;
@@ -2664,7 +2689,7 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
     });
     output.extend_from_slice(&[
         bonus_charges,
-        u8::from(reroll_available),
+        reroll_charges,
         u8::from(perfect_trigger_available),
         starting_height_target,
     ]);
@@ -3588,7 +3613,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"99d8b40b326130edf559329f2e7b7f848ffd95de4beedb71eada54ceadba9960\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"0e46b5688c1e97da5809218789db86a9dab4a28488d915f41abd587a9f0dcdfe\"}"
         );
     }
 
@@ -3646,6 +3671,11 @@ mod tests {
                 "b8381b2b18c1caa38c9ad62e41927353c2b4f0467aaf58267e4e96e29700fbad",
             ]
         );
+        assert!(
+            records
+                .iter()
+                .any(|record| !record.reroll_granted_events.is_empty())
+        );
         for record in records {
             assert_ne!(record.metrics, RunMetrics::default());
             assert_eq!(
@@ -3672,8 +3702,15 @@ mod tests {
                     .sum::<u16>(),
                 record.rerolls_used
             );
-            assert!(record.reroll_granted_events.is_empty());
-            assert!(record.reroll_grant_discarded_events.is_empty());
+            for event in record
+                .reroll_granted_events
+                .iter()
+                .chain(&record.reroll_grant_discarded_events)
+            {
+                assert!(event.count > 0);
+                assert!(event.action < record.actions);
+                assert!(event.board_height <= u8::try_from(GRID_HEIGHT).unwrap());
+            }
         }
     }
 
@@ -3756,7 +3793,7 @@ mod tests {
         let mut simulation = CampaignSimulation::new(config).unwrap();
         simulation.engine.bonus = Some(Bonus::Hammer);
         simulation.engine.bonus_charges = 1;
-        simulation.engine.reroll_available = true;
+        simulation.engine.reroll_charges = 1;
         let state = CampaignPlannerState {
             simulation,
             metrics: RunMetrics::default(),

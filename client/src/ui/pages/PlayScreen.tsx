@@ -225,7 +225,7 @@ export default function PlayScreen() {
     }
     slots.push({
       type: "reroll",
-      charges: activeRun.rerollAvailable ? 1 : 0,
+      charges: activeRun.rerollCharges,
       isActive: true,
       icon: REROLL_ACTION.icon,
       name: REROLL_ACTION.name,
@@ -233,7 +233,7 @@ export default function PlayScreen() {
       triggerDescription: "Once per run",
       startingCharges: 1,
       onClick: () => {
-        if (!activeRun.rerollAvailable) return;
+        if (activeRun.rerollCharges <= 0) return;
         void onRunReroll().catch(() => undefined);
       },
     });

@@ -394,6 +394,15 @@ pub enum RunPhase {
     Finished,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunMode {
+    Campaign,
+    Daily,
+}
+
+/// Shared upper bound for held guardian-bonus and reroll inventories.
+pub const BONUS_CHARGE_CAP: u8 = 3;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MoveReport {
     pub lines_cleared: u8,
@@ -416,6 +425,10 @@ pub struct MoveReport {
     /// Whether the consumed preview could not enter after the first settle.
     /// This distinguishes overflow from move-budget exhaustion in experiments.
     pub preview_insertion_blocked: bool,
+    /// A mode-specific reroll grant was added to the held inventory.
+    pub reroll_granted: bool,
+    /// A mode-specific reroll grant was due but the inventory was full.
+    pub reroll_grant_discarded: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -467,9 +480,8 @@ pub struct RunEngine {
     pub level_lines_cleared: u16,
     pub bonus: Option<Bonus>,
     pub bonus_charges: u8,
-    /// One protocol-granted preview replacement, independent of guardian
-    /// bonus identity and charges.
-    pub reroll_available: bool,
+    /// Held preview replacements, independent of guardian bonus identity.
+    pub reroll_charges: u8,
     pub perfect_trigger_available: bool,
     pub starting_height_target: u8,
 }
@@ -492,7 +504,7 @@ impl Default for RunEngine {
             level_lines_cleared: 0,
             bonus: None,
             bonus_charges: 0,
-            reroll_available: true,
+            reroll_charges: 1,
             perfect_trigger_available: true,
             starting_height_target: 0,
         }
@@ -543,6 +555,7 @@ impl RunEngine {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn play_move(
         &mut self,
         expected_move: u16,
@@ -551,6 +564,7 @@ impl RunEngine {
         destination: u8,
         level: LevelRules,
         mutator: MutatorRules,
+        mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
@@ -579,7 +593,7 @@ impl RunEngine {
         }
         let (first_lines, first_points) = self.grid.settle();
         if self.grid.is_full() {
-            return Ok(self.finish_move(
+            return Ok(self.finish_move_with_mode(
                 ActionContext {
                     height_before,
                     // The preview was consumed but never entered the grid, so
@@ -591,6 +605,7 @@ impl RunEngine {
                 },
                 level,
                 mutator,
+                mode,
             ));
         }
 
@@ -599,7 +614,7 @@ impl RunEngine {
         // action. The inserted row can complete another line, which must keep
         // climbing the same triangular score curve instead of restarting at 1.
         let (second_lines, second_points) = self.grid.settle_after(first_lines);
-        let report = self.finish_move(
+        let report = self.finish_move_with_mode(
             ActionContext {
                 height_before,
                 block_cells_before: block_cells_with_preview,
@@ -609,6 +624,7 @@ impl RunEngine {
             },
             level,
             mutator,
+            mode,
         );
         Ok(report)
     }
@@ -619,6 +635,7 @@ impl RunEngine {
         column: u8,
         level: LevelRules,
         mutator: MutatorRules,
+        mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
@@ -633,7 +650,7 @@ impl RunEngine {
         self.grid.apply_bonus(bonus, row, column)?;
         self.bonus_charges -= 1;
         let (lines, base_points) = self.grid.settle();
-        let report = self.finish_action_with_kind(
+        let report = self.finish_action_with_mode(
             ActionContext {
                 height_before,
                 block_cells_before,
@@ -643,6 +660,7 @@ impl RunEngine {
             },
             level,
             mutator,
+            mode,
             false,
             true,
         );
@@ -657,8 +675,7 @@ impl RunEngine {
         Ok(report)
     }
 
-    /// Consume the run's one universal reroll and wait for a replacement
-    /// preview row.
+    /// Consume one held reroll and wait for a replacement preview row.
     ///
     /// The current preview stays visible in state until verified randomness
     /// atomically replaces it, so a failed callback cannot strand the run
@@ -667,13 +684,13 @@ impl RunEngine {
         if self.phase != RunPhase::Playing {
             return Err(RunError::RerollRequiresVrf);
         }
-        if !self.reroll_available {
+        if self.reroll_charges == 0 {
             return Err(RunError::NoRerollAvailable);
         }
         if self.next_row.is_none() {
             return Err(RunError::MissingNextRow);
         }
-        self.reroll_available = false;
+        self.reroll_charges -= 1;
         self.phase = RunPhase::AwaitingVrf;
         Ok(())
     }
@@ -699,16 +716,28 @@ impl RunEngine {
         self.earned_stars == rules.earnable_stars()
     }
 
+    #[cfg(test)]
     fn finish_move(
         &mut self,
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
     ) -> MoveReport {
-        self.moves = self.moves.saturating_add(1);
-        self.finish_action(context, level, mutator, true)
+        self.finish_move_with_mode(context, level, mutator, RunMode::Campaign)
     }
 
+    fn finish_move_with_mode(
+        &mut self,
+        context: ActionContext,
+        level: LevelRules,
+        mutator: MutatorRules,
+        mode: RunMode,
+    ) -> MoveReport {
+        self.moves = self.moves.saturating_add(1);
+        self.finish_action_with_mode(context, level, mutator, mode, true, false)
+    }
+
+    #[cfg(test)]
     fn finish_action(
         &mut self,
         context: ActionContext,
@@ -716,14 +745,41 @@ impl RunEngine {
         mutator: MutatorRules,
         needs_next_row: bool,
     ) -> MoveReport {
-        self.finish_action_with_kind(context, level, mutator, needs_next_row, false)
+        self.finish_action_with_mode(
+            context,
+            level,
+            mutator,
+            RunMode::Campaign,
+            needs_next_row,
+            false,
+        )
     }
 
+    #[cfg(test)]
     fn finish_action_with_kind(
         &mut self,
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
+        needs_next_row: bool,
+        action_was_bonus: bool,
+    ) -> MoveReport {
+        self.finish_action_with_mode(
+            context,
+            level,
+            mutator,
+            RunMode::Campaign,
+            needs_next_row,
+            action_was_bonus,
+        )
+    }
+
+    fn finish_action_with_mode(
+        &mut self,
+        context: ActionContext,
+        level: LevelRules,
+        mutator: MutatorRules,
+        mode: RunMode,
         needs_next_row: bool,
         action_was_bonus: bool,
     ) -> MoveReport {
@@ -785,6 +841,8 @@ impl RunEngine {
             difficulty_at_action: 0,
             charges_earned: 0,
             preview_insertion_blocked: row_insertion_blocked,
+            reroll_granted: false,
+            reroll_grant_discarded: false,
         };
         let charges = match mutator.bonus_trigger_type {
             1 if needs_next_row
@@ -850,6 +908,7 @@ impl RunEngine {
         // Star sources latch in order after all action facts and constraint
         // progress are current. Independent `if`s deliberately allow one
         // action to cross all three sources. `None` is never an earned source.
+        let old_earned_stars = self.earned_stars;
         if self.earned_stars == 0 && self.score >= level.points_required {
             self.earned_stars = 1;
         }
@@ -865,6 +924,19 @@ impl RunEngine {
             && level.secondary.is_satisfied(self.secondary_progress)
         {
             self.earned_stars = 3;
+        }
+
+        let reroll_grant_due = match mode {
+            RunMode::Campaign => old_earned_stars < 2 && self.earned_stars >= 2,
+            RunMode::Daily => report.perfect_clear,
+        };
+        if reroll_grant_due {
+            if self.reroll_charges < BONUS_CHARGE_CAP {
+                self.reroll_charges += 1;
+                report.reroll_granted = true;
+            } else {
+                report.reroll_grant_discarded = true;
+            }
         }
 
         // Occupying row ten is legal. A run ends only when a move has settled
@@ -1132,7 +1204,15 @@ mod tests {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);
         let mut run = RunEngine::start(source, [0, 0, 0, 0, 0, 0, 0, 1]).unwrap();
         let report = run
-            .play_move(0, 0, 7, 6, LevelRules::default(), MutatorRules::default())
+            .play_move(
+                0,
+                0,
+                7,
+                6,
+                LevelRules::default(),
+                MutatorRules::default(),
+                RunMode::Campaign,
+            )
             .unwrap();
         assert_eq!(report.lines_cleared, 1);
         assert_eq!(report.points_earned, 1);
@@ -1154,7 +1234,15 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let tenth_row = run
-            .play_move(0, 0, 0, 0, level, MutatorRules::default())
+            .play_move(
+                0,
+                0,
+                0,
+                0,
+                level,
+                MutatorRules::default(),
+                RunMode::Campaign,
+            )
             .unwrap();
         assert_eq!(tenth_row.height_after, 10);
         assert_eq!(run.grid.occupied_height(), 10);
@@ -1165,7 +1253,15 @@ mod tests {
         run.provide_vrf_row(sparse).unwrap();
         let before_overflow = run.grid;
         let overflow = run
-            .play_move(1, 0, 0, 0, level, MutatorRules::default())
+            .play_move(
+                1,
+                0,
+                0,
+                0,
+                level,
+                MutatorRules::default(),
+                RunMode::Campaign,
+            )
             .unwrap();
         assert_eq!(overflow.height_after, 10);
         assert_eq!(overflow.blocks_destroyed_by_size, [0; 4]);
@@ -1188,7 +1284,15 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let report = run
-            .play_move(0, 1, 0, 0, level, MutatorRules::default())
+            .play_move(
+                0,
+                1,
+                0,
+                0,
+                level,
+                MutatorRules::default(),
+                RunMode::Campaign,
+            )
             .unwrap();
 
         assert_eq!(report.lines_cleared, 1);
@@ -1215,6 +1319,7 @@ mod tests {
                 ..LevelRules::default()
             },
             MutatorRules::default(),
+            RunMode::Campaign,
         )
         .unwrap();
 
@@ -1225,7 +1330,7 @@ mod tests {
     }
 
     #[test]
-    fn universal_reroll_is_separate_from_guardian_bonus_inventory() {
+    fn reroll_inventory_is_separate_from_guardian_bonus_inventory() {
         let preview = [1, 0, 0, 0, 0, 0, 0, 0];
         let replacement = [0, 0, 2, 2, 0, 0, 0, 0];
         let mut run = RunEngine::start(Grid::EMPTY, preview).unwrap();
@@ -1233,7 +1338,7 @@ mod tests {
         run.bonus_charges = 2;
 
         run.request_reroll().unwrap();
-        assert!(!run.reroll_available);
+        assert_eq!(run.reroll_charges, 0);
         assert_eq!(run.bonus, Some(Bonus::Hammer));
         assert_eq!(run.bonus_charges, 2);
         assert_eq!(run.next_row, Some(preview));
@@ -1241,6 +1346,102 @@ mod tests {
         assert_eq!(run.next_row, Some(replacement));
         assert_eq!(run.bonus_charges, 2);
         assert_eq!(run.request_reroll(), Err(RunError::NoRerollAvailable));
+    }
+
+    #[test]
+    fn campaign_second_star_grants_one_held_reroll_once() {
+        let level = LevelRules {
+            points_required: 1,
+            max_moves: 20,
+            primary: Constraint {
+                kind: ConstraintKind::CombosOfAtLeast,
+                value: 2,
+                required_count: 1,
+            },
+            secondary: Constraint {
+                kind: ConstraintKind::ComboOfExactly,
+                value: 2,
+                required_count: 1,
+            },
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        let report = run.finish_action_with_mode(
+            ActionContext {
+                lines: 2,
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            RunMode::Campaign,
+            true,
+            false,
+        );
+        assert_eq!(run.earned_stars, 3, "a direct jump still crosses star two");
+        assert_eq!(run.reroll_charges, 2);
+        assert!(report.reroll_granted);
+        assert!(!report.reroll_grant_discarded);
+
+        run.phase = RunPhase::Playing;
+        let repeated = run.finish_action_with_mode(
+            ActionContext {
+                lines: 2,
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            RunMode::Campaign,
+            true,
+            false,
+        );
+        assert_eq!(run.reroll_charges, 2);
+        assert!(!repeated.reroll_granted);
+
+        run.phase = RunPhase::Playing;
+        run.next_row = Some([1, 0, 0, 0, 0, 0, 0, 0]);
+        run.request_reroll().unwrap();
+        assert_eq!(run.reroll_charges, 1);
+    }
+
+    #[test]
+    fn daily_perfect_clear_grants_or_discards_at_the_reroll_cap() {
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: 20,
+            ..LevelRules::default()
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        let granted = run.finish_action_with_mode(
+            ActionContext::default(),
+            level,
+            MutatorRules::default(),
+            RunMode::Daily,
+            true,
+            false,
+        );
+        assert_eq!(run.reroll_charges, 2);
+        assert!(granted.reroll_granted);
+        assert!(!granted.reroll_grant_discarded);
+
+        run.phase = RunPhase::Playing;
+        run.reroll_charges = BONUS_CHARGE_CAP;
+        let discarded = run.finish_action_with_mode(
+            ActionContext::default(),
+            level,
+            MutatorRules::default(),
+            RunMode::Daily,
+            true,
+            false,
+        );
+        assert_eq!(run.reroll_charges, BONUS_CHARGE_CAP);
+        assert!(!discarded.reroll_granted);
+        assert!(discarded.reroll_grant_discarded);
     }
 
     #[test]
@@ -1260,6 +1461,7 @@ mod tests {
                 ..LevelRules::default()
             },
             MutatorRules::default(),
+            RunMode::Campaign,
         )
         .unwrap();
 
@@ -1343,8 +1545,16 @@ mod tests {
             bonus_threshold: 1,
             ..MutatorRules::default()
         };
-        run.play_move(0, 0, 7, 6, LevelRules::default(), mutator)
-            .unwrap();
+        run.play_move(
+            0,
+            0,
+            7,
+            6,
+            LevelRules::default(),
+            mutator,
+            RunMode::Campaign,
+        )
+        .unwrap();
         assert_eq!(run.level_lines_cleared, 1);
         assert_eq!(run.bonus_charges, 1);
     }
@@ -1629,6 +1839,7 @@ mod tests {
                     bonus_trigger_type: 5,
                     ..MutatorRules::default()
                 },
+                RunMode::Campaign,
             )
             .unwrap();
         assert!(report.perfect_clear);
@@ -1853,6 +2064,7 @@ mod tests {
                     bonus_threshold: 1,
                     ..MutatorRules::default()
                 },
+                RunMode::Campaign,
             )
             .unwrap();
 
@@ -2118,6 +2330,7 @@ mod tests {
                     movement[2].as_u64().unwrap() as u8,
                     level,
                     mutator,
+                    RunMode::Campaign,
                 )
                 .unwrap();
             let expected = &fixture["expected"];
@@ -2187,8 +2400,16 @@ mod tests {
         let next = [1, 0, 0, 0, 0, 0, 0, 0];
         let mut run = RunEngine::start(source, next).unwrap();
         assert!(
-            run.play_move(0, 0, 0, 1, LevelRules::default(), MutatorRules::default())
-                .is_err()
+            run.play_move(
+                0,
+                0,
+                0,
+                1,
+                LevelRules::default(),
+                MutatorRules::default(),
+                RunMode::Campaign,
+            )
+            .is_err()
         );
         assert_eq!(run.grid, source);
         assert_eq!(run.next_row, Some(next));

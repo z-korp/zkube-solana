@@ -6180,11 +6180,11 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "rerollAvailable",
+            "name": "rerollCharges",
             "docs": [
-              "Every run starts with one preview reroll beside its guardian bonus."
+              "Held preview replacements; every run starts with one."
             ],
-            "type": "bool"
+            "type": "u8"
           },
           {
             "name": "perfectTriggerAvailable",

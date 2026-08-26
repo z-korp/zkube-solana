@@ -195,7 +195,7 @@ export interface ActiveRunView extends EndlessRulesView {
   currentDifficulty: number;
   bonusType: number;
   bonusCharges: number;
-  rerollAvailable: boolean;
+  rerollCharges: number;
   grid: number[];
   nextRow: number[] | null;
   pendingVrfCounter: number;
@@ -949,7 +949,7 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
-    rerollAvailable: account.rerollAvailable,
+    rerollCharges: account.rerollCharges,
     grid: [...account.grid].map(Number),
     nextRow: account.hasNextRow ? [...account.nextRow].map(Number) : null,
     pendingVrfCounter: Number(account.pendingVrfCounter),

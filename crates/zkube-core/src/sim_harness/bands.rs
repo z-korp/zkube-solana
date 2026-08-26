@@ -156,11 +156,9 @@ pub const APEX_OPTIONAL_MIN_EVENTS: u32 = 10;
 pub const APEX_SETUP_MIN_BPS: u32 = 6_000;
 /// Minimum reroll spend count resolving the held-height median.
 pub const REROLL_HELD_MIN_EVENTS: u32 = 20;
-/// Minimum acceptable median reroll spend height.
-pub const REROLL_HELD_MIN_HEIGHT: u8 = 6;
-/// Lower per-run reroll grant rate, in basis points.
+/// Lower per-run Arcade reroll grant rate, in basis points.
 pub const REROLL_GRANT_MIN_BPS: u32 = 1_000;
-/// Upper per-run reroll grant rate, in basis points.
+/// Upper per-run Arcade reroll grant rate, in basis points.
 pub const REROLL_GRANT_MAX_BPS: u32 = 4_000;
 /// Maximum discarded share of all reroll grants, in basis points.
 pub const REROLL_GRANT_MAX_DISCARD_BPS: u32 = 1_000;

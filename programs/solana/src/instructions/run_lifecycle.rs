@@ -436,7 +436,15 @@ pub fn handler_play_move(
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
-        .play_move(expected_move, row, start, destination, level, mutator)
+        .play_move(
+            expected_move,
+            row,
+            start,
+            destination,
+            level,
+            mutator,
+            core_run_mode(active.mode),
+        )
         .map_err(map_run_error)?;
     fold_replay_event(
         active,
@@ -546,7 +554,7 @@ pub fn handler_apply_bonus(
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
-        .apply_bonus(row, column, level, mutator)
+        .apply_bonus(row, column, level, mutator, core_run_mode(active.mode))
         .map_err(map_run_error)?;
     fold_replay_event(
         active,
@@ -1231,7 +1239,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         level_lines_cleared: active.level_lines_cleared,
         bonus,
         bonus_charges: active.bonus_charges,
-        reroll_available: active.reroll_available,
+        reroll_charges: active.reroll_charges,
         perfect_trigger_available: active.perfect_trigger_available,
         starting_height_target: active.starting_height_target,
     })
@@ -1258,7 +1266,7 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
         Some(Bonus::Wave) => 3,
     };
     active.bonus_charges = engine.bonus_charges;
-    active.reroll_available = engine.reroll_available;
+    active.reroll_charges = engine.reroll_charges;
     active.perfect_trigger_available = engine.perfect_trigger_available;
     active.starting_height_target = engine.starting_height_target;
 }
@@ -1270,6 +1278,13 @@ fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
         RunPhase::Playing => RunLifecycle::Playing,
         RunPhase::LevelComplete => RunLifecycle::LevelComplete,
         RunPhase::Finished => RunLifecycle::Finished,
+    }
+}
+
+const fn core_run_mode(mode: RunMode) -> zkube_core::RunMode {
+    match mode {
+        RunMode::Campaign => zkube_core::RunMode::Campaign,
+        RunMode::Daily => zkube_core::RunMode::Daily,
     }
 }
 
@@ -1794,7 +1809,7 @@ mod tests {
             lifecycle: RunLifecycle::Playing,
             bonus_type: 1,
             bonus_charges: 2,
-            reroll_available: true,
+            reroll_charges: 1,
             has_next_row: true,
             next_row: {
                 let mut row = [0u8; 8];
@@ -1810,7 +1825,7 @@ mod tests {
         assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
         assert_eq!(active.bonus_charges, 2);
         assert_eq!(active.bonus_uses, 0);
-        assert!(!active.reroll_available);
+        assert_eq!(active.reroll_charges, 0);
         // The old preview stays visible while the replacement is pending.
         assert!(active.has_next_row);
         assert_eq!(
@@ -1854,7 +1869,7 @@ mod tests {
             phase: RunPhase::AwaitingVrf,
             bonus: Some(Bonus::Hammer),
             bonus_charges: 2,
-            reroll_available: false,
+            reroll_charges: 0,
             next_row: Some({
                 let mut row = [0u8; 8];
                 row[0] = 1;
@@ -2144,7 +2159,13 @@ mod tests {
                 for row in 0..10 {
                     for column in 0..8 {
                         let mut candidate = engine;
-                        let Ok(report) = candidate.apply_bonus(row, column, level, mutator) else {
+                        let Ok(report) = candidate.apply_bonus(
+                            row,
+                            column,
+                            level,
+                            mutator,
+                            zkube_core::RunMode::Campaign,
+                        ) else {
                             continue;
                         };
                         let signal_after = campaign_constraint_signal(level, &candidate);
@@ -2198,6 +2219,7 @@ mod tests {
                             destination,
                             level,
                             mutator,
+                            zkube_core::RunMode::Campaign,
                         ) else {
                             continue;
                         };
@@ -2403,6 +2425,7 @@ mod tests {
                             destination,
                             level,
                             mutator,
+                            zkube_core::RunMode::Daily,
                         ) else {
                             continue;
                         };

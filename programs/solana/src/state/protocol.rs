@@ -576,8 +576,8 @@ pub struct ActiveRun {
     pub blocks_destroyed_by_size: [u16; 4],
     pub bonus_type: u8,
     pub bonus_charges: u8,
-    /// Every run starts with one preview reroll beside its guardian bonus.
-    pub reroll_available: bool,
+    /// Held preview replacements; every run starts with one.
+    pub reroll_charges: u8,
     /// Perfect-clear trigger may award at most once between player moves.
     pub perfect_trigger_available: bool,
     /// Number of actual empty-board clears produced during this run.
@@ -636,7 +636,7 @@ impl Default for ActiveRun {
             blocks_destroyed_by_size: [0; 4],
             bonus_type: 0,
             bonus_charges: 0,
-            reroll_available: false,
+            reroll_charges: 0,
             perfect_trigger_available: false,
             perfect_clears: 0,
             starting_height_target: 0,

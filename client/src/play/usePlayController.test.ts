@@ -51,7 +51,7 @@ const activeRun = (): ActiveRunView => ({
   endlessScoreMultipliersX100: [100, 150, 200, 300, 400, 600, 800, 1_000],
   bonusType: 1,
   bonusCharges: 2,
-  rerollAvailable: true,
+  rerollCharges: 1,
   grid: Array.from({ length: 80 }, () => 0),
   nextRow: Array.from({ length: 8 }, () => 0),
   pendingVrfCounter: 0,

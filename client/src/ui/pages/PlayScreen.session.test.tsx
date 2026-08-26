@@ -66,7 +66,7 @@ vi.mock("@/play/usePlayController", () => ({
       lifecycle: fixtures.lifecycle,
       bonusType: 1,
       bonusCharges: 2,
-      rerollAvailable: true,
+      rerollCharges: 1,
       rules: {
         bossId: 0,
         activeMutatorId: 0,

@@ -165,7 +165,7 @@ export function buildDevActiveRun(
     // back to "None" — which renders an empty slot that reads as a wiring bug.
     bonusType: rules.bonusType,
     bonusCharges: 2,
-    rerollAvailable: true,
+    rerollCharges: 1,
     grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),
     nextRow: [...NEXT_ROW],
     pendingVrfCounter: 0,

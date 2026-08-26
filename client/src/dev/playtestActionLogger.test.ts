@@ -31,7 +31,7 @@ describe("dev playtest action logger", () => {
       totalLinesCleared: 11,
       bonusType: 2,
       bonusCharges: 1,
-      rerollAvailable: true,
+      rerollCharges: 1,
       primaryProgress: 2,
       secondaryProgress: 0,
       grid: gridWithRows([1, 0, 0, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0, 0, 0]),
@@ -67,7 +67,7 @@ describe("dev playtest action logger", () => {
       linesCleared: 2,
       bonusAvailable: true,
       bonusUsed: false,
-      rerollAvailable: true,
+      rerollCharges: 1,
       rerollUsed: false,
       visiblePreviewRow: [1, 1, 0, 0, 0, 0, 0, 0],
       constraints: {

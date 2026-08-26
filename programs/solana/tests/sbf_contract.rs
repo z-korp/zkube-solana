@@ -268,6 +268,103 @@ fn process_play_move(
     )
 }
 
+fn process_request_reroll(
+    active_state: ActiveRun,
+    unix_timestamp: i64,
+) -> (Pubkey, mollusk_svm::result::InstructionResult) {
+    let owner = active_state.owner;
+    let (active_run, expected_bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &active_state.run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    assert_eq!(active_state.bump, expected_bump);
+    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
+        .to_bytes()
+        .into();
+    let delegation_record: Pubkey =
+        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
+            &active_run.to_bytes().into(),
+        )
+        .to_bytes()
+        .into();
+    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
+    let validator = Pubkey::new_unique();
+    let mut delegation_data =
+        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
+    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
+    delegation_data[8..40].copy_from_slice(validator.as_ref());
+    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
+    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
+        .to_bytes()
+        .into();
+    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ApplyBonus {
+            active_run,
+            owner_authority: owner,
+            session_token: None,
+            actor: owner,
+            oracle_queue,
+            delegation_record_active: delegation_record,
+            program_identity,
+            vrf_program,
+            slot_hashes,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::RequestReroll {
+            expected_action: active_state.action_counter,
+            client_seed: [0; 32],
+        }
+        .data(),
+    };
+    let mut runtime = mollusk();
+    runtime.program_cache.add_program(
+        &vrf_program,
+        &mollusk_svm::program::loader_keys::LOADER_V3,
+        &noop_sbf_elf(),
+    );
+    runtime.sysvars.clock.unix_timestamp = unix_timestamp;
+    let (_, slot_hashes_account) = runtime.sysvars.keyed_account_for_slot_hashes_sysvar();
+    let accounts = vec![
+        (
+            active_run,
+            program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
+        ),
+        (owner, system_account(ACCOUNT_LAMPORTS)),
+        (oracle_queue, system_account(0)),
+        (
+            delegation_record,
+            Account {
+                lamports: 1,
+                data: delegation_data,
+                owner: delegation_owner,
+                executable: false,
+                rent_epoch: 0,
+            },
+        ),
+        (program_identity, system_account(0)),
+        (
+            vrf_program,
+            executable_program_account(Pubkey::from_str_const(
+                "BPFLoaderUpgradeab1e11111111111111111111111",
+            )),
+        ),
+        (slot_hashes, slot_hashes_account),
+        (anchor_lang::system_program::ID, system_program_account()),
+    ];
+    (
+        active_run,
+        runtime.process_instruction(&instruction, &accounts),
+    )
+}
+
 fn protocol_fixture(
     authority: Pubkey,
     team_destination: Pubkey,
@@ -832,7 +929,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         has_next_row: true,
         bonus_type: 1,
         bonus_charges: 2,
-        reroll_available: true,
+        reroll_charges: 2,
         action_counter: reroll_action,
         vrf_request_counter: request_counter - 1,
         replay_hash: initial_replay,
@@ -840,6 +937,15 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         bump,
         ..ActiveRun::default()
     };
+
+    let mut empty_inventory: ActiveRun =
+        decode(&program_account(&active_state, 8 + ActiveRun::INIT_SPACE));
+    empty_inventory.reroll_charges = 0;
+    let (_, rejected) = process_request_reroll(empty_inventory, daily_state.opens_at + 1);
+    assert!(
+        rejected.program_result.is_err(),
+        "zero reroll charges must be rejected"
+    );
 
     let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
         .to_bytes()
@@ -940,7 +1046,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_eq!(pending.action_counter, reroll_action + 1);
     assert_eq!(pending.moves, 0);
     assert_eq!(pending.bonus_charges, 2);
-    assert!(!pending.reroll_available);
+    assert_eq!(pending.reroll_charges, 1);
     assert_eq!(pending.pending_vrf_counter, request_counter);
     assert_eq!(pending.replay_hash, replay_after_request);
 
@@ -985,7 +1091,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_eq!(rerolled.lifecycle, RunLifecycle::Playing);
     assert_eq!(rerolled.pending_vrf_counter, 0);
     assert_eq!(rerolled.bonus_charges, 2);
-    assert!(!rerolled.reroll_available);
+    assert_eq!(rerolled.reroll_charges, 1);
     assert_eq!(rerolled.replay_hash, replay_after_callback);
 
     let force_finish = anchor_lang::solana_program::instruction::Instruction {
@@ -1298,6 +1404,170 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     assert_eq!(active.total_lines_cleared, 4);
     assert_eq!(active.combo_counter, 1);
     assert_eq!(active.max_combo, 4);
+}
+
+#[test]
+fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
+    let owner = Pubkey::new_unique();
+    let run_id = 90u64;
+    let (_, bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let mut grid = [0u8; 80];
+    for row in 0..4 {
+        grid[row * 8..(row + 1) * 8].copy_from_slice(&[1; 8]);
+    }
+    grid[32..40].copy_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+    let active_state = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        run_id,
+        mode: RunMode::Campaign,
+        lifecycle: RunLifecycle::Playing,
+        map_id: 1,
+        level: 1,
+        rules: LevelRuleSnapshot {
+            points_required: 1,
+            max_moves: 20,
+            primary: ConstraintSnapshot {
+                kind: 3,
+                value: 0,
+                required_count: 1,
+            },
+            secondary: ConstraintSnapshot {
+                kind: 10,
+                value: 3,
+                required_count: 1,
+            },
+            block_weights: [2_000; 5],
+            score_multiplier_x100: 100,
+            combo_multiplier_x100: 100,
+            ..LevelRuleSnapshot::default()
+        },
+        grid,
+        next_row: [0, 0, 0, 0, 0, 0, 0, 1],
+        has_next_row: true,
+        reroll_charges: 1,
+        vrf_request_counter: 1,
+        perfect_trigger_available: true,
+        bump,
+        ..ActiveRun::default()
+    };
+
+    let (active_run, moved) = process_play_move(active_state, 4, 0, 1, 123, true);
+    assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
+    let awaiting: ActiveRun = decode(resulting_account(&moved, &active_run));
+    assert_eq!(awaiting.earned_stars, 2);
+    assert_eq!(awaiting.reroll_charges, 2);
+    assert_eq!(awaiting.lifecycle, RunLifecycle::AwaitingVrf);
+
+    let vrf_program_identity: Pubkey =
+        ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
+            .to_bytes()
+            .into();
+    let magic_fee_vault = Pubkey::new_unique();
+    let callback = fulfill_row_instruction(
+        vrf_program_identity,
+        active_run,
+        magic_fee_vault,
+        [42; 32],
+        awaiting.pending_vrf_counter,
+    );
+    let callback_result = mollusk().process_instruction(
+        &callback,
+        &[
+            (vrf_program_identity, system_account(0)),
+            (active_run, resulting_account(&moved, &active_run).clone()),
+            (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
+        ],
+    );
+    assert!(
+        callback_result.program_result.is_ok(),
+        "{:?}",
+        callback_result.program_result
+    );
+    let playing: ActiveRun = decode(resulting_account(&callback_result, &active_run));
+    assert_eq!(playing.lifecycle, RunLifecycle::Playing);
+    assert_eq!(playing.reroll_charges, 2);
+
+    let (_, requested) = process_request_reroll(playing, 124);
+    assert!(
+        requested.program_result.is_ok(),
+        "{:?}",
+        requested.program_result
+    );
+    let pending: ActiveRun = decode(resulting_account(&requested, &active_run));
+    assert_eq!(pending.lifecycle, RunLifecycle::AwaitingVrf);
+    assert_eq!(pending.reroll_charges, 1);
+}
+
+#[test]
+fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
+    let run = |owner: Pubkey, run_id: u64, reroll_charges: u8| {
+        let (_, bump) = Pubkey::find_program_address(
+            &[
+                ACTIVE_RUN_SEED,
+                b"active",
+                owner.as_ref(),
+                &run_id.to_le_bytes(),
+            ],
+            &zkube::ID,
+        );
+        let mut grid = [0u8; 80];
+        grid[..8].copy_from_slice(&[1; 8]);
+        ActiveRun {
+            version: ACCOUNT_VERSION,
+            owner,
+            run_id,
+            mode: RunMode::Daily,
+            lifecycle: RunLifecycle::Playing,
+            deadline_at: 1_000,
+            rules: LevelRuleSnapshot {
+                points_required: u32::MAX,
+                max_moves: DAILY_MAX_MOVES,
+                score_multiplier_x100: 100,
+                combo_multiplier_x100: 100,
+                ..LevelRuleSnapshot::default()
+            },
+            daily_pressure: DailyPressureProfile::canonical(),
+            daily_scoring_rule: canonical_daily_scoring_rules()[0],
+            grid,
+            next_row: [0; 8],
+            has_next_row: true,
+            reroll_charges,
+            perfect_trigger_available: true,
+            bump,
+            ..ActiveRun::default()
+        }
+    };
+
+    let owner = Pubkey::new_unique();
+    let (active_run, granted) = process_play_move(run(owner, 91, 1), 0, 0, 0, 123, true);
+    assert!(
+        granted.program_result.is_ok(),
+        "{:?}",
+        granted.program_result
+    );
+    let after_grant: ActiveRun = decode(resulting_account(&granted, &active_run));
+    assert_eq!(after_grant.perfect_clears, 1);
+    assert_eq!(after_grant.reroll_charges, 2);
+
+    let capped_owner = Pubkey::new_unique();
+    let (capped_run, discarded) = process_play_move(run(capped_owner, 92, 3), 0, 0, 0, 123, true);
+    assert!(
+        discarded.program_result.is_ok(),
+        "{:?}",
+        discarded.program_result
+    );
+    let after_discard: ActiveRun = decode(resulting_account(&discarded, &capped_run));
+    assert_eq!(after_discard.perfect_clears, 1);
+    assert_eq!(after_discard.reroll_charges, 3);
 }
 
 #[test]

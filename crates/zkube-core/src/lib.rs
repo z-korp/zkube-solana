@@ -90,8 +90,9 @@ pub use replay::{
     ReplayMode, RulesHash, derive_player_id, derive_player_id_with,
 };
 pub use rules::{
-    Constraint, ConstraintClass, ConstraintKind, EndlessRules, LevelRules, MoveReport,
-    MutatorRules, RunEngine, RunError, RunPhase, bonus_trigger_threshold_is_valid,
+    BONUS_CHARGE_CAP, Constraint, ConstraintClass, ConstraintKind, EndlessRules, LevelRules,
+    MoveReport, MutatorRules, RunEngine, RunError, RunMode, RunPhase,
+    bonus_trigger_threshold_is_valid,
 };
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,

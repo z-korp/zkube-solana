@@ -1,13 +1,14 @@
 use crate::BoundaryError;
 use zkube_core::{
-    Bonus, CampaignEndReason, CampaignRules, CampaignSimulation, CampaignSimulationConfig,
-    Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunPhase,
+    BONUS_CHARGE_CAP, Bonus, CampaignEndReason, CampaignRules, CampaignSimulation,
+    CampaignSimulationConfig, Constraint, ConstraintKind, Grid, LevelRules, MoveReport,
+    MutatorRules, RunEngine, RunPhase,
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 186;
-pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 186;
+pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 188;
 const CONFIG_VERSION: u8 = 4;
-const STATE_VERSION: u8 = 5;
+const STATE_VERSION: u8 = 6;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -106,7 +107,7 @@ pub fn encode_campaign_simulation_state(
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
     writer.write(&[
         simulation.engine.bonus_charges,
-        u8::from(simulation.engine.reroll_available),
+        simulation.engine.reroll_charges,
         u8::from(simulation.engine.perfect_trigger_available),
         simulation.engine.starting_height_target,
         simulation.current_difficulty,
@@ -150,7 +151,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let has_next_row = reader.bool()?;
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
-    let reroll_available = reader.bool()?;
+    let reroll_charges = reader.u8()?;
     let perfect_trigger_available = reader.bool()?;
     let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
@@ -192,7 +193,11 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             phase == RunPhase::Finished && earned_stars == 0 && next_row.is_none()
         }
     };
-    if !terminal_valid || current_difficulty > 7 || row_counter == 0 {
+    if !terminal_valid
+        || current_difficulty > 7
+        || row_counter == 0
+        || reroll_charges > BONUS_CHARGE_CAP
+    {
         return Err(BoundaryError::InvalidEncoding);
     }
     Ok(CampaignSimulation {
@@ -217,7 +222,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             level_lines_cleared,
             bonus,
             bonus_charges,
-            reroll_available,
+            reroll_charges,
             perfect_trigger_available,
             starting_height_target,
         },
@@ -384,6 +389,8 @@ fn encode_report<const N: usize>(writer: &mut Writer<N>, report: MoveReport) {
         report.height_after,
         u8::from(report.perfect_clear),
         u8::from(report.action_was_bonus),
+        u8::from(report.reroll_granted),
+        u8::from(report.reroll_grant_discarded),
     ]);
     writer.write(&report.blocks_destroyed_by_size);
     writer.write(&report.neutral_points_earned.to_le_bytes());
@@ -391,7 +398,7 @@ fn encode_report<const N: usize>(writer: &mut Writer<N>, report: MoveReport) {
 }
 
 fn decode_report(reader: &mut Reader<'_>) -> Result<MoveReport, BoundaryError> {
-    Ok(MoveReport {
+    let report = MoveReport {
         lines_cleared: reader.u8()?,
         points_earned: reader.u32()?,
         combo_counter: reader.u8()?,
@@ -399,13 +406,19 @@ fn decode_report(reader: &mut Reader<'_>) -> Result<MoveReport, BoundaryError> {
         height_after: reader.u8()?,
         perfect_clear: reader.bool()?,
         action_was_bonus: reader.bool()?,
+        reroll_granted: reader.bool()?,
+        reroll_grant_discarded: reader.bool()?,
         blocks_destroyed_by_size: reader.array()?,
         neutral_points_earned: reader.u32()?,
         difficulty_at_action: reader.u8()?,
         // Engine observations that the client boundary does not carry.
         charges_earned: 0,
         preview_insertion_blocked: false,
-    })
+    };
+    if report.reroll_granted && report.reroll_grant_discarded {
+        return Err(BoundaryError::InvalidEncoding);
+    }
+    Ok(report)
 }
 
 const fn constraint_tag(value: ConstraintKind) -> u8 {
@@ -576,6 +589,11 @@ mod tests {
         state.engine.streak = 2;
         state.engine.charges_earned = 3;
         state.last_report.action_was_bonus = true;
+        state.last_report.reroll_granted = true;
+        let encoded_state = encode_campaign_simulation_state(state);
+        assert_eq!(decode_campaign_simulation_state(&encoded_state), Ok(state));
+        state.last_report.reroll_granted = false;
+        state.last_report.reroll_grant_discarded = true;
         let encoded_state = encode_campaign_simulation_state(state);
         assert_eq!(decode_campaign_simulation_state(&encoded_state), Ok(state));
         let invariant = include_str!("../../../fixtures/protocol-invariants.json");
@@ -612,7 +630,7 @@ mod tests {
 
         let rerolled = campaign_simulation_request_reroll(&config_bytes, &state).unwrap();
         let decoded = decode_campaign_simulation_state(&rerolled).unwrap();
-        assert!(!decoded.engine.reroll_available);
+        assert_eq!(decoded.engine.reroll_charges, 0);
         assert_eq!(decoded.engine.bonus, Some(Bonus::Wave));
         assert_eq!(decoded.engine.bonus_charges, 2);
         assert!(campaign_simulation_request_reroll(&config_bytes, &rerolled).is_err());

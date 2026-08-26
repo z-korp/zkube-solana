@@ -319,15 +319,17 @@ ladder tier boundaries, and the flat qualifying credit.
   a public formula over already public data, must be stated when it is
   announced and never settled afterwards. Funding it is a governance action
   requiring exact approval like any other operator spend.
-- **Reroll is a universal run action beside the guardian bonus.** Campaign and
-  Arcade each begin with exactly one reroll, and spending it replaces the next
-  preview without consuming or changing Hammer, Totem, or Wave charges. It is
-  never a guardian bonus type, a wildcard realm, or a second pairing on a map.
-  The replacement consumes an additional VRF output and folds into the replay
-  commitment as its own event under a distinct domain separator. The core
-  `universal_reroll_is_separate_from_guardian_bonus_inventory`, program
+- **Reroll is a universal run action beside the guardian bonus.** Each run
+  begins with one reroll and holds at most three; the second star grants one in
+  Campaign, and a perfect clear grants one in Arcade. Spending one replaces the
+  next preview without consuming or changing Hammer, Totem, or Wave charges.
+  It is never a guardian bonus type, a wildcard realm, or a second pairing on a
+  map. The replacement consumes an additional VRF output and folds into the
+  replay commitment as its own event under a distinct domain separator. The
+  core `campaign_second_star_grants_one_held_reroll_once` and
+  `daily_perfect_clear_grants_or_discards_at_the_reroll_cap`, program
   `reroll_request_is_an_accepted_action_that_awaits_its_own_vrf`, SBF reroll
-  contract, and source supersession guard enforce the split and one-use limit.
+  contracts, and source supersession guard enforce the inventory and split.
 - **A Kredit is never granted, discounted, or bundled as a bonus.** Every Kredit
   in existence was bought at the same price, so every entry contributes the same
   lamports and no entry dilutes another. Larger packs carry cosmetics only. Free

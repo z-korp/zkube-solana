@@ -61,7 +61,7 @@ export function makeActiveRun(
     endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
     bonusType: 0,
     bonusCharges: 0,
-    rerollAvailable: true,
+    rerollCharges: 1,
     grid: Array.from({ length: 80 }, () => 0),
     nextRow: Array.from({ length: 8 }, () => 0),
     pendingVrfCounter: 0,

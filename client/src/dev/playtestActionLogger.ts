@@ -29,7 +29,7 @@ export interface PlaytestActionRecord {
   linesCleared: number;
   bonusAvailable: boolean;
   bonusUsed: boolean;
-  rerollAvailable: boolean;
+  rerollCharges: number;
   rerollUsed: boolean;
   visiblePreviewRow: number[];
   constraints: {
@@ -66,7 +66,7 @@ export function buildPlaytestActionRecord(
     ),
     bonusAvailable: beforeGame.bonusType !== 0 && beforeGame.bonusCharges > 0,
     bonusUsed: action === "bonus",
-    rerollAvailable: before.rerollAvailable,
+    rerollCharges: before.rerollCharges,
     rerollUsed: action === "reroll",
     visiblePreviewRow: [...beforeGame.nextRow],
     constraints: {
