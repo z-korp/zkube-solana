@@ -278,7 +278,10 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
         ),
         ErrorCode::InvalidLevel
     );
-    require!(rules.starting_charges <= 15, ErrorCode::InvalidLevel);
+    require!(
+        rules.starting_charges <= zkube_core::BONUS_CHARGE_CAP,
+        ErrorCode::InvalidLevel
+    );
     require!(
         (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
             .contains(&rules.starting_rows),
@@ -688,6 +691,16 @@ mod tests {
         .is_err());
         assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
             starting_rows: 0,
+            ..valid
+        })
+        .is_err());
+        assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
+            starting_charges: zkube_core::BONUS_CHARGE_CAP,
+            ..valid
+        })
+        .is_ok());
+        assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
+            starting_charges: zkube_core::BONUS_CHARGE_CAP + 1,
             ..valid
         })
         .is_err());

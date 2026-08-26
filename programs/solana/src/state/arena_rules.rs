@@ -119,7 +119,7 @@ impl DailyPoolEntry {
                     self.bonus_trigger_type,
                     self.bonus_threshold,
                 )
-                && self.starting_charges <= 15,
+                && self.starting_charges <= zkube_core::BONUS_CHARGE_CAP,
             ErrorCode::InvalidLevel
         );
         require!(
@@ -398,6 +398,33 @@ mod tests {
                     && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold);
                 assert_eq!(entry.validate().is_ok(), expected);
             }
+        }
+    }
+
+    #[test]
+    fn daily_publication_agrees_with_the_core_bonus_charge_cap() {
+        let mut entry = pool_entry(1, 1);
+        let mut core_rules = zkube_core::DailyRunRules {
+            max_moves: zkube_core::DAILY_MAX_MOVES,
+            mutator: zkube_core::neutral_daily_mutator_rules(1, 10),
+            bonus: Some(zkube_core::Bonus::Hammer),
+            starting_bonus_charges: 0,
+            starting_height: 4,
+            objective: zkube_core::DailyObjectiveRule {
+                objective: zkube_core::DailyObjective::Survival,
+                bonus_multiplier_x100: 100,
+            },
+            pressure: zkube_core::DailyPressureRules::canonical(),
+        };
+
+        for charges in 0..=zkube_core::BONUS_CHARGE_CAP + 1 {
+            entry.starting_charges = charges;
+            core_rules.starting_bonus_charges = charges;
+            assert_eq!(entry.validate().is_ok(), core_rules.is_valid());
+            assert_eq!(
+                entry.validate().is_ok(),
+                charges <= zkube_core::BONUS_CHARGE_CAP
+            );
         }
     }
 

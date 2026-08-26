@@ -1,6 +1,6 @@
 use crate::{
-    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunMode,
-    RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
+    BONUS_CHARGE_CAP, BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine,
+    RunError, RunMode, RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
     continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
@@ -62,7 +62,7 @@ impl CampaignRules {
             )
             && match self.bonus {
                 None => self.starting_bonus_charges == 0,
-                Some(_) => self.starting_bonus_charges <= 15,
+                Some(_) => self.starting_bonus_charges <= BONUS_CHARGE_CAP,
             }
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)
@@ -606,6 +606,17 @@ mod tests {
             simulation.request_reroll(config),
             Err(CampaignError::Engine(RunError::NoRerollAvailable))
         );
+    }
+
+    #[test]
+    fn campaign_rules_enforce_the_shared_bonus_charge_cap() {
+        let mut rules = config().rules;
+        rules.bonus = Some(Bonus::Hammer);
+        rules.starting_bonus_charges = BONUS_CHARGE_CAP;
+        assert!(rules.is_valid());
+
+        rules.starting_bonus_charges = BONUS_CHARGE_CAP + 1;
+        assert!(!rules.is_valid());
     }
 
     #[test]

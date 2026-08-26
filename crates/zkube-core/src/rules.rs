@@ -891,7 +891,7 @@ impl RunEngine {
         self.bonus_charges = self
             .bonus_charges
             .saturating_add(charges.min(u16::from(u8::MAX)) as u8)
-            .min(15);
+            .min(BONUS_CHARGE_CAP);
         self.primary_progress = level.primary.update(
             self.primary_progress,
             &report,
@@ -1557,6 +1557,32 @@ mod tests {
         .unwrap();
         assert_eq!(run.level_lines_cleared, 1);
         assert_eq!(run.bonus_charges, 1);
+    }
+
+    #[test]
+    fn renewable_bonus_inventory_stops_at_the_shared_cap() {
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            bonus: Some(Bonus::Wave),
+            bonus_charges: BONUS_CHARGE_CAP,
+            ..RunEngine::default()
+        };
+        let report = run.finish_action(
+            ActionContext {
+                lines: 1,
+                ..ActionContext::default()
+            },
+            LevelRules::default(),
+            MutatorRules {
+                bonus_trigger_type: 1,
+                bonus_threshold: 1,
+                ..MutatorRules::default()
+            },
+            true,
+        );
+
+        assert_eq!(report.charges_earned, 1);
+        assert_eq!(run.bonus_charges, BONUS_CHARGE_CAP);
     }
 
     #[test]

@@ -65,7 +65,7 @@ vi.mock("@/play/usePlayController", () => ({
       level: 1,
       lifecycle: fixtures.lifecycle,
       bonusType: 1,
-      bonusCharges: 2,
+      bonusCharges: 3,
       rerollCharges: 1,
       rules: {
         bossId: 0,
@@ -259,7 +259,7 @@ describe("PlayScreen bonus receipt feedback", () => {
     expect(fixtures.playSfx).toHaveBeenCalledWith("coin");
   });
 
-  it("shows the universal reroll beside the guardian bonus", () => {
+  it("shows the capped guardian inventory beside the universal reroll", () => {
     render(<PlayScreen />);
     const slots = fixtures.actionBarProps?.bonusSlots as Array<{
       name: string;
@@ -267,7 +267,7 @@ describe("PlayScreen bonus receipt feedback", () => {
     }>;
 
     expect(slots.map(({ name, charges }) => ({ name, charges }))).toEqual([
-      { name: "Hammer", charges: 2 },
+      { name: "Hammer", charges: 3 },
       { name: "Reroll", charges: 1 },
     ]);
   });

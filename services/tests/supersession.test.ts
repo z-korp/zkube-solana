@@ -139,6 +139,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "reroll is a capped inventory with Campaign and Daily grants",
   },
   {
+    pattern: /starting_(?:bonus_)?charges\s*<=\s*15|\.min\(15\)/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "all bonus inventories use the shared three-charge cap",
+  },
+  {
     pattern:
       /realm_map_id\.max\(1\)|realm_map_id\s*>\s*0|standalone wildcard entry/i,
     trees: [PROGRAM],

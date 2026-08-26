@@ -1,5 +1,5 @@
 use crate::{
-    ActionMetrics, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
+    ActionMetrics, BONUS_CHARGE_CAP, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
     DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
     ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics, RunMode,
     RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
@@ -120,7 +120,7 @@ impl DailyRunRules {
     pub fn is_valid(self) -> bool {
         let bonus_valid = match self.bonus {
             None => self.starting_bonus_charges == 0,
-            Some(_) => self.starting_bonus_charges <= 15,
+            Some(_) => self.starting_bonus_charges <= BONUS_CHARGE_CAP,
         };
         self.max_moves > 0
             && self.mutator.score_multiplier_x100 > 0
@@ -773,6 +773,17 @@ mod tests {
         assert!(!changed.is_valid());
         changed.starting_height = crate::MAX_OPENING_HEIGHT + 1;
         assert!(!changed.is_valid());
+    }
+
+    #[test]
+    fn daily_rules_enforce_the_shared_bonus_charge_cap() {
+        let mut rules = rules();
+        rules.bonus = Some(Bonus::Hammer);
+        rules.starting_bonus_charges = BONUS_CHARGE_CAP;
+        assert!(rules.is_valid());
+
+        rules.starting_bonus_charges = BONUS_CHARGE_CAP + 1;
+        assert!(!rules.is_valid());
     }
 
     #[test]
