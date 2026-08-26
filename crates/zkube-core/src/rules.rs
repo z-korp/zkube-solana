@@ -17,6 +17,11 @@ pub struct Constraint {
 }
 
 impl Constraint {
+    #[must_use]
+    pub const fn is_present(self) -> bool {
+        !matches!(self.kind, ConstraintKind::None)
+    }
+
     pub fn is_satisfied(self, progress: u8) -> bool {
         match self.kind {
             ConstraintKind::None => true,
@@ -69,6 +74,26 @@ impl Default for LevelRules {
             primary: Constraint::default(),
             secondary: Constraint::default(),
         }
+    }
+}
+
+impl LevelRules {
+    /// The contiguous number of authored star sources. A secondary without a
+    /// primary is invalid catalog content and cannot create a gap in stars.
+    #[must_use]
+    pub const fn earnable_stars(self) -> u8 {
+        if !self.primary.is_present() {
+            1
+        } else if !self.secondary.is_present() {
+            2
+        } else {
+            3
+        }
+    }
+
+    #[must_use]
+    pub const fn has_contiguous_star_sources(self) -> bool {
+        !self.secondary.is_present() || self.primary.is_present()
     }
 }
 
@@ -218,6 +243,8 @@ pub struct RunEngine {
     pub max_combo: u8,
     pub primary_progress: u8,
     pub secondary_progress: u8,
+    /// Latched one-to-three-star Campaign result. Daily rules keep this at zero.
+    pub earned_stars: u8,
     pub level_lines_cleared: u16,
     pub bonus: Option<Bonus>,
     pub bonus_charges: u8,
@@ -240,6 +267,7 @@ impl Default for RunEngine {
             max_combo: 0,
             primary_progress: 0,
             secondary_progress: 0,
+            earned_stars: 0,
             level_lines_cleared: 0,
             bonus: None,
             bonus_charges: 0,
@@ -446,9 +474,7 @@ impl RunEngine {
     }
 
     pub fn level_satisfied(&self, rules: LevelRules) -> bool {
-        self.score >= rules.points_required
-            && rules.primary.is_satisfied(self.primary_progress)
-            && rules.secondary.is_satisfied(self.secondary_progress)
+        self.earned_stars == rules.earnable_stars()
     }
 
     fn finish_move(
@@ -558,6 +584,26 @@ impl RunEngine {
         self.primary_progress = level.primary.update(self.primary_progress, &report);
         self.secondary_progress = level.secondary.update(self.secondary_progress, &report);
 
+        // Star sources latch in order after all action facts and constraint
+        // progress are current. Independent `if`s deliberately allow one
+        // action to cross all three sources. `None` is never an earned source.
+        if self.earned_stars == 0 && self.score >= level.points_required {
+            self.earned_stars = 1;
+        }
+        if self.earned_stars == 1
+            && level.primary.is_present()
+            && level.primary.is_satisfied(self.primary_progress)
+        {
+            self.earned_stars = 2;
+        }
+        if self.earned_stars == 2
+            && level.primary.is_present()
+            && level.secondary.is_present()
+            && level.secondary.is_satisfied(self.secondary_progress)
+        {
+            self.earned_stars = 3;
+        }
+
         // Occupying row ten is legal. A run ends only when a move has settled
         // and still cannot insert its visible preview row (the attempted
         // eleventh row). Completion takes precedence when that same action
@@ -572,36 +618,6 @@ impl RunEngine {
         // Ensure the returned report always reflects the final combo value.
         report.combo_counter = self.combo_counter;
         report
-    }
-}
-
-pub fn calculate_level_stars(max_moves: u16, moves_used: u16, star_threshold_modifier: u8) -> u8 {
-    let (positive, magnitude) = if star_threshold_modifier >= 128 {
-        (true, star_threshold_modifier - 128)
-    } else {
-        (false, 128 - star_threshold_modifier)
-    };
-    let magnitude_percent = magnitude as u16 * 5;
-    let three_percent = if positive {
-        50u16.saturating_sub(magnitude_percent).max(10)
-    } else {
-        (50u16.saturating_add(magnitude_percent)).min(90)
-    };
-    let two_percent = if positive {
-        75u16
-            .saturating_sub(magnitude_percent)
-            .max(three_percent.saturating_add(1))
-    } else {
-        (75u16.saturating_add(magnitude_percent)).min(99)
-    };
-    let three_threshold = max_moves.saturating_mul(three_percent) / 100;
-    let two_threshold = max_moves.saturating_mul(two_percent) / 100;
-    if moves_used <= three_threshold {
-        3
-    } else if moves_used <= two_threshold {
-        2
-    } else {
-        1
     }
 }
 
@@ -1400,15 +1416,190 @@ mod tests {
     }
 
     #[test]
-    fn stars_match_neutral_and_biased_campaign_thresholds() {
-        assert_eq!(calculate_level_stars(20, 10, 128), 3);
-        assert_eq!(calculate_level_stars(20, 15, 128), 2);
-        assert_eq!(calculate_level_stars(20, 16, 128), 1);
-        assert_eq!(calculate_level_stars(20, 9, 129), 3);
-        assert_eq!(calculate_level_stars(20, 10, 129), 2);
-        assert_eq!(calculate_level_stars(20, 11, 127), 3);
-        assert_eq!(calculate_level_stars(20, 16, 127), 2);
-        assert_eq!(calculate_level_stars(20, 17, 127), 1);
+    fn constraint_stars_latch_zero_to_three_on_one_action() {
+        let level = LevelRules {
+            points_required: 1,
+            max_moves: 20,
+            primary: Constraint {
+                kind: ConstraintKind::ComboLines,
+                value: 2,
+                required_count: 1,
+            },
+            secondary: Constraint {
+                kind: ConstraintKind::ComboMeter,
+                value: 2,
+                required_count: 1,
+            },
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+
+        run.finish_action(
+            ActionContext {
+                lines: 2,
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            false,
+        );
+
+        assert_eq!(run.earned_stars, 3);
+        assert_eq!(run.phase, RunPhase::LevelComplete);
+    }
+
+    #[test]
+    fn constraint_stars_latch_in_order_across_actions() {
+        let level = LevelRules {
+            points_required: 1,
+            max_moves: 20,
+            primary: Constraint {
+                kind: ConstraintKind::BreakBlocks,
+                value: 1,
+                required_count: 1,
+            },
+            secondary: Constraint {
+                kind: ConstraintKind::ComboLines,
+                value: 2,
+                required_count: 1,
+            },
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            grid: grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]),
+            ..RunEngine::default()
+        };
+
+        run.finish_action(
+            ActionContext {
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            false,
+        );
+        assert_eq!(run.earned_stars, 1);
+
+        run.grid = Grid::EMPTY;
+        run.finish_action(
+            ActionContext {
+                block_cells_before: [1, 0, 0, 0],
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            false,
+        );
+        assert_eq!(run.earned_stars, 2);
+
+        run.finish_action(
+            ActionContext {
+                lines: 2,
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules::default(),
+            false,
+        );
+        assert_eq!(run.earned_stars, 3);
+        assert_eq!(run.phase, RunPhase::LevelComplete);
+    }
+
+    #[test]
+    fn exhausted_runs_keep_one_or_two_latched_stars() {
+        let primary = Constraint {
+            kind: ConstraintKind::ComboLines,
+            value: 2,
+            required_count: 1,
+        };
+        let secondary = Constraint {
+            kind: ConstraintKind::BreakBlocks,
+            value: 1,
+            required_count: 1,
+        };
+        let mut one = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        one.finish_move(
+            ActionContext {
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            LevelRules {
+                points_required: 1,
+                max_moves: 1,
+                primary,
+                secondary,
+            },
+            MutatorRules::default(),
+        );
+        assert_eq!((one.phase, one.earned_stars), (RunPhase::Finished, 1));
+
+        let mut two = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        two.finish_move(
+            ActionContext {
+                lines: 2,
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            LevelRules {
+                points_required: 1,
+                max_moves: 1,
+                primary,
+                secondary,
+            },
+            MutatorRules::default(),
+        );
+        assert_eq!((two.phase, two.earned_stars), (RunPhase::Finished, 2));
+    }
+
+    #[test]
+    fn absent_constraints_cap_and_complete_the_contiguous_star_sources() {
+        let mut one = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        one.finish_action(
+            ActionContext {
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            LevelRules::default(),
+            MutatorRules::default(),
+            false,
+        );
+        assert_eq!((one.phase, one.earned_stars), (RunPhase::LevelComplete, 1));
+
+        let mut two = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        two.finish_action(
+            ActionContext {
+                lines: 2,
+                base_point_parts: [1, 0],
+                ..ActionContext::default()
+            },
+            LevelRules {
+                primary: Constraint {
+                    kind: ConstraintKind::ComboLines,
+                    value: 2,
+                    required_count: 1,
+                },
+                ..LevelRules::default()
+            },
+            MutatorRules::default(),
+            false,
+        );
+        assert_eq!((two.phase, two.earned_stars), (RunPhase::LevelComplete, 2));
     }
 
     #[test]
@@ -1511,6 +1702,10 @@ mod tests {
                 run.bonus_charges,
                 expected["bonusCharges"].as_u64().unwrap() as u8
             );
+            assert_eq!(
+                run.earned_stars,
+                expected["earnedStars"].as_u64().unwrap() as u8
+            );
         }
     }
 
@@ -1551,21 +1746,5 @@ mod tests {
         assert_eq!(run.grid, source);
         assert_eq!(run.next_row, Some(next));
         assert_eq!(run.moves, 0);
-    }
-
-    #[test]
-    fn shared_golden_star_cases_match_rust_domain() {
-        let fixtures: Value =
-            serde_json::from_str(include_str!("../../../fixtures/game-parity.json")).unwrap();
-        for fixture in fixtures["starCases"].as_array().unwrap() {
-            assert_eq!(
-                calculate_level_stars(
-                    fixture["maxMoves"].as_u64().unwrap() as u16,
-                    fixture["movesUsed"].as_u64().unwrap() as u16,
-                    fixture["modifier"].as_u64().unwrap() as u8,
-                ),
-                fixture["stars"].as_u64().unwrap() as u8
-            );
-        }
     }
 }

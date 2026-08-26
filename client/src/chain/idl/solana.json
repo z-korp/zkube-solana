@@ -6105,6 +6105,13 @@
             "type": "u8"
           },
           {
+            "name": "earned_stars",
+            "docs": [
+              "Latched Campaign stars; Daily runs keep this byte at zero."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "level_lines_cleared",
             "type": "u16"
           },

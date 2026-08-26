@@ -1146,7 +1146,7 @@ pub fn run_campaign(
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
         primary_progress: simulation.engine.primary_progress,
         secondary_progress: simulation.engine.secondary_progress,
-        earned_stars: simulation.earned_stars,
+        earned_stars: simulation.engine.earned_stars,
     })
 }
 
@@ -1443,8 +1443,8 @@ fn oracle_search(
     visited: &mut HashSet<[u8; 32]>,
     result: &mut OracleResult,
 ) -> Result<(), CampaignError> {
-    result.reachability.one_star_reachable |= state.simulation.earned_stars >= 1;
-    result.reachability.two_stars_reachable |= state.simulation.earned_stars >= 2;
+    result.reachability.one_star_reachable |= state.simulation.engine.earned_stars >= 1;
+    result.reachability.two_stars_reachable |= state.simulation.engine.earned_stars >= 2;
     result.reachability.apex_reachable |= apex.is_satisfied(state.apex_progress);
     if result.reachability.one_star_reachable
         && result.reachability.two_stars_reachable
@@ -2462,7 +2462,7 @@ fn campaign_planner_value(
     value: PlannerValue,
 ) -> u64 {
     let star_value =
-        u64::from(state.simulation.earned_stars.min(3)).saturating_mul(PLANNER_STAR_STEP);
+        u64::from(state.simulation.engine.earned_stars.min(3)).saturating_mul(PLANNER_STAR_STEP);
     let score_target = u64::from(rules.level.points_required.max(1));
     let score_progress = u64::from(state.simulation.engine.score)
         .min(score_target)
@@ -2602,6 +2602,7 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         max_combo,
         primary_progress,
         secondary_progress,
+        earned_stars,
         level_lines_cleared,
         bonus,
         bonus_charges,
@@ -2626,6 +2627,7 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         max_combo,
         primary_progress,
         secondary_progress,
+        earned_stars,
     ]);
     output.extend_from_slice(&level_lines_cleared.to_le_bytes());
     output.push(match bonus {
@@ -2677,7 +2679,7 @@ fn campaign_planner_state_key(state: CampaignPlannerState) -> [u8; 32] {
         Some(CampaignEndReason::Exhausted) => 2,
         Some(CampaignEndReason::Abandoned) => 3,
     });
-    encoded.push(state.simulation.earned_stars);
+    encoded.push(state.simulation.engine.earned_stars);
     encode_metrics(state.metrics, &mut encoded);
     encoded.extend_from_slice(&state.apex_progress.0.to_le_bytes());
     SoftwareSha256::hashv(&[HARNESS_PLANNER_STATE_DOMAIN, &encoded])
@@ -2691,7 +2693,7 @@ fn campaign_oracle_state_key(state: CampaignPlannerState) -> [u8; 32] {
     encoded.push(state.simulation.current_difficulty);
     // Brief 04 moves this byte into the engine. Keeping it here until then
     // makes today's search key equally complete across that transition.
-    encoded.push(state.simulation.earned_stars);
+    encoded.push(state.simulation.engine.earned_stars);
     encoded.extend_from_slice(&state.apex_progress.0.to_le_bytes());
     SoftwareSha256::hashv(&[HARNESS_ORACLE_STATE_DOMAIN, &encoded])
 }
@@ -3560,7 +3562,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"71ffdaf1b49604116d7ef60b3f7f7e90274dc9e480da7948251b6d29e4df8874\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"017118e5fc04c36d73cfa7e325f4050dd4c6d07b19ea39cf3daee864ade60a32\"}"
         );
     }
 
@@ -3717,7 +3719,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "c2e7641b3d7290de2a9472efabedea81ad1a8cd3547549fb73fa62849107d2dc"
+            "de403bc58c059d4f88633afd917c73b0d2c6a65b8b9632d6dfcb5e0e064d20ee"
         );
     }
 

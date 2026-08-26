@@ -1,10 +1,4 @@
-/**
- * Convert the on-chain star-threshold modifier into move-budget percentages.
- *
- * This mirrors `calculate_level_stars` in the deployed Solana program. A
- * modifier of 128 is neutral; larger values make the thresholds stricter and
- * smaller values make them more forgiving, in five-point increments.
- */
+/** Convert the authored modifier into the legacy move-budget display caps. */
 export function applyStarThresholdModifier(modifier: number): {
   star3Pct: number;
   star2Pct: number;
@@ -20,16 +14,4 @@ export function applyStarThresholdModifier(modifier: number): {
     : Math.min(99, 75 + change);
 
   return { star3Pct, star2Pct };
-}
-
-export function calculateLevelStars(args: {
-  movesUsed: number;
-  star3UsedCap: number;
-  star2UsedCap: number;
-  isIncomplete: boolean;
-}): number {
-  if (args.isIncomplete) return 0;
-  if (args.movesUsed <= args.star3UsedCap) return 3;
-  if (args.movesUsed <= args.star2UsedCap) return 2;
-  return 1;
 }

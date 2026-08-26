@@ -562,6 +562,8 @@ pub struct ActiveRun {
     pub arcade_metrics: ArcadeRunMetrics,
     pub primary_progress: u8,
     pub secondary_progress: u8,
+    /// Latched Campaign stars; Daily runs keep this byte at zero.
+    pub earned_stars: u8,
     pub level_lines_cleared: u16,
     pub total_lines_cleared: u16,
     pub bonus_uses: u16,
@@ -619,6 +621,7 @@ impl Default for ActiveRun {
             arcade_metrics: ArcadeRunMetrics::default(),
             primary_progress: 0,
             secondary_progress: 0,
+            earned_stars: 0,
             level_lines_cleared: 0,
             total_lines_cleared: 0,
             bonus_uses: 0,
@@ -830,7 +833,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 551);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 552);
     }
 
     #[test]

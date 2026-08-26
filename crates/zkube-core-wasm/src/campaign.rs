@@ -7,7 +7,7 @@ use zkube_core::{
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 187;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
 const CONFIG_VERSION: u8 = 2;
-const STATE_VERSION: u8 = 3;
+const STATE_VERSION: u8 = 4;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -114,6 +114,7 @@ pub fn encode_campaign_simulation_state(
         simulation.engine.max_combo,
         simulation.engine.primary_progress,
         simulation.engine.secondary_progress,
+        simulation.engine.earned_stars,
     ]);
     writer.write(&simulation.engine.level_lines_cleared.to_le_bytes());
     writer.write(&simulation.engine.moves.to_le_bytes());
@@ -123,7 +124,6 @@ pub fn encode_campaign_simulation_state(
     writer.write(simulation.engine.grid.cells());
     writer.write(&simulation.engine.next_row.unwrap_or([0; 8]));
     writer.write(&[simulation.end_reason.map_or(0, CampaignEndReason::tag)]);
-    writer.write(&[simulation.earned_stars]);
     encode_report(&mut writer, simulation.last_report);
     writer.finish()
 }
@@ -156,6 +156,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let max_combo = reader.u8()?;
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
+    let earned_stars = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
     let moves = reader.u16()?;
     let action_counter = reader.u32()?;
@@ -173,15 +174,17 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
         None
     };
     let end_reason = decode_end_reason(reader.u8()?)?;
-    let earned_stars = reader.u8()?;
     let last_report = decode_report(&mut reader)?;
     reader.finish()?;
     let terminal_valid = match end_reason {
-        None => phase == RunPhase::Playing && earned_stars == 0 && next_row.is_some(),
+        None => phase == RunPhase::Playing && earned_stars <= 2 && next_row.is_some(),
         Some(CampaignEndReason::Completed) => {
             phase == RunPhase::LevelComplete && (1..=3).contains(&earned_stars)
         }
-        Some(CampaignEndReason::Exhausted | CampaignEndReason::Abandoned) => {
+        Some(CampaignEndReason::Exhausted) => {
+            phase == RunPhase::Finished && earned_stars <= 2 && next_row.is_none()
+        }
+        Some(CampaignEndReason::Abandoned) => {
             phase == RunPhase::Finished && earned_stars == 0 && next_row.is_none()
         }
     };
@@ -204,6 +207,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             max_combo,
             primary_progress,
             secondary_progress,
+            earned_stars,
             level_lines_cleared,
             bonus,
             bonus_charges,
@@ -215,7 +219,6 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
         row_counter,
         current_difficulty,
         end_reason,
-        earned_stars,
         last_report,
     })
 }
@@ -284,7 +287,7 @@ pub fn campaign_simulation_abandon(config: &[u8], state: &[u8]) -> Result<Vec<u8
 ///
 /// Returns an encoding error for an invalid state.
 pub fn campaign_simulation_earned_stars(state: &[u8]) -> Result<u8, BoundaryError> {
-    Ok(decode_campaign_simulation_state(state)?.earned_stars)
+    Ok(decode_campaign_simulation_state(state)?.engine.earned_stars)
 }
 
 /// Zero means active; 1, 2, and 3 mean completed, exhausted, and abandoned.
@@ -575,6 +578,9 @@ mod tests {
         let state = CampaignSimulation::new(config).unwrap();
         let encoded_state = encode_campaign_simulation_state(state);
         assert_eq!(decode_campaign_simulation_state(&encoded_state), Ok(state));
+        let invariant = include_str!("../../../fixtures/protocol-invariants.json");
+        assert!(invariant.contains(&format!("\"version\": {STATE_VERSION}")));
+        assert!(invariant.contains(&format!("\"length\": {CAMPAIGN_SIMULATION_STATE_LEN}")));
     }
 
     #[test]

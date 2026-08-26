@@ -89,6 +89,7 @@ export function pendingCompletionFromRun(
     prevTotalScore: 0,
     totalScore: activeRun.score,
     gameLevel,
+    earnedStars: activeRun.earnedStars,
     isIncomplete,
   };
 }
@@ -497,6 +498,7 @@ export function usePlayController(options: PlayControllerOptions = {}) {
         levelMoves: settledReceipt.moves,
         prevTotalScore: 0,
         totalScore: settledReceipt.score,
+        earnedStars: settledReceipt.levelStars,
         gameLevel: rules
           ? rulesToGameLevelData(
               rules,

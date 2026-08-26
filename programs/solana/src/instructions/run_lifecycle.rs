@@ -16,9 +16,8 @@ use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 
 use crate::error::ErrorCode;
 use crate::game::{
-    calculate_level_stars, opening_from_vrf, reroll_row_from_vrf, row_from_vrf, sha256v,
-    BlockWeights, Bonus, Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules,
-    RunEngine, RunError, RunPhase,
+    opening_from_vrf, reroll_row_from_vrf, row_from_vrf, sha256v, BlockWeights, Bonus, Constraint,
+    ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
 };
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
@@ -892,6 +891,7 @@ pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
     // to AwaitingVrf, so a late oracle callback can no longer land.
     active.pending_vrf_counter = 0;
     active.lifecycle = RunLifecycle::Finished;
+    active.earned_stars = 0;
     if active.finished_at == 0 {
         active.finished_at = Clock::get()?.unix_timestamp;
     }
@@ -1080,16 +1080,7 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
         ErrorCode::GameNotFinished
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
-    let completed = active.lifecycle == RunLifecycle::LevelComplete;
-    let stars = if completed {
-        calculate_level_stars(
-            active.rules.max_moves,
-            active.moves,
-            active.rules.star_threshold_modifier,
-        )
-    } else {
-        0
-    };
+    let stars = active.earned_stars;
     let newly_earned_stars =
         ctx.accounts
             .player_state
@@ -1237,6 +1228,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         max_combo: active.max_combo,
         primary_progress: active.primary_progress,
         secondary_progress: active.secondary_progress,
+        earned_stars: active.earned_stars,
         level_lines_cleared: active.level_lines_cleared,
         bonus,
         bonus_charges: active.bonus_charges,
@@ -1256,6 +1248,7 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.max_combo = engine.max_combo;
     active.primary_progress = engine.primary_progress;
     active.secondary_progress = engine.secondary_progress;
+    active.earned_stars = engine.earned_stars;
     active.level_lines_cleared = engine.level_lines_cleared;
     active.bonus_type = match engine.bonus {
         None => 0,
@@ -1402,6 +1395,24 @@ mod tests {
             required_count: 0,
         })
         .is_err());
+    }
+
+    #[test]
+    fn core_earned_stars_round_trip_through_active_run() {
+        let engine = RunEngine {
+            phase: RunPhase::Playing,
+            earned_stars: 2,
+            ..RunEngine::default()
+        };
+        let mut active = ActiveRun {
+            lifecycle: RunLifecycle::Playing,
+            ..ActiveRun::default()
+        };
+
+        write_engine(&mut active, &engine);
+
+        assert_eq!(active.earned_stars, 2);
+        assert_eq!(engine_from_active(&active).unwrap().earned_stars, 2);
     }
 
     #[test]

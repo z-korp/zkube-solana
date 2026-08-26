@@ -24,6 +24,7 @@ export interface PendingLevelCompletion {
   prevTotalScore: number;
   totalScore: number;
   gameLevel: GameLevelData | null;
+  earnedStars: number;
   isIncomplete?: boolean;
 }
 

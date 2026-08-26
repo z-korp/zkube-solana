@@ -6111,6 +6111,13 @@ export type Solana = {
             "type": "u8"
           },
           {
+            "name": "earnedStars",
+            "docs": [
+              "Latched Campaign stars; Daily runs keep this byte at zero."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "levelLinesCleared",
             "type": "u16"
           },

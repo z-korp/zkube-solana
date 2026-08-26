@@ -1358,7 +1358,7 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
 }
 
 #[test]
-fn sbf_blocked_eleventh_row_finishes_timestamps_and_skips_vrf() {
+fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     let owner = Pubkey::new_unique();
     let run_id = 11u64;
     let (_, bump) = Pubkey::find_program_address(
@@ -1383,12 +1383,18 @@ fn sbf_blocked_eleventh_row_finishes_timestamps_and_skips_vrf() {
         map_id: 1,
         level: 1,
         rules: LevelRuleSnapshot {
-            points_required: u32::MAX,
+            points_required: 1,
             max_moves: 20,
+            primary: ConstraintSnapshot {
+                kind: 1,
+                value: 3,
+                required_count: 1,
+            },
             score_multiplier_x100: 100,
             combo_multiplier_x100: 100,
             ..LevelRuleSnapshot::default()
         },
+        score: 1,
         grid,
         next_row: [1, 0, 0, 0, 0, 0, 0, 0],
         has_next_row: true,
@@ -1409,11 +1415,51 @@ fn sbf_blocked_eleventh_row_finishes_timestamps_and_skips_vrf() {
     assert_eq!(active.finished_at, 345);
     assert_eq!(active.action_counter, 1);
     assert_eq!(active.moves, 1);
+    assert_eq!(active.earned_stars, 1);
     assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
     assert_eq!(active.blocks_destroyed_by_size, [0; 4]);
     assert!(!active.has_next_row);
     assert_eq!(active.vrf_request_counter, 7);
     assert_eq!(active.pending_vrf_counter, 0);
+
+    let (player, mut player_state) = player_fixture(owner);
+    player_state.campaign_active_run_id = run_id;
+    player_state.next_run_id = run_id + 1;
+    let (rent_recipient, _) =
+        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
+    let consume = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ConsumeCampaignRun {
+            active_run,
+            player_state: player,
+            owner,
+            rent_recipient,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ConsumeCampaignRun {}.data(),
+    };
+    let consumed = mollusk().process_instruction(
+        &consume,
+        &[
+            (active_run, resulting_account(&result, &active_run).clone()),
+            (
+                player,
+                program_account(&player_state, 8 + PlayerState::INIT_SPACE),
+            ),
+            (owner, system_account(0)),
+            (
+                rent_recipient,
+                system_account(PLAYER_FUNDING_TARGET_LAMPORTS),
+            ),
+        ],
+    );
+    assert!(
+        consumed.program_result.is_ok(),
+        "{:?}",
+        consumed.program_result
+    );
+    let player_after: PlayerState = decode(resulting_account(&consumed, &player));
+    assert_eq!(player_after.best_stars(1, 1).unwrap(), 1);
 }
 
 #[test]

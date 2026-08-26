@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
 import { getGuardianStarText, getZoneGuardian } from "@/config/bossCharacters";
@@ -6,7 +6,6 @@ import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { calculateLevelStars } from "@/game/level";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
@@ -19,6 +18,7 @@ interface LevelCompleteDialogProps {
   levelMoves: number;
   prevTotalScore: number;
   totalScore: number;
+  earnedStars: number;
   gameLevel: GameLevelData | null;
   zoneId?: number;
   colors?: ThemeColors;
@@ -33,6 +33,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   levelMoves,
   prevTotalScore,
   totalScore,
+  earnedStars,
   gameLevel,
   zoneId = 1,
   colors,
@@ -70,21 +71,8 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   }, [isOpen, playSfx, isIncomplete]);
 
   const maxMoves = gameLevel?.maxMoves ?? 0;
-  const star3UsedCap = gameLevel?.star3Threshold ?? 0;
-  const star2UsedCap = gameLevel?.star2Threshold ?? 0;
   const levelFinalScore = Math.max(0, totalScore - prevTotalScore);
-  const movesUsed = levelMoves;
-
-  const starsEarned = useMemo(
-    () =>
-      calculateLevelStars({
-        movesUsed,
-        star3UsedCap,
-        star2UsedCap,
-        isIncomplete,
-      }),
-    [movesUsed, star3UsedCap, star2UsedCap, isIncomplete],
-  );
+  const starsEarned = Math.max(0, Math.min(3, earnedStars));
 
   const guardianLine = isIncomplete
     ? guardian.incomplete
@@ -188,18 +176,18 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               className="mt-1 min-h-[2.6em] font-sans text-[14px] italic leading-relaxed text-white/85"
             />
 
-            {/* Stars + stats — only for complete */}
-            {!isIncomplete && (
-              <motion.div
-                className="mt-3 space-y-2"
-                initial={{ opacity: 0, y: 10 }}
-                animate={
-                  animationPhase >= 1
-                    ? { opacity: 1, y: 0 }
-                    : { opacity: 0, y: 10 }
-                }
-                transition={{ duration: 0.3 }}
-              >
+            {/* Stars and stats come from the terminal ActiveRun, including a
+                budget- or overflow-ended Campaign run. */}
+            <motion.div
+              className="mt-3 space-y-2"
+              initial={{ opacity: 0, y: 10 }}
+              animate={
+                animationPhase >= 1
+                  ? { opacity: 1, y: 0 }
+                  : { opacity: 0, y: 10 }
+              }
+              transition={{ duration: 0.3 }}
+            >
                 {/* Stars */}
                 <div className="flex justify-center gap-2">
                   {[1, 2, 3].map((star, index) => {
@@ -207,6 +195,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                     return (
                       <motion.span
                         key={star}
+                        aria-label={earned ? "Earned star" : "Unearned star"}
                         className={`text-2xl ${earned ? "text-yellow-300 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]" : "text-white/20"}`}
                         initial={{ scale: 0, rotate: -90 }}
                         animate={
@@ -250,8 +239,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                     <p className="font-sans text-[9px] text-white/40">Moves</p>
                   </div>
                 </motion.div>
-              </motion.div>
-            )}
+            </motion.div>
 
             {/* Button */}
             <motion.div

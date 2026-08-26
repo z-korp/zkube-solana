@@ -18,8 +18,8 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 282;
 /// grid, optional next row, nine metrics, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 314;
-const STATE_VERSION: u8 = 3;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 315;
+const STATE_VERSION: u8 = 4;
 
 /// Encode a typed configuration for the frontend WASM boundary.
 #[must_use]
@@ -95,6 +95,7 @@ pub fn encode_daily_simulation_state(
     writer.write(&[simulation.engine.max_combo]);
     writer.write(&[simulation.engine.primary_progress]);
     writer.write(&[simulation.engine.secondary_progress]);
+    writer.write(&[simulation.engine.earned_stars]);
     writer.write(&simulation.engine.level_lines_cleared.to_le_bytes());
     writer.write(&simulation.engine.moves.to_le_bytes());
     writer.write(&simulation.action_counter.to_le_bytes());
@@ -140,6 +141,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let max_combo = reader.u8()?;
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
+    let earned_stars = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
     let moves = reader.u16()?;
     let action_counter = reader.u32()?;
@@ -166,7 +168,8 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let rules_snapshot_hash = RulesHash(reader.array()?);
     reader.finish()?;
 
-    if current_difficulty > 7
+    if earned_stars != 0
+        || current_difficulty > 7
         || (deadline_finished && phase != RunPhase::Finished)
         || (phase == RunPhase::Playing && next_row.is_none())
         || (phase == RunPhase::AwaitingVrf && next_row.is_some() && reroll_available)
@@ -184,6 +187,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             max_combo,
             primary_progress,
             secondary_progress,
+            earned_stars,
             level_lines_cleared,
             bonus,
             bonus_charges,

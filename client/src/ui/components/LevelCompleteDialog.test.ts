@@ -2,7 +2,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { calculateLevelStars } from "@/game/level";
 import LevelCompleteDialog from "./LevelCompleteDialog";
 
 vi.mock("@/contexts/hooks", async () =>
@@ -13,45 +12,7 @@ vi.mock("@/contexts/hooks", async () =>
 // the classic JSX runtime while the production build uses the automatic one.
 Object.assign(globalThis, { React });
 
-describe("calculateLevelStars", () => {
-  it("uses the inclusive on-chain move thresholds", () => {
-    expect(
-      calculateLevelStars({
-        movesUsed: 8,
-        star3UsedCap: 8,
-        star2UsedCap: 12,
-        isIncomplete: false,
-      }),
-    ).toBe(3);
-    expect(
-      calculateLevelStars({
-        movesUsed: 12,
-        star3UsedCap: 8,
-        star2UsedCap: 12,
-        isIncomplete: false,
-      }),
-    ).toBe(2);
-    expect(
-      calculateLevelStars({
-        movesUsed: 13,
-        star3UsedCap: 8,
-        star2UsedCap: 12,
-        isIncomplete: false,
-      }),
-    ).toBe(1);
-  });
-
-  it("does not award stars to an incomplete run", () => {
-    expect(
-      calculateLevelStars({
-        movesUsed: 1,
-        star3UsedCap: 8,
-        star2UsedCap: 12,
-        isIncomplete: true,
-      }),
-    ).toBe(0);
-  });
-
+describe("LevelCompleteDialog", () => {
   it("shows Campaign score and stars without Arcade XP", () => {
     render(
       React.createElement(LevelCompleteDialog, {
@@ -61,6 +22,7 @@ describe("calculateLevelStars", () => {
         levelMoves: 8,
         prevTotalScore: 0,
         totalScore: 120,
+        earnedStars: 2,
         gameLevel: {
           gameId: 7n,
           level: 2,
@@ -81,6 +43,26 @@ describe("calculateLevelStars", () => {
     );
 
     expect(screen.getByText("+120")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Earned star")).toHaveLength(2);
     expect(screen.queryByText(/XP/)).toBeNull();
+  });
+
+  it("shows stars retained by an incomplete run", () => {
+    render(
+      React.createElement(LevelCompleteDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        level: 2,
+        levelMoves: 20,
+        prevTotalScore: 0,
+        totalScore: 120,
+        earnedStars: 1,
+        gameLevel: null,
+        isIncomplete: true,
+      }),
+    );
+
+    expect(screen.getAllByLabelText("Earned star")).toHaveLength(1);
+    expect(screen.getByText("Level Incomplete")).toBeInTheDocument();
   });
 });

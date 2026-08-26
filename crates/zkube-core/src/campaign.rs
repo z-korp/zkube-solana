@@ -1,8 +1,8 @@
 use crate::{
     BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
     RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
-    bonus_trigger_threshold_is_valid, calculate_level_stars, continuation_from_vrf,
-    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
+    bonus_trigger_threshold_is_valid, continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf,
+    row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -53,6 +53,7 @@ impl CampaignRules {
             && self.level.max_moves > 0
             && constraint_is_valid(self.level.primary)
             && constraint_is_valid(self.level.secondary)
+            && self.level.has_contiguous_star_sources()
             && self.mutator.score_multiplier_x100 > 0
             && self.mutator.combo_multiplier_x100 > 0
             && bonus_trigger_threshold_is_valid(
@@ -104,7 +105,6 @@ pub struct CampaignSimulation {
     pub row_counter: u32,
     pub current_difficulty: u8,
     pub end_reason: Option<CampaignEndReason>,
-    pub earned_stars: u8,
     pub last_report: MoveReport,
 }
 
@@ -168,7 +168,6 @@ impl CampaignSimulation {
             row_counter: 1,
             current_difficulty,
             end_reason: None,
-            earned_stars: 0,
             last_report: MoveReport::default(),
         })
     }
@@ -285,8 +284,8 @@ impl CampaignSimulation {
         let mut next = *self;
         next.engine.phase = RunPhase::Finished;
         next.engine.next_row = None;
+        next.engine.earned_stars = 0;
         next.end_reason = Some(CampaignEndReason::Abandoned);
-        next.earned_stars = 0;
         *self = next;
         Ok(())
     }
@@ -315,17 +314,11 @@ impl CampaignSimulation {
             RunPhase::AwaitingVrf => self.provide_next_row(config)?,
             RunPhase::LevelComplete => {
                 self.end_reason = Some(CampaignEndReason::Completed);
-                self.earned_stars = calculate_level_stars(
-                    config.rules.level.max_moves,
-                    self.engine.moves,
-                    config.rules.mutator.star_threshold_modifier,
-                );
             }
             RunPhase::Finished => {
                 self.engine.phase = RunPhase::Finished;
                 self.engine.next_row = None;
                 self.end_reason = Some(CampaignEndReason::Exhausted);
-                self.earned_stars = 0;
             }
             RunPhase::Playing => {}
             RunPhase::Ready => return Err(CampaignError::InvalidPhase),
@@ -546,6 +539,24 @@ mod tests {
             first.engine.grid,
             CampaignSimulation::new(changed).unwrap().engine.grid
         );
+    }
+
+    #[test]
+    fn campaign_rules_require_contiguous_star_sources() {
+        let mut rules = config().rules;
+        rules.level.secondary = Constraint {
+            kind: ConstraintKind::ComboLines,
+            value: 2,
+            required_count: 1,
+        };
+        assert!(!rules.is_valid());
+
+        rules.level.primary = Constraint {
+            kind: ConstraintKind::BreakBlocks,
+            value: 1,
+            required_count: 1,
+        };
+        assert!(rules.is_valid());
     }
 
     #[test]

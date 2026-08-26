@@ -99,6 +99,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /calculate_level_stars|calculateLevelStars|move[- ](?:efficiency|percent(?:age)?) stars/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Campaign stars latch from score, primary, and secondary constraints",
+  },
+  {
+    pattern:
       /Bonus::Reroll|BonusType\.Reroll|\bBonusShape\b|bonus_type\s*==\s*4|RealmPlusUniversalReroll/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

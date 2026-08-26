@@ -715,6 +715,7 @@ export default function PlayScreen() {
           levelMoves={controller.terminalSnapshot.activeRun.moves}
           prevTotalScore={0}
           totalScore={controller.terminalSnapshot.activeRun.score}
+          earnedStars={controller.terminalSnapshot.activeRun.earnedStars}
           gameLevel={controller.terminalSnapshot.gameLevel}
           zoneId={controller.terminalSnapshot.game.zoneId}
           colors={getThemeColors(themeTemplate as ThemeId)}

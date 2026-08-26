@@ -521,6 +521,28 @@ at least one star on the preceding zone's guardian, Level 10. Completed levels
 stay replayable and a level's best one-to-three-star result can only increase. A
 guardian emblem unlocks with its guardian and renders gold at 30/30 zone stars.
 
+Stars latch from the level's authored sources in order: reaching the score
+target earns one, satisfying the primary constraint earns two, and satisfying
+the secondary constraint earns three. One action may cross all three sources;
+`constraint_stars_latch_zero_to_three_on_one_action` and
+`constraint_stars_latch_in_order_across_actions` guard the ordering and the
+monotonic latch. An absent constraint earns nothing and the earnable maximum is
+contiguous; `absent_constraints_cap_and_complete_the_contiguous_star_sources`
+guards both cases. A secondary source without a primary is invalid in core,
+codegen, and catalog publication; `campaign_rules_require_contiguous_star_sources`,
+`codegen_rejects_a_secondary_without_a_primary`, and
+`campaign_publication_rejects_a_secondary_without_a_primary` guard those three
+boundaries.
+
+A level ends as complete when every authored star source has latched, or ends
+incomplete when its move budget or board is exhausted; already-latched stars
+are retained and recorded in either terminal state.
+`exhausted_runs_keep_one_or_two_latched_stars` and
+`sbf_blocked_eleventh_row_keeps_and_records_its_latched_star` guard the engine
+and program boundaries. Storing the latch costs one byte in `ActiveRun` and one
+byte in the Daily simulation codec; it replaces the deleted post-run star
+calculation rather than adding a second rule.
+
 Campaign uses the same engine and generated catalog as Arcade but a separate
 progression boundary: completing Campaign content may only improve the packed
 star array.

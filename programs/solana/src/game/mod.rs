@@ -4,10 +4,9 @@
 //! is adapted so SBF uses Solana's SHA-256 syscall with the canonical schedule.
 
 pub use zkube_core::{
-    calculate_level_stars, BlockWeights, Bonus, Constraint, ConstraintKind, EndlessRules, Grid,
-    GridError, LevelRules, MoveReport, MutatorRules, OpeningLayout, RandomnessError, Row,
-    RunEngine, RunError, RunPhase, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, MAX_OPENING_HEIGHT,
-    MIN_OPENING_HEIGHT,
+    BlockWeights, Bonus, Constraint, ConstraintKind, EndlessRules, Grid, GridError, LevelRules,
+    MoveReport, MutatorRules, OpeningLayout, RandomnessError, Row, RunEngine, RunError, RunPhase,
+    GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT,
 };
 
 use crate::state::arcade::SolanaSha256;

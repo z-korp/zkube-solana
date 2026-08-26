@@ -34,13 +34,6 @@
     { "name": "overflowing-size-three", "cells": [0, 0, 0, 0, 0, 0, 3, 3] },
     { "name": "unsupported-size", "cells": [5, 5, 5, 5, 5, 0, 0, 0] }
   ],
-  "starCases": [
-    { "maxMoves": 20, "movesUsed": 10, "modifier": 128, "stars": 3 },
-    { "maxMoves": 20, "movesUsed": 15, "modifier": 128, "stars": 2 },
-    { "maxMoves": 20, "movesUsed": 16, "modifier": 128, "stars": 1 },
-    { "maxMoves": 20, "movesUsed": 9, "modifier": 129, "stars": 3 },
-    { "maxMoves": 20, "movesUsed": 11, "modifier": 127, "stars": 3 }
-  ],
   "gridCases": [
     {
       "name": "atomic-swipe",
@@ -134,7 +127,8 @@
         "points": 1,
         "combo": 0,
         "primaryProgress": 0,
-        "bonusCharges": 0
+        "bonusCharges": 0,
+        "earnedStars": 1
       }
     },
     {
@@ -167,7 +161,8 @@
         "points": 7,
         "combo": 2,
         "primaryProgress": 1,
-        "bonusCharges": 1
+        "bonusCharges": 1,
+        "earnedStars": 0
       }
     }
   ],

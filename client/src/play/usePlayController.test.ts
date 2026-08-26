@@ -41,6 +41,7 @@ const activeRun = (): ActiveRunView => ({
   maxCombo: 4,
   primaryProgress: 3,
   secondaryProgress: 0,
+  earnedStars: 2,
   levelLinesCleared: 5,
   totalLinesCleared: 9,
   bonusUses: 1,
@@ -114,6 +115,7 @@ describe("play controller projections", () => {
       level: 3,
       levelMoves: 8,
       totalScore: 110,
+      earnedStars: 2,
       isIncomplete: false,
       gameLevel: {
         gameId: 5n,
