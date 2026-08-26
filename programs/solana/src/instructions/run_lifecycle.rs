@@ -723,7 +723,11 @@ fn record_action_accounting(
             score: u64::from(report.points_earned),
             lines: u32::from(report.lines_cleared),
             blocks_destroyed,
-            combo: u32::from(report.combo_counter),
+            combo: if report.combo_counter > combo_before {
+                u32::from(report.lines_cleared)
+            } else {
+                0
+            },
             combo_derived_score,
             perfect_clear: report.perfect_clear,
         })

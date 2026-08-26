@@ -6085,6 +6085,9 @@ export type Solana = {
           },
           {
             "name": "comboCounter",
+            "docs": [
+              "Saturating count of player moves that cleared at least two lines."
+            ],
             "type": "u8"
           },
           {
@@ -6120,7 +6123,7 @@ export type Solana = {
           {
             "name": "streak",
             "docs": [
-              "Consecutive qualifying player moves for the authored streak predicate."
+              "Consecutive player moves that each clear at least one line."
             ],
             "type": "u8"
           },

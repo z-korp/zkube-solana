@@ -159,7 +159,6 @@ impl Constraint {
         self,
         current: u8,
         report: &MoveReport,
-        streak: u8,
         charges_earned: u8,
         level_lines_cleared: u16,
     ) -> u8 {
@@ -228,7 +227,15 @@ impl Constraint {
             ConstraintKind::ComboOfExactly => {
                 completed(player_move && report.lines_cleared == self.value)
             }
-            ConstraintKind::Streak => streak.min(self.required_count),
+            ConstraintKind::Streak => {
+                if report.action_was_bonus {
+                    current
+                } else if report.lines_cleared >= self.value {
+                    current.saturating_add(1).min(self.required_count)
+                } else {
+                    0
+                }
+            }
             ConstraintKind::BreakInMove => {
                 if player_move {
                     destroyed(self.value).min(self.required_count)
@@ -311,7 +318,8 @@ pub struct MutatorRules {
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
-    /// 5=perfect clear, 6=all block sizes in one move, 7=combo-count boundary.
+    /// 5=perfect clear, 6=all block sizes in one move, 7=combo-count boundary,
+    /// 8=N+ blocks in one move, 9=N consecutive line-clearing moves.
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
 }
@@ -324,7 +332,7 @@ pub struct MutatorRules {
 pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
     match trigger_type {
         0 | 5 | 6 => threshold == 0,
-        1 | 2 | 4 | 7 => threshold > 0,
+        1 | 2 | 4 | 7 | 8 | 9 => threshold > 0,
         _ => false,
     }
 }
@@ -390,6 +398,7 @@ pub enum RunPhase {
 pub struct MoveReport {
     pub lines_cleared: u8,
     pub points_earned: u32,
+    /// Saturating count of player moves that cleared at least two lines.
     pub combo_counter: u8,
     pub height_before: u8,
     pub height_after: u8,
@@ -444,13 +453,14 @@ pub struct RunEngine {
     pub phase: RunPhase,
     pub score: u32,
     pub moves: u16,
+    /// Saturating count of player moves that cleared at least two lines.
     pub combo_counter: u8,
     pub max_combo: u8,
     pub primary_progress: u8,
     pub secondary_progress: u8,
     /// Latched one-to-three-star Campaign result. Daily rules keep this at zero.
     pub earned_stars: u8,
-    /// Consecutive qualifying player moves for the authored streak predicate.
+    /// Consecutive player moves that each clear at least one line.
     pub streak: u8,
     /// Guardian trigger events produced across the run, before inventory caps.
     pub charges_earned: u8,
@@ -728,22 +738,15 @@ impl RunEngine {
             self.perfect_trigger_available = true;
         }
         if needs_next_row {
-            let minimum_lines = if level.primary.kind == ConstraintKind::Streak {
-                level.primary.value
-            } else if level.secondary.kind == ConstraintKind::Streak {
-                level.secondary.value
-            } else {
-                1
-            };
-            self.streak = if lines >= minimum_lines {
+            self.streak = if lines >= 1 {
                 self.streak.saturating_add(1)
             } else {
                 0
             };
         }
         let combo_before = self.combo_counter;
-        if lines > 1 {
-            self.combo_counter = self.combo_counter.saturating_add(lines);
+        if needs_next_row && lines > 1 {
+            self.combo_counter = self.combo_counter.saturating_add(1);
             self.max_combo = self.max_combo.max(lines);
         }
         let perfect_clear = self.grid.is_empty();
@@ -806,12 +809,23 @@ impl RunEngine {
             {
                 1
             }
-            7 if mutator.bonus_threshold > 0
+            7 if needs_next_row
+                && mutator.bonus_threshold > 0
                 && u16::from(self.combo_counter) / mutator.bonus_threshold
                     > u16::from(combo_before) / mutator.bonus_threshold =>
             {
                 1
             }
+            8 if needs_next_row
+                && blocks_destroyed_by_size
+                    .into_iter()
+                    .map(u16::from)
+                    .sum::<u16>()
+                    >= mutator.bonus_threshold =>
+            {
+                1
+            }
+            9 if needs_next_row && u16::from(self.streak) == mutator.bonus_threshold => 1,
             _ => 0,
         };
         report.charges_earned = charges.min(u16::from(u8::MAX)) as u8;
@@ -823,14 +837,12 @@ impl RunEngine {
         self.primary_progress = level.primary.update(
             self.primary_progress,
             &report,
-            self.streak,
             self.charges_earned,
             self.level_lines_cleared,
         );
         self.secondary_progress = level.secondary.update(
             self.secondary_progress,
             &report,
-            self.streak,
             self.charges_earned,
             self.level_lines_cleared,
         );
@@ -894,14 +906,14 @@ mod tests {
 
     #[test]
     fn trigger_threshold_semantics_are_exhaustive() {
-        for trigger_type in 0..=8 {
+        for trigger_type in 0..=10 {
             assert_eq!(
                 bonus_trigger_threshold_is_valid(trigger_type, 0),
                 matches!(trigger_type, 0 | 5 | 6),
             );
             assert_eq!(
                 bonus_trigger_threshold_is_valid(trigger_type, 1),
-                matches!(trigger_type, 1 | 2 | 4 | 7),
+                matches!(trigger_type, 1 | 2 | 4 | 7 | 8 | 9),
             );
         }
     }
@@ -1469,24 +1481,101 @@ mod tests {
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
-            combo_counter: 7,
+            combo_counter: 2,
             ..RunEngine::default()
         };
         run.finish_action(
             ActionContext {
-                lines: 9,
+                lines: 4,
                 ..ActionContext::default()
             },
             level,
             MutatorRules {
                 bonus_trigger_type: 7,
-                bonus_threshold: 8,
+                bonus_threshold: 3,
+                ..MutatorRules::default()
+            },
+            true,
+        );
+        assert_eq!(run.combo_counter, 3);
+        assert_eq!(run.bonus_charges, 1);
+
+        run.finish_action_with_kind(
+            ActionContext {
+                lines: 4,
+                ..ActionContext::default()
+            },
+            level,
+            MutatorRules {
+                bonus_trigger_type: 7,
+                bonus_threshold: 3,
                 ..MutatorRules::default()
             },
             false,
+            true,
         );
-        assert_eq!(run.combo_counter, 16);
+        assert_eq!(run.combo_counter, 3, "bonus actions are not combos");
         assert_eq!(run.bonus_charges, 1);
+    }
+
+    #[test]
+    fn block_burst_trigger_sums_every_width_on_player_moves() {
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: 20,
+            ..LevelRules::default()
+        };
+        let rules = MutatorRules {
+            bonus_trigger_type: 8,
+            bonus_threshold: 6,
+            ..MutatorRules::default()
+        };
+        let context = ActionContext {
+            // Six blocks: two each of widths one, two, and three.
+            block_cells_before: [2, 4, 6, 0],
+            ..ActionContext::default()
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        run.finish_action(context, level, rules, true);
+        assert_eq!(run.bonus_charges, 1);
+
+        run.finish_action_with_kind(context, level, rules, false, true);
+        assert_eq!(run.bonus_charges, 1, "bonus actions cannot fire type 8");
+    }
+
+    #[test]
+    fn clearing_move_streak_trigger_fires_when_the_threshold_is_reached() {
+        let level = LevelRules {
+            points_required: u32::MAX,
+            max_moves: 20,
+            ..LevelRules::default()
+        };
+        let rules = MutatorRules {
+            bonus_trigger_type: 9,
+            bonus_threshold: 3,
+            ..MutatorRules::default()
+        };
+        let clearing_move = ActionContext {
+            lines: 1,
+            ..ActionContext::default()
+        };
+        let mut run = RunEngine {
+            phase: RunPhase::Playing,
+            streak: 2,
+            ..RunEngine::default()
+        };
+        run.finish_action(clearing_move, level, rules, true);
+        assert_eq!((run.streak, run.bonus_charges), (3, 1));
+        run.finish_action(clearing_move, level, rules, true);
+        assert_eq!((run.streak, run.bonus_charges), (4, 1));
+
+        run.finish_action(ActionContext::default(), level, rules, true);
+        assert_eq!(run.streak, 0);
+        run.finish_action_with_kind(clearing_move, level, rules, false, true);
+        assert_eq!(run.streak, 0, "bonus actions are streak-neutral");
     }
 
     #[test]
@@ -1575,13 +1664,13 @@ mod tests {
             action_was_bonus: true,
             ..player
         };
-        let progress = |kind, value, count, current, report, streak, charges, lines| {
+        let progress = |kind, value, count, current, report, _streak, charges, lines| {
             Constraint {
                 kind,
                 value,
                 required_count: count,
             }
-            .update(current, report, streak, charges, lines)
+            .update(current, report, charges, lines)
         };
 
         assert_eq!(progress(ConstraintKind::None, 0, 0, 2, &player, 0, 0, 0), 2);
@@ -1626,7 +1715,7 @@ mod tests {
             1
         );
         assert_eq!(
-            progress(ConstraintKind::Streak, 1, 5, 0, &player, 5, 0, 0),
+            progress(ConstraintKind::Streak, 1, 5, 4, &player, 0, 0, 0),
             5
         );
         assert_eq!(
@@ -1680,7 +1769,7 @@ mod tests {
     }
 
     #[test]
-    fn streak_tracks_only_player_moves_at_the_authored_minimum() {
+    fn streak_constraint_uses_its_minimum_while_trigger_streak_counts_clearing_moves() {
         let level = LevelRules {
             points_required: u32::MAX,
             max_moves: 10,
@@ -1730,7 +1819,7 @@ mod tests {
             MutatorRules::default(),
             true,
         );
-        assert_eq!((run.streak, run.secondary_progress), (0, 0));
+        assert_eq!((run.streak, run.secondary_progress), (2, 0));
     }
 
     #[test]

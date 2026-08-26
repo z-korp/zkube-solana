@@ -1296,7 +1296,7 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     assert_eq!(active.score, 10);
     assert_eq!(active.level_lines_cleared, 4);
     assert_eq!(active.total_lines_cleared, 4);
-    assert_eq!(active.combo_counter, 4);
+    assert_eq!(active.combo_counter, 1);
     assert_eq!(active.max_combo, 4);
 }
 

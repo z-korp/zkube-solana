@@ -121,6 +121,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "player-facing constraint copy calls the action a combo",
   },
   {
+    pattern: /never re-paired/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "guardian pairings are fixed by one Campaign/Arcade catalog publication",
+  },
+  {
     pattern:
       /Bonus::Reroll|BonusType\.Reroll|\bBonusShape\b|bonus_type\s*==\s*4|RealmPlusUniversalReroll/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],

@@ -14,9 +14,13 @@ describe("campaign bonus descriptions", () => {
     expect(buildTriggerDescription(5, 0, 1))
       .toBe("Perfect clear · max 1 charge between moves · Start with 1");
     expect(buildTriggerDescription(6, 0, 1))
-      .toBe("Destroy block sizes 1–4 in one move · Start with 1");
-    expect(buildTriggerDescription(7, 8, 1))
-      .toBe("Every 8 combo points · max 1 per action · Start with 1");
+      .toBe("Break every size in one move · Start with 1");
+    expect(buildTriggerDescription(7, 3, 1))
+      .toBe("Every 3 combos · Start with 1");
+    expect(buildTriggerDescription(8, 6, 1))
+      .toBe("Break 6+ blocks in one move · Start with 1");
+    expect(buildTriggerDescription(9, 3, 1))
+      .toBe("Clear a line 3 moves in a row · Start with 1");
   });
 
   it("includes starting charges even for zero-threshold triggers", () => {

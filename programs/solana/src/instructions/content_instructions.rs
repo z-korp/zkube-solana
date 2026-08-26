@@ -268,7 +268,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     require!(rules.combo_multiplier_x100 > 0, ErrorCode::InvalidLevel);
     require!((1..=3).contains(&rules.bonus_type), ErrorCode::InvalidLevel);
     require!(
-        matches!(rules.bonus_trigger_type, 1 | 2 | 4..=7),
+        matches!(rules.bonus_trigger_type, 1 | 2 | 4..=9),
         ErrorCode::InvalidLevel
     );
     require!(
@@ -286,7 +286,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     );
     match rules.bonus_trigger_type {
         1 | 4 => require!(rules.bonus_threshold <= 8, ErrorCode::InvalidLevel),
-        2 | 5 | 6 | 7 => {}
+        2 | 5 | 6 | 7 | 8 | 9 => {}
         _ => return err!(ErrorCode::InvalidLevel),
     }
     Ok(())
@@ -692,7 +692,7 @@ mod tests {
         })
         .is_err());
 
-        for trigger_type in 1..=7 {
+        for trigger_type in 1..=10 {
             for threshold in 0..=1 {
                 let snapshot = CampaignMapRuleSnapshot {
                     bonus_trigger_type: trigger_type,
@@ -701,7 +701,8 @@ mod tests {
                 };
                 assert_eq!(
                     validate_campaign_map_rules(&snapshot).is_ok(),
-                    zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold),
+                    matches!(trigger_type, 1 | 2 | 4..=9)
+                        && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold),
                 );
             }
         }

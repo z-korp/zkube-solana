@@ -100,7 +100,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description: "The serpent turns combo milestones into Totems.",
     icon: "🐍",
     effects: [
-      "every 8 combo points = +1 Totem",
+      "every 8 combos = +1 Totem",
       "max 1 per action",
       "start with 1",
     ],
@@ -391,7 +391,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description: "The serpent turns combo milestones into Totems.",
     icon: "🐍",
     effects: [
-      "every 8 combo points = +1 Totem",
+      "every 8 combos = +1 Totem",
       "max 1 per action",
       "start with 1",
     ],

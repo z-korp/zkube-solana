@@ -68,7 +68,7 @@ describe("Campaign content v2", () => {
     ]);
     for (const map of published) {
       const { bonusTriggerType, bonusThreshold } = map.mapRules;
-      const readsThreshold = [1, 2, 4, 7].includes(bonusTriggerType);
+      const readsThreshold = [1, 2, 4, 7, 8, 9].includes(bonusTriggerType);
       expect(bonusTriggerType).not.toBe(3);
       expect(bonusThreshold > 0).toBe(readsThreshold);
     }

@@ -114,7 +114,7 @@ impl DailyPoolEntry {
                 // Guardian bonuses are Hammer, Totem, and Wave. Reroll is a
                 // separate run action and cannot be published as a pairing.
                 && (1..=3).contains(&self.bonus_type)
-                && matches!(self.bonus_trigger_type, 1 | 2 | 4..=7)
+                && matches!(self.bonus_trigger_type, 1 | 2 | 4..=9)
                 && zkube_core::bonus_trigger_threshold_is_valid(
                     self.bonus_trigger_type,
                     self.bonus_threshold,
@@ -379,7 +379,7 @@ mod tests {
         assert!(entry.validate().is_err());
         entry.bonus_type = 3;
         entry.validate().unwrap();
-        entry.bonus_trigger_type = 8;
+        entry.bonus_trigger_type = 10;
         assert!(entry.validate().is_err());
         entry.bonus_trigger_type = 1;
         entry.validate().unwrap();
@@ -390,11 +390,11 @@ mod tests {
     #[test]
     fn daily_publication_agrees_with_core_trigger_threshold_semantics() {
         let mut entry = pool_entry(1, 1);
-        for trigger_type in 1..=8 {
+        for trigger_type in 1..=10 {
             for threshold in 0..=1 {
                 entry.bonus_trigger_type = trigger_type;
                 entry.bonus_threshold = threshold;
-                let expected = matches!(trigger_type, 1 | 2 | 4..=7)
+                let expected = matches!(trigger_type, 1 | 2 | 4..=9)
                     && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold);
                 assert_eq!(entry.validate().is_ok(), expected);
             }

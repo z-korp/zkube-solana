@@ -15,9 +15,13 @@ export function buildTriggerDescription(
   } else if (triggerType === 5) {
     parts.push("Perfect clear · max 1 charge between moves");
   } else if (triggerType === 6) {
-    parts.push("Destroy block sizes 1–4 in one move");
+    parts.push("Break every size in one move");
   } else if (triggerType === 7) {
-    parts.push(`Every ${triggerThreshold} combo points · max 1 per action`);
+    parts.push(`Every ${triggerThreshold} combos`);
+  } else if (triggerType === 8) {
+    parts.push(`Break ${triggerThreshold}+ blocks in one move`);
+  } else if (triggerType === 9) {
+    parts.push(`Clear a line ${triggerThreshold} moves in a row`);
   }
   if (startingCharges > 0) {
     parts.push(`Start with ${startingCharges}`);

@@ -553,6 +553,7 @@ pub struct ActiveRun {
     pub daily_pressure: DailyPressureProfile,
     pub action_counter: u32,
     pub moves: u16,
+    /// Saturating count of player moves that cleared at least two lines.
     pub combo_counter: u8,
     pub max_combo: u8,
     /// Canonical, full-width run metrics retained for deterministic scoring.
@@ -561,7 +562,7 @@ pub struct ActiveRun {
     pub secondary_progress: u8,
     /// Latched Campaign stars; Daily runs keep this byte at zero.
     pub earned_stars: u8,
-    /// Consecutive qualifying player moves for the authored streak predicate.
+    /// Consecutive player moves that each clear at least one line.
     pub streak: u8,
     /// Guardian trigger events produced across the run, before inventory caps.
     pub charges_earned: u8,

@@ -559,7 +559,11 @@ impl Counters {
                 score: u64::from(report.points_earned),
                 lines: u32::from(report.lines_cleared),
                 blocks_destroyed,
-                combo: u32::from(report.combo_counter),
+                combo: if report.combo_counter > combo_before {
+                    u32::from(report.lines_cleared)
+                } else {
+                    0
+                },
                 combo_derived_score: if report.combo_counter > combo_before {
                     u64::from(report.points_earned)
                 } else {
@@ -2273,7 +2277,11 @@ fn record_campaign_metrics(
             score: u64::from(report.points_earned),
             lines: u32::from(report.lines_cleared),
             blocks_destroyed,
-            combo: u32::from(report.combo_counter),
+            combo: if report.combo_counter > combo_before {
+                u32::from(report.lines_cleared)
+            } else {
+                0
+            },
             combo_derived_score: if report.combo_counter > combo_before {
                 u64::from(report.points_earned)
             } else {
@@ -3580,7 +3588,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"017118e5fc04c36d73cfa7e325f4050dd4c6d07b19ea39cf3daee864ade60a32\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":319,\"objectiveSum\":158,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":7,\"digestHex\":\"99d8b40b326130edf559329f2e7b7f848ffd95de4beedb71eada54ceadba9960\"}"
         );
     }
 
@@ -3737,7 +3745,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "77ba5121d70e0b88f26b7b55ba85fa11b9d8f742cce3831b8b7f615de46b2ac2"
+            "5dc5cb34b36a347cf3362e1ce1b6543510d4b8918ca92a1de6ca53838d176020"
         );
     }
 

@@ -2252,4 +2252,36 @@ mod tests {
         assert_eq!(prepared.starting_rows, crate::game::MAX_OPENING_HEIGHT);
         assert_ne!(prepared.starting_rows, realm.starting_rows);
     }
+
+    #[test]
+    fn daily_guardian_pairing_matches_campaign_publication() {
+        let harness = zkube_core::sim_harness::daily_catalog()[0];
+        let entry = program_pool_entry(harness);
+        let realm = CampaignMapRuleSnapshot {
+            active_mutator_id: entry.active_mutator_id,
+            bonus_type: entry.bonus_type,
+            bonus_trigger_type: entry.bonus_trigger_type,
+            bonus_threshold: entry.bonus_threshold,
+            starting_charges: entry.starting_charges,
+            ..CampaignMapRuleSnapshot::default()
+        };
+        validate_daily_pool_entry(entry, &realm).unwrap();
+
+        let mut drifted = entry;
+        drifted.active_mutator_id = drifted.active_mutator_id.saturating_add(1);
+        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
+        drifted = entry;
+        drifted.bonus_type = if drifted.bonus_type == 1 { 2 } else { 1 };
+        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
+        drifted = entry;
+        drifted.bonus_trigger_type = if drifted.bonus_trigger_type == 1 {
+            2
+        } else {
+            1
+        };
+        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
+        drifted = entry;
+        drifted.bonus_threshold = drifted.bonus_threshold.saturating_add(1);
+        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
+    }
 }

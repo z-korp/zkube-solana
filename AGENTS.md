@@ -153,12 +153,12 @@ ladder tier boundaries, and the flat qualifying credit.
   faces the same thresholds, score ramp, block weights, and move limit. The
   catalog stores that profile once, and `published_pool_draws_a_complete_reproducible_cycle`
   verifies that every selected entry receives it.
-- **A guardian's active mutator is permanent and is never re-paired.** The
-  mutators are named for their guardians and a realm's Arcade appearance must
-  match its Campaign zone, or the practice bridge breaks and a completed star
-  record is invalidated by rules that moved underneath it. Variety comes from
-  new entries and retuned global pressure, never from reassigning a guardian's
-  ability.
+- **A guardian's active mutator is fixed at catalog publication and identical
+  in Campaign and Arcade.** The mutators are named for their guardians, and the
+  two modes are republished together before launch so the practice bridge and
+  completed star records cannot drift between rule sets.
+  `daily_guardian_pairing_matches_campaign_publication` guards the program
+  boundary.
 - **Daily has no passive pairing.** A Daily inherits its realm's active mutator
   and guardian bonus, then uses the neutral passive scoring baseline: no passive
   mutator, 1x score and combo multipliers, and no passive line-clear or
@@ -166,11 +166,12 @@ ladder tier boundaries, and the flat qualifying credit.
   entries and preparation must never carry a passive map identity;
   `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
-  exact-line, and combo-count triggers carry a positive threshold. Perfect-clear
-  and all-block-sizes triggers carry zero because their conditions are complete
-  without an authored number. `bonus_trigger_threshold_is_valid` is the shared
-  core/program constraint, and the Campaign catalog parity test binds the client
-  publication to the core-validated fixture. Type 3 is unsupported;
+  exact-line, combo-count, block-burst, and clearing-move-streak triggers carry a
+  positive threshold. Perfect-clear and all-block-sizes triggers carry zero
+  because their conditions are complete without an authored number.
+  `bonus_trigger_threshold_is_valid` is the shared core/program constraint, and
+  the Campaign catalog parity test binds the client publication to the
+  core-validated fixture. Type 3 is unsupported;
   `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
