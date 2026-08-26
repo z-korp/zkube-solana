@@ -18,17 +18,11 @@
  */
 import { useMemo } from "react";
 
-import { Constraint, ConstraintType } from "@/game/constraint";
+import { ConstraintType } from "@/game/constraint";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
-import {
-  constraintColour,
-  constraintIcon,
-  constraintProgressOf,
-  progressBadge,
-  valueBadge,
-} from "./constraintDisplay";
+import { constraintProgressOf, constraintStatus } from "./constraintDisplay";
 import { boardTier } from "./boardTier";
 import { guardianFrame, type GuardianMood } from "./useGuardianMood";
 
@@ -91,13 +85,15 @@ export default function BoardHud({
     currentDifficulty,
     pressureScore,
   );
-  const shownScore = useLerpNumber(score, { duration: 300, integer: true }) ?? 0;
+  const shownScore =
+    useLerpNumber(score, { duration: 300, integer: true }) ?? 0;
   const shownTheme =
     useLerpNumber(themeScore, { duration: 300, integer: true }) ?? 0;
 
   const constraints = useMemo(() => {
     if (!gameLevel) return [];
     const out: {
+      slot: "Shape" | "Blow";
       type: ConstraintType;
       value: number;
       count: number;
@@ -105,6 +101,7 @@ export default function BoardHud({
     }[] = [];
     if (gameLevel.constraintType !== ConstraintType.None) {
       out.push({
+        slot: "Shape",
         type: gameLevel.constraintType,
         value: gameLevel.constraintValue,
         count: gameLevel.constraintCount,
@@ -116,6 +113,7 @@ export default function BoardHud({
       gameLevel.constraint2Type !== ConstraintType.None
     ) {
       out.push({
+        slot: "Blow",
         type: gameLevel.constraint2Type,
         value: gameLevel.constraint2Value,
         count: gameLevel.constraint2Count,
@@ -212,33 +210,63 @@ export default function BoardHud({
           </span>
         </div>
       ) : (
-        constraints.map((constraint, index) => (
-          <div
-            key={index}
-            className="absolute"
-            style={{ left: 296, top: index === 0 ? 48 : 118 }}
-            title={Constraint.fromContractValues(
-              constraint.type,
-              constraint.value,
-              constraint.count,
-            ).getDescription()}
-          >
-            <ProgressRing
-              progress={constraintProgressOf(
-                constraint.progress,
-                constraint.count,
+        constraints.map((constraint, index) => {
+          const status = constraintStatus(
+            constraint.type,
+            constraint.value,
+            constraint.count,
+            constraint.progress,
+          );
+          return (
+            <div
+              key={constraint.slot}
+              className="absolute flex flex-col justify-center rounded-lg px-2"
+              style={{
+                ...SEAT,
+                left: 296,
+                top: index === 0 ? 45 : 116,
+                width: 126,
+                height: 65,
+              }}
+              aria-label={`${constraint.slot}: ${status.description}`}
+            >
+              <span className="text-[7.5px] font-black uppercase tracking-[0.16em] text-cyan-300/70">
+                {constraint.slot}
+              </span>
+              <span className="mt-0.5 line-clamp-2 text-[9px] font-bold leading-[1.15] text-white/80">
+                {status.description}
+              </span>
+              {status.class === "cumulative" ? (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <div
+                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/70"
+                    role="progressbar"
+                    aria-label={`${constraint.slot} progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={status.required}
+                    aria-valuenow={status.progress}
+                  >
+                    <div
+                      className={`h-full rounded-full ${status.complete ? "bg-emerald-400" : "bg-cyan-400"}`}
+                      style={{
+                        width: `${constraintProgressOf(status.progress, status.required) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[8px] font-black tabular-nums text-white/65">
+                    {status.progress}/{status.required}
+                  </span>
+                </div>
+              ) : (
+                <span
+                  className={`mt-1 text-[8px] font-black uppercase tracking-[0.08em] ${status.complete ? "text-emerald-300" : "text-amber-300"}`}
+                >
+                  {status.complete ? "✓ Landed" : "◇ Waiting for one move"}
+                </span>
               )}
-              size={56}
-              color={constraintColour(constraint.progress, constraint.count)}
-              icon={constraintIcon(constraint.type)}
-              badgeBottomLeft={valueBadge(constraint.type, constraint.value)}
-              badgeBottomRight={progressBadge(
-                constraint.progress,
-                constraint.count,
-              )}
-            />
-          </div>
-        ))
+            </div>
+          );
+        })
       )}
 
       {/* THE CHIN — the only self-lit thing on the screen, because it is the

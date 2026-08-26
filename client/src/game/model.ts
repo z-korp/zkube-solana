@@ -57,6 +57,12 @@ export class Game {
     return firstOccupiedRow < 0 ? 0 : this.blocks.length - firstOccupiedRow;
   }
 
+  /** Cells that a Totem targeting this block width would remove. */
+  public countCellsOfSize(size: number): number {
+    if (size < 1 || size > 4) return 0;
+    return this.blocks.flat().filter((cell) => cell === size).length;
+  }
+
   public get constraintProgress(): number {
     return this.view.primaryProgress;
   }

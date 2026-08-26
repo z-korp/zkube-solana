@@ -4,7 +4,42 @@
  * wherever a constraint appears.
  */
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
-import { ConstraintType } from "@/game/constraint";
+import {
+  Constraint,
+  ConstraintType,
+  constraintClass,
+  type ConstraintClass,
+} from "@/game/constraint";
+
+export interface ConstraintStatus {
+  class: ConstraintClass;
+  complete: boolean;
+  description: string;
+  progress: number;
+  required: number;
+}
+
+export function constraintStatus(
+  type: ConstraintType | number,
+  value: number,
+  requiredCount: number,
+  progress: number,
+): ConstraintStatus {
+  const constraintType = type as ConstraintType;
+  const required = Math.max(1, requiredCount);
+  const shownProgress = Math.max(0, Math.min(progress, required));
+  return {
+    class: constraintClass(constraintType) ?? "cumulative",
+    complete: shownProgress >= required,
+    description: Constraint.fromContractValues(
+      constraintType,
+      value,
+      requiredCount,
+    ).getDescription(),
+    progress: shownProgress,
+    required,
+  };
+}
 
 export function constraintIcon(type: ConstraintType) {
   const src = CONSTRAINT_ICON_MAP[type];

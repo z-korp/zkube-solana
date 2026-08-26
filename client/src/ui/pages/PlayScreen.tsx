@@ -67,6 +67,7 @@ export default function PlayScreen() {
   const { setMusicMood, playSfx } = useMusicPlayer();
   const images = ImageAssets(themeTemplate);
   const [activeBonus, setActiveBonus] = useState(BonusType.None);
+  const [totemTargetWidth, setTotemTargetWidth] = useState<number | null>(null);
   const [recoveringRun, setRecoveringRun] = useState(false);
   const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1_000));
   // HUD hold: the chain confirms a move while its cascade is still animating.
@@ -138,7 +139,12 @@ export default function PlayScreen() {
 
   useEffect(() => {
     setActiveBonus(BonusType.None);
+    setTotemTargetWidth(null);
   }, [activeRun?.bonusCharges, activeRun?.bonusType, activeRun?.runId]);
+
+  useEffect(() => {
+    if (activeBonus !== BonusType.Totem) setTotemTargetWidth(null);
+  }, [activeBonus]);
 
   const bonusDescription =
     activeBonus !== BonusType.None && activeRun
@@ -214,6 +220,16 @@ export default function PlayScreen() {
                 threshold: activeRun.rules.bonusThreshold,
               }
             : undefined,
+        totemTarget:
+          type === BonusType.Totem &&
+          activeBonus === BonusType.Totem &&
+          totemTargetWidth !== null
+            ? {
+                width: totemTargetWidth,
+                cells:
+                  (held?.game ?? game)?.countCellsOfSize(totemTargetWidth) ?? 0,
+              }
+            : undefined,
         startingCharges: activeRun.rules.startingCharges,
         onClick: () => {
           if (activeRun.bonusCharges <= 0) return;
@@ -238,7 +254,7 @@ export default function PlayScreen() {
       },
     });
     return slots;
-  }, [activeRun, held, onRunReroll]);
+  }, [activeBonus, activeRun, game, held, onRunReroll, totemTargetWidth]);
 
   // New run/level snapshot changes identity: never carry a hold across runs.
   const gameId = game?.id;
@@ -304,6 +320,7 @@ export default function PlayScreen() {
     }
     onCascadeCompleteFromController();
     setHeld(null);
+    setTotemTargetWidth(null);
     if (pendingBonusEarnRef.current) {
       pendingBonusEarnRef.current = false;
       setBonusEarnSignal((value) => value + 1);
@@ -774,6 +791,7 @@ export default function PlayScreen() {
             onClearAt={(point) => {
               clearPointRef.current = point;
             }}
+            onBonusTarget={setTotemTargetWidth}
             forceTxProcessing={locked}
             outcomeAnimation={outcomeAnimation}
             onMove={handleMove}

@@ -3,17 +3,14 @@ import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
-import type {
-  ActiveRunConstraintView,
-  ActiveRunView,
-} from "@/chain/runPlan";
+import type { ActiveRunConstraintView, ActiveRunView } from "@/chain/runPlan";
 import {
   HUD_BAR,
   HudBarSvg,
   circleToPercent,
   rectToPercent,
 } from "@/ui/components/chrome";
-import { constraintDescription } from "@/ui/components/hud/runDisplay";
+import { constraintStatus } from "@/ui/components/hud/constraintDisplay";
 
 export default function SpectatorHud({
   run,
@@ -32,18 +29,14 @@ export default function SpectatorHud({
   );
   const constraints = [
     {
+      slot: "Shape" as const,
       rule: run.rules.primary,
-      progress:
-        run.rules.primary.kind === 3
-          ? Math.min(run.comboCounter, run.rules.primary.value)
-          : run.primaryProgress,
+      progress: run.primaryProgress,
     },
     {
+      slot: "Blow" as const,
       rule: run.rules.secondary,
-      progress:
-        run.rules.secondary.kind === 3
-          ? Math.min(run.comboCounter, run.rules.secondary.value)
-          : run.secondaryProgress,
+      progress: run.secondaryProgress,
     },
   ].filter(({ rule }) => rule.kind !== 0);
 
@@ -108,9 +101,10 @@ export default function SpectatorHud({
           <Flame className="h-3 w-3" /> {run.comboCounter}
         </motion.div>
 
-        {constraints.map(({ rule, progress }, index) => (
+        {constraints.map(({ slot, rule, progress }, index) => (
           <ConstraintBadge
             key={`${rule.kind}-${index}`}
+            slot={slot}
             rule={rule}
             progress={progress}
             side={index === 0 ? "left" : "right"}
@@ -130,20 +124,26 @@ export default function SpectatorHud({
 }
 
 function ConstraintBadge({
+  slot,
   rule,
   progress,
   side,
 }: {
+  slot: "Shape" | "Blow";
   rule: ActiveRunConstraintView;
   progress: number;
   side: "left" | "right";
 }) {
-  const required = rule.requiredCount;
-  const complete = progress >= required;
+  const status = constraintStatus(
+    rule.kind,
+    rule.value,
+    rule.requiredCount,
+    progress,
+  );
   return (
     <div
-      className={`absolute top-[69%] flex items-center gap-1.5 rounded-full border px-2 py-1 text-[clamp(7px,1.8vw,10px)] font-bold backdrop-blur ${
-        complete
+      className={`absolute top-[67%] flex w-[30%] flex-col rounded-lg border px-2 py-1 text-[clamp(6px,1.5vw,9px)] font-bold backdrop-blur ${
+        status.complete
           ? "border-emerald-300/50 bg-emerald-950/80 text-emerald-200"
           : "border-cyan-300/30 bg-slate-950/80 text-cyan-100"
       } ${
@@ -151,20 +151,42 @@ function ConstraintBadge({
           ? "left-[22%] -translate-x-1/2"
           : "right-[22%] translate-x-1/2"
       }`}
-      title={constraintDescription(rule)}
+      aria-label={`${slot}: ${status.description}`}
     >
-      <span>{constraintIcon(rule.kind)}</span>
-      <span>
-        {progress}/{required}
+      <span className="text-[0.8em] font-black uppercase tracking-[0.14em] text-cyan-300/70">
+        {slot}
       </span>
+      <span className="truncate" title={status.description}>
+        {status.description}
+      </span>
+      {status.class === "cumulative" ? (
+        <span className="mt-0.5 flex items-center gap-1">
+          <span
+            className="h-1 flex-1 overflow-hidden rounded-full bg-black/60"
+            role="progressbar"
+            aria-label={`${slot} progress`}
+            aria-valuemin={0}
+            aria-valuemax={status.required}
+            aria-valuenow={status.progress}
+          >
+            <span
+              className={`block h-full ${status.complete ? "bg-emerald-300" : "bg-cyan-300"}`}
+              style={{
+                width: `${(status.progress / status.required) * 100}%`,
+              }}
+            />
+          </span>
+          <span className="tabular-nums">
+            {status.progress}/{status.required}
+          </span>
+        </span>
+      ) : (
+        <span
+          className={status.complete ? "text-emerald-300" : "text-amber-300"}
+        >
+          {status.complete ? "✓ Landed" : "◇ Waiting"}
+        </span>
+      )}
     </div>
   );
-}
-
-function constraintIcon(kind: number) {
-  return kind === 1
-    ? "▰"
-    : kind === 2
-      ? "◆"
-      : <Flame className="h-3 w-3" />;
 }

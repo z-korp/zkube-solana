@@ -23,6 +23,7 @@ interface GameBoardProps {
   onCascadeComplete?: () => void;
   onPerfectClear?: () => void;
   onClearAt?: (point: { x: number; y: number }) => void;
+  onBonusTarget?: (width: number | null) => void;
   /**
    * The board's outer frame width in px, reported whenever it changes.
    *
@@ -47,6 +48,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   onCascadeComplete,
   onPerfectClear,
   onClearAt,
+  onBonusTarget,
   onFrameWidth,
   forceTxProcessing = false,
   outcomeAnimation = null,
@@ -198,6 +200,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           onCascadeComplete={onCascadeComplete}
           onPerfectClear={onPerfectClear}
           onClearAt={onClearAt}
+          onBonusTarget={onBonusTarget}
           onNextLineUpdate={handleNextLineUpdate}
           onMove={handleMove}
           onBonus={handleBonus}
@@ -229,7 +232,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
         </div>
         <div>
           <NextLine
-            nextLineData={nextLineHasBeenConsumed ? [] : memoizedDisplayNextLine}
+            nextLineData={
+              nextLineHasBeenConsumed ? [] : memoizedDisplayNextLine
+            }
             gridSize={gridSize}
             gridHeight={1}
             gridWidth={COLS}

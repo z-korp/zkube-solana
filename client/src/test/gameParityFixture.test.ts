@@ -7,6 +7,8 @@ import {
   canonicalCampaignMap,
 } from "@/chain/campaignCatalog";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
+import { Game } from "@/game/model";
+import { makeActiveRun } from "@/test/fixtures/activeRun";
 
 describe("shared game parity fixtures", () => {
   it("renders every coherent Rust/Cairo row as the same block entities", () => {
@@ -29,6 +31,16 @@ describe("shared game parity fixtures", () => {
         expect(reconstructed, fixture.name).toEqual(expected.cells);
       }
     }
+  });
+
+  it("counts the authoritative cells a Totem width would remove", () => {
+    const grid = Array.from({ length: 80 }, () => 0);
+    grid.splice(0, 8, 2, 2, 1, 0, 0, 2, 2, 0);
+    const game = new Game(makeActiveRun({ grid }));
+
+    expect(game.countCellsOfSize(2)).toBe(4);
+    expect(game.countCellsOfSize(1)).toBe(1);
+    expect(game.countCellsOfSize(5)).toBe(0);
   });
 
   it("keeps each map snapshot in sync with the authored catalog", () => {

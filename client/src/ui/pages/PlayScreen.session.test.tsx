@@ -14,6 +14,7 @@ import PlayScreen from "./PlayScreen";
 
 const fixtures = vi.hoisted(() => ({
   lifecycle: "playing",
+  bonusType: 1,
   phase: "delegated",
   gameAvailable: true,
   error: null as string | null,
@@ -64,7 +65,7 @@ vi.mock("@/play/usePlayController", () => ({
       mapId: 1,
       level: 1,
       lifecycle: fixtures.lifecycle,
-      bonusType: 1,
+      bonusType: fixtures.bonusType,
       bonusCharges: 3,
       rerollCharges: 1,
       rules: {
@@ -105,6 +106,7 @@ vi.mock("@/play/usePlayController", () => ({
             constraint2Progress: 0,
             currentDifficulty: 1,
             zoneId: 1,
+            countCellsOfSize: (size: number) => (size === 2 ? 6 : 0),
           }
         : null,
       gameLevel: fixtures.gameAvailable
@@ -179,6 +181,10 @@ vi.mock("@/ui/components/LevelCompleteDialog", () => ({
 
 beforeAll(() => {
   vi.stubGlobal("React", React);
+});
+
+beforeEach(() => {
+  fixtures.bonusType = 1;
 });
 
 afterAll(() => {
@@ -270,6 +276,31 @@ describe("PlayScreen bonus receipt feedback", () => {
       { name: "Hammer", charges: 3 },
       { name: "Reroll", charges: 1 },
     ]);
+  });
+
+  it("shows the Totem target's authoritative width count on the rail", () => {
+    fixtures.bonusType = 2;
+    render(<PlayScreen />);
+    const guardian = (
+      fixtures.actionBarProps?.bonusSlots as Array<{
+        onClick: () => void;
+        totemTarget?: { width: number; cells: number };
+      }>
+    )[0];
+
+    act(() => guardian.onClick());
+    act(() => {
+      (
+        fixtures.gameBoardProps?.onBonusTarget as (width: number | null) => void
+      )(2);
+    });
+
+    const targeted = (
+      fixtures.actionBarProps?.bonusSlots as Array<{
+        totemTarget?: { width: number; cells: number };
+      }>
+    )[0];
+    expect(targeted.totemTarget).toEqual({ width: 2, cells: 6 });
   });
 
   it("deduplicates the same action receipt across both timing paths", () => {

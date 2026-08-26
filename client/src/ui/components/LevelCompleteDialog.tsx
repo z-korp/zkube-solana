@@ -8,6 +8,7 @@ import type { ThemeColors } from "@/config/themes";
 import { useMusicPlayer } from "@/contexts/hooks";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import { Constraint, ConstraintType } from "@/game/constraint";
 
 interface LevelCompleteDialogProps {
   isOpen: boolean;
@@ -30,7 +31,6 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   onClose,
   continueDisabled = false,
   level,
-  levelMoves,
   prevTotalScore,
   totalScore,
   earnedStars,
@@ -70,9 +70,43 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
     };
   }, [isOpen, playSfx, isIncomplete]);
 
-  const maxMoves = gameLevel?.maxMoves ?? 0;
   const levelFinalScore = Math.max(0, totalScore - prevTotalScore);
   const starsEarned = Math.max(0, Math.min(3, earnedStars));
+  const constraintCopy = (
+    type: ConstraintType | undefined,
+    value: number | undefined,
+    count: number | undefined,
+  ) => {
+    if (type === undefined || value === undefined || count === undefined) {
+      return "Rule unavailable";
+    }
+    if (type === ConstraintType.None) return "Not available on this level";
+    return Constraint.fromContractValues(type, value, count).getDescription();
+  };
+  const starSources = [
+    {
+      label: "Score",
+      description: gameLevel
+        ? `Reach ${gameLevel.pointsRequired.toLocaleString()} points`
+        : "Score target unavailable",
+    },
+    {
+      label: "Shape",
+      description: constraintCopy(
+        gameLevel?.constraintType,
+        gameLevel?.constraintValue,
+        gameLevel?.constraintCount,
+      ),
+    },
+    {
+      label: "Blow",
+      description: constraintCopy(
+        gameLevel?.constraint2Type,
+        gameLevel?.constraint2Value,
+        gameLevel?.constraint2Count,
+      ),
+    },
+  ];
 
   const guardianLine = isIncomplete
     ? guardian.incomplete
@@ -188,57 +222,66 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               }
               transition={{ duration: 0.3 }}
             >
-                {/* Stars */}
-                <div className="flex justify-center gap-2">
-                  {[1, 2, 3].map((star, index) => {
-                    const earned = star <= starsEarned;
-                    return (
-                      <motion.span
-                        key={star}
-                        aria-label={earned ? "Earned star" : "Unearned star"}
-                        className={`text-2xl ${earned ? "text-yellow-300 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]" : "text-white/20"}`}
-                        initial={{ scale: 0, rotate: -90 }}
-                        animate={
-                          animationPhase >= 1
-                            ? { scale: 1, rotate: 0 }
-                            : { scale: 0, rotate: -90 }
-                        }
-                        transition={{
-                          delay: index * 0.12,
-                          type: "spring",
-                          stiffness: 250,
-                          damping: 16,
-                        }}
-                      >
-                        ★
-                      </motion.span>
-                    );
-                  })}
-                </div>
+              {/* Stars */}
+              <div className="flex justify-center gap-2">
+                {[1, 2, 3].map((star, index) => {
+                  const earned = star <= starsEarned;
+                  return (
+                    <motion.span
+                      key={star}
+                      aria-label={earned ? "Earned star" : "Unearned star"}
+                      className={`text-2xl ${earned ? "text-yellow-300 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]" : "text-white/20"}`}
+                      initial={{ scale: 0, rotate: -90 }}
+                      animate={
+                        animationPhase >= 1
+                          ? { scale: 1, rotate: 0 }
+                          : { scale: 0, rotate: -90 }
+                      }
+                      transition={{
+                        delay: index * 0.12,
+                        type: "spring",
+                        stiffness: 250,
+                        damping: 16,
+                      }}
+                    >
+                      ★
+                    </motion.span>
+                  );
+                })}
+              </div>
 
-                {/* Campaign score and completion only. Arcade progression is
-                    deliberately absent from this surface. */}
-                <motion.div
-                  className="flex gap-2"
-                  initial={{ opacity: 0 }}
-                  animate={
-                    animationPhase >= 2 ? { opacity: 1 } : { opacity: 0 }
-                  }
-                  transition={{ duration: 0.3 }}
-                >
-                  <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
-                    <p className="font-sans text-sm font-bold text-emerald-300">
-                      +{levelFinalScore}
-                    </p>
-                    <p className="font-sans text-[9px] text-white/40">Score</p>
-                  </div>
-                  <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
-                    <p className="font-sans text-sm font-bold text-white">
-                      {levelMoves}/{maxMoves}
-                    </p>
-                    <p className="font-sans text-[9px] text-white/40">Moves</p>
-                  </div>
-                </motion.div>
+              {/* Each star names its real source. The authoritative earned
+                    count is contiguous, so source N is earned exactly when
+                    the terminal run reports at least N stars. */}
+              <motion.div
+                className="grid grid-cols-3 gap-1.5"
+                initial={{ opacity: 0 }}
+                animate={animationPhase >= 2 ? { opacity: 1 } : { opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                {starSources.map((source, index) => {
+                  const earned = starsEarned > index;
+                  return (
+                    <div
+                      key={source.label}
+                      className="rounded-xl bg-white/[0.05] px-2 py-2 text-center"
+                    >
+                      <p
+                        className={`font-sans text-[10px] font-black uppercase tracking-[0.08em] ${earned ? "text-emerald-300" : "text-white/40"}`}
+                      >
+                        {earned ? "✓ " : "◇ "}
+                        {source.label}
+                      </p>
+                      <p className="mt-1 font-sans text-[8px] leading-tight text-white/55">
+                        {source.description}
+                      </p>
+                    </div>
+                  );
+                })}
+              </motion.div>
+              <p className="text-center font-sans text-[9px] text-white/35">
+                +{levelFinalScore} points
+              </p>
             </motion.div>
 
             {/* Button */}

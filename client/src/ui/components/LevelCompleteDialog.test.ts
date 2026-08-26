@@ -29,19 +29,25 @@ describe("LevelCompleteDialog", () => {
           pointsRequired: 100,
           maxMoves: 20,
           difficulty: 1,
-          constraintType: 0,
+          constraintType: 3,
           constraintValue: 0,
-          constraintCount: 0,
-          constraint2Type: 0,
+          constraintCount: 4,
+          constraint2Type: 16,
           constraint2Value: 0,
-          constraint2Count: 0,
+          constraint2Count: 1,
           mutatorId: 0,
         },
       }),
     );
 
-    expect(screen.getByText("+120")).toBeInTheDocument();
+    expect(screen.getByText(/^\+120 points/)).toBeInTheDocument();
     expect(screen.getAllByLabelText("Earned star")).toHaveLength(2);
+    expect(screen.getByText(/Score$/)).toBeInTheDocument();
+    expect(screen.getByText(/Shape$/)).toBeInTheDocument();
+    expect(screen.getByText(/Blow$/)).toBeInTheDocument();
+    expect(screen.getByText("Reach 100 points")).toBeInTheDocument();
+    expect(screen.getByText("Clear 4 lines")).toBeInTheDocument();
+    expect(screen.getByText("Empty the board")).toBeInTheDocument();
     expect(screen.queryByText(/XP/)).toBeNull();
   });
 

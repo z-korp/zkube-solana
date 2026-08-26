@@ -17,6 +17,10 @@ export interface BonusSlot {
     current: number;
     threshold: number;
   };
+  totemTarget?: {
+    width: number;
+    cells: number;
+  };
   startingCharges: number;
   onClick: () => void;
 }

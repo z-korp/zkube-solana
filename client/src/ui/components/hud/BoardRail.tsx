@@ -119,7 +119,7 @@ export default function BoardRail({
           return (
             <motion.button
               type="button"
-              aria-label={`${slot.name}: ${slot.charges} charges`}
+              aria-label={`${slot.name}: ${slot.charges} charges${slot.totemTarget ? `; width ${slot.totemTarget.width} removes ${slot.totemTarget.cells} cells` : ""}`}
               onClick={spent || disabled ? undefined : slot.onClick}
               disabled={spent || disabled}
               key={slot.type}
@@ -149,6 +149,14 @@ export default function BoardRail({
                 className="h-[44%] w-[44%] object-contain"
                 style={{ opacity: spent ? 0.35 : 1 }}
               />
+              {slot.totemTarget && (
+                <span
+                  className="absolute left-1 top-1 rounded-md bg-black/80 px-1 py-0.5 font-sans text-[9px] font-black tabular-nums text-cyan-200"
+                  title={`${slot.totemTarget.cells} cells in width-${slot.totemTarget.width} blocks`}
+                >
+                  ×{slot.totemTarget.cells}
+                </span>
+              )}
               <span
                 className="absolute -bottom-0.5 -right-0.5 grid h-[25px] min-w-[25px] place-items-center rounded-full px-1 font-sans text-[12px] font-black tabular-nums"
                 style={{

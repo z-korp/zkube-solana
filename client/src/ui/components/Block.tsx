@@ -28,6 +28,8 @@ interface BlockProps {
   /** Map of block width (1-4) → image URL */
   blockImages: Record<number, string>;
   onPointerDown?: (e: React.PointerEvent<SVGGElement>, block: Block) => void;
+  onPointerEnter?: (block: Block) => void;
+  onPointerLeave?: () => void;
   onTransitionBlockStart?: (id: number) => void;
   onTransitionBlockEnd?: (id: number) => void;
 }
@@ -44,6 +46,8 @@ const BlockContainer: React.FC<BlockProps> = ({
   outcomeDelayMs = 0,
   blockImages,
   onPointerDown,
+  onPointerEnter,
+  onPointerLeave,
   onTransitionBlockStart,
   onTransitionBlockEnd,
 }) => {
@@ -95,6 +99,8 @@ const BlockContainer: React.FC<BlockProps> = ({
         cursor: isTxProcessing ? "wait" : "grab",
       }}
       onPointerDown={(e) => onPointerDown?.(e, block)}
+      onPointerEnter={() => onPointerEnter?.(block)}
+      onPointerLeave={onPointerLeave}
       onTransitionEnd={handleTransitionEnd}
     >
       {/* Inner group for explosion/outcome animations — doesn't conflict with

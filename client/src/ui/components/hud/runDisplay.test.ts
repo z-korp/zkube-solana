@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { constraintDescription } from "./runDisplay";
+import { constraintStatus } from "./constraintDisplay";
 
 describe("runDisplay", () => {
   it("describes each on-chain constraint kind", () => {
@@ -24,7 +25,26 @@ describe("runDisplay", () => {
       [16, 0, 1, "Empty the board"],
     ];
     for (const [kind, value, requiredCount, expected] of cases) {
-      expect(constraintDescription({ kind, value, requiredCount })).toBe(expected);
+      expect(constraintDescription({ kind, value, requiredCount })).toBe(
+        expected,
+      );
     }
+  });
+
+  it("presents cumulative Shape progress and moment Blow readiness differently", () => {
+    expect(constraintStatus(3, 0, 12, 5)).toEqual({
+      class: "cumulative",
+      complete: false,
+      description: "Clear 12 lines",
+      progress: 5,
+      required: 12,
+    });
+    expect(constraintStatus(16, 0, 1, 0)).toEqual({
+      class: "moment",
+      complete: false,
+      description: "Empty the board",
+      progress: 0,
+      required: 1,
+    });
   });
 });

@@ -70,6 +70,7 @@ export interface GridProps {
     rowIndex: number,
     columnIndex: number,
   ) => Promise<ReceiptProjection | void>;
+  onBonusTarget?: (width: number | null) => void;
   onLocalGameOver?: () => void;
   /** Fires once per perfect clear, for whatever wants to celebrate it. */
   onPerfectClear?: () => void;
@@ -104,6 +105,7 @@ const Grid: React.FC<GridProps> = ({
   onNextLineUpdate,
   onMove,
   onBonus,
+  onBonusTarget,
   onLocalGameOver,
   onPerfectClear,
   onClearAt,
@@ -441,6 +443,7 @@ const Grid: React.FC<GridProps> = ({
 
       const currentBonus = bonusRef.current;
       const currentBlocks = blocksRef.current;
+      onBonusTarget?.(currentBonus === BonusType.Totem ? block.width : null);
 
       // Grid bonuses: Hammer, Totem, Wave
       if (currentBonus === BonusType.Hammer) {
@@ -471,8 +474,20 @@ const Grid: React.FC<GridProps> = ({
 
       onDragStart(e.clientX, block);
     },
-    [onDragStart, playSfx, setIsTxProcessing],
+    [onBonusTarget, onDragStart, playSfx, setIsTxProcessing],
   );
+
+  const handlePointerEnter = useCallback(
+    (block: Block) => {
+      if (bonusRef.current === BonusType.Totem) {
+        onBonusTarget?.(block.width);
+      }
+    },
+    [onBonusTarget],
+  );
+  const handlePointerLeave = useCallback(() => {
+    if (bonusRef.current === BonusType.Totem) onBonusTarget?.(null);
+  }, [onBonusTarget]);
 
   // Stable callback refs — identity never changes so Block's React.memo works.
   const handlePointerDownRef = useRef(handlePointerDown);
@@ -1080,6 +1095,8 @@ const Grid: React.FC<GridProps> = ({
               outcomeDelayMs={outcomeDelayMs(block)}
               blockImages={blockImages}
               onPointerDown={stablePointerDown}
+              onPointerEnter={handlePointerEnter}
+              onPointerLeave={handlePointerLeave}
               onTransitionBlockStart={stableTransitionStart}
               onTransitionBlockEnd={stableTransitionEnd}
             />
