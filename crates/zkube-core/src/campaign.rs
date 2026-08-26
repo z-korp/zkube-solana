@@ -1,8 +1,7 @@
 use crate::{
-    BlockWeights, Bonus, Constraint, ConstraintKind, LevelRules, MoveReport, MutatorRules,
-    RunEngine, RunError, RunPhase, Sha256Provider, SoftwareSha256,
-    bonus_trigger_threshold_is_valid, continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf,
-    row_from_vrf,
+    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+    Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid, continuation_from_vrf,
+    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -51,9 +50,10 @@ impl CampaignRules {
     pub fn is_valid(self) -> bool {
         self.level.points_required > 0
             && self.level.max_moves > 0
-            && constraint_is_valid(self.level.primary)
-            && constraint_is_valid(self.level.secondary)
+            && self.level.primary.is_valid_primary()
+            && self.level.secondary.is_valid_secondary()
             && self.level.has_contiguous_star_sources()
+            && self.level.has_valid_constraint_classes()
             && self.mutator.score_multiplier_x100 > 0
             && self.mutator.combo_multiplier_x100 > 0
             && bonus_trigger_threshold_is_valid(
@@ -360,15 +360,6 @@ fn derive_randomness(config: CampaignSimulationConfig, request_counter: u32) -> 
     ])
 }
 
-fn constraint_is_valid(value: Constraint) -> bool {
-    match value.kind {
-        ConstraintKind::None => value.value == 0 && value.required_count == 0,
-        ConstraintKind::ComboLines => (1..=8).contains(&value.value) && value.required_count > 0,
-        ConstraintKind::BreakBlocks => (1..=4).contains(&value.value) && value.required_count > 0,
-        ConstraintKind::ComboMeter => value.value > 0 && value.required_count == 1,
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CampaignStarsError {
     InvalidMap,
@@ -507,6 +498,7 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Constraint, ConstraintKind};
 
     fn config() -> CampaignSimulationConfig {
         CampaignSimulationConfig {
@@ -545,7 +537,7 @@ mod tests {
     fn campaign_rules_require_contiguous_star_sources() {
         let mut rules = config().rules;
         rules.level.secondary = Constraint {
-            kind: ConstraintKind::ComboLines,
+            kind: ConstraintKind::ComboOfAtLeast,
             value: 2,
             required_count: 1,
         };
@@ -557,6 +549,12 @@ mod tests {
             required_count: 1,
         };
         assert!(rules.is_valid());
+
+        rules.level.primary.kind = ConstraintKind::ComboOfAtLeast;
+        assert!(!rules.is_valid());
+        rules.level.primary.kind = ConstraintKind::CombosOfAtLeast;
+        rules.level.secondary.kind = ConstraintKind::CombosOfAtLeast;
+        assert!(!rules.is_valid());
     }
 
     #[test]

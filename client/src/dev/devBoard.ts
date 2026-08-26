@@ -155,6 +155,8 @@ export function buildDevActiveRun(
     primaryProgress: Math.min(3, rules.primary.requiredCount),
     secondaryProgress: Math.min(1, rules.secondary.requiredCount),
     earnedStars: 0,
+    streak: 0,
+    chargesEarned: 0,
     levelLinesCleared: 11,
     totalLinesCleared: 11,
     bonusUses: 1,

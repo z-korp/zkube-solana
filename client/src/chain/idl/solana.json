@@ -6112,6 +6112,20 @@
             "type": "u8"
           },
           {
+            "name": "streak",
+            "docs": [
+              "Consecutive qualifying player moves for the authored streak predicate."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "charges_earned",
+            "docs": [
+              "Guardian trigger events produced across the run, before inventory caps."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "level_lines_cleared",
             "type": "u16"
           },

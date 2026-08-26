@@ -2056,12 +2056,7 @@ fn interpolate(start: u32, end: u32, index: u32, last: u32) -> u32 {
 }
 
 fn constraint_kind_tag(kind: ConstraintKind) -> u8 {
-    match kind {
-        ConstraintKind::None => 0,
-        ConstraintKind::ComboLines => 1,
-        ConstraintKind::BreakBlocks => 2,
-        ConstraintKind::ComboMeter => 3,
-    }
+    kind.tag()
 }
 
 fn is_none(constraint: Constraint) -> bool {
@@ -2069,14 +2064,11 @@ fn is_none(constraint: Constraint) -> bool {
 }
 
 fn is_cumulative(kind: ConstraintKind) -> bool {
-    matches!(
-        kind,
-        ConstraintKind::ComboLines | ConstraintKind::BreakBlocks | ConstraintKind::ComboMeter
-    )
+    matches!(kind.class(), Some(crate::ConstraintClass::Cumulative))
 }
 
-fn is_moment(_kind: ConstraintKind) -> bool {
-    false
+fn is_moment(kind: ConstraintKind) -> bool {
+    matches!(kind.class(), Some(crate::ConstraintClass::Moment))
 }
 
 fn distinct_non_none(constraints: &[Constraint]) -> usize {

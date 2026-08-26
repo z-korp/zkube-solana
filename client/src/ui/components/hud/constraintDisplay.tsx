@@ -33,11 +33,19 @@ export function valueBadge(
   value: number,
 ): string | undefined {
   switch (type) {
-    case ConstraintType.ComboLines:
+    case ConstraintType.CombosOfAtLeast:
+    case ConstraintType.ComboOfAtLeast:
       return `${value}+`;
-    case ConstraintType.BreakBlocks:
-    case ConstraintType.ComboMeter:
+    case ConstraintType.CombosOfExactly:
+    case ConstraintType.ComboOfExactly:
+    case ConstraintType.Streak:
+    case ConstraintType.BigMoves:
+    case ConstraintType.BigMove:
+    case ConstraintType.BonusLinesInMove:
       return `${value}`;
+    case ConstraintType.BreakBlocks:
+    case ConstraintType.BreakInMove:
+      return value > 0 ? `${value}` : undefined;
     default:
       return undefined;
   }

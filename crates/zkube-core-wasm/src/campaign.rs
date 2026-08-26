@@ -5,9 +5,9 @@ use zkube_core::{
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 186;
-pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
-const CONFIG_VERSION: u8 = 3;
-const STATE_VERSION: u8 = 4;
+pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 186;
+const CONFIG_VERSION: u8 = 4;
+const STATE_VERSION: u8 = 5;
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -115,6 +115,8 @@ pub fn encode_campaign_simulation_state(
         simulation.engine.primary_progress,
         simulation.engine.secondary_progress,
         simulation.engine.earned_stars,
+        simulation.engine.streak,
+        simulation.engine.charges_earned,
     ]);
     writer.write(&simulation.engine.level_lines_cleared.to_le_bytes());
     writer.write(&simulation.engine.moves.to_le_bytes());
@@ -157,6 +159,8 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
     let earned_stars = reader.u8()?;
+    let streak = reader.u8()?;
+    let charges_earned = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
     let moves = reader.u16()?;
     let action_counter = reader.u32()?;
@@ -208,6 +212,8 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             primary_progress,
             secondary_progress,
             earned_stars,
+            streak,
+            charges_earned,
             level_lines_cleared,
             bonus,
             bonus_charges,
@@ -341,14 +347,9 @@ fn encode_constraint<const N: usize>(writer: &mut Writer<N>, constraint: Constra
 }
 
 fn decode_constraint(reader: &mut Reader<'_>) -> Result<Constraint, BoundaryError> {
+    let tag = reader.u8()?;
     Ok(Constraint {
-        kind: match reader.u8()? {
-            0 => ConstraintKind::None,
-            1 => ConstraintKind::ComboLines,
-            2 => ConstraintKind::BreakBlocks,
-            3 => ConstraintKind::ComboMeter,
-            _ => return Err(BoundaryError::InvalidEncoding),
-        },
+        kind: ConstraintKind::from_tag(tag).ok_or(BoundaryError::InvalidEncoding)?,
         value: reader.u8()?,
         required_count: reader.u8()?,
     })
@@ -382,6 +383,7 @@ fn encode_report<const N: usize>(writer: &mut Writer<N>, report: MoveReport) {
         report.height_before,
         report.height_after,
         u8::from(report.perfect_clear),
+        u8::from(report.action_was_bonus),
     ]);
     writer.write(&report.blocks_destroyed_by_size);
     writer.write(&report.neutral_points_earned.to_le_bytes());
@@ -396,6 +398,7 @@ fn decode_report(reader: &mut Reader<'_>) -> Result<MoveReport, BoundaryError> {
         height_before: reader.u8()?,
         height_after: reader.u8()?,
         perfect_clear: reader.bool()?,
+        action_was_bonus: reader.bool()?,
         blocks_destroyed_by_size: reader.array()?,
         neutral_points_earned: reader.u32()?,
         difficulty_at_action: reader.u8()?,
@@ -406,12 +409,7 @@ fn decode_report(reader: &mut Reader<'_>) -> Result<MoveReport, BoundaryError> {
 }
 
 const fn constraint_tag(value: ConstraintKind) -> u8 {
-    match value {
-        ConstraintKind::None => 0,
-        ConstraintKind::ComboLines => 1,
-        ConstraintKind::BreakBlocks => 2,
-        ConstraintKind::ComboMeter => 3,
-    }
+    value.tag()
 }
 
 const fn phase_tag(phase: RunPhase) -> u8 {
@@ -574,7 +572,10 @@ mod tests {
         let config = config();
         let encoded = encode_campaign_simulation_config(config);
         assert_eq!(decode_campaign_simulation_config(&encoded), Ok(config));
-        let state = CampaignSimulation::new(config).unwrap();
+        let mut state = CampaignSimulation::new(config).unwrap();
+        state.engine.streak = 2;
+        state.engine.charges_earned = 3;
+        state.last_report.action_was_bonus = true;
         let encoded_state = encode_campaign_simulation_state(state);
         assert_eq!(decode_campaign_simulation_state(&encoded_state), Ok(state));
         let invariant = include_str!("../../../fixtures/protocol-invariants.json");

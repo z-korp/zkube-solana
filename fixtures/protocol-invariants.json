@@ -11,13 +11,13 @@
     "reroll": 6
   },
   "dailySimulationStateEncoding": {
-    "version": 4,
-    "length": 315,
+    "version": 5,
+    "length": 317,
     "objectiveTotal": "u64-le"
   },
   "campaignSimulationStateEncoding": {
-    "version": 4,
-    "length": 183
+    "version": 5,
+    "length": 186
   },
   "dailyClaimWindowSeconds": 2592000,
   "dailyPoolCapacity": 128

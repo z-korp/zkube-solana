@@ -18,8 +18,8 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 281;
 /// grid, optional next row, nine metrics, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 315;
-const STATE_VERSION: u8 = 4;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 317;
+const STATE_VERSION: u8 = 5;
 
 /// Encode a typed configuration for the frontend WASM boundary.
 #[must_use]
@@ -96,6 +96,8 @@ pub fn encode_daily_simulation_state(
     writer.write(&[simulation.engine.primary_progress]);
     writer.write(&[simulation.engine.secondary_progress]);
     writer.write(&[simulation.engine.earned_stars]);
+    writer.write(&[simulation.engine.streak]);
+    writer.write(&[simulation.engine.charges_earned]);
     writer.write(&simulation.engine.level_lines_cleared.to_le_bytes());
     writer.write(&simulation.engine.moves.to_le_bytes());
     writer.write(&simulation.action_counter.to_le_bytes());
@@ -142,6 +144,8 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
     let earned_stars = reader.u8()?;
+    let streak = reader.u8()?;
+    let charges_earned = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
     let moves = reader.u16()?;
     let action_counter = reader.u32()?;
@@ -188,6 +192,8 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             primary_progress,
             secondary_progress,
             earned_stars,
+            streak,
+            charges_earned,
             level_lines_cleared,
             bonus,
             bonus_charges,
@@ -604,6 +610,8 @@ mod tests {
 
         let mut simulation = DailySimulation::new(config).unwrap();
         simulation.apply_vrf(config.rules, 1, [0x11; 32]).unwrap();
+        simulation.engine.streak = 2;
+        simulation.engine.charges_earned = 3;
         let encoded_state = encode_daily_simulation_state(simulation);
         assert_eq!(encoded_state.len(), DAILY_SIMULATION_STATE_LEN);
         assert_eq!(

@@ -289,7 +289,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same beat for all today. Match the rhythm longer than anyone else.",
     zoneHint:
-      "Combos score at ×2, lines add 2 points, and every 8 Combo Meter points earns one Totem per action.",
+      "Combos score at ×2, lines add 2 points, and each combo threshold earns one Totem per action.",
     encouragement: "Feel the pulse. Let it guide your strikes.",
     trialIntro:
       "The mamba strikes without warning. Match its speed or be consumed.",

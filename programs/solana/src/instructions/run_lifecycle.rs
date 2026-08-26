@@ -1128,13 +1128,7 @@ fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
 }
 
 fn constraint(snapshot: ConstraintSnapshot) -> Result<Constraint> {
-    let kind = match snapshot.kind {
-        0 => ConstraintKind::None,
-        1 => ConstraintKind::ComboLines,
-        2 => ConstraintKind::BreakBlocks,
-        3 => ConstraintKind::ComboMeter,
-        _ => return err!(ErrorCode::InvalidLevel),
-    };
+    let kind = ConstraintKind::from_tag(snapshot.kind).ok_or(error!(ErrorCode::InvalidLevel))?;
     Ok(Constraint {
         kind,
         value: snapshot.value,
@@ -1228,6 +1222,8 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         primary_progress: active.primary_progress,
         secondary_progress: active.secondary_progress,
         earned_stars: active.earned_stars,
+        streak: active.streak,
+        charges_earned: active.charges_earned,
         level_lines_cleared: active.level_lines_cleared,
         bonus,
         bonus_charges: active.bonus_charges,
@@ -1248,6 +1244,8 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.primary_progress = engine.primary_progress;
     active.secondary_progress = engine.secondary_progress;
     active.earned_stars = engine.earned_stars;
+    active.streak = engine.streak;
+    active.charges_earned = engine.charges_earned;
     active.level_lines_cleared = engine.level_lines_cleared;
     active.bonus_type = match engine.bonus {
         None => 0,
@@ -1389,7 +1387,7 @@ mod tests {
     #[test]
     fn constraint_snapshot_mapping_rejects_unknown_kinds() {
         assert!(constraint(ConstraintSnapshot {
-            kind: 4,
+            kind: 17,
             value: 0,
             required_count: 0,
         })
@@ -1397,10 +1395,12 @@ mod tests {
     }
 
     #[test]
-    fn core_earned_stars_round_trip_through_active_run() {
+    fn core_constraint_state_round_trips_through_active_run() {
         let engine = RunEngine {
             phase: RunPhase::Playing,
             earned_stars: 2,
+            streak: 3,
+            charges_earned: 4,
             ..RunEngine::default()
         };
         let mut active = ActiveRun {
@@ -1411,7 +1411,12 @@ mod tests {
         write_engine(&mut active, &engine);
 
         assert_eq!(active.earned_stars, 2);
-        assert_eq!(engine_from_active(&active).unwrap().earned_stars, 2);
+        assert_eq!(active.streak, 3);
+        assert_eq!(active.charges_earned, 4);
+        let restored = engine_from_active(&active).unwrap();
+        assert_eq!(restored.earned_stars, 2);
+        assert_eq!(restored.streak, 3);
+        assert_eq!(restored.charges_earned, 4);
     }
 
     #[test]
@@ -1934,13 +1939,8 @@ mod tests {
     fn campaign_constraint(value: &Value) -> Constraint {
         let tuple = value.as_array().unwrap();
         Constraint {
-            kind: match tuple[0].as_u64().unwrap() {
-                0 => ConstraintKind::None,
-                1 => ConstraintKind::ComboLines,
-                2 => ConstraintKind::BreakBlocks,
-                3 => ConstraintKind::ComboMeter,
-                kind => panic!("unknown Campaign constraint kind {kind}"),
-            },
+            kind: ConstraintKind::from_tag(tuple[0].as_u64().unwrap() as u8)
+                .expect("known Campaign constraint kind"),
             value: tuple[1].as_u64().unwrap() as u8,
             required_count: tuple[2].as_u64().unwrap() as u8,
         }
@@ -1995,25 +1995,17 @@ mod tests {
                 let tuple = level.as_array().unwrap();
                 let difficulty = tuple[2].as_u64().unwrap() as usize;
                 let tier = weights[difficulty].as_array().unwrap();
-                for constraint in [&tuple[3], &tuple[4]] {
-                    let constraint = campaign_constraint(constraint);
-                    match constraint.kind {
-                        ConstraintKind::None => {
-                            assert_eq!((constraint.value, constraint.required_count), (0, 0));
-                        }
-                        ConstraintKind::ComboLines => {
-                            assert!((2..=8).contains(&constraint.value));
-                            assert!(constraint.required_count > 0);
-                        }
-                        ConstraintKind::BreakBlocks => {
-                            assert!((1..=4).contains(&constraint.value));
-                            assert!(constraint.required_count > 0);
-                            assert!(tier[usize::from(constraint.value)].as_u64().unwrap() > 0);
-                        }
-                        ConstraintKind::ComboMeter => {
-                            assert!(constraint.value > 0);
-                            assert_eq!(constraint.required_count, 1);
-                        }
+                let primary = campaign_constraint(&tuple[3]);
+                let secondary = campaign_constraint(&tuple[4]);
+                assert!(primary.is_valid_primary());
+                assert!(secondary.is_valid_secondary());
+                for constraint in [primary, secondary] {
+                    if matches!(
+                        constraint.kind,
+                        ConstraintKind::BreakBlocks | ConstraintKind::BreakInMove
+                    ) && constraint.value > 0
+                    {
+                        assert!(tier[usize::from(constraint.value)].as_u64().unwrap() > 0);
                     }
                 }
             }
@@ -2091,20 +2083,15 @@ mod tests {
     }
 
     fn campaign_constraint_signal(level: LevelRules, engine: &RunEngine) -> u16 {
-        fn signal(constraint: Constraint, progress: u8, combo: u8) -> u16 {
-            match constraint.kind {
-                ConstraintKind::None => 0,
-                ConstraintKind::ComboLines => u16::from(progress) * 16,
-                ConstraintKind::BreakBlocks => u16::from(progress),
-                ConstraintKind::ComboMeter => u16::from(combo.min(constraint.value)),
+        fn signal(constraint: Constraint, progress: u8) -> u16 {
+            if constraint.kind == ConstraintKind::None {
+                0
+            } else {
+                u16::from(progress) * 16
             }
         }
-        signal(level.primary, engine.primary_progress, engine.combo_counter)
-            + signal(
-                level.secondary,
-                engine.secondary_progress,
-                engine.combo_counter,
-            )
+        signal(level.primary, engine.primary_progress)
+            + signal(level.secondary, engine.secondary_progress)
     }
 
     fn simulate_campaign_attempt(

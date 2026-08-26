@@ -142,7 +142,7 @@
       "level": {
         "pointsRequired": 100,
         "maxMoves": 20,
-        "primary": { "kind": "comboLines", "value": 2, "requiredCount": 1 },
+        "primary": { "kind": "combosOfAtLeast", "value": 2, "requiredCount": 1 },
         "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
       },
       "mutator": {

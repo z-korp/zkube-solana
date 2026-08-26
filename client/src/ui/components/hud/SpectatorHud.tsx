@@ -138,7 +138,7 @@ function ConstraintBadge({
   progress: number;
   side: "left" | "right";
 }) {
-  const required = rule.kind === 3 ? rule.value : rule.requiredCount;
+  const required = rule.requiredCount;
   const complete = progress >= required;
   return (
     <div

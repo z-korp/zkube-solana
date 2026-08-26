@@ -357,9 +357,22 @@ pub enum ApexPredicate {
 #[serde(rename_all = "snake_case")]
 pub enum ApexPredicateKind {
     None,
-    ComboLines,
+    CombosOfAtLeast,
     BreakBlocks,
-    ComboMeter,
+    ClearLines,
+    CombosOfExactly,
+    BigMoves,
+    TriggerFired,
+    BonusLines,
+    BonusBreaks,
+    ComboOfAtLeast,
+    ComboOfExactly,
+    Streak,
+    BreakInMove,
+    AllWidthsInMove,
+    BigMove,
+    BonusLinesInMove,
+    PerfectClear,
     PerfectClears,
     LinesInAction,
     BlocksOfSizeInAction,
@@ -441,9 +454,22 @@ impl ApexPredicate {
             Self::SecondaryConstraint(constraint) => ApexDefinition {
                 kind: match constraint.kind {
                     ConstraintKind::None => ApexPredicateKind::None,
-                    ConstraintKind::ComboLines => ApexPredicateKind::ComboLines,
+                    ConstraintKind::CombosOfAtLeast => ApexPredicateKind::CombosOfAtLeast,
                     ConstraintKind::BreakBlocks => ApexPredicateKind::BreakBlocks,
-                    ConstraintKind::ComboMeter => ApexPredicateKind::ComboMeter,
+                    ConstraintKind::ClearLines => ApexPredicateKind::ClearLines,
+                    ConstraintKind::CombosOfExactly => ApexPredicateKind::CombosOfExactly,
+                    ConstraintKind::BigMoves => ApexPredicateKind::BigMoves,
+                    ConstraintKind::TriggerFired => ApexPredicateKind::TriggerFired,
+                    ConstraintKind::BonusLines => ApexPredicateKind::BonusLines,
+                    ConstraintKind::BonusBreaks => ApexPredicateKind::BonusBreaks,
+                    ConstraintKind::ComboOfAtLeast => ApexPredicateKind::ComboOfAtLeast,
+                    ConstraintKind::ComboOfExactly => ApexPredicateKind::ComboOfExactly,
+                    ConstraintKind::Streak => ApexPredicateKind::Streak,
+                    ConstraintKind::BreakInMove => ApexPredicateKind::BreakInMove,
+                    ConstraintKind::AllWidthsInMove => ApexPredicateKind::AllWidthsInMove,
+                    ConstraintKind::BigMove => ApexPredicateKind::BigMove,
+                    ConstraintKind::BonusLinesInMove => ApexPredicateKind::BonusLinesInMove,
+                    ConstraintKind::PerfectClear => ApexPredicateKind::PerfectClear,
                 },
                 value: constraint.value,
                 required_count: constraint.required_count,
@@ -842,13 +868,8 @@ fn bonus_from_tag(tag: u16) -> Option<Bonus> {
 }
 
 fn constraint_from_tuple(tuple: [u8; 3]) -> Constraint {
-    let kind = match tuple[0] {
-        0 => ConstraintKind::None,
-        1 => ConstraintKind::ComboLines,
-        2 => ConstraintKind::BreakBlocks,
-        3 => ConstraintKind::ComboMeter,
-        tag => panic!("unknown authored constraint tag {tag}"),
-    };
+    let kind = ConstraintKind::from_tag(tuple[0])
+        .unwrap_or_else(|| panic!("unknown authored constraint tag {}", tuple[0]));
     Constraint {
         kind,
         value: tuple[1],
@@ -1642,12 +1663,7 @@ fn play_campaign_to_terminal(
 }
 
 fn constraint_family(constraint: Constraint) -> u8 {
-    match constraint.kind {
-        ConstraintKind::None => 0,
-        ConstraintKind::ComboLines => 1,
-        ConstraintKind::BreakBlocks => 2,
-        ConstraintKind::ComboMeter => 3,
-    }
+    constraint.kind.tag()
 }
 
 fn daily_move_candidates(
@@ -2601,6 +2617,8 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         primary_progress,
         secondary_progress,
         earned_stars,
+        streak,
+        charges_earned,
         level_lines_cleared,
         bonus,
         bonus_charges,
@@ -2626,6 +2644,8 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         primary_progress,
         secondary_progress,
         earned_stars,
+        streak,
+        charges_earned,
     ]);
     output.extend_from_slice(&level_lines_cleared.to_le_bytes());
     output.push(match bonus {
@@ -3717,7 +3737,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "de403bc58c059d4f88633afd917c73b0d2c6a65b8b9632d6dfcb5e0e064d20ee"
+            "77ba5121d70e0b88f26b7b55ba85fa11b9d8f742cce3831b8b7f615de46b2ac2"
         );
     }
 

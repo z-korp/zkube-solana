@@ -41,6 +41,8 @@ const activeRun = (): ActiveRunView => ({
   primaryProgress: 3,
   secondaryProgress: 0,
   earnedStars: 2,
+  streak: 0,
+  chargesEarned: 0,
   levelLinesCleared: 5,
   totalLinesCleared: 9,
   bonusUses: 1,

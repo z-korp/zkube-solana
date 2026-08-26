@@ -333,13 +333,8 @@ fn campaign_rules(
 }
 
 fn constraint(tuple: [u8; 3]) -> Result<Constraint, String> {
-    let kind = match tuple[0] {
-        0 => ConstraintKind::None,
-        1 => ConstraintKind::ComboLines,
-        2 => ConstraintKind::BreakBlocks,
-        3 => ConstraintKind::ComboMeter,
-        value => return Err(format!("unknown Campaign constraint {value}")),
-    };
+    let kind = ConstraintKind::from_tag(tuple[0])
+        .ok_or_else(|| format!("unknown Campaign constraint {}", tuple[0]))?;
     Ok(Constraint {
         kind,
         value: tuple[1],
@@ -466,5 +461,17 @@ mod tests {
                 .unwrap_err()
                 .contains("map 1 level 1 has invalid rules")
         );
+    }
+
+    #[test]
+    fn codegen_enforces_constraint_class_per_slot() {
+        let source = include_str!("../../../fixtures/campaign-v2.json");
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.maps[0].levels[2].3 = [9, 2, 1];
+        assert!(validate_catalog(&catalog).is_err());
+
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.maps[0].levels[7].4 = [1, 2, 1];
+        assert!(validate_catalog(&catalog).is_err());
     }
 }

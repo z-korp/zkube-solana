@@ -104,32 +104,26 @@ export default function BoardHud({
       progress: number;
     }[] = [];
     if (gameLevel.constraintType !== ConstraintType.None) {
-      const meter = gameLevel.constraintType === ConstraintType.ComboMeter;
       out.push({
         type: gameLevel.constraintType,
         value: gameLevel.constraintValue,
-        count: meter ? gameLevel.constraintValue : gameLevel.constraintCount,
-        progress: meter
-          ? Math.min(combo, gameLevel.constraintValue)
-          : constraintProgress,
+        count: gameLevel.constraintCount,
+        progress: constraintProgress,
       });
     }
     if (
       gameLevel.constraint2Type !== undefined &&
       gameLevel.constraint2Type !== ConstraintType.None
     ) {
-      const meter = gameLevel.constraint2Type === ConstraintType.ComboMeter;
       out.push({
         type: gameLevel.constraint2Type,
         value: gameLevel.constraint2Value,
-        count: meter ? gameLevel.constraint2Value : gameLevel.constraint2Count,
-        progress: meter
-          ? Math.min(combo, gameLevel.constraint2Value)
-          : constraint2Progress,
+        count: gameLevel.constraint2Count,
+        progress: constraint2Progress,
       });
     }
     return out;
-  }, [combo, constraint2Progress, constraintProgress, gameLevel]);
+  }, [constraint2Progress, constraintProgress, gameLevel]);
 
   const chainTarget = Math.max(2, comboThreshold);
   const chainFill = Math.min(1, combo / chainTarget);

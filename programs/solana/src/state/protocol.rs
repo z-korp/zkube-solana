@@ -561,6 +561,10 @@ pub struct ActiveRun {
     pub secondary_progress: u8,
     /// Latched Campaign stars; Daily runs keep this byte at zero.
     pub earned_stars: u8,
+    /// Consecutive qualifying player moves for the authored streak predicate.
+    pub streak: u8,
+    /// Guardian trigger events produced across the run, before inventory caps.
+    pub charges_earned: u8,
     pub level_lines_cleared: u16,
     pub total_lines_cleared: u16,
     pub bonus_uses: u16,
@@ -619,6 +623,8 @@ impl Default for ActiveRun {
             primary_progress: 0,
             secondary_progress: 0,
             earned_stars: 0,
+            streak: 0,
+            charges_earned: 0,
             level_lines_cleared: 0,
             total_lines_cleared: 0,
             bonus_uses: 0,
@@ -830,7 +836,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 551);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 553);
     }
 
     #[test]

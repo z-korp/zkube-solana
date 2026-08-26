@@ -1,92 +1,103 @@
-/**
- * Constraint types for the level system
- * Constraints are level-specific objectives that must be met to complete a level
- */
-
+/** Wire-stable Campaign constraint kinds shared with zkube-core. */
 export enum ConstraintType {
-  /** No constraint - just reach the point goal */
   None = 0,
-  /** Must clear X lines in a single move, Y times */
-  ComboLines = 1,
-  /** Must destroy X blocks of a specific size (accumulating) */
+  CombosOfAtLeast = 1,
   BreakBlocks = 2,
-  /** Must reach X on the cumulative Combo Meter (one-shot) */
-  ComboMeter = 3,
+  ClearLines = 3,
+  CombosOfExactly = 4,
+  BigMoves = 5,
+  TriggerFired = 6,
+  BonusLines = 7,
+  BonusBreaks = 8,
+  ComboOfAtLeast = 9,
+  ComboOfExactly = 10,
+  Streak = 11,
+  BreakInMove = 12,
+  AllWidthsInMove = 13,
+  BigMove = 14,
+  BonusLinesInMove = 15,
+  PerfectClear = 16,
+}
+
+export type ConstraintClass = "cumulative" | "moment";
+
+export function constraintClass(type: ConstraintType): ConstraintClass | null {
+  if (type === ConstraintType.None) return null;
+  return type <= ConstraintType.BonusBreaks ? "cumulative" : "moment";
+}
+
+function count(value: number, singular: string, plural = `${singular}s`): string {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function width(value: number): string {
+  return value === 0 ? "" : ` of width ${value}`;
 }
 
 export class Constraint {
-  public constraintType: ConstraintType;
-  public value: number;
-  public requiredCount: number;
-
-  constructor(constraintType: ConstraintType, value: number, requiredCount: number) {
-    this.constraintType = constraintType;
-    this.value = value;
-    this.requiredCount = requiredCount;
-  }
+  constructor(
+    public constraintType: ConstraintType,
+    public value: number,
+    public requiredCount: number,
+  ) {}
 
   static none(): Constraint {
     return new Constraint(ConstraintType.None, 0, 0);
   }
 
-  static clearLines(lines: number, times: number): Constraint {
-    return new Constraint(ConstraintType.ComboLines, lines, times);
-  }
-
-  static breakBlocks(targetSize: number, count: number): Constraint {
-    return new Constraint(ConstraintType.BreakBlocks, targetSize, count);
-  }
-
-  static reachComboMeter(comboTarget: number): Constraint {
-    return new Constraint(ConstraintType.ComboMeter, comboTarget, 1);
-  }
-
-  static fromContractValues(type: number, value: number, count: number): Constraint {
-    return new Constraint(type as ConstraintType, value, count);
+  static fromContractValues(type: number, value: number, requiredCount: number): Constraint {
+    return new Constraint(type as ConstraintType, value, requiredCount);
   }
 
   isSatisfied(progress: number): boolean {
-    switch (this.constraintType) {
-      case ConstraintType.None:
-        return true;
-      case ConstraintType.ComboLines:
-        return progress >= this.requiredCount;
-      case ConstraintType.BreakBlocks:
-        return progress >= this.requiredCount;
-      case ConstraintType.ComboMeter:
-        return progress >= 1;
-      default:
-        return true;
-    }
+    return this.constraintType !== ConstraintType.None && progress >= this.requiredCount;
   }
 
   getDescription(): string {
+    const n = this.requiredCount;
     switch (this.constraintType) {
       case ConstraintType.None:
         return "No constraint";
-      case ConstraintType.ComboLines:
-        return `Make ${this.value}+ combos ${this.requiredCount} time${this.requiredCount > 1 ? "s" : ""}`;
+      case ConstraintType.ClearLines:
+        return `Clear ${count(n, "line")}`;
       case ConstraintType.BreakBlocks:
-        return `Break ${this.requiredCount} size-${this.value} blocks`;
-      case ConstraintType.ComboMeter:
-        return `Reach ${this.value} on the Combo Meter`;
+        return `Break ${count(n, "block")}${width(this.value)}`;
+      case ConstraintType.CombosOfAtLeast:
+        return `Make ${count(n, `${this.value}-line combo`)}`;
+      case ConstraintType.CombosOfExactly:
+        return `Make ${count(n, `exact ${this.value}-line combo`)}`;
+      case ConstraintType.BigMoves:
+        return `Make ${n} ${n === 1 ? "move" : "moves"} worth ${this.value}+ points`;
+      case ConstraintType.TriggerFired:
+        return `Wake the guardian ${count(n, "time")}`;
+      case ConstraintType.BonusLines:
+        return `Clear ${count(n, "bonus line")}`;
+      case ConstraintType.BonusBreaks:
+        return `Smash ${count(n, "block")} with bonuses`;
+      case ConstraintType.ComboOfAtLeast:
+        return `Clear ${this.value} lines at once`;
+      case ConstraintType.ComboOfExactly:
+        return `Clear exactly ${this.value} lines at once`;
+      case ConstraintType.Streak:
+        return this.value === 1
+          ? `Clear a line ${count(n, "move")} in a row`
+          : `Make ${count(n, `${this.value}-line combo`)} in a row`;
+      case ConstraintType.BreakInMove:
+        return `Break ${count(n, "block")}${width(this.value)} at once`;
+      case ConstraintType.AllWidthsInMove:
+        return "Break every width at once";
+      case ConstraintType.BigMove:
+        return `Make a ${this.value}-point move`;
+      case ConstraintType.BonusLinesInMove:
+        return `Clear ${count(this.value, "line")} with one bonus`;
+      case ConstraintType.PerfectClear:
+        return "Empty the board";
       default:
-        return "Unknown";
+        return "Unknown constraint";
     }
   }
 
   getLabel(): string {
-    switch (this.constraintType) {
-      case ConstraintType.None:
-        return "";
-      case ConstraintType.ComboLines:
-        return `${this.value}+ combos x${this.requiredCount}`;
-      case ConstraintType.BreakBlocks:
-        return `Break ${this.requiredCount}x size-${this.value}`;
-      case ConstraintType.ComboMeter:
-        return `Combo Meter ${this.value}`;
-      default:
-        return "";
-    }
+    return this.getDescription();
   }
 }

@@ -166,7 +166,7 @@ ladder tier boundaries, and the flat qualifying credit.
   entries and preparation must never carry a passive map identity;
   `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
-  exact-line, and Combo Meter triggers carry a positive threshold. Perfect-clear
+  exact-line, and combo-count triggers carry a positive threshold. Perfect-clear
   and all-block-sizes triggers carry zero because their conditions are complete
   without an authored number. `bonus_trigger_threshold_is_valid` is the shared
   core/program constraint, and the Campaign catalog parity test binds the client
@@ -534,6 +534,17 @@ codegen, and catalog publication; `campaign_rules_require_contiguous_star_source
 `campaign_publication_rejects_a_secondary_without_a_primary` guard those three
 boundaries.
 
+Primary constraints are cumulative facts counted across a run; secondary
+constraints are moment facts that must be true on one action. Every authored
+primary must use a cumulative kind and every authored secondary must use a
+moment kind; `campaign_rules_require_contiguous_star_sources`,
+`codegen_enforces_constraint_class_per_slot`, and
+`campaign_publication_enforces_constraint_class_per_slot` enforce the core,
+fixture, and program boundaries. Player-facing constraint language is limited
+to lines, combos, streaks, breaks, bonus lines, perfect clears, guardian
+triggers, and points; `every_constraint_kind_reads_its_declared_action_fact`
+pins the engine fact behind each kind.
+
 A level ends as complete when every authored star source has latched, or ends
 incomplete when its move budget or board is exhausted; already-latched stars
 are retained and recorded in either terminal state.
@@ -546,6 +557,11 @@ Move efficiency and an authored star-threshold modifier are not star sources;
 the `supersession > keeps reversed models out of authored source` test prevents
 their code and copy from returning. Removing that model deletes one byte from
 Campaign map rules, level snapshots, `ActiveRun`, and each encoded rules configuration.
+The constraint vocabulary adds one action-origin bit to the Campaign report
+codec and stores one streak byte plus one cumulative-trigger byte in `ActiveRun`
+and both simulation states; `campaign_config_and_state_round_trip`,
+`config_and_state_codecs_round_trip_exactly`, and
+`target_accounts_fit_normal_solana_account_limits` pin those costs.
 
 Campaign uses the same engine and generated catalog as Arcade but a separate
 progression boundary: completing Campaign content may only improve the packed

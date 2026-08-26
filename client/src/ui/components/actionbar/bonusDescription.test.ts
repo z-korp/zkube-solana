@@ -16,7 +16,7 @@ describe("campaign bonus descriptions", () => {
     expect(buildTriggerDescription(6, 0, 1))
       .toBe("Destroy block sizes 1–4 in one move · Start with 1");
     expect(buildTriggerDescription(7, 8, 1))
-      .toBe("Every 8 Combo Meter points · max 1 per action · Start with 1");
+      .toBe("Every 8 combo points · max 1 per action · Start with 1");
   });
 
   it("includes starting charges even for zero-threshold triggers", () => {

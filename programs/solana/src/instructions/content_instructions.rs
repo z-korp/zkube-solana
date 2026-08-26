@@ -232,8 +232,8 @@ pub fn handler_write_map_catalog(
         require!(level.points_required > 0, ErrorCode::InvalidLevel);
         require!(level.max_moves > 0, ErrorCode::InvalidLevel);
         require!(level.difficulty <= 7, ErrorCode::InvalidLevel);
-        validate_constraint_snapshot(level.primary)?;
-        validate_constraint_snapshot(level.secondary)?;
+        validate_primary_constraint_snapshot(level.primary)?;
+        validate_secondary_constraint_snapshot(level.secondary)?;
         validate_contiguous_star_sources(level.primary, level.secondary)?;
         require!(
             level.block_weights[0] > 0
@@ -292,26 +292,29 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     Ok(())
 }
 
-fn validate_constraint_snapshot(constraint: ConstraintSnapshot) -> Result<()> {
-    match constraint.kind {
-        0 => require!(
-            constraint.value == 0 && constraint.required_count == 0,
-            ErrorCode::InvalidLevel
-        ),
-        1 => require!(
-            (2..=8).contains(&constraint.value) && constraint.required_count > 0,
-            ErrorCode::InvalidLevel
-        ),
-        2 => require!(
-            (1..=4).contains(&constraint.value) && constraint.required_count > 0,
-            ErrorCode::InvalidLevel
-        ),
-        3 => require!(
-            constraint.value > 0 && constraint.required_count == 1,
-            ErrorCode::InvalidLevel
-        ),
-        _ => return err!(ErrorCode::InvalidLevel),
-    }
+fn core_constraint(constraint: ConstraintSnapshot) -> Result<zkube_core::Constraint> {
+    let kind = zkube_core::ConstraintKind::from_tag(constraint.kind)
+        .ok_or(error!(ErrorCode::InvalidLevel))?;
+    Ok(zkube_core::Constraint {
+        kind,
+        value: constraint.value,
+        required_count: constraint.required_count,
+    })
+}
+
+fn validate_primary_constraint_snapshot(constraint: ConstraintSnapshot) -> Result<()> {
+    require!(
+        core_constraint(constraint)?.is_valid_primary(),
+        ErrorCode::InvalidLevel
+    );
+    Ok(())
+}
+
+fn validate_secondary_constraint_snapshot(constraint: ConstraintSnapshot) -> Result<()> {
+    require!(
+        core_constraint(constraint)?.is_valid_secondary(),
+        ErrorCode::InvalidLevel
+    );
     Ok(())
 }
 
@@ -716,6 +719,24 @@ mod tests {
         assert!(validate_contiguous_star_sources(present, none).is_ok());
         assert!(validate_contiguous_star_sources(present, present).is_ok());
         assert!(validate_contiguous_star_sources(none, present).is_err());
+    }
+
+    #[test]
+    fn campaign_publication_enforces_constraint_class_per_slot() {
+        let cumulative = ConstraintSnapshot {
+            kind: zkube_core::ConstraintKind::CombosOfAtLeast.tag(),
+            value: 2,
+            required_count: 1,
+        };
+        let moment = ConstraintSnapshot {
+            kind: zkube_core::ConstraintKind::ComboOfAtLeast.tag(),
+            value: 2,
+            required_count: 1,
+        };
+        assert!(validate_primary_constraint_snapshot(cumulative).is_ok());
+        assert!(validate_secondary_constraint_snapshot(cumulative).is_err());
+        assert!(validate_primary_constraint_snapshot(moment).is_err());
+        assert!(validate_secondary_constraint_snapshot(moment).is_ok());
     }
 
     #[test]

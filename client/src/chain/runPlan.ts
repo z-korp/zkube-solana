@@ -187,6 +187,8 @@ export interface ActiveRunView extends EndlessRulesView {
   primaryProgress: number;
   secondaryProgress: number;
   earnedStars: number;
+  streak: number;
+  chargesEarned: number;
   levelLinesCleared: number;
   totalLinesCleared: number;
   bonusUses: number;
@@ -935,6 +937,8 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     primaryProgress: Number(account.primaryProgress),
     secondaryProgress: Number(account.secondaryProgress),
     earnedStars: Number(account.earnedStars),
+    streak: Number(account.streak),
+    chargesEarned: Number(account.chargesEarned),
     levelLinesCleared: Number(account.levelLinesCleared),
     totalLinesCleared: Number(account.totalLinesCleared),
     bonusUses: Number(account.bonusUses),

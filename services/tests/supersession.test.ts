@@ -13,6 +13,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AGENT_RULES = join(ROOT, "AGENTS.md");
 const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
+const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
 const CORE = join(ROOT, "crates/zkube-core/src");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
@@ -108,6 +109,16 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     pattern: /star_threshold_modifier|starThresholdModifier|126.{0,3}129/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "Campaign star sources have no authored efficiency modifier",
+  },
+  {
+    pattern: /ComboMeter|Combo Meter/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "Campaign constraints use the fixed line/combo/streak vocabulary",
+  },
+  {
+    pattern: /\bcascade\b/i,
+    trees: CLIENT_CONSTRAINT_COPY,
+    reversal: "player-facing constraint copy calls the action a combo",
   },
   {
     pattern:

@@ -6118,6 +6118,20 @@ export type Solana = {
             "type": "u8"
           },
           {
+            "name": "streak",
+            "docs": [
+              "Consecutive qualifying player moves for the authored streak predicate."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "chargesEarned",
+            "docs": [
+              "Guardian trigger events produced across the run, before inventory caps."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "levelLinesCleared",
             "type": "u16"
           },

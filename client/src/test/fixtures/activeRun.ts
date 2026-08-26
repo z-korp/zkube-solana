@@ -51,6 +51,8 @@ export function makeActiveRun(
     primaryProgress: 0,
     secondaryProgress: 0,
     earnedStars: 0,
+    streak: 0,
+    chargesEarned: 0,
     levelLinesCleared: 0,
     totalLinesCleared: 0,
     bonusUses: 0,

@@ -97,7 +97,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   17: {
     id: 17,
     name: "Mamba's Rhythm",
-    description: "The serpent turns Combo Meter milestones into Totems.",
+    description: "The serpent turns combo milestones into Totems.",
     icon: "🐍",
     effects: [
       "every 8 combo points = +1 Totem",
@@ -211,7 +211,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     id: 18,
     name: "Primal Pulse",
     description:
-      "The serpent's drum. Combos cascade at ×2 and every line keeps the rhythm.",
+      "The serpent's drum. Combos score at ×2 and every line keeps the rhythm.",
     icon: "🔥",
     effects: ["combos ×2", "+1 per line", "6 rows at start"],
     effectsEndless: ["combos ×2", "+1 per line", "6 rows at start"],
@@ -388,7 +388,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
   37: {
     id: 37,
     name: "Mamba's Rhythm",
-    description: "The serpent turns Combo Meter milestones into Totems.",
+    description: "The serpent turns combo milestones into Totems.",
     icon: "🐍",
     effects: [
       "every 8 combo points = +1 Totem",

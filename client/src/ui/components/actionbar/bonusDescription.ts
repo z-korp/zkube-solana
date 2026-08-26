@@ -17,7 +17,7 @@ export function buildTriggerDescription(
   } else if (triggerType === 6) {
     parts.push("Destroy block sizes 1–4 in one move");
   } else if (triggerType === 7) {
-    parts.push(`Every ${triggerThreshold} Combo Meter points · max 1 per action`);
+    parts.push(`Every ${triggerThreshold} combo points · max 1 per action`);
   }
   if (startingCharges > 0) {
     parts.push(`Start with ${startingCharges}`);
