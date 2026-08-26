@@ -270,11 +270,26 @@ describe("PlayScreen bonus receipt feedback", () => {
     const slots = fixtures.actionBarProps?.bonusSlots as Array<{
       name: string;
       charges: number;
+      triggerDescription: string;
     }>;
 
-    expect(slots.map(({ name, charges }) => ({ name, charges }))).toEqual([
-      { name: "Hammer", charges: 3 },
-      { name: "Reroll", charges: 1 },
+    expect(
+      slots.map(({ name, charges, triggerDescription }) => ({
+        name,
+        charges,
+        triggerDescription,
+      })),
+    ).toEqual([
+      {
+        name: "Hammer",
+        charges: 3,
+        triggerDescription: "Every 3 lines cleared by moves · Start with 1",
+      },
+      {
+        name: "Reroll",
+        charges: 1,
+        triggerDescription: "Start with 1 · ★★ awards +1 · hold up to 3",
+      },
     ]);
   });
 

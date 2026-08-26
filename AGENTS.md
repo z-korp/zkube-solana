@@ -24,7 +24,7 @@ Source implements v5 partially. Current state:
 
 | Area | Status |
 | --- | --- |
-| Deterministic core 1.0.0 | Built — `objective_total`, universal once-per-run reroll, harmonic payout width, and the cycle-keyed derived content-pool draw |
+| Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed derived content-pool draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
 | `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |

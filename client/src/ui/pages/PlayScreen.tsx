@@ -246,7 +246,10 @@ export default function PlayScreen() {
       icon: REROLL_ACTION.icon,
       name: REROLL_ACTION.name,
       description: REROLL_ACTION.description,
-      triggerDescription: "Once per run",
+      triggerDescription:
+        activeRun.mode === "daily"
+          ? "Start with 1 · perfect clear awards +1 · hold up to 3"
+          : "Start with 1 · ★★ awards +1 · hold up to 3",
       startingCharges: 1,
       onClick: () => {
         if (activeRun.rerollCharges <= 0) return;

@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 // reversal is not complete until its phrases are on this list.
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AGENT_RULES = join(ROOT, "AGENTS.md");
+const README = join(ROOT, "README.md");
 const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
 const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
@@ -100,7 +101,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
-      /calculate_level_stars|calculateLevelStars|move[- ](?:efficiency|percent(?:age)?) stars/i,
+      /calculate_level_stars|calculateLevelStars|move[- ](?:efficiency|percent(?:age)?) stars|move_(?:efficiency|percent(?:age)?)|move(?:Efficiency|Percent(?:age)?)/i,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
       "Campaign stars latch from score, primary, and secondary constraints",
@@ -139,7 +140,8 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "reroll is a capped inventory with Campaign and Daily grants",
   },
   {
-    pattern: /starting_(?:bonus_)?charges\s*<=\s*15|\.min\(15\)/i,
+    pattern:
+      /(?:starting_(?:bonus_)?charges|bonus_charges)\s*<=\s*15|bonusCharges\s*<=\s*15|\.min\(15\)/i,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "all bonus inventories use the shared three-charge cap",
   },
@@ -195,5 +197,11 @@ describe("supersession", () => {
     const rules = await readFile(AGENT_RULES, "utf8");
     expect(rules).not.toMatch(/canonical deployed binding/i);
     expect(rules).not.toMatch(/weekly:current:3SOL/i);
+    expect(rules).not.toMatch(/once-per-run reroll/i);
+  });
+
+  it("keeps the deleted single-reroll model out of public product copy", async () => {
+    const readme = await readFile(README, "utf8");
+    expect(readme).not.toMatch(/carries one reroll/i);
   });
 });

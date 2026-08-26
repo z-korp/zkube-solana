@@ -31,7 +31,11 @@ wallets or recovery codes.
 **Campaign** is free and optional, and never gates Arcade. It is ten zones of
 ten levels — 100 levels, 300 possible stars — stored as one packed 25-byte,
 two-bits-per-level array. The packed star record is Campaign's only progression,
-and Campaign never grants SOL, entries, or prize eligibility.
+and Campaign never grants SOL, entries, or prize eligibility. A level's score
+target earns its first star, an authored cumulative Shape constraint earns the
+second, and an authored one-action Blow constraint earns the third. Reaching
+every authored source completes the level; exhausting the move budget or board
+ends it with already-earned stars kept.
 
 **Arcade** is competition only. The owner prepays Kredits at exactly 0.01 SOL
 (10,000,000 lamports) each. Spending one Kredit routes:
@@ -122,10 +126,12 @@ recompute and verify them. The entry streak remains visible attendance but does
 not multiply points. A championship is discretionary,
 unscheduled, and funded separately rather than skimmed from Daily pots.
 
-Every Campaign and Arcade run carries one reroll of the incoming row beside its
-guardian bonus. Daily pool entries still pin that guardian bonus, with no
-wildcard realm or second bonus pairing. Mainnet remains gated on the same
-counsel, economic, and distribution review as before.
+Every Campaign and Arcade run starts with one reroll of the incoming row and
+can hold at most three beside its guardian bonus. Earning the second Campaign
+star or making an Arcade perfect clear awards another. Daily pool entries still
+pin that guardian bonus, with no wildcard realm or second bonus pairing.
+Mainnet remains gated on the same counsel, economic, and distribution review as
+before.
 
 ## Architecture
 
