@@ -4,9 +4,9 @@ use zkube_core::{
     Constraint, ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 187;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 186;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 183;
-const CONFIG_VERSION: u8 = 2;
+const CONFIG_VERSION: u8 = 3;
 const STATE_VERSION: u8 = 4;
 
 #[must_use]
@@ -359,7 +359,7 @@ fn encode_mutator<const N: usize>(writer: &mut Writer<N>, mutator: MutatorRules)
     writer.write(&mutator.combo_multiplier_x100.to_le_bytes());
     writer.write(&mutator.line_clear_bonus.to_le_bytes());
     writer.write(&mutator.perfect_clear_bonus.to_le_bytes());
-    writer.write(&[mutator.star_threshold_modifier, mutator.bonus_trigger_type]);
+    writer.write(&[mutator.bonus_trigger_type]);
     writer.write(&mutator.bonus_threshold.to_le_bytes());
 }
 
@@ -369,7 +369,6 @@ fn decode_mutator(reader: &mut Reader<'_>) -> Result<MutatorRules, BoundaryError
         combo_multiplier_x100: reader.u16()?,
         line_clear_bonus: reader.u16()?,
         perfect_clear_bonus: reader.u16()?,
-        star_threshold_modifier: reader.u8()?,
         bonus_trigger_type: reader.u8()?,
         bonus_threshold: reader.u16()?,
     })

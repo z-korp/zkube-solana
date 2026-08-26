@@ -456,7 +456,6 @@ impl MapCatalog {
             combo_multiplier_x100: map.combo_multiplier_x100,
             line_clear_bonus: map.line_clear_bonus,
             perfect_clear_bonus: map.perfect_clear_bonus,
-            star_threshold_modifier: map.star_threshold_modifier,
             bonus_type: map.bonus_type,
             bonus_trigger_type: map.bonus_trigger_type,
             bonus_threshold: map.bonus_threshold,
@@ -475,7 +474,6 @@ pub struct CampaignMapRuleSnapshot {
     pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
-    pub star_threshold_modifier: u8,
     pub bonus_type: u8,
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
@@ -510,7 +508,6 @@ pub struct LevelRuleSnapshot {
     pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
-    pub star_threshold_modifier: u8,
     pub bonus_type: u8,
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
@@ -833,7 +830,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 552);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 551);
     }
 
     #[test]
@@ -862,7 +859,6 @@ mod tests {
             boss_id: 5,
             score_multiplier_x100: 175,
             combo_multiplier_x100: 100,
-            star_threshold_modifier: 128,
             bonus_type: 1,
             bonus_trigger_type: 4,
             bonus_threshold: 3,

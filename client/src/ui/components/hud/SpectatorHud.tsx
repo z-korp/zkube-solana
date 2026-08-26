@@ -13,10 +13,7 @@ import {
   circleToPercent,
   rectToPercent,
 } from "@/ui/components/chrome";
-import {
-  constraintDescription,
-  estimateStars,
-} from "@/ui/components/hud/runDisplay";
+import { constraintDescription } from "@/ui/components/hud/runDisplay";
 
 export default function SpectatorHud({
   run,
@@ -32,11 +29,6 @@ export default function SpectatorHud({
   const scoreProgress = Math.min(
     1,
     run.rules.pointsRequired > 0 ? displayScore / run.rules.pointsRequired : 0,
-  );
-  const stars = estimateStars(
-    run.rules.maxMoves,
-    run.moves,
-    run.rules.starThresholdModifier,
   );
   const constraints = [
     {
@@ -57,7 +49,7 @@ export default function SpectatorHud({
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] shrink-0 px-1 pt-1">
-      <HudBarSvg starsEarned={stars} endless={run.mode === "daily"} />
+      <HudBarSvg starsEarned={run.earnedStars} endless={run.mode === "daily"} />
       <div className="absolute inset-x-1 top-1 aspect-[500/152]">
         <button
           type="button"

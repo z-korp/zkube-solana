@@ -1,15 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { constraintDescription, estimateStars } from "./runDisplay";
+import { constraintDescription } from "./runDisplay";
 
 describe("runDisplay", () => {
-  it("uses the archived star-threshold projection", () => {
-    expect(estimateStars(20, 10, 128)).toBe(3);
-    expect(estimateStars(20, 15, 128)).toBe(2);
-    expect(estimateStars(20, 16, 128)).toBe(1);
-  });
-
   it("describes each on-chain constraint kind", () => {
     expect(
       constraintDescription({

@@ -105,6 +105,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Campaign stars latch from score, primary, and secondary constraints",
   },
   {
+    pattern: /star_threshold_modifier|starThresholdModifier|126.{0,3}129/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal: "Campaign star sources have no authored efficiency modifier",
+  },
+  {
     pattern:
       /Bonus::Reroll|BonusType\.Reroll|\bBonusShape\b|bonus_type\s*==\s*4|RealmPlusUniversalReroll/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],

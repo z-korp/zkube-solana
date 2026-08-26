@@ -9,9 +9,7 @@
  *
  * The move meter is an inlay line along the rail's top edge, not a pill
  * floating under the keys, and it DRAINS: it starts full and empties, in the
- * realm's accent, going red on the last quarter. In Campaign the star
- * thresholds are marks it drains past, because stars are decided by moves used
- * — the counter and the three stars were always one instrument.
+ * realm's accent, going red on the last quarter.
  */
 import { useEffect, useState } from "react";
 import { Flag, Home, Settings, Volume2, VolumeX } from "lucide-react";
@@ -45,9 +43,6 @@ export interface BoardRailProps {
   disabled?: boolean;
   movesRemaining: number;
   maxMoves: number;
-  /** Campaign only: the move counts that still earn three and two stars. */
-  starThresholds?: readonly [number, number];
-  movesUsed: number;
   onHome?: () => void;
   onSurrender: () => void;
   surrenderDisabled?: boolean;
@@ -61,8 +56,6 @@ export default function BoardRail({
   disabled = false,
   movesRemaining,
   maxMoves,
-  starThresholds,
-  movesUsed,
   onHome,
   onSurrender,
   surrenderDisabled = false,
@@ -93,21 +86,6 @@ export default function BoardRail({
             boxShadow: `0 0 10px ${meter}88`,
           }}
         />
-        {starThresholds?.map((threshold, index) => {
-          const at = maxMoves > 0 ? 1 - threshold / maxMoves : 0;
-          const earned = movesUsed <= threshold;
-          return (
-            <span
-              key={index}
-              className="absolute top-0 h-full"
-              style={{
-                left: `${Math.max(0, Math.min(1, at)) * 100}%`,
-                width: 2,
-                background: earned ? "#FACC15" : "rgba(255,255,255,0.28)",
-              }}
-            />
-          );
-        })}
       </div>
 
       <div className="absolute left-4 top-4 flex items-baseline gap-1.5">

@@ -9,7 +9,7 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v2";
-pub const CANONICAL_DAILY_RULES_LEN: usize = 145;
+pub const CANONICAL_DAILY_RULES_LEN: usize = 144;
 pub const DAILY_MAX_MOVES: u16 = 100;
 const PRESSURE_TIER_COUNT: usize = 8;
 
@@ -110,7 +110,6 @@ pub const fn neutral_daily_mutator_rules(
         combo_multiplier_x100: 100,
         line_clear_bonus: 0,
         perfect_clear_bonus: 0,
-        star_threshold_modifier: 128,
         bonus_trigger_type,
         bonus_threshold,
     }
@@ -150,7 +149,6 @@ impl DailyRunRules {
         encoded.push(&self.mutator.combo_multiplier_x100.to_le_bytes());
         encoded.push(&self.mutator.line_clear_bonus.to_le_bytes());
         encoded.push(&self.mutator.perfect_clear_bonus.to_le_bytes());
-        encoded.push(&[self.mutator.star_threshold_modifier]);
         encoded.push(&[self.mutator.bonus_trigger_type]);
         encoded.push(&self.mutator.bonus_threshold.to_le_bytes());
         encoded.push(&[

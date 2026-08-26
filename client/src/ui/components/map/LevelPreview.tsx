@@ -117,14 +117,6 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
     mood: isBossLevel && isCleared ? "celebrate" : "idle",
   });
 
-  const starRows = levelData
-    ? [
-        { stars: 3, moves: levelData.star3Threshold },
-        { stars: 2, moves: levelData.star2Threshold },
-        { stars: 1, moves: levelData.maxMoves },
-      ]
-    : [];
-
   return (
     <motion.div
       className="absolute inset-0 z-30 flex flex-col bg-black/70"
@@ -239,35 +231,6 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
                 </div>
               </div>
 
-              {/* Star thresholds */}
-              {starRows.length > 0 && (
-                <div className="flex gap-1.5">
-                  {starRows.map(({ stars: rowStars, moves }) => (
-                    <div
-                      key={rowStars}
-                      className="flex-1 rounded-xl bg-white/[0.04] px-2 py-2 text-center"
-                    >
-                      <p className="text-sm">
-                        {Array.from({ length: 3 }).map((_, index) => (
-                          <span
-                            key={index}
-                            className={
-                              index < rowStars
-                                ? "text-yellow-300"
-                                : "text-white/15"
-                            }
-                          >
-                            ★
-                          </span>
-                        ))}
-                      </p>
-                      <p className="font-sans text-[11px] font-semibold text-white/50">
-                        ≤{moves} moves
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Constraints — objectives to clear, side by side with their
                   in-game icons so they read as goals, not flavor. */}

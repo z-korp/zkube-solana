@@ -23,7 +23,6 @@ describe("Campaign content v2", () => {
           map.mapRules.comboMultiplierX100,
           map.mapRules.lineClearBonus,
           map.mapRules.perfectClearBonus,
-          map.mapRules.starThresholdModifier,
           map.mapRules.bonusType,
           map.mapRules.bonusTriggerType,
           map.mapRules.bonusThreshold,

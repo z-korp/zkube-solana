@@ -27,7 +27,6 @@ const activeRun = (): ActiveRunView => ({
     activeMutatorId: 1,
     passiveMutatorId: 2,
     bossId: 0,
-    starThresholdModifier: 128,
     bonusType: 1,
     bonusTriggerType: 2,
     bonusThreshold: 3,
@@ -120,8 +119,6 @@ describe("play controller projections", () => {
       gameLevel: {
         gameId: 5n,
         pointsRequired: 100,
-        star3Threshold: 10,
-        star2Threshold: 15,
       },
     });
   });

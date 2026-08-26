@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
 import { ConstraintType } from "@/game/constraint";
-import { applyStarThresholdModifier } from "@/game/level";
 import type { ActiveRunRulesView } from "@/chain/runPlan";
 
 export interface GameLevelData {
@@ -18,8 +17,6 @@ export interface GameLevelData {
   constraint2Value: number;
   constraint2Count: number;
   mutatorId: number;
-  star3Threshold: number;
-  star2Threshold: number;
 }
 
 export function rulesToGameLevelData(
@@ -27,9 +24,6 @@ export function rulesToGameLevelData(
   level: number,
   gameId = 0n,
 ): GameLevelData {
-  const { star3Pct, star2Pct } = applyStarThresholdModifier(
-    rules.starThresholdModifier,
-  );
   return {
     gameId,
     level,
@@ -43,8 +37,6 @@ export function rulesToGameLevelData(
     constraint2Value: rules.secondary.value,
     constraint2Count: rules.secondary.requiredCount,
     mutatorId: rules.passiveMutatorId,
-    star3Threshold: Math.floor((rules.maxMoves * star3Pct) / 100),
-    star2Threshold: Math.floor((rules.maxMoves * star2Pct) / 100),
   };
 }
 

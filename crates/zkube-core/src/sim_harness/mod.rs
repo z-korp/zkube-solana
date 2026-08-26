@@ -697,7 +697,7 @@ struct CampaignFixture {
 #[serde(rename_all = "camelCase")]
 struct CampaignFixtureMap {
     map_id: u8,
-    rules: [u16; 10],
+    rules: [u16; 9],
     levels: Vec<CampaignFixtureLevel>,
 }
 
@@ -733,7 +733,7 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
             .expect("Campaign fixture must parse");
     let mut levels = Vec::with_capacity(100);
     for map in fixture.maps {
-        let bonus = bonus_from_tag(map.rules[5]);
+        let bonus = bonus_from_tag(map.rules[4]);
         for (level_index, level) in map.levels.into_iter().enumerate() {
             let level_id = u8::try_from(level_index + 1).expect("ten Campaign levels fit u8");
             let secondary = constraint_from_tuple(level.4);
@@ -753,16 +753,14 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
                         combo_multiplier_x100: map.rules[1],
                         line_clear_bonus: map.rules[2],
                         perfect_clear_bonus: map.rules[3],
-                        star_threshold_modifier: u8::try_from(map.rules[4])
-                            .expect("validated Campaign star modifier fits u8"),
-                        bonus_trigger_type: u8::try_from(map.rules[6])
+                        bonus_trigger_type: u8::try_from(map.rules[5])
                             .expect("validated Campaign trigger fits u8"),
-                        bonus_threshold: map.rules[7],
+                        bonus_threshold: map.rules[6],
                     },
                     bonus,
-                    starting_bonus_charges: u8::try_from(map.rules[8])
+                    starting_bonus_charges: u8::try_from(map.rules[7])
                         .expect("validated Campaign charges fit u8"),
-                    starting_height: u8::try_from(map.rules[9])
+                    starting_height: u8::try_from(map.rules[8])
                         .expect("validated Campaign height fits u8"),
                     level_difficulty: level.2,
                     block_weights: fixture.difficulty_weights,
@@ -808,11 +806,11 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
             let rules = DailyRunRules {
                 max_moves: crate::DAILY_MAX_MOVES,
                 mutator: neutral_daily_mutator_rules(
-                    u8::try_from(map_rules[6]).expect("validated trigger fits u8"),
-                    map_rules[7],
+                    u8::try_from(map_rules[5]).expect("validated trigger fits u8"),
+                    map_rules[6],
                 ),
-                bonus: bonus_from_tag(map_rules[5]),
-                starting_bonus_charges: u8::try_from(map_rules[8])
+                bonus: bonus_from_tag(map_rules[4]),
+                starting_bonus_charges: u8::try_from(map_rules[7])
                     .expect("validated charges fit u8"),
                 starting_height: entry.starting_rows,
                 objective,

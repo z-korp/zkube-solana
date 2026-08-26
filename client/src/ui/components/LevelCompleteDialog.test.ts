@@ -36,8 +36,6 @@ describe("LevelCompleteDialog", () => {
           constraint2Value: 0,
           constraint2Count: 0,
           mutatorId: 0,
-          star3Threshold: 10,
-          star2Threshold: 15,
         },
       }),
     );

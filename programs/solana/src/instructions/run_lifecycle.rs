@@ -1157,7 +1157,6 @@ fn mutator_rules(snapshot: &LevelRuleSnapshot) -> MutatorRules {
         combo_multiplier_x100: snapshot.combo_multiplier_x100,
         line_clear_bonus: snapshot.line_clear_bonus,
         perfect_clear_bonus: snapshot.perfect_clear_bonus,
-        star_threshold_modifier: snapshot.star_threshold_modifier,
         bonus_trigger_type: snapshot.bonus_trigger_type,
         bonus_threshold: snapshot.bonus_threshold,
     }
@@ -1964,9 +1963,8 @@ mod tests {
             combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
             line_clear_bonus: rules[2].as_u64().unwrap() as u16,
             perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
-            star_threshold_modifier: rules[4].as_u64().unwrap() as u8,
-            bonus_trigger_type: rules[6].as_u64().unwrap() as u8,
-            bonus_threshold: rules[7].as_u64().unwrap() as u16,
+            bonus_trigger_type: rules[5].as_u64().unwrap() as u8,
+            bonus_threshold: rules[6].as_u64().unwrap() as u16,
         }
     }
 
@@ -1990,7 +1988,7 @@ mod tests {
         for (map_index, map) in maps.iter().enumerate() {
             assert_eq!(map["mapId"].as_u64().unwrap() as usize, map_index + 1);
             let rules = map["rules"].as_array().unwrap();
-            assert!((4..=8).contains(&rules[9].as_u64().unwrap()));
+            assert!((4..=8).contains(&rules[8].as_u64().unwrap()));
             let levels = map["levels"].as_array().unwrap();
             assert_eq!(levels.len(), 10);
             for level in levels {

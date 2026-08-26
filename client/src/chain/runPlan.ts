@@ -221,7 +221,6 @@ export interface RawLevelRuleSnapshot {
   activeMutatorId: unknown;
   passiveMutatorId: unknown;
   bossId: unknown;
-  starThresholdModifier: unknown;
   bonusType: unknown;
   bonusTriggerType: unknown;
   bonusThreshold: unknown;
@@ -248,7 +247,6 @@ export function mapLevelRuleSnapshot(
     activeMutatorId: Number(rules.activeMutatorId),
     passiveMutatorId: Number(rules.passiveMutatorId),
     bossId: Number(rules.bossId),
-    starThresholdModifier: Number(rules.starThresholdModifier),
     bonusType: Number(rules.bonusType),
     bonusTriggerType: Number(rules.bonusTriggerType),
     bonusThreshold: Number(rules.bonusThreshold),
@@ -265,7 +263,6 @@ export interface ActiveRunRulesView {
   activeMutatorId: number;
   passiveMutatorId: number;
   bossId: number;
-  starThresholdModifier: number;
   bonusType: number;
   bonusTriggerType: number;
   bonusThreshold: number;

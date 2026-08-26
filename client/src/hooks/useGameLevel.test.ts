@@ -13,7 +13,6 @@ const rules: ActiveRunRulesView = {
   activeMutatorId: 9,
   passiveMutatorId: 7,
   bossId: 2,
-  starThresholdModifier: 128,
   bonusType: 1,
   bonusTriggerType: 2,
   bonusThreshold: 4,
@@ -21,7 +20,7 @@ const rules: ActiveRunRulesView = {
 };
 
 describe("rulesToGameLevelData", () => {
-  it("projects every authoritative rule and Rust-parity star threshold", () => {
+  it("projects every authoritative level rule", () => {
     expect(rulesToGameLevelData(rules, 6, 42n)).toEqual({
       gameId: 42n,
       level: 6,
@@ -35,18 +34,6 @@ describe("rulesToGameLevelData", () => {
       constraint2Value: 4,
       constraint2Count: 8,
       mutatorId: 7,
-      star3Threshold: 20,
-      star2Threshold: 30,
     });
-  });
-
-  it.each([
-    [127, 22, 32],
-    [128, 20, 30],
-    [129, 18, 28],
-  ])("tracks modifier %i", (modifier, star3Threshold, star2Threshold) => {
-    expect(
-      rulesToGameLevelData({ ...rules, starThresholdModifier: modifier }, 1),
-    ).toMatchObject({ star3Threshold, star2Threshold });
   });
 });

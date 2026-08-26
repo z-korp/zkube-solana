@@ -6794,10 +6794,6 @@
             "type": "u16"
           },
           {
-            "name": "star_threshold_modifier",
-            "type": "u8"
-          },
-          {
             "name": "bonus_type",
             "type": "u8"
           },
@@ -7376,10 +7372,6 @@
           {
             "name": "perfect_clear_bonus",
             "type": "u16"
-          },
-          {
-            "name": "star_threshold_modifier",
-            "type": "u8"
           },
           {
             "name": "bonus_type",

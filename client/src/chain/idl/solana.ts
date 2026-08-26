@@ -6800,10 +6800,6 @@ export type Solana = {
             "type": "u16"
           },
           {
-            "name": "starThresholdModifier",
-            "type": "u8"
-          },
-          {
             "name": "bonusType",
             "type": "u8"
           },
@@ -7382,10 +7378,6 @@ export type Solana = {
           {
             "name": "perfectClearBonus",
             "type": "u16"
-          },
-          {
-            "name": "starThresholdModifier",
-            "type": "u8"
           },
           {
             "name": "bonusType",

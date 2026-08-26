@@ -23,7 +23,6 @@ export function makeRunRules(
     activeMutatorId: 0,
     passiveMutatorId: 0,
     bossId: 0,
-    starThresholdModifier: 128,
     bonusType: 0,
     bonusTriggerType: 0,
     bonusThreshold: 0,

@@ -56,7 +56,6 @@ function delegatedRun(
     rules: makeRunRules({
       maxMoves: 16,
       difficulty: 1,
-      starThresholdModifier: 100,
     }),
   });
   return {

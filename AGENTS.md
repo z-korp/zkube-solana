@@ -542,6 +542,10 @@ are retained and recorded in either terminal state.
 and program boundaries. Storing the latch costs one byte in `ActiveRun` and one
 byte in the Daily simulation codec; it replaces the deleted post-run star
 calculation rather than adding a second rule.
+Move efficiency and an authored star-threshold modifier are not star sources;
+the `supersession > keeps reversed models out of authored source` test prevents
+their code and copy from returning. Removing that model deletes one byte from
+Campaign map rules, level snapshots, `ActiveRun`, and each encoded rules configuration.
 
 Campaign uses the same engine and generated catalog as Arcade but a separate
 progression boundary: completing Campaign content may only improve the packed

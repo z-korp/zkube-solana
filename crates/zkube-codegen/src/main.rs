@@ -68,7 +68,7 @@ struct CampaignCatalog {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CampaignMap {
     map_id: u8,
-    rules: [u16; 10],
+    rules: [u16; 9],
     levels: Vec<EncodedLevel>,
 }
 
@@ -299,7 +299,7 @@ fn campaign_rules(
     }
     let mut all_weights = [[0; 5]; 8];
     all_weights.copy_from_slice(weights);
-    let bonus = match map.rules[5] {
+    let bonus = match map.rules[4] {
         0 => None,
         1 => Some(Bonus::Hammer),
         2 => Some(Bonus::Totem),
@@ -318,16 +318,14 @@ fn campaign_rules(
             combo_multiplier_x100: map.rules[1],
             line_clear_bonus: map.rules[2],
             perfect_clear_bonus: map.rules[3],
-            star_threshold_modifier: u8::try_from(map.rules[4])
-                .map_err(|_| format!("map {} star modifier exceeds u8", map.map_id))?,
-            bonus_trigger_type: u8::try_from(map.rules[6])
+            bonus_trigger_type: u8::try_from(map.rules[5])
                 .map_err(|_| format!("map {} trigger exceeds u8", map.map_id))?,
-            bonus_threshold: map.rules[7],
+            bonus_threshold: map.rules[6],
         },
         bonus,
-        starting_bonus_charges: u8::try_from(map.rules[8])
+        starting_bonus_charges: u8::try_from(map.rules[7])
             .map_err(|_| format!("map {} charges exceed u8", map.map_id))?,
-        starting_height: u8::try_from(map.rules[9])
+        starting_height: u8::try_from(map.rules[8])
             .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
         level_difficulty: level.2,
         block_weights: all_weights,

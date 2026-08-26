@@ -33,7 +33,6 @@ interface CampaignMapRulesPublication {
   comboMultiplierX100: number;
   lineClearBonus: number;
   perfectClearBonus: number;
-  starThresholdModifier: number;
   bonusType: number;
   bonusTriggerType: number;
   bonusThreshold: number;
@@ -94,7 +93,6 @@ function publicationRules(
     comboMultiplierX100,
     lineClearBonus,
     perfectClearBonus,
-    starThresholdModifier,
     bonusType,
     bonusTriggerType,
     bonusThreshold,
@@ -110,7 +108,6 @@ function publicationRules(
     comboMultiplierX100,
     lineClearBonus,
     perfectClearBonus,
-    starThresholdModifier,
     bonusType,
     bonusTriggerType,
     bonusThreshold,

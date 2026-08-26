@@ -921,12 +921,6 @@ export default function PlayScreen() {
         disabled={chainTerminal || basePhase || !run.sessionAuthorized}
         movesRemaining={movesDisplay}
         maxMoves={gameLevel.maxMoves}
-        movesUsed={hudGame.levelMoves}
-        starThresholds={
-          game.mode === 1
-            ? undefined
-            : [gameLevel.star3Threshold, gameLevel.star2Threshold]
-        }
         onHome={
           chainTerminal || basePhase || run.busy
             ? undefined

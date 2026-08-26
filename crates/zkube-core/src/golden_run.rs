@@ -8,7 +8,6 @@ struct GoldenMutator {
     combo_multiplier_x100: u16,
     line_clear_bonus: u16,
     perfect_clear_bonus: u16,
-    star_threshold_modifier: u8,
     bonus_trigger_type: u8,
     bonus_threshold: u16,
 }
@@ -172,7 +171,6 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
             combo_multiplier_x100: value.mutator.combo_multiplier_x100,
             line_clear_bonus: value.mutator.line_clear_bonus,
             perfect_clear_bonus: value.mutator.perfect_clear_bonus,
-            star_threshold_modifier: value.mutator.star_threshold_modifier,
             bonus_trigger_type: value.mutator.bonus_trigger_type,
             bonus_threshold: value.mutator.bonus_threshold,
         },

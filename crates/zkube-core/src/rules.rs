@@ -103,9 +103,6 @@ pub struct MutatorRules {
     pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
-    /// Bias-128 encoding from zkube: every point is a five percentage-point
-    /// change to the neutral 3-star (50%) and 2-star (75%) move thresholds.
-    pub star_threshold_modifier: u8,
     /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
     /// 5=perfect clear, 6=all block sizes in one move, 7=Combo Meter boundary.
     pub bonus_trigger_type: u8,
@@ -166,7 +163,6 @@ impl Default for MutatorRules {
             combo_multiplier_x100: 100,
             line_clear_bonus: 0,
             perfect_clear_bonus: 0,
-            star_threshold_modifier: 128,
             bonus_trigger_type: 0,
             bonus_threshold: 0,
         }
@@ -677,9 +673,8 @@ mod tests {
                     combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
                     line_clear_bonus: rules[2].as_u64().unwrap() as u16,
                     perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
-                    star_threshold_modifier: rules[4].as_u64().unwrap() as u8,
-                    bonus_trigger_type: rules[6].as_u64().unwrap() as u8,
-                    bonus_threshold: rules[7].as_u64().unwrap() as u16,
+                    bonus_trigger_type: rules[5].as_u64().unwrap() as u8,
+                    bonus_threshold: rules[6].as_u64().unwrap() as u16,
                 }
             })
             .collect()
@@ -1656,7 +1651,6 @@ mod tests {
                 line_clear_bonus: fixture["mutator"]["lineClearBonus"].as_u64().unwrap() as u16,
                 perfect_clear_bonus: fixture["mutator"]["perfectClearBonus"].as_u64().unwrap()
                     as u16,
-                star_threshold_modifier: 128,
                 bonus_trigger_type: fixture["mutator"]["bonusTriggerType"].as_u64().unwrap() as u8,
                 bonus_threshold: fixture["mutator"]["bonusThreshold"].as_u64().unwrap() as u16,
             };
