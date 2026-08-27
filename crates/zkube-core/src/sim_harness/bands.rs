@@ -82,6 +82,9 @@ pub const ACCEPTANCE_PLANNER_SEEDS: u32 = 32;
 /// Minimum naive seed count resolving the narrow guardian luck band.
 pub const ACCEPTANCE_NAIVE_SEEDS: u32 = 100;
 
+/// Wilson score interval confidence multiplier, scaled by one thousand.
+pub const CONFIDENCE_Z_MILLI: u32 = 1_960;
+
 /// Minimum mean-star gain, in thousandths, for constraint pursuit.
 pub const CONSTRAINT_MEAN_STAR_GAIN_MILLI: i32 = 300;
 /// Alternative two-star-rate gain for constraint pursuit, in basis points.

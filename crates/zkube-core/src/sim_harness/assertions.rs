@@ -751,53 +751,35 @@ impl Evaluator {
     }
 
     fn first_star_rate(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
-            "first-star-rate",
-            "per level",
-            "line-clearer success inside the owner-sloped first-star band",
-            bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
-        );
-        if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
-            return Ok(skipped);
-        }
-        let levels = self.campaign.clone();
-        let mut units = Vec::with_capacity(levels.len());
-        for level in levels {
-            let hits = self.campaign_hits(
-                level,
-                PlayerModel::LineClearer,
-                self.config.planner_seeds,
-                |record| record.earned_stars >= 1,
-            )?;
-            let rate = rate_bps(hits, self.config.planner_seeds);
-            let (minimum, maximum) = sloped_band(
-                level.level_id,
+        self.star_rate(
+            Metadata::ignored(
+                "first-star-rate",
+                "per level and pooled level index",
+                "line-clearer >=1-star Wilson interval intersects the owner-sloped first-star band",
+                bands::ACCEPTANCE_PLANNER_SEEDS,
+                "brief 05",
+            ),
+            PlayerModel::LineClearer,
+            1,
+            (
                 bands::FIRST_STAR_START_MIN_BPS,
                 bands::FIRST_STAR_START_MAX_BPS,
                 bands::FIRST_STAR_END_MIN_BPS,
                 bands::FIRST_STAR_END_MAX_BPS,
-            );
-            units.push(rate_unit(
-                level_label(level),
-                self.config.planner_seeds,
-                rate,
-                minimum,
-                maximum,
-            ));
-        }
-        Ok(finish(metadata, units))
+            ),
+        )
     }
 
     fn second_star_rate(&mut self) -> Result<AssertionResult, String> {
         self.star_rate(
             Metadata::ignored(
                 "second-star-rate",
-                "per level",
-                "planner >=2-star rate inside the owner-sloped second-star band",
+                "per level and pooled level index",
+                "planner >=2-star Wilson interval intersects the owner-sloped second-star band",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
                 "brief 05",
             ),
+            self.config.planner_model,
             2,
             (
                 bands::SECOND_STAR_START_MIN_BPS,
@@ -812,11 +794,12 @@ impl Evaluator {
         self.star_rate(
             Metadata::ignored(
                 "star-earn-rate",
-                "per level",
-                "planner >=3-star rate inside the owner-sloped third-star band",
+                "per level and pooled level index",
+                "planner >=3-star Wilson interval intersects the owner-sloped third-star band",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
                 "brief 05",
             ),
+            self.config.planner_model,
             3,
             (
                 bands::THIRD_STAR_START_MIN_BPS,
@@ -830,6 +813,7 @@ impl Evaluator {
     fn star_rate(
         &mut self,
         metadata: Metadata,
+        model: PlayerModel,
         stars: u8,
         endpoints: (u32, u32, u32, u32),
     ) -> Result<AssertionResult, String> {
@@ -837,15 +821,13 @@ impl Evaluator {
             return Ok(skipped);
         }
         let levels = self.campaign.clone();
-        let mut units = Vec::with_capacity(levels.len());
+        let mut units = Vec::with_capacity(levels.len() + 10);
+        let mut pooled_hits = [0u32; 10];
+        let mut pooled_samples = [0u32; 10];
         for level in levels {
-            let hits = self.campaign_hits(
-                level,
-                self.config.planner_model,
-                self.config.planner_seeds,
-                |record| record.earned_stars >= stars,
-            )?;
-            let rate = rate_bps(hits, self.config.planner_seeds);
+            let hits = self.campaign_hits(level, model, self.config.planner_seeds, |record| {
+                record.earned_stars >= stars
+            })?;
             let (minimum, maximum) = sloped_band(
                 level.level_id,
                 endpoints.0,
@@ -856,7 +838,22 @@ impl Evaluator {
             units.push(rate_unit(
                 level_label(level),
                 self.config.planner_seeds,
-                rate,
+                hits,
+                minimum,
+                maximum,
+            ));
+            let index = usize::from(level.level_id.saturating_sub(1).min(9));
+            pooled_hits[index] = pooled_hits[index].saturating_add(hits);
+            pooled_samples[index] = pooled_samples[index].saturating_add(self.config.planner_seeds);
+        }
+        for index in 0..10usize {
+            let level_id = u8::try_from(index + 1).unwrap_or(10);
+            let (minimum, maximum) =
+                sloped_band(level_id, endpoints.0, endpoints.1, endpoints.2, endpoints.3);
+            units.push(rate_unit(
+                format!("pooled-level-{level_id}"),
+                pooled_samples[index],
+                pooled_hits[index],
                 minimum,
                 maximum,
             ));
@@ -868,7 +865,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "trigger-liveness",
             "per realm, both modes",
-            "trigger fires in 3000..=8000 bps of runs",
+            "trigger-fire Wilson interval intersects 3000..=8000 bps",
             bands::GATE_SEEDS,
             "brief 05",
         );
@@ -900,7 +897,7 @@ impl Evaluator {
             units.push(rate_unit(
                 format!("campaign-realm-{realm}"),
                 samples,
-                rate_bps(fired, samples),
+                fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
                 bands::TRIGGER_LIVENESS_MAX_BPS,
             ));
@@ -915,7 +912,7 @@ impl Evaluator {
             units.push(rate_unit(
                 format!("daily-realm-{}", entry.realm_map_id),
                 self.config.planner_seeds,
-                rate_bps(fired, self.config.planner_seeds),
+                fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
                 bands::TRIGGER_LIVENESS_MAX_BPS,
             ));
@@ -1074,7 +1071,7 @@ impl Evaluator {
         let metadata = Metadata::live(
             "theme-policy-sanity",
             "per non-Classic Daily entry",
-            "one-ply Theme qualification >= 9000 bps",
+            "one-ply Theme qualification Wilson interval intersects 9000..=10000 bps",
             bands::GATE_SEEDS,
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
@@ -1092,13 +1089,12 @@ impl Evaluator {
                 self.config.planner_seeds,
                 |record| record.objective_total > 0,
             )?;
-            let rate = rate_bps(hits, self.config.planner_seeds);
-            units.push(unit(
+            units.push(rate_unit(
                 format!("daily-entry-{}", entry.id),
                 self.config.planner_seeds,
-                None,
-                json!({"qualificationRateBps": rate}),
-                rate >= bands::THEME_POLICY_MIN_BPS,
+                hits,
+                bands::THEME_POLICY_MIN_BPS,
+                10_000,
             ));
         }
         Ok(finish(metadata, units))
@@ -1192,7 +1188,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "zone-monotonicity",
             "per zone",
-            "no adjacent planner success-rate rise exceeds 1000 bps",
+            "next-level lower bound exceeds current upper bound by at most 1000 bps",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1204,6 +1200,8 @@ impl Evaluator {
         for realm in 1..=10u8 {
             let realm_levels = realm_levels(&levels, realm);
             let mut rates = Vec::with_capacity(10);
+            let mut interval_lowers = Vec::with_capacity(10);
+            let mut interval_uppers = Vec::with_capacity(10);
             for level in realm_levels.iter().copied() {
                 let hits = self.campaign_hits(
                     level,
@@ -1212,10 +1210,17 @@ impl Evaluator {
                     success,
                 )?;
                 rates.push(rate_bps(hits, self.config.planner_seeds));
+                let (lower, upper) = wilson_interval_bps(hits, self.config.planner_seeds);
+                interval_lowers.push(lower);
+                interval_uppers.push(upper);
             }
-            let rises = rates
-                .windows(2)
-                .map(|pair| i64::from(pair[1]) - i64::from(pair[0]))
+            let rises = interval_lowers
+                .iter()
+                .skip(1)
+                .zip(interval_uppers.iter())
+                .map(|(next_lower, current_upper)| {
+                    i64::from(*next_lower) - i64::from(*current_upper)
+                })
                 .map(|rise| i32::try_from(rise).unwrap_or(i32::MAX))
                 .collect::<Vec<_>>();
             let maximum = rises.iter().copied().max().unwrap_or(0);
@@ -1223,7 +1228,13 @@ impl Evaluator {
                 format!("zone-{realm}"),
                 self.config.planner_seeds,
                 None,
-                json!({"successRatesBps": rates, "adjacentRisesBps": rises, "maximumRiseBps": maximum}),
+                json!({
+                    "successRatesBps": rates,
+                    "intervalLowerBps": interval_lowers,
+                    "intervalUpperBps": interval_uppers,
+                    "adjacentCertainRisesBps": rises,
+                    "maximumCertainRiseBps": maximum,
+                }),
                 maximum <= bands::ZONE_MONOTONICITY_MAX_RISE_BPS,
             ));
         }
@@ -1234,7 +1245,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-reachable",
             "per level with a secondary",
-            "oracle apex reachability >= 6000 bps",
+            "proven oracle reachability >=6000 bps; capped uncertainty is insufficient",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1246,18 +1257,22 @@ impl Evaluator {
         for level in levels {
             let mut reachable = 0u32;
             let mut caps = 0u32;
+            let mut censored = 0u32;
             for offset in 0..self.config.oracle_seeds {
                 let result = self.oracle_record(level, offset)?;
                 reachable = reachable.saturating_add(u32::from(result.reachability.apex_reachable));
                 caps = caps.saturating_add(u32::from(result.node_cap_hit));
+                censored = censored.saturating_add(u32::from(
+                    result.node_cap_hit && !result.reachability.apex_reachable,
+                ));
             }
-            let rate = rate_bps(reachable, self.config.oracle_seeds);
-            units.push(unit(
+            units.push(censored_minimum_rate_unit(
                 level_label(level),
                 self.config.oracle_seeds,
-                None,
-                json!({"reachableRateBps": rate, "nodeCapHits": caps}),
-                rate >= bands::APEX_REACHABLE_MIN_BPS,
+                reachable,
+                caps,
+                censored,
+                bands::APEX_REACHABLE_MIN_BPS,
             ));
         }
         Ok(finish(metadata, units))
@@ -1267,7 +1282,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-luckable",
             "per level with a secondary",
-            "naive apex-fact rate from 500..=3000 bps at level 1 to 100..=300 bps at the guardian",
+            "naive apex-fact Wilson interval intersects 500..=3000 bps at level 1 to 100..=300 bps at the guardian",
             bands::ACCEPTANCE_NAIVE_SEEDS,
             "brief 05",
         );
@@ -1283,7 +1298,6 @@ impl Evaluator {
                 self.config.naive_seeds,
                 |record| record.apex_fact_action.is_some(),
             )?;
-            let rate = rate_bps(hits, self.config.naive_seeds);
             let (minimum, maximum) = sloped_band(
                 level.level_id,
                 bands::APEX_LUCKABLE_START_MIN_BPS,
@@ -1294,7 +1308,7 @@ impl Evaluator {
             units.push(rate_unit(
                 level_label(level),
                 self.config.naive_seeds,
-                rate,
+                hits,
                 minimum,
                 maximum,
             ));
@@ -1306,7 +1320,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-optional",
             "per level with a secondary",
-            "planner success without a third-star latch >=5000 bps; >=10 no-latch runs",
+            "conditional success Wilson interval intersects 5000..=10000 bps; >=10 no-latch runs",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1346,7 +1360,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-set-up",
             "per realm",
-            ">=6000 bps of third-star latches have a guardian charge 0..=5 actions earlier; >=10 latches",
+            "setup-share Wilson interval intersects 6000..=10000 bps; >=10 latches",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1447,7 +1461,7 @@ impl Evaluator {
         let metadata = Metadata::live(
             "reroll-grant",
             "per mode",
-            "Campaign discard share <=1000 bps; Arcade grant rate 1000..=4000 bps and discard share <=1000 bps (brief 05)",
+            "Campaign discard interval intersects 0..=1000 bps; Arcade grant interval intersects 1000..=4000 bps and discard interval intersects 0..=1000 bps (brief 05)",
             bands::ACCEPTANCE_PLANNER_SEEDS,
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
@@ -1867,13 +1881,22 @@ fn unit(
     }
 }
 
-fn rate_unit(name: String, samples: u32, rate: u32, minimum: u32, maximum: u32) -> AssertionUnit {
+fn rate_unit(name: String, samples: u32, hits: u32, minimum: u32, maximum: u32) -> AssertionUnit {
+    let rate = rate_bps(hits, samples);
+    let (interval_lower, interval_upper) = wilson_interval_bps(hits, samples);
     unit(
         name,
         samples,
         None,
-        json!({"rateBps": rate, "minimumBps": minimum, "maximumBps": maximum}),
-        (minimum..=maximum).contains(&rate),
+        json!({
+            "hits": hits,
+            "rateBps": rate,
+            "intervalLowerBps": interval_lower,
+            "intervalUpperBps": interval_upper,
+            "minimumBps": minimum,
+            "maximumBps": maximum,
+        }),
+        interval_lower <= maximum && interval_upper >= minimum,
     )
 }
 
@@ -1900,14 +1923,62 @@ fn conditional_rate_unit(
         };
     }
     let rate = rate_bps(hits, events);
-    let passed = rate >= minimum_bps && maximum_bps.is_none_or(|maximum| rate <= maximum);
+    let (interval_lower, interval_upper) = wilson_interval_bps(hits, events);
+    let passed = interval_upper >= minimum_bps
+        && maximum_bps.is_none_or(|maximum| interval_lower <= maximum);
     unit(
         name,
         samples,
         Some(events),
-        json!({"hits": hits, "rateBps": rate, "minimumBps": minimum_bps, "maximumBps": maximum_bps}),
+        json!({
+            "hits": hits,
+            "rateBps": rate,
+            "intervalLowerBps": interval_lower,
+            "intervalUpperBps": interval_upper,
+            "minimumBps": minimum_bps,
+            "maximumBps": maximum_bps,
+        }),
         passed,
     )
+}
+
+fn censored_minimum_rate_unit(
+    name: String,
+    samples: u32,
+    proven_hits: u32,
+    node_cap_hits: u32,
+    censored: u32,
+    minimum_bps: u32,
+) -> AssertionUnit {
+    let possible_hits = proven_hits.saturating_add(censored).min(samples);
+    let lower = rate_bps(proven_hits, samples);
+    let upper = rate_bps(possible_hits, samples);
+    let measurement = json!({
+        "provenReachableSeeds": proven_hits,
+        "reachableRateBps": lower,
+        "nodeCapHits": node_cap_hits,
+        "censoredSeeds": censored,
+        "intervalLowerBps": lower,
+        "intervalUpperBps": upper,
+        "minimumBps": minimum_bps,
+    });
+    if lower >= minimum_bps {
+        return unit(name, samples, None, measurement, true);
+    }
+    if upper < minimum_bps {
+        return unit(name, samples, None, measurement, false);
+    }
+    AssertionUnit {
+        unit: name,
+        live: true,
+        owner: None,
+        samples,
+        events: None,
+        measurement,
+        status: AssertionStatus::InsufficientEvents,
+        passed: Some(false),
+        detail: Some(String::from("insufficient_events (node_cap)")),
+    }
 }
 
 fn reported_median_height_unit(name: &str, samples: u32, mut heights: Vec<u8>) -> AssertionUnit {
@@ -2004,13 +2075,16 @@ fn reroll_grant_unit_from_counts(
         };
     }
     let grant_rate = rate_bps(granted_runs, successful);
-    let discard_rate = if grants == 0 {
+    let grant_attempts = grants.saturating_add(discarded);
+    let discard_rate = if grant_attempts == 0 {
         0
     } else {
-        rate_bps(discarded, grants)
+        rate_bps(discarded, grant_attempts)
     };
+    let (grant_lower, grant_upper) = wilson_interval_bps(granted_runs, successful);
+    let (discard_lower, discard_upper) = wilson_interval_bps(discarded, grant_attempts);
     let rate_passed =
-        rate_band.is_none_or(|(minimum, maximum)| (minimum..=maximum).contains(&grant_rate));
+        rate_band.is_none_or(|(minimum, maximum)| grant_lower <= maximum && grant_upper >= minimum);
     unit(
         String::from(name),
         successful,
@@ -2019,11 +2093,16 @@ fn reroll_grant_unit_from_counts(
             "engineStalls": stalls,
             "grantRuns": granted_runs,
             "grantRateBps": grant_rate,
+            "grantIntervalLowerBps": grant_lower,
+            "grantIntervalUpperBps": grant_upper,
             "grants": grants,
+            "grantAttempts": grant_attempts,
             "discardedGrants": discarded,
             "discardRateBps": discard_rate,
+            "discardIntervalLowerBps": discard_lower,
+            "discardIntervalUpperBps": discard_upper,
         }),
-        rate_passed && discard_rate <= bands::REROLL_GRANT_MAX_DISCARD_BPS,
+        rate_passed && discard_lower <= bands::REROLL_GRANT_MAX_DISCARD_BPS,
     )
 }
 
@@ -2052,6 +2131,49 @@ fn rate_bps(hits: u32, samples: u32) -> u32 {
         return 0;
     }
     u32::try_from(u64::from(hits).saturating_mul(10_000) / u64::from(samples)).unwrap_or(u32::MAX)
+}
+
+fn wilson_interval_bps(hits: u32, samples: u32) -> (u32, u32) {
+    const MILLI_SCALE: u128 = 1_000;
+    const BPS_SCALE: u128 = 10_000;
+
+    if samples == 0 {
+        return (0, 10_000);
+    }
+    assert!(hits <= samples, "rate hits must not exceed samples");
+
+    let hits = u128::from(hits);
+    let samples = u128::from(samples);
+    let z = u128::from(bands::CONFIDENCE_Z_MILLI);
+    let z_squared = z.saturating_mul(z);
+    let milli_squared = MILLI_SCALE.saturating_mul(MILLI_SCALE);
+    let center = samples.saturating_mul(
+        2u128
+            .saturating_mul(hits)
+            .saturating_mul(milli_squared)
+            .saturating_add(z_squared),
+    );
+    let radicand = samples.saturating_mul(
+        z_squared.saturating_mul(samples).saturating_add(
+            4u128
+                .saturating_mul(milli_squared)
+                .saturating_mul(hits)
+                .saturating_mul(samples.saturating_sub(hits)),
+        ),
+    );
+    let margin = z.saturating_mul(integer_sqrt(radicand));
+    let denominator = 2u128.saturating_mul(samples).saturating_mul(
+        samples
+            .saturating_mul(milli_squared)
+            .saturating_add(z_squared),
+    );
+    let lower = center.saturating_sub(margin).saturating_mul(BPS_SCALE) / denominator;
+    let upper_numerator = center.saturating_add(margin).saturating_mul(BPS_SCALE);
+    let upper = upper_numerator.saturating_add(denominator.saturating_sub(1)) / denominator;
+    (
+        u32::try_from(lower.min(BPS_SCALE)).unwrap_or(10_000),
+        u32::try_from(upper.min(BPS_SCALE)).unwrap_or(10_000),
+    )
 }
 
 fn signed_rate(left: u32, right: u32, samples: u32, scale: i64) -> i32 {
@@ -2422,6 +2544,61 @@ mod tests {
         let insufficient = acceptance.evaluate_named("first-star-rate").unwrap();
         assert_eq!(insufficient.status, AssertionStatus::InsufficientEvents);
         assert_eq!(insufficient.passed, Some(false));
+    }
+
+    #[test]
+    fn wilson_rate_intervals_cover_hand_built_counts() {
+        assert_eq!(wilson_interval_bps(0, 100), (0, 370));
+        assert_eq!(wilson_interval_bps(2, 100), (55, 701));
+        assert_eq!(wilson_interval_bps(16, 32), (3_363, 6_637));
+        assert_eq!(wilson_interval_bps(160, 320), (4_455, 5_545));
+
+        let rate = rate_unit(String::from("guardian"), 100, 0, 100, 300);
+        assert_eq!(rate.passed, Some(true));
+        assert_eq!(rate.measurement["rateBps"], 0);
+        assert_eq!(rate.measurement["intervalUpperBps"], 370);
+
+        let conditional =
+            conditional_rate_unit(String::from("conditional"), 100, 2, 100, 10, 300, Some(600));
+        assert_eq!(conditional.passed, Some(true));
+        assert_eq!(conditional.measurement["rateBps"], 200);
+        assert_eq!(conditional.measurement["intervalLowerBps"], 55);
+        assert_eq!(conditional.measurement["intervalUpperBps"], 701);
+    }
+
+    #[test]
+    fn censored_reachability_separates_proof_uncertainty_and_failure() {
+        let proven = censored_minimum_rate_unit(
+            String::from("proven"),
+            32,
+            20,
+            20,
+            12,
+            bands::APEX_REACHABLE_MIN_BPS,
+        );
+        assert_eq!(proven.status, AssertionStatus::Passed);
+
+        let uncertain = censored_minimum_rate_unit(
+            String::from("uncertain"),
+            32,
+            10,
+            10,
+            10,
+            bands::APEX_REACHABLE_MIN_BPS,
+        );
+        assert_eq!(uncertain.status, AssertionStatus::InsufficientEvents);
+        assert_eq!(uncertain.measurement["intervalUpperBps"], 6_250);
+
+        let failed = censored_minimum_rate_unit(
+            String::from("failed"),
+            32,
+            10,
+            5,
+            5,
+            bands::APEX_REACHABLE_MIN_BPS,
+        );
+        assert_eq!(failed.status, AssertionStatus::Failed);
+        assert_eq!(failed.measurement["intervalUpperBps"], 4_687);
     }
 
     #[test]
