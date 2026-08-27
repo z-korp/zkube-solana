@@ -1267,7 +1267,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-luckable",
             "per level with a secondary",
-            "naive apex-fact rate inside the owner-sloped luck band",
+            "naive apex-fact rate from 500..=3000 bps at level 1 to 100..=300 bps at the guardian",
             bands::ACCEPTANCE_NAIVE_SEEDS,
             "brief 05",
         );

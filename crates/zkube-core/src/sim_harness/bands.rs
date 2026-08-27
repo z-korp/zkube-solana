@@ -139,7 +139,7 @@ pub const APEX_REACHABLE_MIN_BPS: u32 = 6_000;
 /// Level-one lower naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_START_MIN_BPS: u32 = 500;
 /// Level-one upper naive apex-fact rate, in basis points.
-pub const APEX_LUCKABLE_START_MAX_BPS: u32 = 1_000;
+pub const APEX_LUCKABLE_START_MAX_BPS: u32 = 3_000;
 /// Guardian lower naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_END_MIN_BPS: u32 = 100;
 /// Guardian upper naive apex-fact rate, in basis points.
