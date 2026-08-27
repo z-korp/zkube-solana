@@ -543,10 +543,18 @@ primary must use a cumulative kind and every authored secondary must use a
 moment kind; `campaign_rules_require_contiguous_star_sources`,
 `codegen_enforces_constraint_class_per_slot`, and
 `campaign_publication_enforces_constraint_class_per_slot` enforce the core,
-fixture, and program boundaries. Player-facing constraint language is limited
-to lines, combos, streaks, breaks, bonus lines, perfect clears, guardian
-triggers, and points; `every_constraint_kind_reads_its_declared_action_fact`
-pins the engine fact behind each kind.
+fixture, and program boundaries. The six single-action kinds
+`ComboOfAtLeast`, `ComboOfExactly`, `AllWidthsInMove`, `BigMove`,
+`BonusLinesInMove`, and `PerfectClear` must carry a count of exactly one;
+`Streak` and `BreakInMove` retain their in-action N. These three tests guard
+that count rule at the core, fixture, and program boundaries:
+`constraint_classes_and_tags_are_exhaustive_and_stable`,
+`codegen_enforces_constraint_class_per_slot`, and
+`campaign_publication_enforces_constraint_class_per_slot`. Player-facing
+constraint language is limited to lines, combos, streaks, breaks, bonus lines,
+perfect clears, guardian triggers, and points;
+`every_constraint_kind_reads_its_declared_action_fact` pins the engine fact
+behind each kind.
 
 A level ends as complete when every authored star source has latched, or ends
 incomplete when its move budget or board is exhausted; already-latched stars

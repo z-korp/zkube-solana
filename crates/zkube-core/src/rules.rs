@@ -132,7 +132,7 @@ impl Constraint {
             ConstraintKind::Streak => self.value >= 1 && self.value <= 8 && self.required_count > 0,
             ConstraintKind::BreakInMove => self.value <= 4 && self.required_count > 0,
             ConstraintKind::AllWidthsInMove | ConstraintKind::PerfectClear => {
-                self.value == 0 && self.required_count >= 1 && self.required_count <= 2
+                self.value == 0 && self.required_count == 1
             }
             ConstraintKind::BigMove | ConstraintKind::BonusLinesInMove => {
                 self.value > 0 && self.required_count == 1
@@ -1031,6 +1031,90 @@ mod tests {
 
     #[test]
     fn campaign_v2_levels_have_constructive_accounting_completions() {
+        fn constructive_action(
+            constraint: Constraint,
+            progress: u8,
+            streak: u8,
+            points_required: u32,
+            mutator: MutatorRules,
+        ) -> (ActionContext, bool, bool) {
+            let mut lines = 4u8;
+            let mut block_cells_before = [0; 4];
+            let mut base_points = points_required
+                .max(u32::from(constraint.value))
+                .min(u32::from(u16::MAX)) as u16;
+            let mut needs_next_row = true;
+            let mut action_was_bonus = false;
+            match constraint.kind {
+                ConstraintKind::None | ConstraintKind::PerfectClear => {}
+                ConstraintKind::CombosOfAtLeast | ConstraintKind::ComboOfAtLeast => {
+                    lines = constraint.value;
+                }
+                ConstraintKind::CombosOfExactly | ConstraintKind::ComboOfExactly => {
+                    lines = constraint.value;
+                }
+                ConstraintKind::BreakBlocks | ConstraintKind::BreakInMove => {
+                    let remaining = constraint.required_count.saturating_sub(progress);
+                    let width = constraint.value.max(1);
+                    block_cells_before[usize::from(width - 1)] = remaining.saturating_mul(width);
+                }
+                ConstraintKind::ClearLines => {
+                    lines = constraint.required_count.saturating_sub(progress).max(1);
+                }
+                ConstraintKind::BigMoves | ConstraintKind::BigMove => {
+                    base_points = base_points.max(u16::from(constraint.value));
+                }
+                ConstraintKind::TriggerFired => match mutator.bonus_trigger_type {
+                    1 | 4 => {
+                        lines = u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                    }
+                    2 => {
+                        lines = u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                    }
+                    5 => {}
+                    6 => block_cells_before = [1, 2, 3, 4],
+                    7 => lines = 2,
+                    8 => {
+                        block_cells_before[0] =
+                            u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                    }
+                    9 => {
+                        lines = u8::from(
+                            streak < u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX),
+                        );
+                    }
+                    _ => panic!("authored trigger must have constructive semantics"),
+                },
+                ConstraintKind::BonusLines | ConstraintKind::BonusLinesInMove => {
+                    lines = constraint
+                        .required_count
+                        .saturating_sub(progress)
+                        .max(constraint.value);
+                    needs_next_row = false;
+                    action_was_bonus = true;
+                }
+                ConstraintKind::BonusBreaks => {
+                    block_cells_before[0] =
+                        constraint.required_count.saturating_sub(progress).max(1);
+                    needs_next_row = false;
+                    action_was_bonus = true;
+                }
+                ConstraintKind::Streak => lines = constraint.value,
+                ConstraintKind::AllWidthsInMove => block_cells_before = [1, 2, 3, 4],
+            }
+            let triangular = u16::from(lines) * u16::from(lines + 1) / 2;
+            (
+                ActionContext {
+                    block_cells_before,
+                    lines,
+                    base_point_parts: [base_points.max(triangular), 0],
+                    ..ActionContext::default()
+                },
+                needs_next_row,
+                action_was_bonus,
+            )
+        }
+
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
         let mutators = campaign_v2_mutators();
@@ -1053,46 +1137,25 @@ mod tests {
                     }
                     run.phase = RunPhase::Playing;
                     run.moves = run.moves.saturating_add(1);
-                    let mut lines = 4u8;
-                    for (constraint, progress) in [
-                        (level.primary, run.primary_progress),
-                        (level.secondary, run.secondary_progress),
-                    ] {
-                        if matches!(
-                            constraint.kind,
-                            ConstraintKind::CombosOfAtLeast | ConstraintKind::ComboOfAtLeast
-                        ) && progress < constraint.required_count
-                        {
-                            lines = lines.max(constraint.value);
-                        }
-                    }
-                    let mut block_cells_before = [0; 4];
-                    for (constraint, progress) in [
-                        (level.primary, run.primary_progress),
-                        (level.secondary, run.secondary_progress),
-                    ] {
-                        if matches!(
-                            constraint.kind,
-                            ConstraintKind::BreakBlocks | ConstraintKind::BreakInMove
-                        ) && progress < constraint.required_count
-                        {
-                            let remaining = constraint.required_count - progress;
-                            let width = constraint.value.max(1);
-                            block_cells_before[usize::from(width - 1)] =
-                                remaining.saturating_mul(width);
-                        }
-                    }
-                    let triangular = u16::from(lines) * u16::from(lines + 1) / 2;
-                    run.finish_action(
-                        ActionContext {
-                            block_cells_before,
-                            lines,
-                            base_point_parts: [triangular, 0],
-                            ..ActionContext::default()
-                        },
+                    let (constraint, progress) = if level.primary.is_satisfied(run.primary_progress)
+                    {
+                        (level.secondary, run.secondary_progress)
+                    } else {
+                        (level.primary, run.primary_progress)
+                    };
+                    let (context, needs_next_row, action_was_bonus) = constructive_action(
+                        constraint,
+                        progress,
+                        run.streak,
+                        level.points_required,
+                        mutators[map_index],
+                    );
+                    run.finish_action_with_kind(
+                        context,
                         level,
                         mutators[map_index],
-                        true,
+                        needs_next_row,
+                        action_was_bonus,
                     );
                 }
                 assert!(
@@ -1960,8 +2023,8 @@ mod tests {
             3
         );
         assert_eq!(
-            progress(ConstraintKind::AllWidthsInMove, 0, 2, 0, &player, 0, 0, 0),
-            2
+            progress(ConstraintKind::AllWidthsInMove, 0, 1, 0, &player, 0, 0, 0),
+            1
         );
         assert_eq!(
             progress(ConstraintKind::BigMove, 40, 1, 0, &player, 0, 0, 0),
@@ -1972,8 +2035,8 @@ mod tests {
             1
         );
         assert_eq!(
-            progress(ConstraintKind::PerfectClear, 0, 2, 0, &player, 0, 0, 0),
-            2
+            progress(ConstraintKind::PerfectClear, 0, 1, 0, &player, 0, 0, 0),
+            1
         );
 
         assert_eq!(
@@ -2003,6 +2066,42 @@ mod tests {
             ConstraintKind::ComboOfAtLeast.class(),
             Some(ConstraintClass::Moment)
         );
+
+        for (kind, value) in [
+            (ConstraintKind::ComboOfAtLeast, 2),
+            (ConstraintKind::ComboOfExactly, 2),
+            (ConstraintKind::AllWidthsInMove, 0),
+            (ConstraintKind::BigMove, 1),
+            (ConstraintKind::BonusLinesInMove, 1),
+            (ConstraintKind::PerfectClear, 0),
+        ] {
+            assert!(
+                Constraint {
+                    kind,
+                    value,
+                    required_count: 1,
+                }
+                .is_valid_secondary()
+            );
+            assert!(
+                !Constraint {
+                    kind,
+                    value,
+                    required_count: 2,
+                }
+                .is_valid_secondary()
+            );
+        }
+        for kind in [ConstraintKind::Streak, ConstraintKind::BreakInMove] {
+            assert!(
+                Constraint {
+                    kind,
+                    value: 1,
+                    required_count: 2,
+                }
+                .is_valid_secondary()
+            );
+        }
     }
 
     #[test]

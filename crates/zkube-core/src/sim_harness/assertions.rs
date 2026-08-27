@@ -1137,12 +1137,11 @@ impl Evaluator {
     }
 
     fn kind_variety(&self) -> AssertionResult {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "kind-variety",
             "per realm (catalog)",
             ">=4 distinct kinds per slot; max run 2; primary cumulative; secondary moment",
             0,
-            "brief 05",
         );
         let mut units = Vec::new();
         for realm in 1..=10u8 {
@@ -2329,7 +2328,6 @@ mod tests {
         assert_named("realm-identity");
     }
     #[test]
-    #[ignore = "opens in brief 05: kind-variety"]
     fn kind_variety() {
         assert_named("kind-variety");
     }

@@ -270,6 +270,13 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
                     level_index + 1
                 ));
             }
+            if !rules.level.primary.is_present() || !rules.level.secondary.is_present() {
+                return Err(format!(
+                    "map {} level {} must author both primary and secondary constraints",
+                    map.map_id,
+                    level_index + 1
+                ));
+            }
             if level_index > 0 {
                 let previous = map.levels[level_index - 1];
                 if level.0 <= previous.0 || level.2 < previous.2 {
@@ -464,6 +471,27 @@ mod tests {
     }
 
     #[test]
+    fn codegen_requires_both_constraints_on_every_level() {
+        let source = include_str!("../../../fixtures/campaign-v2.json");
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.maps[0].levels[0].3 = [0, 0, 0];
+        catalog.maps[0].levels[0].4 = [0, 0, 0];
+        assert!(
+            validate_catalog(&catalog)
+                .unwrap_err()
+                .contains("must author both primary and secondary constraints")
+        );
+
+        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        catalog.maps[0].levels[0].4 = [0, 0, 0];
+        assert!(
+            validate_catalog(&catalog)
+                .unwrap_err()
+                .contains("must author both primary and secondary constraints")
+        );
+    }
+
+    #[test]
     fn codegen_enforces_constraint_class_per_slot() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
@@ -473,5 +501,23 @@ mod tests {
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         catalog.maps[0].levels[7].4 = [1, 2, 1];
         assert!(validate_catalog(&catalog).is_err());
+
+        for invalid in [
+            [9, 2, 2],
+            [10, 2, 2],
+            [13, 0, 2],
+            [14, 1, 2],
+            [15, 1, 2],
+            [16, 0, 2],
+        ] {
+            let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+            catalog.maps[0].levels[7].4 = invalid;
+            assert!(validate_catalog(&catalog).is_err());
+        }
+        for valid in [[11, 1, 2], [12, 0, 2]] {
+            let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+            catalog.maps[0].levels[7].4 = valid;
+            assert!(validate_catalog(&catalog).is_ok());
+        }
     }
 }

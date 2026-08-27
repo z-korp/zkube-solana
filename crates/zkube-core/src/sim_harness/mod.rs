@@ -3621,7 +3621,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":402,\"objectiveSum\":201,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":9,\"digestHex\":\"41a745f1d3eff84deb7fe9b8ee91d294a12327b2896650b2abf80a7ba2ce2453\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":402,\"objectiveSum\":201,\"campaignScoreSum\":22,\"completedCampaignRuns\":1,\"chargesEarned\":11,\"digestHex\":\"02bdc7cec11eb9c26fdab0446a29c74e9efb2b3b086e1827ae13cfe9f43644a5\"}"
         );
     }
 
@@ -3675,7 +3675,7 @@ mod tests {
             [
                 "e723a260b9827d5a2773a6335737cc8c68f34445e6265bc4176d480cb97a54c1",
                 "73a81721cf1d3c448efdea5a50c3955a160844fd487a771a9830ade6bda607a0",
-                "76a43dafd04e011185eb7e430a121167c66d5302e4c77e5b5ef8c04bb2bf2de1",
+                "2c1e4aa7728921c0708467a8192264afad5d452aad5443dd35470546f5e2bb53",
                 "b8381b2b18c1caa38c9ad62e41927353c2b4f0467aaf58267e4e96e29700fbad",
             ]
         );
@@ -3790,7 +3790,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "5dc5cb34b36a347cf3362e1ce1b6543510d4b8918ca92a1de6ca53838d176020"
+            "ea61fd2411adc3a56bad8138d3fa0850e305a66141a303be4a0ddc56e0056bef"
         );
     }
 
@@ -3989,13 +3989,13 @@ mod tests {
     }
 
     #[test]
-    fn campaign_catalog_declares_exactly_the_current_forty_eight_apexes() {
+    fn every_campaign_level_declares_its_authored_apex() {
         let levels = campaign_catalog();
         let apex_levels = levels
             .iter()
             .filter(|level| !matches!(level.apex, ApexPredicate::None))
             .collect::<Vec<_>>();
-        assert_eq!(apex_levels.len(), 48);
+        assert_eq!(apex_levels.len(), 100);
         for level in levels {
             let secondary_present = level.rules.level.secondary.kind != ConstraintKind::None;
             assert_eq!(

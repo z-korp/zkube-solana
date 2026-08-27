@@ -751,6 +751,33 @@ mod tests {
         assert!(validate_secondary_constraint_snapshot(cumulative).is_err());
         assert!(validate_primary_constraint_snapshot(moment).is_err());
         assert!(validate_secondary_constraint_snapshot(moment).is_ok());
+
+        for (kind, value) in [
+            (zkube_core::ConstraintKind::ComboOfAtLeast, 2),
+            (zkube_core::ConstraintKind::ComboOfExactly, 2),
+            (zkube_core::ConstraintKind::AllWidthsInMove, 0),
+            (zkube_core::ConstraintKind::BigMove, 1),
+            (zkube_core::ConstraintKind::BonusLinesInMove, 1),
+            (zkube_core::ConstraintKind::PerfectClear, 0),
+        ] {
+            assert!(validate_secondary_constraint_snapshot(ConstraintSnapshot {
+                kind: kind.tag(),
+                value,
+                required_count: 2,
+            })
+            .is_err());
+        }
+        for kind in [
+            zkube_core::ConstraintKind::Streak,
+            zkube_core::ConstraintKind::BreakInMove,
+        ] {
+            assert!(validate_secondary_constraint_snapshot(ConstraintSnapshot {
+                kind: kind.tag(),
+                value: 1,
+                required_count: 2,
+            })
+            .is_ok());
+        }
     }
 
     #[test]
