@@ -102,13 +102,13 @@ pub const SECOND_STAR_START_MAX_BPS: u32 = 8_000;
 pub const SECOND_STAR_END_MIN_BPS: u32 = 2_500;
 /// Guardian upper second-star rate, in basis points.
 pub const SECOND_STAR_END_MAX_BPS: u32 = 4_000;
-/// Level-one lower third-star and apex-findable rate, in basis points.
+/// Level-one lower third-star rate, in basis points.
 pub const THIRD_STAR_START_MIN_BPS: u32 = 3_000;
-/// Level-one upper third-star and apex-findable rate, in basis points.
+/// Level-one upper third-star rate, in basis points.
 pub const THIRD_STAR_START_MAX_BPS: u32 = 5_000;
-/// Guardian lower third-star and apex-findable rate, in basis points.
+/// Guardian lower third-star rate, in basis points.
 pub const THIRD_STAR_END_MIN_BPS: u32 = 1_000;
-/// Guardian upper third-star and apex-findable rate, in basis points.
+/// Guardian upper third-star rate, in basis points.
 pub const THIRD_STAR_END_MAX_BPS: u32 = 2_000;
 /// Lower trigger firing rate in either mode, in basis points.
 pub const TRIGGER_LIVENESS_MIN_BPS: u32 = 3_000;
@@ -136,23 +136,21 @@ pub const KIND_VARIETY_MAX_CONSECUTIVE: usize = 2;
 pub const ZONE_MONOTONICITY_MAX_RISE_BPS: i32 = 1_000;
 /// Minimum seed-omniscient apex reachability rate, in basis points.
 pub const APEX_REACHABLE_MIN_BPS: u32 = 6_000;
-/// Level-one lower naive apex hit rate, in basis points.
+/// Level-one lower naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_START_MIN_BPS: u32 = 500;
-/// Level-one upper naive apex hit rate, in basis points.
+/// Level-one upper naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_START_MAX_BPS: u32 = 1_000;
-/// Guardian lower naive apex hit rate, in basis points.
+/// Guardian lower naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_END_MIN_BPS: u32 = 100;
-/// Guardian upper naive apex hit rate, in basis points.
+/// Guardian upper naive apex-fact rate, in basis points.
 pub const APEX_LUCKABLE_END_MAX_BPS: u32 = 300;
-/// Minimum terminal-action share among apex hits, in basis points.
-pub const APEX_DECISIVE_MIN_BPS: u32 = 9_000;
-/// Minimum hit count resolving decisive and setup conditionals.
+/// Minimum third-star latch count resolving the setup conditional.
 pub const APEX_HIT_MIN_EVENTS: u32 = 10;
-/// Minimum success rate among planner runs without an apex hit.
+/// Minimum success rate among planner runs without a third-star latch.
 pub const APEX_OPTIONAL_MIN_BPS: u32 = 5_000;
-/// Minimum no-hit run count resolving the optional conditional.
+/// Minimum no-latch run count resolving the optional conditional.
 pub const APEX_OPTIONAL_MIN_EVENTS: u32 = 10;
-/// Minimum recent-charge share among apex hits, in basis points.
+/// Minimum recent-charge share among third-star latches, in basis points.
 pub const APEX_SETUP_MIN_BPS: u32 = 6_000;
 /// Minimum reroll spend count resolving the held-height median.
 pub const REROLL_HELD_MIN_EVENTS: u32 = 20;

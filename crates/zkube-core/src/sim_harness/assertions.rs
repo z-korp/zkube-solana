@@ -451,8 +451,8 @@ impl Evaluator {
                     &[PlayerModel::LineClearer],
                     self.config.planner_seeds,
                 )?,
-                "second-star-rate" | "star-earn-rate" | "zone-monotonicity" | "apex-findable"
-                | "apex-decisive" | "apex-optional" | "apex-set-up" => {
+                "second-star-rate" | "star-earn-rate" | "zone-monotonicity" | "apex-optional"
+                | "apex-set-up" => {
                     let levels = if name.starts_with("apex-") {
                         self.apex_levels()
                     } else {
@@ -634,7 +634,7 @@ impl Evaluator {
     }
 
     fn evaluate_all(&mut self) -> Result<Vec<AssertionResult>, String> {
-        let mut results = Vec::with_capacity(20);
+        let mut results = Vec::with_capacity(18);
         macro_rules! evaluate {
             ($name:literal, $method:ident) => {{
                 self.prepare_assertion($name)?;
@@ -659,8 +659,6 @@ impl Evaluator {
         evaluate!("zone-monotonicity", zone_monotonicity);
         evaluate!("apex-reachable", apex_reachable);
         evaluate!("apex-luckable", apex_luckable);
-        evaluate!("apex-findable", apex_findable);
-        evaluate!("apex-decisive", apex_decisive);
         evaluate!("apex-optional", apex_optional);
         evaluate!("apex-set-up", apex_set_up);
         evaluate!("reroll-held", reroll_held);
@@ -685,8 +683,6 @@ impl Evaluator {
             "zone-monotonicity" => self.zone_monotonicity(),
             "apex-reachable" => self.apex_reachable(),
             "apex-luckable" => self.apex_luckable(),
-            "apex-findable" => self.apex_findable(),
-            "apex-decisive" => self.apex_decisive(),
             "apex-optional" => self.apex_optional(),
             "apex-set-up" => self.apex_set_up(),
             "reroll-held" => self.reroll_held(),
@@ -1272,7 +1268,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-luckable",
             "per level with a secondary",
-            "naive apex-hit rate inside the owner-sloped luck band",
+            "naive apex-fact rate inside the owner-sloped luck band",
             bands::ACCEPTANCE_NAIVE_SEEDS,
             "brief 05",
         );
@@ -1286,7 +1282,7 @@ impl Evaluator {
                 level,
                 PlayerModel::Naive,
                 self.config.naive_seeds,
-                |record| record.apex_hit_action.is_some(),
+                |record| record.apex_fact_action.is_some(),
             )?;
             let rate = rate_bps(hits, self.config.naive_seeds);
             let (minimum, maximum) = sloped_band(
@@ -1307,93 +1303,11 @@ impl Evaluator {
         Ok(finish(metadata, units))
     }
 
-    fn apex_findable(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
-            "apex-findable",
-            "per level with a secondary",
-            "planner apex-hit rate inside the owner-sloped third-star band",
-            bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
-        );
-        if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
-            return Ok(skipped);
-        }
-        let levels = self.apex_levels();
-        let mut units = Vec::with_capacity(levels.len());
-        for level in levels {
-            let hits = self.campaign_hits(
-                level,
-                self.config.planner_model,
-                self.config.planner_seeds,
-                |record| record.apex_hit_action.is_some(),
-            )?;
-            let rate = rate_bps(hits, self.config.planner_seeds);
-            let (minimum, maximum) = sloped_band(
-                level.level_id,
-                bands::THIRD_STAR_START_MIN_BPS,
-                bands::THIRD_STAR_START_MAX_BPS,
-                bands::THIRD_STAR_END_MIN_BPS,
-                bands::THIRD_STAR_END_MAX_BPS,
-            );
-            units.push(rate_unit(
-                level_label(level),
-                self.config.planner_seeds,
-                rate,
-                minimum,
-                maximum,
-            ));
-        }
-        Ok(finish(metadata, units))
-    }
-
-    fn apex_decisive(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
-            "apex-decisive",
-            "per level with a secondary",
-            ">=9000 bps of planner apex hits are terminal; >=10 hits",
-            bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
-        );
-        if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
-            return Ok(skipped);
-        }
-        let levels = self.apex_levels();
-        let mut units = Vec::with_capacity(levels.len());
-        for level in levels {
-            let records = self.campaign_records_for(
-                level,
-                self.config.planner_model,
-                self.config.planner_seeds,
-            )?;
-            let hits = records
-                .iter()
-                .filter(|record| record.apex_hit_action.is_some())
-                .count_u32();
-            let decisive = records
-                .iter()
-                .filter(|record| {
-                    record.apex_hit_action.is_some()
-                        && record.apex_hit_action == record.terminal_action
-                })
-                .count_u32();
-            units.push(conditional_rate_unit(
-                level_label(level),
-                self.config.planner_seeds,
-                decisive,
-                hits,
-                bands::APEX_HIT_MIN_EVENTS,
-                bands::APEX_DECISIVE_MIN_BPS,
-                None,
-            ));
-        }
-        Ok(finish(metadata, units))
-    }
-
     fn apex_optional(&mut self) -> Result<AssertionResult, String> {
         let metadata = Metadata::ignored(
             "apex-optional",
             "per level with a secondary",
-            "planner success without apex >=5000 bps; >=10 no-hit runs",
+            "planner success without a third-star latch >=5000 bps; >=10 no-latch runs",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1432,8 +1346,8 @@ impl Evaluator {
     fn apex_set_up(&mut self) -> Result<AssertionResult, String> {
         let metadata = Metadata::ignored(
             "apex-set-up",
-            "per level with a secondary",
-            ">=6000 bps of hits have a guardian charge 0..=5 actions earlier; >=10 hits",
+            "per realm",
+            ">=6000 bps of third-star latches have a guardian charge 0..=5 actions earlier; >=10 latches",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1441,28 +1355,41 @@ impl Evaluator {
             return Ok(skipped);
         }
         let levels = self.apex_levels();
-        let mut units = Vec::with_capacity(levels.len());
-        for level in levels {
-            let records = self.campaign_records_for(
-                level,
-                self.config.planner_model,
-                self.config.planner_seeds,
-            )?;
-            let hits = records
-                .iter()
-                .filter(|record| record.apex_hit_action.is_some())
-                .count_u32();
-            let set_up = records
-                .iter()
-                .filter(|record| {
-                    record
-                        .apex_hit_action
-                        .is_some_and(|hit| apex_hit_has_recent_charge(record, hit))
-                })
-                .count_u32();
+        let mut units = Vec::with_capacity(10);
+        for realm in 1..=10u8 {
+            let realm_levels = realm_levels(&levels, realm);
+            let mut hits = 0u32;
+            let mut set_up = 0u32;
+            for level in realm_levels.iter().copied() {
+                let records = self.campaign_records_for(
+                    level,
+                    self.config.planner_model,
+                    self.config.planner_seeds,
+                )?;
+                hits = hits.saturating_add(
+                    records
+                        .iter()
+                        .filter(|record| record.apex_hit_action.is_some())
+                        .count_u32(),
+                );
+                set_up = set_up.saturating_add(
+                    records
+                        .iter()
+                        .filter(|record| {
+                            record
+                                .apex_hit_action
+                                .is_some_and(|hit| apex_hit_has_recent_charge(record, hit))
+                        })
+                        .count_u32(),
+                );
+            }
+            let samples = self
+                .config
+                .planner_seeds
+                .saturating_mul(u32::try_from(realm_levels.len()).unwrap_or(u32::MAX));
             units.push(conditional_rate_unit(
-                level_label(level),
-                self.config.planner_seeds,
+                format!("campaign-realm-{realm}"),
+                samples,
                 set_up,
                 hits,
                 bands::APEX_HIT_MIN_EVENTS,
@@ -2420,16 +2347,6 @@ mod tests {
     #[ignore = "opens in brief 05: apex-luckable"]
     fn apex_luckable() {
         assert_named("apex-luckable");
-    }
-    #[test]
-    #[ignore = "opens in brief 05: apex-findable"]
-    fn apex_findable() {
-        assert_named("apex-findable");
-    }
-    #[test]
-    #[ignore = "opens in brief 05: apex-decisive"]
-    fn apex_decisive() {
-        assert_named("apex-decisive");
     }
     #[test]
     #[ignore = "opens in brief 05: apex-optional"]

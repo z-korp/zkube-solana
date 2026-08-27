@@ -303,6 +303,7 @@ pub struct RunRecord {
     pub reroll_spent_events: Vec<TimedRunEvent>,
     pub reroll_granted_events: Vec<TimedRunEvent>,
     pub reroll_grant_discarded_events: Vec<TimedRunEvent>,
+    pub apex_fact_action: Option<u32>,
     pub apex_hit_action: Option<u32>,
     pub terminal_action: Option<u32>,
     pub decision_digest_hex: String,
@@ -338,9 +339,9 @@ pub struct CampaignCatalogLevel {
     pub apex: ApexPredicate,
 }
 
-/// Harness-side apex target until brief 04 makes the authored secondary the
-/// third star. Progress is kept beside search state so predicates that read a
-/// single action cannot be confused with cumulative engine counters.
+/// Harness-side fact predicate for oracle reachability and naive luckability.
+/// Its progress remains separate from the terminal third-star latch so a
+/// moment fact seen before the primary shape is not misreported as an apex hit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ApexPredicate {
     None,
@@ -510,6 +511,7 @@ struct Counters {
     reroll_spent_events: Vec<TimedRunEvent>,
     reroll_granted_events: Vec<TimedRunEvent>,
     reroll_grant_discarded_events: Vec<TimedRunEvent>,
+    apex_fact_action: Option<u32>,
     apex_hit_action: Option<u32>,
     apex_progress: ApexProgress,
     terminal_action: Option<u32>,
@@ -528,6 +530,8 @@ struct MoveObservation {
     apex_before: ApexProgress,
     apex_after: ApexProgress,
     apex: ApexPredicate,
+    earned_stars_before: u8,
+    earned_stars_after: u8,
     terminal: bool,
 }
 
@@ -544,6 +548,8 @@ impl Counters {
             apex_before,
             apex_after,
             apex,
+            earned_stars_before,
+            earned_stars_after,
             terminal,
         } = observation;
         self.observe_decision(action);
@@ -611,10 +617,13 @@ impl Counters {
                 count: 1,
             });
         }
-        if self.apex_hit_action.is_none()
+        if self.apex_fact_action.is_none()
             && !apex.is_satisfied(apex_before)
             && apex.is_satisfied(apex_after)
         {
+            self.apex_fact_action = Some(action_index);
+        }
+        if self.apex_hit_action.is_none() && earned_stars_before < 3 && earned_stars_after >= 3 {
             self.apex_hit_action = Some(action_index);
         }
         self.apex_progress = apex_after;
@@ -985,6 +994,7 @@ pub fn run_daily(
         reroll_spent_events: counters.reroll_spent_events,
         reroll_granted_events: counters.reroll_granted_events,
         reroll_grant_discarded_events: counters.reroll_grant_discarded_events,
+        apex_fact_action: counters.apex_fact_action,
         apex_hit_action: counters.apex_hit_action,
         terminal_action: counters.terminal_action,
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
@@ -1114,6 +1124,8 @@ fn play_daily_to_terminal(
             apex_before: counters.apex_progress,
             apex_after: counters.apex_progress,
             apex: ApexPredicate::None,
+            earned_stars_before: 0,
+            earned_stars_after: 0,
             terminal: action_was_terminal,
         });
         if spent > 0 {
@@ -1189,6 +1201,7 @@ pub fn run_campaign(
         reroll_spent_events: counters.reroll_spent_events,
         reroll_granted_events: counters.reroll_granted_events,
         reroll_grant_discarded_events: counters.reroll_grant_discarded_events,
+        apex_fact_action: counters.apex_fact_action,
         apex_hit_action: counters.apex_hit_action,
         terminal_action: counters.terminal_action,
         decision_digest_hex: bytes_to_hex(counters.decision_commitment),
@@ -1219,7 +1232,7 @@ pub struct PairedTierSummary {
     pub success_rate_delta_bps: i32,
 }
 
-/// Seed populations for the reachable/findable/luckable apex report.
+/// Seed populations for fact reachability/luckability and latch diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApexSamplePlan {
@@ -1240,16 +1253,13 @@ pub struct ApexLevelSummary {
     pub oracle_reachable_seeds: u32,
     pub oracle_node_cap_hits: u32,
     pub oracle_reachable_rate_bps: u32,
-    pub naive_hits: u32,
+    pub naive_fact_hits: u32,
     pub naive_engine_stalls: u32,
-    pub naive_hit_rate_bps: u32,
-    pub planner_hits: u32,
+    pub naive_fact_rate_bps: u32,
     pub planner_engine_stalls: u32,
-    pub planner_hit_rate_bps: u32,
-    pub planner_decisive_hits: u32,
-    pub planner_decisive_share_bps: Option<u32>,
-    pub planner_no_hit_runs: u32,
-    pub planner_no_hit_successes: u32,
+    pub planner_apex_hits: u32,
+    pub planner_no_apex_runs: u32,
+    pub planner_no_apex_successes: u32,
     pub planner_success_without_apex_rate_bps: Option<u32>,
     pub planner_set_up_hits: u32,
     pub planner_set_up_share_bps: Option<u32>,
@@ -1323,8 +1333,8 @@ pub fn paired_tier_summary(
     })
 }
 
-/// Measure one level's reachable/findable/luckable apex triple and the three
-/// conditional diagnostics over their pinned model populations.
+/// Measure one level's fact reachability/luckability and latch diagnostics over
+/// their pinned model populations.
 ///
 /// # Errors
 ///
@@ -1353,23 +1363,23 @@ pub fn apex_level_summary(
         oracle_node_cap_hits = oracle_node_cap_hits.saturating_add(u32::from(result.node_cap_hit));
     }
 
-    let mut naive_hits = 0u32;
+    let mut naive_fact_hits = 0u32;
     let mut naive_engine_stalls = 0u32;
     for offset in 0..samples.naive_seeds {
         let seed = sample_seed(samples.seed_start, offset)?;
         let record = run_campaign(level, PlayerModel::Naive, partition, seed)
             .map_err(|error| format!("apex naive run failed: {error:?}"))?;
-        naive_hits = naive_hits.saturating_add(u32::from(record.apex_hit_action.is_some()));
+        naive_fact_hits =
+            naive_fact_hits.saturating_add(u32::from(record.apex_fact_action.is_some()));
         naive_engine_stalls = naive_engine_stalls.saturating_add(u32::from(
             record.terminal_cause == TerminalCause::EngineStall,
         ));
     }
 
-    let mut planner_hits = 0u32;
+    let mut planner_apex_hits = 0u32;
     let mut planner_engine_stalls = 0u32;
-    let mut planner_decisive_hits = 0u32;
-    let mut planner_no_hit_runs = 0u32;
-    let mut planner_no_hit_successes = 0u32;
+    let mut planner_no_apex_runs = 0u32;
+    let mut planner_no_apex_successes = 0u32;
     let mut planner_set_up_hits = 0u32;
     for offset in 0..samples.planner_seeds {
         let seed = sample_seed(samples.seed_start, offset)?;
@@ -1379,15 +1389,13 @@ pub fn apex_level_summary(
             record.terminal_cause == TerminalCause::EngineStall,
         ));
         if let Some(hit_action) = record.apex_hit_action {
-            planner_hits = planner_hits.saturating_add(1);
-            planner_decisive_hits = planner_decisive_hits
-                .saturating_add(u32::from(record.terminal_action == Some(hit_action)));
+            planner_apex_hits = planner_apex_hits.saturating_add(1);
             planner_set_up_hits = planner_set_up_hits
                 .saturating_add(u32::from(apex_hit_has_recent_charge(&record, hit_action)));
         } else {
-            planner_no_hit_runs = planner_no_hit_runs.saturating_add(1);
-            planner_no_hit_successes =
-                planner_no_hit_successes.saturating_add(u32::from(record.earned_stars > 0));
+            planner_no_apex_runs = planner_no_apex_runs.saturating_add(1);
+            planner_no_apex_successes =
+                planner_no_apex_successes.saturating_add(u32::from(record.earned_stars > 0));
         }
     }
 
@@ -1399,22 +1407,19 @@ pub fn apex_level_summary(
         oracle_reachable_seeds,
         oracle_node_cap_hits,
         oracle_reachable_rate_bps: rate_bps(oracle_reachable_seeds, samples.oracle_seeds),
-        naive_hits,
+        naive_fact_hits,
         naive_engine_stalls,
-        naive_hit_rate_bps: rate_bps(naive_hits, samples.naive_seeds),
-        planner_hits,
+        naive_fact_rate_bps: rate_bps(naive_fact_hits, samples.naive_seeds),
         planner_engine_stalls,
-        planner_hit_rate_bps: rate_bps(planner_hits, samples.planner_seeds),
-        planner_decisive_hits,
-        planner_decisive_share_bps: optional_rate_bps(planner_decisive_hits, planner_hits),
-        planner_no_hit_runs,
-        planner_no_hit_successes,
+        planner_apex_hits,
+        planner_no_apex_runs,
+        planner_no_apex_successes,
         planner_success_without_apex_rate_bps: optional_rate_bps(
-            planner_no_hit_successes,
-            planner_no_hit_runs,
+            planner_no_apex_successes,
+            planner_no_apex_runs,
         ),
         planner_set_up_hits,
-        planner_set_up_share_bps: optional_rate_bps(planner_set_up_hits, planner_hits),
+        planner_set_up_share_bps: optional_rate_bps(planner_set_up_hits, planner_apex_hits),
     })
 }
 
@@ -1652,6 +1657,7 @@ fn play_campaign_to_terminal(
         let combo_before = simulation.engine.combo_counter;
         let before_charges = simulation.engine.bonus_charges;
         let apex_before = counters.apex_progress;
+        let earned_stars_before = simulation.engine.earned_stars;
         let spent = u8::from(matches!(selected.action, ActionKind::Bonus { .. }));
         simulation = selected.next;
         let apex_after = apex.advance(apex_before, selected.report, simulation.engine);
@@ -1667,6 +1673,8 @@ fn play_campaign_to_terminal(
             apex_before,
             apex_after,
             apex,
+            earned_stars_before,
+            earned_stars_after: simulation.engine.earned_stars,
             terminal,
         });
         if spent > 0 {
@@ -2742,8 +2750,8 @@ fn campaign_oracle_state_key(state: CampaignPlannerState) -> [u8; 32] {
     encoded.extend_from_slice(&state.simulation.action_counter.to_le_bytes());
     encoded.extend_from_slice(&state.simulation.row_counter.to_le_bytes());
     encoded.push(state.simulation.current_difficulty);
-    // Brief 04 moves this byte into the engine. Keeping it here until then
-    // makes today's search key equally complete across that transition.
+    // Stars are already part of the canonical engine encoding; keep the
+    // explicit byte in the oracle key as a regression-visible protocol field.
     encoded.push(state.simulation.engine.earned_stars);
     encoded.extend_from_slice(&state.apex_progress.0.to_le_bytes());
     SoftwareSha256::hashv(&[HARNESS_ORACLE_STATE_DOMAIN, &encoded])
@@ -3613,7 +3621,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":402,\"objectiveSum\":201,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":9,\"digestHex\":\"c7b4fceec998c73702ae01f5ea811f54dfaac68b554a5c62458aba3cae25f076\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":402,\"objectiveSum\":201,\"campaignScoreSum\":15,\"completedCampaignRuns\":1,\"chargesEarned\":9,\"digestHex\":\"41a745f1d3eff84deb7fe9b8ee91d294a12327b2896650b2abf80a7ba2ce2453\"}"
         );
     }
 
@@ -4032,12 +4040,58 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.apex, level.apex.definition());
         assert_eq!(first.oracle_reachable_rate_bps, 0);
-        assert_eq!(first.naive_hit_rate_bps, 0);
-        assert_eq!(first.planner_hit_rate_bps, 0);
-        assert_eq!(first.planner_decisive_share_bps, None);
+        assert_eq!(first.naive_fact_rate_bps, 0);
+        assert_eq!(first.planner_apex_hits, 0);
         assert_eq!(first.planner_set_up_share_bps, None);
-        assert_eq!(first.planner_no_hit_runs, samples.planner_seeds);
+        assert_eq!(first.planner_no_apex_runs, samples.planner_seeds);
         assert_eq!(first.planner_success_without_apex_rate_bps, Some(0));
+    }
+
+    #[test]
+    fn campaign_apex_fact_and_third_star_latch_are_distinct_events() {
+        let apex = ApexPredicate::LinesInAction { minimum: 1 };
+        let mut counters = Counters::default();
+        counters.observe(MoveObservation {
+            action: ActionKind::Move {
+                row: 0,
+                start: 0,
+                destination: 0,
+            },
+            action_index: 4,
+            combo_before: 0,
+            before_charges: 0,
+            spent: 0,
+            after_charges: 0,
+            report: MoveReport::default(),
+            apex_before: ApexProgress(0),
+            apex_after: ApexProgress(1),
+            apex,
+            earned_stars_before: 1,
+            earned_stars_after: 1,
+            terminal: false,
+        });
+        counters.observe(MoveObservation {
+            action: ActionKind::Move {
+                row: 0,
+                start: 0,
+                destination: 0,
+            },
+            action_index: 7,
+            combo_before: 0,
+            before_charges: 0,
+            spent: 0,
+            after_charges: 0,
+            report: MoveReport::default(),
+            apex_before: ApexProgress(1),
+            apex_after: ApexProgress(1),
+            apex,
+            earned_stars_before: 2,
+            earned_stars_after: 3,
+            terminal: true,
+        });
+        assert_eq!(counters.apex_fact_action, Some(4));
+        assert_eq!(counters.apex_hit_action, Some(7));
+        assert_eq!(counters.terminal_action, Some(7));
     }
 
     #[test]
