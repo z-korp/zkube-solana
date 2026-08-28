@@ -44,7 +44,7 @@ pub const PLANNER_GATE: PlannerBudget = PlannerBudget {
 };
 
 /// Maximum unique Markov states the omniscient oracle may visit per seed.
-pub const ORACLE_NODE_BUDGET: usize = 20_000;
+pub const ORACLE_NODE_BUDGET: usize = 200_000;
 
 /// Integer UCT exploration weight; large enough to revisit every expanded arm.
 pub const PLANNER_UCT_EXPLORATION: u64 = 120_000;
