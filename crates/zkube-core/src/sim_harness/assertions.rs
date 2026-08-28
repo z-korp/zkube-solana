@@ -415,9 +415,7 @@ impl Evaluator {
     fn assertion_has_samples(&self, name: &str) -> bool {
         let (available, required) = match name {
             "realm-identity" | "kind-variety" => return true,
-            "trigger-liveness" | "theme-policy-sanity" => {
-                (self.config.planner_seeds, bands::GATE_SEEDS)
-            }
+            "theme-policy-sanity" => (self.config.planner_seeds, bands::GATE_SEEDS),
             "apex-reachable" => (self.config.oracle_seeds, bands::ACCEPTANCE_PLANNER_SEEDS),
             "apex-luckable" => (self.config.naive_seeds, bands::ACCEPTANCE_NAIVE_SEEDS),
             _ => (self.config.planner_seeds, bands::ACCEPTANCE_PLANNER_SEEDS),
@@ -893,7 +891,7 @@ impl Evaluator {
             "trigger-liveness",
             "per realm, both modes",
             "trigger-fire Wilson interval reaches at least 3000 bps",
-            bands::GATE_SEEDS,
+            bands::ACCEPTANCE_PLANNER_SEEDS,
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -920,20 +918,13 @@ impl Evaluator {
                 .config
                 .planner_seeds
                 .saturating_mul(u32::try_from(realm_levels.len()).unwrap_or(u32::MAX));
-            let mut result = rate_unit(
+            units.push(rate_unit(
                 format!("campaign-realm-{realm}"),
                 samples,
                 fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
                 None,
-            );
-            if self.config.mode == EvaluationMode::Gate && [7, 8, 10].contains(&realm) {
-                result = owner_decision_unit(
-                    result,
-                    "PLANNER_GATE does not exercise this fixed exact-width trigger; owner must choose between changing the trigger identity and excluding the gate-only Campaign measurement",
-                );
-            }
-            units.push(result);
+            ));
         }
         for entry in dailies {
             let fired = self.daily_hits(
@@ -1311,19 +1302,12 @@ impl Evaluator {
                 };
                 counts.observe(ReachabilitySeedEvidence { oracle, bots });
             }
-            let mut unit = censored_minimum_rate_unit(
+            units.push(censored_minimum_rate_unit(
                 level_label(level),
                 self.config.oracle_seeds,
                 counts,
                 bands::APEX_REACHABLE_MIN_BPS,
-            );
-            if level.map_id == 10 && level.level_id == 10 {
-                unit = owner_decision_unit(
-                    unit,
-                    "the 200,000-node oracle and both bots did not prove the Inca perfect-clear finale; changing that finale is an owner decision",
-                );
-            }
-            units.push(unit);
+            ));
         }
         Ok(finish(metadata, units))
     }
@@ -1354,20 +1338,13 @@ impl Evaluator {
                 bands::APEX_LUCKABLE_END_MIN_BPS,
                 bands::APEX_LUCKABLE_END_MAX_BPS,
             );
-            let mut unit = rate_unit(
+            units.push(rate_unit(
                 level_label(level),
                 self.config.naive_seeds,
                 hits,
                 minimum,
                 Some(maximum),
-            );
-            if level.map_id == 10 && level.level_id == 3 {
-                unit = owner_decision_unit(
-                    unit,
-                    "the fixed Inca exact-quad moment produced 0/100 naive facts; lowering the realm height or replacing the moment breaks trigger liveness or setup, so the identity tradeoff is an owner decision",
-                );
-            }
-            units.push(unit);
+            ));
         }
         Ok(finish(metadata, units))
     }
@@ -2272,15 +2249,6 @@ fn ignored_unit(mut unit: AssertionUnit, owner: &str) -> AssertionUnit {
     unit
 }
 
-fn owner_decision_unit(mut unit: AssertionUnit, decision: &str) -> AssertionUnit {
-    if unit.passed == Some(false) {
-        unit.live = false;
-        unit.owner = Some(String::from("owner decision"));
-        unit.detail = Some(String::from(decision));
-    }
-    unit
-}
-
 fn success(record: &RunRecord) -> bool {
     record.earned_stars > 0
 }
@@ -2668,7 +2636,7 @@ mod tests {
             Metadata::live(
                 "reroll-grant",
                 "per mode",
-                "mixed owner decision",
+                "Campaign discard cap live; Arcade grant rate owned by brief 05",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
             ),
             vec![campaign, daily],
@@ -2678,30 +2646,6 @@ mod tests {
         assert!(!result.units[1].live, "Arcade remains owned by brief 05");
         assert_eq!(result.units[1].owner.as_deref(), Some("brief 05"));
         assert_eq!(result.units[1].passed, Some(false));
-    }
-
-    #[test]
-    fn named_owner_decision_remains_a_visible_failure_without_blocking_live_units() {
-        let named = owner_decision_unit(
-            unit(String::from("named"), 32, None, json!({"hits": 0}), false),
-            "owner must choose the replacement",
-        );
-        assert!(!named.live);
-        assert_eq!(named.owner.as_deref(), Some("owner decision"));
-        assert_eq!(named.status, AssertionStatus::Failed);
-        assert_eq!(named.passed, Some(false));
-        assert_eq!(
-            named.detail.as_deref(),
-            Some("owner must choose the replacement")
-        );
-
-        let green = owner_decision_unit(
-            unit(String::from("green"), 32, None, json!({"hits": 32}), true),
-            "unused",
-        );
-        assert!(green.live);
-        assert_eq!(green.owner, None);
-        assert_eq!(green.detail, None);
     }
 
     #[test]
@@ -2828,5 +2772,28 @@ mod tests {
     fn sloped_bands_reach_both_owner_endpoints() {
         assert_eq!(sloped_band(1, 8_500, 9_500, 4_500, 6_000), (8_500, 9_500));
         assert_eq!(sloped_band(10, 8_500, 9_500, 4_500, 6_000), (4_500, 6_000));
+    }
+
+    #[test]
+    fn trigger_liveness_is_acceptance_only_and_schedules_no_gate_records() {
+        let mut gate = Evaluator::new(EvaluationConfig::gate(), 1, Instant::now());
+        assert!(!gate.assertion_has_samples("trigger-liveness"));
+        gate.prepare_assertion("trigger-liveness").unwrap();
+        assert!(gate.campaign_records.is_empty());
+        assert!(gate.daily_records.is_empty());
+        let result = gate.trigger_liveness().unwrap();
+        assert_eq!(result.minimum_samples, bands::ACCEPTANCE_PLANNER_SEEDS);
+        assert_eq!(result.status, AssertionStatus::NotEvaluated);
+        assert_eq!(result.passed, None);
+
+        let acceptance = Evaluator::new(
+            EvaluationConfig::acceptance(
+                bands::ACCEPTANCE_PLANNER_SEEDS,
+                bands::ASSERTION_SEED_START,
+            ),
+            1,
+            Instant::now(),
+        );
+        assert!(acceptance.assertion_has_samples("trigger-liveness"));
     }
 }
