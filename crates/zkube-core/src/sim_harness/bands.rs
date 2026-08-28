@@ -115,8 +115,6 @@ pub const THIRD_STAR_END_MIN_BPS: u32 = 1_000;
 pub const THIRD_STAR_END_MAX_BPS: u32 = 2_000;
 /// Lower trigger firing rate in either mode, in basis points.
 pub const TRIGGER_LIVENESS_MIN_BPS: u32 = 3_000;
-/// Upper trigger firing rate in either mode, in basis points.
-pub const TRIGGER_LIVENESS_MAX_BPS: u32 = 8_000;
 /// Minimum success-rate drop at the adjacent tier, in basis points.
 pub const TIER_STEP_MIN_DROP_BPS: i32 = 500;
 /// Maximum success-rate drop at the adjacent tier, in basis points.

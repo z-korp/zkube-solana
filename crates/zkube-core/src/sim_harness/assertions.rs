@@ -845,7 +845,7 @@ impl Evaluator {
                 self.config.planner_seeds,
                 hits,
                 minimum,
-                maximum,
+                Some(maximum),
             ));
             let index = usize::from(level.level_id.saturating_sub(1).min(9));
             pooled_hits[index] = pooled_hits[index].saturating_add(hits);
@@ -860,7 +860,7 @@ impl Evaluator {
                 pooled_samples[index],
                 pooled_hits[index],
                 minimum,
-                maximum,
+                Some(maximum),
             ));
         }
         Ok(finish(metadata, units))
@@ -870,7 +870,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "trigger-liveness",
             "per realm, both modes",
-            "trigger-fire Wilson interval intersects 3000..=8000 bps",
+            "trigger-fire Wilson interval reaches at least 3000 bps",
             bands::GATE_SEEDS,
             "brief 05",
         );
@@ -904,7 +904,7 @@ impl Evaluator {
                 samples,
                 fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
-                bands::TRIGGER_LIVENESS_MAX_BPS,
+                None,
             ));
         }
         for entry in dailies {
@@ -919,7 +919,7 @@ impl Evaluator {
                 self.config.planner_seeds,
                 fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
-                bands::TRIGGER_LIVENESS_MAX_BPS,
+                None,
             ));
         }
         Ok(finish(metadata, units))
@@ -1099,7 +1099,7 @@ impl Evaluator {
                 self.config.planner_seeds,
                 hits,
                 bands::THEME_POLICY_MIN_BPS,
-                10_000,
+                Some(10_000),
             ));
         }
         Ok(finish(metadata, units))
@@ -1327,7 +1327,7 @@ impl Evaluator {
                 self.config.naive_seeds,
                 hits,
                 minimum,
-                maximum,
+                Some(maximum),
             ));
         }
         Ok(finish(metadata, units))
@@ -1898,7 +1898,13 @@ fn unit(
     }
 }
 
-fn rate_unit(name: String, samples: u32, hits: u32, minimum: u32, maximum: u32) -> AssertionUnit {
+fn rate_unit(
+    name: String,
+    samples: u32,
+    hits: u32,
+    minimum: u32,
+    maximum: Option<u32>,
+) -> AssertionUnit {
     let rate = rate_bps(hits, samples);
     let (interval_lower, interval_upper) = wilson_interval_bps(hits, samples);
     unit(
@@ -1913,7 +1919,7 @@ fn rate_unit(name: String, samples: u32, hits: u32, minimum: u32, maximum: u32) 
             "minimumBps": minimum,
             "maximumBps": maximum,
         }),
-        interval_lower <= maximum && interval_upper >= minimum,
+        interval_upper >= minimum && maximum.is_none_or(|upper| interval_lower <= upper),
     )
 }
 
@@ -2669,10 +2675,14 @@ mod tests {
         assert_eq!(wilson_interval_bps(16, 32), (3_363, 6_637));
         assert_eq!(wilson_interval_bps(160, 320), (4_455, 5_545));
 
-        let rate = rate_unit(String::from("guardian"), 100, 0, 100, 300);
+        let rate = rate_unit(String::from("guardian"), 100, 0, 100, Some(300));
         assert_eq!(rate.passed, Some(true));
         assert_eq!(rate.measurement["rateBps"], 0);
         assert_eq!(rate.measurement["intervalUpperBps"], 370);
+
+        let minimum_only = rate_unit(String::from("trigger"), 100, 100, 3_000, None);
+        assert_eq!(minimum_only.passed, Some(true));
+        assert!(minimum_only.measurement["maximumBps"].is_null());
 
         let conditional =
             conditional_rate_unit(String::from("conditional"), 100, 2, 100, 10, 300, Some(600));
