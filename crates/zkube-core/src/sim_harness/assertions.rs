@@ -541,11 +541,16 @@ impl Evaluator {
                         self.config.planner_seeds,
                     )?;
                 }
-                "apex-reachable" => self.add_oracle_tasks(
-                    &mut tasks,
-                    &self.apex_levels(),
-                    self.config.oracle_seeds,
-                )?,
+                "apex-reachable" => {
+                    let levels = self.apex_levels();
+                    self.add_oracle_tasks(&mut tasks, &levels, self.config.oracle_seeds)?;
+                    self.add_campaign_tasks(
+                        &mut tasks,
+                        &levels,
+                        &[self.config.planner_model, PlayerModel::Naive],
+                        self.config.oracle_seeds,
+                    )?;
+                }
                 "apex-luckable" => self.add_campaign_tasks(
                     &mut tasks,
                     &self.apex_levels(),
@@ -1245,7 +1250,7 @@ impl Evaluator {
         let metadata = Metadata::ignored(
             "apex-reachable",
             "per level with a secondary",
-            "proven oracle reachability >=6000 bps; capped uncertainty is insufficient",
+            "oracle proof or same-seed planner/naive third-star latch >=6000 bps; unwitnessed capped uncertainty is insufficient",
             bands::ACCEPTANCE_PLANNER_SEEDS,
             "brief 05",
         );
@@ -1255,23 +1260,35 @@ impl Evaluator {
         let levels = self.apex_levels();
         let mut units = Vec::with_capacity(levels.len());
         for level in levels {
-            let mut reachable = 0u32;
-            let mut caps = 0u32;
-            let mut censored = 0u32;
+            let mut counts = ReachabilityCounts::default();
             for offset in 0..self.config.oracle_seeds {
                 let result = self.oracle_record(level, offset)?;
-                reachable = reachable.saturating_add(u32::from(result.reachability.apex_reachable));
-                caps = caps.saturating_add(u32::from(result.node_cap_hit));
-                censored = censored.saturating_add(u32::from(
-                    result.node_cap_hit && !result.reachability.apex_reachable,
-                ));
+                let planner_latched = self
+                    .campaign_record(level, self.config.planner_model, offset)?
+                    .apex_hit_action
+                    .is_some();
+                let naive_latched = self
+                    .campaign_record(level, PlayerModel::Naive, offset)?
+                    .apex_hit_action
+                    .is_some();
+                let oracle = match (result.reachability.apex_reachable, result.node_cap_hit) {
+                    (false, false) => OracleEvidence::Unproven,
+                    (false, true) => OracleEvidence::Capped,
+                    (true, false) => OracleEvidence::Proven,
+                    (true, true) => OracleEvidence::ProvenAtCap,
+                };
+                let bots = match (planner_latched, naive_latched) {
+                    (false, false) => BotWitness::None,
+                    (true, false) => BotWitness::Planner,
+                    (false, true) => BotWitness::Naive,
+                    (true, true) => BotWitness::Both,
+                };
+                counts.observe(ReachabilitySeedEvidence { oracle, bots });
             }
             units.push(censored_minimum_rate_unit(
                 level_label(level),
                 self.config.oracle_seeds,
-                reachable,
-                caps,
-                censored,
+                counts,
                 bands::APEX_REACHABLE_MIN_BPS,
             ));
         }
@@ -1942,22 +1959,121 @@ fn conditional_rate_unit(
     )
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum OracleEvidence {
+    #[default]
+    Unproven,
+    Capped,
+    Proven,
+    ProvenAtCap,
+}
+
+impl OracleEvidence {
+    const fn proven(self) -> bool {
+        matches!(self, Self::Proven | Self::ProvenAtCap)
+    }
+
+    const fn capped(self) -> bool {
+        matches!(self, Self::Capped | Self::ProvenAtCap)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum BotWitness {
+    #[default]
+    None,
+    Planner,
+    Naive,
+    Both,
+}
+
+impl BotWitness {
+    const fn any(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    const fn planner(self) -> bool {
+        matches!(self, Self::Planner | Self::Both)
+    }
+
+    const fn naive(self) -> bool {
+        matches!(self, Self::Naive | Self::Both)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ReachabilitySeedEvidence {
+    oracle: OracleEvidence,
+    bots: BotWitness,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ReachabilityCounts {
+    oracle_proven_seeds: u32,
+    planner_witness_seeds: u32,
+    naive_witness_seeds: u32,
+    bot_witness_seeds: u32,
+    proven_reachable_seeds: u32,
+    node_cap_hits: u32,
+    capped_seeds_rescued_by_bot: u32,
+    censored_seeds: u32,
+}
+
+impl ReachabilityCounts {
+    fn observe(&mut self, evidence: ReachabilitySeedEvidence) {
+        let oracle_proven = evidence.oracle.proven();
+        let oracle_capped = evidence.oracle.capped();
+        let planner_latched = evidence.bots.planner();
+        let naive_latched = evidence.bots.naive();
+        let bot_witness = evidence.bots.any();
+        let proven = oracle_proven || bot_witness;
+        self.oracle_proven_seeds = self
+            .oracle_proven_seeds
+            .saturating_add(u32::from(oracle_proven));
+        self.planner_witness_seeds = self
+            .planner_witness_seeds
+            .saturating_add(u32::from(planner_latched));
+        self.naive_witness_seeds = self
+            .naive_witness_seeds
+            .saturating_add(u32::from(naive_latched));
+        self.bot_witness_seeds = self
+            .bot_witness_seeds
+            .saturating_add(u32::from(bot_witness));
+        self.proven_reachable_seeds = self
+            .proven_reachable_seeds
+            .saturating_add(u32::from(proven));
+        self.node_cap_hits = self.node_cap_hits.saturating_add(u32::from(oracle_capped));
+        self.capped_seeds_rescued_by_bot = self
+            .capped_seeds_rescued_by_bot
+            .saturating_add(u32::from(oracle_capped && !oracle_proven && bot_witness));
+        self.censored_seeds = self
+            .censored_seeds
+            .saturating_add(u32::from(oracle_capped && !proven));
+    }
+}
+
 fn censored_minimum_rate_unit(
     name: String,
     samples: u32,
-    proven_hits: u32,
-    node_cap_hits: u32,
-    censored: u32,
+    counts: ReachabilityCounts,
     minimum_bps: u32,
 ) -> AssertionUnit {
-    let possible_hits = proven_hits.saturating_add(censored).min(samples);
-    let lower = rate_bps(proven_hits, samples);
+    let possible_hits = counts
+        .proven_reachable_seeds
+        .saturating_add(counts.censored_seeds)
+        .min(samples);
+    let lower = rate_bps(counts.proven_reachable_seeds, samples);
     let upper = rate_bps(possible_hits, samples);
     let measurement = json!({
-        "provenReachableSeeds": proven_hits,
+        "provenReachableSeeds": counts.proven_reachable_seeds,
+        "oracleProvenSeeds": counts.oracle_proven_seeds,
+        "plannerWitnessSeeds": counts.planner_witness_seeds,
+        "naiveWitnessSeeds": counts.naive_witness_seeds,
+        "botWitnessSeeds": counts.bot_witness_seeds,
         "reachableRateBps": lower,
-        "nodeCapHits": node_cap_hits,
-        "censoredSeeds": censored,
+        "nodeCapHits": counts.node_cap_hits,
+        "cappedSeedsRescuedByBot": counts.capped_seeds_rescued_by_bot,
+        "censoredSeeds": counts.censored_seeds,
         "intervalLowerBps": lower,
         "intervalUpperBps": upper,
         "minimumBps": minimum_bps,
@@ -2571,9 +2687,12 @@ mod tests {
         let proven = censored_minimum_rate_unit(
             String::from("proven"),
             32,
-            20,
-            20,
-            12,
+            ReachabilityCounts {
+                proven_reachable_seeds: 20,
+                node_cap_hits: 20,
+                censored_seeds: 12,
+                ..ReachabilityCounts::default()
+            },
             bands::APEX_REACHABLE_MIN_BPS,
         );
         assert_eq!(proven.status, AssertionStatus::Passed);
@@ -2581,9 +2700,12 @@ mod tests {
         let uncertain = censored_minimum_rate_unit(
             String::from("uncertain"),
             32,
-            10,
-            10,
-            10,
+            ReachabilityCounts {
+                proven_reachable_seeds: 10,
+                node_cap_hits: 10,
+                censored_seeds: 10,
+                ..ReachabilityCounts::default()
+            },
             bands::APEX_REACHABLE_MIN_BPS,
         );
         assert_eq!(uncertain.status, AssertionStatus::InsufficientEvents);
@@ -2592,13 +2714,41 @@ mod tests {
         let failed = censored_minimum_rate_unit(
             String::from("failed"),
             32,
-            10,
-            5,
-            5,
+            ReachabilityCounts {
+                proven_reachable_seeds: 10,
+                node_cap_hits: 5,
+                censored_seeds: 5,
+                ..ReachabilityCounts::default()
+            },
             bands::APEX_REACHABLE_MIN_BPS,
         );
         assert_eq!(failed.status, AssertionStatus::Failed);
         assert_eq!(failed.measurement["intervalUpperBps"], 4_687);
+    }
+
+    #[test]
+    fn bot_latches_rescue_same_seed_oracle_caps() {
+        let mut counts = ReachabilityCounts::default();
+        counts.observe(ReachabilitySeedEvidence {
+            oracle: OracleEvidence::Capped,
+            bots: BotWitness::Planner,
+        });
+        counts.observe(ReachabilitySeedEvidence {
+            oracle: OracleEvidence::Capped,
+            bots: BotWitness::Naive,
+        });
+        counts.observe(ReachabilitySeedEvidence {
+            oracle: OracleEvidence::Capped,
+            ..ReachabilitySeedEvidence::default()
+        });
+
+        assert_eq!(counts.proven_reachable_seeds, 2);
+        assert_eq!(counts.planner_witness_seeds, 1);
+        assert_eq!(counts.naive_witness_seeds, 1);
+        assert_eq!(counts.bot_witness_seeds, 2);
+        assert_eq!(counts.node_cap_hits, 3);
+        assert_eq!(counts.capped_seeds_rescued_by_bot, 2);
+        assert_eq!(counts.censored_seeds, 1);
     }
 
     #[test]
