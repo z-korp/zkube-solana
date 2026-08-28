@@ -7,31 +7,31 @@ export const DAILY_POOL = {
       "id": 1,
       "realmMapId": 1,
       "scoringIndex": 0,
-      "startingRows": 4
+      "startingRows": 6
     },
     {
       "id": 2,
       "realmMapId": 2,
       "scoringIndex": 1,
-      "startingRows": 4
+      "startingRows": 6
     },
     {
       "id": 3,
       "realmMapId": 3,
       "scoringIndex": 3,
-      "startingRows": 4
+      "startingRows": 6
     },
     {
       "id": 4,
       "realmMapId": 4,
       "scoringIndex": 6,
-      "startingRows": 4
+      "startingRows": 6
     },
     {
       "id": 5,
       "realmMapId": 5,
       "scoringIndex": 10,
-      "startingRows": 5
+      "startingRows": 6
     },
     {
       "id": 6,
@@ -55,7 +55,7 @@ export const DAILY_POOL = {
       "id": 9,
       "realmMapId": 9,
       "scoringIndex": 5,
-      "startingRows": 4
+      "startingRows": 3
     },
     {
       "id": 10,

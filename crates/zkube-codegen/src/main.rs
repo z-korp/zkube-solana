@@ -262,6 +262,7 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
             ));
         }
         for (level_index, level) in map.levels.iter().enumerate() {
+            // This curve is a bot-calibrated baseline until the three-realm playtest.
             let rules = campaign_rules(map, level, &catalog.difficulty_weights)?;
             if !rules.is_valid() {
                 return Err(format!(

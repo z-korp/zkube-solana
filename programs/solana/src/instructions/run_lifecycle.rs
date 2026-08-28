@@ -2005,7 +2005,10 @@ mod tests {
         for (map_index, map) in maps.iter().enumerate() {
             assert_eq!(map["mapId"].as_u64().unwrap() as usize, map_index + 1);
             let rules = map["rules"].as_array().unwrap();
-            assert!((4..=8).contains(&rules[8].as_u64().unwrap()));
+            assert!(
+                (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
+                    .contains(&(rules[8].as_u64().unwrap() as u8))
+            );
             let levels = map["levels"].as_array().unwrap();
             assert_eq!(levels.len(), 10);
             for level in levels {

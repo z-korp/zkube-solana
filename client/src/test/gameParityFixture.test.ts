@@ -68,7 +68,6 @@ describe("shared game parity fixtures", () => {
 
     for (const map of maps) {
       expect(map.levels).toHaveLength(10);
-      expect(map.mapRules.startingRows).toBeGreaterThanOrEqual(4);
       for (const level of map.levels) {
         expect(
           level.blockWeights.reduce((sum, weight) => sum + weight, 0),

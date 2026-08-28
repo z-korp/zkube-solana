@@ -1044,10 +1044,15 @@ mod tests {
                 ConstraintKind::CombosOfExactly | ConstraintKind::ComboOfExactly => {
                     lines = constraint.value;
                 }
-                ConstraintKind::BreakBlocks | ConstraintKind::BreakInMove => {
+                ConstraintKind::BreakBlocks => {
                     let remaining = constraint.required_count.saturating_sub(progress);
                     let width = constraint.value.max(1);
                     block_cells_before[usize::from(width - 1)] = remaining.saturating_mul(width);
+                }
+                ConstraintKind::BreakInMove => {
+                    let width = constraint.value.max(1);
+                    block_cells_before[usize::from(width - 1)] =
+                        constraint.required_count.saturating_mul(width);
                 }
                 ConstraintKind::ClearLines => {
                     lines = constraint.required_count.saturating_sub(progress).max(1);

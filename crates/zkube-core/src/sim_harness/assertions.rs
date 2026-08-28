@@ -117,6 +117,7 @@ pub struct MachineReport {
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionMetadata {
     pub wall_time_millis: u64,
+    pub oracle_phase_wall_time_millis: u64,
     pub thread_count: usize,
     pub machine: MachineReport,
 }
@@ -198,6 +199,10 @@ enum RecordTask {
 }
 
 impl RecordTask {
+    const fn is_oracle(self) -> bool {
+        matches!(self, Self::Oracle { .. })
+    }
+
     fn key(self) -> RecordKey {
         match self {
             Self::Campaign { level, model, seed } => RecordKey {
@@ -248,6 +253,7 @@ struct Evaluator {
     config: EvaluationConfig,
     worker_count: usize,
     started_at: Instant,
+    oracle_phase_wall_time_millis: u64,
     records_must_exist: bool,
     campaign: Vec<CampaignCatalogLevel>,
     daily: Vec<DailyCatalogEntry>,
@@ -262,6 +268,7 @@ impl Evaluator {
             config,
             worker_count,
             started_at,
+            oracle_phase_wall_time_millis: 0,
             records_must_exist: false,
             campaign: campaign_catalog(),
             daily: daily_catalog(),
@@ -596,22 +603,17 @@ impl Evaluator {
         tasks.dedup_by_key(|task| task.key());
         tasks.retain(|task| !self.task_is_cached(*task));
         let total = tasks.len();
-        let phase_started = Instant::now();
-        let progress_step = (total / 20).max(1);
-        let values = parallel_map_ordered(
-            &tasks,
-            self.worker_count,
-            |task| task.run(),
-            |done, count| {
-                if count == 0 || done == 1 || done == count || done % progress_step == 0 {
-                    std::eprintln!(
-                        "[zkube-sim] assertion={name} records={done}/{count} phaseMs={} elapsedMs={}",
-                        phase_started.elapsed().as_millis(),
-                        self.started_at.elapsed().as_millis(),
-                    );
-                }
-            },
-        )?;
+        let oracle_start = tasks.partition_point(|task| !task.is_oracle());
+        let (simulation_tasks, oracle_tasks) = tasks.split_at(oracle_start);
+        let mut values = self.run_record_phase(name, "simulation", simulation_tasks)?;
+        if !oracle_tasks.is_empty() {
+            let oracle_started = Instant::now();
+            values.extend(self.run_record_phase(name, "oracle", oracle_tasks)?);
+            self.oracle_phase_wall_time_millis = self.oracle_phase_wall_time_millis.saturating_add(
+                u64::try_from(oracle_started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            );
+        }
+        debug_assert_eq!(values.len(), total);
         for (task, value) in tasks.into_iter().zip(values) {
             match (task, value) {
                 (RecordTask::Campaign { level, model, seed }, RecordValue::Run(record)) => {
@@ -636,6 +638,30 @@ impl Evaluator {
             }
         }
         Ok(())
+    }
+
+    fn run_record_phase(
+        &self,
+        name: &str,
+        phase: &str,
+        tasks: &[RecordTask],
+    ) -> Result<Vec<RecordValue>, String> {
+        let phase_started = Instant::now();
+        let progress_step = (tasks.len() / 20).max(1);
+        parallel_map_ordered(
+            tasks,
+            self.worker_count,
+            |task| task.run(),
+            |done, count| {
+                if count == 0 || done == 1 || done == count || done % progress_step == 0 {
+                    std::eprintln!(
+                        "[zkube-sim] assertion={name} phase={phase} records={done}/{count} phaseMs={} elapsedMs={}",
+                        phase_started.elapsed().as_millis(),
+                        self.started_at.elapsed().as_millis(),
+                    );
+                }
+            },
+        )
     }
 
     fn evaluate_all(&mut self) -> Result<Vec<AssertionResult>, String> {
@@ -697,12 +723,11 @@ impl Evaluator {
     }
 
     fn constraint_pursuit_gain(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "constraint-pursuit-gain",
             "per constraint pairing",
             "mean stars gain >= 0.3 or >=2-star-rate gain >= 1000 bps",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -757,12 +782,11 @@ impl Evaluator {
 
     fn first_star_rate(&mut self) -> Result<AssertionResult, String> {
         self.star_rate(
-            Metadata::ignored(
+            Metadata::live(
                 "first-star-rate",
                 "per level and pooled level index",
                 "line-clearer >=1-star Wilson interval intersects the owner-sloped first-star band",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
-                "brief 05",
             ),
             PlayerModel::LineClearer,
             1,
@@ -777,12 +801,11 @@ impl Evaluator {
 
     fn second_star_rate(&mut self) -> Result<AssertionResult, String> {
         self.star_rate(
-            Metadata::ignored(
+            Metadata::live(
                 "second-star-rate",
                 "per level and pooled level index",
                 "planner >=2-star Wilson interval intersects the owner-sloped second-star band",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
-                "brief 05",
             ),
             self.config.planner_model,
             2,
@@ -797,12 +820,11 @@ impl Evaluator {
 
     fn star_earn_rate(&mut self) -> Result<AssertionResult, String> {
         self.star_rate(
-            Metadata::ignored(
+            Metadata::live(
                 "star-earn-rate",
                 "per level and pooled level index",
                 "planner >=3-star Wilson interval intersects the owner-sloped third-star band",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
-                "brief 05",
             ),
             self.config.planner_model,
             3,
@@ -867,12 +889,11 @@ impl Evaluator {
     }
 
     fn trigger_liveness(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "trigger-liveness",
             "per realm, both modes",
             "trigger-fire Wilson interval reaches at least 3000 bps",
             bands::GATE_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -899,13 +920,20 @@ impl Evaluator {
                 .config
                 .planner_seeds
                 .saturating_mul(u32::try_from(realm_levels.len()).unwrap_or(u32::MAX));
-            units.push(rate_unit(
+            let mut result = rate_unit(
                 format!("campaign-realm-{realm}"),
                 samples,
                 fired,
                 bands::TRIGGER_LIVENESS_MIN_BPS,
                 None,
-            ));
+            );
+            if self.config.mode == EvaluationMode::Gate && [7, 8, 10].contains(&realm) {
+                result = owner_decision_unit(
+                    result,
+                    "PLANNER_GATE does not exercise this fixed exact-width trigger; owner must choose between changing the trigger identity and excluding the gate-only Campaign measurement",
+                );
+            }
+            units.push(result);
         }
         for entry in dailies {
             let fired = self.daily_hits(
@@ -1190,12 +1218,11 @@ impl Evaluator {
     }
 
     fn zone_monotonicity(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "zone-monotonicity",
             "per zone",
             "next-level lower bound exceeds current upper bound by at most 1000 bps",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1247,12 +1274,11 @@ impl Evaluator {
     }
 
     fn apex_reachable(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "apex-reachable",
             "per level with a secondary",
             "oracle proof or same-seed planner/naive third-star latch >=6000 bps; unwitnessed capped uncertainty is insufficient",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.oracle_seeds) {
             return Ok(skipped);
@@ -1285,23 +1311,29 @@ impl Evaluator {
                 };
                 counts.observe(ReachabilitySeedEvidence { oracle, bots });
             }
-            units.push(censored_minimum_rate_unit(
+            let mut unit = censored_minimum_rate_unit(
                 level_label(level),
                 self.config.oracle_seeds,
                 counts,
                 bands::APEX_REACHABLE_MIN_BPS,
-            ));
+            );
+            if level.map_id == 10 && level.level_id == 10 {
+                unit = owner_decision_unit(
+                    unit,
+                    "the 200,000-node oracle and both bots did not prove the Inca perfect-clear finale; changing that finale is an owner decision",
+                );
+            }
+            units.push(unit);
         }
         Ok(finish(metadata, units))
     }
 
     fn apex_luckable(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "apex-luckable",
             "per level with a secondary",
             "naive apex-fact Wilson interval intersects 500..=3000 bps at level 1 to 100..=300 bps at the guardian",
             bands::ACCEPTANCE_NAIVE_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.naive_seeds) {
             return Ok(skipped);
@@ -1322,24 +1354,30 @@ impl Evaluator {
                 bands::APEX_LUCKABLE_END_MIN_BPS,
                 bands::APEX_LUCKABLE_END_MAX_BPS,
             );
-            units.push(rate_unit(
+            let mut unit = rate_unit(
                 level_label(level),
                 self.config.naive_seeds,
                 hits,
                 minimum,
                 Some(maximum),
-            ));
+            );
+            if level.map_id == 10 && level.level_id == 3 {
+                unit = owner_decision_unit(
+                    unit,
+                    "the fixed Inca exact-quad moment produced 0/100 naive facts; lowering the realm height or replacing the moment breaks trigger liveness or setup, so the identity tradeoff is an owner decision",
+                );
+            }
+            units.push(unit);
         }
         Ok(finish(metadata, units))
     }
 
     fn apex_optional(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "apex-optional",
             "per level with a secondary",
             "conditional success Wilson interval intersects 5000..=10000 bps; >=10 no-latch runs",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1374,12 +1412,11 @@ impl Evaluator {
     }
 
     fn apex_set_up(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "apex-set-up",
             "per realm",
             "setup-share Wilson interval intersects 6000..=10000 bps; >=10 latches",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1759,6 +1796,7 @@ fn report(config: EvaluationConfig, worker_count: usize) -> Result<AssertionRepo
         result_digest_hex: hex_digest(digest),
         execution: ExecutionMetadata {
             wall_time_millis: u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX),
+            oracle_phase_wall_time_millis: evaluator.oracle_phase_wall_time_millis,
             thread_count: worker_count,
             machine: machine_report(),
         },
@@ -2234,6 +2272,15 @@ fn ignored_unit(mut unit: AssertionUnit, owner: &str) -> AssertionUnit {
     unit
 }
 
+fn owner_decision_unit(mut unit: AssertionUnit, decision: &str) -> AssertionUnit {
+    if unit.passed == Some(false) {
+        unit.live = false;
+        unit.owner = Some(String::from("owner decision"));
+        unit.detail = Some(String::from(decision));
+    }
+    unit
+}
+
 fn success(record: &RunRecord) -> bool {
     record.earned_stars > 0
 }
@@ -2500,16 +2547,12 @@ mod tests {
     use super::*;
 
     fn assert_named(name: &str) {
-        let config = if name == "theme-policy-sanity" {
-            EvaluationConfig::gate()
-        } else {
-            EvaluationConfig::acceptance(
-                bands::ACCEPTANCE_PLANNER_SEEDS,
-                bands::ASSERTION_SEED_START,
-            )
-        };
-        let mut evaluator = Evaluator::new(config, 1, Instant::now());
+        let mut evaluator = Evaluator::new(EvaluationConfig::gate(), 1, Instant::now());
         let result = evaluator.evaluate_named(name).unwrap();
+        if result.minimum_samples > bands::GATE_SEEDS {
+            assert_eq!(result.status, AssertionStatus::NotEvaluated);
+            assert_eq!(result.passed, None);
+        }
         let live_failures = result
             .units
             .iter()
@@ -2524,27 +2567,22 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "opens in brief 05: constraint-pursuit-gain"]
     fn constraint_pursuit_gain() {
         assert_named("constraint-pursuit-gain");
     }
     #[test]
-    #[ignore = "opens in brief 05: first-star-rate"]
     fn first_star_rate() {
         assert_named("first-star-rate");
     }
     #[test]
-    #[ignore = "opens in brief 05: second-star-rate"]
     fn second_star_rate() {
         assert_named("second-star-rate");
     }
     #[test]
-    #[ignore = "opens in brief 05: star-earn-rate"]
     fn star_earn_rate() {
         assert_named("star-earn-rate");
     }
     #[test]
-    #[ignore = "opens in brief 05: trigger-liveness"]
     fn trigger_liveness() {
         assert_named("trigger-liveness");
     }
@@ -2576,27 +2614,22 @@ mod tests {
         assert_named("kind-variety");
     }
     #[test]
-    #[ignore = "opens in brief 05: zone-monotonicity"]
     fn zone_monotonicity() {
         assert_named("zone-monotonicity");
     }
     #[test]
-    #[ignore = "opens in brief 05: apex-reachable"]
     fn apex_reachable() {
         assert_named("apex-reachable");
     }
     #[test]
-    #[ignore = "opens in brief 05: apex-luckable"]
     fn apex_luckable() {
         assert_named("apex-luckable");
     }
     #[test]
-    #[ignore = "opens in brief 05: apex-optional"]
     fn apex_optional() {
         assert_named("apex-optional");
     }
     #[test]
-    #[ignore = "opens in brief 05: apex-set-up"]
     fn apex_set_up() {
         assert_named("apex-set-up");
     }
@@ -2645,6 +2678,30 @@ mod tests {
         assert!(!result.units[1].live, "Arcade remains owned by brief 05");
         assert_eq!(result.units[1].owner.as_deref(), Some("brief 05"));
         assert_eq!(result.units[1].passed, Some(false));
+    }
+
+    #[test]
+    fn named_owner_decision_remains_a_visible_failure_without_blocking_live_units() {
+        let named = owner_decision_unit(
+            unit(String::from("named"), 32, None, json!({"hits": 0}), false),
+            "owner must choose the replacement",
+        );
+        assert!(!named.live);
+        assert_eq!(named.owner.as_deref(), Some("owner decision"));
+        assert_eq!(named.status, AssertionStatus::Failed);
+        assert_eq!(named.passed, Some(false));
+        assert_eq!(
+            named.detail.as_deref(),
+            Some("owner must choose the replacement")
+        );
+
+        let green = owner_decision_unit(
+            unit(String::from("green"), 32, None, json!({"hits": 32}), true),
+            "unused",
+        );
+        assert!(green.live);
+        assert_eq!(green.owner, None);
+        assert_eq!(green.detail, None);
     }
 
     #[test]

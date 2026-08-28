@@ -3615,7 +3615,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":402,\"objectiveSum\":201,\"campaignScoreSum\":22,\"completedCampaignRuns\":1,\"chargesEarned\":11,\"digestHex\":\"02bdc7cec11eb9c26fdab0446a29c74e9efb2b3b086e1827ae13cfe9f43644a5\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":294,\"objectiveSum\":146,\"campaignScoreSum\":14,\"completedCampaignRuns\":0,\"chargesEarned\":11,\"digestHex\":\"4aa3fca1a4c88ebb25e47a7b0df68444f3e1b68d3596c706517e616aa77b829b\"}"
         );
     }
 
@@ -3654,10 +3654,10 @@ mod tests {
             )
             .unwrap(),
             run_campaign(
-                campaign_levels[79],
+                campaign_levels[90],
                 PlayerModel::LineClearer,
                 SeedPartition::Holdout,
-                211,
+                HOLDOUT_SEED_PREFIX | 1_024,
             )
             .unwrap(),
         ];
@@ -3667,10 +3667,10 @@ mod tests {
                 .map(|record| record.decision_digest_hex.as_str())
                 .collect::<Vec<_>>(),
             [
-                "e723a260b9827d5a2773a6335737cc8c68f34445e6265bc4176d480cb97a54c1",
-                "73a81721cf1d3c448efdea5a50c3955a160844fd487a771a9830ade6bda607a0",
-                "2c1e4aa7728921c0708467a8192264afad5d452aad5443dd35470546f5e2bb53",
-                "b8381b2b18c1caa38c9ad62e41927353c2b4f0467aaf58267e4e96e29700fbad",
+                "ab6daa6a2d008f9014e3499cf473d4268a7c1b48dbbe9b53537c4b089e4f9eba",
+                "4a09b2f5382f06328729379c02120c3396d02f745ac7f27a00430b1ec505963c",
+                "b9d40dda4214a1f060edeead929d138015525fb2d4b30bd4bfe8a617f71b677b",
+                "bafc0969cbb519fc5be1710aa816ad2cae3370858c0c7154d4234837ad033668",
             ]
         );
         assert!(
@@ -3784,7 +3784,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "1c07987e850f30592f08d6c0477332962ecd23f4259c44c144cc6c6da7dfc64e"
+            "314a4d565c867b5bc4318b1b407cda6c7a3c74630b0cfff7dafef9eaa4a4951b"
         );
     }
 
