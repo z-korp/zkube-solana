@@ -268,7 +268,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     require!(rules.combo_multiplier_x100 > 0, ErrorCode::InvalidLevel);
     require!((1..=3).contains(&rules.bonus_type), ErrorCode::InvalidLevel);
     require!(
-        matches!(rules.bonus_trigger_type, 1 | 2 | 4..=9),
+        matches!(rules.bonus_trigger_type, 1 | 2 | 4 | 6..=9),
         ErrorCode::InvalidLevel
     );
     require!(
@@ -289,7 +289,7 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     );
     match rules.bonus_trigger_type {
         1 | 4 => require!(rules.bonus_threshold <= 8, ErrorCode::InvalidLevel),
-        2 | 5 | 6 | 7 | 8 | 9 => {}
+        2 | 6 | 7 | 8 | 9 => {}
         _ => return err!(ErrorCode::InvalidLevel),
     }
     Ok(())
@@ -615,7 +615,6 @@ pub fn handler_prepare_campaign_run(
     active.bonus_type = rules.bonus_type;
     active.bonus_charges = rules.starting_charges;
     active.reroll_charges = 1;
-    active.perfect_trigger_available = true;
     active.starting_height_target = rules.starting_rows.max(1);
     active.current_difficulty = rules.difficulty;
     active.vrf_request_counter = 0;
@@ -714,7 +713,7 @@ mod tests {
                 };
                 assert_eq!(
                     validate_campaign_map_rules(&snapshot).is_ok(),
-                    matches!(trigger_type, 1 | 2 | 4..=9)
+                    matches!(trigger_type, 1 | 2 | 4 | 6..=9)
                         && zkube_core::bonus_trigger_threshold_is_valid(trigger_type, threshold),
                 );
             }

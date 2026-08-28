@@ -132,7 +132,7 @@ export const ZONE_GUARDIANS: Record<number, ZoneGuardian> = {
     dailyGreeting:
       "The same puzzle for all minds today. Prove yours is the sharpest.",
     zoneHint:
-      "Pure execution wins: moves score at ×2, perfect clears add 15 and earn a Hammer, including bonus-created clears.",
+      "Pure execution wins: moves score at ×2, perfect clears add 15, and clearing a line three moves in a row earns a Hammer.",
     encouragement: "Think before you act. Every move is a theorem.",
     trialIntro: "Wisdom alone is not enough. Now prove you can act on it.",
     respectLine: "Knowledge and action, united. The owl sees your worth.",

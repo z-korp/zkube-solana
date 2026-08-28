@@ -2664,7 +2664,6 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         bonus,
         bonus_charges,
         reroll_charges,
-        perfect_trigger_available,
         starting_height_target,
     } = engine;
     output.extend_from_slice(grid.cells());
@@ -2695,12 +2694,7 @@ fn encode_engine(engine: crate::RunEngine, output: &mut Vec<u8>) {
         Some(Bonus::Totem) => 2,
         Some(Bonus::Wave) => 3,
     });
-    output.extend_from_slice(&[
-        bonus_charges,
-        reroll_charges,
-        u8::from(perfect_trigger_available),
-        starting_height_target,
-    ]);
+    output.extend_from_slice(&[bonus_charges, reroll_charges, starting_height_target]);
 }
 
 fn encode_metrics(metrics: RunMetrics, output: &mut Vec<u8>) {
@@ -3790,7 +3784,7 @@ mod tests {
         }
         assert_eq!(
             bytes_to_hex(digest),
-            "ea61fd2411adc3a56bad8138d3fa0850e305a66141a303be4a0ddc56e0056bef"
+            "1c07987e850f30592f08d6c0477332962ecd23f4259c44c144cc6c6da7dfc64e"
         );
     }
 

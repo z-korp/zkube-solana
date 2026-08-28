@@ -578,8 +578,6 @@ pub struct ActiveRun {
     pub bonus_charges: u8,
     /// Held preview replacements; every run starts with one.
     pub reroll_charges: u8,
-    /// Perfect-clear trigger may award at most once between player moves.
-    pub perfect_trigger_available: bool,
     /// Number of actual empty-board clears produced during this run.
     pub perfect_clears: u16,
     pub starting_height_target: u8,
@@ -637,7 +635,6 @@ impl Default for ActiveRun {
             bonus_type: 0,
             bonus_charges: 0,
             reroll_charges: 0,
-            perfect_trigger_available: false,
             perfect_clears: 0,
             starting_height_target: 0,
             current_difficulty: 0,
@@ -837,7 +834,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 553);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 552);
     }
 
     #[test]

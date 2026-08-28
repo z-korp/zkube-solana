@@ -6,7 +6,7 @@ use zkube_core::{
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 186;
-pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 188;
+pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
 const CONFIG_VERSION: u8 = 4;
 const STATE_VERSION: u8 = 6;
 
@@ -108,7 +108,6 @@ pub fn encode_campaign_simulation_state(
     writer.write(&[
         simulation.engine.bonus_charges,
         simulation.engine.reroll_charges,
-        u8::from(simulation.engine.perfect_trigger_available),
         simulation.engine.starting_height_target,
         simulation.current_difficulty,
         simulation.engine.combo_counter,
@@ -152,7 +151,6 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
     let reroll_charges = reader.u8()?;
-    let perfect_trigger_available = reader.bool()?;
     let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
     let combo_counter = reader.u8()?;
@@ -223,7 +221,6 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             bonus,
             bonus_charges,
             reroll_charges,
-            perfect_trigger_available,
             starting_height_target,
         },
         action_counter,

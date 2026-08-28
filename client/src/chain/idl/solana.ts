@@ -6187,13 +6187,6 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "perfectTriggerAvailable",
-            "docs": [
-              "Perfect-clear trigger may award at most once between player moves."
-            ],
-            "type": "bool"
-          },
-          {
             "name": "perfectClears",
             "docs": [
               "Number of actual empty-board clears produced during this run."

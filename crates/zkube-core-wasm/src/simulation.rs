@@ -18,7 +18,7 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 281;
 /// grid, optional next row, nine metrics, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 317;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 316;
 const STATE_VERSION: u8 = 6;
 
 /// Encode a typed configuration for the frontend WASM boundary.
@@ -88,7 +88,6 @@ pub fn encode_daily_simulation_state(
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
     writer.write(&[simulation.engine.bonus_charges]);
     writer.write(&[simulation.engine.reroll_charges]);
-    writer.write(&[u8::from(simulation.engine.perfect_trigger_available)]);
     writer.write(&[simulation.engine.starting_height_target]);
     writer.write(&[simulation.current_difficulty]);
     writer.write(&[simulation.engine.combo_counter]);
@@ -136,7 +135,6 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
     let reroll_charges = reader.u8()?;
-    let perfect_trigger_available = reader.bool()?;
     let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
     let combo_counter = reader.u8()?;
@@ -198,7 +196,6 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             bonus,
             bonus_charges,
             reroll_charges,
-            perfect_trigger_available,
             starting_height_target,
         },
         metrics,

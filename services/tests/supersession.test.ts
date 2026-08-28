@@ -55,7 +55,14 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       /positive thresholds? (?:for|on) (?:perfect[- ]clear|all[- ]block[- ]sizes)|(?:perfect[- ]clear|all[- ]block[- ]sizes).{0,40}positive thresholds?/i,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
-      "perfect-clear and all-block-sizes triggers carry no numeric threshold",
+      "perfect-clear guardian triggers were removed; all-block-sizes carries no numeric threshold",
+  },
+  {
+    pattern:
+      /bonus_trigger_type\s*[:=]\s*5\b|bonusTriggerType\s*[:=]\s*5\b|perfect[- ]clears?(?:\s+add\s+\d+\s+and)?\s+(?:earns?|grants?|→).{0,30}(?:Hammer|Totem|Wave|guardian (?:bonus|charge))/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "perfect clear remains a constraint and Arcade reroll grant, never a guardian trigger",
   },
   {
     pattern:

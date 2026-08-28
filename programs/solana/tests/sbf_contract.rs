@@ -1384,7 +1384,6 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
         grid,
         next_row: [0, 0, 0, 0, 0, 0, 0, 1],
         has_next_row: true,
-        perfect_trigger_available: true,
         bump,
         ..ActiveRun::default()
     };
@@ -1455,7 +1454,6 @@ fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
         has_next_row: true,
         reroll_charges: 1,
         vrf_request_counter: 1,
-        perfect_trigger_available: true,
         bump,
         ..ActiveRun::default()
     };
@@ -1541,7 +1539,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
             next_row: [0; 8],
             has_next_row: true,
             reroll_charges,
-            perfect_trigger_available: true,
             bump,
             ..ActiveRun::default()
         }
@@ -1605,7 +1602,6 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
         grid,
         next_row: [1, 0, 0, 0, 0, 0, 0, 0],
         has_next_row: true,
-        perfect_trigger_available: true,
         bump,
         ..ActiveRun::default()
     };
@@ -1669,7 +1665,6 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
         next_row: [1, 0, 0, 0, 0, 0, 0, 0],
         has_next_row: true,
         vrf_request_counter: 7,
-        perfect_trigger_available: true,
         bump,
         ..ActiveRun::default()
     };

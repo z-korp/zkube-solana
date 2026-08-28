@@ -318,20 +318,20 @@ pub struct MutatorRules {
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
-    /// 5=perfect clear, 6=all block sizes in one move, 7=combo-count boundary,
-    /// 8=N+ blocks in one move, 9=N consecutive line-clearing moves.
+    /// 6=all block sizes in one move, 7=combo-count boundary, 8=N+ blocks in
+    /// one move, 9=N consecutive line-clearing moves.
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
 }
 
 /// Validates the one shared threshold convention for renewable bonus triggers.
-/// Event-shaped triggers (perfect clear and all block sizes) carry zero because
-/// their condition has no authored numeric parameter; every numeric trigger
-/// carries a positive threshold.
+/// The event-shaped all-block-sizes trigger carries zero because its condition
+/// has no authored numeric parameter; every numeric trigger carries a positive
+/// threshold.
 #[must_use]
 pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
     match trigger_type {
-        0 | 5 | 6 => threshold == 0,
+        0 | 6 => threshold == 0,
         1 | 2 | 4 | 7 | 8 | 9 => threshold > 0,
         _ => false,
     }
@@ -482,7 +482,6 @@ pub struct RunEngine {
     pub bonus_charges: u8,
     /// Held preview replacements, independent of guardian bonus identity.
     pub reroll_charges: u8,
-    pub perfect_trigger_available: bool,
     pub starting_height_target: u8,
 }
 
@@ -505,7 +504,6 @@ impl Default for RunEngine {
             bonus: None,
             bonus_charges: 0,
             reroll_charges: 1,
-            perfect_trigger_available: true,
             starting_height_target: 0,
         }
     }
@@ -791,9 +789,6 @@ impl RunEngine {
             row_insertion_blocked,
         } = context;
         if needs_next_row {
-            self.perfect_trigger_available = true;
-        }
-        if needs_next_row {
             self.streak = if lines >= 1 {
                 self.streak.saturating_add(1)
             } else {
@@ -856,10 +851,6 @@ impl RunEngine {
                     - lines_before / mutator.bonus_threshold
             }
             4 if needs_next_row && u16::from(lines) == mutator.bonus_threshold => 1,
-            5 if perfect_clear && self.perfect_trigger_available => {
-                self.perfect_trigger_available = false;
-                1
-            }
             6 if needs_next_row
                 && blocks_destroyed_by_size
                     .iter()
@@ -981,7 +972,7 @@ mod tests {
         for trigger_type in 0..=10 {
             assert_eq!(
                 bonus_trigger_threshold_is_valid(trigger_type, 0),
-                matches!(trigger_type, 0 | 5 | 6),
+                matches!(trigger_type, 0 | 6),
             );
             assert_eq!(
                 bonus_trigger_threshold_is_valid(trigger_type, 1),
@@ -1746,32 +1737,6 @@ mod tests {
     }
 
     #[test]
-    fn perfect_trigger_is_capped_once_between_player_moves() {
-        let level = LevelRules {
-            points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
-        };
-        let rules = MutatorRules {
-            bonus_trigger_type: 5,
-            ..MutatorRules::default()
-        };
-        let mut run = RunEngine {
-            phase: RunPhase::Playing,
-            ..RunEngine::default()
-        };
-        run.finish_action(ActionContext::default(), level, rules, false);
-        assert_eq!(run.bonus_charges, 1);
-        assert_eq!(run.charges_earned, 1);
-        run.finish_action(ActionContext::default(), level, rules, false);
-        assert_eq!(run.bonus_charges, 1);
-        assert_eq!(run.charges_earned, 1);
-        run.finish_action(ActionContext::default(), level, rules, true);
-        assert_eq!(run.bonus_charges, 2);
-        assert_eq!(run.charges_earned, 2);
-    }
-
-    #[test]
     fn combo_count_trigger_awards_at_most_one_charge_per_action() {
         let level = LevelRules {
             points_required: u32::MAX,
@@ -1925,7 +1890,6 @@ mod tests {
                 },
                 MutatorRules {
                     perfect_clear_bonus: 10,
-                    bonus_trigger_type: 5,
                     ..MutatorRules::default()
                 },
                 RunMode::Campaign,
@@ -1938,7 +1902,7 @@ mod tests {
         assert_eq!(run.phase, RunPhase::AwaitingVrf);
         assert_eq!(run.next_row, None);
         assert_eq!(run.grid.row(0).unwrap(), &preview);
-        assert_eq!(run.bonus_charges, 1);
+        assert_eq!(run.bonus_charges, 0);
     }
 
     #[test]

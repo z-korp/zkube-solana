@@ -167,11 +167,13 @@ ladder tier boundaries, and the flat qualifying credit.
   `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, combo-count, block-burst, and clearing-move-streak triggers carry a
-  positive threshold. Perfect-clear and all-block-sizes triggers carry zero
-  because their conditions are complete without an authored number.
+  positive threshold. The all-block-sizes trigger carries zero because its
+  condition is complete without an authored number. Perfect clear is not a
+  guardian trigger; it remains a Campaign constraint fact and the Arcade reroll
+  grant.
   `bonus_trigger_threshold_is_valid` is the shared core/program constraint, and
   the Campaign catalog parity test binds the client publication to the
-  core-validated fixture. Type 3 is unsupported;
+  core-validated fixture. Types 3 and 5 are unsupported;
   `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
@@ -344,9 +346,10 @@ Superseded on implementation, and only then: the Weekly pot and its 60/25/15
 skill boards, the Season pot and its 100/60/30/10/2 band table with rank caps,
 the 45/25/15/10/5 Daily and Season curve, push-only settlement, per-entry
 lamport splitting, and the Product truth statements ruling out soft currencies,
-deposits, prize claims, and ratings; positive thresholds on perfect-clear and
-all-block-sizes triggers; a two-request perfect-clear continuation; a stored or
-publisher-supplied Daily selection seed; per-entry Daily difficulty bands; and
+deposits, prize claims, and ratings; positive thresholds on all-block-sizes
+triggers; perfect-clear guardian triggers; a two-request perfect-clear
+continuation; a stored or publisher-supplied Daily selection seed; per-entry
+Daily difficulty bands; and
 Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
 pairing are superseded too, as is the ladder streak multiplier. Reroll as a
 fourth guardian bonus type, wildcard Daily realms, and multi-bonus map pairings

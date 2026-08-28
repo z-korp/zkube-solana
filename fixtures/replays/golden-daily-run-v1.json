@@ -127,7 +127,6 @@
     "level_lines_cleared": 2,
     "bonus": "wave",
     "bonus_charges": 0,
-    "perfect_trigger_available": true,
     "starting_height_target": 0,
     "metrics": {
       "maximum_combo": 0,

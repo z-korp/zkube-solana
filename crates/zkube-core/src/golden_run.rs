@@ -96,7 +96,6 @@ struct GoldenExpected {
     level_lines_cleared: u16,
     bonus: String,
     bonus_charges: u8,
-    perfect_trigger_available: bool,
     starting_height_target: u8,
     metrics: GoldenMetrics,
     final_replay_hash_hex: String,
@@ -296,10 +295,6 @@ fn verify_daily_run_vector(json: &str) {
     );
     assert_eq!(simulation.engine.bonus, bonus(&expected.bonus));
     assert_eq!(simulation.engine.bonus_charges, expected.bonus_charges);
-    assert_eq!(
-        simulation.engine.perfect_trigger_available,
-        expected.perfect_trigger_available
-    );
     assert_eq!(
         simulation.engine.starting_height_target,
         expected.starting_height_target

@@ -6181,13 +6181,6 @@
             "type": "u8"
           },
           {
-            "name": "perfect_trigger_available",
-            "docs": [
-              "Perfect-clear trigger may award at most once between player moves."
-            ],
-            "type": "bool"
-          },
-          {
             "name": "perfect_clears",
             "docs": [
               "Number of actual empty-board clears produced during this run."

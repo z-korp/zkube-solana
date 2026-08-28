@@ -1240,7 +1240,6 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         bonus,
         bonus_charges: active.bonus_charges,
         reroll_charges: active.reroll_charges,
-        perfect_trigger_available: active.perfect_trigger_available,
         starting_height_target: active.starting_height_target,
     })
 }
@@ -1267,7 +1266,6 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     };
     active.bonus_charges = engine.bonus_charges;
     active.reroll_charges = engine.reroll_charges;
-    active.perfect_trigger_available = engine.perfect_trigger_available;
     active.starting_height_target = engine.starting_height_target;
 }
 
