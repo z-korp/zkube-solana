@@ -18,7 +18,6 @@ mod golden_run;
 // compact casts so the existing parity fixtures remain authoritative.
 mod campaign;
 mod daily_content;
-mod daily_scoring;
 mod economics;
 #[allow(clippy::pedantic)]
 mod grid;
@@ -37,14 +36,11 @@ mod rules;
 mod simulation;
 
 /// Canonical account schema versions consumed by the Solana program and
-/// generated TypeScript boundaries. Rules and public labels intentionally
-/// retain their independent v1 schemas.
+/// generated TypeScript boundaries.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 1;
 pub const ARCADE_ACCOUNT_VERSION: u8 = 1;
-pub const RULES_ACCOUNT_VERSION: u8 = 1;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
-pub const ARENA_CATALOG_HASH_DOMAIN: &str = "zkube-arena-catalog-v5";
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -54,12 +50,8 @@ pub use campaign::{
     CampaignSimulationConfig, CampaignStars, CampaignStarsError,
 };
 pub use daily_content::{
-    DAILY_POOL_CAPACITY, DAILY_POOL_SELECTION_SEED, DailyPoolError, daily_pool_entry_index,
-    daily_pool_entry_index_with,
-};
-pub use daily_scoring::{
-    DailyObjective, DailyObjectiveRule, DailyObjectiveScore, DailyScoringError,
-    score_daily_objective,
+    DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED, DAILY_THEMES, DailyTheme, OBJECTIVE_COUNT,
+    REALM_COUNT, daily_pair, daily_pair_index, daily_pair_index_with, daily_pair_with,
 };
 pub use economics::{
     ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_BPS,
@@ -94,6 +86,6 @@ pub use rules::{
 };
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
-    DailyRunRules, DailySimulation, DailySimulationConfig, SimulationError,
-    daily_challenge_rules_hash, daily_challenge_rules_hash_with, neutral_daily_mutator_rules,
+    DailyRunRules, DailySimulation, DailySimulationConfig, RULES_VERSION, SimulationError,
+    daily_rules_hash, daily_rules_hash_with, neutral_daily_mutator_rules,
 };

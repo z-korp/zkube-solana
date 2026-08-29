@@ -12,7 +12,7 @@ import {
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
   buildPublishCanonicalMapsPlan,
-  buildPublishCanonicalArenaRulesPlan,
+  buildSetArenaSuspensionPlan,
   buildSetProtocolPausePlan,
   buildTopUpPrizePoolPlan,
 } from "./adminClient";
@@ -22,7 +22,6 @@ import {
   deriveArcadeConfigPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveArenaDailyPda,
   derivePlayerFundingPda,
@@ -108,7 +107,6 @@ describe("authority publication client", () => {
       connection: {} as Connection,
       authority,
       contentVersion: 8,
-      dailyRulesVersion: 4,
       campaignMapCount: 3,
     });
 
@@ -145,23 +143,20 @@ describe("authority publication client", () => {
     ).toBe(true);
   });
 
-  it("stages canonical Arena rules and initializes Arcade while paused", async () => {
+  it("initializes Arcade while paused and sets the explicit suspension boundary", async () => {
     const authority = new SessionWallet(Keypair.generate());
-    const rules = await buildPublishCanonicalArenaRulesPlan({
+    const suspension = await buildSetArenaSuspensionPlan({
       connection: {} as Connection,
       authority,
-      contentVersion: 2,
-      rulesVersion: 1,
-      startsDay: 10_000,
+      untilDay: 10_000,
     });
     const arcade = await buildInitializeArcadePlan({
       connection: {} as Connection,
       authority,
-      rulesVersion: 1,
     });
-    expect(rules.transaction.instructions).toHaveLength(1);
+    expect(suspension.transaction.instructions).toHaveLength(1);
     expect(arcade.transaction.instructions).toHaveLength(1);
-    expect(rules.label).toBe("Publish Arena rules v1");
+    expect(suspension.label).toBe("Set Arena suspension until day 10000");
     expect(arcade.label).toBe("Initialize paused Arcade");
     expect(
       arcade.transaction.instructions[0]?.keys.some(({ pubkey }) =>
@@ -173,7 +168,6 @@ describe("authority publication client", () => {
       connection: {} as Connection,
       authority,
       firstDayId: 10_000,
-      rulesVersion: 1,
     });
     expect(archive.transaction.instructions).toHaveLength(2);
     expect(
@@ -193,7 +187,6 @@ describe("authority publication client", () => {
     const plans = await buildPrepareLaunchPeriodPlans({
       connection: {} as Connection,
       authority,
-      rulesVersion: 1,
       dayId: 100,
       contentVersion: 2,
     });
@@ -215,7 +208,6 @@ describe("authority publication client", () => {
       connection: {} as Connection,
       authority,
       dayId: 100,
-      rulesVersion: 1,
     });
 
     expect(plan.transaction.instructions).toHaveLength(3);
@@ -242,14 +234,12 @@ describe("authority publication client", () => {
         authority,
         ...testCase,
         lamports: 1_234_567_890n,
-        rulesCatalog: deriveDailyRulesCatalogPda(1),
       });
       const accounts = plan.transaction.instructions[0]?.keys ?? [];
       expect(accounts[0]?.pubkey.equals(deriveProtocolConfigPda())).toBe(true);
       expect(accounts[1]?.pubkey.equals(deriveArcadeConfigPda())).toBe(true);
-      expect(accounts[2]?.pubkey.equals(deriveDailyRulesCatalogPda(1))).toBe(true);
-      expect(accounts[3]?.pubkey.equals(testCase.expected)).toBe(true);
-      expect(accounts[4]?.pubkey.equals(authority.publicKey)).toBe(true);
+      expect(accounts[2]?.pubkey.equals(testCase.expected)).toBe(true);
+      expect(accounts[3]?.pubkey.equals(authority.publicKey)).toBe(true);
       expect(
         plan.transaction.instructions[0]?.data.readBigUInt64LE(8),
       ).toBe(1_234_567_890n);
@@ -267,7 +257,6 @@ describe("authority publication client", () => {
         pool: "daily",
         cadenceId,
         lamports,
-        rulesCatalog: deriveDailyRulesCatalogPda(1),
       });
 
     await expect(build(0n)).rejects.toThrow("positive u64");

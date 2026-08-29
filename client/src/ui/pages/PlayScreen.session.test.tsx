@@ -73,7 +73,6 @@ vi.mock("@/play/usePlayController", () => ({
         activeMutatorId: 0,
         bonusTriggerType: 2,
         bonusThreshold: 3,
-        startingCharges: 1,
       },
       endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
       endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
@@ -283,7 +282,7 @@ describe("PlayScreen bonus receipt feedback", () => {
       {
         name: "Hammer",
         charges: 3,
-        triggerDescription: "Every 3 lines cleared by moves · Start with 1",
+        triggerDescription: "Every 3 lines cleared by moves",
       },
       {
         name: "Reroll",

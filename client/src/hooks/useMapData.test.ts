@@ -22,7 +22,6 @@ const rule: ActiveRunRulesView = {
   bonusType: 0,
   bonusTriggerType: 0,
   bonusThreshold: 0,
-  startingCharges: 0,
 };
 
 const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({

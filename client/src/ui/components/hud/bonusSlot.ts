@@ -21,6 +21,5 @@ export interface BonusSlot {
     width: number;
     cells: number;
   };
-  startingCharges: number;
   onClick: () => void;
 }

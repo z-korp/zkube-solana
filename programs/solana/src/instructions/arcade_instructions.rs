@@ -1,7 +1,6 @@
 //! Native-SOL Arena entry, period funding, resolution, and claim settlement.
 
 use crate::error::ErrorCode;
-use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
@@ -26,12 +25,6 @@ pub struct InitializeArcade<'info> {
         constraint = protocol.paused @ ErrorCode::InvalidState
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        constraint = daily_rules_catalog.version == RULES_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = daily_rules_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(init, payer = authority, space = 8 + ArcadeConfig::INIT_SPACE, seeds = [ARCADE_CONFIG_SEED], bump)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(init, payer = authority, space = 8 + OperatorRevenueVault::INIT_SPACE, seeds = [OPERATOR_REVENUE_VAULT_SEED], bump)]
@@ -44,12 +37,10 @@ pub struct InitializeArcade<'info> {
 }
 
 pub fn handler_initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
-    ctx.accounts.daily_rules_catalog.validate()?;
     ctx.accounts
         .arcade_config
         .set_inner(ArcadeConfig::canonical(
             ctx.accounts.protocol.key(),
-            ctx.accounts.daily_rules_catalog.key(),
             ctx.bumps.arcade_config,
         ));
     ctx.accounts
@@ -87,11 +78,6 @@ pub struct InitializeArcadeArchive<'info> {
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
-        address = arcade_config.rules_catalog @ ErrorCode::InvalidOwner,
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
-    #[account(
         init,
         payer = authority,
         space = 8 + ArcadeArchive::INIT_SPACE,
@@ -115,9 +101,8 @@ pub fn handler_initialize_arcade_archive(
             || (!ctx.accounts.arcade_config.launch_seeded && first_day_id == today),
         ErrorCode::InvalidPeriod
     );
-    ctx.accounts.daily_rules_catalog.validate()?;
     require!(
-        ctx.accounts.daily_rules_catalog.is_scheduled(first_day_id),
+        first_day_id >= ctx.accounts.arcade_config.suspended_until_day,
         ErrorCode::DailyNotScheduled
     );
     ctx.accounts
@@ -130,128 +115,13 @@ pub fn handler_initialize_arcade_archive(
     Ok(())
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct PublishArenaRulesArgs {
-    pub content_version: u32,
-    pub rules_version: u32,
-    pub pool_revision: u32,
-    pub starts_day: u32,
-    pub pool_entry_count: u8,
-    pub pool_entries: Vec<DailyPoolEntry>,
-    pub pressure: DailyPressureProfile,
-}
-
-#[derive(Accounts)]
-#[instruction(args: PublishArenaRulesArgs)]
-pub struct PublishArenaRules<'info> {
-    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized)]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(init, payer = authority, space = 8 + DailyRulesCatalog::INIT_SPACE,
-        seeds = [DAILY_RULES_CATALOG_SEED, args.rules_version.to_le_bytes().as_ref()], bump)]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-pub fn handler_publish_arena_rules(
-    ctx: Context<PublishArenaRules>,
-    args: PublishArenaRulesArgs,
-) -> Result<()> {
-    require!(
-        args.content_version >= ctx.accounts.protocol.content_version,
-        ErrorCode::ContentVersionMismatch
-    );
-    require!(
-        args.rules_version > ctx.accounts.protocol.daily_rules_version,
-        ErrorCode::InvalidVersion
-    );
-    require!(
-        arena_rules_staging_is_allowed(
-            ctx.accounts.protocol.content_version,
-            args.content_version,
-            ctx.accounts.protocol.paused,
-        ),
-        ErrorCode::InvalidState
-    );
-    require!(
-        catalog_revision_lead_time_ok(
-            ctx.accounts.protocol.daily_rules_version,
-            day_id_at(Clock::get()?.unix_timestamp)?,
-            args.starts_day,
-        ),
-        ErrorCode::InvalidState
-    );
-    require!(
-        args.pool_entries.len() == usize::from(args.pool_entry_count)
-            && args.pool_entries.len() <= DAILY_POOL_ENTRY_CAPACITY,
-        ErrorCode::InvalidLevel
-    );
-    let mut serialized = Vec::new();
-    args.serialize(&mut serialized)?;
-    let catalog_hash = sha256v(&[
-        zkube_core::ARENA_CATALOG_HASH_DOMAIN.as_bytes(),
-        &serialized,
-    ]);
-    let catalog = &mut ctx.accounts.daily_rules_catalog;
-    catalog.version = RULES_ACCOUNT_VERSION;
-    catalog.rules_version = args.rules_version;
-    catalog.protocol = ctx.accounts.protocol.key();
-    catalog.content_version = args.content_version;
-    catalog.catalog_hash = catalog_hash;
-    catalog.pool_revision = args.pool_revision;
-    catalog.starts_day = args.starts_day;
-    catalog.pool_entry_count = args.pool_entry_count;
-    catalog.pool_entries = args.pool_entries;
-    catalog.pressure = args.pressure;
-    catalog.bump = ctx.bumps.daily_rules_catalog;
-    catalog.validate()?;
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct ActivateArenaRules<'info> {
-    #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
-        has_one = authority @ ErrorCode::Unauthorized,
-        constraint = protocol.paused @ ErrorCode::ProtocolPaused)]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(mut, seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
-        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
-    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
-    #[account(constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = daily_rules_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch)]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
-    pub authority: Signer<'info>,
-}
-
-pub fn handler_activate_arena_rules(ctx: Context<ActivateArenaRules>) -> Result<()> {
-    ctx.accounts.daily_rules_catalog.validate()?;
-    require!(
-        ctx.accounts.daily_rules_catalog.rules_version > ctx.accounts.protocol.daily_rules_version,
-        ErrorCode::InvalidVersion
-    );
-    // A staged catalog activated on or after its stated day re-maps days that
-    // were already derivable; a revision must go live before its day arrives.
-    require!(
-        ctx.accounts.protocol.daily_rules_version == 0
-            || day_id_at(Clock::get()?.unix_timestamp)?
-                < ctx.accounts.daily_rules_catalog.starts_day,
-        ErrorCode::InvalidState
-    );
-    ctx.accounts.protocol.daily_rules_version = ctx.accounts.daily_rules_catalog.rules_version;
-    ctx.accounts.arcade_config.rules_catalog = ctx.accounts.daily_rules_catalog.key();
-    Ok(())
-}
-
 #[derive(Accounts)]
 #[instruction(day_id: u32)]
 pub struct PrepareArenaDaily<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
-        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = arcade_config.rules_catalog == daily_rules_catalog.key() @ ErrorCode::InvalidOwner)]
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
         seeds = [ARCADE_ARCHIVE_SEED],
@@ -261,10 +131,9 @@ pub struct PrepareArenaDaily<'info> {
         constraint = day_id > arcade_archive.last_daily_id @ ErrorCode::InvalidPeriod
     )]
     pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(
         constraint = realm_map_catalog.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = realm_map_catalog.content_version == daily_rules_catalog.content_version @ ErrorCode::ContentVersionMismatch,
+        constraint = realm_map_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch,
         constraint = realm_map_catalog.enabled @ ErrorCode::MapDisabled
     )]
     pub realm_map_catalog: Box<Account<'info, MapCatalog>>,
@@ -285,42 +154,47 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
             today,
             ctx.accounts.arcade_config.launch_seeded,
             ctx.accounts.arcade_config.launch_day_id,
-            ctx.accounts.daily_rules_catalog.starts_day,
-            ctx.accounts.daily_rules_catalog.pool_entry_count,
+            ctx.accounts.arcade_config.suspended_until_day,
         ),
         ErrorCode::InvalidPeriod
     );
-    ctx.accounts.daily_rules_catalog.validate()?;
     let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
-    let content = ctx.accounts.daily_rules_catalog.content_for_day(day_id)?;
-    let entry = content.entry;
+    let content = daily_content_for_day(day_id);
     validate_daily_map_catalog(
         &ctx.accounts.realm_map_catalog,
-        entry.realm_map_id,
-        ctx.accounts.daily_rules_catalog.content_version,
+        content.realm_map_id,
+        ctx.accounts.protocol.content_version,
     )?;
-    validate_daily_pool_entry(entry, &ctx.accounts.realm_map_catalog.map_rules)?;
-    let rules = daily_level_rules(entry, content.pressure);
-    let rules_hash = zkube_core::daily_challenge_rules_hash_with::<SolanaSha256>(
+    let map_rules = ctx.accounts.realm_map_catalog.map_rules;
+    let rules = daily_level_rules(map_rules, content.pressure);
+    let bonus = match map_rules.bonus_type {
+        1 => zkube_core::Bonus::Hammer,
+        2 => zkube_core::Bonus::Totem,
+        3 => zkube_core::Bonus::Wave,
+        _ => return err!(ErrorCode::InvalidLevel),
+    };
+    let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
-        ctx.accounts.daily_rules_catalog.catalog_hash,
-        ctx.accounts.daily_rules_catalog.rules_version,
-        entry.realm_map_id,
-        entry.scoring_rule.id,
+        ctx.accounts.protocol.content_version,
+        zkube_core::neutral_daily_mutator_rules(
+            map_rules.bonus_trigger_type,
+            map_rules.bonus_threshold,
+        ),
+        bonus,
+        map_rules.starting_rows,
+        content.objective.to_core()?,
     )
     .0;
     ctx.accounts.arena_daily.set_inner(ArenaDaily {
         version: ARCADE_ACCOUNT_VERSION,
         day_id,
         arcade_config: ctx.accounts.arcade_config.key(),
-        rules_version: ctx.accounts.daily_rules_catalog.rules_version,
         status: PeriodStatus::Funding,
         predecessor_rollover_applied: false,
-        content_version: ctx.accounts.daily_rules_catalog.content_version,
-        catalog_hash: ctx.accounts.daily_rules_catalog.catalog_hash,
+        content_version: ctx.accounts.protocol.content_version,
         rules_hash,
-        map_id: entry.realm_map_id,
-        scoring_rule: entry.scoring_rule,
+        map_id: content.realm_map_id,
+        daily_theme: content.objective,
         rules,
         pressure: content.pressure,
         opens_at,
@@ -345,10 +219,9 @@ pub struct ActivateArenaDaily<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
+    #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
         constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState)]
@@ -359,7 +232,11 @@ pub struct ActivateArenaDaily<'info> {
 pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let current = day_id_at(now)?;
-    let scheduled = scheduled_daily_window(&ctx.accounts.daily_rules_catalog, current)?;
+    require!(
+        ctx.accounts.arena_daily.day_id >= ctx.accounts.arcade_config.suspended_until_day,
+        ErrorCode::DailyNotScheduled
+    );
+    let scheduled = scheduled_daily_window(&ctx.accounts.arcade_config, current)?;
     require!(
         (ctx.accounts.arena_daily.day_id == scheduled.0
             || ctx.accounts.arena_daily.day_id == scheduled.1)
@@ -369,6 +246,75 @@ pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<
         ErrorCode::InvalidPeriod
     );
     ctx.accounts.arena_daily.status = PeriodStatus::Open;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct SkipSuspendedArenaDaily<'info> {
+    #[account(
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    #[account(
+        mut,
+        close = cadence_funding,
+        seeds = [ARENA_DAILY_SEED, suspended_daily.day_id.to_le_bytes().as_ref()],
+        bump = suspended_daily.bump,
+        constraint = suspended_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
+        constraint = suspended_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState
+    )]
+    pub suspended_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(
+        mut,
+        seeds = [ARENA_DAILY_SEED, successor_daily.day_id.to_le_bytes().as_ref()],
+        bump = successor_daily.bump,
+        constraint = successor_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
+        constraint = successor_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState,
+        constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::AlreadySubmitted
+    )]
+    pub successor_daily: Box<Account<'info, ArenaDaily>>,
+    /// CHECK: Canonical recyclable cadence-rent destination.
+    #[account(
+        mut,
+        seeds = [CADENCE_FUNDING_SEED],
+        bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = cadence_funding.data_is_empty() @ ErrorCode::InvalidOwner
+    )]
+    pub cadence_funding: UncheckedAccount<'info>,
+    pub caller: Signer<'info>,
+}
+
+pub fn handler_skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>) -> Result<()> {
+    let threshold = ctx.accounts.arcade_config.suspended_until_day;
+    require!(
+        threshold > 0
+            && ctx.accounts.suspended_daily.day_id < threshold
+            && ctx.accounts.successor_daily.day_id == threshold,
+        ErrorCode::DailyNotScheduled
+    );
+    let rollover = ctx.accounts.suspended_daily.ledger.funded_lamports()?;
+    require_spendable(&ctx.accounts.suspended_daily.to_account_info(), rollover)?;
+    move_program_lamports(
+        &ctx.accounts.suspended_daily.to_account_info(),
+        &ctx.accounts.successor_daily.to_account_info(),
+        rollover,
+    )?;
+    ctx.accounts.successor_daily.ledger.rollover_in_lamports = ctx
+        .accounts
+        .successor_daily
+        .ledger
+        .rollover_in_lamports
+        .checked_add(rollover)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.successor_daily.predecessor_rollover_applied = true;
+    emit!(SuspendedArenaDailySkipped {
+        day_id: ctx.accounts.suspended_daily.day_id,
+        successor_day_id: ctx.accounts.successor_daily.day_id,
+        rollover_lamports: rollover,
+    });
     Ok(())
 }
 
@@ -440,11 +386,6 @@ pub struct TopUpArenaDaily<'info> {
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
-        address = arcade_config.rules_catalog @ ErrorCode::InvalidOwner,
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner
-    )]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
-    #[account(
         mut,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
@@ -465,7 +406,7 @@ pub fn handler_top_up_arena_daily(ctx: Context<TopUpArenaDaily>, lamports: u64) 
         top_up_period_is_allowed(
             ctx.accounts.arena_daily.day_id,
             current,
-            &ctx.accounts.daily_rules_catalog,
+            &ctx.accounts.arcade_config,
         ),
         ErrorCode::InvalidPeriod
     );
@@ -891,7 +832,7 @@ fn initialize_arena_run(
         map_id: daily.map_id,
         level: 1,
         rules: daily.rules,
-        daily_scoring_rule: daily.scoring_rule,
+        daily_theme: daily.daily_theme,
         daily_pressure: daily.pressure,
         starting_height_target: daily.rules.starting_rows,
         current_difficulty: 0,
@@ -1522,11 +1463,9 @@ pub struct ExpireDailyClaims<'info> {
     #[account(
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arcade_config.rules_catalog == daily_rules_catalog.key() @ ErrorCode::InvalidOwner
+        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     #[account(
         mut,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
@@ -1599,7 +1538,7 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
     let current_day = day_id_at(now)?;
     require!(
         ctx.accounts.following_daily.day_id
-            == next_scheduled_daily(&ctx.accounts.daily_rules_catalog, current_day)?,
+            == next_scheduled_daily(&ctx.accounts.arcade_config, current_day)?,
         ErrorCode::InvalidPeriod
     );
     let claimed = ctx
@@ -1815,6 +1754,13 @@ pub struct DailyClaimsExpired {
 }
 
 #[event]
+pub struct SuspendedArenaDailySkipped {
+    pub day_id: u32,
+    pub successor_day_id: u32,
+    pub rollover_lamports: u64,
+}
+
+#[event]
 pub struct PrizePoolFunded {
     pub period_id: u32,
     pub authority: Pubkey,
@@ -1898,9 +1844,12 @@ pub fn handler_withdraw_operator_revenue(
     Ok(())
 }
 
-fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> LevelRuleSnapshot {
+fn daily_level_rules(
+    realm: CampaignMapRuleSnapshot,
+    pressure: DailyPressureProfile,
+) -> LevelRuleSnapshot {
     let mutator =
-        zkube_core::neutral_daily_mutator_rules(entry.bonus_trigger_type, entry.bonus_threshold);
+        zkube_core::neutral_daily_mutator_rules(realm.bonus_trigger_type, realm.bonus_threshold);
     LevelRuleSnapshot {
         level: 1,
         points_required: u32::MAX,
@@ -1908,30 +1857,17 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
         difficulty: 0,
         primary: ConstraintSnapshot::default(),
         secondary: ConstraintSnapshot::default(),
-        active_mutator_id: entry.active_mutator_id,
+        active_mutator_id: realm.active_mutator_id,
         passive_mutator_id: 0,
         boss_id: 0,
         block_weights: pressure.block_weights[0],
         line_clear_bonus: mutator.line_clear_bonus,
         perfect_clear_bonus: mutator.perfect_clear_bonus,
-        bonus_type: entry.bonus_type,
+        bonus_type: realm.bonus_type,
         bonus_trigger_type: mutator.bonus_trigger_type,
         bonus_threshold: mutator.bonus_threshold,
-        starting_charges: entry.starting_charges,
-        starting_rows: entry.starting_rows,
+        starting_rows: realm.starting_rows,
     }
-}
-
-fn validate_daily_pool_entry(entry: DailyPoolEntry, realm: &CampaignMapRuleSnapshot) -> Result<()> {
-    require!(
-        entry.active_mutator_id == realm.active_mutator_id
-            && entry.bonus_type == realm.bonus_type
-            && entry.bonus_trigger_type == realm.bonus_trigger_type
-            && entry.bonus_threshold == realm.bonus_threshold
-            && entry.starting_charges == realm.starting_charges,
-        ErrorCode::InvalidMap
-    );
-    Ok(())
 }
 
 fn validate_daily_map_catalog(
@@ -2044,13 +1980,12 @@ pub(crate) fn prepare_period_is_allowed(
     current: u32,
     launch_seeded: bool,
     launch: u32,
-    starts_day: u32,
-    pool_entry_count: u8,
+    suspended_until_day: u32,
 ) -> bool {
-    if pool_entry_count == 0 || requested < starts_day {
+    if requested < suspended_until_day {
         return false;
     }
-    let first = current.max(starts_day);
+    let first = current.max(suspended_until_day);
     let Some(following) = first.checked_add(1) else {
         return false;
     };
@@ -2062,24 +1997,9 @@ pub(crate) fn prepare_period_is_allowed(
     }
 }
 
-fn top_up_period_is_allowed(requested: u32, current: u32, catalog: &DailyRulesCatalog) -> bool {
-    scheduled_daily_window(catalog, current)
+fn top_up_period_is_allowed(requested: u32, current: u32, config: &ArcadeConfig) -> bool {
+    scheduled_daily_window(config, current)
         .is_ok_and(|(first, following)| requested == first || requested == following)
-}
-
-fn arena_rules_staging_is_allowed(
-    active_content_version: u32,
-    requested_content_version: u32,
-    paused: bool,
-) -> bool {
-    requested_content_version == active_content_version || paused
-}
-
-/// The first catalog is a bootstrap; every later one is a revision and must
-/// state its effective day at least the minimum lead ahead of today.
-fn catalog_revision_lead_time_ok(active_rules_version: u32, today: u32, starts_day: u32) -> bool {
-    active_rules_version == 0
-        || starts_day >= today.saturating_add(DAILY_CATALOG_REVISION_MIN_LEAD_DAYS)
 }
 
 fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
@@ -2091,219 +2011,40 @@ fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
 mod tests {
     use super::*;
 
-    fn core_objective(rule: DailyScoringRule) -> zkube_core::DailyObjectiveRule {
-        let objective = match rule.kind {
-            DAILY_SCORE_CLASSIC => zkube_core::DailyObjective::Classic,
-            DAILY_SCORE_COMBO => zkube_core::DailyObjective::Combo {
-                minimum_lines: rule.parameter,
-            },
-            DAILY_SCORE_EXACT_LINES => zkube_core::DailyObjective::ExactLines {
-                lines: rule.parameter,
-            },
-            DAILY_SCORE_BLOCKS => zkube_core::DailyObjective::Blocks {
-                size: rule.parameter,
-            },
-            DAILY_SCORE_CLUTCH => zkube_core::DailyObjective::Clutch {
-                minimum_height: rule.parameter,
-            },
-            DAILY_SCORE_CLEAN => zkube_core::DailyObjective::Clean {
-                maximum_height: rule.parameter,
-            },
-            DAILY_SCORE_SURVIVAL => zkube_core::DailyObjective::Survival,
-            kind => panic!("unknown Daily scoring kind {kind}"),
-        };
-        zkube_core::DailyObjectiveRule {
-            objective,
-            bonus_multiplier_x100: rule.bonus_multiplier_x100,
-        }
-    }
-
-    fn fixture_u8(value: &serde_json::Value) -> u8 {
-        u8::try_from(value.as_u64().expect("fixture value must be an integer"))
-            .expect("fixture value must fit u8")
-    }
-
-    fn fixture_u16(value: &serde_json::Value) -> u16 {
-        u16::try_from(value.as_u64().expect("fixture value must be an integer"))
-            .expect("fixture value must fit u16")
-    }
-
-    fn published_daily_pool_entries() -> Vec<DailyPoolEntry> {
-        let campaign: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json"))
-                .expect("Campaign fixture must parse");
-        let pool: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../fixtures/daily-pool-v2.json"))
-                .expect("Daily pool fixture must parse");
-        pool["entries"]
-            .as_array()
-            .expect("Daily pool entries must be an array")
-            .iter()
-            .map(|fixture_entry| {
-                let id = fixture_u8(&fixture_entry["id"]);
-                let realm_map_id = fixture_u8(&fixture_entry["realmMapId"]);
-                let scoring_index = usize::try_from(
-                    fixture_entry["scoringIndex"]
-                        .as_u64()
-                        .expect("scoring index must be an integer"),
-                )
-                .expect("scoring index must fit usize");
-                let map = campaign["maps"]
-                    .as_array()
-                    .expect("Campaign maps must be an array")
-                    .iter()
-                    .find(|map| fixture_u8(&map["mapId"]) == realm_map_id)
-                    .expect("Daily realm must exist in Campaign");
-                let map_rules = map["rules"]
-                    .as_array()
-                    .expect("Campaign map rules must be an array");
-                DailyPoolEntry {
-                    id,
-                    realm_map_id,
-                    active_mutator_id: realm_map_id,
-                    scoring_rule: canonical_daily_scoring_rules()
-                        .get(scoring_index)
-                        .copied()
-                        .expect("Daily scoring index must exist"),
-                    bonus_type: fixture_u8(&map_rules[2]),
-                    bonus_trigger_type: fixture_u8(&map_rules[3]),
-                    bonus_threshold: fixture_u16(&map_rules[4]),
-                    starting_charges: fixture_u8(&map_rules[5]),
-                    starting_rows: fixture_u8(&fixture_entry["startingRows"]),
-                }
-            })
-            .collect()
-    }
-
     #[test]
     fn launched_period_preparation_can_rebuild_only_bounded_history() {
-        assert!(prepare_period_is_allowed(100, 104, true, 100, 100, 1));
-        assert!(prepare_period_is_allowed(104, 104, true, 100, 100, 1));
-        assert!(prepare_period_is_allowed(105, 104, true, 100, 100, 1));
-        assert!(!prepare_period_is_allowed(99, 104, true, 100, 100, 1));
-        assert!(!prepare_period_is_allowed(106, 104, true, 100, 100, 1));
+        assert!(prepare_period_is_allowed(100, 104, true, 100, 0));
+        assert!(prepare_period_is_allowed(104, 104, true, 100, 0));
+        assert!(prepare_period_is_allowed(105, 104, true, 100, 0));
+        assert!(!prepare_period_is_allowed(99, 104, true, 100, 0));
+        assert!(!prepare_period_is_allowed(106, 104, true, 100, 0));
+        assert!(!prepare_period_is_allowed(105, 104, true, 100, 106));
     }
 
     #[test]
     fn prelaunch_preparation_remains_current_or_successor_only() {
-        assert!(prepare_period_is_allowed(104, 104, false, 0, 104, 1));
-        assert!(prepare_period_is_allowed(105, 104, false, 0, 104, 1));
-        assert!(!prepare_period_is_allowed(103, 104, false, 0, 104, 1));
-        assert!(!prepare_period_is_allowed(106, 104, false, 0, 104, 1));
+        assert!(prepare_period_is_allowed(104, 104, false, 0, 0));
+        assert!(prepare_period_is_allowed(105, 104, false, 0, 0));
+        assert!(!prepare_period_is_allowed(103, 104, false, 0, 0));
+        assert!(!prepare_period_is_allowed(106, 104, false, 0, 0));
     }
 
     #[test]
-    fn future_arena_rules_can_only_be_staged_while_paused() {
-        assert!(arena_rules_staging_is_allowed(7, 7, false));
-        assert!(arena_rules_staging_is_allowed(7, 8, true));
-        assert!(!arena_rules_staging_is_allowed(7, 8, false));
-    }
-
-    #[test]
-    fn catalog_revisions_state_a_day_at_least_a_week_ahead() {
-        // The bootstrap catalog is exempt: no rules are active yet.
-        assert!(catalog_revision_lead_time_ok(0, 20_000, 20_000));
-        assert!(!catalog_revision_lead_time_ok(3, 20_000, 20_006));
-        assert!(catalog_revision_lead_time_ok(3, 20_000, 20_007));
-    }
-
-    #[test]
-    fn published_daily_rules_match_every_program_preparation_snapshot() {
+    fn campaign_and_daily_share_guardian_rules() {
         let pressure = DailyPressureProfile::canonical();
-        for entry in published_daily_pool_entries() {
-            let snapshot = daily_level_rules(entry, pressure);
-            let prepared = zkube_core::DailyRunRules {
-                max_moves: snapshot.max_moves,
-                mutator: zkube_core::MutatorRules {
-                    line_clear_bonus: snapshot.line_clear_bonus,
-                    perfect_clear_bonus: snapshot.perfect_clear_bonus,
-                    bonus_trigger_type: snapshot.bonus_trigger_type,
-                    bonus_threshold: snapshot.bonus_threshold,
-                },
-                bonus: match snapshot.bonus_type {
-                    1 => Some(zkube_core::Bonus::Hammer),
-                    2 => Some(zkube_core::Bonus::Totem),
-                    3 => Some(zkube_core::Bonus::Wave),
-                    _ => None,
-                },
-                starting_bonus_charges: snapshot.starting_charges,
-                starting_height: snapshot.starting_rows,
-                objective: core_objective(entry.scoring_rule),
-                pressure: zkube_core::DailyPressureRules {
-                    thresholds: pressure.thresholds,
-                    score_multipliers_x100: pressure.score_multipliers_x100,
-                    block_weights: pressure.block_weights,
-                },
-            };
-            let expected = zkube_core::DailyRunRules {
-                max_moves: zkube_core::DAILY_MAX_MOVES,
-                mutator: zkube_core::neutral_daily_mutator_rules(
-                    entry.bonus_trigger_type,
-                    entry.bonus_threshold,
-                ),
-                bonus: match entry.bonus_type {
-                    1 => Some(zkube_core::Bonus::Hammer),
-                    2 => Some(zkube_core::Bonus::Totem),
-                    3 => Some(zkube_core::Bonus::Wave),
-                    _ => None,
-                },
-                starting_bonus_charges: entry.starting_charges,
-                starting_height: entry.starting_rows,
-                objective: core_objective(entry.scoring_rule),
-                pressure: zkube_core::DailyPressureRules::canonical(),
-            };
-            assert_eq!(expected, prepared, "Daily entry {} drifted", entry.id);
-        }
-    }
-
-    #[test]
-    fn prepared_daily_uses_entry_rows_when_the_realm_differs() {
-        let mut entry = published_daily_pool_entries()[0];
-        entry.starting_rows = crate::game::MAX_OPENING_HEIGHT;
         let realm = CampaignMapRuleSnapshot {
-            active_mutator_id: entry.active_mutator_id,
-            bonus_type: entry.bonus_type,
-            bonus_trigger_type: entry.bonus_trigger_type,
-            bonus_threshold: entry.bonus_threshold,
-            starting_charges: entry.starting_charges,
-            starting_rows: crate::game::MIN_OPENING_HEIGHT,
+            active_mutator_id: 7,
+            bonus_type: 2,
+            bonus_trigger_type: 8,
+            bonus_threshold: 12,
+            starting_rows: 6,
             ..CampaignMapRuleSnapshot::default()
         };
-
-        validate_daily_pool_entry(entry, &realm).unwrap();
-        let prepared = daily_level_rules(entry, DailyPressureProfile::canonical());
-        assert_eq!(prepared.starting_rows, crate::game::MAX_OPENING_HEIGHT);
-        assert_ne!(prepared.starting_rows, realm.starting_rows);
-    }
-
-    #[test]
-    fn daily_guardian_pairing_matches_campaign_publication() {
-        let entry = published_daily_pool_entries()[0];
-        let realm = CampaignMapRuleSnapshot {
-            active_mutator_id: entry.active_mutator_id,
-            bonus_type: entry.bonus_type,
-            bonus_trigger_type: entry.bonus_trigger_type,
-            bonus_threshold: entry.bonus_threshold,
-            starting_charges: entry.starting_charges,
-            ..CampaignMapRuleSnapshot::default()
-        };
-        validate_daily_pool_entry(entry, &realm).unwrap();
-
-        let mut drifted = entry;
-        drifted.active_mutator_id = drifted.active_mutator_id.saturating_add(1);
-        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
-        drifted = entry;
-        drifted.bonus_type = if drifted.bonus_type == 1 { 2 } else { 1 };
-        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
-        drifted = entry;
-        drifted.bonus_trigger_type = if drifted.bonus_trigger_type == 1 {
-            2
-        } else {
-            1
-        };
-        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
-        drifted = entry;
-        drifted.bonus_threshold = drifted.bonus_threshold.saturating_add(1);
-        assert!(validate_daily_pool_entry(drifted, &realm).is_err());
+        let daily = daily_level_rules(realm, pressure);
+        assert_eq!(daily.active_mutator_id, realm.active_mutator_id);
+        assert_eq!(daily.bonus_type, realm.bonus_type);
+        assert_eq!(daily.bonus_trigger_type, realm.bonus_trigger_type);
+        assert_eq!(daily.bonus_threshold, realm.bonus_threshold);
+        assert_eq!(daily.starting_rows, realm.starting_rows);
     }
 }

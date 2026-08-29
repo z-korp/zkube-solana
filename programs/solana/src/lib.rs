@@ -97,17 +97,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_initialize_arcade_archive(ctx, first_day_id)
     }
 
-    pub fn publish_arena_rules(
-        ctx: Context<PublishArenaRules>,
-        args: PublishArenaRulesArgs,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_publish_arena_rules(ctx, args)
-    }
-
-    pub fn activate_arena_rules(ctx: Context<ActivateArenaRules>) -> Result<()> {
-        instructions::arcade_instructions::handler_activate_arena_rules(ctx)
-    }
-
     pub fn prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
     }
@@ -133,6 +122,10 @@ pub mod solana {
 
     pub fn activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
         instructions::arcade_instructions::handler_activate_arena_daily(ctx)
+    }
+
+    pub fn skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_skip_suspended_arena_daily(ctx)
     }
 
     pub fn seed_launch_pools(ctx: Context<SeedLaunchPools>, daily_lamports: u64) -> Result<()> {
@@ -258,6 +251,16 @@ pub mod solana {
         instructions::governance_instructions::handler_set_protocol_pause(ctx, paused)
     }
 
+    pub fn set_arena_suspension(
+        ctx: Context<SetArenaSuspension>,
+        suspended_until_day: u32,
+    ) -> Result<()> {
+        instructions::governance_instructions::handler_set_arena_suspension(
+            ctx,
+            suspended_until_day,
+        )
+    }
+
     pub fn propose_protocol_authority(
         ctx: Context<ProposeProtocolAuthority>,
         pending_authority: Pubkey,
@@ -290,13 +293,11 @@ pub mod solana {
     pub fn activate_content_release(
         ctx: Context<ActivateContentRelease>,
         content_version: u32,
-        daily_rules_version: u32,
         campaign_map_count: u8,
     ) -> Result<()> {
         instructions::content_instructions::handler_activate_content_release(
             ctx,
             content_version,
-            daily_rules_version,
             campaign_map_count,
         )
     }

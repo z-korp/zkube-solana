@@ -51,17 +51,16 @@ until live runs freeze at 23:59. A paid entry becomes exactly one scored or
 expired entry, with no refund path, and the on-chain invariant is
 `entries_scored + entries_expired == entries_paid`.
 
-Each Daily uses one complete configuration from a published content pool. Its
-realm, permanent guardian mutator, guardian bonus, objective, and starting
-height are fixed for the whole field, while one global pressure profile governs
-every Daily. Daily uses neutral passive scoring; Campaign realms keep their
-authored line-clear and perfect-clear bonuses.
-Selection is derived from a protocol seed and the day identifier, so tomorrow
-is independently recomputable today and a pool cycles without replacement
-before repeating.
+Each Daily draws one of ten Campaign realms and one of sixteen protocol
+objectives. Its guardian, objective, and realm starting height are fixed for the
+whole field, while one global pressure profile governs every Daily. Daily uses
+neutral passive scoring; Campaign realms keep their authored line-clear and
+perfect-clear bonuses. Selection is derived from a protocol seed and the
+absolute day identifier, so the 160 realm-objective pairs cycle without
+replacement and are independently recomputable.
 
 The pot splits between **Score** and **Theme** over the same runs. Score ranks
-total performance; Theme ranks only points attributable to the day's objective.
+total performance; Theme ranks only the count attributable to the day's objective.
 Both require a positive metric, and Classic folds its empty Theme half back into
 Score. Board weights follow `1/rank` and extend through the last rounded payout
 that still covers the entry price. Payouts floor to 0.001 SOL and dust rolls
@@ -71,13 +70,13 @@ rows.
 
 ## What's changing
 
-Approved 2026-08-08 and partially built. Kredits, the content pool, the two
+Approved 2026-08-08 and partially built. Kredits, the protocol draw, the two
 Daily boards, direct claim settlement, and the points ladder are in source.
 
 | Unit | Length | Carries |
 | --- | --- | --- |
 | Day | 24h | the money, realm, active mutator, and objective that shape it |
-| Pool revision | Until replaced | authored Daily configurations and global pressure |
+| Draw cycle | 160 days | each realm-objective pair exactly once |
 
 **Kredits replace the per-run signature.** Entries are prepaid in bundles rather
 than signed one at a time, because a wallet prompt before every run is fatal to
@@ -128,8 +127,8 @@ unscheduled, and funded separately rather than skimmed from Daily pots.
 
 Every Campaign and Arcade run starts with one reroll of the incoming row and
 can hold at most three beside its guardian bonus. A perfect clear in either mode
-awards another. Daily pool entries still
-pin that guardian bonus, with no wildcard realm or second bonus pairing.
+awards another. The realm drawn for a Daily supplies that same guardian bonus,
+with no wildcard realm or second bonus pairing.
 Mainnet remains gated on the same counsel, economic, and distribution review as
 before.
 

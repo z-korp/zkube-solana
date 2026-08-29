@@ -15,17 +15,8 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
-import { ARENA_CATALOG_HASH_DOMAIN } from "./protocolVersions.generated";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
-const TEST_WILDCARD_MUTATOR = {
-  activeMutatorId: 31,
-  bonusType: 1,
-  bonusThreshold: 100,
-  startingCharges: 1,
-  startingRows: 4,
-};
-
 describe("read-only paused bootstrap and launch planner", () => {
   it("plans the full fresh bootstrap and one atomic launch transaction", async () => {
     const authority = Keypair.generate().publicKey;
@@ -52,32 +43,20 @@ describe("read-only paused bootstrap and launch planner", () => {
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
       deployerReserveLamports: 100_000_000,
-      wildcardMutator: TEST_WILDCARD_MUTATOR,
     };
     const plan = await buildZkubeLaunchPlan(
       input,
       launchConnection({ upgradeAuthority, team, allocationBytes }),
     );
 
-    expect(plan.plans).toHaveLength(18);
-    expect(plan.plans[17]?.transaction.instructions).toHaveLength(3);
+    expect(plan.plans).toHaveLength(17);
+    expect(plan.plans[16]?.transaction.instructions).toHaveLength(3);
     expect(plan.phases.at(-1)).toEqual({
       label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [17],
+      transactionIndexes: [16],
     });
     expect(plan.costs.seedLamports).toBe(1_500_000_000);
-    expect(plan.costs.transactionCount).toBe(18);
-    const rulesInstruction = plan.plans[11]?.transaction.instructions[0];
-    expect(rulesInstruction).toBeDefined();
-    expect(plan.rulesCatalogSha256).toBe(
-      createHash("sha256")
-        .update(Buffer.from(ARENA_CATALOG_HASH_DOMAIN, "utf8"))
-        .update(rulesInstruction!.data.subarray(8))
-        .digest("hex"),
-    );
-    expect(plan.rulesCatalogSha256).toBe(
-      "9a3c16f9b4e0f9ef73f83122d8c55a665c6d9fceb5dbd6bef7338452d23f50da",
-    );
+    expect(plan.costs.transactionCount).toBe(17);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
       "No transaction was signed or sent. This planner has no send path.",
@@ -108,7 +87,6 @@ describe("read-only paused bootstrap and launch planner", () => {
       keeperReleaseFingerprint: "3".repeat(64),
       authorityReserveLamports: 100_000_000,
       deployerReserveLamports: 100_000_000,
-      wildcardMutator: TEST_WILDCARD_MUTATOR,
     };
     await expect(
       buildZkubeLaunchPlan(

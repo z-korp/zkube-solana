@@ -119,7 +119,22 @@ export type Solana = {
           }
         },
         {
-          "name": "dailyRulesCatalog"
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "arenaDaily",
@@ -153,72 +168,6 @@ export type Solana = {
         {
           "name": "caller",
           "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "activateArenaRules",
-      "discriminator": [
-        209,
-        23,
-        60,
-        135,
-        59,
-        141,
-        138,
-        142
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "dailyRulesCatalog"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
         }
       ],
       "args": []
@@ -288,33 +237,6 @@ export type Solana = {
           }
         },
         {
-          "name": "dailyRulesCatalog",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  114,
-                  117,
-                  108,
-                  101,
-                  115
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "dailyRulesVersion"
-              }
-            ]
-          }
-        },
-        {
           "name": "authority",
           "signer": true,
           "relations": [
@@ -325,10 +247,6 @@ export type Solana = {
       "args": [
         {
           "name": "contentVersion",
-          "type": "u32"
-        },
-        {
-          "name": "dailyRulesVersion",
           "type": "u32"
         },
         {
@@ -2139,9 +2057,6 @@ export type Solana = {
           }
         },
         {
-          "name": "dailyRulesCatalog"
-        },
-        {
           "name": "arenaDaily",
           "writable": true,
           "pda": {
@@ -3045,9 +2960,6 @@ export type Solana = {
           "name": "arcadeArchive"
         },
         {
-          "name": "dailyRulesCatalog"
-        },
-        {
           "name": "realmMapCatalog"
         },
         {
@@ -3232,9 +3144,6 @@ export type Solana = {
           }
         },
         {
-          "name": "dailyRulesCatalog"
-        },
-        {
           "name": "arcadeConfig",
           "writable": true,
           "pda": {
@@ -3372,9 +3281,6 @@ export type Solana = {
               }
             ]
           }
-        },
-        {
-          "name": "dailyRulesCatalog"
         },
         {
           "name": "arcadeArchive",
@@ -3754,9 +3660,6 @@ export type Solana = {
           }
         },
         {
-          "name": "dailyRulesCatalog"
-        },
-        {
           "name": "realmMapCatalog"
         },
         {
@@ -4072,91 +3975,6 @@ export type Solana = {
         {
           "name": "pendingAuthority",
           "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "publishArenaRules",
-      "discriminator": [
-        116,
-        174,
-        217,
-        126,
-        196,
-        62,
-        165,
-        90
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "dailyRulesCatalog",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  114,
-                  117,
-                  108,
-                  101,
-                  115
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.rules_version"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "publishArenaRulesArgs"
-            }
-          }
         }
       ]
     },
@@ -4579,6 +4397,73 @@ export type Solana = {
       ]
     },
     {
+      "name": "setArenaSuspension",
+      "discriminator": [
+        63,
+        137,
+        66,
+        46,
+        61,
+        168,
+        231,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "suspendedUntilDay",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "setFeaturedEmblem",
       "discriminator": [
         244,
@@ -4785,6 +4670,130 @@ export type Solana = {
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "skipSuspendedArenaDaily",
+      "discriminator": [
+        13,
+        245,
+        212,
+        165,
+        9,
+        246,
+        74,
+        113
+      ],
+      "accounts": [
+        {
+          "name": "arcadeConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "suspendedDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspended_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "successorDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "successor_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "submitArenaBoardChunk",
@@ -5053,9 +5062,6 @@ export type Solana = {
               }
             ]
           }
-        },
-        {
-          "name": "dailyRulesCatalog"
         },
         {
           "name": "arenaDaily",
@@ -5433,19 +5439,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "dailyRulesCatalog",
-      "discriminator": [
-        93,
-        100,
-        115,
-        16,
-        136,
-        177,
-        218,
-        183
-      ]
-    },
-    {
       "name": "mapCatalog",
       "discriminator": [
         24,
@@ -5512,6 +5505,19 @@ export type Solana = {
     }
   ],
   "events": [
+    {
+      "name": "arenaSuspensionChanged",
+      "discriminator": [
+        13,
+        52,
+        138,
+        12,
+        223,
+        169,
+        57,
+        202
+      ]
+    },
     {
       "name": "cadenceArchived",
       "discriminator": [
@@ -5679,6 +5685,19 @@ export type Solana = {
         124,
         172,
         110
+      ]
+    },
+    {
+      "name": "suspendedArenaDailySkipped",
+      "discriminator": [
+        147,
+        132,
+        190,
+        234,
+        106,
+        165,
+        55,
+        137
       ]
     },
     {
@@ -5934,7 +5953,7 @@ export type Solana = {
     {
       "code": 6047,
       "name": "alreadySeeded",
-      "msg": "The first Daily pool was already seeded"
+      "msg": "The first Daily was already seeded"
     }
   ],
   "types": [
@@ -6037,33 +6056,26 @@ export type Solana = {
           {
             "name": "dailyScore",
             "docs": [
-              "Arena leaderboard score: engine score plus pressure-scaled challenge bonus."
+              "Arena leaderboard score: pressure-scaled triangular action points."
             ],
             "type": "u32"
           },
           {
             "name": "objectiveTotal",
             "docs": [
-              "Pressure-scaled points attributable only to the Daily objective."
+              "Uncapped shared-kind increments attributable only to the Daily theme."
             ],
             "type": "u64"
-          },
-          {
-            "name": "dailyBonusTriggers",
-            "docs": [
-              "Number of actions that earned nonzero Daily challenge bonus credit."
-            ],
-            "type": "u16"
           },
           {
             "name": "pressureScore",
             "type": "u32"
           },
           {
-            "name": "dailyScoringRule",
+            "name": "dailyTheme",
             "type": {
               "defined": {
-                "name": "dailyScoringRule"
+                "name": "dailyThemeSnapshot"
               }
             }
           },
@@ -6292,8 +6304,11 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "rulesCatalog",
-            "type": "pubkey"
+            "name": "suspendedUntilDay",
+            "docs": [
+              "Days below this absolute identifier are suspended; zero disables it."
+            ],
+            "type": "u32"
           },
           {
             "name": "entryLamports",
@@ -6467,10 +6482,6 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "rulesVersion",
-            "type": "u32"
-          },
-          {
             "name": "status",
             "type": {
               "defined": {
@@ -6487,15 +6498,6 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "catalogHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
             "name": "rulesHash",
             "type": {
               "array": [
@@ -6509,10 +6511,10 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "scoringRule",
+            "name": "dailyTheme",
             "type": {
               "defined": {
-                "name": "dailyScoringRule"
+                "name": "dailyThemeSnapshot"
               }
             }
           },
@@ -6666,6 +6668,26 @@ export type Solana = {
       }
     },
     {
+      "name": "arenaSuspensionChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous",
+            "type": "u32"
+          },
+          {
+            "name": "suspendedUntilDay",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "cadenceArchived",
       "type": {
         "kind": "struct",
@@ -6814,10 +6836,6 @@ export type Solana = {
             "type": "u16"
           },
           {
-            "name": "startingCharges",
-            "type": "u8"
-          },
-          {
             "name": "startingRows",
             "type": "u8"
           }
@@ -6921,10 +6939,6 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "dailyRulesVersion",
-            "type": "u32"
-          },
-          {
             "name": "campaignMapCount",
             "type": "u8"
           }
@@ -7008,63 +7022,6 @@ export type Solana = {
       }
     },
     {
-      "name": "dailyPoolEntry",
-      "docs": [
-        "One complete authored Daily in the published pool.",
-        "",
-        "The realm identifier binds the entry back to the Campaign catalog. The",
-        "copied active fields make the selected Daily independently immutable;",
-        "preparation verifies them against that catalog so a guardian's active",
-        "mutator can never be re-paired with another realm. Campaign passives do not",
-        "cross into Daily play."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u8"
-          },
-          {
-            "name": "realmMapId",
-            "type": "u8"
-          },
-          {
-            "name": "activeMutatorId",
-            "type": "u8"
-          },
-          {
-            "name": "scoringRule",
-            "type": {
-              "defined": {
-                "name": "dailyScoringRule"
-              }
-            }
-          },
-          {
-            "name": "bonusType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusTriggerType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusThreshold",
-            "type": "u16"
-          },
-          {
-            "name": "startingCharges",
-            "type": "u8"
-          },
-          {
-            "name": "startingRows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "dailyPressureProfile",
       "type": {
         "kind": "struct",
@@ -7141,99 +7098,17 @@ export type Solana = {
       }
     },
     {
-      "name": "dailyRulesCatalog",
+      "name": "dailyThemeSnapshot",
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "rulesVersion",
-            "type": "u32"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "catalogHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "poolRevision",
-            "type": "u32"
-          },
-          {
-            "name": "startsDay",
-            "type": "u32"
-          },
-          {
-            "name": "poolEntryCount",
-            "type": "u8"
-          },
-          {
-            "name": "poolEntries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "dailyPoolEntry"
-                }
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "dailyPressureProfile"
-              }
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "dailyScoringRule",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u8"
-          },
-          {
-            "name": "family",
-            "type": "u8"
-          },
           {
             "name": "kind",
             "type": "u8"
           },
           {
-            "name": "parameter",
+            "name": "value",
             "type": "u8"
-          },
-          {
-            "name": "bonusMultiplierX100",
-            "docs": [
-              "Raw objective points are scaled by this value before pressure."
-            ],
-            "type": "u16"
           }
         ]
       }
@@ -7384,10 +7259,6 @@ export type Solana = {
           {
             "name": "bonusThreshold",
             "type": "u16"
-          },
-          {
-            "name": "startingCharges",
-            "type": "u8"
           },
           {
             "name": "startingRows",
@@ -7865,10 +7736,6 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "dailyRulesVersion",
-            "type": "u32"
-          },
-          {
             "name": "playerFundingTargetLamports",
             "type": "u64"
           },
@@ -7902,52 +7769,6 @@ export type Solana = {
           {
             "name": "paused",
             "type": "bool"
-          }
-        ]
-      }
-    },
-    {
-      "name": "publishArenaRulesArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "rulesVersion",
-            "type": "u32"
-          },
-          {
-            "name": "poolRevision",
-            "type": "u32"
-          },
-          {
-            "name": "startsDay",
-            "type": "u32"
-          },
-          {
-            "name": "poolEntryCount",
-            "type": "u8"
-          },
-          {
-            "name": "poolEntries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "dailyPoolEntry"
-                }
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "dailyPressureProfile"
-              }
-            }
           }
         ]
       }
@@ -8089,6 +7910,26 @@ export type Solana = {
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "suspendedArenaDailySkipped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dayId",
+            "type": "u32"
+          },
+          {
+            "name": "successorDayId",
+            "type": "u32"
+          },
+          {
+            "name": "rolloverLamports",
+            "type": "u64"
           }
         ]
       }

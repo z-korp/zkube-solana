@@ -26,7 +26,6 @@ export function makeRunRules(
     bonusType: 0,
     bonusTriggerType: 0,
     bonusThreshold: 0,
-    startingCharges: 0,
     ...overrides,
   };
 }

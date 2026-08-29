@@ -5,27 +5,28 @@ import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  DAILY_POOL_CAPACITY,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-  RULES_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
 } from "./protocolVersions.generated.js";
+import {
+  DAILY_PAIR_COUNT,
+  DAILY_PAIR_SELECTION_SEED,
+  DAILY_THEMES,
+} from "./dailyRules.generated.js";
 
 export {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  DAILY_POOL_CAPACITY,
-  DAILY_POOL_SELECTION_SEED,
+  DAILY_PAIR_COUNT,
+  DAILY_PAIR_SELECTION_SEED,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-  RULES_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
 };
@@ -42,7 +43,7 @@ export const KEEPER_RECENT_DAILY_CADENCES = 84;
 export const ARENA_BOARD_CAPACITY = 1_536;
 export const ARENA_BOARD_CHUNK_CAPACITY = 10;
 export const ARENA_BOARD_ENTRY_SIZE = 84;
-const DAILY_POOL_DRAW_DOMAIN = Buffer.from("zkube-daily-pool-draw-v2", "utf8");
+const DAILY_PAIR_DRAW_DOMAIN = Buffer.from("zkube-daily-pair-draw-v1", "utf8");
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
   followingDaily: ENTRY_DAILY_LAMPORTS,
   operator: ENTRY_OPERATOR_LAMPORTS,
@@ -51,6 +52,7 @@ export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
 export type KeeperOperation =
   | "prepare_arena_daily"
   | "activate_arena_daily"
+  | "skip_suspended_arena_daily"
   | "force_finish_deadline"
   | "commit_run"
   | "consume_campaign_run"
@@ -77,14 +79,9 @@ export interface KeeperPlanContext {
   deadlineDayId?: number;
   followingDayId?: number;
   competition?: CompetitionKind;
-  rulesCatalog?: PublicKey;
   contentVersion?: number;
-  catalogStartsDay?: number;
-  poolEntryCount?: number;
-  poolIndex?: number;
-  poolEntries?: readonly {
-    realmMapId: number;
-  }[];
+  suspendedUntilDay?: number;
+  pairIndex?: number;
   realmMapId?: number;
   launchCadenceId?: number;
   owner?: PublicKey;
@@ -202,8 +199,6 @@ export const operatorRevenuePda = () => derivePda("operator_revenue");
 export const creditVaultPda = () => derivePda("credit_vault");
 export const cadenceFundingPda = () => derivePda("cadence_funding");
 export const arcadeArchivePda = () => derivePda("arcade_archive");
-export const rulesCatalogPda = (version: number) =>
-  derivePda("daily_rules", u32(version));
 export const mapCatalogPda = (contentVersion: number, mapId: number) => {
   assertCadenceId(contentVersion, "content version");
   if (!Number.isSafeInteger(mapId) || mapId < 1 || mapId > 32) {
@@ -226,62 +221,53 @@ export const activeRunPda = (owner: PublicKey, runId: bigint) =>
 
 export function dailyIsScheduled(
   dayId: number,
-  startsDay: number,
-  entryCount: number,
+  suspendedUntilDay: number,
 ): boolean {
   assertCadenceId(dayId, "day id");
-  assertCadenceId(startsDay, "catalog start day");
-  assertPoolEntryCount(entryCount);
-  return entryCount > 0 && dayId >= startsDay;
+  assertCadenceId(suspendedUntilDay, "suspended-until day");
+  return dayId >= suspendedUntilDay;
 }
 
 export function nextScheduledDaily(
   dayId: number,
-  startsDay: number,
-  entryCount: number,
+  suspendedUntilDay: number,
 ): number {
   assertCadenceId(dayId, "day id");
-  assertPoolEntryCount(entryCount);
-  if (entryCount === 0) throw new Error("no paid Daily is scheduled");
-  const candidate = Math.max(dayId + 1, startsDay);
+  assertCadenceId(suspendedUntilDay, "suspended-until day");
+  const candidate = Math.max(dayId + 1, suspendedUntilDay);
   assertCadenceId(candidate, "following scheduled day id");
   return candidate;
 }
 
 export function dailyContentSelection(
-  startsDay: number,
   dayId: number,
-  entryCount: number,
-): { poolIndex: number } {
-  if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
-    throw new Error("no paid Daily is scheduled");
+): { pairIndex: number; realmMapId: number; objective: { kind: number; value: number } } {
+  assertCadenceId(dayId, "day id");
+  const permutation = Array.from({ length: DAILY_PAIR_COUNT }, (_, index) => index);
+  const cycleIndex = Math.floor(dayId / DAILY_PAIR_COUNT);
+  for (let index = DAILY_PAIR_COUNT - 1; index > 0; index -= 1) {
+    const swap = Number(pairHashU64(cycleIndex, index) % BigInt(index + 1));
+    [permutation[index], permutation[swap]] = [permutation[swap]!, permutation[index]!];
   }
-  const pool = Array.from({ length: DAILY_POOL_CAPACITY }, (_, index) => index);
-  const cycleIndex = Math.floor(dayId / entryCount);
-  for (let index = entryCount - 1; index > 0; index -= 1) {
-    const swap = Number(poolHashU64(cycleIndex, index) % BigInt(index + 1));
-    [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
-  }
-  return { poolIndex: pool[dayId % entryCount]! };
+  const pairIndex = permutation[dayId % DAILY_PAIR_COUNT]!;
+  return {
+    pairIndex,
+    realmMapId: Math.floor(pairIndex / DAILY_THEMES.length) + 1,
+    objective: DAILY_THEMES[pairIndex % DAILY_THEMES.length]!,
+  };
 }
 
-function poolHashU64(
+function pairHashU64(
   cycleIndex: number,
   index: number,
 ): bigint {
   const digest = createHash("sha256")
-    .update(DAILY_POOL_DRAW_DOMAIN)
-    .update(Uint8Array.from(DAILY_POOL_SELECTION_SEED))
+    .update(DAILY_PAIR_DRAW_DOMAIN)
+    .update(Uint8Array.from(DAILY_PAIR_SELECTION_SEED))
     .update(u32(cycleIndex))
     .update(Uint8Array.from([index]))
     .digest();
   return digest.readBigUInt64LE(0);
-}
-
-function assertPoolEntryCount(entryCount: number): void {
-  if (!Number.isSafeInteger(entryCount) || entryCount < 0 || entryCount > DAILY_POOL_CAPACITY) {
-    throw new Error("Daily pool entry count is invalid");
-  }
 }
 
 export function u32(value: number): Buffer {

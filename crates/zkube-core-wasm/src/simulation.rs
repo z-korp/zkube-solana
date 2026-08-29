@@ -1,8 +1,8 @@
 use crate::BoundaryError;
 use zkube_core::{
-    BONUS_CHARGE_CAP, Bonus, CANONICAL_DAILY_RULES_LEN, ChainDomain, ChallengeId, DailyObjective,
-    DailyObjectiveRule, DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig,
-    Grid, MutatorRules, PlayerId, ReplayCommitment, ReplayMode, RulesHash, RunEngine, RunMetrics,
+    BONUS_CHARGE_CAP, Bonus, CANONICAL_DAILY_RULES_LEN, ChainDomain, ChallengeId, ConstraintKind,
+    DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig, DailyTheme, Grid,
+    MutatorRules, PlayerId, ReplayCommitment, ReplayMode, RulesHash, RunEngine, RunMetrics,
     RunPhase, derive_player_id,
 };
 
@@ -11,7 +11,7 @@ use zkube_core::{
 /// Layout: chain domain (32), challenge (32), raw account (32), run ID LE (8),
 /// replay mode (1), finalized Daily rules hash (32), then the 144-byte
 /// canonical [`DailyRunRules`] snapshot encoding.
-pub const DAILY_SIMULATION_CONFIG_LEN: usize = 277;
+pub const DAILY_SIMULATION_CONFIG_LEN: usize = 274;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
@@ -343,33 +343,12 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
         bonus_threshold: reader.u16()?,
     };
     let bonus = decode_bonus(reader.u8()?)?;
-    let starting_bonus_charges = reader.u8()?;
     let starting_height = reader.u8()?;
     let objective_tag = reader.u8()?;
     let objective_parameter = reader.u8()?;
-    let objective = match objective_tag {
-        0 if objective_parameter == 0 => DailyObjective::Classic,
-        1 => DailyObjective::Combo {
-            minimum_lines: objective_parameter,
-        },
-        2 => DailyObjective::ExactLines {
-            lines: objective_parameter,
-        },
-        3 => DailyObjective::Blocks {
-            size: objective_parameter,
-        },
-        4 => DailyObjective::Clutch {
-            minimum_height: objective_parameter,
-        },
-        5 => DailyObjective::Clean {
-            maximum_height: objective_parameter,
-        },
-        6 if objective_parameter == 0 => DailyObjective::Survival,
-        _ => return Err(BoundaryError::InvalidEncoding),
-    };
-    let objective = DailyObjectiveRule {
-        objective,
-        bonus_multiplier_x100: reader.u16()?,
+    let objective = DailyTheme {
+        kind: ConstraintKind::from_tag(objective_tag).ok_or(BoundaryError::InvalidEncoding)?,
+        value: objective_parameter,
     };
     let mut thresholds = [0; 7];
     for threshold in &mut thresholds {
@@ -389,7 +368,6 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
         max_moves,
         mutator,
         bonus,
-        starting_bonus_charges,
         starting_height,
         objective,
         pressure: DailyPressureRules {
@@ -562,12 +540,8 @@ mod tests {
             max_moves: 100,
             mutator: MutatorRules::default(),
             bonus: Some(Bonus::Wave),
-            starting_bonus_charges: 1,
             starting_height: 4,
-            objective: DailyObjectiveRule {
-                objective: DailyObjective::Survival,
-                bonus_multiplier_x100: 100,
-            },
+            objective: zkube_core::DAILY_THEMES[1],
             pressure: DailyPressureRules::canonical(),
         }
     }
@@ -582,12 +556,13 @@ mod tests {
             raw_account: core::array::from_fn(|index| 0x40 + u8::try_from(index).unwrap()),
             run_id: 0x0102_0304_0506_0708,
             mode: ReplayMode::Ranked,
-            rules_hash: zkube_core::daily_challenge_rules_hash(
+            rules_hash: zkube_core::daily_rules_hash(
                 42,
-                rules.snapshot_hash().to_bytes(),
-                7,
-                3,
-                15,
+                2,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                rules.objective,
             ),
             rules,
         }
@@ -632,6 +607,10 @@ mod tests {
         let mut state = initialize_daily_simulation(&config_bytes, 1, &[0x11; 32]).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
+        // The boundary accepts a reached state; exercise its bonus transition
+        // without restoring the deleted authored starting-charge field.
+        expected.engine.bonus_charges = 1;
+        state = encode_daily_simulation_state(expected).to_vec();
         let bonus_index = expected
             .engine
             .grid
@@ -692,12 +671,13 @@ mod tests {
     #[test]
     fn reroll_round_trips_through_the_stateless_boundary() {
         let mut config = config();
-        config.rules_hash = zkube_core::daily_challenge_rules_hash(
+        config.rules_hash = zkube_core::daily_rules_hash(
             42,
-            config.rules.snapshot_hash().to_bytes(),
-            7,
-            3,
-            15,
+            2,
+            config.rules.mutator,
+            config.rules.bonus.unwrap(),
+            config.rules.starting_height,
+            config.rules.objective,
         );
         let config_bytes = encode_daily_simulation_config(config);
         let mut expected = DailySimulation::new(config).unwrap();

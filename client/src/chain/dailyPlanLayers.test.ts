@@ -134,7 +134,6 @@ describe("Daily transaction layer boundaries", () => {
       kreditBalance: 1n,
       dayId: 20,
       followingDayId: 21,
-      rulesCatalog: Keypair.generate().publicKey,
       leaderboard: [],
       themeLeaderboard: [],
       scoreQualifiedPlayers: 0,

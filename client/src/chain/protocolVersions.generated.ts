@@ -2,17 +2,13 @@
 export const PROTOCOL_ACCOUNT_VERSION = 1 as const;
 export const PLAYER_STATE_ACCOUNT_VERSION = 1 as const;
 export const ARCADE_ACCOUNT_VERSION = 1 as const;
-export const RULES_ACCOUNT_VERSION = 1 as const;
 export const PLAYER_LABEL_ACCOUNT_VERSION = 1 as const;
-export const ARENA_CATALOG_HASH_DOMAIN = "zkube-arena-catalog-v5" as const;
 export const ARCADE_DAILY_RESULT_HASH_DOMAIN = "zkube-arcade-daily-result-v5" as const;
 export const ARENA_ENTRY_LAMPORTS = 10000000n;
 export const ENTRY_DAILY_LAMPORTS = 9000000n;
 export const ENTRY_OPERATOR_LAMPORTS = 1000000n;
 export const SOL_PAYOUT_UNIT_LAMPORTS = 1000000n;
 export const SECONDS_PER_DAY = 86400 as const;
-export const DAILY_POOL_CAPACITY = 128 as const;
-export const DAILY_POOL_SELECTION_SEED = [122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 112, 111, 111, 108, 45, 118, 48, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100] as const;
 export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = 2592000 as const;
 export const DAILY_MAX_MOVES = 100 as const;
 export const DAILY_PRESSURE_THRESHOLDS = [12, 28, 48, 70, 95, 125, 155] as const;

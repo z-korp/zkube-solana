@@ -30,7 +30,6 @@ import {
   KEEPER_RECENT_DAILY_CADENCES,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-  RULES_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   ZKUBE_PROGRAM_ID,
@@ -48,7 +47,6 @@ import {
   playerFundingPda,
   playerStatePda,
   protocolPda,
-  rulesCatalogPda,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
@@ -86,20 +84,20 @@ const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "c0d8777218bc5f5b541d1beb461a73058a6991937ea06c29630d3230521bfdfb";
+  "71dcab123fc8cca7af36bb8d97b1369508d86f76acb72012161300ac4ac52682";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
   "arenaDaily",
   "arenaBoard",
   "arenaPlayer",
-  "dailyRulesCatalog",
   "mapCatalog",
   "playerState",
   "protocolConfig",
 ] as const;
 const REQUIRED_INSTRUCTIONS = [
   "activateArenaDaily",
+  "skipSuspendedArenaDaily",
   "forceFinishDeadline",
   "commitRun",
   "consumeCampaignRun",
@@ -168,8 +166,6 @@ export interface AnchorKeeperAdapterInput {
 
 export interface KeeperReleaseExpectation {
   replayDomainHex: string;
-  rulesCatalogHash: string;
-  rulesVersion: number;
   launchDayId: number;
 }
 
@@ -256,39 +252,17 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("keeper rejects invalid launch cadence");
     }
     this.requireReleaseLaunchDay(launchDayId);
-    const rulesVersion = u32(protocol.value.dailyRulesVersion, "active rules version");
-    if (rulesVersion === 0) throw new Error("keeper rejects an inactive rules catalog");
-    const rulesCatalog = rulesCatalogPda(rulesVersion);
-    requirePublicKey(config.value, "rulesCatalog", rulesCatalog, "ArcadeConfig rules catalog");
-    const catalog = await this.loadRequired(
-      "dailyRulesCatalog",
-      rulesCatalog,
-      RULES_ACCOUNT_VERSION,
+    const contentVersion = u32(protocol.value.contentVersion, "content version");
+    const suspendedUntilDay = u32(
+      config.value.suspendedUntilDay,
+      "suspended-until day",
     );
-    this.requireReleaseCatalog(catalog.value, rulesVersion);
-    const contentVersion = u32(catalog.value.contentVersion, "rules content version");
-    const catalogStartsDay = u32(catalog.value.startsDay, "rules start day");
-    const poolEntryCount = u8(catalog.value.poolEntryCount, "rules pool entry count");
-    const poolEntries = array(catalog.value.poolEntries, "rules pool entries")
-      .slice(0, poolEntryCount)
-      .map((value, index) => {
-        const entry = record(value, `rules pool entry ${index}`);
-        return {
-          realmMapId: u8(entry.realmMapId, `rules pool entry ${index} realm`),
-        };
-      });
-    requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
-    if (u32(catalog.value.rulesVersion, "rules catalog version") !== rulesVersion) {
-      throw new Error("rules catalog version relationship is invalid");
-    }
     const paused = boolean(protocol.value.paused, "protocol pause state");
     const archiveCheckpoint = await this.loadArchiveCheckpoint();
 
     const today = currentDayId(this.input.nowUnix);
     const firstDay = launchDayId;
-    const lastDay = poolEntryCount === 0
-      ? today
-      : nextScheduledDaily(today, catalogStartsDay, poolEntryCount);
+    const lastDay = nextScheduledDaily(today, suspendedUntilDay);
     const dailyIds = range(firstDay, lastDay);
     const dailies = await this.loadDailies(dailyIds, launchDayId);
     const launchDailyPresent =
@@ -337,10 +311,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return {
       paused,
       launchDayId,
-      rulesCatalog,
       contentVersion,
-      catalogStartsDay,
-      poolEntries,
+      suspendedUntilDay,
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
       playerStateOwners: playerStates.map(({ owner }) => owner),
@@ -626,15 +598,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     this.requireReleaseProtocol(protocol.value);
     requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
     const release = this.requiredRelease();
-    const rulesCatalog = rulesCatalogPda(release.rulesVersion);
-    requirePublicKey(config.value, "rulesCatalog", rulesCatalog, "ArcadeConfig rules catalog");
-    const catalog = await this.loadRequired(
-      "dailyRulesCatalog",
-      rulesCatalog,
-      RULES_ACCOUNT_VERSION,
-    );
-    requirePublicKey(catalog.value, "protocol", protocol.address, "rules catalog protocol");
-    this.requireReleaseCatalog(catalog.value, release.rulesVersion);
 
     if (boolean(config.value.launchSeeded, "ArcadeConfig launch flag")) {
       this.requireReleaseLaunchDay(u32(config.value.launchDayId, "launch day id"));
@@ -643,8 +606,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     if (!boolean(protocol.value.paused, "protocol pause state") ||
         u32(config.value.launchDayId, "launch day id") !== 0 ||
         u32(protocol.value.contentVersion, "protocol content version") !== 2 ||
-        u32(protocol.value.dailyRulesVersion, "protocol rules version") !==
-          release.rulesVersion ||
         u8(protocol.value.campaignMapCount, "Campaign map count") !== 10) {
       throw new Error("paused launch carrier is incomplete or active");
     }
@@ -657,8 +618,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private requiredRelease(): KeeperReleaseExpectation {
     const release = this.input.release;
     if (!release || !/^[0-9a-f]{64}$/.test(release.replayDomainHex) ||
-        !/^[0-9a-f]{64}$/.test(release.rulesCatalogHash) ||
-        !Number.isSafeInteger(release.rulesVersion) || release.rulesVersion < 1 ||
         !Number.isSafeInteger(release.launchDayId) ||
         release.launchDayId < MIN_SUPPORTED_DAY_ID) {
       throw new Error("keeper release expectation is missing or malformed");
@@ -670,21 +629,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     if (bytes32Hex(value.replayDomain, "protocol replay domain") !==
         this.requiredRelease().replayDomainHex) {
       throw new Error("protocol replay domain does not match keeper release");
-    }
-  }
-
-  private requireReleaseCatalog(
-    value: Record<string, unknown>,
-    rulesVersion: number,
-  ): void {
-    const release = this.requiredRelease();
-    if (rulesVersion !== release.rulesVersion ||
-        u32(value.rulesVersion, "rules catalog version") !== release.rulesVersion ||
-        u32(value.contentVersion, "rules content version") !== 2 ||
-        u32(value.startsDay, "rules start day") !== release.launchDayId ||
-        bytes32Hex(value.catalogHash, "rules catalog hash") !==
-          release.rulesCatalogHash) {
-      throw new Error("Arena rules catalog does not match keeper release");
     }
   }
 
@@ -779,7 +723,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             protocol: protocolPda(),
             arcadeConfig: arcadeConfigPda(),
             arcadeArchive: arcadeArchivePda(),
-            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
             realmMapCatalog: mapCatalogPda(contentVersion, Math.max(realmMapId, 1)),
             arenaDaily: arenaDailyPda(following),
             cadenceFunding: cadenceFundingPda(),
@@ -794,8 +737,22 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           accounts: {
             ...base,
             protocol: protocolPda(),
-            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
+            arcadeConfig: arcadeConfigPda(),
             arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+          },
+        };
+      case "skip_suspended_arena_daily":
+        return {
+          name: "skipSuspendedArenaDaily",
+          args: {},
+          accounts: {
+            caller: keeper,
+            arcadeConfig: arcadeConfigPda(),
+            suspendedDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
+            successorDaily: arenaDailyPda(
+              requiredNumber(context.followingDayId, "following day id"),
+            ),
+            cadenceFunding: cadenceFundingPda(),
           },
         };
       case "force_finish_deadline":
@@ -936,7 +893,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             caller: keeper,
             arcadeArchive: arcadeArchivePda(),
             arcadeConfig: arcadeConfigPda(),
-            dailyRulesCatalog: requiredRulesCatalog(context.rulesCatalog),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -1924,12 +1880,10 @@ const RESULT_FIELDS = {
     "version",
     "dayId",
     "arcadeConfig",
-    "rulesVersion",
     "contentVersion",
-    "catalogHash",
     "rulesHash",
     "mapId",
-    "scoringRule",
+    "dailyTheme",
     "rules",
     "pressure",
     "opensAt",
@@ -2335,11 +2289,6 @@ function range(first: number, lastInclusive: number): number[] {
     throw new Error("cadence discovery range is invalid or unbounded");
   }
   return Array.from({ length: lastInclusive - first + 1 }, (_, index) => first + index);
-}
-
-function requiredRulesCatalog(value: PublicKey | undefined): PublicKey {
-  if (!value) throw new Error("IDL materializer has no validated rules catalog");
-  return value;
 }
 
 function requiredOwner(value: PublicKey | undefined): PublicKey {

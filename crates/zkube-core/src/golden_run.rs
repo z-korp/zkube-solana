@@ -14,7 +14,6 @@ struct GoldenMutator {
 struct GoldenObjective {
     kind: String,
     parameter: u8,
-    bonus_multiplier_x100: u16,
 }
 
 #[derive(Deserialize)]
@@ -29,7 +28,6 @@ struct GoldenRules {
     max_moves: u16,
     mutator: GoldenMutator,
     bonus: String,
-    starting_bonus_charges: u8,
     starting_height: u8,
     objective: GoldenObjective,
     pressure: GoldenPressure,
@@ -110,10 +108,7 @@ struct GoldenDailyRun {
     rules: GoldenRules,
     rules_snapshot_hash_hex: String,
     day_id: u32,
-    catalog_hash_hex: String,
-    rules_version: u32,
-    theme_id: u8,
-    scoring_rule_id: u8,
+    content_version: u32,
     rules_hash_hex: String,
     player_id_hex: String,
     initial_replay_hash_hex: String,
@@ -141,24 +136,16 @@ fn bonus(value: &str) -> Option<Bonus> {
 }
 
 fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
-    let objective = match value.objective.kind.as_str() {
-        "classic" => DailyObjective::Classic,
-        "combo" => DailyObjective::Combo {
-            minimum_lines: value.objective.parameter,
-        },
-        "exact_lines" => DailyObjective::ExactLines {
-            lines: value.objective.parameter,
-        },
-        "blocks" => DailyObjective::Blocks {
-            size: value.objective.parameter,
-        },
-        "clutch" => DailyObjective::Clutch {
-            minimum_height: value.objective.parameter,
-        },
-        "clean" => DailyObjective::Clean {
-            maximum_height: value.objective.parameter,
-        },
-        "survival" => DailyObjective::Survival,
+    let kind = match value.objective.kind.as_str() {
+        "classic" => ConstraintKind::None,
+        "combos_of_at_least" => ConstraintKind::CombosOfAtLeast,
+        "combos_of_exactly" => ConstraintKind::CombosOfExactly,
+        "break_blocks" => ConstraintKind::BreakBlocks,
+        "trigger_fired" => ConstraintKind::TriggerFired,
+        "bonus_lines" => ConstraintKind::BonusLines,
+        "bonus_breaks" => ConstraintKind::BonusBreaks,
+        "clutch_clears" => ConstraintKind::ClutchClears,
+        "clean_clears" => ConstraintKind::CleanClears,
         _ => panic!("unknown objective"),
     };
     DailyRunRules {
@@ -170,11 +157,10 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
             bonus_threshold: value.mutator.bonus_threshold,
         },
         bonus: bonus(&value.bonus),
-        starting_bonus_charges: value.starting_bonus_charges,
         starting_height: value.starting_height,
-        objective: DailyObjectiveRule {
-            objective,
-            bonus_multiplier_x100: value.objective.bonus_multiplier_x100,
+        objective: DailyTheme {
+            kind,
+            value: value.objective.parameter,
         },
         pressure: DailyPressureRules {
             thresholds: value.pressure.thresholds,
@@ -193,12 +179,13 @@ fn verify_daily_run_vector(json: &str) {
         rules.snapshot_hash().to_bytes(),
         decode_32(&fixture.rules_snapshot_hash_hex)
     );
-    let rules_hash = daily_challenge_rules_hash(
+    let rules_hash = daily_rules_hash(
         fixture.day_id,
-        decode_32(&fixture.catalog_hash_hex),
-        fixture.rules_version,
-        fixture.theme_id,
-        fixture.scoring_rule_id,
+        fixture.content_version,
+        rules.mutator,
+        rules.bonus.unwrap(),
+        rules.starting_height,
+        rules.objective,
     );
     assert_eq!(rules_hash.to_bytes(), decode_32(&fixture.rules_hash_hex));
     let config = DailySimulationConfig {

@@ -20,9 +20,7 @@ import type {
 } from "@/chain/dailyClient";
 import {
   CANONICAL_DAILY_PRESSURE,
-  CANONICAL_DAILY_SCORING_RULES,
 } from "@/chain/dailyRules";
-import type { DailyScoringRuleView } from "@/chain/dailyRules";
 import type {
   CampaignMapView,
   CampaignView,
@@ -67,7 +65,6 @@ const DEV_RUN_RULES: ActiveRunRulesView = {
   bonusType: 0,
   bonusTriggerType: 0,
   bonusThreshold: 0,
-  startingCharges: 0,
 };
 
 const NAMES = [
@@ -86,8 +83,7 @@ export function buildDevDailyView(): DailyView {
   const now = Math.floor(Date.now() / 1_000);
   const dayId = currentDailyDayId(now);
   const runsCloseAt = dayId * 86_400 + 23 * 3_600 + 59 * 60;
-  // A real combo rule ("3+ Line Combos") so the hero and objective read true.
-  const scoringRule: DailyScoringRuleView = CANONICAL_DAILY_SCORING_RULES[2]!;
+  const dailyTheme = { kind: 3, value: 3 } as const;
 
   const dailyScores = [48_210, 41_880, 37_500, 30_240, 24_110, 18_760];
   const bonusTriggers = [12, 9, 7, 5, 3, 1];
@@ -98,7 +94,6 @@ export function buildDevDailyView(): DailyView {
     playerName: name,
     runId: BigInt(1_000 + index),
     dailyScore: dailyScores[index]!,
-    dailyBonusTriggers: bonusTriggers[index]!,
     objectiveTotal: BigInt(bonusTriggers[index]! * 1_000),
     engineScore: Math.round(dailyScores[index]! * 0.7),
     moves: moves[index]!,
@@ -114,7 +109,6 @@ export function buildDevDailyView(): DailyView {
     finalizedAttempts: 1,
     bestRunId: 1_003n,
     bestDailyScore: dailyScores[DEV_ROW]!,
-    bestDailyBonusTriggers: bonusTriggers[DEV_ROW]!,
     bestEngineScore: Math.round(dailyScores[DEV_ROW]! * 0.7),
     bestMoves: moves[DEV_ROW]!,
     bestScore: dailyScores[DEV_ROW]!,
@@ -123,7 +117,6 @@ export function buildDevDailyView(): DailyView {
 
   return {
     address: devKey(500),
-    rulesCatalog: devKey(501),
     dayId,
     followingDayId: dayId + 1,
     status: "open",
@@ -151,7 +144,7 @@ export function buildDevDailyView(): DailyView {
     scoreQualifiedPlayers: leaderboard.length,
     themeQualifiedPlayers: leaderboard.length,
     rules: DEV_RUN_RULES,
-    scoringRule,
+    dailyTheme,
     pressure: CANONICAL_DAILY_PRESSURE,
     endlessThresholds: CANONICAL_DAILY_PRESSURE.thresholds,
     endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,

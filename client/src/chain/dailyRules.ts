@@ -1,78 +1,92 @@
 import {
   DAILY_MAX_MOVES,
-  DAILY_POOL_CAPACITY,
-  DAILY_POOL_SELECTION_SEED,
   DAILY_PRESSURE_BLOCK_WEIGHTS,
   DAILY_PRESSURE_SCORE_MULTIPLIERS_X100,
   DAILY_PRESSURE_THRESHOLDS,
 } from "./protocolVersions.generated";
+import {
+  DAILY_PAIR_COUNT,
+  DAILY_PAIR_SELECTION_SEED,
+  DAILY_THEMES,
+} from "./dailyRules.generated";
 
-export const DAILY_SCORING_RULE_COUNT = 15;
+const DAILY_PAIR_DRAW_DOMAIN = new TextEncoder().encode(
+  "zkube-daily-pair-draw-v1",
+);
+export const DAILY_OBJECTIVE_COUNT = DAILY_THEMES.length;
+
+export interface DailyThemeView {
+  kind: number;
+  value: number;
+}
+
 export function dailyIsScheduled(
   dayId: number,
-  startsDay: number,
-  entryCount: number,
+  suspendedUntilDay: number,
 ): boolean {
   assertDayId(dayId);
-  assertDayId(startsDay);
-  assertPoolEntryCount(entryCount);
-  return entryCount > 0 && dayId >= startsDay;
+  assertDayId(suspendedUntilDay);
+  return dayId >= suspendedUntilDay;
 }
 
 export function nextScheduledDaily(
   dayId: number,
-  startsDay: number,
-  entryCount: number,
+  suspendedUntilDay: number,
 ): number {
   assertDayId(dayId);
-  assertPoolEntryCount(entryCount);
-  if (entryCount === 0) throw new Error("no paid Daily is scheduled");
-  const candidate = Math.max(dayId + 1, startsDay);
+  assertDayId(suspendedUntilDay);
+  const candidate = Math.max(dayId + 1, suspendedUntilDay);
   assertDayId(candidate);
   return candidate;
 }
 
 export async function dailyContentSelection(
-  startsDay: number,
   dayId: number,
-  entryCount: number,
-): Promise<{ poolIndex: number }> {
-  if (!dailyIsScheduled(dayId, startsDay, entryCount)) {
-    throw new Error("no paid Daily is scheduled");
-  }
-  const pool = Array.from({ length: DAILY_POOL_CAPACITY }, (_, index) => index);
-  const cycleIndex = Math.floor(dayId / entryCount);
-  for (let index = entryCount - 1; index > 0; index -= 1) {
+): Promise<{
+  pairIndex: number;
+  realmMapId: number;
+  objective: DailyThemeView;
+}> {
+  assertDayId(dayId);
+  const permutation = Array.from(
+    { length: DAILY_PAIR_COUNT },
+    (_, index) => index,
+  );
+  const cycleIndex = Math.floor(dayId / DAILY_PAIR_COUNT);
+  for (let index = DAILY_PAIR_COUNT - 1; index > 0; index -= 1) {
     const swap = Number(
-      (await poolHashU64(cycleIndex, index)) % BigInt(index + 1),
+      (await pairHashU64(cycleIndex, index)) % BigInt(index + 1),
     );
-    [pool[index], pool[swap]] = [pool[swap]!, pool[index]!];
+    [permutation[index], permutation[swap]] = [
+      permutation[swap]!,
+      permutation[index]!,
+    ];
   }
-  return { poolIndex: pool[dayId % entryCount]! };
+  const pairIndex = permutation[dayId % DAILY_PAIR_COUNT]!;
+  return {
+    pairIndex,
+    realmMapId: Math.floor(pairIndex / DAILY_OBJECTIVE_COUNT) + 1,
+    objective: DAILY_THEMES[pairIndex % DAILY_OBJECTIVE_COUNT]!,
+  };
 }
 
-async function poolHashU64(
-  cycleIndex: number,
-  index: number,
-): Promise<bigint> {
-  const domainRoot = new TextEncoder().encode("zkube-daily-pool-draw-v2");
-  const input = new Uint8Array(domainRoot.length + 32 + 4 + 1);
+async function pairHashU64(cycleIndex: number, index: number): Promise<bigint> {
+  const input = new Uint8Array(DAILY_PAIR_DRAW_DOMAIN.length + 32 + 4 + 1);
   let offset = 0;
-  for (const bytes of [domainRoot, Uint8Array.from(DAILY_POOL_SELECTION_SEED)]) {
+  for (const bytes of [
+    DAILY_PAIR_DRAW_DOMAIN,
+    Uint8Array.from(DAILY_PAIR_SELECTION_SEED),
+  ]) {
     input.set(bytes, offset);
     offset += bytes.length;
   }
   new DataView(input.buffer).setUint32(offset, cycleIndex, true);
   offset += 4;
   input[offset] = index;
-  const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", input));
+  const digest = new Uint8Array(
+    await globalThis.crypto.subtle.digest("SHA-256", input),
+  );
   return new DataView(digest.buffer).getBigUint64(0, true);
-}
-
-function assertPoolEntryCount(entryCount: number): void {
-  if (!Number.isInteger(entryCount) || entryCount < 0 || entryCount > DAILY_POOL_CAPACITY) {
-    throw new Error("Daily pool entry count is invalid");
-  }
 }
 
 function assertDayId(dayId: number): void {
@@ -81,41 +95,8 @@ function assertDayId(dayId: number): void {
   }
 }
 
-const DAILY_SCORE_CLASSIC = 0;
-export const DAILY_SCORE_COMBO = 1;
-const DAILY_SCORE_EXACT_LINES = 2;
-const DAILY_SCORE_BLOCKS = 4;
-const DAILY_SCORE_CLUTCH = 5;
-const DAILY_SCORE_CLEAN = 6;
-const DAILY_SCORE_SURVIVAL = 7;
-
-export interface DailyScoringRuleView {
-  id: number;
-  family: number;
-  kind: number;
-  parameter: number;
-  bonusMultiplierX100: number;
-}
-
-type DailyPressureThresholds = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
-type DailyPressureMultipliers = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
+type DailyPressureThresholds = [number, number, number, number, number, number, number];
+type DailyPressureMultipliers = [number, number, number, number, number, number, number, number];
 type DailyBlockWeights = [number, number, number, number, number];
 
 export interface DailyPressureProfileView {
@@ -134,129 +115,12 @@ export interface DailyPressureProfileView {
   maxMoves: number;
 }
 
-export interface RawDailyScoringRule {
-  id: unknown;
-  family: unknown;
-  kind: unknown;
-  parameter: unknown;
-  bonusMultiplierX100: unknown;
-}
-
 export interface RawDailyPressureProfile {
   thresholds: readonly unknown[];
   scoreMultipliersX100: readonly unknown[];
   blockWeights: readonly (readonly unknown[])[];
   maxMoves: unknown;
 }
-
-export const CANONICAL_DAILY_SCORING_RULES: readonly DailyScoringRuleView[] = [
-  {
-    id: 1,
-    family: 0,
-    kind: DAILY_SCORE_CLASSIC,
-    parameter: 0,
-    bonusMultiplierX100: 0,
-  },
-  {
-    id: 2,
-    family: 1,
-    kind: DAILY_SCORE_COMBO,
-    parameter: 2,
-    bonusMultiplierX100: 200,
-  },
-  {
-    id: 3,
-    family: 1,
-    kind: DAILY_SCORE_COMBO,
-    parameter: 3,
-    bonusMultiplierX100: 1_250,
-  },
-  {
-    id: 4,
-    family: 2,
-    kind: DAILY_SCORE_EXACT_LINES,
-    parameter: 1,
-    bonusMultiplierX100: 100,
-  },
-  {
-    id: 5,
-    family: 2,
-    kind: DAILY_SCORE_EXACT_LINES,
-    parameter: 2,
-    bonusMultiplierX100: 250,
-  },
-  {
-    id: 6,
-    family: 2,
-    kind: DAILY_SCORE_EXACT_LINES,
-    parameter: 3,
-    bonusMultiplierX100: 1_250,
-  },
-  {
-    id: 7,
-    family: 3,
-    kind: DAILY_SCORE_BLOCKS,
-    parameter: 1,
-    bonusMultiplierX100: 50,
-  },
-  {
-    id: 8,
-    family: 3,
-    kind: DAILY_SCORE_BLOCKS,
-    parameter: 2,
-    bonusMultiplierX100: 125,
-  },
-  {
-    id: 9,
-    family: 3,
-    kind: DAILY_SCORE_BLOCKS,
-    parameter: 3,
-    bonusMultiplierX100: 140,
-  },
-  {
-    id: 10,
-    family: 3,
-    kind: DAILY_SCORE_BLOCKS,
-    parameter: 4,
-    bonusMultiplierX100: 200,
-  },
-  {
-    id: 11,
-    family: 4,
-    kind: DAILY_SCORE_CLUTCH,
-    parameter: 6,
-    bonusMultiplierX100: 200,
-  },
-  {
-    id: 12,
-    family: 4,
-    kind: DAILY_SCORE_CLUTCH,
-    parameter: 7,
-    bonusMultiplierX100: 270,
-  },
-  {
-    id: 13,
-    family: 5,
-    kind: DAILY_SCORE_CLEAN,
-    parameter: 2,
-    bonusMultiplierX100: 450,
-  },
-  {
-    id: 14,
-    family: 5,
-    kind: DAILY_SCORE_CLEAN,
-    parameter: 3,
-    bonusMultiplierX100: 250,
-  },
-  {
-    id: 15,
-    family: 6,
-    kind: DAILY_SCORE_SURVIVAL,
-    parameter: 0,
-    bonusMultiplierX100: 100,
-  },
-  { id: 0, family: 0, kind: 0, parameter: 0, bonusMultiplierX100: 0 },
-] as const;
 
 export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
   thresholds: [...DAILY_PRESSURE_THRESHOLDS],
@@ -266,18 +130,6 @@ export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
   ]) as DailyPressureProfileView["blockWeights"],
   maxMoves: DAILY_MAX_MOVES,
 };
-
-export function mapDailyScoringRule(
-  rule: RawDailyScoringRule,
-): DailyScoringRuleView {
-  return {
-    id: Number(rule.id),
-    family: Number(rule.family),
-    kind: Number(rule.kind),
-    parameter: Number(rule.parameter),
-    bonusMultiplierX100: Number(rule.bonusMultiplierX100),
-  };
-}
 
 export function mapDailyPressureProfile(
   pressure: RawDailyPressureProfile,
@@ -309,79 +161,16 @@ export function mapDailyPressureProfile(
   };
 }
 
-export function dailyScoringRuleName(
-  rule: DailyScoringRuleView | null | undefined,
-): string {
-  if (!rule) return "Unknown Daily Rule";
-  switch (rule.kind) {
-    case DAILY_SCORE_CLASSIC:
-      return "Classic Score";
-    case DAILY_SCORE_COMBO:
-      return `${rule.parameter}+ Line Combos`;
-    case DAILY_SCORE_EXACT_LINES:
-      return `Exact ${rule.parameter} Precision`;
-    case DAILY_SCORE_BLOCKS:
-      return `Size ${rule.parameter} Hunter`;
-    case DAILY_SCORE_CLUTCH:
-      return `Clutch at Height ${rule.parameter}`;
-    case DAILY_SCORE_CLEAN:
-      return `Clean Clears at Height ${rule.parameter}`;
-    case DAILY_SCORE_SURVIVAL:
-      return "Pressure Survival";
-    default:
-      return "Unknown Daily Rule";
-  }
-}
-
-export function dailyScoringRuleDescription(
-  rule: DailyScoringRuleView | null | undefined,
-): string {
-  if (!rule) return "This challenge uses an unsupported scoring rule.";
-  switch (rule.kind) {
-    case DAILY_SCORE_CLASSIC:
-      return "Every normal engine point counts toward the Daily score.";
-    case DAILY_SCORE_COMBO:
-      return `Normal score always counts. Clears of ${rule.parameter}+ lines earn an amplified challenge bonus before pressure.`;
-    case DAILY_SCORE_EXACT_LINES:
-      return `Normal score always counts. Clearing exactly ${rule.parameter} ${rule.parameter === 1 ? "line" : "lines"} repeats that clear's raw value as a challenge bonus.`;
-    case DAILY_SCORE_BLOCKS:
-      return `Normal score always counts. Each size-${rule.parameter} block destroyed adds a weighted challenge bonus before pressure.`;
-    case DAILY_SCORE_CLUTCH:
-      return `Start at height ${rule.parameter}+ and clear lines to repeat the clear's raw value as a challenge bonus.`;
-    case DAILY_SCORE_CLEAN:
-      return `End at height ${rule.parameter} or lower after a clear to repeat its raw value as a challenge bonus.`;
-    case DAILY_SCORE_SURVIVAL:
-      return "Every completed move earns a challenge bonus, amplified by the current pressure tier.";
-    default:
-      return "This challenge uses an unsupported scoring rule.";
-  }
-}
-
-export function dailyScoringRuleStatus(
-  rule: DailyScoringRuleView | null | undefined,
-  occupiedHeight: number,
-): string {
-  if (!rule) return "Objective unavailable";
-  switch (rule.kind) {
-    case DAILY_SCORE_CLASSIC:
-      return "Every engine point counts";
-    case DAILY_SCORE_COMBO:
-      return `Qualify by clearing ${rule.parameter}+ lines`;
-    case DAILY_SCORE_EXACT_LINES:
-      return `Qualify by clearing exactly ${rule.parameter}`;
-    case DAILY_SCORE_BLOCKS:
-      return `Destroy size-${rule.parameter} blocks`;
-    case DAILY_SCORE_CLUTCH:
-      return occupiedHeight >= rule.parameter
-        ? `ARMED at height ${occupiedHeight}`
-        : `Build to height ${rule.parameter} · now ${occupiedHeight}`;
-    case DAILY_SCORE_CLEAN:
-      return occupiedHeight <= rule.parameter
-        ? `CLEAN at height ${occupiedHeight}`
-        : `Clear down to height ${rule.parameter} · now ${occupiedHeight}`;
-    case DAILY_SCORE_SURVIVAL:
-      return "Every completed move qualifies";
-    default:
-      return "Unsupported objective";
-  }
+export function dailyThemeName(theme: DailyThemeView | null | undefined): string {
+  if (!theme) return "Unknown Daily Theme";
+  if (theme.kind === 0) return "Classic Score";
+  if (theme.kind === 1) return `Combo ${theme.value}+`;
+  if (theme.kind === 4) return `Exact ${theme.value}`;
+  if (theme.kind === 2) return `Break Width ${theme.value}`;
+  if (theme.kind === 6) return "Guardian Triggers";
+  if (theme.kind === 7) return "Bonus Lines";
+  if (theme.kind === 8) return "Bonus Breaks";
+  if (theme.kind === 17) return `Clutch Clears ${theme.value}+`;
+  if (theme.kind === 18) return `Clean Clears ${theme.value}`;
+  return "Unknown Daily Theme";
 }

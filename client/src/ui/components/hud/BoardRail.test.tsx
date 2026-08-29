@@ -26,7 +26,6 @@ describe("BoardRail", () => {
             description: "Break matching widths",
             triggerDescription: "Every 3 combos",
             totemTarget: { width: 2, cells: 6 },
-            startingCharges: 1,
             onClick: vi.fn(),
           },
         ]}

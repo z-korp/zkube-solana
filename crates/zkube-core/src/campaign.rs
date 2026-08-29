@@ -1,7 +1,7 @@
 use crate::{
-    BONUS_CHARGE_CAP, BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine,
-    RunError, RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
-    continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
+    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+    Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid, continuation_from_vrf,
+    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -39,7 +39,6 @@ pub struct CampaignRules {
     pub level: LevelRules,
     pub mutator: MutatorRules,
     pub bonus: Option<Bonus>,
-    pub starting_bonus_charges: u8,
     pub starting_height: u8,
     pub level_difficulty: u8,
     pub block_weights: [[u16; 5]; 8],
@@ -61,10 +60,7 @@ impl CampaignRules {
                 self.mutator.bonus_trigger_type,
                 self.mutator.bonus_threshold,
             )
-            && match self.bonus {
-                None => self.starting_bonus_charges == 0,
-                Some(_) => self.starting_bonus_charges <= BONUS_CHARGE_CAP,
-            }
+            && self.bonus.is_some()
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)
             && self.level_difficulty <= 7
@@ -157,7 +153,6 @@ impl CampaignSimulation {
         )?;
         let mut engine = RunEngine::start(opening.grid, opening.preview)?;
         engine.bonus = config.rules.bonus;
-        engine.bonus_charges = config.rules.starting_bonus_charges;
         Ok(Self {
             content_version: config.content_version,
             content_hash: config.content_hash,
@@ -513,8 +508,7 @@ mod tests {
             rules: CampaignRules {
                 level: LevelRules::default(),
                 mutator: MutatorRules::default(),
-                bonus: None,
-                starting_bonus_charges: 0,
+                bonus: Some(Bonus::Wave),
                 starting_height: 4,
                 level_difficulty: 0,
                 block_weights: [[20; 5]; 8],
@@ -622,6 +616,7 @@ mod tests {
         let first = CampaignSimulation::new(config()).unwrap();
         let second = CampaignSimulation::new(config()).unwrap();
         assert_eq!(first, second);
+        assert_eq!(first.engine.bonus_charges, 0);
         let mut changed = config();
         changed.attempt += 1;
         assert_ne!(
@@ -716,10 +711,9 @@ mod tests {
     }
 
     #[test]
-    fn initial_reroll_charge_spends_without_changing_guardian_inventory() {
+    fn initial_reroll_spends_without_changing_guardian_inventory() {
         let mut config = config();
         config.rules.bonus = Some(Bonus::Hammer);
-        config.rules.starting_bonus_charges = 2;
         let mut simulation = CampaignSimulation::new(config).unwrap();
         let original_preview = simulation.engine.next_row;
 
@@ -727,24 +721,13 @@ mod tests {
 
         assert_eq!(simulation.engine.reroll_charges, 0);
         assert_eq!(simulation.engine.bonus, Some(Bonus::Hammer));
-        assert_eq!(simulation.engine.bonus_charges, 2);
+        assert_eq!(simulation.engine.bonus_charges, 0);
         assert_ne!(simulation.engine.next_row, original_preview);
         assert_eq!(simulation.action_counter, 1);
         assert_eq!(
             simulation.request_reroll(config),
             Err(CampaignError::Engine(RunError::NoRerollAvailable))
         );
-    }
-
-    #[test]
-    fn campaign_rules_enforce_the_shared_bonus_charge_cap() {
-        let mut rules = config().rules;
-        rules.bonus = Some(Bonus::Hammer);
-        rules.starting_bonus_charges = BONUS_CHARGE_CAP;
-        assert!(rules.is_valid());
-
-        rules.starting_bonus_charges = BONUS_CHARGE_CAP + 1;
-        assert!(!rules.is_valid());
     }
 
     #[test]

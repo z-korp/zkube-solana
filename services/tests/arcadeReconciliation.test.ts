@@ -22,7 +22,6 @@ import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
-const RULES = Keypair.generate().publicKey;
 
 describe("v5 Daily keeper reconciliation", () => {
   it("prepares and activates only Daily successors", () => {
@@ -52,7 +51,7 @@ describe("v5 Daily keeper reconciliation", () => {
       snapshot: snapshot({
         paused: false,
         launchDayId: lastPaidDay,
-        catalogStartsDay: 95,
+        suspendedUntilDay: 95,
         dailies: [{
           ...daily(lastPaidDay, "open"),
           predecessorRolloverRequired: false,
@@ -417,10 +416,8 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
   return {
     paused: true,
     launchDayId: DAY,
-    rulesCatalog: RULES,
     contentVersion: 2,
-    catalogStartsDay: DAY - 10,
-    poolEntries: dailyPoolEntries(),
+    suspendedUntilDay: 0,
     dailies: [],
     runs: [],
     playerStateOwners: [],
@@ -428,12 +425,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
     archiveCandidates: [],
     ...overrides,
   };
-}
-
-function dailyPoolEntries() {
-  return Array.from({ length: 10 }, (_, index) => ({
-    realmMapId: index + 1,
-  }));
 }
 
 function daily(

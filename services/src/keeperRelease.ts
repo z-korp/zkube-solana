@@ -51,6 +51,7 @@ export const KEEPER_RELEASE_POLICY = {
   allowlist: [
     "prepare_arena_daily",
     "activate_arena_daily",
+    "skip_suspended_arena_daily",
     "force_finish_deadline",
     "commit_run",
     "consume_campaign_run",
@@ -69,6 +70,7 @@ export const KEEPER_RELEASE_POLICY = {
   materializedInstructionAllowlist: [
     "fundedPrepareArenaDaily",
     "activateArenaDaily",
+    "skipSuspendedArenaDaily",
     "forceFinishDeadline",
     "commitRun",
     "consumeCampaignRun",
@@ -109,9 +111,7 @@ export interface KeeperReleaseInput {
    */
   keeperImageDigest?: string;
   replayDomainHex: string;
-  rulesCatalogHash: string;
   idlHash: string;
-  rulesVersion: number;
   launchDayId: number;
 }
 
@@ -143,14 +143,9 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
   if (input.replayDomainHex !== canonicalDevnetReplayDomainHex(programId)) {
     throw new Error("replay domain does not match the canonical Devnet deployment domain");
   }
-  assertHash(input.rulesCatalogHash, "rules catalog hash");
   assertHash(input.idlHash, "IDL hash");
   if (input.idlHash !== KEEPER_EXPECTED_IDL_SHA256) {
     throw new Error("IDL hash does not match the keeper materializer");
-  }
-  if (!Number.isSafeInteger(input.rulesVersion) || input.rulesVersion < 1 ||
-      input.rulesVersion > 0xffff_ffff) {
-    throw new Error("rules version must be a positive u32");
   }
   if (!Number.isSafeInteger(input.launchDayId) || input.launchDayId < 4 ||
       input.launchDayId > 0xffff_ffff) {
@@ -166,9 +161,7 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
       ? {}
       : { keeperImageDigest: input.keeperImageDigest }),
     replayDomainHex: input.replayDomainHex,
-    rulesCatalogHash: input.rulesCatalogHash,
     idlHash: input.idlHash,
-    rulesVersion: input.rulesVersion,
     launchDayId: input.launchDayId,
   };
   const canonical = JSON.stringify(sortJson(record));

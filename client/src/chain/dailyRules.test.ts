@@ -7,52 +7,31 @@ import {
   dailyIsScheduled,
   nextScheduledDaily,
 } from "./dailyRules";
-import { DAILY_POOL_CAPACITY } from "./protocolVersions.generated";
+import { DAILY_PAIR_COUNT } from "./dailyRules.generated";
 
-describe("v5 Daily content pool", () => {
-  it("draws a full reproducible cycle and resolves any future day", async () => {
-    const startsDay = 20_000;
+describe("v5 Daily realm and objective draw", () => {
+  it("draws a full reproducible product cycle anchored to absolute days", async () => {
+    const startsDay = 32_000;
     const selected = await Promise.all(
-      Array.from({ length: 10 }, (_, offset) =>
-        dailyContentSelection(startsDay, startsDay + offset, 10)),
+      Array.from({ length: DAILY_PAIR_COUNT }, (_, offset) =>
+        dailyContentSelection(startsDay + offset),
+      ),
     );
-    expect(selected.map(({ poolIndex }) => poolIndex)).toEqual([
-      6, 2, 1, 9, 0, 4, 3, 7, 8, 5,
+    expect(selected.slice(0, 20).map(({ pairIndex }) => pairIndex)).toEqual([
+      53, 131, 145, 13, 73, 91, 31, 97, 74, 39,
+      5, 132, 138, 26, 151, 99, 20, 119, 54, 15,
     ]);
-    expect(new Set(selected.map(({ poolIndex }) => poolIndex)).size).toBe(10);
-    const nextCycle = await Promise.all(
-      Array.from({ length: 10 }, (_, offset) =>
-        dailyContentSelection(startsDay, startsDay + 10 + offset, 10)),
+    expect(new Set(selected.map(({ pairIndex }) => pairIndex)).size).toBe(
+      DAILY_PAIR_COUNT,
     );
-    expect(new Set(nextCycle.map(({ poolIndex }) => poolIndex)).size).toBe(10);
-    expect(nextCycle).not.toEqual(selected);
-    expect(await dailyContentSelection(startsDay, startsDay + 1, 10))
-      .toEqual(selected[1]);
-    expect(await dailyContentSelection(startsDay - 7, startsDay + 1, 10))
-      .toEqual(selected[1]);
+    expect(await dailyContentSelection(startsDay + 1)).toEqual(selected[1]);
   });
 
-  it("represents suspensions as an explicit empty or not-yet-started catalog", () => {
-    expect(dailyIsScheduled(20_000, 20_000, 0)).toBe(false);
-    expect(() => nextScheduledDaily(20_000, 20_000, 0)).toThrow(
-      "no paid Daily",
-    );
-    expect(dailyIsScheduled(20_005, 20_010, 10)).toBe(false);
-    expect(nextScheduledDaily(20_005, 20_010, 10)).toBe(20_010);
-  });
-
-  it("draws every entry at the raised capacity", async () => {
-    const startsDay = DAILY_POOL_CAPACITY * 200;
-    const selected = await Promise.all(
-      Array.from({ length: DAILY_POOL_CAPACITY }, (_, offset) =>
-        dailyContentSelection(
-          startsDay,
-          startsDay + offset,
-          DAILY_POOL_CAPACITY,
-        )),
-    );
-    expect(new Set(selected.map(({ poolIndex }) => poolIndex)).size).toBe(
-      DAILY_POOL_CAPACITY,
-    );
+  it("uses the explicit suspension boundary", () => {
+    expect(dailyIsScheduled(20_000, 0)).toBe(true);
+    expect(dailyIsScheduled(20_005, 20_010)).toBe(false);
+    expect(dailyIsScheduled(20_010, 20_010)).toBe(true);
+    expect(nextScheduledDaily(20_005, 20_010)).toBe(20_010);
+    expect(nextScheduledDaily(20_010, 20_010)).toBe(20_011);
   });
 });

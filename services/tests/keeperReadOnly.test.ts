@@ -389,12 +389,8 @@ function snapshot(overrides: Partial<ProtocolSnapshot>): ProtocolSnapshot {
   return {
     paused: true,
     launchDayId: DAY,
-    rulesCatalog: Keypair.generate().publicKey,
     contentVersion: 2,
-    catalogStartsDay: DAY - 10,
-    poolEntries: Array.from({ length: 10 }, (_, index) => ({
-      realmMapId: index + 1,
-    })),
+    suspendedUntilDay: 0,
     dailies: [],
     runs: [],
     playerStateOwners: [],

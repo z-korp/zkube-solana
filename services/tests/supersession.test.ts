@@ -180,9 +180,24 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "every Daily entry pins one real guardian realm",
   },
   {
-    pattern: /starting_rows\s*==\s*realm\.starting_rows/,
-    trees: [PROGRAM],
-    reversal: "the Daily pool entry owns its starting rows, not its realm",
+    pattern:
+      /\bDailyObjective\b|bonus_multiplier_x100|\bscoringIndex\b|\bSurvival\b|Exact-1|seven families/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Daily objectives use the shared constraint vocabulary without multipliers",
+  },
+  {
+    pattern:
+      /\bDailyPoolEntry\b|\bDailyRulesCatalog\b|publish_arena_rules|activate_arena_rules|\bdaily pool\b|\brulesCatalog\b|RULES_ACCOUNT_VERSION/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Daily content is the fixed protocol realm-objective product, not a published catalog",
+  },
+  {
+    pattern: /starting_bonus_charges|startingBonusCharges|\bstartingCharges\b/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "guardian inventories start empty and Daily starting height comes from its realm",
   },
 ];
 

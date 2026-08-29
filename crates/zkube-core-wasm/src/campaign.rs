@@ -5,9 +5,9 @@ use zkube_core::{
     MutatorRules, RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 182;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 181;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
-const CONFIG_VERSION: u8 = 4;
+const CONFIG_VERSION: u8 = 5;
 const STATE_VERSION: u8 = 6;
 
 #[must_use]
@@ -24,11 +24,7 @@ pub fn encode_campaign_simulation_config(
     encode_level(&mut writer, config.rules.level);
     encode_mutator(&mut writer, config.rules.mutator);
     writer.write(&[bonus_tag(config.rules.bonus)]);
-    writer.write(&[
-        config.rules.starting_bonus_charges,
-        config.rules.starting_height,
-        config.rules.level_difficulty,
-    ]);
+    writer.write(&[config.rules.starting_height, config.rules.level_difficulty]);
     for tier in config.rules.block_weights {
         for value in tier {
             writer.write(&value.to_le_bytes());
@@ -59,7 +55,6 @@ pub fn decode_campaign_simulation_config(
     let level = decode_level(&mut reader)?;
     let mutator = decode_mutator(&mut reader)?;
     let bonus = decode_bonus(reader.u8()?)?;
-    let starting_bonus_charges = reader.u8()?;
     let starting_height = reader.u8()?;
     let level_difficulty = reader.u8()?;
     let mut block_weights = [[0; 5]; 8];
@@ -80,7 +75,6 @@ pub fn decode_campaign_simulation_config(
             level,
             mutator,
             bonus,
-            starting_bonus_charges,
             starting_height,
             level_difficulty,
             block_weights,
@@ -577,8 +571,7 @@ mod tests {
             rules: CampaignRules {
                 level: LevelRules::default(),
                 mutator: MutatorRules::default(),
-                bonus: None,
-                starting_bonus_charges: 0,
+                bonus: Some(Bonus::Wave),
                 starting_height: 4,
                 level_difficulty: 0,
                 block_weights: [[20; 5]; 8],
@@ -630,7 +623,6 @@ mod tests {
     fn campaign_reroll_round_trips_once_without_spending_guardian_charges() {
         let mut config = config();
         config.rules.bonus = Some(Bonus::Wave);
-        config.rules.starting_bonus_charges = 2;
         let config_bytes = encode_campaign_simulation_config(config);
         let state = initialize_campaign_simulation(&config_bytes).unwrap();
 
@@ -638,7 +630,7 @@ mod tests {
         let decoded = decode_campaign_simulation_state(&rerolled).unwrap();
         assert_eq!(decoded.engine.reroll_charges, 0);
         assert_eq!(decoded.engine.bonus, Some(Bonus::Wave));
-        assert_eq!(decoded.engine.bonus_charges, 2);
+        assert_eq!(decoded.engine.bonus_charges, 0);
         assert!(campaign_simulation_request_reroll(&config_bytes, &rerolled).is_err());
     }
 }

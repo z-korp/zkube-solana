@@ -44,11 +44,10 @@ import {
 } from "./runPlan.js";
 import {
   mapDailyPressureProfile,
-  mapDailyScoringRule,
   dailyContentSelection,
   nextScheduledDaily,
   type DailyPressureProfileView,
-  type DailyScoringRuleView,
+  type DailyThemeView,
 } from "./dailyRules.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import type { WalletLike } from "./sessionWallet.js";
@@ -66,7 +65,6 @@ export interface DailyLeaderboardView {
   playerName: string | null;
   runId: bigint;
   dailyScore: number;
-  dailyBonusTriggers: number;
   objectiveTotal: bigint;
   engineScore: number;
   moves: number;
@@ -82,7 +80,6 @@ export interface DailyPlayerView {
   finalizedAttempts: number;
   bestRunId: bigint;
   bestDailyScore: number;
-  bestDailyBonusTriggers: number;
   bestEngineScore: number;
   bestMoves: number;
   bestScore: number;
@@ -102,7 +99,6 @@ export function parseDailyStatus(value: unknown): DailyStatus {
 
 export interface DailyView extends EndlessRulesView {
   address: PublicKey;
-  rulesCatalog: PublicKey;
   dayId: number;
   followingDayId: number | null;
   status: DailyStatus;
@@ -129,7 +125,7 @@ export interface DailyView extends EndlessRulesView {
   scoreQualifiedPlayers: number;
   themeQualifiedPlayers: number;
   rules: ActiveRunRulesView;
-  scoringRule: DailyScoringRuleView;
+  dailyTheme: DailyThemeView;
   pressure: DailyPressureProfileView;
 }
 
@@ -174,22 +170,13 @@ export async function fetchDailyView(args: {
         ])
       : Promise.resolve([[], []] as const),
   ]);
-  const catalog = await program.account.dailyRulesCatalog.fetch(
-    arcadeConfig.rulesCatalog,
+  const followingDayId = nextScheduledDaily(
+    dayId,
+    Number(arcadeConfig.suspendedUntilDay),
   );
-  const poolEntryCount = Number(catalog.poolEntryCount);
-  const followingDayId = poolEntryCount === 0
-    ? null
-    : nextScheduledDaily(
-        dayId,
-        Number(catalog.startsDay),
-        poolEntryCount,
-      );
-  const following = followingDayId === null
-    ? null
-    : await program.account.arenaDaily.fetchNullable(
-        deriveArenaDailyPda(followingDayId),
-      );
+  const following = await program.account.arenaDaily.fetchNullable(
+    deriveArenaDailyPda(followingDayId),
+  );
   const [rows, themeRows] = boardRows;
   const labels = await fetchPlayerLabels({
     connection: args.connection,
@@ -202,7 +189,6 @@ export async function fetchDailyView(args: {
   const pressure = mapDailyPressureProfile(challenge.pressure);
   return {
     address,
-    rulesCatalog: arcadeConfig.rulesCatalog,
     dayId: Number(challenge.dayId),
     followingDayId,
     status,
@@ -234,7 +220,6 @@ export async function fetchDailyView(args: {
             ? BigInt(player.scoreBestRunId.toString())
             : 0n,
           bestDailyScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
-          bestDailyBonusTriggers: 0,
           bestEngineScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
           bestMoves: 0,
           bestScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
@@ -252,7 +237,10 @@ export async function fetchDailyView(args: {
     scoreQualifiedPlayers: Number(challenge.scoreQualifiedPlayers),
     themeQualifiedPlayers: Number(challenge.themeQualifiedPlayers),
     rules: mapLevelRuleSnapshot(challenge.rules),
-    scoringRule: mapDailyScoringRule(challenge.scoringRule),
+    dailyTheme: {
+      kind: Number(challenge.dailyTheme.kind),
+      value: Number(challenge.dailyTheme.value),
+    },
     pressure,
     endlessThresholds: pressure.thresholds,
     endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
@@ -318,7 +306,6 @@ async function fetchDailyBoardEntries(
       playerName: null,
       runId: 0n,
       dailyScore: score,
-      dailyBonusTriggers: 0,
       objectiveTotal: row.readBigUInt64LE(36),
       engineScore: score,
       moves: 0,
@@ -898,30 +885,20 @@ export async function buildOpenDailyChallengePlan(args: {
   const dayId = args.dayId ?? currentDailyDayId();
   const challenge = deriveArenaDailyPda(dayId);
   const program = zkubeProgram(args.connection, args.wallet);
-  const config = await program.account.arcadeConfig.fetch(
-    deriveArcadeConfigPda(),
+  const protocol = await program.account.protocolConfig.fetch(
+    deriveProtocolConfigPda(),
   );
-  const catalog = await program.account.dailyRulesCatalog.fetch(
-    config.rulesCatalog,
-  );
-  const content = await dailyContentSelection(
-    Number(catalog.startsDay),
-    dayId,
-    Number(catalog.poolEntryCount),
-  );
-  const entry = catalog.poolEntries[content.poolIndex];
-  if (!entry) throw new Error("selected Daily pool entry is unavailable");
-  const contentVersion = Number(catalog.contentVersion);
+  const content = await dailyContentSelection(dayId);
+  const contentVersion = Number(protocol.contentVersion);
   const instruction = await program.methods
     .prepareArenaDaily(dayId)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       arcadeArchive: deriveArcadeArchivePda(),
-      dailyRulesCatalog: config.rulesCatalog,
       realmMapCatalog: deriveMapCatalogPda(
         contentVersion,
-        Math.max(Number(entry.realmMapId), 1),
+        content.realmMapId,
       ),
       arenaDaily: challenge,
       payer: args.payer ?? args.wallet.publicKey,
@@ -946,7 +923,6 @@ export async function buildActivateDailyChallengePlan(args: {
     .methods.activateArenaDaily()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      dailyRulesCatalog: args.daily.rulesCatalog,
       arenaDaily: args.daily.address,
       caller: args.wallet.publicKey,
     })

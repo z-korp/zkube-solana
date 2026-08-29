@@ -3,8 +3,8 @@ import { Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 import type { DailyLeaderboardView } from "@/chain/dailyClient";
-import { dailyScoringRuleName } from "@/chain/dailyRules";
-import type { DailyScoringRuleView } from "@/chain/dailyRules";
+import { dailyThemeName } from "@/chain/dailyRules";
+import type { DailyThemeView } from "@/chain/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
@@ -29,7 +29,7 @@ export interface DailyMarqueeView {
   runsCloseAt: number;
   uniquePlayers: number;
   leaderboard: readonly DailyLeaderboardView[];
-  scoringRule: DailyScoringRuleView | null;
+  dailyTheme: DailyThemeView | null;
   scoreQualifiedPlayers: number;
   themeQualifiedPlayers: number;
 }
@@ -181,9 +181,9 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
         </h1>
         {/* What today actually asks of you. Without it the realm name is a
             mood and the objective only appears once you are already inside. */}
-        {view?.scoringRule && (
+        {view?.dailyTheme && (
           <p className="font-mono text-[11px] font-semibold text-white/55">
-            {dailyScoringRuleName(view.scoringRule)}
+            {dailyThemeName(view.dailyTheme)}
           </p>
         )}
 

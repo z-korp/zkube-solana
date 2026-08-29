@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { getThemeId } from "@/config/themes";
-import { dailyScoringRuleName } from "@/chain/dailyRules";
+import { dailyThemeName } from "@/chain/dailyRules";
 import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import useAccount from "@/hooks/useAccount";
@@ -97,7 +97,7 @@ const ArcadePage: React.FC = () => {
     nowUnix,
   });
 
-  const scoringRule = view?.scoringRule ?? null;
+  const dailyTheme = view?.dailyTheme ?? null;
   const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
   const busy = daily.action !== null;
   const arcadeDiscoveryReady =
@@ -219,9 +219,9 @@ const ArcadePage: React.FC = () => {
                       {view.kreditBalance.toString()}
                       <Plus size={12} className="text-white/45" />
                     </motion.button>
-                    {scoringRule && (
+                    {dailyTheme && (
                       <span className={`${CHIP_CLASS} flex-1 truncate`}>
-                        {dailyScoringRuleName(scoringRule)}
+                        {dailyThemeName(dailyTheme)}
                       </span>
                     )}
                   </div>

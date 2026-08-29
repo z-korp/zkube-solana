@@ -113,7 +113,22 @@
           }
         },
         {
-          "name": "daily_rules_catalog"
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "arena_daily",
@@ -147,72 +162,6 @@
         {
           "name": "caller",
           "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "activate_arena_rules",
-      "discriminator": [
-        209,
-        23,
-        60,
-        135,
-        59,
-        141,
-        138,
-        142
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "daily_rules_catalog"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
         }
       ],
       "args": []
@@ -282,33 +231,6 @@
           }
         },
         {
-          "name": "daily_rules_catalog",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  114,
-                  117,
-                  108,
-                  101,
-                  115
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "daily_rules_version"
-              }
-            ]
-          }
-        },
-        {
           "name": "authority",
           "signer": true,
           "relations": [
@@ -319,10 +241,6 @@
       "args": [
         {
           "name": "content_version",
-          "type": "u32"
-        },
-        {
-          "name": "daily_rules_version",
           "type": "u32"
         },
         {
@@ -2133,9 +2051,6 @@
           }
         },
         {
-          "name": "daily_rules_catalog"
-        },
-        {
           "name": "arena_daily",
           "writable": true,
           "pda": {
@@ -3039,9 +2954,6 @@
           "name": "arcade_archive"
         },
         {
-          "name": "daily_rules_catalog"
-        },
-        {
           "name": "realm_map_catalog"
         },
         {
@@ -3226,9 +3138,6 @@
           }
         },
         {
-          "name": "daily_rules_catalog"
-        },
-        {
           "name": "arcade_config",
           "writable": true,
           "pda": {
@@ -3366,9 +3275,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "daily_rules_catalog"
         },
         {
           "name": "arcade_archive",
@@ -3748,9 +3654,6 @@
           }
         },
         {
-          "name": "daily_rules_catalog"
-        },
-        {
           "name": "realm_map_catalog"
         },
         {
@@ -4066,91 +3969,6 @@
         {
           "name": "pending_authority",
           "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "publish_arena_rules",
-      "discriminator": [
-        116,
-        174,
-        217,
-        126,
-        196,
-        62,
-        165,
-        90
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "daily_rules_catalog",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  97,
-                  105,
-                  108,
-                  121,
-                  95,
-                  114,
-                  117,
-                  108,
-                  101,
-                  115
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "args.rules_version"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "PublishArenaRulesArgs"
-            }
-          }
         }
       ]
     },
@@ -4573,6 +4391,73 @@
       ]
     },
     {
+      "name": "set_arena_suspension",
+      "discriminator": [
+        63,
+        137,
+        66,
+        46,
+        61,
+        168,
+        231,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "suspended_until_day",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "set_featured_emblem",
       "discriminator": [
         244,
@@ -4779,6 +4664,130 @@
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "skip_suspended_arena_daily",
+      "discriminator": [
+        13,
+        245,
+        212,
+        165,
+        9,
+        246,
+        74,
+        113
+      ],
+      "accounts": [
+        {
+          "name": "arcade_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "suspended_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspended_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "successor_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "successor_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "submit_arena_board_chunk",
@@ -5047,9 +5056,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "daily_rules_catalog"
         },
         {
           "name": "arena_daily",
@@ -5427,19 +5433,6 @@
       ]
     },
     {
-      "name": "DailyRulesCatalog",
-      "discriminator": [
-        93,
-        100,
-        115,
-        16,
-        136,
-        177,
-        218,
-        183
-      ]
-    },
-    {
       "name": "MapCatalog",
       "discriminator": [
         24,
@@ -5506,6 +5499,19 @@
     }
   ],
   "events": [
+    {
+      "name": "ArenaSuspensionChanged",
+      "discriminator": [
+        13,
+        52,
+        138,
+        12,
+        223,
+        169,
+        57,
+        202
+      ]
+    },
     {
       "name": "CadenceArchived",
       "discriminator": [
@@ -5673,6 +5679,19 @@
         124,
         172,
         110
+      ]
+    },
+    {
+      "name": "SuspendedArenaDailySkipped",
+      "discriminator": [
+        147,
+        132,
+        190,
+        234,
+        106,
+        165,
+        55,
+        137
       ]
     },
     {
@@ -5928,7 +5947,7 @@
     {
       "code": 6047,
       "name": "AlreadySeeded",
-      "msg": "The first Daily pool was already seeded"
+      "msg": "The first Daily was already seeded"
     }
   ],
   "types": [
@@ -6031,33 +6050,26 @@
           {
             "name": "daily_score",
             "docs": [
-              "Arena leaderboard score: engine score plus pressure-scaled challenge bonus."
+              "Arena leaderboard score: pressure-scaled triangular action points."
             ],
             "type": "u32"
           },
           {
             "name": "objective_total",
             "docs": [
-              "Pressure-scaled points attributable only to the Daily objective."
+              "Uncapped shared-kind increments attributable only to the Daily theme."
             ],
             "type": "u64"
-          },
-          {
-            "name": "daily_bonus_triggers",
-            "docs": [
-              "Number of actions that earned nonzero Daily challenge bonus credit."
-            ],
-            "type": "u16"
           },
           {
             "name": "pressure_score",
             "type": "u32"
           },
           {
-            "name": "daily_scoring_rule",
+            "name": "daily_theme",
             "type": {
               "defined": {
-                "name": "DailyScoringRule"
+                "name": "DailyThemeSnapshot"
               }
             }
           },
@@ -6286,8 +6298,11 @@
             "type": "pubkey"
           },
           {
-            "name": "rules_catalog",
-            "type": "pubkey"
+            "name": "suspended_until_day",
+            "docs": [
+              "Days below this absolute identifier are suspended; zero disables it."
+            ],
+            "type": "u32"
           },
           {
             "name": "entry_lamports",
@@ -6461,10 +6476,6 @@
             "type": "pubkey"
           },
           {
-            "name": "rules_version",
-            "type": "u32"
-          },
-          {
             "name": "status",
             "type": {
               "defined": {
@@ -6481,15 +6492,6 @@
             "type": "u32"
           },
           {
-            "name": "catalog_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
             "name": "rules_hash",
             "type": {
               "array": [
@@ -6503,10 +6505,10 @@
             "type": "u8"
           },
           {
-            "name": "scoring_rule",
+            "name": "daily_theme",
             "type": {
               "defined": {
-                "name": "DailyScoringRule"
+                "name": "DailyThemeSnapshot"
               }
             }
           },
@@ -6660,6 +6662,26 @@
       }
     },
     {
+      "name": "ArenaSuspensionChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous",
+            "type": "u32"
+          },
+          {
+            "name": "suspended_until_day",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "CadenceArchived",
       "type": {
         "kind": "struct",
@@ -6808,10 +6830,6 @@
             "type": "u16"
           },
           {
-            "name": "starting_charges",
-            "type": "u8"
-          },
-          {
             "name": "starting_rows",
             "type": "u8"
           }
@@ -6915,10 +6933,6 @@
             "type": "u32"
           },
           {
-            "name": "daily_rules_version",
-            "type": "u32"
-          },
-          {
             "name": "campaign_map_count",
             "type": "u8"
           }
@@ -7002,63 +7016,6 @@
       }
     },
     {
-      "name": "DailyPoolEntry",
-      "docs": [
-        "One complete authored Daily in the published pool.",
-        "",
-        "The realm identifier binds the entry back to the Campaign catalog. The",
-        "copied active fields make the selected Daily independently immutable;",
-        "preparation verifies them against that catalog so a guardian's active",
-        "mutator can never be re-paired with another realm. Campaign passives do not",
-        "cross into Daily play."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u8"
-          },
-          {
-            "name": "realm_map_id",
-            "type": "u8"
-          },
-          {
-            "name": "active_mutator_id",
-            "type": "u8"
-          },
-          {
-            "name": "scoring_rule",
-            "type": {
-              "defined": {
-                "name": "DailyScoringRule"
-              }
-            }
-          },
-          {
-            "name": "bonus_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_trigger_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_threshold",
-            "type": "u16"
-          },
-          {
-            "name": "starting_charges",
-            "type": "u8"
-          },
-          {
-            "name": "starting_rows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "DailyPressureProfile",
       "type": {
         "kind": "struct",
@@ -7135,99 +7092,17 @@
       }
     },
     {
-      "name": "DailyRulesCatalog",
+      "name": "DailyThemeSnapshot",
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "rules_version",
-            "type": "u32"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "catalog_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "pool_revision",
-            "type": "u32"
-          },
-          {
-            "name": "starts_day",
-            "type": "u32"
-          },
-          {
-            "name": "pool_entry_count",
-            "type": "u8"
-          },
-          {
-            "name": "pool_entries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "DailyPoolEntry"
-                }
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "DailyPressureProfile"
-              }
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "DailyScoringRule",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u8"
-          },
-          {
-            "name": "family",
-            "type": "u8"
-          },
           {
             "name": "kind",
             "type": "u8"
           },
           {
-            "name": "parameter",
+            "name": "value",
             "type": "u8"
-          },
-          {
-            "name": "bonus_multiplier_x100",
-            "docs": [
-              "Raw objective points are scaled by this value before pressure."
-            ],
-            "type": "u16"
           }
         ]
       }
@@ -7378,10 +7253,6 @@
           {
             "name": "bonus_threshold",
             "type": "u16"
-          },
-          {
-            "name": "starting_charges",
-            "type": "u8"
           },
           {
             "name": "starting_rows",
@@ -7859,10 +7730,6 @@
             "type": "u32"
           },
           {
-            "name": "daily_rules_version",
-            "type": "u32"
-          },
-          {
             "name": "player_funding_target_lamports",
             "type": "u64"
           },
@@ -7896,52 +7763,6 @@
           {
             "name": "paused",
             "type": "bool"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PublishArenaRulesArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "rules_version",
-            "type": "u32"
-          },
-          {
-            "name": "pool_revision",
-            "type": "u32"
-          },
-          {
-            "name": "starts_day",
-            "type": "u32"
-          },
-          {
-            "name": "pool_entry_count",
-            "type": "u8"
-          },
-          {
-            "name": "pool_entries",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "DailyPoolEntry"
-                }
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "DailyPressureProfile"
-              }
-            }
           }
         ]
       }
@@ -8083,6 +7904,26 @@
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SuspendedArenaDailySkipped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "day_id",
+            "type": "u32"
+          },
+          {
+            "name": "successor_day_id",
+            "type": "u32"
+          },
+          {
+            "name": "rollover_lamports",
+            "type": "u64"
           }
         ]
       }

@@ -34,7 +34,6 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
@@ -75,7 +74,6 @@ interface LaunchBundle {
   input: LaunchPlannerInput;
   costs: LaunchCostPlan;
   programDataAddress: string;
-  rulesCatalogSha256: string;
   activationTransactionSha256: string;
   progress: LaunchProgress;
 }
@@ -85,7 +83,6 @@ export interface LaunchRunnerResult {
   approvalFingerprint: string;
   bundlePath: string;
   signatures: string[];
-  rulesCatalogSha256: string;
 }
 
 const DEFAULT_BUNDLE_PATH = "/tmp/zkube-v5-launch.json";
@@ -106,7 +103,6 @@ export async function runLaunchFromEnv(
     approvalFingerprint: plan.approvalFingerprint,
     bundlePath,
     signatures: [],
-    rulesCatalogSha256: plan.rulesCatalogSha256,
   };
   if (mode === "plan") return result;
 
@@ -124,7 +120,7 @@ export async function runLaunchFromEnv(
     input.authority,
     "protocol authority",
   );
-  const activation = plan.plans[21];
+  const activation = plan.plans[16];
   if (!activation) throw new Error("launch plan omitted its atomic activation");
   const bundle: LaunchBundle = {
     schema: "zkube-v5-devnet-launch-bundle",
@@ -135,7 +131,6 @@ export async function runLaunchFromEnv(
     input,
     costs: plan.costs,
     programDataAddress: plan.programDataAddress,
-    rulesCatalogSha256: plan.rulesCatalogSha256,
     activationTransactionSha256: launchTransactionSha256(activation),
     progress: { staged: [] },
   };
@@ -156,7 +151,7 @@ export async function runLaunchFromEnv(
   if (bundle.progress.staged.length === 0) {
     await verifyFunding(connection, bundle);
   }
-  for (const [index, transaction] of plan.plans.slice(0, 21).entries()) {
+  for (const [index, transaction] of plan.plans.slice(0, 16).entries()) {
     const receipt = await executeApprovedTransaction({
       plan: transaction,
       signer: authority,
@@ -198,8 +193,8 @@ async function resumeStaging(
     ? undefined
     : transactionPlanFromPublic(payload.fundingTransaction, connection);
   const publicTransactions = array(payload.transactions, "approved transactions");
-  if (publicTransactions.length !== 22) {
-    throw new Error("approved launch must contain exactly 22 transactions");
+  if (publicTransactions.length !== 17) {
+    throw new Error("approved launch must contain exactly 17 transactions");
   }
   const plans = publicTransactions.map((value) =>
     transactionPlanFromPublic(value, connection));
@@ -223,10 +218,10 @@ async function resumeStaging(
     await verifyFunding(connection, bundle);
   }
 
-  if (bundle.progress.staged.length > 21) {
+  if (bundle.progress.staged.length > 16) {
     throw new Error("bundle contains excess staging receipts");
   }
-  for (let index = 0; index < 21; index += 1) {
+  for (let index = 0; index < 16; index += 1) {
     const existing = bundle.progress.staged[index];
     const receipt = await executeApprovedTransaction({
       plan: plans[index]!,
@@ -249,7 +244,6 @@ async function resumeStaging(
     approvalFingerprint: bundle.approvalFingerprint,
     bundlePath,
     signatures,
-    rulesCatalogSha256: bundle.rulesCatalogSha256,
   };
 }
 
@@ -274,7 +268,6 @@ async function activateLaunch(
     connection,
     authority: createReadOnlyWallet(authority.publicKey),
     dayId: bundle.input.launchDayId,
-    rulesVersion: 1,
   });
   if (launchTransactionSha256(plan) !== bundle.activationTransactionSha256) {
     throw new Error("atomic activation instruction bytes drifted after approval");
@@ -297,7 +290,6 @@ async function activateLaunch(
     approvalFingerprint: bundle.approvalFingerprint,
     bundlePath,
     signatures: [bundle.progress.activation.signature],
-    rulesCatalogSha256: bundle.rulesCatalogSha256,
   };
 }
 
@@ -356,7 +348,6 @@ async function verifyStagedLaunch(
       !key(protocol.teamDestination).equals(new PublicKey(bundle.input.teamDestination)) ||
       bytesHex(protocol.replayDomain) !== bundle.input.replayDomainHex ||
       integer(protocol.contentVersion) !== 2 ||
-      integer(protocol.dailyRulesVersion) !== 1 ||
       integer(protocol.campaignMapCount) !== 10 ||
       protocol.paused !== true) {
     throw new Error("paused protocol carrier does not match launch approval");
@@ -377,19 +368,6 @@ async function verifyStagedLaunch(
         !isDeepStrictEqual(normalize(map.levels), expected.levels)) {
       throw new Error(`Campaign map ${mapId} does not match the approved release`);
     }
-  }
-
-  const rules = await fetchExact(
-    connection,
-    program,
-    "dailyRulesCatalog",
-    deriveDailyRulesCatalogPda(1),
-    LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
-  );
-  if (integer(rules.rulesVersion) !== 1 || integer(rules.contentVersion) !== 2 ||
-      integer(rules.startsDay) !== bundle.input.launchDayId ||
-      bytesHex(rules.catalogHash) !== bundle.rulesCatalogSha256) {
-    throw new Error("Arena rules catalog does not match the approved release");
   }
 
   const arcade = await fetchExact(
@@ -798,7 +776,6 @@ function parseBundle(source: string): LaunchBundle {
     .digest("hex");
   if (!/^[0-9a-f]{64}$/.test(bundle.approvalFingerprint) ||
       !/^[0-9a-f]{64}$/.test(bundle.activationTransactionSha256) ||
-      !/^[0-9a-f]{64}$/.test(bundle.rulesCatalogSha256) ||
       bundle.approvalFingerprint !== bundle.approvalEvidenceSha256 ||
       recomputedApproval !== bundle.approvalFingerprint) {
     throw new Error("launch bundle hashes are malformed");
@@ -809,16 +786,15 @@ function parseBundle(source: string): LaunchBundle {
   if (!isDeepStrictEqual(payload.input, bundle.input) ||
       !isDeepStrictEqual(payload.costs, bundle.costs) ||
       observed.programDataAddress !== bundle.programDataAddress ||
-      observed.rulesCatalogSha256 !== bundle.rulesCatalogSha256 ||
-      transactions.length !== 22 ||
+      transactions.length !== 17 ||
       createHash("sha256")
-        .update(JSON.stringify(transactions[21]))
+        .update(JSON.stringify(transactions[16]))
         .digest("hex") !== bundle.activationTransactionSha256) {
     throw new Error("launch bundle fields drifted from approved evidence");
   }
   const progress = object(bundle.progress, "launch progress");
   if (!Array.isArray(progress.staged) ||
-      progress.staged.length > 21 ||
+      progress.staged.length > 16 ||
       (progress.funding !== undefined &&
         (typeof progress.funding !== "object" || progress.funding === null)) ||
       (progress.activation !== undefined &&
@@ -928,7 +904,6 @@ export function formatLaunchRunnerResult(result: LaunchRunnerResult): string {
   return [
     `Mode: ${result.mode}`,
     `Approval fingerprint: ${result.approvalFingerprint}`,
-    `Arena catalog SHA-256: ${result.rulesCatalogSha256}`,
     `Bundle: ${result.bundlePath}`,
     ...result.signatures.map((signature, index) =>
       `Signature ${index + 1}: ${signature}`),

@@ -88,7 +88,6 @@ export function keeperReleaseFromEnv(
       env.ZKUBE_KEEPER_IMAGE_DIGEST,
       "ZKUBE_KEEPER_IMAGE_DIGEST",
     );
-  const rulesVersion = releaseU32(env.ZKUBE_ARENA_RULES_VERSION, "rules version", 1);
   const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
   return keeperReleaseRecord({
     programId: ZKUBE_PROGRAM_ID.toBase58(),
@@ -103,12 +102,7 @@ export function keeperReleaseFromEnv(
       env.ZKUBE_REPLAY_DOMAIN_HEX,
       "ZKUBE_REPLAY_DOMAIN_HEX",
     ),
-    rulesCatalogHash: requiredReleaseValue(
-      env.ZKUBE_ARENA_RULES_CATALOG_SHA256,
-      "ZKUBE_ARENA_RULES_CATALOG_SHA256",
-    ),
     idlHash: KEEPER_EXPECTED_IDL_SHA256,
-    rulesVersion,
     launchDayId,
   });
 }
@@ -246,8 +240,6 @@ async function runConfiguredKeeperPass(
     routerEndpoint,
     release: {
       replayDomainHex: release.record.replayDomainHex,
-      rulesCatalogHash: release.record.rulesCatalogHash,
-      rulesVersion: release.record.rulesVersion,
       launchDayId: release.record.launchDayId,
     },
   });

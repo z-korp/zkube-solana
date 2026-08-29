@@ -34,7 +34,6 @@ interface CampaignMapRulesPublication {
   bonusType: number;
   bonusTriggerType: number;
   bonusThreshold: number;
-  startingCharges: number;
   startingRows: number;
 }
 
@@ -92,7 +91,6 @@ function publicationRules(
     bonusType,
     bonusTriggerType,
     bonusThreshold,
-    startingCharges,
     startingRows,
   ] = rules;
   const activeMutatorId = 19 + mapId * 2;
@@ -105,7 +103,6 @@ function publicationRules(
     bonusType,
     bonusTriggerType,
     bonusThreshold,
-    startingCharges,
     startingRows,
   };
 }

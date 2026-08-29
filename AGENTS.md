@@ -24,12 +24,12 @@ Source implements v5 partially. Current state:
 
 | Area | Status |
 | --- | --- |
-| Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed derived content-pool draw |
+| Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
 | Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
 | `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
-| Kredits and content pool | Built — prepaid purchase/spend paths, complete pool entries, and protocol-derived selection |
+| Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
 | Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied in the Daily profile-sync pass |
 
 ## Product truth
@@ -60,9 +60,10 @@ Source implements v5 partially. Current state:
 - Entries remain open until the single 23:59 UTC freeze. At that time a run with an accepted action
   scores its last committed state; an untouched or unrecoverable run expires and
   can never score late.
-- Content is a pool of authored dailies, not a calendar. Each day draws one
-  entry by a derived, independently recomputable selection; the pool may be
-  edited and dailies suspended at any time. The ladder is cumulative log-rank
+- Daily content is the fixed product of ten Campaign realms and sixteen
+  protocol objectives, not a calendar or mutable catalog. Each day draws one
+  pair by an independently recomputable selection; dailies may be suspended at
+  any time. The ladder is cumulative log-rank
   points, pays no SOL, never decays, and resets only by an announced decision.
   Neither mode grants SOL, entries, prize eligibility, or mint odds.
 - The owner funds the shared System-owned zero-data player funding PDA and the
@@ -101,69 +102,52 @@ and approved on 2026-08-08.
 **The systems below are locked. The balance is not.** Every structural rule in
 this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
-open: how many entries the pool ships with and what each carries, per-entry
-starting heights, the global pressure thresholds and `DailyPressureRules` values,
+open: the global pressure thresholds and `DailyPressureRules` values,
 ladder tier boundaries, and the flat qualifying credit.
 
-- **The pool is the content unit, and there is no calendar.** Every authored
-  daily is a pool entry carrying its realm, active mutator, objective family,
-  guardian bonus, and starting height. Entries are added, edited, or retired
-  at any time by publishing a catalog revision. There are no sets, seasons,
-  gauntlets, or scheduled boundaries of any kind. A thirteen-week set calendar
-  was designed and deliberately cut: it obliged the studio to ship content on a
-  timer, forced a dark stretch costing roughly 4.9% of annual entry revenue
-  purely to satisfy week arithmetic, and reserved a championship week whether or
-  not a championship existed.
-- **The draw is derived, never chosen.** Which entry runs on a given day is
-  derived from the protocol-fixed seed and the day identifier, drawn without
-  replacement so the pool cycles fully before repeating. The operator controls
-  what is in the pool and never which entry runs; an operator who could pick the
-  day could pick who gets their best day, which is unacceptable in a game paying
-  real SOL. The seed is code, not catalog state, and
-  `published_pool_draws_a_complete_reproducible_cycle` guards the account
-  boundary. Selection must be independently recomputable from published data.
-- **Closing that lever takes four constraints, not one.** The seed is
-  protocol-fixed, entry ordering is canonical, and the cycle is anchored to the
-  absolute day rather than to the catalog's start. But the **entry count drives
-  both the permutation and the modulus**, so adding or removing a single entry
-  re-maps every future day, including tomorrow. A catalog revision therefore
-  takes effect only from a stated day at least a week ahead. Suspension is exempt
-  and immediate, because suspending removes days rather than re-mapping them, and
-  absolute anchoring means a gap shifts nothing on resume. Emergencies are
-  handled by suspending, never by editing a live pool.
-- **Instant suspension is a per-day veto, and that is accepted.** Because
-  tomorrow's entry is published a day ahead and suspension needs no notice, the
-  operator can see a day and cancel it. This is deliberate: the emergency path is
-  worth more than closing a lever with no payoff. Suspension cannot move money —
-  prepaid funding rolls to the next scheduled Daily, no Kredit is consumed, and a
-  missing day is the most visible action the operator can take. Never close this
-  by adding notice to suspension; that would remove the only way to stop a broken
-  pool.
+- **A Daily is one realm plus one objective, and there is no calendar or content
+  account.** The ten Campaign realms supply guardian and starting-height rules;
+  sixteen protocol objectives include Classic and the shared cumulative
+  constraint facts. The fixed 160-pair product replaces authored Daily entries,
+  revisions, publication instructions, and their notice window. There are no
+  sets, seasons, gauntlets, or scheduled boundaries of any kind.
+- **The draw is derived, never chosen.** The protocol-fixed seed and absolute day
+  identifier drive one without-replacement Fisher–Yates permutation over the
+  realm × objective product. Every pair appears once in each 160-day cycle and
+  changing the table requires a program release; neither the operator nor VRF
+  can select a day. Selection must be independently recomputable;
+  `daily_draw_is_reproducible_from_seed_and_day` guards the core and client
+  boundary.
+- **Instant suspension is an explicit governance boundary.**
+  `ArcadeConfig.suspended_until_day` is set by `set_arena_suspension`; a prepared
+  funding day below it can only move its full funded ledger once into the first
+  eligible prepared successor through `skip_suspended_arena_daily`, then closes
+  to cadence funding. Suspension cannot consume a Kredit or strand prize money,
+  and it never re-maps a later day. The SBF contract
+  `a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_day`
+  guards the transition.
 - **Tomorrow's daily is not published, and the client shows no hint of it.**
   Reversed on 2026-08-10 after the surface was built twice and cut twice. The
   Campaign bridge it was supposed to restore does not survive contact with the
   draw: tomorrow's realm is derived independently of progress, so the one
   actionable thing it offered — practise that realm today — sends a player who
   has not unlocked it to a locked screen. The keeper still prepares the
-  following Daily and `followingMapId` is still readable on chain; nothing
-  renders it. Do not reintroduce a tomorrow panel, an evening hook, or an
+  following Daily and its pair is derivable from code and day; nothing renders
+  it. Do not reintroduce a tomorrow panel, an evening hook, or an
   ambient hint. Suspension notice is unaffected: the operator's per-day veto
   above depends on suspension needing no notice, never on publication.
-- **Daily pressure is one global profile, not an entry property.** Every player
+- **Daily pressure is one global profile, not a content property.** Every player
   faces the same thresholds, score ramp, block weights, and move limit. The
-  catalog stores that profile once, and `published_pool_draws_a_complete_reproducible_cycle`
-  verifies that every selected entry receives it.
-- **A guardian's active mutator is fixed at catalog publication and identical
-  in Campaign and Arcade.** The mutators are named for their guardians, and the
-  two modes are republished together before launch so the practice bridge and
-  completed star records cannot drift between rule sets.
-  `daily_guardian_pairing_matches_campaign_publication` guards the program
-  boundary.
+  protocol stores that profile once; every selected pair receives it.
+- **A guardian's active mutator is identical in Campaign and Arcade.** The
+  drawn realm resolves the same published Campaign guardian bytes used by its
+  levels, so the practice bridge and completed star records cannot drift between
+  rule sets. `campaign_and_daily_share_guardian_rules` guards the boundary.
 - **Daily has no passive pairing.** A Daily inherits its realm's active mutator
   and guardian bonus, then uses the neutral passive scoring baseline: no passive
   line-clear or perfect-clear bonus. Campaign realms keep their authored
-  line-clear and perfect-clear bonuses. Daily pool entries and preparation must
-  never carry a passive map identity;
+  line-clear and perfect-clear bonuses. Daily preparation must never carry a
+  passive map identity;
   `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, combo-count, block-burst, and clearing-move-streak triggers carry a
@@ -175,27 +159,31 @@ ladder tier boundaries, and the flat qualifying credit.
   the Campaign catalog parity test binds the client publication to the
   core-validated fixture. Types 3 and 5 are unsupported;
   `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
+- **Guardian inventories start empty in both modes.** Starting height comes from
+  the drawn realm in Daily and the same realm publication in Campaign; Hammer,
+  Totem, and Wave charges are earned only by firing that guardian's trigger.
+  `campaign_opening_is_seeded_and_reproducible` and
+  `daily_runs_start_without_guardian_charges` guard the two constructors.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
   the next paid day whenever that arrives, so a pause never strands a pot and
   the return is funded by the departure.
 - **The Daily pot splits across two boards over the same runs**: Score 50% and
-  Theme 50%. One entry places on both. Score ranks `daily_score`. Theme ranks a
-  new `objective_total` accumulator carrying only the day's objective bonus,
-  which today is folded into `daily_score` and discarded as a separate figure.
-  That single field is the theme metric for all seven families at once and
-  means something different each day by construction — points from size-N
-  blocks on a Blocks day, from qualifying combo moves on a Combo day, from
-  exact-N clears on an ExactLines day.
-- **The two boards diverge because one is a subset of the other.**
-  `daily_score` is total performance; `objective_total` is only the part
-  attributable to playing the day's theme. A player clearing carelessly wins
-  Score; a player who plays only the theme wins Theme. Fixed boards for
-  specific skills are rejected: a permanent combo or blocks board duplicates
-  the objective family on the days those families run and is decorative on the
-  rest.
+  Theme 50%. One entry places on both. Score ranks `daily_score`. Theme ranks
+  `objective_total`, the uncapped sum of the drawn `ConstraintKind`'s shared
+  per-action increment. Campaign primary progress uses the same increment but
+  caps it at its authored required count. Clutch and Clean clears are cumulative
+  height-conditioned action facts; Survival and exact-one clears are not
+  objectives. `daily_objective_is_the_shared_kind_increment` and
+  `every_constraint_kind_reads_its_declared_action_fact` guard the vocabulary.
+- **Theme is not Score.** `daily_score` is triangular action points;
+  `objective_total` is a count attributable only to the day's fact and is never
+  added to score or pressure. A player clearing carelessly wins Score; a player
+  who pursues the fact wins Theme. `theme_total_is_not_added_to_score` guards
+  the boundary.
 - **Classic pays 100% to Score, and that is derived rather than configured.**
-  `DailyObjective::Classic` yields zero raw objective points, so its theme
+  The Classic theme is the absent constraint kind and yields zero objective
+  increments, so its theme
   total is always zero and the theme half folds back into Score. No family
   needs a special case.
 - **A board requires a positive metric to qualify.** Score ranks only runs with
@@ -352,7 +340,9 @@ Daily difficulty bands; and
 Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
 pairing are superseded too, as is the ladder streak multiplier. Reroll as a
 fourth guardian bonus type, wildcard Daily realms, and multi-bonus map pairings
-are also superseded.
+are also superseded. Authored Daily entries and their rules catalog, revision
+window, objective multiplier, separate objective enum, Survival and exact-one
+themes, and starting guardian charges are superseded as well.
 
 ## Transaction policy
 
@@ -597,6 +587,12 @@ mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
 SHA-256. Permanent board rows retain the qualifying replay commitment; move
 lists may stay off-chain and be independently recomputed.
 
+A Daily rules hash binds its day, Campaign content version, selected realm's
+guardian and starting height, objective kind and value, and the core rules
+version. No catalog account or publisher-supplied version contributes to that
+identity; `daily_rules_hash_binds_day_realm_objective_and_protocol_constants`
+guards every input.
+
 After a perfect clear, one domain-separated VRF output deterministically derives
 both the one-row board reseed and the next visible preview. The committed
 continuation vector prevents a run stranded between two oracle requests or
@@ -788,8 +784,8 @@ The source program ID is not evidence that corresponding ProgramData or
 protocol accounts are current. A fresh v5 pass must derive and approve every
 live value from its own read-only observations.
 
-Manifest schema v6 binds the deployed ProgramData and allocation, content and
-rules catalogs, exact launch day and seed plan, and keeper release. The v5
+Manifest schema v6 binds the deployed ProgramData and allocation, Campaign
+content catalog, exact launch day and seed plan, and keeper release. The v5
 dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
 tag and optional operator-attested image digest, keeper fingerprint,
 launch-plan fingerprint, then the final manifest. Fly exposes a unique

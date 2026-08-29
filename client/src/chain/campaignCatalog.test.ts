@@ -24,7 +24,6 @@ describe("Campaign content v2", () => {
           map.mapRules.bonusType,
           map.mapRules.bonusTriggerType,
           map.mapRules.bonusThreshold,
-          map.mapRules.startingCharges,
           map.mapRules.startingRows,
         ],
         levels: map.levels.map((level) => [

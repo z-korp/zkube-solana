@@ -16,7 +16,6 @@ const rules: ActiveRunRulesView = {
   bonusType: 1,
   bonusTriggerType: 2,
   bonusThreshold: 4,
-  startingCharges: 1,
 };
 
 describe("rulesToGameLevelData", () => {

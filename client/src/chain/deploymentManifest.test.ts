@@ -79,7 +79,7 @@ describe("zKube deployment manifest v6", () => {
     expect(validation.valid).toBe(true);
   });
 
-  it("rejects substituted ProgramData, content, rules, launch, seeds, or keeper", () => {
+  it("rejects substituted ProgramData, content, launch, seeds, or keeper", () => {
     const base = candidate();
     const cases: unknown[] = [
       {
@@ -90,7 +90,6 @@ describe("zKube deployment manifest v6", () => {
         },
       },
       { ...base, content: { ...base.content, campaignVersion: 3 } },
-      { ...base, rules: { ...base.rules, arenaVersion: 2 } },
       { ...base, launch: { ...base.launch, dayId: 11 } },
       {
         ...base,
@@ -194,7 +193,6 @@ function candidate(): ZkubeDeploymentManifest {
       campaignVersion: 2,
       catalogSha256: "c".repeat(64),
     },
-    rules: { arenaVersion: 1, catalogSha256: "d".repeat(64) },
     launch: {
       dayId: 4,
       cutoffUnixTimestamp: 4 * 86_400 + 3_600,
@@ -237,8 +235,6 @@ function environment(
     ZKUBE_BASE_CONTENT_VERSION: String(manifest.content.baseVersion),
     ZKUBE_CAMPAIGN_CONTENT_VERSION: String(manifest.content.campaignVersion),
     ZKUBE_CAMPAIGN_CATALOG_SHA256: manifest.content.catalogSha256,
-    ZKUBE_ARENA_RULES_VERSION: String(manifest.rules.arenaVersion),
-    ZKUBE_ARENA_RULES_CATALOG_SHA256: manifest.rules.catalogSha256,
     ZKUBE_LAUNCH_DAY_ID: String(manifest.launch.dayId),
     ZKUBE_LAUNCH_CUTOFF_UNIX: String(manifest.launch.cutoffUnixTimestamp),
     ZKUBE_LAUNCH_PLAN_FINGERPRINT: manifest.launch.planFingerprint,

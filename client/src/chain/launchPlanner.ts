@@ -14,7 +14,6 @@ import {
   buildInitializeArcadePlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
-  buildPublishCanonicalArenaRulesPlan,
   buildPublishCanonicalMapsPlan,
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
@@ -26,21 +25,16 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas";
-import {
-  ARENA_CATALOG_HASH_DOMAIN,
-  SECONDS_PER_DAY,
-} from "./protocolVersions.generated";
+import { SECONDS_PER_DAY } from "./protocolVersions.generated";
 import { createReadOnlyWallet } from "./readOnlyWallet";
 import type { TransactionPlan } from "./runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 
 const BASE_CONTENT_VERSION = 1;
-const ARENA_RULES_VERSION = 1;
 const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
@@ -51,12 +45,11 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: 156,
   mapCatalog: 275,
-  dailyRulesCatalog: 2_141,
-  arcadeConfig: 103,
+  arcadeConfig: 75,
   operatorRevenueVault: 58,
   creditVault: 58,
   arcadeArchive: 82,
-  arenaDaily: 403,
+  arenaDaily: 358,
 } as const;
 
 export interface LaunchPlannerInput {
@@ -99,7 +92,6 @@ export interface ZkubeLaunchPlan {
   input: LaunchPlannerInput;
   observedUnixTimestamp: number;
   programDataAddress: string;
-  rulesCatalogSha256: string;
   fundingPlan?: TransactionPlan;
   plans: TransactionPlan[];
   phases: Array<{ label: string; transactionIndexes: number[] }>;
@@ -279,21 +271,10 @@ export async function buildZkubeLaunchPlan(
     );
   }
   plans.push(
-    await buildPublishCanonicalArenaRulesPlan({
-      connection,
-      authority: wallet,
-      contentVersion: CAMPAIGN_CONTENT_VERSION,
-      rulesVersion: ARENA_RULES_VERSION,
-      startsDay: input.launchDayId,
-    }),
-  );
-  const rulesCatalogSha256 = arenaRulesCatalogHash(plans[11]);
-  plans.push(
     await buildActivateContentReleasePlan({
       connection,
       authority: wallet,
       contentVersion: CAMPAIGN_CONTENT_VERSION,
-      dailyRulesVersion: ARENA_RULES_VERSION,
       campaignMapCount: 10,
     }),
   );
@@ -301,7 +282,6 @@ export async function buildZkubeLaunchPlan(
     await buildInitializeArcadePlan({
       connection,
       authority: wallet,
-      rulesVersion: ARENA_RULES_VERSION,
     }),
   );
   plans.push(
@@ -309,14 +289,12 @@ export async function buildZkubeLaunchPlan(
       connection,
       authority: wallet,
       firstDayId: input.launchDayId,
-      rulesVersion: ARENA_RULES_VERSION,
     }),
   );
   plans.push(
     ...(await buildPrepareLaunchPeriodPlans({
       connection,
       authority: wallet,
-      rulesVersion: ARENA_RULES_VERSION,
       dayId: input.launchDayId,
       contentVersion: CAMPAIGN_CONTENT_VERSION,
     })),
@@ -326,14 +304,12 @@ export async function buildZkubeLaunchPlan(
       connection,
       authority: wallet,
       dayId: input.launchDayId,
-      rulesVersion: ARENA_RULES_VERSION,
     }),
   );
 
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
     ...Array.from({ length: 10 }, () => LAUNCH_ACCOUNT_SPACES.mapCatalog),
-    LAUNCH_ACCOUNT_SPACES.dailyRulesCatalog,
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
     LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
     LAUNCH_ACCOUNT_SPACES.creditVault,
@@ -422,16 +398,15 @@ export async function buildZkubeLaunchPlan(
       label: "Stage Campaign content v2",
       transactionIndexes: Array.from({ length: 10 }, (_, index) => index + 1),
     },
-    { label: "Stage Arena rules v1", transactionIndexes: [11] },
-    { label: "Activate staged content and rules", transactionIndexes: [12] },
-    { label: "Initialize paused Arcade", transactionIndexes: [13] },
+    { label: "Activate staged content", transactionIndexes: [11] },
+    { label: "Initialize paused Arcade", transactionIndexes: [12] },
     {
       label: "Initialize archive and prepare current/following Daily",
-      transactionIndexes: [14, 15, 16],
+      transactionIndexes: [13, 14, 15],
     },
     {
       label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [17],
+      transactionIndexes: [16],
     },
   ];
   const approvalPayload = {
@@ -441,7 +416,6 @@ export async function buildZkubeLaunchPlan(
       programId: ZKUBE_PROGRAM_ID.toBase58(),
       programDataAddress: programState.programDataAddress.toBase58(),
       freshTargetAccounts: targetAccounts.map((address) => address.toBase58()),
-      rulesCatalogSha256,
     },
     phases,
     costs,
@@ -461,7 +435,6 @@ export async function buildZkubeLaunchPlan(
     input,
     observedUnixTimestamp,
     programDataAddress: programState.programDataAddress.toBase58(),
-    rulesCatalogSha256,
     ...(fundingPlan ? { fundingPlan } : {}),
     plans,
     phases,
@@ -497,7 +470,6 @@ export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
     `Maximum deployer spend: ${plan.costs.maximumDeployerSpendLamports} lamports`,
     `Required deployer balance: ${plan.costs.requiredDeployerBalanceLamports} lamports`,
     `Replay domain: ${plan.input.replayDomainHex}`,
-    `Arena catalog SHA-256: ${plan.rulesCatalogSha256}`,
     `Keeper release fingerprint: ${plan.input.keeperReleaseFingerprint}`,
     `Approval fingerprint: ${plan.approvalFingerprint}`,
     ...plan.phases.map(
@@ -536,7 +508,6 @@ function bootstrapTargetAccounts(dayId: number): PublicKey[] {
     ...Array.from({ length: 10 }, (_, index) =>
       deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, index + 1),
     ),
-    deriveDailyRulesCatalogPda(ARENA_RULES_VERSION),
     deriveArcadeConfigPda(),
     deriveOperatorRevenueVaultPda(),
     deriveCreditVaultPda(),
@@ -552,18 +523,6 @@ export function canonicalDevnetReplayDomainHex(): string {
     .update(REPLAY_DOMAIN_TAG)
     .update(new PublicKey(SOLANA_DEVNET_GENESIS_HASH).toBuffer())
     .update(ZKUBE_PROGRAM_ID.toBuffer())
-    .digest("hex");
-}
-
-function arenaRulesCatalogHash(plan: TransactionPlan | undefined): string {
-  const instruction = plan?.transaction.instructions[0];
-  if (!instruction || !instruction.programId.equals(ZKUBE_PROGRAM_ID) ||
-      instruction.data.length <= 8) {
-    throw new Error("canonical Arena rules instruction is missing or malformed");
-  }
-  return createHash("sha256")
-    .update(Buffer.from(ARENA_CATALOG_HASH_DOMAIN, "utf8"))
-    .update(instruction.data.subarray(8))
     .digest("hex");
 }
 

@@ -9,10 +9,7 @@ use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::arena_rules::{
-    DailyPressureProfile, DailyRulesCatalog, DailyScoringRule, DAILY_RULES_CATALOG_SEED,
-    RULES_ACCOUNT_VERSION,
-};
+use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
 use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -59,7 +56,6 @@ pub fn handler_initialize_protocol(
     protocol.team_destination = args.team_destination;
     protocol.replay_domain = args.replay_domain;
     protocol.content_version = args.content_version;
-    protocol.daily_rules_version = 0;
     protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
     // A fresh deployment must remain inert until content, Arena rules, funding,
@@ -277,10 +273,6 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
         ErrorCode::InvalidLevel
     );
     require!(
-        rules.starting_charges <= zkube_core::BONUS_CHARGE_CAP,
-        ErrorCode::InvalidLevel
-    );
-    require!(
         (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
             .contains(&rules.starting_rows),
         ErrorCode::InvalidLevel
@@ -380,7 +372,7 @@ pub fn handler_activate_campaign_map(ctx: Context<ActivateCampaignMap>) -> Resul
 }
 
 #[derive(Accounts)]
-#[instruction(content_version: u32, daily_rules_version: u32, campaign_map_count: u8)]
+#[instruction(content_version: u32, campaign_map_count: u8)]
 pub struct ActivateContentRelease<'info> {
     #[account(
         mut,
@@ -391,43 +383,28 @@ pub struct ActivateContentRelease<'info> {
         constraint = protocol.paused @ ErrorCode::ProtocolPaused
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [DAILY_RULES_CATALOG_SEED, daily_rules_version.to_le_bytes().as_ref()],
-        bump = daily_rules_catalog.bump,
-        constraint = daily_rules_catalog.version == RULES_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = daily_rules_catalog.rules_version == daily_rules_version @ ErrorCode::ContentVersionMismatch,
-        constraint = daily_rules_catalog.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = daily_rules_catalog.content_version == content_version @ ErrorCode::ContentVersionMismatch
-    )]
-    pub daily_rules_catalog: Box<Account<'info, DailyRulesCatalog>>,
     pub authority: Signer<'info>,
 }
 
 pub fn handler_activate_content_release(
     ctx: Context<ActivateContentRelease>,
     content_version: u32,
-    daily_rules_version: u32,
     campaign_map_count: u8,
 ) -> Result<()> {
     validate_content_release_transition(
         ctx.accounts.protocol.content_version,
-        ctx.accounts.protocol.daily_rules_version,
         content_version,
-        daily_rules_version,
         campaign_map_count,
         ctx.remaining_accounts.len(),
     )?;
-    ctx.accounts.daily_rules_catalog.validate()?;
     for (index, account) in ctx.remaining_accounts.iter().enumerate() {
         validate_release_map(account, content_version, index as u8 + 1)?;
     }
 
     ctx.accounts.protocol.content_version = content_version;
     ctx.accounts.protocol.campaign_map_count = campaign_map_count;
-    ctx.accounts.protocol.daily_rules_version = daily_rules_version;
     emit!(ContentReleaseActivated {
         content_version,
-        daily_rules_version,
         campaign_map_count,
     });
     Ok(())
@@ -435,18 +412,12 @@ pub fn handler_activate_content_release(
 
 fn validate_content_release_transition(
     current_content_version: u32,
-    current_daily_rules_version: u32,
     content_version: u32,
-    daily_rules_version: u32,
     campaign_map_count: u8,
     provided_map_count: usize,
 ) -> Result<()> {
     require!(
         content_version > current_content_version,
-        ErrorCode::ContentVersionMismatch
-    );
-    require!(
-        daily_rules_version > current_daily_rules_version,
         ErrorCode::ContentVersionMismatch
     );
     require!(
@@ -491,7 +462,6 @@ fn validate_release_map(account: &AccountInfo<'_>, content_version: u32, map_id:
 #[event]
 pub struct ContentReleaseActivated {
     pub content_version: u32,
-    pub daily_rules_version: u32,
     pub campaign_map_count: u8,
 }
 
@@ -601,9 +571,8 @@ pub fn handler_prepare_campaign_run(
     active.score = 0;
     active.daily_score = 0;
     active.objective_total = 0;
-    active.daily_bonus_triggers = 0;
     active.pressure_score = 0;
-    active.daily_scoring_rule = DailyScoringRule::default();
+    active.daily_theme = DailyThemeSnapshot::default();
     active.daily_pressure = DailyPressureProfile::default();
     active.action_counter = 0;
     active.moves = 0;
@@ -621,7 +590,7 @@ pub fn handler_prepare_campaign_run(
     active.high_combo_hits = 0;
     active.blocks_destroyed_by_size = [0; 4];
     active.bonus_type = rules.bonus_type;
-    active.bonus_charges = rules.starting_charges;
+    active.bonus_charges = 0;
     active.reroll_charges = 1;
     active.starting_height_target = rules.starting_rows.max(1);
     active.current_difficulty = rules.difficulty;
@@ -679,7 +648,6 @@ mod tests {
             bonus_type: 3,
             bonus_trigger_type: 1,
             bonus_threshold: 3,
-            starting_charges: 1,
             starting_rows: 4,
             ..CampaignMapRuleSnapshot::default()
         };
@@ -699,17 +667,6 @@ mod tests {
             ..valid
         })
         .is_err());
-        assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
-            starting_charges: zkube_core::BONUS_CHARGE_CAP,
-            ..valid
-        })
-        .is_ok());
-        assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
-            starting_charges: zkube_core::BONUS_CHARGE_CAP + 1,
-            ..valid
-        })
-        .is_err());
-
         for trigger_type in 1..=10 {
             for threshold in 0..=1 {
                 let snapshot = CampaignMapRuleSnapshot {
@@ -916,11 +873,10 @@ mod tests {
 
     #[test]
     fn content_release_requires_strict_versions_and_the_exact_campaign_set() {
-        assert!(validate_content_release_transition(1, 2, 3, 4, 10, 10).is_ok());
-        assert!(validate_content_release_transition(3, 2, 3, 4, 10, 10).is_err());
-        assert!(validate_content_release_transition(1, 4, 3, 4, 10, 10).is_err());
-        assert!(validate_content_release_transition(1, 2, 3, 4, 0, 0).is_err());
-        assert!(validate_content_release_transition(1, 2, 3, 4, 10, 9).is_err());
+        assert!(validate_content_release_transition(1, 3, 10, 10).is_ok());
+        assert!(validate_content_release_transition(3, 3, 10, 10).is_err());
+        assert!(validate_content_release_transition(1, 3, 0, 0).is_err());
+        assert!(validate_content_release_transition(1, 3, 10, 9).is_err());
     }
 
     #[test]

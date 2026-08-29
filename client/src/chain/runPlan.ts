@@ -57,9 +57,8 @@ import {
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
   mapDailyPressureProfile,
-  mapDailyScoringRule,
   type DailyPressureProfileView,
-  type DailyScoringRuleView,
+  type DailyThemeView,
 } from "./dailyRules.js";
 import {
   assertDeviceSignerCanPay,
@@ -176,9 +175,8 @@ export interface ActiveRunView extends EndlessRulesView {
   deadlineAt?: number;
   score: number;
   dailyScore: number;
-  dailyBonusTriggers: number;
   pressureScore: number;
-  dailyScoringRule: DailyScoringRuleView;
+  dailyTheme: DailyThemeView;
   dailyPressure: DailyPressureProfileView;
   actionCounter: number;
   moves: number;
@@ -226,7 +224,6 @@ export interface RawLevelRuleSnapshot {
   bonusType: unknown;
   bonusTriggerType: unknown;
   bonusThreshold: unknown;
-  startingCharges: unknown;
 }
 
 export function mapLevelRuleSnapshot(
@@ -252,7 +249,6 @@ export function mapLevelRuleSnapshot(
     bonusType: Number(rules.bonusType),
     bonusTriggerType: Number(rules.bonusTriggerType),
     bonusThreshold: Number(rules.bonusThreshold),
-    startingCharges: Number(rules.startingCharges),
   };
 }
 
@@ -268,7 +264,6 @@ export interface ActiveRunRulesView {
   bonusType: number;
   bonusTriggerType: number;
   bonusThreshold: number;
-  startingCharges: number;
 }
 
 export const VRF_QUEUE = new PublicKey(
@@ -926,9 +921,11 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     deadlineAt: Number(account.deadlineAt),
     score: Number(account.score),
     dailyScore: Number(account.dailyScore),
-    dailyBonusTriggers: Number(account.dailyBonusTriggers),
     pressureScore: Number(account.pressureScore),
-    dailyScoringRule: mapDailyScoringRule(account.dailyScoringRule),
+    dailyTheme: {
+      kind: Number(account.dailyTheme.kind),
+      value: Number(account.dailyTheme.value),
+    },
     dailyPressure,
     actionCounter: Number(account.actionCounter),
     moves: Number(account.moves),

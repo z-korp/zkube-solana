@@ -30,7 +30,6 @@ const activeRun = (): ActiveRunView => ({
     bonusType: 1,
     bonusTriggerType: 2,
     bonusThreshold: 3,
-    startingCharges: 1,
   },
   lifecycle: "levelComplete",
   score: 110,

@@ -111,7 +111,6 @@ interface PrizeTopUpApprovalPayload {
   programUpgradeAuthority: string;
   protocol: string;
   arcadeConfig: string;
-  rulesCatalog: string;
   authority: string;
   observedUnixTimestamp: number;
   currentCadences: Record<PrizePoolKind, number>;
@@ -372,7 +371,6 @@ export async function buildPrizeTopUpApproval(args: {
     connection,
     authority,
     operations,
-    key(arcadeConfig.value.rulesCatalog, "Arcade rules catalog"),
   );
   const latest = await connection.getLatestBlockhash("confirmed");
   transactionPlan.transaction.feePayer = authority;
@@ -422,10 +420,6 @@ export async function buildPrizeTopUpApproval(args: {
     programUpgradeAuthority: deployed.upgradeAuthority!,
     protocol: deriveProtocolConfigPda().toBase58(),
     arcadeConfig: deriveArcadeConfigPda().toBase58(),
-    rulesCatalog: key(
-      arcadeConfig.value.rulesCatalog,
-      "Arcade rules catalog",
-    ).toBase58(),
     authority: authority.toBase58(),
     observedUnixTimestamp,
     currentCadences,
@@ -468,7 +462,6 @@ async function executePrizeTopUp(
     connection,
     signer.publicKey,
     payload.operations,
-    new PublicKey(payload.rulesCatalog),
   );
   const rebuiltPublic = publicPlan(plan);
   if (
@@ -766,7 +759,6 @@ async function buildAtomicTopUpPlan(
   connection: Connection,
   authority: PublicKey,
   operations: readonly ResolvedPrizeTopUp[],
-  rulesCatalog: PublicKey,
 ): Promise<TransactionPlan> {
   const wallet = createReadOnlyWallet(authority);
   const transaction = new Transaction();
@@ -777,7 +769,6 @@ async function buildAtomicTopUpPlan(
       pool: operation.kind,
       cadenceId: operation.cadenceId,
       lamports: BigInt(operation.lamports),
-      rulesCatalog,
     });
     transaction.add(...plan.transaction.instructions);
   }
@@ -1132,7 +1123,6 @@ function validateApprovalPayload(payload: PrizeTopUpApprovalPayload): void {
   new PublicKey(payload.authority);
   new PublicKey(payload.protocol);
   new PublicKey(payload.arcadeConfig);
-  new PublicKey(payload.rulesCatalog);
   new PublicKey(payload.programDataAddress);
   new PublicKey(payload.programUpgradeAuthority);
   resolveOperations(

@@ -14,7 +14,6 @@ import {
   cadenceFundingPda,
   dailyContentSelection,
   playerFundingPda,
-  rulesCatalogPda,
   validationOnlyPlan,
   type KeeperInstructionPlan,
   type KeeperPlanContext,
@@ -28,26 +27,13 @@ const KEEPER = Keypair.generate().publicKey;
 
 describe("v5 keeper semantic policy", () => {
   it("accepts only the exact missing Daily successor", () => {
-    const catalogStartsDay = DAY - 10;
-    const poolEntries = Array.from({ length: 10 }, (_, index) => ({
-      realmMapId: index + 1,
-    }));
-    const content = dailyContentSelection(
-      catalogStartsDay,
-      DAY,
-      poolEntries.length,
-    );
-    const selected = poolEntries[content.poolIndex]!;
+    const content = dailyContentSelection(DAY);
     const plan = validationOnlyPlan("prepare_arena_daily", {
       dayId: DAY - 1,
       followingDayId: DAY,
       launchCadenceId: DAY - 10,
-      rulesCatalog: rulesCatalogPda(1),
       contentVersion: 2,
-      catalogStartsDay,
-      poolEntryCount: poolEntries.length,
-      poolEntries,
-      realmMapId: selected.realmMapId,
+      suspendedUntilDay: 0,
       ...content,
       cadenceFunding: cadenceFundingPda(),
     });
@@ -59,22 +45,16 @@ describe("v5 keeper semantic policy", () => {
   it("allows current activation before close and exact following preactivation", () => {
     expect(() => policy(validationOnlyPlan("activate_arena_daily", {
       dayId: DAY,
-      rulesCatalog: rulesCatalogPda(1),
-      catalogStartsDay: DAY - 10,
-      poolEntryCount: 10,
+      suspendedUntilDay: 0,
     }), DAY * SECONDS_PER_DAY + 1)).not.toThrow();
     expect(() => policy(validationOnlyPlan("activate_arena_daily", {
       dayId: DAY + 1,
-      rulesCatalog: rulesCatalogPda(1),
       preactivation: true,
-      catalogStartsDay: DAY - 10,
-      poolEntryCount: 10,
+      suspendedUntilDay: 0,
     }), DAY * SECONDS_PER_DAY + 1)).not.toThrow();
     expect(() => policy(validationOnlyPlan("activate_arena_daily", {
       dayId: DAY + 1,
-      rulesCatalog: rulesCatalogPda(1),
-      catalogStartsDay: DAY - 10,
-      poolEntryCount: 10,
+      suspendedUntilDay: 0,
     }), DAY * SECONDS_PER_DAY + 1)).toThrow("preactivation");
   });
 

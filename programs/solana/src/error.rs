@@ -110,6 +110,6 @@ pub enum ErrorCode {
     InvalidEmblem,
     #[msg("The provided period is not the canonical current or successor period")]
     InvalidPeriod,
-    #[msg("The first Daily pool was already seeded")]
+    #[msg("The first Daily was already seeded")]
     AlreadySeeded,
 }

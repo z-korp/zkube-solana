@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::state::arcade::{DailyBoardKind, RunMetrics as ArcadeRunMetrics};
-use crate::state::arena_rules::{DailyPressureProfile, DailyScoringRule};
+use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
@@ -45,7 +45,6 @@ pub struct ProtocolConfig {
     /// Chain/deployment-specific replay domain used by canonical replay v2.
     pub replay_domain: [u8; 32],
     pub content_version: u32,
-    pub daily_rules_version: u32,
     pub player_funding_target_lamports: u64,
     /// Number of contiguous, authority-activated Campaign maps.
     pub campaign_map_count: u8,
@@ -457,7 +456,6 @@ impl MapCatalog {
             bonus_type: map.bonus_type,
             bonus_trigger_type: map.bonus_trigger_type,
             bonus_threshold: map.bonus_threshold,
-            starting_charges: map.starting_charges,
             starting_rows: map.starting_rows,
         })
     }
@@ -473,7 +471,6 @@ pub struct CampaignMapRuleSnapshot {
     pub bonus_type: u8,
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
-    pub starting_charges: u8,
     pub starting_rows: u8,
 }
 
@@ -505,7 +502,6 @@ pub struct LevelRuleSnapshot {
     pub bonus_type: u8,
     pub bonus_trigger_type: u8,
     pub bonus_threshold: u16,
-    pub starting_charges: u8,
     pub starting_rows: u8,
 }
 
@@ -536,14 +532,12 @@ pub struct ActiveRun {
     pub next_row: [u8; 8],
     pub has_next_row: bool,
     pub score: u32,
-    /// Arena leaderboard score: engine score plus pressure-scaled challenge bonus.
+    /// Arena leaderboard score: pressure-scaled triangular action points.
     pub daily_score: u32,
-    /// Pressure-scaled points attributable only to the Daily objective.
+    /// Uncapped shared-kind increments attributable only to the Daily theme.
     pub objective_total: u64,
-    /// Number of actions that earned nonzero Daily challenge bonus credit.
-    pub daily_bonus_triggers: u16,
     pub pressure_score: u32,
-    pub daily_scoring_rule: DailyScoringRule,
+    pub daily_theme: DailyThemeSnapshot,
     pub daily_pressure: DailyPressureProfile,
     pub action_counter: u32,
     pub moves: u16,
@@ -604,9 +598,8 @@ impl Default for ActiveRun {
             score: 0,
             daily_score: 0,
             objective_total: 0,
-            daily_bonus_triggers: 0,
             pressure_score: 0,
-            daily_scoring_rule: DailyScoringRule::default(),
+            daily_theme: DailyThemeSnapshot::default(),
             daily_pressure: DailyPressureProfile::default(),
             action_counter: 0,
             moves: 0,
@@ -828,7 +821,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 548);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 541);
     }
 
     #[test]
@@ -858,7 +851,6 @@ mod tests {
             bonus_type: 1,
             bonus_trigger_type: 4,
             bonus_threshold: 3,
-            starting_charges: 1,
             starting_rows: 5,
             ..CampaignMapRuleSnapshot::default()
         };

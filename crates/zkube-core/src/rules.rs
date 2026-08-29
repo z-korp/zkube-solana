@@ -20,6 +20,8 @@ pub enum ConstraintKind {
     BigMove,
     BonusLinesInMove,
     PerfectClear,
+    ClutchClears,
+    CleanClears,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,6 +51,8 @@ impl ConstraintKind {
             14 => Self::BigMove,
             15 => Self::BonusLinesInMove,
             16 => Self::PerfectClear,
+            17 => Self::ClutchClears,
+            18 => Self::CleanClears,
             _ => return None,
         })
     }
@@ -73,6 +77,8 @@ impl ConstraintKind {
             Self::BigMove => 14,
             Self::BonusLinesInMove => 15,
             Self::PerfectClear => 16,
+            Self::ClutchClears => 17,
+            Self::CleanClears => 18,
         }
     }
 
@@ -87,7 +93,9 @@ impl ConstraintKind {
             | Self::BigMoves
             | Self::TriggerFired
             | Self::BonusLines
-            | Self::BonusBreaks => Some(ConstraintClass::Cumulative),
+            | Self::BonusBreaks
+            | Self::ClutchClears
+            | Self::CleanClears => Some(ConstraintClass::Cumulative),
             Self::ComboOfAtLeast
             | Self::ComboOfExactly
             | Self::Streak
@@ -126,6 +134,9 @@ impl Constraint {
             | ConstraintKind::BonusLines
             | ConstraintKind::BonusBreaks => self.value == 0 && self.required_count > 0,
             ConstraintKind::BigMoves => self.value > 0 && self.required_count > 0,
+            ConstraintKind::ClutchClears | ConstraintKind::CleanClears => {
+                self.value >= 1 && self.value <= 10 && self.required_count > 0
+            }
             ConstraintKind::ComboOfAtLeast | ConstraintKind::ComboOfExactly => {
                 self.value >= 2 && self.value <= 8 && self.required_count == 1
             }
@@ -156,13 +167,11 @@ impl Constraint {
         self.is_present() && progress >= self.required_count
     }
 
-    fn update(
-        self,
-        current: u8,
-        report: &MoveReport,
-        charges_earned: u8,
-        level_lines_cleared: u16,
-    ) -> u8 {
+    /// Return the uncapped progress contributed by one resolved action.
+    /// Daily objectives sum this value directly; Campaign constraints cap the
+    /// same value at their authored `required_count`.
+    #[must_use]
+    pub fn action_increment(self, report: &MoveReport) -> u8 {
         let destroyed = |width: u8| {
             if width == 0 {
                 report.blocks_destroyed_by_size.into_iter().sum()
@@ -175,59 +184,94 @@ impl Constraint {
             }
         };
         let player_move = !report.action_was_bonus;
-        let completed = |condition: bool| {
-            if condition { self.required_count } else { 0 }
-        };
         match self.kind {
-            ConstraintKind::None => current,
-            ConstraintKind::ClearLines => u8::try_from(level_lines_cleared)
-                .unwrap_or(u8::MAX)
-                .min(self.required_count),
-            ConstraintKind::BreakBlocks => current
-                .saturating_add(destroyed(self.value))
-                .min(self.required_count),
+            ConstraintKind::None => 0,
+            ConstraintKind::ClearLines => report.lines_cleared,
+            ConstraintKind::BreakBlocks => destroyed(self.value),
             ConstraintKind::CombosOfAtLeast => {
-                if player_move && report.lines_cleared >= self.value {
-                    current.saturating_add(1).min(self.required_count)
-                } else {
-                    current
-                }
+                u8::from(player_move && report.lines_cleared >= self.value)
             }
             ConstraintKind::CombosOfExactly => {
-                if player_move && report.lines_cleared == self.value {
-                    current.saturating_add(1).min(self.required_count)
-                } else {
-                    current
-                }
+                u8::from(player_move && report.lines_cleared == self.value)
             }
             ConstraintKind::BigMoves => {
-                if player_move && report.points_earned >= u32::from(self.value) {
-                    current.saturating_add(1).min(self.required_count)
-                } else {
-                    current
-                }
+                u8::from(player_move && report.points_earned >= u32::from(self.value))
             }
-            ConstraintKind::TriggerFired => charges_earned.min(self.required_count),
-            ConstraintKind::BonusLines => current
-                .saturating_add(if report.action_was_bonus {
+            ConstraintKind::TriggerFired => report.charges_earned,
+            ConstraintKind::BonusLines => {
+                if report.action_was_bonus {
                     report.lines_cleared
                 } else {
                     0
-                })
-                .min(self.required_count),
-            ConstraintKind::BonusBreaks => current
-                .saturating_add(if report.action_was_bonus {
+                }
+            }
+            ConstraintKind::BonusBreaks => {
+                if report.action_was_bonus {
                     destroyed(0)
                 } else {
                     0
-                })
-                .min(self.required_count),
+                }
+            }
+            ConstraintKind::ClutchClears => {
+                u8::from(report.lines_cleared > 0 && report.height_before >= self.value)
+            }
+            ConstraintKind::CleanClears => {
+                u8::from(report.lines_cleared > 0 && report.height_after <= self.value)
+            }
             ConstraintKind::ComboOfAtLeast => {
-                completed(player_move && report.lines_cleared >= self.value)
+                u8::from(player_move && report.lines_cleared >= self.value)
             }
             ConstraintKind::ComboOfExactly => {
-                completed(player_move && report.lines_cleared == self.value)
+                u8::from(player_move && report.lines_cleared == self.value)
             }
+            ConstraintKind::Streak => u8::from(player_move && report.lines_cleared >= self.value),
+            ConstraintKind::BreakInMove => {
+                if player_move {
+                    destroyed(self.value)
+                } else {
+                    0
+                }
+            }
+            ConstraintKind::AllWidthsInMove => u8::from(
+                player_move
+                    && report
+                        .blocks_destroyed_by_size
+                        .iter()
+                        .all(|destroyed| *destroyed > 0),
+            ),
+            ConstraintKind::BigMove => {
+                u8::from(player_move && report.points_earned >= u32::from(self.value))
+            }
+            ConstraintKind::BonusLinesInMove => {
+                u8::from(report.action_was_bonus && report.lines_cleared >= self.value)
+            }
+            ConstraintKind::PerfectClear => u8::from(report.perfect_clear),
+        }
+    }
+
+    fn update(self, current: u8, report: &MoveReport) -> u8 {
+        match self.kind {
+            ConstraintKind::None => current,
+            ConstraintKind::ClearLines
+            | ConstraintKind::BreakBlocks
+            | ConstraintKind::CombosOfAtLeast
+            | ConstraintKind::CombosOfExactly
+            | ConstraintKind::BigMoves
+            | ConstraintKind::TriggerFired
+            | ConstraintKind::BonusLines
+            | ConstraintKind::BonusBreaks
+            | ConstraintKind::ClutchClears
+            | ConstraintKind::CleanClears => current
+                .saturating_add(self.action_increment(report))
+                .min(self.required_count),
+            ConstraintKind::ComboOfAtLeast
+            | ConstraintKind::ComboOfExactly
+            | ConstraintKind::AllWidthsInMove
+            | ConstraintKind::BigMove
+            | ConstraintKind::BonusLinesInMove
+            | ConstraintKind::PerfectClear => self
+                .action_increment(report)
+                .saturating_mul(self.required_count),
             ConstraintKind::Streak => {
                 if report.action_was_bonus {
                     current
@@ -237,27 +281,7 @@ impl Constraint {
                     0
                 }
             }
-            ConstraintKind::BreakInMove => {
-                if player_move {
-                    destroyed(self.value).min(self.required_count)
-                } else {
-                    0
-                }
-            }
-            ConstraintKind::AllWidthsInMove => completed(
-                player_move
-                    && report
-                        .blocks_destroyed_by_size
-                        .iter()
-                        .all(|destroyed| *destroyed > 0),
-            ),
-            ConstraintKind::BigMove => {
-                completed(player_move && report.points_earned >= u32::from(self.value))
-            }
-            ConstraintKind::BonusLinesInMove => {
-                completed(report.action_was_bonus && report.lines_cleared >= self.value)
-            }
-            ConstraintKind::PerfectClear => completed(report.perfect_clear),
+            ConstraintKind::BreakInMove => self.action_increment(report).min(self.required_count),
         }
     }
 }
@@ -928,18 +952,8 @@ impl RunEngine {
             .bonus_charges
             .saturating_add(charges.min(u16::from(u8::MAX)) as u8)
             .min(BONUS_CHARGE_CAP);
-        self.primary_progress = level.primary.update(
-            self.primary_progress,
-            &report,
-            self.charges_earned,
-            self.level_lines_cleared,
-        );
-        self.secondary_progress = level.secondary.update(
-            self.secondary_progress,
-            &report,
-            self.charges_earned,
-            self.level_lines_cleared,
-        );
+        self.primary_progress = level.primary.update(self.primary_progress, &report);
+        self.secondary_progress = level.secondary.update(self.secondary_progress, &report);
 
         // Each authored source latches independently after all action facts
         // and constraint progress are current. `None` is never a source.
@@ -1066,6 +1080,7 @@ mod tests {
                 .min(u32::from(u16::MAX)) as u16;
             let mut needs_next_row = true;
             let mut action_was_bonus = false;
+            let mut height_before = 0;
             match constraint.kind {
                 ConstraintKind::None | ConstraintKind::PerfectClear => {}
                 ConstraintKind::CombosOfAtLeast | ConstraintKind::ComboOfAtLeast => {
@@ -1127,10 +1142,13 @@ mod tests {
                 }
                 ConstraintKind::Streak => lines = constraint.value,
                 ConstraintKind::AllWidthsInMove => block_cells_before = [1, 2, 3, 4],
+                ConstraintKind::ClutchClears => height_before = constraint.value,
+                ConstraintKind::CleanClears => {}
             }
             let triangular = u16::from(lines) * u16::from(lines + 1) / 2;
             (
                 ActionContext {
+                    height_before,
                     block_cells_before,
                     lines,
                     base_point_parts: [base_points.max(triangular), 0],
@@ -1863,6 +1881,8 @@ mod tests {
         let player = MoveReport {
             lines_cleared: 3,
             points_earned: 40,
+            height_before: 8,
+            height_after: 3,
             perfect_clear: true,
             blocks_destroyed_by_size: [4, 3, 2, 1],
             ..MoveReport::default()
@@ -1871,19 +1891,22 @@ mod tests {
             action_was_bonus: true,
             ..player
         };
-        let progress = |kind, value, count, current, report, _streak, charges, lines| {
-            Constraint {
-                kind,
-                value,
-                required_count: count,
-            }
-            .update(current, report, charges, lines)
-        };
+        let progress =
+            |kind, value, count, current, report: &MoveReport, _streak, charges, _lines| {
+                let mut action = *report;
+                action.charges_earned = charges;
+                Constraint {
+                    kind,
+                    value,
+                    required_count: count,
+                }
+                .update(current, &action)
+            };
 
         assert_eq!(progress(ConstraintKind::None, 0, 0, 2, &player, 0, 0, 0), 2);
         assert_eq!(
             progress(ConstraintKind::ClearLines, 0, 12, 0, &player, 0, 0, 12),
-            12
+            3
         );
         assert_eq!(
             progress(ConstraintKind::BreakBlocks, 0, 8, 0, &player, 0, 0, 0),
@@ -1912,6 +1935,14 @@ mod tests {
         assert_eq!(
             progress(ConstraintKind::BonusBreaks, 0, 10, 0, &bonus, 0, 0, 0),
             10
+        );
+        assert_eq!(
+            progress(ConstraintKind::ClutchClears, 7, 3, 1, &player, 0, 0, 0),
+            2
+        );
+        assert_eq!(
+            progress(ConstraintKind::CleanClears, 4, 3, 1, &player, 0, 0, 0),
+            2
         );
         assert_eq!(
             progress(ConstraintKind::ComboOfAtLeast, 3, 1, 0, &player, 0, 0, 0),
@@ -1959,12 +1990,12 @@ mod tests {
 
     #[test]
     fn constraint_classes_and_tags_are_exhaustive_and_stable() {
-        for tag in 0..=16 {
+        for tag in 0..=18 {
             let kind = ConstraintKind::from_tag(tag).unwrap();
             assert_eq!(kind.tag(), tag);
             assert_eq!(kind.class().is_none(), tag == 0);
         }
-        assert!(ConstraintKind::from_tag(17).is_none());
+        assert!(ConstraintKind::from_tag(19).is_none());
         assert_eq!(
             ConstraintKind::CombosOfAtLeast.class(),
             Some(ConstraintClass::Cumulative)

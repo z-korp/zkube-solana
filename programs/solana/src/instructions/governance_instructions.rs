@@ -2,7 +2,9 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::instructions::content_instructions::validate_team_destination;
-use crate::state::protocol::{ProtocolConfig, ACCOUNT_VERSION, PROTOCOL_CONFIG_SEED};
+use crate::state::{
+    ArcadeConfig, ProtocolConfig, ACCOUNT_VERSION, ARCADE_CONFIG_SEED, PROTOCOL_CONFIG_SEED,
+};
 
 #[derive(Accounts)]
 pub struct SetProtocolPause<'info> {
@@ -26,6 +28,43 @@ pub fn handler_set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) 
     emit!(ProtocolPauseChanged {
         authority: ctx.accounts.authority.key(),
         paused,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct SetArenaSuspension<'info> {
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = protocol.bump,
+        has_one = authority @ ErrorCode::Unauthorized,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+    )]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        mut,
+        seeds = [ARCADE_CONFIG_SEED],
+        bump = arcade_config.bump,
+        constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner
+    )]
+    pub arcade_config: Box<Account<'info, ArcadeConfig>>,
+    pub authority: Signer<'info>,
+}
+
+pub fn handler_set_arena_suspension(
+    ctx: Context<SetArenaSuspension>,
+    suspended_until_day: u32,
+) -> Result<()> {
+    require!(
+        ctx.accounts.arcade_config.suspended_until_day != suspended_until_day,
+        ErrorCode::InvalidState
+    );
+    let previous = ctx.accounts.arcade_config.suspended_until_day;
+    ctx.accounts.arcade_config.suspended_until_day = suspended_until_day;
+    emit!(ArenaSuspensionChanged {
+        authority: ctx.accounts.authority.key(),
+        previous,
+        suspended_until_day,
     });
     Ok(())
 }
@@ -125,6 +164,13 @@ pub fn handler_update_team_destination(ctx: Context<UpdateTeamDestination>) -> R
 pub struct ProtocolPauseChanged {
     pub authority: Pubkey,
     pub paused: bool,
+}
+
+#[event]
+pub struct ArenaSuspensionChanged {
+    pub authority: Pubkey,
+    pub previous: u32,
+    pub suspended_until_day: u32,
 }
 
 #[event]

@@ -22,7 +22,6 @@ import { PublicKey } from "@solana/web3.js";
 import { BonusType } from "@/chain/bonusTypes";
 import {
   CANONICAL_DAILY_PRESSURE,
-  CANONICAL_DAILY_SCORING_RULES,
 } from "@/chain/dailyRules";
 import {
   CAMPAIGN_CONTENT_VERSION,
@@ -85,12 +84,11 @@ function campaignRules(): ActiveRunRulesView {
     bonusType: map.mapRules.bonusType,
     bonusTriggerType: map.mapRules.bonusTriggerType,
     bonusThreshold: map.mapRules.bonusThreshold,
-    startingCharges: map.mapRules.startingCharges,
   };
 }
 
 /**
- * Exactly what `daily_level_rules` builds on chain from the pool entry and the
+ * Exactly what `daily_level_rules` builds on chain from the drawn realm and
  * pressure profile: an unreachable points target (the Daily is not a level to
  * clear), the profile's move budget, difficulty zero, and the realm's mutators.
  * Inventing friendlier numbers here would make the HUD lie about the run it is
@@ -108,7 +106,6 @@ const ARENA_RULES: ActiveRunRulesView = {
   bonusType: BonusType.Hammer,
   bonusTriggerType: 2,
   bonusThreshold: 4,
-  startingCharges: 1,
 };
 
 /**
@@ -144,9 +141,8 @@ export function buildDevActiveRun(
     deadlineAt: isArena ? nowUnix + 4 * 3_600 : 0,
     score,
     dailyScore: isArena ? 24_180 : 0,
-    dailyBonusTriggers: isArena ? 3 : 0,
     pressureScore: isArena ? 1_240 : 0,
-    dailyScoringRule: CANONICAL_DAILY_SCORING_RULES[1]!,
+    dailyTheme: { kind: 3, value: 2 },
     dailyPressure: CANONICAL_DAILY_PRESSURE,
     actionCounter: moves + 1,
     moves,

@@ -1,15 +1,15 @@
 use crate::{
-    ActionMetrics, BONUS_CHARGE_CAP, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
-    DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
-    ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics,
-    RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
-    continuation_from_vrf, derive_player_id, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
-    score_daily_objective,
+    ActionMetrics, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyTheme, MetricsError,
+    MutatorRules, PlayerId, RandomnessError, ReplayCommitment, ReplayEvent, ReplayMode, RulesHash,
+    RunEngine, RunError, RunMetrics, RunPhase, Sha256Provider, SoftwareSha256,
+    bonus_trigger_threshold_is_valid, continuation_from_vrf, derive_player_id, opening_from_vrf,
+    reroll_row_from_vrf, row_from_vrf,
 };
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
-const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v2";
-pub const CANONICAL_DAILY_RULES_LEN: usize = 140;
+const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
+pub const RULES_VERSION: u32 = 1;
+pub const CANONICAL_DAILY_RULES_LEN: usize = 137;
 pub const DAILY_MAX_MOVES: u16 = 100;
 const PRESSURE_TIER_COUNT: usize = 8;
 
@@ -87,10 +87,9 @@ pub struct DailyRunRules {
     /// Base mutator before the current pressure multiplier is applied.
     pub mutator: MutatorRules,
     pub bonus: Option<Bonus>,
-    pub starting_bonus_charges: u8,
-    /// Pool-entry opening height snapshotted with the run.
+    /// Realm opening height snapshotted with the run.
     pub starting_height: u8,
-    pub objective: DailyObjectiveRule,
+    pub objective: DailyTheme,
     pub pressure: DailyPressureRules,
 }
 
@@ -112,19 +111,15 @@ pub const fn neutral_daily_mutator_rules(
 impl DailyRunRules {
     #[must_use]
     pub fn is_valid(self) -> bool {
-        let bonus_valid = match self.bonus {
-            None => self.starting_bonus_charges == 0,
-            Some(_) => self.starting_bonus_charges <= BONUS_CHARGE_CAP,
-        };
         self.max_moves > 0
             && bonus_trigger_threshold_is_valid(
                 self.mutator.bonus_trigger_type,
                 self.mutator.bonus_threshold,
             )
-            && bonus_valid
+            && self.bonus.is_some()
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)
-            && self.objective.is_valid()
+            && crate::DAILY_THEMES.contains(&self.objective)
             && self.pressure.is_valid()
             && self
                 .pressure
@@ -141,14 +136,8 @@ impl DailyRunRules {
         encoded.push(&self.mutator.perfect_clear_bonus.to_le_bytes());
         encoded.push(&[self.mutator.bonus_trigger_type]);
         encoded.push(&self.mutator.bonus_threshold.to_le_bytes());
-        encoded.push(&[
-            bonus_tag(self.bonus),
-            self.starting_bonus_charges,
-            self.starting_height,
-        ]);
-        let (objective_tag, objective_parameter) = objective_encoding(self.objective.objective);
-        encoded.push(&[objective_tag, objective_parameter]);
-        encoded.push(&self.objective.bonus_multiplier_x100.to_le_bytes());
+        encoded.push(&[bonus_tag(self.bonus), self.starting_height]);
+        encoded.push(&[self.objective.kind.tag(), self.objective.value]);
         for threshold in self.pressure.thresholds {
             encoded.push(&threshold.to_le_bytes());
         }
@@ -258,7 +247,6 @@ pub enum SimulationError {
     Overflow,
     Engine(RunError),
     Randomness(RandomnessError),
-    DailyScoring(DailyScoringError),
     Metrics(MetricsError),
 }
 
@@ -271,12 +259,6 @@ impl From<RunError> for SimulationError {
 impl From<RandomnessError> for SimulationError {
     fn from(error: RandomnessError) -> Self {
         Self::Randomness(error)
-    }
-}
-
-impl From<DailyScoringError> for SimulationError {
-    fn from(error: DailyScoringError) -> Self {
-        Self::DailyScoring(error)
     }
 }
 
@@ -321,7 +303,7 @@ impl DailySimulation {
             engine: RunEngine {
                 phase: RunPhase::AwaitingVrf,
                 bonus: config.rules.bonus,
-                bonus_charges: config.rules.starting_bonus_charges,
+                bonus_charges: 0,
                 starting_height_target: config.rules.starting_height,
                 ..RunEngine::default()
             },
@@ -553,8 +535,7 @@ impl DailySimulation {
         report: crate::MoveReport,
         combo_before: u8,
     ) -> Result<(), SimulationError> {
-        let pressure_multiplier = rules.pressure.multiplier(self.current_difficulty);
-        let objective = score_daily_objective(rules.objective, &report, pressure_multiplier)?;
+        let objective_increment = rules.objective.action_increment(&report);
         let blocks_destroyed = report
             .blocks_destroyed_by_size
             .into_iter()
@@ -579,16 +560,14 @@ impl DailySimulation {
         self.daily_score = self
             .daily_score
             .checked_add(report.points_earned)
-            .and_then(|score| score.checked_add(objective.awarded_bonus))
             .ok_or(SimulationError::Overflow)?;
         self.objective_total = self
             .objective_total
-            .checked_add(u64::from(objective.awarded_bonus))
+            .checked_add(u64::from(objective_increment))
             .ok_or(SimulationError::Overflow)?;
         self.pressure_score = self
             .pressure_score
             .checked_add(report.neutral_points_earned)
-            .and_then(|score| score.checked_add(objective.weighted_raw_bonus))
             .ok_or(SimulationError::Overflow)?;
         self.current_difficulty = rules.pressure.difficulty_for_score(self.pressure_score);
         self.action_counter = self
@@ -608,40 +587,70 @@ fn daily_level_rules(rules: DailyRunRules) -> crate::LevelRules {
     }
 }
 
-/// Reproduce the Daily challenge hash stored by the Solana program. The
-/// catalog hash is independently bound to the published full catalog; this
-/// function binds its selected day, revision, theme, and objective variant.
+/// Reproduce the Daily rules identity stored by the Solana program.
 #[must_use]
-pub fn daily_challenge_rules_hash(
+pub fn daily_rules_hash(
     day_id: u32,
-    catalog_hash: [u8; 32],
-    rules_version: u32,
-    theme_id: u8,
-    scoring_rule_id: u8,
+    content_version: u32,
+    mutator: MutatorRules,
+    bonus: Bonus,
+    starting_height: u8,
+    objective: DailyTheme,
 ) -> RulesHash {
-    daily_challenge_rules_hash_with::<SoftwareSha256>(
+    daily_rules_hash_with::<SoftwareSha256>(
         day_id,
-        catalog_hash,
-        rules_version,
-        theme_id,
-        scoring_rule_id,
+        content_version,
+        mutator,
+        bonus,
+        starting_height,
+        objective,
     )
 }
 
 #[must_use]
-pub fn daily_challenge_rules_hash_with<H: Sha256Provider>(
+pub fn daily_rules_hash_with<H: Sha256Provider>(
     day_id: u32,
-    catalog_hash: [u8; 32],
+    content_version: u32,
+    mutator: MutatorRules,
+    bonus: Bonus,
+    starting_height: u8,
+    objective: DailyTheme,
+) -> RulesHash {
+    daily_rules_hash_components_with::<H>(
+        day_id,
+        content_version,
+        mutator,
+        bonus,
+        starting_height,
+        objective,
+        RULES_VERSION,
+    )
+}
+
+fn daily_rules_hash_components_with<H: Sha256Provider>(
+    day_id: u32,
+    content_version: u32,
+    mutator: MutatorRules,
+    bonus: Bonus,
+    starting_height: u8,
+    objective: DailyTheme,
     rules_version: u32,
-    theme_id: u8,
-    scoring_rule_id: u8,
 ) -> RulesHash {
     RulesHash(H::hashv(&[
         DAILY_CHALLENGE_RULES_HASH_DOMAIN,
         &day_id.to_le_bytes(),
-        &catalog_hash,
+        &content_version.to_le_bytes(),
+        &mutator.line_clear_bonus.to_le_bytes(),
+        &mutator.perfect_clear_bonus.to_le_bytes(),
+        &[mutator.bonus_trigger_type],
+        &mutator.bonus_threshold.to_le_bytes(),
+        &[
+            bonus_tag(Some(bonus)),
+            starting_height,
+            objective.kind.tag(),
+            objective.value,
+        ],
         &rules_version.to_le_bytes(),
-        &[theme_id, scoring_rule_id],
     ]))
 }
 
@@ -654,18 +663,6 @@ const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
     }
 }
 
-const fn objective_encoding(objective: DailyObjective) -> (u8, u8) {
-    match objective {
-        DailyObjective::Classic => (0, 0),
-        DailyObjective::Combo { minimum_lines } => (1, minimum_lines),
-        DailyObjective::ExactLines { lines } => (2, lines),
-        DailyObjective::Blocks { size } => (3, size),
-        DailyObjective::Clutch { minimum_height } => (4, minimum_height),
-        DailyObjective::Clean { maximum_height } => (5, maximum_height),
-        DailyObjective::Survival => (6, 0),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -674,13 +671,9 @@ mod tests {
         DailyRunRules {
             max_moves: 100,
             mutator: MutatorRules::default(),
-            bonus: None,
-            starting_bonus_charges: 0,
+            bonus: Some(Bonus::Wave),
             starting_height: 4,
-            objective: DailyObjectiveRule {
-                objective: DailyObjective::Survival,
-                bonus_multiplier_x100: 100,
-            },
+            objective: crate::DAILY_THEMES[1],
             pressure: DailyPressureRules::canonical(),
         }
     }
@@ -739,10 +732,7 @@ mod tests {
         changed.pressure.block_weights[7][4] -= 1;
         assert_ne!(baseline.snapshot_hash(), changed.snapshot_hash());
         changed = baseline;
-        changed.objective = DailyObjectiveRule {
-            objective: DailyObjective::Combo { minimum_lines: 2 },
-            bonus_multiplier_x100: 200,
-        };
+        changed.objective = crate::DAILY_THEMES[2];
         assert_ne!(baseline.snapshot_hash(), changed.snapshot_hash());
         changed = baseline;
         changed.starting_height += 1;
@@ -754,14 +744,112 @@ mod tests {
     }
 
     #[test]
-    fn daily_rules_enforce_the_shared_bonus_charge_cap() {
-        let mut rules = rules();
-        rules.bonus = Some(Bonus::Hammer);
-        rules.starting_bonus_charges = BONUS_CHARGE_CAP;
-        assert!(rules.is_valid());
+    fn daily_rules_hash_binds_day_realm_objective_and_protocol_constants() {
+        let rules = rules();
+        let baseline = daily_rules_hash(
+            32_000,
+            2,
+            rules.mutator,
+            rules.bonus.unwrap(),
+            rules.starting_height,
+            rules.objective,
+        );
+        let changed = |day_id, content_version, mutator, bonus, starting_height, objective| {
+            daily_rules_hash(
+                day_id,
+                content_version,
+                mutator,
+                bonus,
+                starting_height,
+                objective,
+            )
+        };
+        assert_ne!(
+            baseline,
+            changed(
+                32_000 + u32::try_from(crate::DAILY_PAIR_COUNT).unwrap(),
+                2,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                rules.objective
+            )
+        );
+        assert_ne!(
+            baseline,
+            changed(
+                32_000,
+                3,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                rules.objective
+            )
+        );
+        let mut guardian = rules.mutator;
+        guardian.bonus_threshold += 1;
+        assert_ne!(
+            baseline,
+            changed(
+                32_000,
+                2,
+                guardian,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                rules.objective
+            )
+        );
+        assert_ne!(
+            baseline,
+            changed(
+                32_000,
+                2,
+                rules.mutator,
+                Bonus::Hammer,
+                rules.starting_height,
+                rules.objective
+            )
+        );
+        assert_ne!(
+            baseline,
+            changed(
+                32_000,
+                2,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height + 1,
+                rules.objective
+            )
+        );
+        assert_ne!(
+            baseline,
+            changed(
+                32_000,
+                2,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                crate::DAILY_THEMES[2]
+            )
+        );
+        assert_ne!(
+            baseline,
+            daily_rules_hash_components_with::<SoftwareSha256>(
+                32_000,
+                2,
+                rules.mutator,
+                rules.bonus.unwrap(),
+                rules.starting_height,
+                rules.objective,
+                RULES_VERSION + 1,
+            )
+        );
+    }
 
-        rules.starting_bonus_charges = BONUS_CHARGE_CAP + 1;
-        assert!(!rules.is_valid());
+    #[test]
+    fn daily_runs_start_without_guardian_charges() {
+        let simulation = DailySimulation::new(config()).unwrap();
+        assert_eq!(simulation.engine.bonus_charges, 0);
     }
 
     #[test]

@@ -11,7 +11,6 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveDailyRulesCatalogPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   derivePlayerFundingPda,
@@ -26,13 +25,8 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 import BN from "bn.js";
-import {
-  CANONICAL_DAILY_PRESSURE,
-  CANONICAL_DAILY_SCORING_RULES,
-  dailyContentSelection,
-} from "./dailyRules";
+import { dailyContentSelection } from "./dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
-import { DAILY_POOL } from "./dailyPool.generated";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
 const U64_MAX = (1n << 64n) - 1n;
@@ -181,11 +175,9 @@ export async function buildActivateContentReleasePlan(args: {
   connection: Connection;
   authority: WalletLike;
   contentVersion: number;
-  dailyRulesVersion: number;
   campaignMapCount?: number;
 }): Promise<TransactionPlan> {
   assertPositiveInteger(args.contentVersion, "contentVersion");
-  assertPositiveInteger(args.dailyRulesVersion, "dailyRulesVersion");
   const campaignMapCount =
     args.campaignMapCount ?? CANONICAL_CAMPAIGN_MAP_COUNT;
   if (
@@ -200,12 +192,10 @@ export async function buildActivateContentReleasePlan(args: {
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.activateContentRelease(
       args.contentVersion,
-      args.dailyRulesVersion,
       campaignMapCount,
     )
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.dailyRulesVersion),
       authority: args.authority.publicKey,
     })
     .remainingAccounts(
@@ -244,36 +234,22 @@ export async function buildSetProtocolPausePlan(args: {
   );
 }
 
-export async function buildPublishCanonicalArenaRulesPlan(args: {
+export async function buildSetArenaSuspensionPlan(args: {
   connection: Connection;
   authority: WalletLike;
-  contentVersion: number;
-  rulesVersion: number;
-  startsDay: number;
+  untilDay: number;
 }): Promise<TransactionPlan> {
-  assertPositiveInteger(args.contentVersion, "contentVersion");
-  assertPositiveInteger(args.rulesVersion, "rulesVersion");
-  assertU32(args.startsDay, "startsDay");
-  const poolEntries = canonicalDailyPoolEntries(args.contentVersion);
+  assertU32(args.untilDay, "untilDay");
   const instruction = await zkubeProgram(args.connection, args.authority)
-    .methods.publishArenaRules({
-      contentVersion: args.contentVersion,
-      rulesVersion: args.rulesVersion,
-      poolRevision: 1,
-      startsDay: args.startsDay,
-      poolEntryCount: poolEntries.length,
-      poolEntries,
-      pressure: cloneDailyPressure(),
-    })
+    .methods.setArenaSuspension(args.untilDay)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
+      arcadeConfig: deriveArcadeConfigPda(),
       authority: args.authority.publicKey,
-      systemProgram: SystemProgram.programId,
     })
     .instruction();
   return basePlan(
-    `Publish Arena rules v${args.rulesVersion}`,
+    `Set Arena suspension until day ${args.untilDay}`,
     args.connection,
     args.authority.publicKey,
     [instruction],
@@ -283,14 +259,11 @@ export async function buildPublishCanonicalArenaRulesPlan(args: {
 export async function buildInitializeArcadePlan(args: {
   connection: Connection;
   authority: WalletLike;
-  rulesVersion: number;
 }): Promise<TransactionPlan> {
-  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.initializeArcade()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arcadeConfig: deriveArcadeConfigPda(),
       operatorRevenueVault: deriveOperatorRevenueVaultPda(),
       creditVault: deriveCreditVaultPda(),
@@ -310,10 +283,8 @@ export async function buildInitializeArcadeArchivePlan(args: {
   connection: Connection;
   authority: WalletLike;
   firstDayId: number;
-  rulesVersion: number;
 }): Promise<TransactionPlan> {
   assertU32(args.firstDayId, "firstDayId");
-  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   const archiveInstruction = await zkubeProgram(
     args.connection,
     args.authority,
@@ -322,7 +293,6 @@ export async function buildInitializeArcadeArchivePlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
-      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arcadeArchive: deriveArcadeArchivePda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -345,34 +315,24 @@ export async function buildInitializeArcadeArchivePlan(args: {
 export async function buildPrepareLaunchPeriodPlans(args: {
   connection: Connection;
   authority: WalletLike;
-  rulesVersion: number;
   dayId: number;
   contentVersion: number;
 }): Promise<TransactionPlan[]> {
-  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   assertU32(args.dayId, "dayId");
   const program = zkubeProgram(args.connection, args.authority);
   const plans: TransactionPlan[] = [];
-  const poolEntries = canonicalDailyPoolEntries(args.contentVersion);
   for (const dayId of [args.dayId, args.dayId + 1]) {
     assertU32(dayId, "dayId");
-    const content = await dailyContentSelection(
-      args.dayId,
-      dayId,
-      poolEntries.length,
-    );
-    const entry = poolEntries[content.poolIndex];
-    if (!entry) throw new Error("selected Daily pool entry is unavailable");
+    const content = await dailyContentSelection(dayId);
     const instruction = await program.methods
       .prepareArenaDaily(dayId)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
         arcadeArchive: deriveArcadeArchivePda(),
-        dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
         realmMapCatalog: deriveMapCatalogPda(
           args.contentVersion,
-          entry.realmMapId,
+          content.realmMapId,
         ),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
@@ -400,10 +360,8 @@ export async function buildAtomicArcadeLaunchPlan(args: {
   connection: Connection;
   authority: WalletLike;
   dayId: number;
-  rulesVersion: number;
 }): Promise<TransactionPlan> {
   assertU32(args.dayId, "dayId");
-  assertPositiveInteger(args.rulesVersion, "rulesVersion");
   const program = zkubeProgram(args.connection, args.authority);
   const seed = await program.methods
     .seedLaunchPools(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
@@ -426,7 +384,6 @@ export async function buildAtomicArcadeLaunchPlan(args: {
     .activateArenaDaily()
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      dailyRulesCatalog: deriveDailyRulesCatalogPda(args.rulesVersion),
       arenaDaily: deriveArenaDailyPda(args.dayId),
       caller: args.authority.publicKey,
     })
@@ -449,7 +406,6 @@ export async function buildTopUpPrizePoolPlan(args: {
   pool: PrizePoolKind;
   cadenceId: number;
   lamports: bigint;
-  rulesCatalog: PublicKey;
 }): Promise<TransactionPlan> {
   assertU32(args.cadenceId, "cadenceId");
   if (args.lamports <= 0n || args.lamports > U64_MAX) {
@@ -462,7 +418,6 @@ export async function buildTopUpPrizePoolPlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
-      dailyRulesCatalog: args.rulesCatalog,
       arenaDaily: deriveArenaDailyPda(args.cadenceId),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -522,45 +477,4 @@ function assertU32(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
     throw new Error(`${label} must fit in u32`);
   }
-}
-
-function cloneDailyPressure() {
-  return {
-    ...CANONICAL_DAILY_PRESSURE,
-    thresholds: [...CANONICAL_DAILY_PRESSURE.thresholds],
-    scoreMultipliersX100: [
-      ...CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
-    ],
-    blockWeights: CANONICAL_DAILY_PRESSURE.blockWeights.map((weights) => [
-      ...weights,
-    ]),
-  };
-}
-
-function canonicalDailyPoolEntries(contentVersion: number) {
-  // Ten is the minimum complete pool: one entry per realm, all seven objective
-  // families, and three alternate family variants. Across 365 real draw days
-  // every entry appears 36-37 times; four cycle-boundary repeats (1.1%) do not
-  // justify authoring padding or adding a repeat-suppression rule.
-  const entries = DAILY_POOL.entries.map((authored) => {
-    const realm = canonicalCampaignMap(contentVersion, authored.realmMapId);
-    const scoringRule = CANONICAL_DAILY_SCORING_RULES[authored.scoringIndex];
-    if (!scoringRule) {
-      throw new Error(
-        `Daily pool entry ${authored.id} has no canonical scoring rule`,
-      );
-    }
-    return {
-      id: authored.id,
-      realmMapId: authored.realmMapId,
-      activeMutatorId: realm.mapRules.activeMutatorId,
-      scoringRule: { ...scoringRule },
-      bonusType: realm.mapRules.bonusType,
-      bonusTriggerType: realm.mapRules.bonusTriggerType,
-      bonusThreshold: realm.mapRules.bonusThreshold,
-      startingCharges: realm.mapRules.startingCharges,
-      startingRows: authored.startingRows,
-    };
-  });
-  return entries;
 }

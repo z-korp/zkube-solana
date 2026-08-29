@@ -1,83 +1,146 @@
-use crate::{Sha256Provider, SoftwareSha256};
+use crate::{Constraint, ConstraintKind, MoveReport, Sha256Provider, SoftwareSha256};
 
-pub const DAILY_POOL_CAPACITY: usize = 128;
-/// Protocol-fixed permutation seed. A catalog publisher can author the pool,
-/// but cannot grind this value to choose which entry lands on a given day.
-pub const DAILY_POOL_SELECTION_SEED: [u8; 32] = *b"zkube-daily-pool-v01-public-seed";
-const DAILY_POOL_DRAW_DOMAIN: &[u8] = b"zkube-daily-pool-draw-v2";
+pub const REALM_COUNT: usize = 10;
+pub const OBJECTIVE_COUNT: usize = 16;
+pub const DAILY_PAIR_COUNT: usize = REALM_COUNT * OBJECTIVE_COUNT;
+/// Protocol-fixed permutation seed. Daily content is code, so no publisher can
+/// grind either the seed or the size of the product space.
+pub const DAILY_PAIR_SELECTION_SEED: [u8; 32] = *b"zkube-daily-pool-v01-public-seed";
+const DAILY_PAIR_DRAW_DOMAIN: &[u8] = b"zkube-daily-pair-draw-v1";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DailyPoolError {
-    EmptyPool,
-    PoolTooLarge,
-    BeforeCatalogStart,
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DailyTheme {
+    pub kind: ConstraintKind,
+    pub value: u8,
 }
 
-/// Resolve one authored pool entry from published catalog data alone.
-///
-/// Fisher-Yates derives one protocol-seed- and cycle-keyed permutation. Consecutive
-/// scheduled day identifiers traverse the current cycle, so every entry appears
-/// exactly once before the next independently shuffled cycle begins.
-///
-/// A cycle boundary may repeat the same entry on adjacent days when the prior
-/// cycle's last element equals the next cycle's first. This deliberately avoids
-/// a rejection loop or cross-cycle state in the on-chain draw.
-///
-/// # Errors
-///
-/// Returns an error for an empty or oversized pool, or a day before the
-/// catalog's published start.
-pub fn daily_pool_entry_index(
-    starts_day: u32,
-    day_id: u32,
-    entry_count: u8,
-) -> Result<u8, DailyPoolError> {
-    daily_pool_entry_index_with::<SoftwareSha256>(starts_day, day_id, entry_count)
+impl DailyTheme {
+    #[must_use]
+    pub const fn is_classic(self) -> bool {
+        matches!(self.kind, ConstraintKind::None)
+    }
+
+    #[must_use]
+    pub fn action_increment(self, report: &MoveReport) -> u8 {
+        Constraint {
+            kind: self.kind,
+            value: self.value,
+            required_count: 1,
+        }
+        .action_increment(report)
+    }
 }
 
-/// Chain-adaptable form of [`daily_pool_entry_index`].
-///
-/// # Errors
-///
-/// Returns an error for an empty or oversized pool, or a day before the
-/// catalog's published start.
-pub fn daily_pool_entry_index_with<H: Sha256Provider>(
-    starts_day: u32,
-    day_id: u32,
-    entry_count: u8,
-) -> Result<u8, DailyPoolError> {
-    let count = usize::from(entry_count);
-    if count == 0 {
-        return Err(DailyPoolError::EmptyPool);
-    }
-    if count > DAILY_POOL_CAPACITY {
-        return Err(DailyPoolError::PoolTooLarge);
-    }
-    if day_id < starts_day {
-        return Err(DailyPoolError::BeforeCatalogStart);
-    }
-    let entry_count = u32::from(entry_count);
-    let cycle_index = day_id / entry_count;
-    let mut permutation: [u8; DAILY_POOL_CAPACITY] =
+pub const DAILY_THEMES: [DailyTheme; OBJECTIVE_COUNT] = [
+    DailyTheme {
+        kind: ConstraintKind::None,
+        value: 0,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CombosOfAtLeast,
+        value: 2,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CombosOfAtLeast,
+        value: 3,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CombosOfExactly,
+        value: 2,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CombosOfExactly,
+        value: 3,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BreakBlocks,
+        value: 1,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BreakBlocks,
+        value: 2,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BreakBlocks,
+        value: 3,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BreakBlocks,
+        value: 4,
+    },
+    DailyTheme {
+        kind: ConstraintKind::TriggerFired,
+        value: 0,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BonusLines,
+        value: 0,
+    },
+    DailyTheme {
+        kind: ConstraintKind::BonusBreaks,
+        value: 0,
+    },
+    DailyTheme {
+        kind: ConstraintKind::ClutchClears,
+        value: 7,
+    },
+    DailyTheme {
+        kind: ConstraintKind::ClutchClears,
+        value: 8,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CleanClears,
+        value: 3,
+    },
+    DailyTheme {
+        kind: ConstraintKind::CleanClears,
+        value: 4,
+    },
+];
+
+/// Resolve an absolute day to one index in the realm × objective product.
+/// Consecutive day identifiers traverse a complete independently shuffled
+/// cycle before any pair repeats.
+#[must_use]
+pub fn daily_pair_index(day_id: u32) -> usize {
+    daily_pair_index_with::<SoftwareSha256>(day_id)
+}
+
+#[must_use]
+pub fn daily_pair_index_with<H: Sha256Provider>(day_id: u32) -> usize {
+    let cycle_index = day_id / u32::try_from(DAILY_PAIR_COUNT).unwrap_or(1);
+    let mut permutation: [u8; DAILY_PAIR_COUNT] =
         core::array::from_fn(|index| u8::try_from(index).unwrap_or(0));
-    for index in (1..count).rev() {
+    for index in (1..DAILY_PAIR_COUNT).rev() {
         let upper_bound = u64::try_from(index + 1).unwrap_or(1);
         let swap = usize::try_from(
-            pool_hash_u64_with::<H>(cycle_index, u8::try_from(index).unwrap_or(0)) % upper_bound,
+            pair_hash_u64_with::<H>(cycle_index, u8::try_from(index).unwrap_or(0)) % upper_bound,
         )
         .unwrap_or(0);
         permutation.swap(index, swap);
     }
-    // The catalog start gates availability but never rotates the permutation.
-    // Otherwise a publisher could choose which entry lands on a target day by
-    // shifting `starts_day`, even with a protocol-fixed seed.
-    Ok(permutation[usize::try_from(day_id % entry_count).unwrap_or(0)])
+    usize::from(
+        permutation
+            [usize::try_from(day_id % u32::try_from(DAILY_PAIR_COUNT).unwrap_or(1)).unwrap_or(0)],
+    )
 }
 
-fn pool_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
+#[must_use]
+pub fn daily_pair(day_id: u32) -> (u8, DailyTheme) {
+    daily_pair_with::<SoftwareSha256>(day_id)
+}
+
+#[must_use]
+pub fn daily_pair_with<H: Sha256Provider>(day_id: u32) -> (u8, DailyTheme) {
+    let index = daily_pair_index_with::<H>(day_id);
+    let realm = u8::try_from(index / OBJECTIVE_COUNT).unwrap_or(0) + 1;
+    (realm, DAILY_THEMES[index % OBJECTIVE_COUNT])
+}
+
+fn pair_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
     let digest = H::hashv(&[
-        DAILY_POOL_DRAW_DOMAIN,
-        &DAILY_POOL_SELECTION_SEED,
+        DAILY_PAIR_DRAW_DOMAIN,
+        &DAILY_PAIR_SELECTION_SEED,
         &cycle_index.to_le_bytes(),
         &[index],
     ]);
@@ -91,114 +154,62 @@ fn pool_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
 
     #[test]
-    fn a_full_pool_cycle_uses_every_entry_before_any_repeat() {
-        let starts_day = 20_000;
-        let first_cycle = (starts_day..starts_day + 10)
-            .map(|day| daily_pool_entry_index(starts_day, day, 10).unwrap())
+    fn daily_draw_is_reproducible_from_seed_and_day() {
+        let first_day = 160 * 200;
+        let expected = (first_day..first_day + 160)
+            .map(daily_pair_index)
             .collect::<std::vec::Vec<_>>();
-        let mut sorted = first_cycle.clone();
+        assert_eq!(
+            &expected[..20],
+            &[
+                53, 131, 145, 13, 73, 91, 31, 97, 74, 39, 5, 132, 138, 26, 151, 99, 20, 119, 54, 15
+            ]
+        );
+        assert_eq!(
+            expected,
+            (first_day..first_day + 160)
+                .map(daily_pair_index)
+                .collect::<std::vec::Vec<_>>()
+        );
+        let mut sorted = expected;
         sorted.sort_unstable();
-        assert_eq!(sorted, (0..10u8).collect::<std::vec::Vec<_>>());
-        let second_cycle = (starts_day + 10..starts_day + 20)
-            .map(|day| daily_pool_entry_index(starts_day, day, 10).unwrap())
+        assert_eq!(sorted, (0..DAILY_PAIR_COUNT).collect::<std::vec::Vec<_>>());
+
+        let pairs = (first_day..first_day + 160)
+            .map(daily_pair)
             .collect::<std::vec::Vec<_>>();
-        let mut second_sorted = second_cycle.clone();
-        second_sorted.sort_unstable();
-        assert_eq!(second_sorted, (0..10u8).collect::<std::vec::Vec<_>>());
-        assert_ne!(second_cycle, first_cycle);
+        for realm in 1..=10 {
+            for theme in DAILY_THEMES {
+                assert_eq!(
+                    pairs.iter().filter(|pair| **pair == (realm, theme)).count(),
+                    1
+                );
+            }
+        }
     }
 
     #[test]
-    fn draw_is_reproducible_and_tomorrow_is_resolvable_today() {
-        let today = 31_415;
-        let today_entry = daily_pool_entry_index(today, today, 16).unwrap();
-        let tomorrow_entry = daily_pool_entry_index(today, today + 1, 16).unwrap();
-        assert_eq!(
-            today_entry,
-            daily_pool_entry_index(today, today, 16).unwrap()
-        );
-        assert_eq!(
-            tomorrow_entry,
-            daily_pool_entry_index(today, today + 1, 16).unwrap()
-        );
-        assert_ne!(today_entry, tomorrow_entry);
-    }
-
-    #[test]
-    fn catalog_start_cannot_rotate_a_day_selection() {
-        let day = 31_415;
-        assert_eq!(
-            daily_pool_entry_index(day - 20, day, 10),
-            daily_pool_entry_index(day, day, 10),
-        );
-    }
-
-    #[test]
-    fn raised_capacity_draws_one_complete_cycle() {
-        let count = u8::try_from(DAILY_POOL_CAPACITY).unwrap();
-        let starts_day = 128 * 200;
-        let mut cycle = (starts_day..starts_day + u32::from(count))
-            .map(|day| daily_pool_entry_index(starts_day, day, count).unwrap())
-            .collect::<std::vec::Vec<_>>();
-        cycle.sort_unstable();
-        assert_eq!(cycle, (0..count).collect::<std::vec::Vec<_>>());
-    }
-
-    #[test]
-    fn committed_pool_cycles_match_the_shared_fixture() {
-        let fixture: Value =
-            serde_json::from_str(include_str!("../../../fixtures/game-parity.json")).unwrap();
-        assert_eq!(fixture["schemaVersion"], 4);
-        assert_eq!(fixture["phase1Core"]["coreVersion"], crate::CORE_VERSION);
-        let pool = &fixture["phase1Core"]["dailyPoolDraw"];
-        let starts_day = u32::try_from(pool["startsDay"].as_u64().unwrap()).unwrap();
-        let entry_count = u8::try_from(pool["entryCount"].as_u64().unwrap()).unwrap();
-        let actual = pool["entryIndicesByDay"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .enumerate()
-            .map(|(offset, _)| {
-                daily_pool_entry_index(
-                    starts_day,
-                    starts_day + u32::try_from(offset).unwrap(),
-                    entry_count,
-                )
-                .unwrap()
-            })
-            .collect::<std::vec::Vec<_>>();
-        let expected = pool["entryIndicesByDay"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|entry| u8::try_from(entry.as_u64().unwrap()).unwrap())
-            .collect::<std::vec::Vec<_>>();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn protocol_fixture_pins_capacity() {
-        let fixture: Value =
-            serde_json::from_str(include_str!("../../../fixtures/protocol-invariants.json"))
-                .unwrap();
-        assert_eq!(
-            fixture["dailyPoolCapacity"].as_u64(),
-            Some(u64::try_from(DAILY_POOL_CAPACITY).unwrap())
-        );
-    }
-
-    #[test]
-    fn suspended_and_not_yet_started_catalogs_do_not_draw() {
-        assert_eq!(
-            daily_pool_entry_index(10, 10, 0),
-            Err(DailyPoolError::EmptyPool)
-        );
-        assert_eq!(
-            daily_pool_entry_index(10, 9, 1),
-            Err(DailyPoolError::BeforeCatalogStart)
-        );
+    fn daily_objective_is_the_shared_kind_increment() {
+        let report = MoveReport {
+            lines_cleared: 3,
+            points_earned: 12,
+            height_before: 8,
+            height_after: 3,
+            blocks_destroyed_by_size: [1, 2, 3, 4],
+            ..MoveReport::default()
+        };
+        for theme in DAILY_THEMES {
+            let campaign = Constraint {
+                kind: theme.kind,
+                value: theme.value,
+                required_count: u8::MAX,
+            };
+            assert_eq!(
+                theme.action_increment(&report),
+                campaign.action_increment(&report)
+            );
+        }
     }
 }

@@ -10,7 +10,7 @@ import {
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
 import type { Game } from "@/game/model";
-import { DAILY_SCORE_COMBO, dailyScoringRuleName } from "@/chain/dailyRules";
+import { dailyThemeName } from "@/chain/dailyRules";
 import { getBonusType, REROLL_ACTION } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
@@ -206,7 +206,6 @@ export default function PlayScreen() {
         triggerDescription: buildTriggerDescription(
           activeRun.rules.bonusTriggerType,
           activeRun.rules.bonusThreshold,
-          activeRun.rules.startingCharges,
         ),
         // Only the cumulative line trigger exposes meaningful progress from
         // the authoritative receipt counters. Per-move trigger families do
@@ -230,7 +229,6 @@ export default function PlayScreen() {
                   (held?.game ?? game)?.countCellsOfSize(totemTargetWidth) ?? 0,
               }
             : undefined,
-        startingCharges: activeRun.rules.startingCharges,
         onClick: () => {
           if (activeRun.bonusCharges <= 0) return;
           setActiveBonus((current) =>
@@ -250,7 +248,6 @@ export default function PlayScreen() {
         activeRun.mode === "daily"
           ? "Start with 1 · perfect clear awards +1 · hold up to 3"
           : "Start with 1 · Perfect clear awards +1 · hold up to 3",
-      startingCharges: 1,
       onClick: () => {
         if (activeRun.rerollCharges <= 0) return;
         void onRunReroll().catch(() => undefined);
@@ -698,8 +695,8 @@ export default function PlayScreen() {
   // The chain the day actually pays for. Only the combo family names one; for
   // every other rule two lines is the point a chain starts being a chain.
   const dailyComboThreshold =
-    activeRun.dailyScoringRule?.kind === DAILY_SCORE_COMBO
-      ? Number(activeRun.dailyScoringRule.parameter)
+    activeRun.dailyTheme?.kind === 3
+      ? Number(activeRun.dailyTheme.value)
       : 2;
 
   return (
@@ -756,7 +753,7 @@ export default function PlayScreen() {
         themeScore={hudGame.challengeBonus}
         objectiveName={
           game.mode === 1
-            ? dailyScoringRuleName(activeRun.dailyScoringRule)
+            ? dailyThemeName(activeRun.dailyTheme)
             : undefined
         }
         level={hudGame.level}

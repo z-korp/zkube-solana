@@ -64,10 +64,6 @@ export interface ZkubeDeploymentManifest {
     campaignVersion: 2;
     catalogSha256: string;
   };
-  rules: {
-    arenaVersion: 1;
-    catalogSha256: string;
-  };
   launch: {
     dayId: number;
     cutoffUnixTimestamp: number;
@@ -185,13 +181,6 @@ export function deploymentManifestFromEnv(
         "ZKUBE_CAMPAIGN_CATALOG_SHA256",
       ).toLowerCase(),
     },
-    rules: {
-      arenaVersion: requiredLiteralInteger(env, "ZKUBE_ARENA_RULES_VERSION", 1),
-      catalogSha256: required(
-        env,
-        "ZKUBE_ARENA_RULES_CATALOG_SHA256",
-      ).toLowerCase(),
-    },
     launch: {
       dayId: requiredInteger(env, "ZKUBE_LAUNCH_DAY_ID"),
       cutoffUnixTimestamp: requiredInteger(env, "ZKUBE_LAUNCH_CUTOFF_UNIX"),
@@ -244,7 +233,6 @@ export function validateDeploymentManifest(
   const payment = record(manifest.payment);
   const protocol = record(manifest.protocol);
   const content = record(manifest.content);
-  const rules = record(manifest.rules);
   const launch = record(manifest.launch);
   const seeds = record(launch?.seeds);
   const keeper = record(manifest.keeper);
@@ -346,14 +334,12 @@ export function validateDeploymentManifest(
       "Authority, team destination, or canonical operator revenue vault is invalid",
     ),
     check(
-      "content-rules",
-      "Content and Arena rules",
+      "content",
+      "Campaign content",
       content?.baseVersion === 1 &&
         content?.campaignVersion === 2 &&
-        HASH_PATTERN.test(string(content?.catalogSha256) ?? "") &&
-        rules?.arenaVersion === 1 &&
-        HASH_PATTERN.test(string(rules?.catalogSha256) ?? ""),
-      "Manifest must bind base content v1, Campaign v2, Arena rules v1, and both catalog hashes",
+        HASH_PATTERN.test(string(content?.catalogSha256) ?? ""),
+      "Manifest must bind base content v1, Campaign v2, and the Campaign catalog hash",
     ),
     check(
       "launch",
@@ -437,8 +423,6 @@ export function deploymentManifestMismatches(
       String(manifest.content.campaignVersion),
     ],
     ["ZKUBE_CAMPAIGN_CATALOG_SHA256", manifest.content.catalogSha256],
-    ["ZKUBE_ARENA_RULES_VERSION", String(manifest.rules.arenaVersion)],
-    ["ZKUBE_ARENA_RULES_CATALOG_SHA256", manifest.rules.catalogSha256],
     ["ZKUBE_LAUNCH_DAY_ID", String(manifest.launch.dayId)],
     ["ZKUBE_LAUNCH_CUTOFF_UNIX", String(manifest.launch.cutoffUnixTimestamp)],
     ["ZKUBE_LAUNCH_PLAN_FINGERPRINT", manifest.launch.planFingerprint],

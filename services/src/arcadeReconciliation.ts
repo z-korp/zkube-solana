@@ -7,7 +7,6 @@ import {
   KEEPER_RECENT_DAILY_CADENCES,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
-  DAILY_POOL_CAPACITY,
   SECONDS_PER_DAY,
   arcadeArchivePda,
   assertCadenceId,
@@ -17,7 +16,6 @@ import {
   cadenceFundingPda,
   currentDayId,
   dailyContentSelection,
-  dailyIsScheduled,
   nextScheduledDaily,
   playerFundingPda,
   validationOnlyPlan,
@@ -153,12 +151,8 @@ export interface CadenceArchiveCandidate {
 export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
-  rulesCatalog: PublicKey;
   contentVersion: number;
-  catalogStartsDay: number;
-  poolEntries: readonly {
-    realmMapId: number;
-  }[];
+  suspendedUntilDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
   /** Relationship-checked canonical PlayerState owners available for profile sync. */
@@ -183,10 +177,8 @@ export interface ReconciliationDiscovery {
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   paused: true,
   launchDayId: 4,
-  rulesCatalog: PublicKey.default,
   contentVersion: 0,
-  catalogStartsDay: 0,
-  poolEntries: Object.freeze([]),
+  suspendedUntilDay: 0,
   dailies: Object.freeze([]),
   runs: Object.freeze([]),
   playerStateOwners: Object.freeze([]),
@@ -221,43 +213,39 @@ export function discoverReconciliation(args: {
   );
 
   if (!args.snapshot.paused) {
-    const poolCount = args.snapshot.poolEntries.length;
-    const activationCurrent = poolCount === 0
-      ? undefined
-      : dailyIsScheduled(today, args.snapshot.catalogStartsDay, poolCount)
-        ? today
-        : nextScheduledDaily(today - 1, args.snapshot.catalogStartsDay, poolCount);
-    const activationFollowing = activationCurrent === undefined
-      ? undefined
-      : nextScheduledDaily(
-        activationCurrent,
-        args.snapshot.catalogStartsDay,
-        poolCount,
-      );
+    const activationCurrent = Math.max(today, args.snapshot.suspendedUntilDay);
+    const activationFollowing = nextScheduledDaily(
+      activationCurrent,
+      args.snapshot.suspendedUntilDay,
+    );
     for (const daily of args.snapshot.dailies) {
       if (daily.status !== "funding") continue;
-      if (daily.dayId === activationCurrent &&
+      if (daily.dayId < args.snapshot.suspendedUntilDay) {
+        if (dailyById.has(args.snapshot.suspendedUntilDay)) {
+          plans.push(validationOnlyPlan("skip_suspended_arena_daily", {
+            dayId: daily.dayId,
+            followingDayId: args.snapshot.suspendedUntilDay,
+            suspendedUntilDay: args.snapshot.suspendedUntilDay,
+            cadenceFunding: cadenceFundingPda(),
+          }));
+        }
+      } else if (daily.dayId === activationCurrent &&
           args.nowUnix < today * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET) {
         plans.push(validationOnlyPlan("activate_arena_daily", {
           dayId: daily.dayId,
-          rulesCatalog: args.snapshot.rulesCatalog,
-          catalogStartsDay: args.snapshot.catalogStartsDay,
-          poolEntryCount: poolCount,
+          suspendedUntilDay: args.snapshot.suspendedUntilDay,
         }));
       } else if (daily.dayId === activationFollowing) {
         plans.push(validationOnlyPlan("activate_arena_daily", {
           dayId: daily.dayId,
-          rulesCatalog: args.snapshot.rulesCatalog,
           preactivation: true,
-          catalogStartsDay: args.snapshot.catalogStartsDay,
-          poolEntryCount: poolCount,
+          suspendedUntilDay: args.snapshot.suspendedUntilDay,
         }));
       } else if (daily.dayId >= oldestKeeperDay && daily.dayId < today &&
           daily.predecessorRolloverApplied &&
           args.nowUnix >= daily.recoveryDeadlineAt) {
         plans.push(validationOnlyPlan("activate_arena_daily", {
           dayId: daily.dayId,
-          rulesCatalog: args.snapshot.rulesCatalog,
           predecessorRolloverApplied: true,
           recoveryActivation: true,
           recoveryDeadlineAt: daily.recoveryDeadlineAt,
@@ -266,31 +254,17 @@ export function discoverReconciliation(args: {
     }
   }
 
-  const missingDay = args.snapshot.poolEntries.length === 0
-    ? undefined
-    : firstMissingScheduledCadence(
-      Math.max(args.snapshot.launchDayId, args.snapshot.catalogStartsDay),
-      nextScheduledDaily(
-        today,
-        args.snapshot.catalogStartsDay,
-        args.snapshot.poolEntries.length,
-      ),
-      dailyById,
-      args.snapshot.catalogStartsDay,
-      args.snapshot.poolEntries.length,
-    );
+  const missingDay = firstMissingScheduledCadence(
+    Math.max(args.snapshot.launchDayId, args.snapshot.suspendedUntilDay),
+    nextScheduledDaily(today, args.snapshot.suspendedUntilDay),
+    dailyById,
+  );
   // Preparation deliberately ignores `paused`: the staged launch initializes
   // the protocol paused and still needs its cadences prepared, and stopping
   // day spend is suspension's job — an unscheduled day is never missing.
   if (missingDay !== undefined && missingDay > args.snapshot.launchDayId &&
       missingDay >= oldestKeeperDay) {
-    const content = dailyContentSelection(
-      args.snapshot.catalogStartsDay,
-      missingDay,
-      args.snapshot.poolEntries.length,
-    );
-    const entry = args.snapshot.poolEntries[content.poolIndex];
-    if (!entry) throw new Error("Daily pool selection is outside the published catalog");
+    const content = dailyContentSelection(missingDay);
     const predecessor = [...dailyById.keys()]
       .filter((dayId) => dayId < missingDay)
       .sort((left, right) => right - left)[0] ?? missingDay - 1;
@@ -298,13 +272,10 @@ export function discoverReconciliation(args: {
       dayId: predecessor,
       followingDayId: missingDay,
       launchCadenceId: args.snapshot.launchDayId,
-      rulesCatalog: args.snapshot.rulesCatalog,
       contentVersion: args.snapshot.contentVersion,
-      catalogStartsDay: args.snapshot.catalogStartsDay,
-      poolEntryCount: args.snapshot.poolEntries.length,
-      poolIndex: content.poolIndex,
-      poolEntries: args.snapshot.poolEntries,
-      realmMapId: entry.realmMapId,
+      suspendedUntilDay: args.snapshot.suspendedUntilDay,
+      pairIndex: content.pairIndex,
+      realmMapId: content.realmMapId,
       cadenceFunding: cadenceFundingPda(),
     }));
   }
@@ -433,11 +404,9 @@ function appendCadenceArchivePlan(
         isQuarantined(candidate.cadenceId)) continue;
     const context = contextFor(candidate);
     if (!candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
-      if (snapshot.poolEntries.length === 0) continue;
       const followingDayId = nextScheduledDaily(
         today,
-        snapshot.catalogStartsDay,
-        snapshot.poolEntries.length,
+        snapshot.suspendedUntilDay,
       );
       const following = snapshot.dailies.find(({ dayId }) => dayId === followingDayId);
       const daily = snapshot.dailies.find(({ dayId }) => dayId === candidate.cadenceId);
@@ -446,9 +415,7 @@ function appendCadenceArchivePlan(
         plans.push(validationOnlyPlan("expire_daily_claims", {
           ...context,
           followingDayId,
-          rulesCatalog: snapshot.rulesCatalog,
-          catalogStartsDay: snapshot.catalogStartsDay,
-          poolEntryCount: snapshot.poolEntries.length,
+          suspendedUntilDay: snapshot.suspendedUntilDay,
           claimCloseAt: candidate.closeEligibleAt,
           unclaimedLamports: unclaimedPayoutLamports(daily),
         }));
@@ -520,18 +487,11 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   if (typeof snapshot.paused !== "boolean") {
     throw new Error("protocol pause state is invalid");
   }
-  if (!(snapshot.rulesCatalog instanceof PublicKey) ||
-      snapshot.rulesCatalog.equals(PublicKey.default)) {
-    throw new Error("rules catalog identity is invalid");
-  }
   assertCadenceId(snapshot.launchDayId, "launch day id");
   assertCadenceId(snapshot.contentVersion, "content version");
-  assertCadenceId(snapshot.catalogStartsDay, "catalog start day");
-  if (snapshot.contentVersion === 0 ||
-      snapshot.poolEntries.length > DAILY_POOL_CAPACITY || snapshot.poolEntries.some((entry) =>
-        !Number.isSafeInteger(entry.realmMapId) || entry.realmMapId < 0 ||
-        entry.realmMapId > 32)) {
-    throw new Error("Daily content catalog or launch day is invalid");
+  assertCadenceId(snapshot.suspendedUntilDay, "suspended-until day");
+  if (snapshot.contentVersion === 0) {
+    throw new Error("Daily content version is invalid");
   }
   assertUnique(snapshot.dailies.map(({ dayId }) => dayId), "Daily id");
   assertUnique(snapshot.runs.map(({ owner, runId }) => `${owner.toBase58()}:${runId}`), "run");
@@ -964,11 +924,8 @@ function firstMissingScheduledCadence<T>(
   first: number,
   lastInclusive: number,
   values: ReadonlyMap<number, T>,
-  startsDay: number,
-  entryCount: number,
 ): number | undefined {
   for (let id = first; id <= lastInclusive; id += 1) {
-    if (!dailyIsScheduled(id, startsDay, entryCount)) continue;
     if (!values.has(id)) return id;
   }
   return undefined;

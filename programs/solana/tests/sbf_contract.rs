@@ -73,43 +73,6 @@ fn decode<T: AccountDeserialize>(account: &Account) -> T {
     T::try_deserialize(&mut account.data.as_slice()).expect("decode resulting account")
 }
 
-fn daily_pool_entry_fixture() -> DailyPoolEntry {
-    DailyPoolEntry {
-        id: 1,
-        realm_map_id: 1,
-        active_mutator_id: 1,
-        scoring_rule: canonical_daily_scoring_rules()[0],
-        bonus_type: 1,
-        bonus_trigger_type: 1,
-        bonus_threshold: 10,
-        starting_charges: 0,
-        starting_rows: 4,
-    }
-}
-
-fn daily_rules_fixture(
-    protocol: Pubkey,
-    content_version: u32,
-    rules_version: u32,
-    starts_day: u32,
-    bump: u8,
-) -> DailyRulesCatalog {
-    let pool_entries = vec![daily_pool_entry_fixture()];
-    DailyRulesCatalog {
-        version: RULES_ACCOUNT_VERSION,
-        rules_version,
-        protocol,
-        content_version,
-        catalog_hash: [7; 32],
-        pool_revision: 1,
-        starts_day,
-        pool_entry_count: 1,
-        pool_entries,
-        pressure: DailyPressureProfile::canonical(),
-        bump,
-    }
-}
-
 fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
     CampaignMapRuleSnapshot {
         active_mutator_id: 1,
@@ -119,7 +82,6 @@ fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
         bonus_type: 1,
         bonus_trigger_type: 1,
         bonus_threshold: 10,
-        starting_charges: 0,
         starting_rows: 4,
         ..CampaignMapRuleSnapshot::default()
     }
@@ -378,7 +340,6 @@ fn protocol_fixture(
             team_destination,
             replay_domain: [9; 32],
             content_version: 1,
-            daily_rules_version: 1,
             player_funding_target_lamports: PLAYER_FUNDING_TARGET_LAMPORTS,
             campaign_map_count: 1,
             paused,
@@ -1512,7 +1473,7 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
                 ..LevelRuleSnapshot::default()
             },
             daily_pressure: DailyPressureProfile::canonical(),
-            daily_scoring_rule: canonical_daily_scoring_rules()[0],
+            daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
             grid,
             next_row: [0; 8],
             has_next_row: true,
@@ -1786,12 +1747,6 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
     let team = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, team, true);
     let next_content = 2u32;
-    let next_rules = 2u32;
-    let (daily_rules, rules_bump) = Pubkey::find_program_address(
-        &[DAILY_RULES_CATALOG_SEED, &next_rules.to_le_bytes()],
-        &zkube::ID,
-    );
-    let rules_state = daily_rules_fixture(protocol, next_content, next_rules, 0, rules_bump);
     let maps: Vec<(Pubkey, Account)> = (1..=MAX_MAPS as u8)
         .map(|map_id| {
             let (address, bump) = Pubkey::find_program_address(
@@ -1813,7 +1768,6 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
         .collect::<Vec<_>>();
     let mut metas = zkube::accounts::ActivateContentRelease {
         protocol,
-        daily_rules_catalog: daily_rules,
         authority,
     }
     .to_account_metas(None);
@@ -1825,7 +1779,6 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
         accounts: metas,
         data: zkube::instruction::ActivateContentRelease {
             content_version: next_content,
-            daily_rules_version: next_rules,
             campaign_map_count: MAX_MAPS as u8,
         }
         .data(),
@@ -1834,10 +1787,6 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
         (
             protocol,
             program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-        ),
-        (
-            daily_rules,
-            program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
         ),
         (authority, system_account(ACCOUNT_LAMPORTS)),
     ];
@@ -1851,7 +1800,6 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
     );
     assert_eq!(protocol_after.content_version, next_content);
     assert_eq!(protocol_after.campaign_map_count, MAX_MAPS as u8);
-    assert_eq!(protocol_after.daily_rules_version, next_rules);
 
     let mut missing_map = instruction;
     missing_map.accounts.pop();
@@ -1866,14 +1814,6 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
     let authority = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
-    let rules = arcade_state.rules_catalog;
-    let rules_state = daily_rules_fixture(
-        protocol,
-        protocol_state.content_version,
-        protocol_state.daily_rules_version,
-        32,
-        1,
-    );
     let day_id = 32;
     let now = day_window(day_id).unwrap().0 + 1;
 
@@ -1888,7 +1828,6 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
             accounts: zkube::accounts::TopUpArenaDaily {
                 protocol,
                 arcade_config: arcade,
-                daily_rules_catalog: rules,
                 arena_daily: daily,
                 authority,
                 system_program: anchor_lang::system_program::ID,
@@ -1910,10 +1849,6 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
                     program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
                 ),
                 (
-                    rules,
-                    program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
-                ),
-                (
                     daily,
                     program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
                 ),
@@ -1929,9 +1864,8 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
 }
 
 fn arcade_fixture(protocol: Pubkey) -> (Pubkey, ArcadeConfig) {
-    let rules = Pubkey::new_unique();
     let (address, bump) = Pubkey::find_program_address(&[ARCADE_CONFIG_SEED], &zkube::ID);
-    let mut config = ArcadeConfig::canonical(protocol, rules, bump);
+    let mut config = ArcadeConfig::canonical(protocol, bump);
     config.launch_seeded = true;
     config.launch_day_id = 32;
     (address, config)
@@ -1952,14 +1886,12 @@ fn daily_fixture(
             version: ARCADE_ACCOUNT_VERSION,
             day_id,
             arcade_config,
-            rules_version: 1,
             status,
             predecessor_rollover_applied,
             content_version: 1,
-            catalog_hash: [1; 32],
             rules_hash: [2; 32],
             map_id: 1,
-            scoring_rule: canonical_daily_scoring_rules()[0],
+            daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
             rules: LevelRuleSnapshot::default(),
             pressure: DailyPressureProfile::canonical(),
             opens_at,
@@ -2744,19 +2676,70 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
 }
 
 #[test]
+fn a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_day() {
+    let caller = Pubkey::new_unique();
+    let protocol = Pubkey::new_unique();
+    let (arcade, mut arcade_state) = arcade_fixture(protocol);
+    let suspended_day_id = arcade_state.launch_day_id + 1;
+    let successor_day_id = suspended_day_id + 1;
+    arcade_state.suspended_until_day = successor_day_id;
+    let (suspended_daily, mut suspended_state) =
+        daily_fixture(suspended_day_id, arcade, PeriodStatus::Funding, true);
+    let (successor_daily, successor_state) =
+        daily_fixture(successor_day_id, arcade, PeriodStatus::Funding, false);
+    let funded_lamports = 1_000_000;
+    suspended_state.ledger.seeded_lamports = funded_lamports;
+    let (cadence_funding, _) = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID);
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::SkipSuspendedArenaDaily {
+            arcade_config: arcade,
+            suspended_daily,
+            successor_daily,
+            cadence_funding,
+            caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::SkipSuspendedArenaDaily {}.data(),
+    };
+    let accounts = vec![
+        (
+            arcade,
+            program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
+        ),
+        (
+            suspended_daily,
+            program_account(&suspended_state, 8 + ArenaDaily::INIT_SPACE),
+        ),
+        (
+            successor_daily,
+            program_account(&successor_state, 8 + ArenaDaily::INIT_SPACE),
+        ),
+        (cadence_funding, system_account(ACCOUNT_LAMPORTS)),
+        (caller, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    let successor_after: ArenaDaily = decode(resulting_account(&result, &successor_daily));
+    assert!(successor_after.predecessor_rollover_applied);
+    assert_eq!(successor_after.ledger.rollover_in_lamports, funded_lamports);
+    assert_eq!(resulting_account(&result, &suspended_daily).lamports, 0);
+    assert_eq!(
+        resulting_account(&result, &successor_daily).lamports,
+        ACCOUNT_LAMPORTS + funded_lamports,
+    );
+
+    let repeated_accounts = result.resulting_accounts.clone();
+    let repeated = mollusk().process_instruction(&instruction, &repeated_accounts);
+    assert!(repeated.program_result.is_err());
+}
+
+#[test]
 fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
     let authority = Pubkey::new_unique();
     let caller = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
-    let rules = arcade_state.rules_catalog;
-    let rules_state = daily_rules_fixture(
-        protocol,
-        protocol_state.content_version,
-        protocol_state.daily_rules_version,
-        32,
-        1,
-    );
     let (_, mut missing_state) = daily_fixture(32, arcade, PeriodStatus::Funding, true);
     let missing = Pubkey::find_program_address(
         &[ARENA_DAILY_SEED, &missing_state.day_id.to_le_bytes()],
@@ -2767,7 +2750,7 @@ fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
         program_id: zkube::ID,
         accounts: zkube::accounts::ActivateArenaDaily {
             protocol,
-            daily_rules_catalog: rules,
+            arcade_config: arcade,
             arena_daily: missing,
             caller,
         }
@@ -2781,8 +2764,8 @@ fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
                 program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
             ),
             (
-                rules,
-                program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
+                arcade,
+                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
             ),
             (missing, program_account(state, 8 + ArenaDaily::INIT_SPACE)),
             (caller, system_account(ACCOUNT_LAMPORTS)),
@@ -2828,17 +2811,9 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     let caller = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
-    let rules = arcade_state.rules_catalog;
-    let rules_state = daily_rules_fixture(
-        protocol,
-        protocol_state.content_version,
-        1,
-        arcade_state.launch_day_id,
-        1,
-    );
     let missing_day = arcade_state.launch_day_id + 2;
-    let content = rules_state.content_for_day(missing_day).unwrap();
-    let realm_map_id = content.entry.realm_map_id.max(1);
+    let content = daily_content_for_day(missing_day);
+    let realm_map_id = content.realm_map_id;
     let map_fixture = |map_id: u8| {
         let (address, bump) = Pubkey::find_program_address(
             &[
@@ -2879,7 +2854,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             protocol,
             arcade_config: arcade,
             arcade_archive,
-            daily_rules_catalog: rules,
             realm_map_catalog,
             arena_daily: missing,
             cadence_funding,
@@ -2907,10 +2881,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             arcade_archive,
             program_account(&archive_state, 8 + ArcadeArchive::INIT_SPACE),
         ),
-        (
-            rules,
-            program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
-        ),
         (realm_map_catalog, realm_map_account),
         (missing, system_account(0)),
         (cadence_funding, system_account(funding_before)),
@@ -2933,7 +2903,7 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     assert!(!after.predecessor_rollover_applied);
     assert_eq!(
         after.rules.active_mutator_id,
-        content.entry.active_mutator_id
+        daily_map_rule_fixture().active_mutator_id
     );
     assert_eq!(after.rules.passive_mutator_id, 0);
     assert_eq!(after.rules.line_clear_bonus, 0);
@@ -3591,9 +3561,8 @@ fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, team, true);
-    let rules = Pubkey::new_unique();
     let (arcade, arcade_bump) = Pubkey::find_program_address(&[ARCADE_CONFIG_SEED], &zkube::ID);
-    let arcade_state = ArcadeConfig::canonical(protocol, rules, arcade_bump);
+    let arcade_state = ArcadeConfig::canonical(protocol, arcade_bump);
     let today = 33;
     let (daily, daily_state) = daily_fixture(today, arcade, PeriodStatus::Funding, false);
     let instruction = anchor_lang::solana_program::instruction::Instruction {
@@ -3643,9 +3612,7 @@ fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
 fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
     let caller = Pubkey::new_unique();
     let protocol = Pubkey::new_unique();
-    let (arcade, mut arcade_state) = arcade_fixture(protocol);
-    let rules = arcade_state.rules_catalog;
-    let rules_state = daily_rules_fixture(protocol, 1, 1, 0, 1);
+    let (arcade, arcade_state) = arcade_fixture(protocol);
     let day_id = 20_600;
     let (daily, mut daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
     let players = (0..5).map(|_| Pubkey::new_unique()).collect::<Vec<_>>();
@@ -3691,13 +3658,11 @@ fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
     let mut archive_state = ArcadeArchive::initialize(arcade, day_id, archive_bump).unwrap();
     archive_state.last_daily_id = day_id;
     archive_state.daily_root = [9; 32];
-    arcade_state.rules_catalog = rules;
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ExpireDailyClaims {
             arcade_archive: archive,
             arcade_config: arcade,
-            daily_rules_catalog: rules,
             arena_daily: daily,
             score_board,
             theme_board,
@@ -3717,10 +3682,6 @@ fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
         (
             arcade,
             program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-        ),
-        (
-            rules,
-            program_account(&rules_state, 8 + DailyRulesCatalog::INIT_SPACE),
         ),
         (
             daily,

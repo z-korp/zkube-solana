@@ -19,6 +19,5 @@
     "version": 6,
     "length": 187
   },
-  "dailyClaimWindowSeconds": 2592000,
-  "dailyPoolCapacity": 128
+  "dailyClaimWindowSeconds": 2592000
 }

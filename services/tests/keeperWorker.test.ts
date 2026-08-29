@@ -145,8 +145,6 @@ function releaseEnvironment(): Record<string, string> {
       "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
     ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
     ZKUBE_REPLAY_DOMAIN_HEX: canonicalDevnetReplayDomainHex(ZKUBE_PROGRAM_ID),
-    ZKUBE_ARENA_RULES_CATALOG_SHA256: "34".repeat(32),
-    ZKUBE_ARENA_RULES_VERSION: "1",
     ZKUBE_LAUNCH_DAY_ID: "20656",
   };
 }

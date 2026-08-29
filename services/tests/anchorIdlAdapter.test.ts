@@ -12,23 +12,22 @@ import {
   ZKUBE_PROGRAM_ID,
   arenaDailyPda,
   playerFundingPda,
-  rulesCatalogPda,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "a8b383cf5c248f871b3ca68f8558c967118a686646da8444c058837ea2e61a35";
+  "71dcab123fc8cca7af36bb8d97b1369508d86f76acb72012161300ac4ac52682";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 54 instructions and 13 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 54 instructions and 12 accounts", async () => {
     const idl = readIdl();
     expect(idl.instructions).toHaveLength(54);
-    expect(idl.accounts).toHaveLength(13);
+    expect(idl.accounts).toHaveLength(12);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
       "finalize_season",
@@ -41,7 +40,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     ]));
     const adapter = await createAdapter();
     expect(adapter.idlHash).toBe(SOURCE_IDL_SHA256);
-    expect(KEEPER_EXPECTED_IDL_SHA256).not.toBe(SOURCE_IDL_SHA256);
+    expect(KEEPER_EXPECTED_IDL_SHA256).toBe(SOURCE_IDL_SHA256);
   });
 
   it("keeps the ephemeral undelegation callback constrained", () => {
@@ -71,14 +70,21 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["prepare_arena_daily", {
         dayId: DAY,
         followingDayId: DAY + 1,
-        rulesCatalog: rulesCatalogPda(7),
         contentVersion: 2,
+        suspendedUntilDay: 0,
+        pairIndex: 0,
         realmMapId: 1,
       }, "funded_prepare_arena_daily"],
       ["activate_arena_daily", {
         dayId: DAY,
-        rulesCatalog: rulesCatalogPda(7),
+        suspendedUntilDay: 0,
       }, "activate_arena_daily"],
+      ["skip_suspended_arena_daily", {
+        dayId: DAY,
+        followingDayId: DAY + 1,
+        suspendedUntilDay: DAY + 1,
+        cadenceFunding: Keypair.generate().publicKey,
+      }, "skip_suspended_arena_daily"],
       ["force_finish_deadline", ranked(owner, "ephemeral_rollup"), "force_finish_deadline"],
       ["commit_run", ranked(owner, "ephemeral_rollup"), "commit_run"],
       ["consume_campaign_run", {
@@ -116,7 +122,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["expire_daily_claims", {
         dayId: DAY,
         followingDayId: DAY + 1,
-        rulesCatalog: rulesCatalogPda(7),
       }, "expire_daily_claims"],
       ["sync_daily_profile", { dayId: DAY, owner, boardKind: "score" },
         "sync_daily_profile"],

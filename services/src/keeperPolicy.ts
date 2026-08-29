@@ -17,7 +17,6 @@ import {
   cadenceFundingPda,
   currentDayId,
   dailyContentSelection,
-  dailyIsScheduled,
   nextScheduledDaily,
   playerFundingPda,
   type KeeperInstructionPlan,
@@ -54,13 +53,15 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
 
   switch (input.plan.operation) {
     case "prepare_arena_daily":
-      assertRulesCatalog(context);
       assertCadenceFunding(context);
       assertExactSuccessor(context, today);
       assertDailyContent(context);
       return;
     case "activate_arena_daily":
       assertActivation(context, today, input.nowUnix);
+      return;
+    case "skip_suspended_arena_daily":
+      assertSuspendedSkip(context, today);
       return;
     case "force_finish_deadline":
       assertRankedRunContext(context, today);
@@ -238,16 +239,14 @@ function assertExpiryTarget(
   today: number,
   nowUnix: number,
 ): void {
-  assertRulesCatalog(context);
-  const startsDay = context.catalogStartsDay;
-  const entryCount = context.poolEntryCount;
-  if (startsDay === undefined || entryCount === undefined ||
-      context.followingDayId !== nextScheduledDaily(today, startsDay, entryCount) ||
+  const suspendedUntilDay = context.suspendedUntilDay;
+  if (suspendedUntilDay === undefined ||
+      context.followingDayId !== nextScheduledDaily(today, suspendedUntilDay) ||
       context.claimCloseAt !== context.closeEligibleAt ||
       context.claimCloseAt === undefined || context.claimCloseAt >= nowUnix) {
     throw new Error("keeper policy rejects Daily claim-expiry target");
   }
-  assertCadenceId(startsDay, "catalog start day");
+  assertCadenceId(suspendedUntilDay, "suspended-until day");
   assertAmount(context.unclaimedLamports, "unclaimed payout");
 }
 
@@ -290,13 +289,6 @@ function assertSessionCleanupPlan(
 function requiredContext(context: KeeperPlanContext | undefined): KeeperPlanContext {
   if (!context) throw new Error("keeper policy rejects missing operation context");
   return context;
-}
-
-function assertRulesCatalog(context: KeeperPlanContext): void {
-  if (!(context.rulesCatalog instanceof PublicKey) ||
-      context.rulesCatalog.equals(PublicKey.default)) {
-    throw new Error("keeper policy rejects rules catalog identity");
-  }
 }
 
 function assertCampaignRunContext(context: KeeperPlanContext): void {
@@ -352,21 +344,19 @@ function assertExactSuccessor(context: KeeperPlanContext, today: number): void {
   const current = context.dayId;
   const following = context.followingDayId;
   const launch = context.launchCadenceId;
-  const startsDay = context.catalogStartsDay;
-  const entryCount = context.poolEntryCount;
+  const suspendedUntilDay = context.suspendedUntilDay;
   if (current === undefined || following === undefined || launch === undefined ||
-      startsDay === undefined || entryCount === undefined ||
+      suspendedUntilDay === undefined ||
       following <= current || following <= launch ||
-      !dailyIsScheduled(following, startsDay, entryCount) ||
-      following !== nextScheduledDaily(current, startsDay, entryCount) ||
-      following > nextScheduledDaily(today, startsDay, entryCount) ||
+      following !== nextScheduledDaily(current, suspendedUntilDay) ||
+      following > nextScheduledDaily(today, suspendedUntilDay) ||
       following < Math.max(launch + 1, today - KEEPER_RECENT_DAILY_CADENCES)) {
     throw new Error("keeper policy rejects following Daily preparation");
   }
   assertCadenceId(current, "Daily id");
   assertCadenceId(following, "following Daily id");
   assertCadenceId(launch, "launch Daily id");
-  assertCadenceId(startsDay, "catalog start day");
+  assertCadenceId(suspendedUntilDay, "suspended-until day");
 }
 
 function assertActivation(
@@ -386,21 +376,13 @@ function assertActivation(
     }
     return;
   }
-  if (context.catalogStartsDay === undefined || context.poolEntryCount === undefined) {
-    throw new Error("keeper policy rejects Daily activation catalog");
+  if (context.suspendedUntilDay === undefined) {
+    throw new Error("keeper policy rejects Daily activation suspension state");
   }
-  assertRulesCatalog(context);
-  const currentScheduled = dailyIsScheduled(
-    today,
-    context.catalogStartsDay,
-    context.poolEntryCount,
-  )
-    ? today
-    : nextScheduledDaily(today - 1, context.catalogStartsDay, context.poolEntryCount);
+  const currentScheduled = Math.max(today, context.suspendedUntilDay);
   const followingScheduled = nextScheduledDaily(
     currentScheduled,
-    context.catalogStartsDay,
-    context.poolEntryCount,
+    context.suspendedUntilDay,
   );
   if (dayId === currentScheduled) {
     if (context.recoveryActivation || context.preactivation ||
@@ -416,6 +398,23 @@ function assertActivation(
     return;
   }
   throw new Error("keeper policy rejects Daily activation");
+}
+
+function assertSuspendedSkip(
+  context: KeeperPlanContext,
+  today: number,
+): void {
+  const source = context.dayId;
+  const successor = context.followingDayId;
+  const suspendedUntilDay = context.suspendedUntilDay;
+  if (source === undefined || successor === undefined ||
+      suspendedUntilDay === undefined || source >= suspendedUntilDay ||
+      successor !== suspendedUntilDay || source > today) {
+    throw new Error("keeper policy rejects suspended Daily skip");
+  }
+  assertCadenceId(source, "suspended Daily id");
+  assertCadenceId(successor, "successor Daily id");
+  assertCadenceFunding(context);
 }
 
 function assertRecentDaily(
@@ -473,19 +472,12 @@ function assertBoardCount(value: number | undefined, label: string): void {
 
 function assertDailyContent(context: KeeperPlanContext): void {
   if (context.followingDayId === undefined || context.contentVersion === undefined ||
-      context.contentVersion < 1 || context.catalogStartsDay === undefined ||
-      context.poolEntryCount === undefined || !context.poolEntries ||
-      context.poolEntries.length !== context.poolEntryCount) {
+      context.contentVersion < 1 || context.suspendedUntilDay === undefined) {
     throw new Error("keeper policy rejects Daily content context");
   }
-  const selected = dailyContentSelection(
-    context.catalogStartsDay,
-    context.followingDayId,
-    context.poolEntryCount,
-  );
-  const entry = context.poolEntries[selected.poolIndex];
-  if (context.poolIndex !== selected.poolIndex || !entry ||
-      context.realmMapId !== entry.realmMapId) {
+  const selected = dailyContentSelection(context.followingDayId);
+  if (context.pairIndex !== selected.pairIndex ||
+      context.realmMapId !== selected.realmMapId) {
     throw new Error("keeper policy rejects Daily content selection");
   }
 }

@@ -39,14 +39,6 @@ export function deriveCreditVaultPda(
   return derive([Buffer.from("credit_vault")], programId);
 }
 
-export function deriveDailyRulesCatalogPda(
-  rulesVersion: number,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  assertInteger(rulesVersion, 1, 0xffff_ffff, "rulesVersion");
-  return derive([Buffer.from("daily_rules"), u32le(rulesVersion)], programId);
-}
-
 export function derivePlayerStatePda(
   owner: PublicKey,
   programId = ZKUBE_PROGRAM_ID,

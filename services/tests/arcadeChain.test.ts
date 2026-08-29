@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARCADE_ACCOUNT_VERSION,
-  DAILY_POOL_CAPACITY,
+  DAILY_PAIR_COUNT,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
   ENTRY_SPLIT_LAMPORTS,
@@ -36,33 +36,23 @@ describe("v5 Daily cadence constants", () => {
     });
   });
 
-  it("does not let a catalog start rotate a day's pool selection", () => {
+  it("derives a day's pair from its absolute day only", () => {
     const dayId = 31_415;
-    expect(dailyContentSelection(
-      dayId - 20,
-      dayId,
-      10,
-    )).toEqual(dailyContentSelection(
-      dayId,
-      dayId,
-      10,
-    ));
+    expect(dailyContentSelection(dayId)).toEqual(dailyContentSelection(dayId));
   });
 
-  it("reshuffles each complete raised-capacity cycle", () => {
-    const startsDay = DAILY_POOL_CAPACITY * 200;
+  it("reshuffles each complete realm-objective product cycle", () => {
+    const startsDay = DAILY_PAIR_COUNT * 200;
     const cycle = (cycleIndex: number) => Array.from(
-      { length: DAILY_POOL_CAPACITY },
+      { length: DAILY_PAIR_COUNT },
       (_, offset) => dailyContentSelection(
-        startsDay,
-        startsDay + cycleIndex * DAILY_POOL_CAPACITY + offset,
-        DAILY_POOL_CAPACITY,
-      ).poolIndex,
+        startsDay + cycleIndex * DAILY_PAIR_COUNT + offset,
+      ).pairIndex,
     );
     const first = cycle(0);
     const second = cycle(1);
-    expect(new Set(first).size).toBe(DAILY_POOL_CAPACITY);
-    expect(new Set(second).size).toBe(DAILY_POOL_CAPACITY);
+    expect(new Set(first).size).toBe(DAILY_PAIR_COUNT);
+    expect(new Set(second).size).toBe(DAILY_PAIR_COUNT);
     expect(second).not.toEqual(first);
   });
 });

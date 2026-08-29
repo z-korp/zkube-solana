@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::arena_rules::{DailyPressureProfile, DailyRulesCatalog, DailyScoringRule};
+use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
 use crate::state::protocol::{LevelRuleSnapshot, PlayerState};
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
@@ -46,7 +46,8 @@ impl zkube_core::Sha256Provider for SolanaSha256 {
 pub struct ArcadeConfig {
     pub version: u8,
     pub protocol: Pubkey,
-    pub rules_catalog: Pubkey,
+    /// Days below this absolute identifier are suspended; zero disables it.
+    pub suspended_until_day: u32,
     pub entry_lamports: u64,
     pub daily_lamports: u64,
     pub operator_lamports: u64,
@@ -56,11 +57,11 @@ pub struct ArcadeConfig {
 }
 
 impl ArcadeConfig {
-    pub fn canonical(protocol: Pubkey, rules_catalog: Pubkey, bump: u8) -> Self {
+    pub fn canonical(protocol: Pubkey, bump: u8) -> Self {
         Self {
             version: ARCADE_ACCOUNT_VERSION,
             protocol,
-            rules_catalog,
+            suspended_until_day: 0,
             entry_lamports: ARENA_ENTRY_LAMPORTS,
             daily_lamports: ENTRY_DAILY_LAMPORTS,
             operator_lamports: ENTRY_OPERATOR_LAMPORTS,
@@ -432,14 +433,12 @@ pub struct ArenaDaily {
     pub version: u8,
     pub day_id: u32,
     pub arcade_config: Pubkey,
-    pub rules_version: u32,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
     pub content_version: u32,
-    pub catalog_hash: [u8; 32],
     pub rules_hash: [u8; 32],
     pub map_id: u8,
-    pub scoring_rule: DailyScoringRule,
+    pub daily_theme: DailyThemeSnapshot,
     pub rules: LevelRuleSnapshot,
     pub pressure: DailyPressureProfile,
     pub opens_at: i64,
@@ -897,20 +896,16 @@ pub fn day_id_at(timestamp: i64) -> Result<u32> {
     zkube_core::day_id_at(timestamp).map_err(|_| error!(ErrorCode::InvalidPeriod))
 }
 
-/// The first two Dailies supported by the active catalog around a wall-clock
-/// day. A future `starts_day` represents a suspension gap; an empty pool is an
-/// explicit refusal until another catalog revision is activated.
-pub fn scheduled_daily_window(catalog: &DailyRulesCatalog, day_id: u32) -> Result<(u32, u32)> {
-    catalog.validate()?;
-    require!(catalog.pool_entry_count > 0, ErrorCode::DailyNotScheduled);
-    let first = day_id.max(catalog.starts_day);
+/// The first two eligible Dailies around a wall-clock day.
+pub fn scheduled_daily_window(config: &ArcadeConfig, day_id: u32) -> Result<(u32, u32)> {
+    let first = day_id.max(config.suspended_until_day);
     let following = first.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
     Ok((first, following))
 }
 
 /// The first scheduled Daily that has not opened yet at `day_id`.
-pub fn next_scheduled_daily(catalog: &DailyRulesCatalog, day_id: u32) -> Result<u32> {
-    let (first, following) = scheduled_daily_window(catalog, day_id)?;
+pub fn next_scheduled_daily(config: &ArcadeConfig, day_id: u32) -> Result<u32> {
+    let (first, following) = scheduled_daily_window(config, day_id)?;
     Ok(if first > day_id { first } else { following })
 }
 
@@ -919,8 +914,7 @@ pub fn next_scheduled_daily(catalog: &DailyRulesCatalog, day_id: u32) -> Result<
 /// permissionlessly, but an entry's target is already fenced by account
 /// existence (only the catalog-validated preparation path creates dailies)
 /// and the Funding-status gate, and a misdirected entry could only fund a
-/// real pot whose unclaimed balance rolls forward regardless. Re-deriving
-/// here would cost the catalog account in every entry for no reachable gain.
+/// real pot whose unclaimed balance rolls forward regardless.
 pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool {
     successor_day_id > source_day_id
 }
@@ -973,12 +967,10 @@ pub fn daily_result_hash(
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
     daily.arcade_config.serialize(&mut bytes)?;
-    daily.rules_version.serialize(&mut bytes)?;
     daily.content_version.serialize(&mut bytes)?;
-    daily.catalog_hash.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
     daily.map_id.serialize(&mut bytes)?;
-    daily.scoring_rule.serialize(&mut bytes)?;
+    daily.daily_theme.serialize(&mut bytes)?;
     daily.rules.serialize(&mut bytes)?;
     daily.pressure.serialize(&mut bytes)?;
     daily.opens_at.serialize(&mut bytes)?;
@@ -1121,7 +1113,7 @@ mod tests {
 
     #[test]
     fn entry_split_is_exact_and_static() {
-        let config = ArcadeConfig::canonical(Pubkey::new_unique(), Pubkey::new_unique(), 1);
+        let config = ArcadeConfig::canonical(Pubkey::new_unique(), 1);
         config.validate_terms().unwrap();
         assert_eq!(
             config.daily_lamports + config.operator_lamports,
@@ -1384,10 +1376,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 399);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 358);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 391);
+        assert_eq!(daily_bytes.len(), 350);
         assert_eq!(ArenaBoard::INIT_SPACE, 121);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_537);
         assert_eq!(

@@ -176,13 +176,13 @@
   ],
   "phase1Core": {
     "coreVersion": "1.0.0",
-    "dailyPoolDraw": {
+    "dailyPairDraw": {
       "selectionSeedHex": "7a6b7562652d6461696c792d706f6f6c2d7630312d7075626c69632d73656564",
-      "startsDay": 20000,
-      "entryCount": 10,
-      "entryIndicesByDay": [
-        6, 2, 1, 9, 0, 4, 3, 7, 8, 5,
-        7, 3, 8, 5, 9, 0, 1, 4, 6, 2
+      "startsDay": 32000,
+      "pairCount": 160,
+      "pairIndicesByDay": [
+        53, 131, 145, 13, 73, 91, 31, 97, 74, 39,
+        5, 132, 138, 26, 151, 99, 20, 119, 54, 15
       ]
     },
     "rankPayout": {
