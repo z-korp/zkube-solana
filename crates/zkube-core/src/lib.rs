@@ -34,6 +34,7 @@ mod replay;
 #[allow(clippy::pedantic)]
 mod rules;
 mod simulation;
+include!("tier_weights.generated.rs");
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
@@ -86,6 +87,6 @@ pub use rules::{
 };
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
-    DailyRunRules, DailySimulation, DailySimulationConfig, RULES_VERSION, SimulationError,
-    daily_rules_hash, daily_rules_hash_with, neutral_daily_mutator_rules,
+    DailyRunRules, DailySimulation, DailySimulationConfig, PRESSURE_STEP, RULES_VERSION,
+    SimulationError, daily_rules_hash, daily_rules_hash_with, neutral_daily_mutator_rules,
 };

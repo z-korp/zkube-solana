@@ -1,8 +1,8 @@
 import {
   DAILY_MAX_MOVES,
-  DAILY_PRESSURE_BLOCK_WEIGHTS,
   DAILY_PRESSURE_SCORE_MULTIPLIERS_X100,
-  DAILY_PRESSURE_THRESHOLDS,
+  PRESSURE_STEP,
+  TIER_BLOCK_WEIGHTS,
 } from "./protocolVersions.generated";
 import {
   DAILY_PAIR_COUNT,
@@ -100,63 +100,38 @@ type DailyPressureMultipliers = [number, number, number, number, number, number,
 type DailyBlockWeights = [number, number, number, number, number];
 
 export interface DailyPressureProfileView {
-  thresholds: DailyPressureThresholds;
   scoreMultipliersX100: DailyPressureMultipliers;
-  blockWeights: [
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-    DailyBlockWeights,
-  ];
   maxMoves: number;
 }
 
 export interface RawDailyPressureProfile {
-  thresholds: readonly unknown[];
   scoreMultipliersX100: readonly unknown[];
-  blockWeights: readonly (readonly unknown[])[];
   maxMoves: unknown;
 }
 
 export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
-  thresholds: [...DAILY_PRESSURE_THRESHOLDS],
   scoreMultipliersX100: [...DAILY_PRESSURE_SCORE_MULTIPLIERS_X100],
-  blockWeights: DAILY_PRESSURE_BLOCK_WEIGHTS.map((weights) => [
-    ...weights,
-  ]) as DailyPressureProfileView["blockWeights"],
   maxMoves: DAILY_MAX_MOVES,
 };
+
+export const DAILY_TIER_BLOCK_WEIGHTS = TIER_BLOCK_WEIGHTS.map(
+  (weights) => [...weights] as DailyBlockWeights,
+);
+
+export function dailyPressureThresholds(): DailyPressureThresholds {
+  return Array.from({ length: 7 }, (_, index) => PRESSURE_STEP * (index + 1)) as DailyPressureThresholds;
+}
 
 export function mapDailyPressureProfile(
   pressure: RawDailyPressureProfile,
 ): DailyPressureProfileView {
-  if (pressure.thresholds.length !== 7) {
-    throw new Error("Decoded Daily pressure must contain exactly 7 thresholds");
-  }
-  if (
-    pressure.scoreMultipliersX100.length !== 8 ||
-    pressure.blockWeights.length !== 8
-  ) {
+  if (pressure.scoreMultipliersX100.length !== 8) {
     throw new Error("Decoded Daily pressure must contain exactly 8 tiers");
   }
-  const blockWeights = pressure.blockWeights.map((weights) => {
-    if (weights.length !== 5) {
-      throw new Error(
-        "Decoded Daily pressure tier must contain exactly 5 block weights",
-      );
-    }
-    return weights.map(Number) as DailyBlockWeights;
-  }) as DailyPressureProfileView["blockWeights"];
   return {
-    thresholds: pressure.thresholds.map(Number) as DailyPressureThresholds,
     scoreMultipliersX100: pressure.scoreMultipliersX100.map(
       Number,
     ) as DailyPressureMultipliers,
-    blockWeights,
     maxMoves: Number(pressure.maxMoves),
   };
 }

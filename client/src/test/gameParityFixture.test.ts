@@ -68,11 +68,7 @@ describe("shared game parity fixtures", () => {
 
     for (const map of maps) {
       expect(map.levels).toHaveLength(10);
-      for (const level of map.levels) {
-        expect(
-          level.blockWeights.reduce((sum, weight) => sum + weight, 0),
-        ).toBe(100);
-      }
+      expect(map.levels.every((level) => level.difficulty <= 7)).toBe(true);
     }
   });
 });

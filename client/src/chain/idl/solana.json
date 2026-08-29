@@ -6779,15 +6779,6 @@
                 "name": "ConstraintSnapshot"
               }
             }
-          },
-          {
-            "name": "block_weights",
-            "type": {
-              "array": [
-                "u16",
-                5
-              ]
-            }
           }
         ]
       }
@@ -7021,33 +7012,10 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "thresholds",
-            "type": {
-              "array": [
-                "u32",
-                7
-              ]
-            }
-          },
-          {
             "name": "score_multipliers_x100",
             "type": {
               "array": [
                 "u16",
-                8
-              ]
-            }
-          },
-          {
-            "name": "block_weights",
-            "type": {
-              "array": [
-                {
-                  "array": [
-                    "u16",
-                    5
-                  ]
-                },
                 8
               ]
             }
@@ -7224,15 +7192,6 @@
           {
             "name": "boss_id",
             "type": "u8"
-          },
-          {
-            "name": "block_weights",
-            "type": {
-              "array": [
-                "u16",
-                5
-              ]
-            }
           },
           {
             "name": "line_clear_bonus",

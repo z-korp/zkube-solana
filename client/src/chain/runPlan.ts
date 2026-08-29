@@ -56,6 +56,7 @@ import {
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
+  dailyPressureThresholds,
   mapDailyPressureProfile,
   type DailyPressureProfileView,
   type DailyThemeView,
@@ -942,7 +943,7 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     currentDifficulty: Number(account.currentDifficulty),
     // Presentation aliases retained while the HUD terminology migrates from
     // the old Cairo endless mode to Daily pressure tiers.
-    endlessThresholds: dailyPressure.thresholds,
+    endlessThresholds: dailyPressureThresholds(),
     endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),

@@ -6,6 +6,7 @@ import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
   canonicalCampaignMap,
 } from "./campaignCatalog";
+import { TIER_BLOCK_WEIGHTS } from "./protocolVersions.generated";
 
 const maps = () =>
   Array.from({ length: CANONICAL_CAMPAIGN_MAP_COUNT }, (_, index) =>
@@ -43,13 +44,7 @@ describe("Campaign content v2", () => {
         ]),
       })),
     ).toEqual(fixture.maps);
-    for (const map of maps()) {
-      for (const level of map.levels) {
-        expect(level.blockWeights).toEqual(
-          fixture.difficultyWeights[level.difficulty],
-        );
-      }
-    }
+    expect(TIER_BLOCK_WEIGHTS).toEqual(fixture.difficultyWeights);
   });
 
   it("keeps realm mutators, boss archetypes, and trigger semantics stable", () => {
@@ -82,7 +77,6 @@ describe("Campaign content v2", () => {
     const pristine = canonicalCampaignMap(2, 1);
     first.levels[0].pointsRequired = 999;
     first.levels[0].primary.kind = 3;
-    first.levels[0].blockWeights[0] = 999;
     expect(canonicalCampaignMap(2, 1)).toEqual(pristine);
   });
 });

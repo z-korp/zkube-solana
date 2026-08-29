@@ -22,6 +22,7 @@ import { PublicKey } from "@solana/web3.js";
 import { BonusType } from "@/chain/bonusTypes";
 import {
   CANONICAL_DAILY_PRESSURE,
+  dailyPressureThresholds,
 } from "@/chain/dailyRules";
 import {
   CAMPAIGN_CONTENT_VERSION,
@@ -166,7 +167,7 @@ export function buildDevActiveRun(
     nextRow: [...NEXT_ROW],
     pendingVrfCounter: 0,
     vrfRequestCounter: 12,
-    endlessThresholds: CANONICAL_DAILY_PRESSURE.thresholds,
+    endlessThresholds: dailyPressureThresholds(),
     endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
 }

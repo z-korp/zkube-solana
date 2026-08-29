@@ -17,7 +17,6 @@ interface CampaignLevelPublication {
   difficulty: number;
   primary: CampaignConstraintPublication;
   secondary: CampaignConstraintPublication;
-  blockWeights: [number, number, number, number, number];
 }
 
 interface CampaignMapRulesPublication {
@@ -119,7 +118,6 @@ function level(
     difficulty,
     primary: publicationConstraint(primary),
     secondary: publicationConstraint(secondary),
-    blockWeights: [...CAMPAIGN_CATALOG.difficultyWeights[difficulty]],
   };
 }
 

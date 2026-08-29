@@ -6785,15 +6785,6 @@ export type Solana = {
                 "name": "constraintSnapshot"
               }
             }
-          },
-          {
-            "name": "blockWeights",
-            "type": {
-              "array": [
-                "u16",
-                5
-              ]
-            }
           }
         ]
       }
@@ -7027,33 +7018,10 @@ export type Solana = {
         "kind": "struct",
         "fields": [
           {
-            "name": "thresholds",
-            "type": {
-              "array": [
-                "u32",
-                7
-              ]
-            }
-          },
-          {
             "name": "scoreMultipliersX100",
             "type": {
               "array": [
                 "u16",
-                8
-              ]
-            }
-          },
-          {
-            "name": "blockWeights",
-            "type": {
-              "array": [
-                {
-                  "array": [
-                    "u16",
-                    5
-                  ]
-                },
                 8
               ]
             }
@@ -7230,15 +7198,6 @@ export type Solana = {
           {
             "name": "bossId",
             "type": "u8"
-          },
-          {
-            "name": "blockWeights",
-            "type": {
-              "array": [
-                "u16",
-                5
-              ]
-            }
           },
           {
             "name": "lineClearBonus",

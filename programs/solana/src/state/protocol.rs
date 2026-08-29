@@ -450,7 +450,6 @@ impl MapCatalog {
             active_mutator_id: map.active_mutator_id,
             passive_mutator_id: map.passive_mutator_id,
             boss_id: u8::from(level == LEVELS_PER_MAP as u8) * map.boss_id,
-            block_weights: authored.block_weights,
             line_clear_bonus: map.line_clear_bonus,
             perfect_clear_bonus: map.perfect_clear_bonus,
             bonus_type: map.bonus_type,
@@ -482,7 +481,6 @@ pub struct CampaignLevelSnapshot {
     pub difficulty: u8,
     pub primary: ConstraintSnapshot,
     pub secondary: ConstraintSnapshot,
-    pub block_weights: [u16; 5],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
@@ -496,7 +494,6 @@ pub struct LevelRuleSnapshot {
     pub active_mutator_id: u8,
     pub passive_mutator_id: u8,
     pub boss_id: u8,
-    pub block_weights: [u16; 5],
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     pub bonus_type: u8,
@@ -821,7 +818,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 541);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 423);
     }
 
     #[test]
@@ -859,7 +856,6 @@ mod tests {
             points_required: 20 + index as u32,
             max_moves: 30,
             difficulty: index.min(7) as u8,
-            block_weights: [20; 5],
             ..CampaignLevelSnapshot::default()
         });
         let catalog = MapCatalog {

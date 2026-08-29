@@ -301,11 +301,12 @@ pub fn handler_fulfill_row_vrf(
 /// threshold-crossing action immediately affects the next unseen row. Campaign
 /// runs keep their authored level snapshot for their full lifetime.
 fn generation_weights(active: &ActiveRun) -> [u16; 5] {
-    if active.mode == RunMode::Daily {
-        active.daily_pressure.block_weights[usize::from(active.current_difficulty.min(7))]
+    let tier = if active.mode == RunMode::Daily {
+        active.current_difficulty
     } else {
-        active.rules.block_weights
-    }
+        active.rules.difficulty
+    };
+    zkube_core::TIER_BLOCK_WEIGHTS[usize::from(tier.min(7))]
 }
 
 fn provide_verified_vrf_rows(
@@ -1415,7 +1416,8 @@ mod tests {
         assert_eq!(move_run.pressure_score, 10);
         assert_eq!(
             move_run.current_difficulty,
-            DailyPressureProfile::canonical().difficulty_for_score(move_run.pressure_score)
+            zkube_core::DailyPressureRules::canonical()
+                .difficulty_for_score(move_run.pressure_score)
         );
         assert_eq!(move_run.current_difficulty, bonus_run.current_difficulty);
         assert_eq!(move_run.finished_at, 123);
@@ -1424,31 +1426,27 @@ mod tests {
     }
 
     #[test]
-    fn generation_weights_cover_campaign_and_every_daily_tier() {
-        let campaign_weights = [3, 5, 7, 11, 13];
-        let campaign = ActiveRun {
-            mode: RunMode::Campaign,
-            current_difficulty: 7,
-            rules: LevelRuleSnapshot {
-                block_weights: campaign_weights,
-                ..LevelRuleSnapshot::default()
-            },
-            ..ActiveRun::default()
-        };
-        assert_eq!(generation_weights(&campaign), campaign_weights);
-
-        let pressure = DailyPressureProfile::canonical();
+    fn campaign_and_daily_draw_from_one_tier_table() {
         for tier in 0..8u8 {
+            let campaign = ActiveRun {
+                mode: RunMode::Campaign,
+                rules: LevelRuleSnapshot {
+                    difficulty: tier,
+                    ..LevelRuleSnapshot::default()
+                },
+                ..ActiveRun::default()
+            };
             let daily = ActiveRun {
                 mode: RunMode::Daily,
                 current_difficulty: tier,
-                daily_pressure: pressure,
+                daily_pressure: DailyPressureProfile::canonical(),
                 ..ActiveRun::default()
             };
             assert_eq!(
-                generation_weights(&daily),
-                pressure.block_weights[usize::from(tier)]
+                generation_weights(&campaign),
+                zkube_core::TIER_BLOCK_WEIGHTS[usize::from(tier)]
             );
+            assert_eq!(generation_weights(&daily), generation_weights(&campaign));
         }
     }
 
@@ -1471,7 +1469,7 @@ mod tests {
             ..RunEngine::default()
         };
         let report = MoveReport {
-            neutral_points_earned: pressure.thresholds[0],
+            neutral_points_earned: zkube_core::PRESSURE_STEP,
             ..MoveReport::default()
         };
 
@@ -1480,7 +1478,10 @@ mod tests {
         assert_eq!(active.current_difficulty, 1);
         assert_eq!(active.next_row, preview);
         assert!(active.has_next_row);
-        assert_eq!(generation_weights(&active), pressure.block_weights[1]);
+        assert_eq!(
+            generation_weights(&active),
+            zkube_core::TIER_BLOCK_WEIGHTS[1]
+        );
     }
 
     #[test]

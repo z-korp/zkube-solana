@@ -622,7 +622,7 @@ fn fulfill_row_instruction(
 }
 
 #[test]
-fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
+fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
     let vrf_program_identity: Pubkey =
         ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
             .to_bytes()
@@ -631,7 +631,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
     let opening_run = Pubkey::new_unique();
     let opening_randomness = [37; 32];
     let opening_rules = LevelRuleSnapshot {
-        block_weights: [15, 30, 30, 15, 10],
+        difficulty: 0,
         starting_rows: 8,
         ..LevelRuleSnapshot::default()
     };
@@ -679,7 +679,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
         opening_state.rules_hash,
         opening_rules.starting_rows,
         zkube_core::BlockWeights {
-            values: opening_rules.block_weights,
+            values: zkube_core::TIER_BLOCK_WEIGHTS[0],
         },
     )
     .unwrap();
@@ -693,55 +693,6 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
     assert_eq!(opened.lifecycle, RunLifecycle::Playing);
     assert_eq!(opened.starting_height_target, 0);
     assert_eq!(opened.pending_vrf_counter, 0);
-
-    let pathological_run = Pubkey::new_unique();
-    let pathological_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        lifecycle: RunLifecycle::AwaitingVrf,
-        rules: LevelRuleSnapshot {
-            block_weights: [99, 1, 0, 0, 0],
-            ..LevelRuleSnapshot::default()
-        },
-        starting_height_target: 8,
-        vrf_request_counter: 1,
-        pending_vrf_counter: 1,
-        ..ActiveRun::default()
-    };
-    let pathological_accounts = vec![
-        (vrf_program_identity, system_account(0)),
-        (
-            pathological_run,
-            program_account(&pathological_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let pathological_instruction = fulfill_row_instruction(
-        vrf_program_identity,
-        pathological_run,
-        magic_fee_vault,
-        [0; 32],
-        1,
-    );
-    let pathological_result =
-        mollusk().process_instruction(&pathological_instruction, &pathological_accounts);
-    assert!(
-        pathological_result.program_result.is_ok(),
-        "{:?}",
-        pathological_result.program_result
-    );
-    eprintln!(
-        "SBF_COMPUTE fulfill_pathological_opening={}",
-        pathological_result.compute_units_consumed
-    );
-    assert!(pathological_result.compute_units_consumed < 200_000);
-    let pathological: ActiveRun =
-        decode(resulting_account(&pathological_result, &pathological_run));
-    let pathological_grid = Grid::try_from_cells(pathological.grid).unwrap();
-    let mut pathological_settled = pathological_grid;
-    pathological_settled.apply_gravity();
-    assert_eq!(pathological_settled, pathological_grid);
-    assert_eq!(pathological_grid.occupied_height(), 8);
-    assert!(pathological.has_next_row);
 
     let daily_run = Pubkey::new_unique();
     let daily_randomness = [91; 32];
@@ -795,7 +746,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_live_daily_weights() {
             daily_randomness,
             2,
             BlockWeights {
-                values: pressure.block_weights[7],
+                values: zkube_core::TIER_BLOCK_WEIGHTS[7],
             },
         )
         .unwrap()
@@ -866,8 +817,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     grid[0] = 1;
     let old_preview = [1, 0, 0, 0, 0, 0, 0, 0];
     let initial_replay = [7u8; 32];
-    let mut pressure = DailyPressureProfile::canonical();
-    pressure.block_weights[0] = weights;
+    assert_eq!(weights, zkube_core::TIER_BLOCK_WEIGHTS[0]);
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
@@ -879,10 +829,9 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: DAILY_MAX_MOVES,
-            block_weights: weights,
             ..LevelRuleSnapshot::default()
         },
-        daily_pressure: pressure,
+        daily_pressure: DailyPressureProfile::canonical(),
         grid,
         next_row: old_preview,
         has_next_row: true,
@@ -1162,7 +1111,6 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
         level: index as u8 + 1,
         points_required: 10,
         max_moves: 20,
-        block_weights: [20; 5],
         ..CampaignLevelSnapshot::default()
     });
     let map_state = MapCatalog {
@@ -1386,7 +1334,6 @@ fn sbf_campaign_perfect_clear_grants_a_held_reroll_that_can_be_requested() {
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: 20,
-            block_weights: [2_000; 5],
             ..LevelRuleSnapshot::default()
         },
         grid,

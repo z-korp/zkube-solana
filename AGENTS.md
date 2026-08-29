@@ -102,7 +102,7 @@ and approved on 2026-08-08.
 **The systems below are locked. The balance is not.** Every structural rule in
 this section is settled and is not to be relitigated without an explicit new
 approval. Deliberately deferred to a separate balance pass, and safe to leave
-open: the global pressure thresholds and `DailyPressureRules` values,
+open: the global pressure step and score multipliers,
 ladder tier boundaries, and the flat qualifying credit.
 
 - **A Daily is one realm plus one objective, and there is no calendar or content
@@ -136,9 +136,17 @@ ladder tier boundaries, and the flat qualifying credit.
   it. Do not reintroduce a tomorrow panel, an evening hook, or an
   ambient hint. Suspension notice is unaffected: the operator's per-day veto
   above depends on suspension needing no notice, never on publication.
-- **Daily pressure is one global profile, not a content property.** Every player
-  faces the same thresholds, score ramp, block weights, and move limit. The
-  protocol stores that profile once; every selected pair receives it.
+- **Difficulty has one protocol-owned tier table.** Codegen emits
+  `TIER_BLOCK_WEIGHTS` from the fixture's single `difficultyWeights` table; a
+  Campaign level at tier N and a Daily at pressure tier N draw from exactly the
+  same row. No account, level snapshot, or run snapshot stores block weights;
+  `campaign_and_daily_draw_from_one_tier_table` and the codegen check guard the
+  boundary.
+- **Daily pressure is one step and one score ramp.** The pressure tier is
+  `min(7, pressure_score / 20)`, and its action multipliers are
+  1.0/1.5/2.0/2.5/3.0/3.5/4.0/4.5. Objective increments never feed pressure.
+  Every selected pair uses that profile and the fixed 100-move limit; there is
+  no authored threshold array or per-content pressure copy.
 - **A guardian's active mutator is identical in Campaign and Arcade.** The
   drawn realm resolves the same published Campaign guardian bytes used by its
   levels, so the practice bridge and completed star records cannot drift between

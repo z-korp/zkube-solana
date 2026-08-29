@@ -9,9 +9,9 @@ use zkube_core::{
 /// Versioned fixed encoding consumed by the stateless WASM transition API.
 ///
 /// Layout: chain domain (32), challenge (32), raw account (32), run ID LE (8),
-/// replay mode (1), finalized Daily rules hash (32), then the 144-byte
+/// replay mode (1), finalized Daily rules hash (32), then the canonical
 /// canonical [`DailyRunRules`] snapshot encoding.
-pub const DAILY_SIMULATION_CONFIG_LEN: usize = 274;
+pub const DAILY_SIMULATION_CONFIG_LEN: usize = 166;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
@@ -350,19 +350,9 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
         kind: ConstraintKind::from_tag(objective_tag).ok_or(BoundaryError::InvalidEncoding)?,
         value: objective_parameter,
     };
-    let mut thresholds = [0; 7];
-    for threshold in &mut thresholds {
-        *threshold = reader.u32()?;
-    }
     let mut score_multipliers_x100 = [0; 8];
     for multiplier in &mut score_multipliers_x100 {
         *multiplier = reader.u16()?;
-    }
-    let mut block_weights = [[0; 5]; 8];
-    for tier in &mut block_weights {
-        for weight in tier {
-            *weight = reader.u16()?;
-        }
     }
     Ok(DailyRunRules {
         max_moves,
@@ -371,9 +361,7 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
         starting_height,
         objective,
         pressure: DailyPressureRules {
-            thresholds,
             score_multipliers_x100,
-            block_weights,
         },
     })
 }

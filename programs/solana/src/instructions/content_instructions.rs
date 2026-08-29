@@ -231,17 +231,6 @@ pub fn handler_write_map_catalog(
         validate_primary_constraint_snapshot(level.primary)?;
         validate_secondary_constraint_snapshot(level.secondary)?;
         validate_distinct_constraint_facts(level.primary, level.secondary, &args.map_rules)?;
-        require!(
-            level.block_weights[0] > 0
-                && level.block_weights[1..].iter().any(|weight| *weight > 0)
-                && level
-                    .block_weights
-                    .iter()
-                    .map(|weight| u32::from(*weight))
-                    .sum::<u32>()
-                    == 100,
-            ErrorCode::InvalidBlockWeights
-        );
     }
 
     let catalog = &mut ctx.accounts.map_catalog;
@@ -624,7 +613,6 @@ mod tests {
         let rules = LevelRuleSnapshot {
             level: 1,
             max_moves: 20,
-            block_weights: [20; 5],
             ..LevelRuleSnapshot::default()
         };
         let first = hash_rules(1, 1, &rules).unwrap();

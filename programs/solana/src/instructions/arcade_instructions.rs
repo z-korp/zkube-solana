@@ -1860,7 +1860,6 @@ fn daily_level_rules(
         active_mutator_id: realm.active_mutator_id,
         passive_mutator_id: 0,
         boss_id: 0,
-        block_weights: pressure.block_weights[0],
         line_clear_bonus: mutator.line_clear_bonus,
         perfect_clear_bonus: mutator.perfect_clear_bonus,
         bonus_type: realm.bonus_type,

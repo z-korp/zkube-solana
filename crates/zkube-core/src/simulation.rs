@@ -8,57 +8,36 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
-pub const RULES_VERSION: u32 = 1;
-pub const CANONICAL_DAILY_RULES_LEN: usize = 137;
+pub const RULES_VERSION: u32 = 2;
+pub const CANONICAL_DAILY_RULES_LEN: usize = 29;
 pub const DAILY_MAX_MOVES: u16 = 100;
+pub const PRESSURE_STEP: u32 = 20;
 const PRESSURE_TIER_COUNT: usize = 8;
 
-/// The score-driven pressure schedule snapshotted into a Daily run.
+/// The protocol-owned score multiplier ramp for a Daily run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DailyPressureRules {
-    pub thresholds: [u32; 7],
     pub score_multipliers_x100: [u16; PRESSURE_TIER_COUNT],
-    pub block_weights: [[u16; 5]; PRESSURE_TIER_COUNT],
 }
 
 impl DailyPressureRules {
     #[must_use]
     pub const fn canonical() -> Self {
         Self {
-            thresholds: [12, 28, 48, 70, 95, 125, 155],
-            score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
-            block_weights: [
-                [25, 30, 25, 15, 5],
-                [22, 28, 25, 18, 7],
-                [20, 25, 25, 20, 10],
-                [18, 22, 24, 22, 14],
-                [16, 20, 22, 24, 18],
-                [14, 18, 20, 26, 22],
-                [12, 16, 18, 28, 26],
-                [10, 14, 16, 30, 30],
-            ],
+            score_multipliers_x100: [100, 150, 200, 250, 300, 350, 400, 450],
         }
     }
 
     #[must_use]
     pub fn is_valid(self) -> bool {
-        self.thresholds.windows(2).all(|pair| pair[0] < pair[1])
-            && self
-                .score_multipliers_x100
-                .iter()
-                .all(|multiplier| *multiplier > 0)
-            && self.block_weights.iter().all(|weights| {
-                BlockWeights { values: *weights }.validate().is_ok()
-                    && weights.iter().map(|weight| u32::from(*weight)).sum::<u32>() == 100
-            })
+        self.score_multipliers_x100
+            .iter()
+            .all(|multiplier| *multiplier > 0)
     }
 
     #[must_use]
     pub fn difficulty_for_score(self, pressure_score: u32) -> u8 {
-        self.thresholds
-            .iter()
-            .take_while(|threshold| pressure_score >= **threshold)
-            .fold(0u8, |difficulty, _| difficulty + 1)
+        u8::try_from((pressure_score / PRESSURE_STEP).min(7)).unwrap_or(7)
     }
 
     #[must_use]
@@ -69,7 +48,7 @@ impl DailyPressureRules {
     #[must_use]
     pub fn weights(self, difficulty: u8) -> BlockWeights {
         BlockWeights {
-            values: self.block_weights[usize::from(difficulty.min(7))],
+            values: crate::TIER_BLOCK_WEIGHTS[usize::from(difficulty.min(7))],
         }
     }
 }
@@ -121,11 +100,6 @@ impl DailyRunRules {
                 .contains(&self.starting_height)
             && crate::DAILY_THEMES.contains(&self.objective)
             && self.pressure.is_valid()
-            && self
-                .pressure
-                .score_multipliers_x100
-                .iter()
-                .all(|value| *value > 0)
     }
 
     #[must_use]
@@ -138,16 +112,8 @@ impl DailyRunRules {
         encoded.push(&self.mutator.bonus_threshold.to_le_bytes());
         encoded.push(&[bonus_tag(self.bonus), self.starting_height]);
         encoded.push(&[self.objective.kind.tag(), self.objective.value]);
-        for threshold in self.pressure.thresholds {
-            encoded.push(&threshold.to_le_bytes());
-        }
         for multiplier in self.pressure.score_multipliers_x100 {
             encoded.push(&multiplier.to_le_bytes());
-        }
-        for tier in self.pressure.block_weights {
-            for weight in tier {
-                encoded.push(&weight.to_le_bytes());
-            }
         }
         debug_assert_eq!(encoded.len(), CANONICAL_DAILY_RULES_LEN);
         encoded
@@ -729,7 +695,7 @@ mod tests {
         let baseline = rules();
         assert_eq!(baseline.canonical_bytes().len(), CANONICAL_DAILY_RULES_LEN);
         let mut changed = baseline;
-        changed.pressure.block_weights[7][4] -= 1;
+        changed.pressure.score_multipliers_x100[7] -= 1;
         assert_ne!(baseline.snapshot_hash(), changed.snapshot_hash());
         changed = baseline;
         changed.objective = crate::DAILY_THEMES[2];

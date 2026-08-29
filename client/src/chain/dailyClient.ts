@@ -43,6 +43,7 @@ import {
   type TransactionPlan,
 } from "./runPlan.js";
 import {
+  dailyPressureThresholds,
   mapDailyPressureProfile,
   dailyContentSelection,
   nextScheduledDaily,
@@ -242,7 +243,7 @@ export async function fetchDailyView(args: {
       value: Number(challenge.dailyTheme.value),
     },
     pressure,
-    endlessThresholds: pressure.thresholds,
+    endlessThresholds: dailyPressureThresholds(),
     endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
   };
 }
@@ -642,7 +643,7 @@ const rankedDependencyCoder = new BorshAccountsCoder(
 const RANKED_ACCOUNT_SPACES = {
   protocolConfig: 156,
   arcadeConfig: 103,
-  arenaDaily: 403,
+  arenaDaily: 240,
   creditVault: 58,
 } as const;
 

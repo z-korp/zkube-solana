@@ -53,7 +53,8 @@ expired entry, with no refund path, and the on-chain invariant is
 
 Each Daily draws one of ten Campaign realms and one of sixteen protocol
 objectives. Its guardian, objective, and realm starting height are fixed for the
-whole field, while one global pressure profile governs every Daily. Daily uses
+whole field, while one global pressure step and a shared eight-tier block table
+govern every Daily. Daily uses
 neutral passive scoring; Campaign realms keep their authored line-clear and
 perfect-clear bonuses. Selection is derived from a protocol seed and the
 absolute day identifier, so the 160 realm-objective pairs cycle without

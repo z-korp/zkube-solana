@@ -20,6 +20,7 @@ import type {
 } from "@/chain/dailyClient";
 import {
   CANONICAL_DAILY_PRESSURE,
+  dailyPressureThresholds,
 } from "@/chain/dailyRules";
 import type {
   CampaignMapView,
@@ -146,7 +147,7 @@ export function buildDevDailyView(): DailyView {
     rules: DEV_RUN_RULES,
     dailyTheme,
     pressure: CANONICAL_DAILY_PRESSURE,
-    endlessThresholds: CANONICAL_DAILY_PRESSURE.thresholds,
+    endlessThresholds: dailyPressureThresholds(),
     endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
 }

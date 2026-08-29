@@ -18,9 +18,7 @@ struct GoldenObjective {
 
 #[derive(Deserialize)]
 struct GoldenPressure {
-    thresholds: [u32; 7],
     score_multipliers_x100: [u16; 8],
-    block_weights: [[u16; 5]; 8],
 }
 
 #[derive(Deserialize)]
@@ -163,9 +161,7 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
             value: value.objective.parameter,
         },
         pressure: DailyPressureRules {
-            thresholds: value.pressure.thresholds,
             score_multipliers_x100: value.pressure.score_multipliers_x100,
-            block_weights: value.pressure.block_weights,
         },
     }
 }

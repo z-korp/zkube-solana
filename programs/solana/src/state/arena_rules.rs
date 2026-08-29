@@ -5,7 +5,6 @@ use anchor_lang::prelude::*;
 use crate::error::ErrorCode;
 use crate::state::arcade::SolanaSha256;
 
-pub const DAILY_PRESSURE_TIERS: usize = 8;
 pub const DAILY_MAX_MOVES: u16 = zkube_core::DAILY_MAX_MOVES;
 
 #[derive(
@@ -41,9 +40,7 @@ impl DailyThemeSnapshot {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
 pub struct DailyPressureProfile {
-    pub thresholds: [u32; 7],
-    pub score_multipliers_x100: [u16; DAILY_PRESSURE_TIERS],
-    pub block_weights: [[u16; 5]; DAILY_PRESSURE_TIERS],
+    pub score_multipliers_x100: [u16; 8],
     pub max_moves: u16,
 }
 
@@ -55,24 +52,16 @@ impl Default for DailyPressureProfile {
 
 impl DailyPressureProfile {
     pub const fn canonical() -> Self {
-        let pressure = zkube_core::DailyPressureRules::canonical();
         Self {
-            thresholds: pressure.thresholds,
-            score_multipliers_x100: pressure.score_multipliers_x100,
-            block_weights: pressure.block_weights,
+            score_multipliers_x100: zkube_core::DailyPressureRules::canonical()
+                .score_multipliers_x100,
             max_moves: DAILY_MAX_MOVES,
         }
     }
 
     pub fn validate(self) -> Result<()> {
         require!(
-            self.thresholds.windows(2).all(|pair| pair[0] < pair[1])
-                && self.score_multipliers_x100.iter().all(|value| *value > 0)
-                && self.block_weights.iter().all(|weights| {
-                    weights[0] > 0
-                        && weights[1..].iter().any(|weight| *weight > 0)
-                        && weights.iter().map(|value| u32::from(*value)).sum::<u32>() == 100
-                })
+            self.score_multipliers_x100.iter().all(|value| *value > 0)
                 && self.max_moves == DAILY_MAX_MOVES,
             ErrorCode::InvalidLevel
         );
@@ -81,10 +70,10 @@ impl DailyPressureProfile {
 
     #[must_use]
     pub fn difficulty_for_score(self, pressure_score: u32) -> u8 {
-        self.thresholds
-            .iter()
-            .take_while(|threshold| pressure_score >= **threshold)
-            .count() as u8
+        zkube_core::DailyPressureRules {
+            score_multipliers_x100: self.score_multipliers_x100,
+        }
+        .difficulty_for_score(pressure_score)
     }
 }
 

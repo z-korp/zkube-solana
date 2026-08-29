@@ -85,6 +85,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Daily uses one catalog-wide pressure profile without per-entry bands",
   },
   {
+    pattern:
+      /DAILY_PRESSURE_THRESHOLDS|DAILY_PRESSURE_BLOCK_WEIGHTS|CampaignRules\.block_weights|DailyPressureRules\.block_weights|LevelRuleSnapshot\.block_weights/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "one generated tier table and one pressure step replaced stored weight and threshold copies",
+  },
+  {
     pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",

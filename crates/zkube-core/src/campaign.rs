@@ -41,7 +41,6 @@ pub struct CampaignRules {
     pub bonus: Option<Bonus>,
     pub starting_height: u8,
     pub level_difficulty: u8,
-    pub block_weights: [[u16; 5]; 8],
 }
 
 impl CampaignRules {
@@ -64,16 +63,12 @@ impl CampaignRules {
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)
             && self.level_difficulty <= 7
-            && self.block_weights.iter().all(|weights| {
-                BlockWeights { values: *weights }.validate().is_ok()
-                    && weights.iter().map(|value| u32::from(*value)).sum::<u32>() == 100
-            })
     }
 
     #[must_use]
     pub fn weights(self, difficulty: u8) -> BlockWeights {
         BlockWeights {
-            values: self.block_weights[difficulty.min(7) as usize],
+            values: crate::TIER_BLOCK_WEIGHTS[difficulty.min(7) as usize],
         }
     }
 }
@@ -511,7 +506,6 @@ mod tests {
                 bonus: Some(Bonus::Wave),
                 starting_height: 4,
                 level_difficulty: 0,
-                block_weights: [[20; 5]; 8],
             },
         }
     }

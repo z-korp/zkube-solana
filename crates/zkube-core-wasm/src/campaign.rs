@@ -5,9 +5,9 @@ use zkube_core::{
     MutatorRules, RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 181;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 101;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
-const CONFIG_VERSION: u8 = 5;
+const CONFIG_VERSION: u8 = 6;
 const STATE_VERSION: u8 = 6;
 
 #[must_use]
@@ -25,11 +25,6 @@ pub fn encode_campaign_simulation_config(
     encode_mutator(&mut writer, config.rules.mutator);
     writer.write(&[bonus_tag(config.rules.bonus)]);
     writer.write(&[config.rules.starting_height, config.rules.level_difficulty]);
-    for tier in config.rules.block_weights {
-        for value in tier {
-            writer.write(&value.to_le_bytes());
-        }
-    }
     writer.finish()
 }
 
@@ -57,12 +52,6 @@ pub fn decode_campaign_simulation_config(
     let bonus = decode_bonus(reader.u8()?)?;
     let starting_height = reader.u8()?;
     let level_difficulty = reader.u8()?;
-    let mut block_weights = [[0; 5]; 8];
-    for tier in &mut block_weights {
-        for value in tier {
-            *value = reader.u16()?;
-        }
-    }
     reader.finish()?;
     let config = CampaignSimulationConfig {
         content_version,
@@ -77,7 +66,6 @@ pub fn decode_campaign_simulation_config(
             bonus,
             starting_height,
             level_difficulty,
-            block_weights,
         },
     };
     if !config.rules.is_valid() {
@@ -574,7 +562,6 @@ mod tests {
                 bonus: Some(Bonus::Wave),
                 starting_height: 4,
                 level_difficulty: 0,
-                block_weights: [[20; 5]; 8],
             },
         }
     }
