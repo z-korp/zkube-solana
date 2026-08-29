@@ -982,12 +982,11 @@ impl Evaluator {
     }
 
     fn board_divergence(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "board-divergence",
             "per non-Classic Daily entry",
             "pooled Score/Theme Spearman rho <= 0.600",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -1447,13 +1446,10 @@ impl Evaluator {
             }
         }
         let campaign = reroll_grant_unit("campaign", &campaign_records, None);
-        let daily = ignored_unit(
-            reroll_grant_unit(
-                "daily",
-                &daily_records,
-                Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
-            ),
-            "brief 05",
+        let daily = reroll_grant_unit(
+            "daily",
+            &daily_records,
+            Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
         );
         Ok(finish(metadata, vec![campaign, daily]))
     }
@@ -2175,12 +2171,6 @@ fn reroll_grant_unit_from_counts(
     )
 }
 
-fn ignored_unit(mut unit: AssertionUnit, owner: &str) -> AssertionUnit {
-    unit.live = false;
-    unit.owner = Some(String::from(owner));
-    unit
-}
-
 fn success(record: &RunRecord) -> bool {
     record.earned_stars > 0
 }
@@ -2492,7 +2482,6 @@ mod tests {
         assert_named("tier-step");
     }
     #[test]
-    #[ignore = "opens in brief 05: board-divergence"]
     fn board_divergence() {
         assert_named("board-divergence");
     }
@@ -2547,32 +2536,29 @@ mod tests {
     #[test]
     fn reroll_grant() {
         let campaign = reroll_grant_unit_from_counts("campaign", 3_200, 0, 2_706, 2_706, 0, None);
-        let daily = ignored_unit(
-            reroll_grant_unit_from_counts(
-                "daily",
-                320,
-                0,
-                12,
-                13,
-                0,
-                Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
-            ),
-            "brief 05",
+        let daily = reroll_grant_unit_from_counts(
+            "daily",
+            320,
+            0,
+            32,
+            33,
+            0,
+            Some((bands::REROLL_GRANT_MIN_BPS, bands::REROLL_GRANT_MAX_BPS)),
         );
         let result = finish(
             Metadata::live(
                 "reroll-grant",
                 "per mode",
-                "Campaign discard cap live; Arcade grant rate owned by brief 05",
+                "Campaign discard cap and Arcade grant rate are live",
                 bands::ACCEPTANCE_PLANNER_SEEDS,
             ),
             vec![campaign, daily],
         );
         assert!(result.units[0].live, "Campaign discard share is live");
         assert_eq!(result.units[0].passed, Some(true));
-        assert!(!result.units[1].live, "Arcade remains owned by brief 05");
-        assert_eq!(result.units[1].owner.as_deref(), Some("brief 05"));
-        assert_eq!(result.units[1].passed, Some(false));
+        assert!(result.units[1].live, "Arcade grant rate is live");
+        assert_eq!(result.units[1].owner, None);
+        assert_eq!(result.units[1].passed, Some(true));
     }
 
     #[test]

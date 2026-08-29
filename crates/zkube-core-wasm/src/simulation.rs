@@ -632,8 +632,19 @@ mod tests {
         let mut state = initialize_daily_simulation(&config_bytes, 1, &[0x11; 32]).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
-        expected.apply_bonus(config.rules, 0, 0, 0).unwrap();
-        state = simulation_apply_bonus(&config_bytes, &state, 0, 0, 0).unwrap();
+        let bonus_index = expected
+            .engine
+            .grid
+            .cells()
+            .iter()
+            .position(|cell| *cell != 0)
+            .expect("opening must contain a valid bonus target");
+        let bonus_row = u8::try_from(bonus_index / 8).unwrap();
+        let bonus_column = u8::try_from(bonus_index % 8).unwrap();
+        expected
+            .apply_bonus(config.rules, 0, bonus_row, bonus_column)
+            .unwrap();
+        state = simulation_apply_bonus(&config_bytes, &state, 0, bonus_row, bonus_column).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
         let (row, start, destination, moved) = (0..10)

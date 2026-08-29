@@ -899,12 +899,12 @@ fn daily_objective(index: usize) -> (u8, DailyObjectiveRule) {
         1 => (1, DailyObjective::Combo { minimum_lines: 2 }, 200),
         2 => (1, DailyObjective::Combo { minimum_lines: 3 }, 1_250),
         3 => (2, DailyObjective::ExactLines { lines: 1 }, 100),
-        4 => (2, DailyObjective::ExactLines { lines: 2 }, 250),
+        4 => (2, DailyObjective::ExactLines { lines: 2 }, 50),
         5 => (2, DailyObjective::ExactLines { lines: 3 }, 1_250),
         6 => (3, DailyObjective::Blocks { size: 1 }, 50),
         7 => (3, DailyObjective::Blocks { size: 2 }, 125),
         8 => (3, DailyObjective::Blocks { size: 3 }, 140),
-        9 => (3, DailyObjective::Blocks { size: 4 }, 200),
+        9 => (3, DailyObjective::Blocks { size: 4 }, 100),
         10 => (4, DailyObjective::Clutch { minimum_height: 6 }, 200),
         11 => (4, DailyObjective::Clutch { minimum_height: 7 }, 270),
         12 => (5, DailyObjective::Clean { maximum_height: 2 }, 450),
@@ -3596,7 +3596,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":294,\"objectiveSum\":146,\"campaignScoreSum\":16,\"completedCampaignRuns\":0,\"chargesEarned\":11,\"digestHex\":\"27a295d58d7586436659a2d61c170e4dde38cf4245d48d2bed3449b601840669\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":252,\"objectiveSum\":35,\"campaignScoreSum\":16,\"completedCampaignRuns\":0,\"chargesEarned\":9,\"digestHex\":\"918b0d333ca60d47ea563cb37cab1e80bf2afe76ddcab62405d6df95cf4e7448\"}"
         );
     }
 
@@ -3648,8 +3648,8 @@ mod tests {
                 .map(|record| record.decision_digest_hex.as_str())
                 .collect::<Vec<_>>(),
             [
-                "ab6daa6a2d008f9014e3499cf473d4268a7c1b48dbbe9b53537c4b089e4f9eba",
-                "4a09b2f5382f06328729379c02120c3396d02f745ac7f27a00430b1ec505963c",
+                "4f4d4f91508db72cb9904af09438f9b524a793d028b62fd0c44d38ad97b58cbf",
+                "16fe8df798ed1da3e515c080c9736d0a92ed41435d270d5d5d1dc236c39dca15",
                 "76a43dafd04e011185eb7e430a121167c66d5302e4c77e5b5ef8c04bb2bf2de1",
                 "09b09be6852408979db369fecad071d0d0d016f8458678ef16634d4994d0aca5",
             ]

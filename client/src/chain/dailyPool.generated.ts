@@ -7,61 +7,61 @@ export const DAILY_POOL = {
       "id": 1,
       "realmMapId": 1,
       "scoringIndex": 0,
-      "startingRows": 6
+      "startingRows": 3
     },
     {
       "id": 2,
       "realmMapId": 2,
-      "scoringIndex": 1,
-      "startingRows": 6
+      "scoringIndex": 9,
+      "startingRows": 4
     },
     {
       "id": 3,
       "realmMapId": 3,
-      "scoringIndex": 3,
-      "startingRows": 6
+      "scoringIndex": 9,
+      "startingRows": 3
     },
     {
       "id": 4,
       "realmMapId": 4,
-      "scoringIndex": 6,
-      "startingRows": 6
+      "scoringIndex": 9,
+      "startingRows": 3
     },
     {
       "id": 5,
       "realmMapId": 5,
-      "scoringIndex": 10,
-      "startingRows": 6
+      "scoringIndex": 9,
+      "startingRows": 3
     },
     {
       "id": 6,
       "realmMapId": 6,
-      "scoringIndex": 12,
-      "startingRows": 4
+      "scoringIndex": 4,
+      "startingRows": 3
     },
     {
       "id": 7,
       "realmMapId": 7,
-      "scoringIndex": 14,
-      "startingRows": 4
+      "scoringIndex": 9,
+      "startingRows": 3
     },
     {
       "id": 8,
       "realmMapId": 8,
-      "scoringIndex": 2,
+      "scoringIndex": 4,
       "startingRows": 4
     },
     {
       "id": 9,
       "realmMapId": 9,
-      "scoringIndex": 5,
+      "scoringIndex": 4,
       "startingRows": 3
     },
     {
       "id": 10,
       "realmMapId": 10,
-      "scoringIndex": 9,
-      "startingRows": 5
+      "scoringIndex": 4,
+      "startingRows": 3
     }
   ]
 } as const;
