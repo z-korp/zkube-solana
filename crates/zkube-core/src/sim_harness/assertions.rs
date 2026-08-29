@@ -996,12 +996,11 @@ impl Evaluator {
     }
 
     fn passive_relevance(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::ignored(
+        let metadata = Metadata::live(
             "passive-relevance",
             "per Campaign realm with combo multiplier >= 2",
             "combo-valued planner mean-star gain >= 0.3",
             bands::ACCEPTANCE_PLANNER_SEEDS,
-            "brief 05",
         );
         if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
             return Ok(skipped);
@@ -2560,7 +2559,6 @@ mod tests {
         assert_named("tier-step");
     }
     #[test]
-    #[ignore = "opens in brief 05: passive-relevance"]
     fn passive_relevance() {
         assert_named("passive-relevance");
     }

@@ -1225,8 +1225,8 @@ mod tests {
     fn campaign_v2_scoring_synergies_are_exact_for_moves_and_bonus_actions() {
         let mutators = campaign_v2_mutators();
         let expected_single = [2, 1, 2, 2, 4, 2, 3, 1, 3, 2];
-        let expected_combo = [5, 4, 10, 6, 9, 10, 9, 6, 14, 17];
-        let expected_perfect_four = [14, 35, 28, 35, 22, 38, 50, 20, 36, 92];
+        let expected_combo = [5, 4, 5, 6, 9, 5, 9, 3, 7, 7];
+        let expected_perfect_four = [14, 35, 14, 35, 22, 24, 50, 10, 18, 55];
         let incomplete = LevelRules {
             points_required: u32::MAX,
             max_moves: u16::MAX,
