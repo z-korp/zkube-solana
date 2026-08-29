@@ -6794,14 +6794,6 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "scoreMultiplierX100",
-            "type": "u16"
-          },
-          {
-            "name": "comboMultiplierX100",
-            "type": "u16"
-          },
-          {
             "name": "lineClearBonus",
             "type": "u16"
           },
@@ -7372,14 +7364,6 @@ export type Solana = {
                 5
               ]
             }
-          },
-          {
-            "name": "scoreMultiplierX100",
-            "type": "u16"
-          },
-          {
-            "name": "comboMultiplierX100",
-            "type": "u16"
           },
           {
             "name": "lineClearBonus",

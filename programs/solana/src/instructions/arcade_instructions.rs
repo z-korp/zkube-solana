@@ -1912,8 +1912,6 @@ fn daily_level_rules(entry: DailyPoolEntry, pressure: DailyPressureProfile) -> L
         passive_mutator_id: 0,
         boss_id: 0,
         block_weights: pressure.block_weights[0],
-        score_multiplier_x100: mutator.score_multiplier_x100,
-        combo_multiplier_x100: mutator.combo_multiplier_x100,
         line_clear_bonus: mutator.line_clear_bonus,
         perfect_clear_bonus: mutator.perfect_clear_bonus,
         bonus_type: entry.bonus_type,
@@ -2206,8 +2204,6 @@ mod tests {
             let prepared = zkube_core::DailyRunRules {
                 max_moves: snapshot.max_moves,
                 mutator: zkube_core::MutatorRules {
-                    score_multiplier_x100: snapshot.score_multiplier_x100,
-                    combo_multiplier_x100: snapshot.combo_multiplier_x100,
                     line_clear_bonus: snapshot.line_clear_bonus,
                     perfect_clear_bonus: snapshot.perfect_clear_bonus,
                     bonus_trigger_type: snapshot.bonus_trigger_type,

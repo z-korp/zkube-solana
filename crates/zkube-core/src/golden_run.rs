@@ -4,8 +4,6 @@ use std::{string::String, vec::Vec};
 
 #[derive(Deserialize)]
 struct GoldenMutator {
-    score_multiplier_x100: u16,
-    combo_multiplier_x100: u16,
     line_clear_bonus: u16,
     perfect_clear_bonus: u16,
     bonus_trigger_type: u8,
@@ -166,8 +164,6 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
     DailyRunRules {
         max_moves: value.max_moves,
         mutator: MutatorRules {
-            score_multiplier_x100: value.mutator.score_multiplier_x100,
-            combo_multiplier_x100: value.mutator.combo_multiplier_x100,
             line_clear_bonus: value.mutator.line_clear_bonus,
             perfect_clear_bonus: value.mutator.perfect_clear_bonus,
             bonus_trigger_type: value.mutator.bonus_trigger_type,

@@ -102,6 +102,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /\bscore_multiplier_x100\b|\bcombo_multiplier_x100\b|(?<!["'])\bscoreMultiplierX100\b(?!["'])|\bcomboMultiplierX100\b|PlannerStrongCombo|CampaignCombo|passive[-_]relevance/,
+    trees: [CORE, CLIENT, PROGRAM],
+    reversal:
+      "per-realm scaling fields were inert; pressure owns action scoring",
+  },
+  {
+    pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "the visible entry streak does not multiply ladder points",

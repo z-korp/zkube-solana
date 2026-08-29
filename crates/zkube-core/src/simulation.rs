@@ -9,7 +9,7 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v2";
-pub const CANONICAL_DAILY_RULES_LEN: usize = 144;
+pub const CANONICAL_DAILY_RULES_LEN: usize = 140;
 pub const DAILY_MAX_MOVES: u16 = 100;
 const PRESSURE_TIER_COUNT: usize = 8;
 
@@ -106,8 +106,6 @@ pub const fn neutral_daily_mutator_rules(
     bonus_threshold: u16,
 ) -> MutatorRules {
     MutatorRules {
-        score_multiplier_x100: 100,
-        combo_multiplier_x100: 100,
         line_clear_bonus: 0,
         perfect_clear_bonus: 0,
         bonus_trigger_type,
@@ -123,8 +121,6 @@ impl DailyRunRules {
             Some(_) => self.starting_bonus_charges <= BONUS_CHARGE_CAP,
         };
         self.max_moves > 0
-            && self.mutator.score_multiplier_x100 > 0
-            && self.mutator.combo_multiplier_x100 > 0
             && bonus_trigger_threshold_is_valid(
                 self.mutator.bonus_trigger_type,
                 self.mutator.bonus_threshold,
@@ -138,15 +134,13 @@ impl DailyRunRules {
                 .pressure
                 .score_multipliers_x100
                 .iter()
-                .all(|pressure| self.action_score_multiplier(*pressure).is_ok())
+                .all(|value| *value > 0)
     }
 
     #[must_use]
     pub fn canonical_bytes(self) -> CanonicalDailyRulesBytes {
         let mut encoded = CanonicalDailyRulesBytes::default();
         encoded.push(&self.max_moves.to_le_bytes());
-        encoded.push(&self.mutator.score_multiplier_x100.to_le_bytes());
-        encoded.push(&self.mutator.combo_multiplier_x100.to_le_bytes());
         encoded.push(&self.mutator.line_clear_bonus.to_le_bytes());
         encoded.push(&self.mutator.perfect_clear_bonus.to_le_bytes());
         encoded.push(&[self.mutator.bonus_trigger_type]);
@@ -185,20 +179,8 @@ impl DailyRunRules {
         RulesHash(H::hashv(&[DAILY_RULES_HASH_DOMAIN, encoded.as_slice()]))
     }
 
-    fn action_mutator(self, difficulty: u8) -> Result<MutatorRules, SimulationError> {
-        let pressure = self.pressure.multiplier(difficulty);
-        Ok(MutatorRules {
-            score_multiplier_x100: self.action_score_multiplier(pressure)?,
-            ..self.mutator
-        })
-    }
-
-    fn action_score_multiplier(self, pressure: u16) -> Result<u16, SimulationError> {
-        u32::from(self.mutator.score_multiplier_x100)
-            .checked_mul(u32::from(pressure))
-            .and_then(|value| value.checked_div(100))
-            .and_then(|value| u16::try_from(value).ok())
-            .ok_or(SimulationError::Overflow)
+    fn action_score_multiplier(self, difficulty: u8) -> u16 {
+        self.pressure.multiplier(difficulty)
     }
 }
 
@@ -461,7 +443,8 @@ impl DailySimulation {
             start,
             destination,
             daily_level_rules(rules),
-            rules.action_mutator(next.current_difficulty)?,
+            rules.mutator,
+            rules.action_score_multiplier(next.current_difficulty),
             RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;
@@ -502,7 +485,8 @@ impl DailySimulation {
             row,
             column,
             daily_level_rules(rules),
-            rules.action_mutator(next.current_difficulty)?,
+            rules.mutator,
+            rules.action_score_multiplier(next.current_difficulty),
             RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;

@@ -265,8 +265,6 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     require!(rules.active_mutator_id > 0, ErrorCode::InvalidLevel);
     require!(rules.passive_mutator_id > 0, ErrorCode::InvalidLevel);
     require!(rules.boss_id > 0, ErrorCode::InvalidLevel);
-    require!(rules.score_multiplier_x100 > 0, ErrorCode::InvalidLevel);
-    require!(rules.combo_multiplier_x100 > 0, ErrorCode::InvalidLevel);
     require!((1..=3).contains(&rules.bonus_type), ErrorCode::InvalidLevel);
     require!(
         matches!(rules.bonus_trigger_type, 1 | 2 | 4 | 6..=9),
@@ -690,8 +688,6 @@ mod tests {
             active_mutator_id: 1,
             passive_mutator_id: 2,
             boss_id: 1,
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             bonus_type: 3,
             bonus_trigger_type: 1,
             bonus_threshold: 3,

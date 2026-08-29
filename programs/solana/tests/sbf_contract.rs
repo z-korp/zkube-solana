@@ -114,8 +114,6 @@ fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
     CampaignMapRuleSnapshot {
         active_mutator_id: 1,
         passive_mutator_id: 2,
-        score_multiplier_x100: 100,
-        combo_multiplier_x100: 100,
         line_clear_bonus: 1,
         perfect_clear_bonus: 2,
         bonus_type: 1,
@@ -1213,8 +1211,6 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
         theme_id: 1,
         enabled: true,
         map_rules: CampaignMapRuleSnapshot {
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             starting_rows: 3,
             ..CampaignMapRuleSnapshot::default()
         },
@@ -1377,8 +1373,6 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
         level: 1,
         rules: LevelRuleSnapshot {
             max_moves: 20,
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             ..LevelRuleSnapshot::default()
         },
         grid,
@@ -1445,8 +1439,6 @@ fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
                 required_count: 1,
             },
             block_weights: [2_000; 5],
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             ..LevelRuleSnapshot::default()
         },
         grid,
@@ -1529,8 +1521,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
             rules: LevelRuleSnapshot {
                 points_required: u32::MAX,
                 max_moves: DAILY_MAX_MOVES,
-                score_multiplier_x100: 100,
-                combo_multiplier_x100: 100,
                 ..LevelRuleSnapshot::default()
             },
             daily_pressure: DailyPressureProfile::canonical(),
@@ -1595,8 +1585,6 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: 20,
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             ..LevelRuleSnapshot::default()
         },
         grid,
@@ -1656,8 +1644,6 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
                 value: 3,
                 required_count: 1,
             },
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
             ..LevelRuleSnapshot::default()
         },
         score: 1,
@@ -2962,8 +2948,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
         content.entry.active_mutator_id
     );
     assert_eq!(after.rules.passive_mutator_id, 0);
-    assert_eq!(after.rules.score_multiplier_x100, 100);
-    assert_eq!(after.rules.combo_multiplier_x100, 100);
     assert_eq!(after.rules.line_clear_bonus, 0);
     assert_eq!(after.rules.perfect_clear_bonus, 0);
     assert_eq!(

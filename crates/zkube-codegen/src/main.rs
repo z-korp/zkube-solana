@@ -68,7 +68,7 @@ struct CampaignCatalog {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CampaignMap {
     map_id: u8,
-    rules: [u16; 9],
+    rules: [u16; 7],
     levels: Vec<EncodedLevel>,
 }
 
@@ -307,7 +307,7 @@ fn campaign_rules(
     }
     let mut all_weights = [[0; 5]; 8];
     all_weights.copy_from_slice(weights);
-    let bonus = match map.rules[4] {
+    let bonus = match map.rules[2] {
         0 => None,
         1 => Some(Bonus::Hammer),
         2 => Some(Bonus::Totem),
@@ -322,18 +322,16 @@ fn campaign_rules(
             secondary: constraint(level.4)?,
         },
         mutator: MutatorRules {
-            score_multiplier_x100: map.rules[0],
-            combo_multiplier_x100: map.rules[1],
-            line_clear_bonus: map.rules[2],
-            perfect_clear_bonus: map.rules[3],
-            bonus_trigger_type: u8::try_from(map.rules[5])
+            line_clear_bonus: map.rules[0],
+            perfect_clear_bonus: map.rules[1],
+            bonus_trigger_type: u8::try_from(map.rules[3])
                 .map_err(|_| format!("map {} trigger exceeds u8", map.map_id))?,
-            bonus_threshold: map.rules[6],
+            bonus_threshold: map.rules[4],
         },
         bonus,
-        starting_bonus_charges: u8::try_from(map.rules[7])
+        starting_bonus_charges: u8::try_from(map.rules[5])
             .map_err(|_| format!("map {} charges exceed u8", map.map_id))?,
-        starting_height: u8::try_from(map.rules[8])
+        starting_height: u8::try_from(map.rules[6])
             .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
         level_difficulty: level.2,
         block_weights: all_weights,
@@ -646,8 +644,8 @@ mod tests {
         ) in CONTAINED_FACT_CASES
         {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-            catalog.maps[0].rules[5] = u16::from(trigger);
-            catalog.maps[0].rules[6] = threshold;
+            catalog.maps[0].rules[3] = u16::from(trigger);
+            catalog.maps[0].rules[4] = threshold;
             catalog.maps[0].levels[7].3 = [primary.tag(), primary_value, 2];
             catalog.maps[0].levels[7].4 = [secondary.tag(), secondary_value, secondary_count];
             assert!(validate_catalog(&catalog).is_err());

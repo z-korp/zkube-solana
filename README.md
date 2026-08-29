@@ -55,7 +55,7 @@ Each Daily uses one complete configuration from a published content pool. Its
 realm, permanent guardian mutator, guardian bonus, objective, and starting
 height are fixed for the whole field, while one global pressure profile governs
 every Daily. Daily uses neutral passive scoring; Campaign realms keep their
-authored passives.
+authored line-clear and perfect-clear bonuses.
 Selection is derived from a protocol seed and the day identifier, so tomorrow
 is independently recomputable today and a pool cycles without replacement
 before repeating.

@@ -161,9 +161,9 @@ ladder tier boundaries, and the flat qualifying credit.
   boundary.
 - **Daily has no passive pairing.** A Daily inherits its realm's active mutator
   and guardian bonus, then uses the neutral passive scoring baseline: no passive
-  mutator, 1x score and combo multipliers, and no passive line-clear or
-  perfect-clear bonus. Campaign realms keep their authored passives. Daily pool
-  entries and preparation must never carry a passive map identity;
+  line-clear or perfect-clear bonus. Campaign realms keep their authored
+  line-clear and perfect-clear bonuses. Daily pool entries and preparation must
+  never carry a passive map identity;
   `supersession.test.ts` guards that boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, combo-count, block-burst, and clearing-move-streak triggers carry a

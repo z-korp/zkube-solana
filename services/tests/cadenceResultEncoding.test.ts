@@ -56,7 +56,7 @@ const idl = convertIdlToCamelCase(JSON.parse(readFileSync(
 const coder = new BorshAccountsCoder(idl);
 const temporaryRoots: string[] = [];
 const SOURCE_IDL_SHA256 =
-  "ae328489db48d82b3c3a057e9784a87c24cdc2f9136417b18c6aabc35433426e";
+  "14419f4ff7d474565c1fc7396a1cea59544374f4f14bf9e279e5f8c995387f0d";
 let adapter: AnchorKeeperAdapter;
 
 beforeAll(async () => {
@@ -84,12 +84,12 @@ describe("v5 bounded Daily result encoding", () => {
     expect(fixture.accounts).toHaveLength(1);
     const { daily, score, theme } = fixtureAccounts();
     const result = adapter.projectArchiveResultData("daily", daily, score, theme);
-    expect(result).toHaveLength(581);
+    expect(result).toHaveLength(577);
     expect(sha256(result)).toBe(
-      "8d829ba2654503c0c686ba81b6036a3e29e7c0fae50fd4a1416a4447f6d9dabb",
+      "56e783f181598a4441640af6bea17e751985bf9f517b29d9114d85568121e7da",
     );
     expect(cadenceResultHash("daily", result)).toBe(
-      "e6a816dca809b6e3ac48d4714f1cd90593ba833847d1f27928a0cd5c54ae8925",
+      "97a26438ea2abdfbe67530a1da58c7a795711de311591194525e314473479c46",
     );
   });
 
@@ -99,7 +99,7 @@ describe("v5 bounded Daily result encoding", () => {
     const score = maximumBoard(fixture.score, 1_536);
     const theme = maximumBoard(fixture.theme, 1_536);
     const result = canonicalCadenceResultData(idl, "daily", daily, { score, theme });
-    expect(result).toHaveLength(258_629);
+    expect(result).toHaveLength(258_625);
     expect(result.length).toBeLessThan(MAX_CADENCE_RESULT_BYTES);
     expect(() => canonicalCadenceResultData(idl, "daily", daily, {
       score: maximumBoard(fixture.score, 2_000),

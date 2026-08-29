@@ -19,8 +19,6 @@ describe("Campaign content v2", () => {
       maps().map((map) => ({
         mapId: map.mapId,
         rules: [
-          map.mapRules.scoreMultiplierX100,
-          map.mapRules.comboMultiplierX100,
           map.mapRules.lineClearBonus,
           map.mapRules.perfectClearBonus,
           map.mapRules.bonusType,

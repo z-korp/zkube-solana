@@ -5,7 +5,7 @@ use zkube_core::{
     MutatorRules, RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 186;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 182;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
 const CONFIG_VERSION: u8 = 4;
 const STATE_VERSION: u8 = 6;
@@ -358,8 +358,6 @@ fn decode_constraint(reader: &mut Reader<'_>) -> Result<Constraint, BoundaryErro
 }
 
 fn encode_mutator<const N: usize>(writer: &mut Writer<N>, mutator: MutatorRules) {
-    writer.write(&mutator.score_multiplier_x100.to_le_bytes());
-    writer.write(&mutator.combo_multiplier_x100.to_le_bytes());
     writer.write(&mutator.line_clear_bonus.to_le_bytes());
     writer.write(&mutator.perfect_clear_bonus.to_le_bytes());
     writer.write(&[mutator.bonus_trigger_type]);
@@ -368,8 +366,6 @@ fn encode_mutator<const N: usize>(writer: &mut Writer<N>, mutator: MutatorRules)
 
 fn decode_mutator(reader: &mut Reader<'_>) -> Result<MutatorRules, BoundaryError> {
     Ok(MutatorRules {
-        score_multiplier_x100: reader.u16()?,
-        combo_multiplier_x100: reader.u16()?,
         line_clear_bonus: reader.u16()?,
         perfect_clear_bonus: reader.u16()?,
         bonus_trigger_type: reader.u8()?,

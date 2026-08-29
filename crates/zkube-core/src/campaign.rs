@@ -58,8 +58,6 @@ impl CampaignRules {
                 self.mutator.bonus_trigger_type,
                 self.mutator.bonus_threshold,
             )
-            && self.mutator.score_multiplier_x100 > 0
-            && self.mutator.combo_multiplier_x100 > 0
             && bonus_trigger_threshold_is_valid(
                 self.mutator.bonus_trigger_type,
                 self.mutator.bonus_threshold,
@@ -214,6 +212,7 @@ impl CampaignSimulation {
             destination,
             config.rules.level,
             config.rules.mutator,
+            100,
             RunMode::Campaign,
         )?;
         next.accept_action(config, report)?;
@@ -240,6 +239,7 @@ impl CampaignSimulation {
             column,
             config.rules.level,
             config.rules.mutator,
+            100,
             RunMode::Campaign,
         )?;
         next.accept_action(config, report)?;

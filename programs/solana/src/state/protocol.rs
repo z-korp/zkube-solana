@@ -452,8 +452,6 @@ impl MapCatalog {
             passive_mutator_id: map.passive_mutator_id,
             boss_id: u8::from(level == LEVELS_PER_MAP as u8) * map.boss_id,
             block_weights: authored.block_weights,
-            score_multiplier_x100: map.score_multiplier_x100,
-            combo_multiplier_x100: map.combo_multiplier_x100,
             line_clear_bonus: map.line_clear_bonus,
             perfect_clear_bonus: map.perfect_clear_bonus,
             bonus_type: map.bonus_type,
@@ -470,8 +468,6 @@ pub struct CampaignMapRuleSnapshot {
     pub active_mutator_id: u8,
     pub passive_mutator_id: u8,
     pub boss_id: u8,
-    pub score_multiplier_x100: u16,
-    pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     pub bonus_type: u8,
@@ -504,8 +500,6 @@ pub struct LevelRuleSnapshot {
     pub passive_mutator_id: u8,
     pub boss_id: u8,
     pub block_weights: [u16; 5],
-    pub score_multiplier_x100: u16,
-    pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     pub bonus_type: u8,
@@ -834,7 +828,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 552);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 548);
     }
 
     #[test]
@@ -861,8 +855,6 @@ mod tests {
             active_mutator_id: 13,
             passive_mutator_id: 14,
             boss_id: 5,
-            score_multiplier_x100: 175,
-            combo_multiplier_x100: 100,
             bonus_type: 1,
             bonus_trigger_type: 4,
             bonus_threshold: 3,

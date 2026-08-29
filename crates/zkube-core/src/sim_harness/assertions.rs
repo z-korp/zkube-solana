@@ -506,18 +506,6 @@ impl Evaluator {
                         self.config.planner_seeds,
                     )?;
                 }
-                "passive-relevance" => {
-                    let levels = campaign
-                        .into_iter()
-                        .filter(|level| level.rules.mutator.combo_multiplier_x100 >= 200)
-                        .collect::<Vec<_>>();
-                    self.add_campaign_tasks(
-                        &mut tasks,
-                        &levels,
-                        &[self.config.planner_model, PlayerModel::PlannerStrongCombo],
-                        self.config.planner_seeds,
-                    )?;
-                }
                 "board-divergence" => {
                     let entries = daily
                         .into_iter()
@@ -663,7 +651,7 @@ impl Evaluator {
     }
 
     fn evaluate_all(&mut self) -> Result<Vec<AssertionResult>, String> {
-        let mut results = Vec::with_capacity(18);
+        let mut results = Vec::with_capacity(17);
         macro_rules! evaluate {
             ($name:literal, $method:ident) => {{
                 self.prepare_assertion($name)?;
@@ -678,7 +666,6 @@ impl Evaluator {
         evaluate!("star-earn-rate", star_earn_rate);
         evaluate!("trigger-liveness", trigger_liveness);
         evaluate!("tier-step", tier_step);
-        evaluate!("passive-relevance", passive_relevance);
         evaluate!("board-divergence", board_divergence);
         evaluate!("theme-policy-sanity", theme_policy_sanity);
         self.prepare_assertion("realm-identity")?;
@@ -704,7 +691,6 @@ impl Evaluator {
             "star-earn-rate" => self.star_earn_rate(),
             "trigger-liveness" => self.trigger_liveness(),
             "tier-step" => self.tier_step(),
-            "passive-relevance" => self.passive_relevance(),
             "board-divergence" => self.board_divergence(),
             "theme-policy-sanity" => self.theme_policy_sanity(),
             "realm-identity" => Ok(self.realm_identity()),
@@ -990,59 +976,6 @@ impl Evaluator {
                     "dropBps": drop_bps,
                 }),
                 passed,
-            ));
-        }
-        Ok(finish(metadata, units))
-    }
-
-    fn passive_relevance(&mut self) -> Result<AssertionResult, String> {
-        let metadata = Metadata::live(
-            "passive-relevance",
-            "per Campaign realm with combo multiplier >= 2",
-            "combo-valued planner mean-star gain >= 0.3",
-            bands::ACCEPTANCE_PLANNER_SEEDS,
-        );
-        if let Some(skipped) = self.skip_for_samples(metadata, self.config.planner_seeds) {
-            return Ok(skipped);
-        }
-        let levels = self.campaign.clone();
-        let mut units = Vec::new();
-        for realm in 1..=10u8 {
-            let realm_levels = levels
-                .iter()
-                .copied()
-                .filter(|level| {
-                    level.map_id == realm && level.rules.mutator.combo_multiplier_x100 >= 200
-                })
-                .collect::<Vec<_>>();
-            if realm_levels.is_empty() {
-                continue;
-            }
-            let mut combo_stars = 0u32;
-            let mut plain_stars = 0u32;
-            for level in realm_levels.iter().copied() {
-                for offset in 0..self.config.planner_seeds {
-                    combo_stars = combo_stars.saturating_add(u32::from(
-                        self.campaign_record(level, PlayerModel::PlannerStrongCombo, offset)?
-                            .earned_stars,
-                    ));
-                    plain_stars = plain_stars.saturating_add(u32::from(
-                        self.campaign_record(level, self.config.planner_model, offset)?
-                            .earned_stars,
-                    ));
-                }
-            }
-            let samples = self
-                .config
-                .planner_seeds
-                .saturating_mul(u32::try_from(realm_levels.len()).unwrap_or(u32::MAX));
-            let gain = signed_rate(combo_stars, plain_stars, samples, 1_000);
-            units.push(unit(
-                format!("campaign-realm-{realm}"),
-                samples,
-                None,
-                json!({"meanStarGainMilli": gain}),
-                gain >= bands::PASSIVE_MEAN_STAR_GAIN_MILLI,
             ));
         }
         Ok(finish(metadata, units))
@@ -2557,10 +2490,6 @@ mod tests {
     #[ignore = "opens in brief 05: tier-step"]
     fn tier_step() {
         assert_named("tier-step");
-    }
-    #[test]
-    fn passive_relevance() {
-        assert_named("passive-relevance");
     }
     #[test]
     #[ignore = "opens in brief 05: board-divergence"]

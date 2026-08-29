@@ -6788,14 +6788,6 @@
             "type": "u8"
           },
           {
-            "name": "score_multiplier_x100",
-            "type": "u16"
-          },
-          {
-            "name": "combo_multiplier_x100",
-            "type": "u16"
-          },
-          {
             "name": "line_clear_bonus",
             "type": "u16"
           },
@@ -7366,14 +7358,6 @@
                 5
               ]
             }
-          },
-          {
-            "name": "score_multiplier_x100",
-            "type": "u16"
-          },
-          {
-            "name": "combo_multiplier_x100",
-            "type": "u16"
           },
           {
             "name": "line_clear_bonus",

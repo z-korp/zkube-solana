@@ -67,7 +67,6 @@ fn run() -> Result<String, String> {
                     PlayerModel::LineClearer,
                     PlayerModel::PlannerStrong,
                     PlayerModel::PlannerCasual,
-                    PlayerModel::PlannerStrongCombo,
                 ] {
                     for partition in [SeedPartition::Tuning, SeedPartition::Holdout] {
                         for seed_index in 0..seeds {

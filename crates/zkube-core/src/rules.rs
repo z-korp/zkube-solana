@@ -367,10 +367,8 @@ impl LevelRules {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MutatorRules {
-    pub score_multiplier_x100: u16,
-    pub combo_multiplier_x100: u16,
     pub line_clear_bonus: u16,
     pub perfect_clear_bonus: u16,
     /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
@@ -424,19 +422,6 @@ impl EndlessRules {
 
     pub fn score_multiplier(self, difficulty: u8) -> u16 {
         self.score_multipliers_x100[difficulty.min(7) as usize]
-    }
-}
-
-impl Default for MutatorRules {
-    fn default() -> Self {
-        Self {
-            score_multiplier_x100: 100,
-            combo_multiplier_x100: 100,
-            line_clear_bonus: 0,
-            perfect_clear_bonus: 0,
-            bonus_trigger_type: 0,
-            bonus_threshold: 0,
-        }
     }
 }
 
@@ -618,6 +603,7 @@ impl RunEngine {
         destination: u8,
         level: LevelRules,
         mutator: MutatorRules,
+        action_score_multiplier_x100: u16,
         mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
@@ -659,6 +645,7 @@ impl RunEngine {
                 },
                 level,
                 mutator,
+                action_score_multiplier_x100,
                 mode,
             ));
         }
@@ -678,6 +665,7 @@ impl RunEngine {
             },
             level,
             mutator,
+            action_score_multiplier_x100,
             mode,
         );
         Ok(report)
@@ -689,6 +677,7 @@ impl RunEngine {
         column: u8,
         level: LevelRules,
         mutator: MutatorRules,
+        action_score_multiplier_x100: u16,
         mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
@@ -714,6 +703,7 @@ impl RunEngine {
             },
             level,
             mutator,
+            action_score_multiplier_x100,
             mode,
             false,
             true,
@@ -777,7 +767,7 @@ impl RunEngine {
         level: LevelRules,
         mutator: MutatorRules,
     ) -> MoveReport {
-        self.finish_move_with_mode(context, level, mutator, RunMode::Campaign)
+        self.finish_move_with_mode(context, level, mutator, 100, RunMode::Campaign)
     }
 
     fn finish_move_with_mode(
@@ -785,10 +775,19 @@ impl RunEngine {
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
+        action_score_multiplier_x100: u16,
         mode: RunMode,
     ) -> MoveReport {
         self.moves = self.moves.saturating_add(1);
-        self.finish_action_with_mode(context, level, mutator, mode, true, false)
+        self.finish_action_with_mode(
+            context,
+            level,
+            mutator,
+            action_score_multiplier_x100,
+            mode,
+            true,
+            false,
+        )
     }
 
     #[cfg(test)]
@@ -803,6 +802,7 @@ impl RunEngine {
             context,
             level,
             mutator,
+            100,
             RunMode::Campaign,
             needs_next_row,
             false,
@@ -822,17 +822,20 @@ impl RunEngine {
             context,
             level,
             mutator,
+            100,
             RunMode::Campaign,
             needs_next_row,
             action_was_bonus,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn finish_action_with_mode(
         &mut self,
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
+        action_score_multiplier_x100: u16,
         mode: RunMode,
         needs_next_row: bool,
         action_was_bonus: bool,
@@ -858,15 +861,12 @@ impl RunEngine {
         }
         let perfect_clear = self.grid.is_empty();
         let lines_before = self.level_lines_cleared;
-        // Cairo applies the flat multiplier to each settle phase separately,
+        // The action multiplier applies to each settle phase separately,
         // so preserve the same integer-floor behavior instead of multiplying
         // their sum.
         let neutral_points = base_point_parts.into_iter().map(u32::from).sum::<u32>();
-        let mut points = score_base_parts(base_point_parts, mutator.score_multiplier_x100);
+        let mut points = score_base_parts(base_point_parts, action_score_multiplier_x100);
         points = points.saturating_add(lines as u32 * mutator.line_clear_bonus as u32);
-        if lines > 1 {
-            points = scale(points, mutator.combo_multiplier_x100);
-        }
         if perfect_clear {
             points = points.saturating_add(mutator.perfect_clear_bonus as u32);
         }
@@ -1055,12 +1055,10 @@ mod tests {
             .map(|map| {
                 let rules = map["rules"].as_array().unwrap();
                 MutatorRules {
-                    score_multiplier_x100: rules[0].as_u64().unwrap() as u16,
-                    combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
-                    line_clear_bonus: rules[2].as_u64().unwrap() as u16,
-                    perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
-                    bonus_trigger_type: rules[5].as_u64().unwrap() as u8,
-                    bonus_threshold: rules[6].as_u64().unwrap() as u16,
+                    line_clear_bonus: rules[0].as_u64().unwrap() as u16,
+                    perfect_clear_bonus: rules[1].as_u64().unwrap() as u16,
+                    bonus_trigger_type: rules[3].as_u64().unwrap() as u8,
+                    bonus_threshold: rules[4].as_u64().unwrap() as u16,
                 }
             })
             .collect()
@@ -1224,9 +1222,9 @@ mod tests {
     #[test]
     fn campaign_v2_scoring_synergies_are_exact_for_moves_and_bonus_actions() {
         let mutators = campaign_v2_mutators();
-        let expected_single = [2, 1, 2, 2, 4, 2, 3, 1, 3, 2];
-        let expected_combo = [5, 4, 5, 6, 9, 5, 9, 3, 7, 7];
-        let expected_perfect_four = [14, 35, 14, 35, 22, 24, 50, 10, 18, 55];
+        let expected_single = [2, 1, 2, 1, 4, 2, 1, 1, 3, 1];
+        let expected_combo = [5, 3, 5, 3, 9, 5, 3, 3, 7, 3];
+        let expected_perfect_four = [14, 30, 14, 25, 22, 24, 30, 10, 18, 40];
         let incomplete = LevelRules {
             points_required: u32::MAX,
             max_moves: u16::MAX,
@@ -1326,6 +1324,7 @@ mod tests {
                 6,
                 LevelRules::default(),
                 MutatorRules::default(),
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -1356,6 +1355,7 @@ mod tests {
                 0,
                 level,
                 MutatorRules::default(),
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -1375,6 +1375,7 @@ mod tests {
                 0,
                 level,
                 MutatorRules::default(),
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -1406,6 +1407,7 @@ mod tests {
                 0,
                 level,
                 MutatorRules::default(),
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -1434,6 +1436,7 @@ mod tests {
                 ..LevelRules::default()
             },
             MutatorRules::default(),
+            100,
             RunMode::Campaign,
         )
         .unwrap();
@@ -1491,6 +1494,7 @@ mod tests {
             },
             level,
             MutatorRules::default(),
+            100,
             RunMode::Campaign,
             true,
             false,
@@ -1508,6 +1512,7 @@ mod tests {
             },
             level,
             MutatorRules::default(),
+            100,
             RunMode::Campaign,
             true,
             false,
@@ -1536,6 +1541,7 @@ mod tests {
             ActionContext::default(),
             level,
             MutatorRules::default(),
+            100,
             RunMode::Daily,
             true,
             false,
@@ -1550,6 +1556,7 @@ mod tests {
             ActionContext::default(),
             level,
             MutatorRules::default(),
+            100,
             RunMode::Daily,
             true,
             false,
@@ -1576,6 +1583,7 @@ mod tests {
                 ..LevelRules::default()
             },
             MutatorRules::default(),
+            100,
             RunMode::Campaign,
         )
         .unwrap();
@@ -1667,6 +1675,7 @@ mod tests {
             6,
             LevelRules::default(),
             mutator,
+            100,
             RunMode::Campaign,
         )
         .unwrap();
@@ -1904,7 +1913,7 @@ mod tests {
     }
 
     #[test]
-    fn perfect_clear_bonus_is_added_after_combo_scaling() {
+    fn perfect_clear_bonus_is_added_after_line_bonus() {
         let level = LevelRules {
             points_required: u32::MAX,
             max_moves: 20,
@@ -1922,15 +1931,13 @@ mod tests {
             },
             level,
             MutatorRules {
-                score_multiplier_x100: 150,
-                combo_multiplier_x100: 200,
                 line_clear_bonus: 3,
                 perfect_clear_bonus: 5,
                 ..MutatorRules::default()
             },
             false,
         );
-        assert_eq!(report.points_earned, 47);
+        assert_eq!(report.points_earned, 21);
     }
 
     #[test]
@@ -1953,6 +1960,7 @@ mod tests {
                     perfect_clear_bonus: 10,
                     ..MutatorRules::default()
                 },
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -2214,6 +2222,7 @@ mod tests {
                     bonus_threshold: 1,
                     ..MutatorRules::default()
                 },
+                100,
                 RunMode::Campaign,
             )
             .unwrap();
@@ -2460,10 +2469,6 @@ mod tests {
                 secondary: fixture_constraint(&fixture["level"]["secondary"]),
             };
             let mutator = MutatorRules {
-                score_multiplier_x100: fixture["mutator"]["scoreMultiplierX100"].as_u64().unwrap()
-                    as u16,
-                combo_multiplier_x100: fixture["mutator"]["comboMultiplierX100"].as_u64().unwrap()
-                    as u16,
                 line_clear_bonus: fixture["mutator"]["lineClearBonus"].as_u64().unwrap() as u16,
                 perfect_clear_bonus: fixture["mutator"]["perfectClearBonus"].as_u64().unwrap()
                     as u16,
@@ -2480,6 +2485,7 @@ mod tests {
                     movement[2].as_u64().unwrap() as u8,
                     level,
                     mutator,
+                    100,
                     RunMode::Campaign,
                 )
                 .unwrap();
@@ -2557,6 +2563,7 @@ mod tests {
                 1,
                 LevelRules::default(),
                 MutatorRules::default(),
+                100,
                 RunMode::Campaign,
             )
             .is_err()

@@ -443,6 +443,7 @@ pub fn handler_play_move(
             destination,
             level,
             mutator,
+            pressure_multiplier_x100,
             core_run_mode(active.mode),
         )
         .map_err(map_run_error)?;
@@ -554,7 +555,14 @@ pub fn handler_apply_bonus(
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
-        .apply_bonus(row, column, level, mutator, core_run_mode(active.mode))
+        .apply_bonus(
+            row,
+            column,
+            level,
+            mutator,
+            pressure_multiplier_x100,
+            core_run_mode(active.mode),
+        )
         .map_err(map_run_error)?;
     fold_replay_event(
         active,
@@ -663,18 +671,12 @@ enum ActionKind {
 }
 
 fn action_mutator(active: &ActiveRun) -> Result<(MutatorRules, u16)> {
-    let mut mutator = mutator_rules(&active.rules);
+    let mutator = mutator_rules(&active.rules);
     if active.mode != RunMode::Daily {
         return Ok((mutator, 100));
     }
     let pressure_multiplier_x100 =
         active.daily_pressure.score_multipliers_x100[usize::from(active.current_difficulty.min(7))];
-    let scaled = u32::from(mutator.score_multiplier_x100)
-        .checked_mul(u32::from(pressure_multiplier_x100))
-        .and_then(|value| value.checked_div(100))
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    mutator.score_multiplier_x100 =
-        u16::try_from(scaled).map_err(|_| error!(ErrorCode::ArithmeticOverflow))?;
     Ok((mutator, pressure_multiplier_x100))
 }
 
@@ -1159,8 +1161,6 @@ fn level_rules(snapshot: &LevelRuleSnapshot) -> Result<LevelRules> {
 
 fn mutator_rules(snapshot: &LevelRuleSnapshot) -> MutatorRules {
     MutatorRules {
-        score_multiplier_x100: snapshot.score_multiplier_x100,
-        combo_multiplier_x100: snapshot.combo_multiplier_x100,
         line_clear_bonus: snapshot.line_clear_bonus,
         perfect_clear_bonus: snapshot.perfect_clear_bonus,
         bonus_trigger_type: snapshot.bonus_trigger_type,
@@ -1976,12 +1976,10 @@ mod tests {
     fn campaign_mutator(value: &Value) -> MutatorRules {
         let rules = value.as_array().unwrap();
         MutatorRules {
-            score_multiplier_x100: rules[0].as_u64().unwrap() as u16,
-            combo_multiplier_x100: rules[1].as_u64().unwrap() as u16,
-            line_clear_bonus: rules[2].as_u64().unwrap() as u16,
-            perfect_clear_bonus: rules[3].as_u64().unwrap() as u16,
-            bonus_trigger_type: rules[5].as_u64().unwrap() as u8,
-            bonus_threshold: rules[6].as_u64().unwrap() as u16,
+            line_clear_bonus: rules[0].as_u64().unwrap() as u16,
+            perfect_clear_bonus: rules[1].as_u64().unwrap() as u16,
+            bonus_trigger_type: rules[3].as_u64().unwrap() as u8,
+            bonus_threshold: rules[4].as_u64().unwrap() as u16,
         }
     }
 
@@ -2007,7 +2005,7 @@ mod tests {
             let rules = map["rules"].as_array().unwrap();
             assert!(
                 (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
-                    .contains(&(rules[8].as_u64().unwrap() as u8))
+                    .contains(&(rules[6].as_u64().unwrap() as u8))
             );
             let levels = map["levels"].as_array().unwrap();
             assert_eq!(levels.len(), 10);
@@ -2127,7 +2125,7 @@ mod tests {
         let weights = std::array::from_fn(|index| weight_values[index].as_u64().unwrap() as u16);
         let rules = map["rules"].as_array().unwrap();
         let mutator = campaign_mutator(&map["rules"]);
-        let bonus = match rules[5].as_u64().unwrap() {
+        let bonus = match rules[2].as_u64().unwrap() {
             1 => Some(Bonus::Hammer),
             2 => Some(Bonus::Totem),
             3 => Some(Bonus::Wave),
@@ -2136,8 +2134,8 @@ mod tests {
         let mut engine = RunEngine {
             phase: RunPhase::AwaitingVrf,
             bonus,
-            bonus_charges: rules[8].as_u64().unwrap() as u8,
-            starting_height_target: rules[9].as_u64().unwrap() as u8,
+            bonus_charges: rules[5].as_u64().unwrap() as u8,
+            starting_height_target: rules[6].as_u64().unwrap() as u8,
             ..RunEngine::default()
         };
         let mut row_counter = 0u32;
@@ -2165,6 +2163,7 @@ mod tests {
                             column,
                             level,
                             mutator,
+                            100,
                             zkube_core::RunMode::Campaign,
                         ) else {
                             continue;
@@ -2220,6 +2219,7 @@ mod tests {
                             destination,
                             level,
                             mutator,
+                            100,
                             zkube_core::RunMode::Campaign,
                         ) else {
                             continue;
@@ -2414,11 +2414,7 @@ mod tests {
                 for start in 0..8 {
                     for destination in 0..8 {
                         let mut candidate = engine;
-                        let mutator = MutatorRules {
-                            score_multiplier_x100: pressure.score_multipliers_x100
-                                [usize::from(tier)],
-                            ..MutatorRules::default()
-                        };
+                        let mutator = MutatorRules::default();
                         let Ok(mut report) = candidate.play_move(
                             engine.moves,
                             row,
@@ -2426,6 +2422,7 @@ mod tests {
                             destination,
                             level,
                             mutator,
+                            pressure.score_multipliers_x100[usize::from(tier)],
                             zkube_core::RunMode::Daily,
                         ) else {
                             continue;

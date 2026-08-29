@@ -36,10 +36,10 @@ pub mod assertions;
 pub mod bands;
 
 use self::bands::{
-    ORACLE_NODE_BUDGET, PLANNER_APEX_PROGRESS_RANGE, PLANNER_CAMPAIGN_COMBO_RANGE,
-    PLANNER_CAMPAIGN_PRIMARY_RANGE, PLANNER_DAILY_METRIC_CAP, PLANNER_DAILY_METRIC_RANGE,
-    PLANNER_HEIGHT_RANGE, PLANNER_SCORE_PROGRESS_RANGE, PLANNER_STAR_STEP, PLANNER_STRONG,
-    PLANNER_UCT_EXPLORATION, PlannerBudget,
+    ORACLE_NODE_BUDGET, PLANNER_APEX_PROGRESS_RANGE, PLANNER_CAMPAIGN_PRIMARY_RANGE,
+    PLANNER_DAILY_METRIC_CAP, PLANNER_DAILY_METRIC_RANGE, PLANNER_HEIGHT_RANGE,
+    PLANNER_SCORE_PROGRESS_RANGE, PLANNER_STAR_STEP, PLANNER_STRONG, PLANNER_UCT_EXPLORATION,
+    PlannerBudget,
 };
 use crate::{
     ARENA_ENTRY_LAMPORTS, ActionMetrics, Bonus, CampaignEndReason, CampaignError, CampaignRules,
@@ -187,7 +187,6 @@ pub enum PlayerModel {
     PlannerStrong,
     PlannerCasual,
     PlannerStrongTheme,
-    PlannerStrongCombo,
     /// Reduced-budget strong policy used only by the eight-seed gate.
     PlannerGate,
 }
@@ -203,8 +202,7 @@ impl PlayerModel {
             Self::PlannerStrong => 5,
             Self::PlannerCasual => 6,
             Self::PlannerStrongTheme => 7,
-            Self::PlannerStrongCombo => 8,
-            Self::PlannerGate => 9,
+            Self::PlannerGate => 8,
         }
     }
 
@@ -221,10 +219,6 @@ impl PlayerModel {
             Self::PlannerStrongTheme => Some(PlannerSpec {
                 budget: PLANNER_STRONG,
                 value: PlannerValue::DailyTheme,
-            }),
-            Self::PlannerStrongCombo => Some(PlannerSpec {
-                budget: PLANNER_STRONG,
-                value: PlannerValue::CampaignCombo,
             }),
             Self::PlannerGate => Some(PlannerSpec {
                 budget: bands::PLANNER_GATE,
@@ -243,7 +237,6 @@ impl PlayerModel {
 enum PlannerValue {
     Default,
     DailyTheme,
-    CampaignCombo,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -748,7 +741,7 @@ struct CampaignFixture {
 #[serde(rename_all = "camelCase")]
 struct CampaignFixtureMap {
     map_id: u8,
-    rules: [u16; 9],
+    rules: [u16; 7],
     levels: Vec<CampaignFixtureLevel>,
 }
 
@@ -784,7 +777,7 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
             .expect("Campaign fixture must parse");
     let mut levels = Vec::with_capacity(100);
     for map in fixture.maps {
-        let bonus = bonus_from_tag(map.rules[4]);
+        let bonus = bonus_from_tag(map.rules[2]);
         for (level_index, level) in map.levels.into_iter().enumerate() {
             let level_id = u8::try_from(level_index + 1).expect("ten Campaign levels fit u8");
             let secondary = constraint_from_tuple(level.4);
@@ -800,18 +793,16 @@ pub fn campaign_catalog() -> Vec<CampaignCatalogLevel> {
                         secondary,
                     },
                     mutator: MutatorRules {
-                        score_multiplier_x100: map.rules[0],
-                        combo_multiplier_x100: map.rules[1],
-                        line_clear_bonus: map.rules[2],
-                        perfect_clear_bonus: map.rules[3],
-                        bonus_trigger_type: u8::try_from(map.rules[5])
+                        line_clear_bonus: map.rules[0],
+                        perfect_clear_bonus: map.rules[1],
+                        bonus_trigger_type: u8::try_from(map.rules[3])
                             .expect("validated Campaign trigger fits u8"),
-                        bonus_threshold: map.rules[6],
+                        bonus_threshold: map.rules[4],
                     },
                     bonus,
-                    starting_bonus_charges: u8::try_from(map.rules[7])
+                    starting_bonus_charges: u8::try_from(map.rules[5])
                         .expect("validated Campaign charges fit u8"),
-                    starting_height: u8::try_from(map.rules[8])
+                    starting_height: u8::try_from(map.rules[6])
                         .expect("validated Campaign height fits u8"),
                     level_difficulty: level.2,
                     block_weights: fixture.difficulty_weights,
@@ -857,11 +848,11 @@ pub fn daily_catalog() -> Vec<DailyCatalogEntry> {
             let rules = DailyRunRules {
                 max_moves: crate::DAILY_MAX_MOVES,
                 mutator: neutral_daily_mutator_rules(
-                    u8::try_from(map_rules[5]).expect("validated trigger fits u8"),
-                    map_rules[6],
+                    u8::try_from(map_rules[3]).expect("validated trigger fits u8"),
+                    map_rules[4],
                 ),
-                bonus: bonus_from_tag(map_rules[4]),
-                starting_bonus_charges: u8::try_from(map_rules[7])
+                bonus: bonus_from_tag(map_rules[2]),
+                starting_bonus_charges: u8::try_from(map_rules[5])
                     .expect("validated charges fit u8"),
                 starting_height: entry.starting_rows,
                 objective,
@@ -1885,7 +1876,6 @@ fn daily_key(
         PlayerModel::DailyScore
         | PlayerModel::PlannerStrong
         | PlayerModel::PlannerCasual
-        | PlayerModel::PlannerStrongCombo
         | PlayerModel::PlannerGate => [
             daily_delta,
             i64::from(report.lines_cleared),
@@ -1998,7 +1988,6 @@ fn campaign_key(
         | PlayerModel::PlannerStrong
         | PlayerModel::PlannerCasual
         | PlayerModel::PlannerStrongTheme
-        | PlayerModel::PlannerStrongCombo
         | PlayerModel::PlannerGate => [
             i64::from(report.lines_cleared),
             i64::from(report.perfect_clear),
@@ -2514,7 +2503,6 @@ fn campaign_planner_value(
     state: CampaignPlannerState,
     rules: CampaignRules,
     apex: ApexPredicate,
-    value: PlannerValue,
 ) -> u64 {
     let star_value =
         u64::from(state.simulation.engine.earned_stars.min(3)).saturating_mul(PLANNER_STAR_STEP);
@@ -2532,12 +2520,6 @@ fn campaign_planner_value(
         .progress_x1000(state.apex_progress)
         .saturating_mul(PLANNER_APEX_PROGRESS_RANGE)
         / 1_000;
-    let combo = if value == PlannerValue::CampaignCombo {
-        u64::from(state.metrics.maximum_combo.min(8)).saturating_mul(PLANNER_CAMPAIGN_COMBO_RANGE)
-            / 8
-    } else {
-        0
-    };
     let height = u64::try_from(GRID_HEIGHT)
         .expect("grid height fits u64")
         .saturating_sub(u64::from(state.simulation.engine.grid.occupied_height()))
@@ -2547,7 +2529,6 @@ fn campaign_planner_value(
         .saturating_add(score_progress)
         .saturating_add(primary_progress)
         .saturating_add(apex_progress)
-        .saturating_add(combo)
         .saturating_add(height)
 }
 
@@ -2599,7 +2580,7 @@ fn plan_campaign_action(
             let sampled = planner_campaign_config(config, seed, root_action, iteration);
             campaign_rollout(current, sampled, apex, spec.budget.rollout_actions)
         },
-        |current| campaign_planner_value(current, config.rules, apex, spec.value),
+        |current| campaign_planner_value(current, config.rules, apex),
         |current| current.simulation.is_terminal(),
     )
 }

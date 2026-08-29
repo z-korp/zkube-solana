@@ -11,7 +11,7 @@ use zkube_core::{
 /// Layout: chain domain (32), challenge (32), raw account (32), run ID LE (8),
 /// replay mode (1), finalized Daily rules hash (32), then the 144-byte
 /// canonical [`DailyRunRules`] snapshot encoding.
-pub const DAILY_SIMULATION_CONFIG_LEN: usize = 281;
+pub const DAILY_SIMULATION_CONFIG_LEN: usize = 277;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
@@ -337,8 +337,6 @@ fn decode_for_transition(
 fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError> {
     let max_moves = reader.u16()?;
     let mutator = MutatorRules {
-        score_multiplier_x100: reader.u16()?,
-        combo_multiplier_x100: reader.u16()?,
         line_clear_bonus: reader.u16()?,
         perfect_clear_bonus: reader.u16()?,
         bonus_trigger_type: reader.u8()?,

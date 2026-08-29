@@ -8,8 +8,6 @@
   "rules": {
     "max_moves": 100,
     "mutator": {
-      "score_multiplier_x100": 100,
-      "combo_multiplier_x100": 100,
       "line_clear_bonus": 0,
       "perfect_clear_bonus": 0,
       "bonus_trigger_type": 0,
@@ -38,7 +36,7 @@
       ]
     }
   },
-  "rules_snapshot_hash_hex": "fb20d1821203fa595f3fda32ab498a7826b69b14dbe5b7e7b86ba6005cca3fa8",
+  "rules_snapshot_hash_hex": "5871c4423fc14fde972d35170f842229248042fd04155a6d3d886901400b1da4",
   "day_id": 42,
   "catalog_hash_hex": "bbd1b7f332b8e311426c69c28b1f3b4b2191fc935d0dcd67484bfa58c7308ad9",
   "rules_version": 7,

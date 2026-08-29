@@ -112,8 +112,6 @@
         "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
       },
       "mutator": {
-        "scoreMultiplierX100": 100,
-        "comboMultiplierX100": 100,
         "lineClearBonus": 0,
         "perfectClearBonus": 0,
         "bonusTriggerType": 0,
@@ -146,8 +144,6 @@
         "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
       },
       "mutator": {
-        "scoreMultiplierX100": 100,
-        "comboMultiplierX100": 150,
         "lineClearBonus": 1,
         "perfectClearBonus": 0,
         "bonusTriggerType": 1,
@@ -155,10 +151,10 @@
       },
       "expected": {
         "phase": "awaitingVrf",
-        "score": 7,
+        "score": 5,
         "moves": 1,
         "lines": 2,
-        "points": 7,
+        "points": 5,
         "combo": 1,
         "primaryProgress": 1,
         "bonusCharges": 1,

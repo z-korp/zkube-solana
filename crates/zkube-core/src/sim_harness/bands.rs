@@ -61,9 +61,6 @@ pub const PLANNER_APEX_PROGRESS_RANGE: u64 = 80_000;
 /// Reward range for progress on the Campaign primary constraint.
 pub const PLANNER_CAMPAIGN_PRIMARY_RANGE: u64 = 50_000;
 
-/// Extra reward range used only by the combo-weighted Campaign value.
-pub const PLANNER_CAMPAIGN_COMBO_RANGE: u64 = 40_000;
-
 /// Small survival tie-break awarded for keeping the board below capacity.
 pub const PLANNER_HEIGHT_RANGE: u64 = 20_000;
 
@@ -119,8 +116,6 @@ pub const TRIGGER_LIVENESS_MIN_BPS: u32 = 3_000;
 pub const TIER_STEP_MIN_DROP_BPS: i32 = 500;
 /// Maximum success-rate drop at the adjacent tier, in basis points.
 pub const TIER_STEP_MAX_DROP_BPS: i32 = 1_500;
-/// Minimum mean-star gain from a combo-weighted planner, in thousandths.
-pub const PASSIVE_MEAN_STAR_GAIN_MILLI: i32 = 300;
 /// Maximum Score/Theme Spearman coefficient, in thousandths.
 pub const BOARD_DIVERGENCE_MAX_RHO_MILLI: i32 = 600;
 /// Minimum frozen Theme qualification rate, in basis points.

@@ -27,10 +27,8 @@ interface CampaignMapRulesPublication {
    * Which boss archetype the guardian level fights, not which guardian. The
    * ids index the roster in `fixtures/game-parity.json`; realm identity comes
    * from the map id and its realm-named mutators instead.
-   */
+  */
   bossId: number;
-  scoreMultiplierX100: number;
-  comboMultiplierX100: number;
   lineClearBonus: number;
   perfectClearBonus: number;
   bonusType: number;
@@ -89,8 +87,6 @@ function publicationRules(
   bossId: number,
 ): CampaignMapRulesPublication {
   const [
-    scoreMultiplierX100,
-    comboMultiplierX100,
     lineClearBonus,
     perfectClearBonus,
     bonusType,
@@ -104,8 +100,6 @@ function publicationRules(
     activeMutatorId,
     passiveMutatorId: activeMutatorId + 1,
     bossId,
-    scoreMultiplierX100,
-    comboMultiplierX100,
     lineClearBonus,
     perfectClearBonus,
     bonusType,
