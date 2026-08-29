@@ -2118,49 +2118,61 @@ mod tests {
         }
     }
 
-    fn program_pool_entry(harness: zkube_core::sim_harness::DailyCatalogEntry) -> DailyPoolEntry {
-        let objective = harness.rules.objective.objective;
-        let (kind, parameter) = match objective {
-            zkube_core::DailyObjective::Classic => (DAILY_SCORE_CLASSIC, 0),
-            zkube_core::DailyObjective::Combo { minimum_lines } => {
-                (DAILY_SCORE_COMBO, minimum_lines)
-            }
-            zkube_core::DailyObjective::ExactLines { lines } => (DAILY_SCORE_EXACT_LINES, lines),
-            zkube_core::DailyObjective::Blocks { size } => (DAILY_SCORE_BLOCKS, size),
-            zkube_core::DailyObjective::Clutch { minimum_height } => {
-                (DAILY_SCORE_CLUTCH, minimum_height)
-            }
-            zkube_core::DailyObjective::Clean { maximum_height } => {
-                (DAILY_SCORE_CLEAN, maximum_height)
-            }
-            zkube_core::DailyObjective::Survival => (DAILY_SCORE_SURVIVAL, 0),
-        };
-        let scoring_rule = canonical_daily_scoring_rules()
-            .into_iter()
-            .find(|rule| {
-                rule.family == harness.family
-                    && rule.kind == kind
-                    && rule.parameter == parameter
-                    && rule.bonus_multiplier_x100 == harness.rules.objective.bonus_multiplier_x100
+    fn fixture_u8(value: &serde_json::Value) -> u8 {
+        u8::try_from(value.as_u64().expect("fixture value must be an integer"))
+            .expect("fixture value must fit u8")
+    }
+
+    fn fixture_u16(value: &serde_json::Value) -> u16 {
+        u16::try_from(value.as_u64().expect("fixture value must be an integer"))
+            .expect("fixture value must fit u16")
+    }
+
+    fn published_daily_pool_entries() -> Vec<DailyPoolEntry> {
+        let campaign: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json"))
+                .expect("Campaign fixture must parse");
+        let pool: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../fixtures/daily-pool-v2.json"))
+                .expect("Daily pool fixture must parse");
+        pool["entries"]
+            .as_array()
+            .expect("Daily pool entries must be an array")
+            .iter()
+            .map(|fixture_entry| {
+                let id = fixture_u8(&fixture_entry["id"]);
+                let realm_map_id = fixture_u8(&fixture_entry["realmMapId"]);
+                let scoring_index = usize::try_from(
+                    fixture_entry["scoringIndex"]
+                        .as_u64()
+                        .expect("scoring index must be an integer"),
+                )
+                .expect("scoring index must fit usize");
+                let map = campaign["maps"]
+                    .as_array()
+                    .expect("Campaign maps must be an array")
+                    .iter()
+                    .find(|map| fixture_u8(&map["mapId"]) == realm_map_id)
+                    .expect("Daily realm must exist in Campaign");
+                let map_rules = map["rules"]
+                    .as_array()
+                    .expect("Campaign map rules must be an array");
+                DailyPoolEntry {
+                    id,
+                    realm_map_id,
+                    active_mutator_id: realm_map_id,
+                    scoring_rule: canonical_daily_scoring_rules()
+                        .get(scoring_index)
+                        .copied()
+                        .expect("Daily scoring index must exist"),
+                    bonus_type: fixture_u8(&map_rules[2]),
+                    bonus_trigger_type: fixture_u8(&map_rules[3]),
+                    bonus_threshold: fixture_u16(&map_rules[4]),
+                    starting_charges: fixture_u8(&map_rules[5]),
+                    starting_rows: fixture_u8(&fixture_entry["startingRows"]),
+                }
             })
-            .expect("every harness objective is an authored program rule");
-        let bonus_type = match harness.rules.bonus {
-            Some(zkube_core::Bonus::Hammer) => 1,
-            Some(zkube_core::Bonus::Totem) => 2,
-            Some(zkube_core::Bonus::Wave) => 3,
-            None => 0,
-        };
-        DailyPoolEntry {
-            id: harness.id,
-            realm_map_id: harness.realm_map_id,
-            active_mutator_id: harness.realm_map_id,
-            scoring_rule,
-            bonus_type,
-            bonus_trigger_type: harness.rules.mutator.bonus_trigger_type,
-            bonus_threshold: harness.rules.mutator.bonus_threshold,
-            starting_charges: harness.rules.starting_bonus_charges,
-            starting_rows: harness.rules.starting_height,
-        }
+            .collect()
     }
 
     #[test]
@@ -2196,10 +2208,9 @@ mod tests {
     }
 
     #[test]
-    fn harness_daily_rules_match_every_program_preparation_snapshot() {
+    fn published_daily_rules_match_every_program_preparation_snapshot() {
         let pressure = DailyPressureProfile::canonical();
-        for harness in zkube_core::sim_harness::daily_catalog() {
-            let entry = program_pool_entry(harness);
+        for entry in published_daily_pool_entries() {
             let snapshot = daily_level_rules(entry, pressure);
             let prepared = zkube_core::DailyRunRules {
                 max_moves: snapshot.max_moves,
@@ -2224,14 +2235,30 @@ mod tests {
                     block_weights: pressure.block_weights,
                 },
             };
-            assert_eq!(harness.rules, prepared, "Daily entry {} drifted", entry.id);
+            let expected = zkube_core::DailyRunRules {
+                max_moves: zkube_core::DAILY_MAX_MOVES,
+                mutator: zkube_core::neutral_daily_mutator_rules(
+                    entry.bonus_trigger_type,
+                    entry.bonus_threshold,
+                ),
+                bonus: match entry.bonus_type {
+                    1 => Some(zkube_core::Bonus::Hammer),
+                    2 => Some(zkube_core::Bonus::Totem),
+                    3 => Some(zkube_core::Bonus::Wave),
+                    _ => None,
+                },
+                starting_bonus_charges: entry.starting_charges,
+                starting_height: entry.starting_rows,
+                objective: core_objective(entry.scoring_rule),
+                pressure: zkube_core::DailyPressureRules::canonical(),
+            };
+            assert_eq!(expected, prepared, "Daily entry {} drifted", entry.id);
         }
     }
 
     #[test]
     fn prepared_daily_uses_entry_rows_when_the_realm_differs() {
-        let harness = zkube_core::sim_harness::daily_catalog()[0];
-        let mut entry = program_pool_entry(harness);
+        let mut entry = published_daily_pool_entries()[0];
         entry.starting_rows = crate::game::MAX_OPENING_HEIGHT;
         let realm = CampaignMapRuleSnapshot {
             active_mutator_id: entry.active_mutator_id,
@@ -2251,8 +2278,7 @@ mod tests {
 
     #[test]
     fn daily_guardian_pairing_matches_campaign_publication() {
-        let harness = zkube_core::sim_harness::daily_catalog()[0];
-        let entry = program_pool_entry(harness);
+        let entry = published_daily_pool_entries()[0];
         let realm = CampaignMapRuleSnapshot {
             active_mutator_id: entry.active_mutator_id,
             bonus_type: entry.bonus_type,

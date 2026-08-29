@@ -8,7 +8,7 @@
 //! routed through [`Sha256Provider`] so on-chain consumers can substitute a
 //! native syscall without changing the byte schedule.
 
-#[cfg(any(test, feature = "sim-harness"))]
+#[cfg(test)]
 extern crate std;
 
 #[cfg(test)]
@@ -34,8 +34,6 @@ mod randomness;
 mod replay;
 #[allow(clippy::pedantic)]
 mod rules;
-#[cfg(feature = "sim-harness")]
-pub mod sim_harness;
 mod simulation;
 
 /// Canonical account schema versions consumed by the Solana program and

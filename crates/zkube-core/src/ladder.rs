@@ -26,17 +26,9 @@ const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 
 /// Cumulative-point floor of each named tier, ascending.
 ///
-/// Spaced against the 365-day field model rather than perfect attendance. The
-/// target is tier one within three months for typical players, tier two within
-/// six months for competent players, and tier three within a year for
-/// high-attendance competent players. The top tier is calibrated separately
-/// against the single-entry Daily-score cohort: its field holdout reaches the
-/// 60,000-point floor on median day 307 at 96.0% measured attendance.
-///
-/// Still balance rather than systems: the contract is one monotonic total and
-/// a permanent highest tier. They live here rather than in the program because
-/// the program stores a tier and the client displays one, and the two may
-/// never disagree.
+/// These are balance values rather than a separate progression system. They
+/// live here because the program stores a tier and the client displays one,
+/// and the two may never disagree.
 pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 60_000];
 
 /// Number of named tiers.

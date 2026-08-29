@@ -24,13 +24,7 @@ const GENERATED_PROTOCOL_TS: [&str; 2] = [
 ];
 const DAILY_SCORING_RULE_COUNT: u8 = 15;
 
-// Balance target: levels 1-2 complete at least 90%, levels 7-9 at least 55%
-// in aggregate, guardians complete 40-60% with 10-30% three-stars, and every
-// guardian is at least 5 percentage points below its zone's levels 7-9. On the
-// fresh 32-seed CampaignConstraints holdout starting at seed index 1024 those
-// values were 100%/97.19%, 71.88%, 42.50%/15.31%, and a 14.58-point minimum
-// guardian step. Adjacent bands moved completion by 2.04-10.50 points while
-// each authored distribution moved by at least the five-point minimum below.
+// Authored adjacent weight tiers must remain materially distinct.
 const CAMPAIGN_MIN_ADJACENT_WEIGHT_TV_PERCENT: u16 = 5;
 
 #[derive(Parser)]

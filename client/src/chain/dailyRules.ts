@@ -183,7 +183,7 @@ export const CANONICAL_DAILY_SCORING_RULES: readonly DailyScoringRuleView[] = [
     family: 2,
     kind: DAILY_SCORE_EXACT_LINES,
     parameter: 2,
-    bonusMultiplierX100: 50,
+    bonusMultiplierX100: 250,
   },
   {
     id: 6,
@@ -218,7 +218,7 @@ export const CANONICAL_DAILY_SCORING_RULES: readonly DailyScoringRuleView[] = [
     family: 3,
     kind: DAILY_SCORE_BLOCKS,
     parameter: 4,
-    bonusMultiplierX100: 100,
+    bonusMultiplierX100: 200,
   },
   {
     id: 11,

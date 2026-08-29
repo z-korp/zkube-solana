@@ -25,12 +25,18 @@ impl DailyPressureRules {
     #[must_use]
     pub const fn canonical() -> Self {
         Self {
-            // Item-5 balance profile: a width-1-heavy draw gives perfect clears
-            // enough support to grant rerolls while retained Theme objectives
-            // remain meaningfully distinct from total Score.
             thresholds: [12, 28, 48, 70, 95, 125, 155],
             score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
-            block_weights: [[10, 60, 15, 10, 5]; PRESSURE_TIER_COUNT],
+            block_weights: [
+                [25, 30, 25, 15, 5],
+                [22, 28, 25, 18, 7],
+                [20, 25, 25, 20, 10],
+                [18, 22, 24, 22, 14],
+                [16, 20, 22, 24, 18],
+                [14, 18, 20, 26, 22],
+                [12, 16, 18, 28, 26],
+                [10, 14, 16, 30, 30],
+            ],
         }
     }
 

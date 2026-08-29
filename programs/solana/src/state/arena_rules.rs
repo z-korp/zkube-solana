@@ -206,7 +206,7 @@ pub const fn canonical_daily_scoring_rules() -> [DailyScoringRule; DAILY_SCORE_R
             family: DAILY_FAMILY_LINES,
             kind: DAILY_SCORE_EXACT_LINES,
             parameter: 2,
-            bonus_multiplier_x100: 50,
+            bonus_multiplier_x100: 250,
         },
         DailyScoringRule {
             id: 6,
@@ -241,7 +241,7 @@ pub const fn canonical_daily_scoring_rules() -> [DailyScoringRule; DAILY_SCORE_R
             family: DAILY_FAMILY_BLOCKS,
             kind: DAILY_SCORE_BLOCKS,
             parameter: 4,
-            bonus_multiplier_x100: 100,
+            bonus_multiplier_x100: 200,
         },
         DailyScoringRule {
             id: 11,

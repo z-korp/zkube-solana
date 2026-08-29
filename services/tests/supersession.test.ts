@@ -109,6 +109,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /\bsim[_-]harness\b|\bapex-reachable\b|\bPLANNER_STRONG\b|\bORACLE_NODE_BUDGET\b|\bboard-divergence\b|\bacceptance digest\b/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "the Monte Carlo balance harness and its assertion vocabulary were retired",
+  },
+  {
+    pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "the visible entry streak does not multiply ladder points",
@@ -212,6 +219,9 @@ describe("supersession", () => {
     expect(rules).not.toMatch(/canonical deployed binding/i);
     expect(rules).not.toMatch(/weekly:current:3SOL/i);
     expect(rules).not.toMatch(/once-per-run reroll/i);
+    expect(rules).not.toMatch(
+      /\bsim[_-]harness\b|\bapex-reachable\b|\bPLANNER_STRONG\b|\bORACLE_NODE_BUDGET\b|\bboard-divergence\b|\bacceptance digest\b/i,
+    );
   });
 
   it("keeps the deleted single-reroll model out of public product copy", async () => {

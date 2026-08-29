@@ -62,11 +62,8 @@ validate_program() {
   cd "$root"
   NO_DNA=1 cargo run -p zkube-codegen -- check
   NO_DNA=1 cargo fmt --all -- --check
-  # The balance harness is feature-gated so the program never links it, but it
-  # is still gated code: compile, lint, and run it with every pass.
-  NO_DNA=1 cargo test --workspace --features zkube-core/sim-harness
-  NO_DNA=1 cargo run -p zkube-core --features sim-harness --bin zkube-sim -- gate
-  NO_DNA=1 cargo clippy --workspace --all-targets --features zkube-core/sim-harness -- -D warnings
+  NO_DNA=1 cargo test --workspace
+  NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
   validate_sbf
 }
 
@@ -85,14 +82,6 @@ validate_frontend() {
   NO_DNA=1 pnpm run lint
 }
 
-validate_harness_full() {
-  cd "$root"
-  # Full acceptance is release-only and uses 16 worker threads by default;
-  # ZKUBE_SIM_THREADS may pin another measured thread count for comparison.
-  NO_DNA=1 ZKUBE_SIM_THREADS="${ZKUBE_SIM_THREADS:-16}" \
-    cargo run --release -p zkube-core --features sim-harness --bin zkube-sim -- assert 32 1024
-}
-
 validate_documentation_layout
 
 case "$scope" in
@@ -105,15 +94,12 @@ case "$scope" in
   frontend)
     validate_frontend
     ;;
-  harness-full)
-    validate_harness_full
-    ;;
   all)
     validate_program
     validate_frontend
     ;;
   *)
-    echo "usage: $0 [program|program-sbf|frontend|harness-full|all]" >&2
+    echo "usage: $0 [program|program-sbf|frontend|all]" >&2
     exit 2
     ;;
 esac
