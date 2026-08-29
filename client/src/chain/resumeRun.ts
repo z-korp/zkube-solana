@@ -67,7 +67,7 @@ export interface RunResultView {
   pressureScore: number;
   finalPressureTier: number;
   moves: number;
-  levelStars: number;
+  latchedStarSources: number;
   completed: boolean;
   consumed: boolean;
 }

@@ -40,6 +40,7 @@ describe("BoardHud", () => {
         }}
         constraintProgress={5}
         constraint2Progress={0}
+        latchedStarSources={0b010}
       />,
     );
 

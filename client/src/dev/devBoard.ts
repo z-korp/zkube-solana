@@ -154,7 +154,7 @@ export function buildDevActiveRun(
     maxCombo: 5,
     primaryProgress: Math.min(3, rules.primary.requiredCount),
     secondaryProgress: Math.min(1, rules.secondary.requiredCount),
-    earnedStars: 0,
+    latchedStarSources: 0,
     streak: 0,
     chargesEarned: 0,
     levelLinesCleared: 11,

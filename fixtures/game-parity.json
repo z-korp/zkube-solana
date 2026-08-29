@@ -126,7 +126,7 @@
         "combo": 0,
         "primaryProgress": 0,
         "bonusCharges": 0,
-        "earnedStars": 1
+        "latchedStarSources": 1
       }
     },
     {
@@ -158,7 +158,7 @@
         "combo": 1,
         "primaryProgress": 1,
         "bonusCharges": 1,
-        "earnedStars": 0
+        "latchedStarSources": 2
       }
     }
   ],

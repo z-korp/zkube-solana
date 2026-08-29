@@ -89,10 +89,10 @@ export function applyDailySimulationVrf(config, state, request_counter, vrf_outp
  * @param {Uint8Array} state
  * @returns {number}
  */
-export function campaignRunEarnedStars(state) {
+export function campaignRunEndReason(state) {
     const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignRunEarnedStars(ptr0, len0);
+    const ret = wasm.campaignRunEndReason(ptr0, len0);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -103,10 +103,10 @@ export function campaignRunEarnedStars(state) {
  * @param {Uint8Array} state
  * @returns {number}
  */
-export function campaignRunEndReason(state) {
+export function campaignRunLatchedStarSources(state) {
     const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.campaignRunEndReason(ptr0, len0);
+    const ret = wasm.campaignRunLatchedStarSources(ptr0, len0);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }

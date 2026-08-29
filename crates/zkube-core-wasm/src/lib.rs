@@ -5,8 +5,8 @@ mod simulation;
 
 pub use campaign::{
     CAMPAIGN_SIMULATION_CONFIG_LEN, CAMPAIGN_SIMULATION_STATE_LEN, campaign_simulation_abandon,
-    campaign_simulation_apply_bonus, campaign_simulation_earned_stars,
-    campaign_simulation_end_reason, campaign_simulation_play_move,
+    campaign_simulation_apply_bonus, campaign_simulation_end_reason,
+    campaign_simulation_latched_star_sources, campaign_simulation_play_move,
     campaign_simulation_request_reroll, decode_campaign_simulation_config,
     decode_campaign_simulation_state, encode_campaign_simulation_config,
     encode_campaign_simulation_state, initialize_campaign_simulation,
@@ -168,7 +168,7 @@ pub fn ladder_tier_count() -> u8 {
 mod wasm {
     use super::{
         BoundaryError, campaign_simulation_abandon, campaign_simulation_apply_bonus,
-        campaign_simulation_earned_stars, campaign_simulation_end_reason,
+        campaign_simulation_end_reason, campaign_simulation_latched_star_sources,
         campaign_simulation_play_move, campaign_simulation_request_reroll, empty_continuation_rows,
         initial_replay_commitment, initialize_campaign_simulation, initialize_daily_simulation,
         ladder_points, ladder_tier, ladder_tier_count, ladder_tier_floor, qualified_player_id,
@@ -369,9 +369,9 @@ mod wasm {
         campaign_simulation_abandon(config, state).map_err(js_error)
     }
 
-    #[wasm_bindgen(js_name = campaignRunEarnedStars)]
-    pub fn js_campaign_simulation_earned_stars(state: &[u8]) -> Result<u8, JsError> {
-        campaign_simulation_earned_stars(state).map_err(js_error)
+    #[wasm_bindgen(js_name = campaignRunLatchedStarSources)]
+    pub fn js_campaign_simulation_latched_star_sources(state: &[u8]) -> Result<u8, JsError> {
+        campaign_simulation_latched_star_sources(state).map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = campaignRunEndReason)]

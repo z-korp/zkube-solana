@@ -547,18 +547,6 @@ mod tests {
     }
 
     #[test]
-    fn codegen_rejects_a_secondary_without_a_primary() {
-        let source = include_str!("../../../fixtures/campaign-v2.json");
-        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[0].4 = [1, 2, 1];
-        assert!(
-            validate_catalog(&catalog)
-                .unwrap_err()
-                .contains("map 1 level 1 has invalid rules")
-        );
-    }
-
-    #[test]
     fn codegen_requires_both_constraints_on_every_level() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();

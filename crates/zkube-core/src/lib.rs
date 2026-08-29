@@ -89,8 +89,8 @@ pub use replay::{
 };
 pub use rules::{
     BONUS_CHARGE_CAP, Constraint, ConstraintClass, ConstraintKind, EndlessRules, LevelRules,
-    MoveReport, MutatorRules, RunEngine, RunError, RunMode, RunPhase,
-    bonus_trigger_threshold_is_valid,
+    MoveReport, MutatorRules, RunEngine, RunError, RunPhase, STAR_SOURCE_PRIMARY,
+    STAR_SOURCE_SCORE, STAR_SOURCE_SECONDARY, bonus_trigger_threshold_is_valid,
 };
 pub use simulation::{
     CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,

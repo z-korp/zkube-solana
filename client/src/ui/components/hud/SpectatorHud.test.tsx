@@ -15,6 +15,7 @@ describe("SpectatorHud", () => {
           score: 30,
           primaryProgress: 5,
           secondaryProgress: 0,
+          latchedStarSources: 0b010,
           rules: makeRunRules({
             pointsRequired: 100,
             primary: { kind: 3, value: 0, requiredCount: 12 },

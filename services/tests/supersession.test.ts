@@ -162,6 +162,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /second star grants|★★ awards|latch in order|contiguous star sources|while holding/i,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "star sources latch independently and perfect clears grant rerolls in both modes",
+  },
+  {
+    pattern:
       /(?:starting_(?:bonus_)?charges|bonus_charges)\s*<=\s*15|bonusCharges\s*<=\s*15|\.min\(15\)/i,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "all bonus inventories use the shared three-charge cap",

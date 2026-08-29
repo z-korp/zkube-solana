@@ -19,7 +19,7 @@ interface LevelCompleteDialogProps {
   levelMoves: number;
   prevTotalScore: number;
   totalScore: number;
-  earnedStars: number;
+  latchedStarSources: number;
   gameLevel: GameLevelData | null;
   zoneId?: number;
   colors?: ThemeColors;
@@ -33,7 +33,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   level,
   prevTotalScore,
   totalScore,
-  earnedStars,
+  latchedStarSources,
   gameLevel,
   zoneId = 1,
   colors,
@@ -71,7 +71,10 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
   }, [isOpen, playSfx, isIncomplete]);
 
   const levelFinalScore = Math.max(0, totalScore - prevTotalScore);
-  const starsEarned = Math.max(0, Math.min(3, earnedStars));
+  const sourceMask = latchedStarSources & 0b111;
+  const starsEarned = [0, 1, 2].filter(
+    (index) => (sourceMask & (1 << index)) !== 0,
+  ).length;
   const constraintCopy = (
     type: ConstraintType | undefined,
     value: number | undefined,
@@ -225,7 +228,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
               {/* Stars */}
               <div className="flex justify-center gap-2">
                 {[1, 2, 3].map((star, index) => {
-                  const earned = star <= starsEarned;
+                  const earned = (sourceMask & (1 << index)) !== 0;
                   return (
                     <motion.span
                       key={star}
@@ -250,9 +253,8 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                 })}
               </div>
 
-              {/* Each star names its real source. The authoritative earned
-                    count is contiguous, so source N is earned exactly when
-                    the terminal run reports at least N stars. */}
+              {/* Each star names its real source. The terminal mask is the
+                    authority because sources can latch in any order. */}
               <motion.div
                 className="grid grid-cols-3 gap-1.5"
                 initial={{ opacity: 0 }}
@@ -260,7 +262,7 @@ const LevelCompleteDialog: React.FC<LevelCompleteDialogProps> = ({
                 transition={{ duration: 0.3 }}
               >
                 {starSources.map((source, index) => {
-                  const earned = starsEarned > index;
+                  const earned = (sourceMask & (1 << index)) !== 0;
                   return (
                     <div
                       key={source.label}

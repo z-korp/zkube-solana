@@ -50,7 +50,7 @@ export function makeActiveRun(
     maxCombo: 0,
     primaryProgress: 0,
     secondaryProgress: 0,
-    earnedStars: 0,
+    latchedStarSources: 0,
     streak: 0,
     chargesEarned: 0,
     levelLinesCleared: 0,

@@ -20,7 +20,7 @@ export const initializeCampaignSimulation: (a: number, b: number) => [number, nu
 export const playCampaignMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
 export const applyCampaignBonus: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const campaignRunEarnedStars: (a: number, b: number) => [number, number, number];
+export const campaignRunLatchedStarSources: (a: number, b: number) => [number, number, number];
 export const campaignRunEndReason: (a: number, b: number) => [number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;

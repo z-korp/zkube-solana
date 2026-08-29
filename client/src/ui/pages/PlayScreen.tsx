@@ -249,7 +249,7 @@ export default function PlayScreen() {
       triggerDescription:
         activeRun.mode === "daily"
           ? "Start with 1 · perfect clear awards +1 · hold up to 3"
-          : "Start with 1 · ★★ awards +1 · hold up to 3",
+          : "Start with 1 · Perfect clear awards +1 · hold up to 3",
       startingCharges: 1,
       onClick: () => {
         if (activeRun.rerollCharges <= 0) return;
@@ -735,7 +735,9 @@ export default function PlayScreen() {
           levelMoves={controller.terminalSnapshot.activeRun.moves}
           prevTotalScore={0}
           totalScore={controller.terminalSnapshot.activeRun.score}
-          earnedStars={controller.terminalSnapshot.activeRun.earnedStars}
+          latchedStarSources={
+            controller.terminalSnapshot.activeRun.latchedStarSources
+          }
           gameLevel={controller.terminalSnapshot.gameLevel}
           zoneId={controller.terminalSnapshot.game.zoneId}
           colors={getThemeColors(themeTemplate as ThemeId)}
@@ -767,6 +769,7 @@ export default function PlayScreen() {
         gameLevel={gameLevel}
         constraintProgress={hudGame.constraintProgress}
         constraint2Progress={hudGame.constraint2Progress}
+        latchedStarSources={hudGame.latchedStarSources}
       />
 
       {run.error && (

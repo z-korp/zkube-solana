@@ -554,8 +554,8 @@ pub struct ActiveRun {
     pub arcade_metrics: ArcadeRunMetrics,
     pub primary_progress: u8,
     pub secondary_progress: u8,
-    /// Latched Campaign stars; Daily runs keep this byte at zero.
-    pub earned_stars: u8,
+    /// Bit mask of latched Campaign sources; Daily runs keep this byte at zero.
+    pub latched_star_sources: u8,
     /// Consecutive player moves that each clear at least one line.
     pub streak: u8,
     /// Guardian trigger events produced across the run, before inventory caps.
@@ -615,7 +615,7 @@ impl Default for ActiveRun {
             arcade_metrics: ArcadeRunMetrics::default(),
             primary_progress: 0,
             secondary_progress: 0,
-            earned_stars: 0,
+            latched_star_sources: 0,
             streak: 0,
             charges_earned: 0,
             level_lines_cleared: 0,

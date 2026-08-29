@@ -114,7 +114,7 @@ pub fn encode_campaign_simulation_state(
         simulation.engine.max_combo,
         simulation.engine.primary_progress,
         simulation.engine.secondary_progress,
-        simulation.engine.earned_stars,
+        simulation.engine.latched_star_sources,
         simulation.engine.streak,
         simulation.engine.charges_earned,
     ]);
@@ -157,7 +157,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let max_combo = reader.u8()?;
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
-    let earned_stars = reader.u8()?;
+    let latched_star_sources = reader.u8()?;
     let streak = reader.u8()?;
     let charges_earned = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
@@ -179,18 +179,8 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
     let end_reason = decode_end_reason(reader.u8()?)?;
     let last_report = decode_report(&mut reader)?;
     reader.finish()?;
-    let terminal_valid = match end_reason {
-        None => phase == RunPhase::Playing && earned_stars <= 2 && next_row.is_some(),
-        Some(CampaignEndReason::Completed) => {
-            phase == RunPhase::LevelComplete && (1..=3).contains(&earned_stars)
-        }
-        Some(CampaignEndReason::Exhausted) => {
-            phase == RunPhase::Finished && earned_stars <= 2 && next_row.is_none()
-        }
-        Some(CampaignEndReason::Abandoned) => {
-            phase == RunPhase::Finished && earned_stars == 0 && next_row.is_none()
-        }
-    };
+    let terminal_valid =
+        campaign_state_shape_is_valid(phase, latched_star_sources, next_row.is_some(), end_reason);
     if !terminal_valid
         || current_difficulty > 7
         || row_counter == 0
@@ -214,7 +204,7 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
             max_combo,
             primary_progress,
             secondary_progress,
-            earned_stars,
+            latched_star_sources,
             streak,
             charges_earned,
             level_lines_cleared,
@@ -229,6 +219,27 @@ pub fn decode_campaign_simulation_state(bytes: &[u8]) -> Result<CampaignSimulati
         end_reason,
         last_report,
     })
+}
+
+fn campaign_state_shape_is_valid(
+    phase: RunPhase,
+    latched_star_sources: u8,
+    has_next_row: bool,
+    end_reason: Option<CampaignEndReason>,
+) -> bool {
+    let partial = latched_star_sources <= 0b111 && latched_star_sources != 0b111;
+    match end_reason {
+        None => phase == RunPhase::Playing && partial && has_next_row,
+        Some(CampaignEndReason::Completed) => {
+            phase == RunPhase::LevelComplete && latched_star_sources == 0b111
+        }
+        Some(CampaignEndReason::Exhausted) => {
+            phase == RunPhase::Finished && partial && !has_next_row
+        }
+        Some(CampaignEndReason::Abandoned) => {
+            phase == RunPhase::Finished && latched_star_sources == 0 && !has_next_row
+        }
+    }
 }
 
 /// # Errors
@@ -294,8 +305,10 @@ pub fn campaign_simulation_abandon(config: &[u8], state: &[u8]) -> Result<Vec<u8
 /// # Errors
 ///
 /// Returns an encoding error for an invalid state.
-pub fn campaign_simulation_earned_stars(state: &[u8]) -> Result<u8, BoundaryError> {
-    Ok(decode_campaign_simulation_state(state)?.engine.earned_stars)
+pub fn campaign_simulation_latched_star_sources(state: &[u8]) -> Result<u8, BoundaryError> {
+    Ok(decode_campaign_simulation_state(state)?
+        .engine
+        .latched_star_sources)
 }
 
 /// Zero means active; 1, 2, and 3 mean completed, exhausted, and abandoned.

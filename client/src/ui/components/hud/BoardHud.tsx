@@ -58,6 +58,7 @@ export interface BoardHudProps {
   gameLevel: GameLevelData | null;
   constraintProgress: number;
   constraint2Progress: number;
+  latchedStarSources: number;
 }
 
 export default function BoardHud({
@@ -78,6 +79,7 @@ export default function BoardHud({
   gameLevel,
   constraintProgress,
   constraint2Progress,
+  latchedStarSources,
 }: BoardHudProps) {
   const tier = boardTier(
     endlessThresholds,
@@ -211,12 +213,16 @@ export default function BoardHud({
         </div>
       ) : (
         constraints.map((constraint, index) => {
-          const status = constraintStatus(
+          const measured = constraintStatus(
             constraint.type,
             constraint.value,
             constraint.count,
             constraint.progress,
           );
+          const status = {
+            ...measured,
+            complete: (latchedStarSources & (1 << (index + 1))) !== 0,
+          };
           return (
             <div
               key={constraint.slot}

@@ -234,7 +234,6 @@ pub fn handler_write_map_catalog(
         require!(level.difficulty <= 7, ErrorCode::InvalidLevel);
         validate_primary_constraint_snapshot(level.primary)?;
         validate_secondary_constraint_snapshot(level.secondary)?;
-        validate_contiguous_star_sources(level.primary, level.secondary)?;
         validate_distinct_constraint_facts(level.primary, level.secondary, &args.map_rules)?;
         require!(
             level.block_weights[0] > 0
@@ -315,17 +314,6 @@ fn validate_primary_constraint_snapshot(constraint: ConstraintSnapshot) -> Resul
 fn validate_secondary_constraint_snapshot(constraint: ConstraintSnapshot) -> Result<()> {
     require!(
         core_constraint(constraint)?.is_valid_secondary(),
-        ErrorCode::InvalidLevel
-    );
-    Ok(())
-}
-
-fn validate_contiguous_star_sources(
-    primary: ConstraintSnapshot,
-    secondary: ConstraintSnapshot,
-) -> Result<()> {
-    require!(
-        secondary.kind == 0 || primary.kind != 0,
         ErrorCode::InvalidLevel
     );
     Ok(())
@@ -623,7 +611,7 @@ pub fn handler_prepare_campaign_run(
     active.max_combo = 0;
     active.primary_progress = 0;
     active.secondary_progress = 0;
-    active.earned_stars = 0;
+    active.latched_star_sources = 0;
     active.level_lines_cleared = 0;
     active.total_lines_cleared = 0;
     active.bonus_uses = 0;
@@ -736,20 +724,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn campaign_publication_rejects_a_secondary_without_a_primary() {
-        let none = ConstraintSnapshot::default();
-        let present = ConstraintSnapshot {
-            kind: 1,
-            value: 2,
-            required_count: 1,
-        };
-        assert!(validate_contiguous_star_sources(none, none).is_ok());
-        assert!(validate_contiguous_star_sources(present, none).is_ok());
-        assert!(validate_contiguous_star_sources(present, present).is_ok());
-        assert!(validate_contiguous_star_sources(none, present).is_err());
     }
 
     #[test]

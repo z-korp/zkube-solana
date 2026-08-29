@@ -71,6 +71,10 @@ export class Game {
     return this.view.secondaryProgress;
   }
 
+  public get latchedStarSources(): number {
+    return this.view.latchedStarSources;
+  }
+
   public get maxComboRun(): number {
     return this.view.maxCombo;
   }

@@ -282,22 +282,26 @@ impl Default for LevelRules {
 }
 
 impl LevelRules {
-    /// The contiguous number of authored star sources. A secondary without a
-    /// primary is invalid catalog content and cannot create a gap in stars.
+    /// Bit mask of authored star sources. Score is always authored; Shape and
+    /// Blow are present when their corresponding constraint is present.
     #[must_use]
-    pub const fn earnable_stars(self) -> u8 {
-        if !self.primary.is_present() {
-            1
-        } else if !self.secondary.is_present() {
-            2
-        } else {
-            3
-        }
+    pub const fn earnable_sources_mask(self) -> u8 {
+        STAR_SOURCE_SCORE
+            | if self.primary.is_present() {
+                STAR_SOURCE_PRIMARY
+            } else {
+                0
+            }
+            | if self.secondary.is_present() {
+                STAR_SOURCE_SECONDARY
+            } else {
+                0
+            }
     }
 
     #[must_use]
-    pub const fn has_contiguous_star_sources(self) -> bool {
-        !self.secondary.is_present() || self.primary.is_present()
+    pub const fn earnable_stars(self) -> u8 {
+        self.earnable_sources_mask().count_ones() as u8
     }
 
     #[must_use]
@@ -435,14 +439,11 @@ pub enum RunPhase {
     Finished,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RunMode {
-    Campaign,
-    Daily,
-}
-
 /// Shared upper bound for held guardian-bonus and reroll inventories.
 pub const BONUS_CHARGE_CAP: u8 = 3;
+pub const STAR_SOURCE_SCORE: u8 = 1 << 0;
+pub const STAR_SOURCE_PRIMARY: u8 = 1 << 1;
+pub const STAR_SOURCE_SECONDARY: u8 = 1 << 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MoveReport {
@@ -512,8 +513,8 @@ pub struct RunEngine {
     pub max_combo: u8,
     pub primary_progress: u8,
     pub secondary_progress: u8,
-    /// Latched one-to-three-star Campaign result. Daily rules keep this at zero.
-    pub earned_stars: u8,
+    /// Bit mask of latched Campaign sources; Daily rules keep this at zero.
+    pub latched_star_sources: u8,
     /// Consecutive player moves that each clear at least one line.
     pub streak: u8,
     /// Guardian trigger events produced across the run, before inventory caps.
@@ -538,7 +539,7 @@ impl Default for RunEngine {
             max_combo: 0,
             primary_progress: 0,
             secondary_progress: 0,
-            earned_stars: 0,
+            latched_star_sources: 0,
             streak: 0,
             charges_earned: 0,
             level_lines_cleared: 0,
@@ -604,7 +605,6 @@ impl RunEngine {
         level: LevelRules,
         mutator: MutatorRules,
         action_score_multiplier_x100: u16,
-        mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
@@ -633,7 +633,7 @@ impl RunEngine {
         }
         let (first_lines, first_points) = self.grid.settle();
         if self.grid.is_full() {
-            return Ok(self.finish_move_with_mode(
+            return Ok(self.finish_move_with_multiplier(
                 ActionContext {
                     height_before,
                     // The preview was consumed but never entered the grid, so
@@ -646,7 +646,6 @@ impl RunEngine {
                 level,
                 mutator,
                 action_score_multiplier_x100,
-                mode,
             ));
         }
 
@@ -655,7 +654,7 @@ impl RunEngine {
         // action. The inserted row can complete another line, which must keep
         // climbing the same triangular score curve instead of restarting at 1.
         let (second_lines, second_points) = self.grid.settle_after(first_lines);
-        let report = self.finish_move_with_mode(
+        let report = self.finish_move_with_multiplier(
             ActionContext {
                 height_before,
                 block_cells_before: block_cells_with_preview,
@@ -666,7 +665,6 @@ impl RunEngine {
             level,
             mutator,
             action_score_multiplier_x100,
-            mode,
         );
         Ok(report)
     }
@@ -678,7 +676,6 @@ impl RunEngine {
         level: LevelRules,
         mutator: MutatorRules,
         action_score_multiplier_x100: u16,
-        mode: RunMode,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
@@ -693,7 +690,7 @@ impl RunEngine {
         self.grid.apply_bonus(bonus, row, column)?;
         self.bonus_charges -= 1;
         let (lines, base_points) = self.grid.settle();
-        let report = self.finish_action_with_mode(
+        let report = self.finish_action_with_multiplier(
             ActionContext {
                 height_before,
                 block_cells_before,
@@ -704,7 +701,6 @@ impl RunEngine {
             level,
             mutator,
             action_score_multiplier_x100,
-            mode,
             false,
             true,
         );
@@ -757,7 +753,12 @@ impl RunEngine {
     }
 
     pub fn level_satisfied(&self, rules: LevelRules) -> bool {
-        self.earned_stars == rules.earnable_stars()
+        self.latched_star_sources == rules.earnable_sources_mask()
+    }
+
+    #[must_use]
+    pub const fn latched_star_count(&self) -> u8 {
+        self.latched_star_sources.count_ones() as u8
     }
 
     #[cfg(test)]
@@ -767,24 +768,22 @@ impl RunEngine {
         level: LevelRules,
         mutator: MutatorRules,
     ) -> MoveReport {
-        self.finish_move_with_mode(context, level, mutator, 100, RunMode::Campaign)
+        self.finish_move_with_multiplier(context, level, mutator, 100)
     }
 
-    fn finish_move_with_mode(
+    fn finish_move_with_multiplier(
         &mut self,
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
         action_score_multiplier_x100: u16,
-        mode: RunMode,
     ) -> MoveReport {
         self.moves = self.moves.saturating_add(1);
-        self.finish_action_with_mode(
+        self.finish_action_with_multiplier(
             context,
             level,
             mutator,
             action_score_multiplier_x100,
-            mode,
             true,
             false,
         )
@@ -798,15 +797,7 @@ impl RunEngine {
         mutator: MutatorRules,
         needs_next_row: bool,
     ) -> MoveReport {
-        self.finish_action_with_mode(
-            context,
-            level,
-            mutator,
-            100,
-            RunMode::Campaign,
-            needs_next_row,
-            false,
-        )
+        self.finish_action_with_multiplier(context, level, mutator, 100, needs_next_row, false)
     }
 
     #[cfg(test)]
@@ -818,25 +809,23 @@ impl RunEngine {
         needs_next_row: bool,
         action_was_bonus: bool,
     ) -> MoveReport {
-        self.finish_action_with_mode(
+        self.finish_action_with_multiplier(
             context,
             level,
             mutator,
             100,
-            RunMode::Campaign,
             needs_next_row,
             action_was_bonus,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn finish_action_with_mode(
+    fn finish_action_with_multiplier(
         &mut self,
         context: ActionContext,
         level: LevelRules,
         mutator: MutatorRules,
         action_score_multiplier_x100: u16,
-        mode: RunMode,
         needs_next_row: bool,
         action_was_bonus: bool,
     ) -> MoveReport {
@@ -952,32 +941,19 @@ impl RunEngine {
             self.level_lines_cleared,
         );
 
-        // Star sources latch in order after all action facts and constraint
-        // progress are current. Independent `if`s deliberately allow one
-        // action to cross all three sources. `None` is never an earned source.
-        let old_earned_stars = self.earned_stars;
-        if self.earned_stars == 0 && self.score >= level.points_required {
-            self.earned_stars = 1;
+        // Each authored source latches independently after all action facts
+        // and constraint progress are current. `None` is never a source.
+        if self.score >= level.points_required {
+            self.latched_star_sources |= STAR_SOURCE_SCORE;
         }
-        if self.earned_stars == 1
-            && level.primary.is_present()
-            && level.primary.is_satisfied(self.primary_progress)
-        {
-            self.earned_stars = 2;
+        if level.primary.is_present() && level.primary.is_satisfied(self.primary_progress) {
+            self.latched_star_sources |= STAR_SOURCE_PRIMARY;
         }
-        if self.earned_stars == 2
-            && level.primary.is_present()
-            && level.secondary.is_present()
-            && level.secondary.is_satisfied(self.secondary_progress)
-        {
-            self.earned_stars = 3;
+        if level.secondary.is_present() && level.secondary.is_satisfied(self.secondary_progress) {
+            self.latched_star_sources |= STAR_SOURCE_SECONDARY;
         }
 
-        let reroll_grant_due = match mode {
-            RunMode::Campaign => old_earned_stars < 2 && self.earned_stars >= 2,
-            RunMode::Daily => report.perfect_clear,
-        };
-        if reroll_grant_due {
+        if report.perfect_clear {
             if self.reroll_charges < BONUS_CHARGE_CAP {
                 self.reroll_charges += 1;
                 report.reroll_granted = true;
@@ -1325,7 +1301,6 @@ mod tests {
                 LevelRules::default(),
                 MutatorRules::default(),
                 100,
-                RunMode::Campaign,
             )
             .unwrap();
         assert_eq!(report.lines_cleared, 1);
@@ -1348,16 +1323,7 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let tenth_row = run
-            .play_move(
-                0,
-                0,
-                0,
-                0,
-                level,
-                MutatorRules::default(),
-                100,
-                RunMode::Campaign,
-            )
+            .play_move(0, 0, 0, 0, level, MutatorRules::default(), 100)
             .unwrap();
         assert_eq!(tenth_row.height_after, 10);
         assert_eq!(run.grid.occupied_height(), 10);
@@ -1368,16 +1334,7 @@ mod tests {
         run.provide_vrf_row(sparse).unwrap();
         let before_overflow = run.grid;
         let overflow = run
-            .play_move(
-                1,
-                0,
-                0,
-                0,
-                level,
-                MutatorRules::default(),
-                100,
-                RunMode::Campaign,
-            )
+            .play_move(1, 0, 0, 0, level, MutatorRules::default(), 100)
             .unwrap();
         assert_eq!(overflow.height_after, 10);
         assert_eq!(overflow.blocks_destroyed_by_size, [0; 4]);
@@ -1400,16 +1357,7 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let report = run
-            .play_move(
-                0,
-                1,
-                0,
-                0,
-                level,
-                MutatorRules::default(),
-                100,
-                RunMode::Campaign,
-            )
+            .play_move(0, 1, 0, 0, level, MutatorRules::default(), 100)
             .unwrap();
 
         assert_eq!(report.lines_cleared, 1);
@@ -1437,7 +1385,6 @@ mod tests {
             },
             MutatorRules::default(),
             100,
-            RunMode::Campaign,
         )
         .unwrap();
 
@@ -1467,67 +1414,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_second_star_grants_one_held_reroll_once() {
-        let level = LevelRules {
-            points_required: 1,
-            max_moves: 20,
-            primary: Constraint {
-                kind: ConstraintKind::CombosOfAtLeast,
-                value: 2,
-                required_count: 1,
-            },
-            secondary: Constraint {
-                kind: ConstraintKind::ComboOfExactly,
-                value: 2,
-                required_count: 1,
-            },
-        };
-        let mut run = RunEngine {
-            phase: RunPhase::Playing,
-            ..RunEngine::default()
-        };
-        let report = run.finish_action_with_mode(
-            ActionContext {
-                lines: 2,
-                base_point_parts: [1, 0],
-                ..ActionContext::default()
-            },
-            level,
-            MutatorRules::default(),
-            100,
-            RunMode::Campaign,
-            true,
-            false,
-        );
-        assert_eq!(run.earned_stars, 3, "a direct jump still crosses star two");
-        assert_eq!(run.reroll_charges, 2);
-        assert!(report.reroll_granted);
-        assert!(!report.reroll_grant_discarded);
-
-        run.phase = RunPhase::Playing;
-        let repeated = run.finish_action_with_mode(
-            ActionContext {
-                lines: 2,
-                ..ActionContext::default()
-            },
-            level,
-            MutatorRules::default(),
-            100,
-            RunMode::Campaign,
-            true,
-            false,
-        );
-        assert_eq!(run.reroll_charges, 2);
-        assert!(!repeated.reroll_granted);
-
-        run.phase = RunPhase::Playing;
-        run.next_row = Some([1, 0, 0, 0, 0, 0, 0, 0]);
-        run.request_reroll().unwrap();
-        assert_eq!(run.reroll_charges, 1);
-    }
-
-    #[test]
-    fn daily_perfect_clear_grants_or_discards_at_the_reroll_cap() {
+    fn perfect_clear_grants_or_discards_at_the_reroll_cap() {
         let level = LevelRules {
             points_required: u32::MAX,
             max_moves: 20,
@@ -1537,12 +1424,11 @@ mod tests {
             phase: RunPhase::Playing,
             ..RunEngine::default()
         };
-        let granted = run.finish_action_with_mode(
+        let granted = run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
             MutatorRules::default(),
             100,
-            RunMode::Daily,
             true,
             false,
         );
@@ -1552,12 +1438,11 @@ mod tests {
 
         run.phase = RunPhase::Playing;
         run.reroll_charges = BONUS_CHARGE_CAP;
-        let discarded = run.finish_action_with_mode(
+        let discarded = run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
             MutatorRules::default(),
             100,
-            RunMode::Daily,
             true,
             false,
         );
@@ -1584,7 +1469,6 @@ mod tests {
             },
             MutatorRules::default(),
             100,
-            RunMode::Campaign,
         )
         .unwrap();
 
@@ -1668,17 +1552,8 @@ mod tests {
             bonus_threshold: 1,
             ..MutatorRules::default()
         };
-        run.play_move(
-            0,
-            0,
-            7,
-            6,
-            LevelRules::default(),
-            mutator,
-            100,
-            RunMode::Campaign,
-        )
-        .unwrap();
+        run.play_move(0, 0, 7, 6, LevelRules::default(), mutator, 100)
+            .unwrap();
         assert_eq!(run.level_lines_cleared, 1);
         assert_eq!(run.bonus_charges, 1);
     }
@@ -1961,7 +1836,6 @@ mod tests {
                     ..MutatorRules::default()
                 },
                 100,
-                RunMode::Campaign,
             )
             .unwrap();
         assert!(report.perfect_clear);
@@ -2223,7 +2097,6 @@ mod tests {
                     ..MutatorRules::default()
                 },
                 100,
-                RunMode::Campaign,
             )
             .unwrap();
 
@@ -2267,14 +2140,15 @@ mod tests {
             false,
         );
 
-        assert_eq!(run.earned_stars, 3);
+        assert_eq!(run.latched_star_sources, 0b111);
+        assert_eq!(run.latched_star_count(), 3);
         assert_eq!(run.phase, RunPhase::LevelComplete);
     }
 
     #[test]
-    fn constraint_stars_latch_in_order_across_actions() {
+    fn constraint_stars_latch_in_any_order() {
         let level = LevelRules {
-            points_required: 1,
+            points_required: 10,
             max_moves: 20,
             primary: Constraint {
                 kind: ConstraintKind::BreakBlocks,
@@ -2289,20 +2163,19 @@ mod tests {
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
-            grid: grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]),
             ..RunEngine::default()
         };
 
         run.finish_action(
             ActionContext {
-                base_point_parts: [1, 0],
+                lines: 2,
                 ..ActionContext::default()
             },
             level,
             MutatorRules::default(),
             false,
         );
-        assert_eq!(run.earned_stars, 1);
+        assert_eq!(run.latched_star_sources, STAR_SOURCE_SECONDARY);
 
         run.grid = Grid::EMPTY;
         run.finish_action(
@@ -2314,23 +2187,26 @@ mod tests {
             MutatorRules::default(),
             false,
         );
-        assert_eq!(run.earned_stars, 2);
+        assert_eq!(
+            run.latched_star_sources,
+            STAR_SOURCE_SECONDARY | STAR_SOURCE_PRIMARY
+        );
 
         run.finish_action(
             ActionContext {
-                lines: 2,
+                base_point_parts: [10, 0],
                 ..ActionContext::default()
             },
             level,
             MutatorRules::default(),
             false,
         );
-        assert_eq!(run.earned_stars, 3);
+        assert_eq!(run.latched_star_sources, 0b111);
         assert_eq!(run.phase, RunPhase::LevelComplete);
     }
 
     #[test]
-    fn exhausted_runs_keep_one_or_two_latched_stars() {
+    fn exhausted_runs_keep_latched_stars() {
         let primary = Constraint {
             kind: ConstraintKind::CombosOfAtLeast,
             value: 2,
@@ -2358,7 +2234,10 @@ mod tests {
             },
             MutatorRules::default(),
         );
-        assert_eq!((one.phase, one.earned_stars), (RunPhase::Finished, 1));
+        assert_eq!(
+            (one.phase, one.latched_star_sources),
+            (RunPhase::Finished, STAR_SOURCE_SCORE)
+        );
 
         let mut two = RunEngine {
             phase: RunPhase::Playing,
@@ -2378,11 +2257,44 @@ mod tests {
             },
             MutatorRules::default(),
         );
-        assert_eq!((two.phase, two.earned_stars), (RunPhase::Finished, 2));
+        assert_eq!(
+            (two.phase, two.latched_star_sources),
+            (RunPhase::Finished, STAR_SOURCE_SCORE | STAR_SOURCE_PRIMARY)
+        );
+
+        let mut secondary_only = RunEngine {
+            phase: RunPhase::Playing,
+            ..RunEngine::default()
+        };
+        secondary_only.finish_move(
+            ActionContext {
+                lines: 2,
+                ..ActionContext::default()
+            },
+            LevelRules {
+                points_required: u32::MAX,
+                max_moves: 1,
+                primary: Constraint {
+                    kind: ConstraintKind::BreakBlocks,
+                    value: 1,
+                    required_count: 1,
+                },
+                secondary: Constraint {
+                    kind: ConstraintKind::ComboOfAtLeast,
+                    value: 2,
+                    required_count: 1,
+                },
+            },
+            MutatorRules::default(),
+        );
+        assert_eq!(
+            (secondary_only.phase, secondary_only.latched_star_sources),
+            (RunPhase::Finished, STAR_SOURCE_SECONDARY)
+        );
     }
 
     #[test]
-    fn absent_constraints_cap_and_complete_the_contiguous_star_sources() {
+    fn absent_constraints_limit_the_earnable_source_mask() {
         let mut one = RunEngine {
             phase: RunPhase::Playing,
             ..RunEngine::default()
@@ -2396,7 +2308,10 @@ mod tests {
             MutatorRules::default(),
             false,
         );
-        assert_eq!((one.phase, one.earned_stars), (RunPhase::LevelComplete, 1));
+        assert_eq!(
+            (one.phase, one.latched_star_sources),
+            (RunPhase::LevelComplete, STAR_SOURCE_SCORE)
+        );
 
         let mut two = RunEngine {
             phase: RunPhase::Playing,
@@ -2419,7 +2334,13 @@ mod tests {
             MutatorRules::default(),
             false,
         );
-        assert_eq!((two.phase, two.earned_stars), (RunPhase::LevelComplete, 2));
+        assert_eq!(
+            (two.phase, two.latched_star_sources),
+            (
+                RunPhase::LevelComplete,
+                STAR_SOURCE_SCORE | STAR_SOURCE_PRIMARY
+            )
+        );
     }
 
     #[test]
@@ -2486,7 +2407,6 @@ mod tests {
                     level,
                     mutator,
                     100,
-                    RunMode::Campaign,
                 )
                 .unwrap();
             let expected = &fixture["expected"];
@@ -2520,8 +2440,8 @@ mod tests {
                 expected["bonusCharges"].as_u64().unwrap() as u8
             );
             assert_eq!(
-                run.earned_stars,
-                expected["earnedStars"].as_u64().unwrap() as u8
+                run.latched_star_sources,
+                expected["latchedStarSources"].as_u64().unwrap() as u8
             );
         }
     }
@@ -2564,7 +2484,6 @@ mod tests {
                 LevelRules::default(),
                 MutatorRules::default(),
                 100,
-                RunMode::Campaign,
             )
             .is_err()
         );

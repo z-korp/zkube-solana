@@ -9,9 +9,9 @@ export function applyDailySimulationBonus(config: Uint8Array, state: Uint8Array,
 
 export function applyDailySimulationVrf(config: Uint8Array, state: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
 
-export function campaignRunEarnedStars(state: Uint8Array): number;
-
 export function campaignRunEndReason(state: Uint8Array): number;
+
+export function campaignRunLatchedStarSources(state: Uint8Array): number;
 
 export function dailySimulationScoreEligible(state: Uint8Array): boolean;
 
@@ -66,7 +66,7 @@ export interface InitOutput {
     readonly playCampaignMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
     readonly applyCampaignBonus: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly campaignRunEarnedStars: (a: number, b: number) => [number, number, number];
+    readonly campaignRunLatchedStarSources: (a: number, b: number) => [number, number, number];
     readonly campaignRunEndReason: (a: number, b: number) => [number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

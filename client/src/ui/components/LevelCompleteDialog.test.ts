@@ -22,7 +22,7 @@ describe("LevelCompleteDialog", () => {
         levelMoves: 8,
         prevTotalScore: 0,
         totalScore: 120,
-        earnedStars: 2,
+        latchedStarSources: 0b101,
         gameLevel: {
           gameId: 7n,
           level: 2,
@@ -45,6 +45,8 @@ describe("LevelCompleteDialog", () => {
     expect(screen.getByText(/Score$/)).toBeInTheDocument();
     expect(screen.getByText(/Shape$/)).toBeInTheDocument();
     expect(screen.getByText(/Blow$/)).toBeInTheDocument();
+    expect(screen.getByText(/◇ Shape$/)).toBeInTheDocument();
+    expect(screen.getByText(/✓ Blow$/)).toBeInTheDocument();
     expect(screen.getByText("Reach 100 points")).toBeInTheDocument();
     expect(screen.getByText("Clear 4 lines")).toBeInTheDocument();
     expect(screen.getByText("Empty the board")).toBeInTheDocument();
@@ -60,13 +62,14 @@ describe("LevelCompleteDialog", () => {
         levelMoves: 20,
         prevTotalScore: 0,
         totalScore: 120,
-        earnedStars: 1,
+        latchedStarSources: 0b100,
         gameLevel: null,
         isIncomplete: true,
       }),
     );
 
     expect(screen.getAllByLabelText("Earned star")).toHaveLength(1);
+    expect(screen.getByText(/✓ Blow$/)).toBeInTheDocument();
     expect(screen.getByText("Level Incomplete")).toBeInTheDocument();
   });
 });

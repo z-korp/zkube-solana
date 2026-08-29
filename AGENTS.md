@@ -322,14 +322,13 @@ ladder tier boundaries, and the flat qualifying credit.
   announced and never settled afterwards. Funding it is a governance action
   requiring exact approval like any other operator spend.
 - **Reroll is a universal run action beside the guardian bonus.** Each run
-  begins with one reroll and holds at most three; the second star grants one in
-  Campaign, and a perfect clear grants one in Arcade. Spending one replaces the
+  begins with one reroll and holds at most three; a perfect clear grants one in
+  either mode. Spending one replaces the
   next preview without consuming or changing Hammer, Totem, or Wave charges.
   It is never a guardian bonus type, a wildcard realm, or a second pairing on a
   map. The replacement consumes an additional VRF output and folds into the
   replay commitment as its own event under a distinct domain separator. The
-  core `campaign_second_star_grants_one_held_reroll_once` and
-  `daily_perfect_clear_grants_or_discards_at_the_reroll_cap`, program
+  core `perfect_clear_grants_or_discards_at_the_reroll_cap`, program
   `reroll_request_is_an_accepted_action_that_awaits_its_own_vrf`, SBF reroll
   contracts, and source supersession guard enforce the inventory and split.
 - **A Kredit is never granted, discounted, or bundled as a bonus.** Every Kredit
@@ -527,23 +526,19 @@ at least one star on the preceding zone's guardian, Level 10. Completed levels
 stay replayable and a level's best one-to-three-star result can only increase. A
 guardian emblem unlocks with its guardian and renders gold at 30/30 zone stars.
 
-Stars latch from the level's authored sources in order: reaching the score
-target earns one, satisfying the primary constraint earns two, and satisfying
-the secondary constraint earns three. One action may cross all three sources;
-`constraint_stars_latch_zero_to_three_on_one_action` and
-`constraint_stars_latch_in_order_across_actions` guard the ordering and the
-monotonic latch. An absent constraint earns nothing and the earnable maximum is
-contiguous; `absent_constraints_cap_and_complete_the_contiguous_star_sources`
-guards both cases. A secondary source without a primary is invalid in core,
-codegen, and catalog publication; `campaign_rules_require_contiguous_star_sources`,
-`codegen_rejects_a_secondary_without_a_primary`, and
-`campaign_publication_rejects_a_secondary_without_a_primary` guard those three
-boundaries.
+Each level has three independent star sources: score target, primary Shape, and
+secondary Blow. A source latches on the action that makes its fact true, in any
+order, and one action may latch all three. The level completes when every
+authored source has latched; `constraint_stars_latch_in_any_order` and
+`constraint_stars_latch_zero_to_three_on_one_action` guard both paths. An absent
+constraint is not a source; `absent_constraints_limit_the_earnable_source_mask`
+guards the authored mask. Every published level still carries both constraints,
+as enforced by codegen and campaign publication.
 
 Primary constraints are cumulative facts counted across a run; secondary
 constraints are moment facts that must be true on one action. Every authored
 primary must use a cumulative kind and every authored secondary must use a
-moment kind; `campaign_rules_require_contiguous_star_sources`,
+moment kind; `campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
 `codegen_enforces_constraint_class_per_slot`, and
 `campaign_publication_enforces_constraint_class_per_slot` enforce the core,
 fixture, and program boundaries. The six single-action kinds
@@ -560,7 +555,7 @@ perfect clears, guardian triggers, and points;
 behind each kind.
 
 Every cumulative primary must carry a count of at least two;
-`campaign_rules_require_contiguous_star_sources`,
+`campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
 `codegen_enforces_constraint_class_per_slot`, and
 `campaign_publication_enforces_constraint_class_per_slot` guard that rule at
 the core, fixture, and program boundaries. A secondary must never be an
@@ -571,10 +566,10 @@ boundaries.
 A level ends as complete when every authored star source has latched, or ends
 incomplete when its move budget or board is exhausted; already-latched stars
 are retained and recorded in either terminal state.
-`exhausted_runs_keep_one_or_two_latched_stars` and
+`exhausted_runs_keep_latched_stars` and
 `sbf_blocked_eleventh_row_keeps_and_records_its_latched_star` guard the engine
-and program boundaries. Storing the latch costs one byte in `ActiveRun` and one
-byte in the Daily simulation codec; it replaces the deleted post-run star
+and program boundaries. Storing the three-bit source mask costs one byte in
+`ActiveRun` and one byte in the Daily simulation codec; its popcount replaces the deleted post-run star
 calculation rather than adding a second rule.
 Move efficiency and an authored star-threshold modifier are not star sources;
 the `supersession > keeps reversed models out of authored source` test prevents

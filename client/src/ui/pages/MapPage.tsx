@@ -657,7 +657,7 @@ const MapPage: React.FC = () => {
             levelMoves={pendingLevelCompletion.levelMoves}
             prevTotalScore={pendingLevelCompletion.prevTotalScore}
             totalScore={pendingLevelCompletion.totalScore}
-            earnedStars={pendingLevelCompletion.earnedStars}
+            latchedStarSources={pendingLevelCompletion.latchedStarSources}
             gameLevel={pendingLevelCompletion.gameLevel}
             zoneId={mapZoneId}
             colors={colors}

@@ -1,6 +1,6 @@
 use crate::{
     BONUS_CHARGE_CAP, BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine,
-    RunError, RunMode, RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
+    RunError, RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
     continuation_from_vrf, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
 };
 
@@ -52,7 +52,6 @@ impl CampaignRules {
             && self.level.max_moves > 0
             && self.level.primary.is_valid_primary()
             && self.level.secondary.is_valid_secondary()
-            && self.level.has_contiguous_star_sources()
             && self.level.has_valid_constraint_classes()
             && self.level.has_distinct_constraint_facts(
                 self.mutator.bonus_trigger_type,
@@ -213,7 +212,6 @@ impl CampaignSimulation {
             config.rules.level,
             config.rules.mutator,
             100,
-            RunMode::Campaign,
         )?;
         next.accept_action(config, report)?;
         *self = next;
@@ -234,14 +232,9 @@ impl CampaignSimulation {
     ) -> Result<MoveReport, CampaignError> {
         self.require_transition(config)?;
         let mut next = *self;
-        let report = next.engine.apply_bonus(
-            row,
-            column,
-            config.rules.level,
-            config.rules.mutator,
-            100,
-            RunMode::Campaign,
-        )?;
+        let report =
+            next.engine
+                .apply_bonus(row, column, config.rules.level, config.rules.mutator, 100)?;
         next.accept_action(config, report)?;
         *self = next;
         Ok(report)
@@ -293,7 +286,7 @@ impl CampaignSimulation {
         let mut next = *self;
         next.engine.phase = RunPhase::Finished;
         next.engine.next_row = None;
-        next.engine.earned_stars = 0;
+        next.engine.latched_star_sources = 0;
         next.end_reason = Some(CampaignEndReason::Abandoned);
         *self = next;
         Ok(())
@@ -638,22 +631,8 @@ mod tests {
     }
 
     #[test]
-    fn campaign_rules_require_contiguous_star_sources() {
+    fn campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts() {
         let mut rules = config().rules;
-        rules.level.secondary = Constraint {
-            kind: ConstraintKind::ComboOfAtLeast,
-            value: 2,
-            required_count: 1,
-        };
-        assert!(!rules.is_valid());
-
-        rules.level.primary = Constraint {
-            kind: ConstraintKind::BreakBlocks,
-            value: 1,
-            required_count: 2,
-        };
-        assert!(rules.is_valid());
-
         rules.level.primary.kind = ConstraintKind::ComboOfAtLeast;
         assert!(!rules.is_valid());
         rules.level.primary.kind = ConstraintKind::CombosOfAtLeast;

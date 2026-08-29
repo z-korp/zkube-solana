@@ -1400,7 +1400,7 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
 }
 
 #[test]
-fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
+fn sbf_campaign_perfect_clear_grants_a_held_reroll_that_can_be_requested() {
     let owner = Pubkey::new_unique();
     let run_id = 90u64;
     let (_, bump) = Pubkey::find_program_address(
@@ -1413,10 +1413,7 @@ fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
         &zkube::ID,
     );
     let mut grid = [0u8; 80];
-    for row in 0..4 {
-        grid[row * 8..(row + 1) * 8].copy_from_slice(&[1; 8]);
-    }
-    grid[32..40].copy_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+    grid[..8].copy_from_slice(&[1; 8]);
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
@@ -1426,23 +1423,13 @@ fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
         map_id: 1,
         level: 1,
         rules: LevelRuleSnapshot {
-            points_required: 1,
+            points_required: u32::MAX,
             max_moves: 20,
-            primary: ConstraintSnapshot {
-                kind: 3,
-                value: 0,
-                required_count: 1,
-            },
-            secondary: ConstraintSnapshot {
-                kind: 10,
-                value: 3,
-                required_count: 1,
-            },
             block_weights: [2_000; 5],
             ..LevelRuleSnapshot::default()
         },
         grid,
-        next_row: [0, 0, 0, 0, 0, 0, 0, 1],
+        next_row: [0; 8],
         has_next_row: true,
         reroll_charges: 1,
         vrf_request_counter: 1,
@@ -1450,10 +1437,11 @@ fn sbf_campaign_second_star_grants_a_held_reroll_that_can_be_requested() {
         ..ActiveRun::default()
     };
 
-    let (active_run, moved) = process_play_move(active_state, 4, 0, 1, 123, true);
+    let (active_run, moved) = process_play_move(active_state, 0, 0, 0, 123, true);
     assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
     let awaiting: ActiveRun = decode(resulting_account(&moved, &active_run));
-    assert_eq!(awaiting.earned_stars, 2);
+    assert_eq!(awaiting.latched_star_sources, 0);
+    assert_eq!(awaiting.perfect_clears, 1);
     assert_eq!(awaiting.reroll_charges, 2);
     assert_eq!(awaiting.lifecycle, RunLifecycle::AwaitingVrf);
 
@@ -1666,7 +1654,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     assert_eq!(active.finished_at, 345);
     assert_eq!(active.action_counter, 1);
     assert_eq!(active.moves, 1);
-    assert_eq!(active.earned_stars, 1);
+    assert_eq!(active.latched_star_sources, zkube_core::STAR_SOURCE_SCORE);
     assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
     assert_eq!(active.blocks_destroyed_by_size, [0; 4]);
     assert!(!active.has_next_row);

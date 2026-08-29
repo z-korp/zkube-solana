@@ -288,7 +288,8 @@ describe("PlayScreen bonus receipt feedback", () => {
       {
         name: "Reroll",
         charges: 1,
-        triggerDescription: "Start with 1 · ★★ awards +1 · hold up to 3",
+        triggerDescription:
+          "Start with 1 · Perfect clear awards +1 · hold up to 3",
       },
     ]);
   });

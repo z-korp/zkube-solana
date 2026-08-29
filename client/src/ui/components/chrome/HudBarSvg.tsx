@@ -3,12 +3,12 @@ import { HUD_BAR } from "./chromeLayout";
 const { viewBox: vb, panel: p, sockets: s } = HUD_BAR;
 
 interface HudBarSvgProps {
-  starsEarned?: number;
+  latchedStarSources?: number;
   endless?: boolean;
 }
 
 const HudBarSvg: React.FC<HudBarSvgProps> = ({
-  starsEarned = 0,
+  latchedStarSources = 0,
   endless = false,
 }) => {
   return (
@@ -152,7 +152,7 @@ const HudBarSvg: React.FC<HudBarSvgProps> = ({
           const starCx = s.stars.x + s.stars.width / 2 - 28 + i * 28;
           const starCy = s.stars.y + s.stars.height / 2;
           const sr = 9;
-          const earned = starsEarned > i;
+          const earned = (latchedStarSources & (1 << i)) !== 0;
           return (
             <polygon
               key={i}

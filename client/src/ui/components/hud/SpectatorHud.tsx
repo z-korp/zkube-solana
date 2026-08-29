@@ -42,7 +42,10 @@ export default function SpectatorHud({
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] shrink-0 px-1 pt-1">
-      <HudBarSvg starsEarned={run.earnedStars} endless={run.mode === "daily"} />
+      <HudBarSvg
+        latchedStarSources={run.latchedStarSources}
+        endless={run.mode === "daily"}
+      />
       <div className="absolute inset-x-1 top-1 aspect-[500/152]">
         <button
           type="button"
@@ -107,6 +110,7 @@ export default function SpectatorHud({
             slot={slot}
             rule={rule}
             progress={progress}
+            latched={(run.latchedStarSources & (1 << (index + 1))) !== 0}
             side={index === 0 ? "left" : "right"}
           />
         ))}
@@ -127,19 +131,22 @@ function ConstraintBadge({
   slot,
   rule,
   progress,
+  latched,
   side,
 }: {
   slot: "Shape" | "Blow";
   rule: ActiveRunConstraintView;
   progress: number;
+  latched: boolean;
   side: "left" | "right";
 }) {
-  const status = constraintStatus(
+  const measured = constraintStatus(
     rule.kind,
     rule.value,
     rule.requiredCount,
     progress,
   );
+  const status = { ...measured, complete: latched };
   return (
     <div
       className={`absolute top-[67%] flex w-[30%] flex-col rounded-lg border px-2 py-1 text-[clamp(6px,1.5vw,9px)] font-bold backdrop-blur ${

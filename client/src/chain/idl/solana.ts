@@ -6114,9 +6114,9 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "earnedStars",
+            "name": "latchedStarSources",
             "docs": [
-              "Latched Campaign stars; Daily runs keep this byte at zero."
+              "Bit mask of latched Campaign sources; Daily runs keep this byte at zero."
             ],
             "type": "u8"
           },

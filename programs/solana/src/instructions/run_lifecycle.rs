@@ -444,7 +444,6 @@ pub fn handler_play_move(
             level,
             mutator,
             pressure_multiplier_x100,
-            core_run_mode(active.mode),
         )
         .map_err(map_run_error)?;
     fold_replay_event(
@@ -555,14 +554,7 @@ pub fn handler_apply_bonus(
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
-        .apply_bonus(
-            row,
-            column,
-            level,
-            mutator,
-            pressure_multiplier_x100,
-            core_run_mode(active.mode),
-        )
+        .apply_bonus(row, column, level, mutator, pressure_multiplier_x100)
         .map_err(map_run_error)?;
     fold_replay_event(
         active,
@@ -905,7 +897,7 @@ pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
     // to AwaitingVrf, so a late oracle callback can no longer land.
     active.pending_vrf_counter = 0;
     active.lifecycle = RunLifecycle::Finished;
-    active.earned_stars = 0;
+    active.latched_star_sources = 0;
     if active.finished_at == 0 {
         active.finished_at = Clock::get()?.unix_timestamp;
     }
@@ -1094,7 +1086,7 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
         ErrorCode::GameNotFinished
     );
     require!(active.finished_at > 0, ErrorCode::GameNotFinished);
-    let stars = active.earned_stars;
+    let stars = active.latched_star_sources.count_ones() as u8;
     let newly_earned_stars =
         ctx.accounts
             .player_state
@@ -1233,7 +1225,7 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         max_combo: active.max_combo,
         primary_progress: active.primary_progress,
         secondary_progress: active.secondary_progress,
-        earned_stars: active.earned_stars,
+        latched_star_sources: active.latched_star_sources,
         streak: active.streak,
         charges_earned: active.charges_earned,
         level_lines_cleared: active.level_lines_cleared,
@@ -1254,7 +1246,7 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.max_combo = engine.max_combo;
     active.primary_progress = engine.primary_progress;
     active.secondary_progress = engine.secondary_progress;
-    active.earned_stars = engine.earned_stars;
+    active.latched_star_sources = engine.latched_star_sources;
     active.streak = engine.streak;
     active.charges_earned = engine.charges_earned;
     active.level_lines_cleared = engine.level_lines_cleared;
@@ -1276,13 +1268,6 @@ fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
         RunPhase::Playing => RunLifecycle::Playing,
         RunPhase::LevelComplete => RunLifecycle::LevelComplete,
         RunPhase::Finished => RunLifecycle::Finished,
-    }
-}
-
-const fn core_run_mode(mode: RunMode) -> zkube_core::RunMode {
-    match mode {
-        RunMode::Campaign => zkube_core::RunMode::Campaign,
-        RunMode::Daily => zkube_core::RunMode::Daily,
     }
 }
 
@@ -1415,7 +1400,7 @@ mod tests {
     fn core_constraint_state_round_trips_through_active_run() {
         let engine = RunEngine {
             phase: RunPhase::Playing,
-            earned_stars: 2,
+            latched_star_sources: 0b110,
             streak: 3,
             charges_earned: 4,
             ..RunEngine::default()
@@ -1427,11 +1412,11 @@ mod tests {
 
         write_engine(&mut active, &engine);
 
-        assert_eq!(active.earned_stars, 2);
+        assert_eq!(active.latched_star_sources, 0b110);
         assert_eq!(active.streak, 3);
         assert_eq!(active.charges_earned, 4);
         let restored = engine_from_active(&active).unwrap();
-        assert_eq!(restored.earned_stars, 2);
+        assert_eq!(restored.latched_star_sources, 0b110);
         assert_eq!(restored.streak, 3);
         assert_eq!(restored.charges_earned, 4);
     }
@@ -2158,14 +2143,8 @@ mod tests {
                 for row in 0..10 {
                     for column in 0..8 {
                         let mut candidate = engine;
-                        let Ok(report) = candidate.apply_bonus(
-                            row,
-                            column,
-                            level,
-                            mutator,
-                            100,
-                            zkube_core::RunMode::Campaign,
-                        ) else {
+                        let Ok(report) = candidate.apply_bonus(row, column, level, mutator, 100)
+                        else {
                             continue;
                         };
                         let signal_after = campaign_constraint_signal(level, &candidate);
@@ -2220,7 +2199,6 @@ mod tests {
                             level,
                             mutator,
                             100,
-                            zkube_core::RunMode::Campaign,
                         ) else {
                             continue;
                         };
@@ -2423,7 +2401,6 @@ mod tests {
                             level,
                             mutator,
                             pressure.score_multipliers_x100[usize::from(tier)],
-                            zkube_core::RunMode::Daily,
                         ) else {
                             continue;
                         };

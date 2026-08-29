@@ -1,7 +1,7 @@
 use crate::{
     ActionMetrics, BONUS_CHARGE_CAP, BlockWeights, Bonus, ChainDomain, ChallengeId, DailyObjective,
     DailyObjectiveRule, DailyScoringError, MetricsError, MutatorRules, PlayerId, RandomnessError,
-    ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics, RunMode,
+    ReplayCommitment, ReplayEvent, ReplayMode, RulesHash, RunEngine, RunError, RunMetrics,
     RunPhase, Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid,
     continuation_from_vrf, derive_player_id, opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
     score_daily_objective,
@@ -441,7 +441,6 @@ impl DailySimulation {
             daily_level_rules(rules),
             rules.mutator,
             rules.action_score_multiplier(next.current_difficulty),
-            RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;
@@ -483,7 +482,6 @@ impl DailySimulation {
             daily_level_rules(rules),
             rules.mutator,
             rules.action_score_multiplier(next.current_difficulty),
-            RunMode::Daily,
         )?;
         report.difficulty_at_action = next.current_difficulty;
         next.record_action(rules, report, combo_before)?;

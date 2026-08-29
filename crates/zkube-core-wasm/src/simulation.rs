@@ -94,7 +94,7 @@ pub fn encode_daily_simulation_state(
     writer.write(&[simulation.engine.max_combo]);
     writer.write(&[simulation.engine.primary_progress]);
     writer.write(&[simulation.engine.secondary_progress]);
-    writer.write(&[simulation.engine.earned_stars]);
+    writer.write(&[simulation.engine.latched_star_sources]);
     writer.write(&[simulation.engine.streak]);
     writer.write(&[simulation.engine.charges_earned]);
     writer.write(&simulation.engine.level_lines_cleared.to_le_bytes());
@@ -141,7 +141,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let max_combo = reader.u8()?;
     let primary_progress = reader.u8()?;
     let secondary_progress = reader.u8()?;
-    let earned_stars = reader.u8()?;
+    let latched_star_sources = reader.u8()?;
     let streak = reader.u8()?;
     let charges_earned = reader.u8()?;
     let level_lines_cleared = reader.u16()?;
@@ -170,7 +170,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let rules_snapshot_hash = RulesHash(reader.array()?);
     reader.finish()?;
 
-    if earned_stars != 0
+    if latched_star_sources != 0
         || current_difficulty > 7
         || (deadline_finished && phase != RunPhase::Finished)
         || (phase == RunPhase::Playing && next_row.is_none())
@@ -189,7 +189,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             max_combo,
             primary_progress,
             secondary_progress,
-            earned_stars,
+            latched_star_sources,
             streak,
             charges_earned,
             level_lines_cleared,
