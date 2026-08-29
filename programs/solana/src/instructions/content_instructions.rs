@@ -235,6 +235,7 @@ pub fn handler_write_map_catalog(
         validate_primary_constraint_snapshot(level.primary)?;
         validate_secondary_constraint_snapshot(level.secondary)?;
         validate_contiguous_star_sources(level.primary, level.secondary)?;
+        validate_distinct_constraint_facts(level.primary, level.secondary, &args.map_rules)?;
         require!(
             level.block_weights[0] > 0
                 && level.block_weights[1..].iter().any(|weight| *weight > 0)
@@ -327,6 +328,27 @@ fn validate_contiguous_star_sources(
 ) -> Result<()> {
     require!(
         secondary.kind == 0 || primary.kind != 0,
+        ErrorCode::InvalidLevel
+    );
+    Ok(())
+}
+
+fn validate_distinct_constraint_facts(
+    primary: ConstraintSnapshot,
+    secondary: ConstraintSnapshot,
+    map_rules: &CampaignMapRuleSnapshot,
+) -> Result<()> {
+    let level = zkube_core::LevelRules {
+        points_required: 1,
+        max_moves: 1,
+        primary: core_constraint(primary)?,
+        secondary: core_constraint(secondary)?,
+    };
+    require!(
+        level.has_distinct_constraint_facts(
+            map_rules.bonus_trigger_type,
+            map_rules.bonus_threshold,
+        ),
         ErrorCode::InvalidLevel
     );
     Ok(())
@@ -739,7 +761,7 @@ mod tests {
         let cumulative = ConstraintSnapshot {
             kind: zkube_core::ConstraintKind::CombosOfAtLeast.tag(),
             value: 2,
-            required_count: 1,
+            required_count: 2,
         };
         let moment = ConstraintSnapshot {
             kind: zkube_core::ConstraintKind::ComboOfAtLeast.tag(),
@@ -750,6 +772,29 @@ mod tests {
         assert!(validate_secondary_constraint_snapshot(cumulative).is_err());
         assert!(validate_primary_constraint_snapshot(moment).is_err());
         assert!(validate_secondary_constraint_snapshot(moment).is_ok());
+
+        for (kind, value) in [
+            (zkube_core::ConstraintKind::CombosOfAtLeast, 2),
+            (zkube_core::ConstraintKind::BreakBlocks, 1),
+            (zkube_core::ConstraintKind::ClearLines, 0),
+            (zkube_core::ConstraintKind::CombosOfExactly, 2),
+            (zkube_core::ConstraintKind::BigMoves, 1),
+            (zkube_core::ConstraintKind::TriggerFired, 0),
+            (zkube_core::ConstraintKind::BonusLines, 0),
+            (zkube_core::ConstraintKind::BonusBreaks, 0),
+        ] {
+            let one = ConstraintSnapshot {
+                kind: kind.tag(),
+                value,
+                required_count: 1,
+            };
+            assert!(validate_primary_constraint_snapshot(one).is_err());
+            assert!(validate_primary_constraint_snapshot(ConstraintSnapshot {
+                required_count: 2,
+                ..one
+            })
+            .is_ok());
+        }
 
         for (kind, value) in [
             (zkube_core::ConstraintKind::ComboOfAtLeast, 2),
@@ -776,6 +821,126 @@ mod tests {
                 required_count: 2,
             })
             .is_ok());
+        }
+
+        let contained = [
+            (
+                zkube_core::ConstraintKind::CombosOfExactly,
+                4,
+                zkube_core::ConstraintKind::ComboOfExactly,
+                4,
+                1,
+                0,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::CombosOfExactly,
+                4,
+                zkube_core::ConstraintKind::ComboOfAtLeast,
+                3,
+                1,
+                0,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::CombosOfAtLeast,
+                4,
+                zkube_core::ConstraintKind::ComboOfAtLeast,
+                3,
+                1,
+                0,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::BigMoves,
+                20,
+                zkube_core::ConstraintKind::BigMove,
+                19,
+                1,
+                0,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::BonusLines,
+                0,
+                zkube_core::ConstraintKind::BonusLinesInMove,
+                1,
+                1,
+                0,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::TriggerFired,
+                0,
+                zkube_core::ConstraintKind::ComboOfAtLeast,
+                2,
+                1,
+                1,
+                2,
+            ),
+            (
+                zkube_core::ConstraintKind::TriggerFired,
+                0,
+                zkube_core::ConstraintKind::ComboOfExactly,
+                3,
+                1,
+                4,
+                3,
+            ),
+            (
+                zkube_core::ConstraintKind::TriggerFired,
+                0,
+                zkube_core::ConstraintKind::AllWidthsInMove,
+                0,
+                1,
+                6,
+                0,
+            ),
+            (
+                zkube_core::ConstraintKind::TriggerFired,
+                0,
+                zkube_core::ConstraintKind::BreakInMove,
+                0,
+                6,
+                8,
+                6,
+            ),
+            (
+                zkube_core::ConstraintKind::TriggerFired,
+                0,
+                zkube_core::ConstraintKind::Streak,
+                1,
+                3,
+                9,
+                3,
+            ),
+        ];
+        for (
+            primary,
+            primary_value,
+            secondary,
+            secondary_value,
+            secondary_count,
+            trigger,
+            threshold,
+        ) in contained
+        {
+            let primary = ConstraintSnapshot {
+                kind: primary.tag(),
+                value: primary_value,
+                required_count: 2,
+            };
+            let secondary = ConstraintSnapshot {
+                kind: secondary.tag(),
+                value: secondary_value,
+                required_count: secondary_count,
+            };
+            let map_rules = CampaignMapRuleSnapshot {
+                bonus_trigger_type: trigger,
+                bonus_threshold: threshold,
+                ..CampaignMapRuleSnapshot::default()
+            };
+            assert!(validate_distinct_constraint_facts(primary, secondary, &map_rules).is_err());
         }
     }
 

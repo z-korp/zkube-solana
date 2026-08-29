@@ -3615,7 +3615,7 @@ mod tests {
         // handful of friendly-looking totals while hiding another change.
         assert_eq!(
             serde_json::to_string(&summary).unwrap(),
-            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":294,\"objectiveSum\":146,\"campaignScoreSum\":14,\"completedCampaignRuns\":0,\"chargesEarned\":11,\"digestHex\":\"4aa3fca1a4c88ebb25e47a7b0df68444f3e1b68d3596c706517e616aa77b829b\"}"
+            "{\"dailyRuns\":2,\"campaignRuns\":2,\"dailyScoreSum\":294,\"objectiveSum\":146,\"campaignScoreSum\":16,\"completedCampaignRuns\":0,\"chargesEarned\":11,\"digestHex\":\"27a295d58d7586436659a2d61c170e4dde38cf4245d48d2bed3449b601840669\"}"
         );
     }
 
@@ -3669,7 +3669,7 @@ mod tests {
             [
                 "ab6daa6a2d008f9014e3499cf473d4268a7c1b48dbbe9b53537c4b089e4f9eba",
                 "4a09b2f5382f06328729379c02120c3396d02f745ac7f27a00430b1ec505963c",
-                "b9d40dda4214a1f060edeead929d138015525fb2d4b30bd4bfe8a617f71b677b",
+                "76a43dafd04e011185eb7e430a121167c66d5302e4c77e5b5ef8c04bb2bf2de1",
                 "bafc0969cbb519fc5be1710aa816ad2cae3370858c0c7154d4234837ad033668",
             ]
         );

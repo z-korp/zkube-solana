@@ -415,6 +415,101 @@ fn render_protocol_constants() -> String {
 mod tests {
     use super::*;
 
+    type ContainedFactCase = (ConstraintKind, u8, ConstraintKind, u8, u8, u8, u16);
+
+    const CONTAINED_FACT_CASES: [ContainedFactCase; 10] = [
+        (
+            ConstraintKind::CombosOfExactly,
+            4,
+            ConstraintKind::ComboOfExactly,
+            4,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::CombosOfExactly,
+            4,
+            ConstraintKind::ComboOfAtLeast,
+            3,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::CombosOfAtLeast,
+            4,
+            ConstraintKind::ComboOfAtLeast,
+            3,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::BigMoves,
+            20,
+            ConstraintKind::BigMove,
+            19,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::BonusLines,
+            0,
+            ConstraintKind::BonusLinesInMove,
+            1,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::ComboOfAtLeast,
+            2,
+            1,
+            1,
+            2,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::ComboOfExactly,
+            3,
+            1,
+            4,
+            3,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::AllWidthsInMove,
+            0,
+            1,
+            6,
+            0,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::BreakInMove,
+            0,
+            6,
+            8,
+            6,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::Streak,
+            1,
+            3,
+            9,
+            3,
+        ),
+    ];
+
     #[test]
     fn committed_catalog_validates_and_hashes_stably() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
@@ -499,6 +594,25 @@ mod tests {
         catalog.maps[0].levels[2].3 = [9, 2, 1];
         assert!(validate_catalog(&catalog).is_err());
 
+        for (kind, value) in [
+            (ConstraintKind::CombosOfAtLeast, 2),
+            (ConstraintKind::BreakBlocks, 1),
+            (ConstraintKind::ClearLines, 0),
+            (ConstraintKind::CombosOfExactly, 2),
+            (ConstraintKind::BigMoves, 1),
+            (ConstraintKind::TriggerFired, 0),
+            (ConstraintKind::BonusLines, 0),
+            (ConstraintKind::BonusBreaks, 0),
+        ] {
+            let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+            catalog.maps[0].levels[7].3 = [kind.tag(), value, 1];
+            catalog.maps[0].levels[7].4 = [ConstraintKind::PerfectClear.tag(), 0, 1];
+            assert!(validate_catalog(&catalog).is_err());
+
+            catalog.maps[0].levels[7].3[2] = 2;
+            assert!(validate_catalog(&catalog).is_ok());
+        }
+
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         catalog.maps[0].levels[7].4 = [1, 2, 1];
         assert!(validate_catalog(&catalog).is_err());
@@ -519,6 +633,24 @@ mod tests {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
             catalog.maps[0].levels[7].4 = valid;
             assert!(validate_catalog(&catalog).is_ok());
+        }
+
+        for (
+            primary,
+            primary_value,
+            secondary,
+            secondary_value,
+            secondary_count,
+            trigger,
+            threshold,
+        ) in CONTAINED_FACT_CASES
+        {
+            let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+            catalog.maps[0].rules[5] = u16::from(trigger);
+            catalog.maps[0].rules[6] = threshold;
+            catalog.maps[0].levels[7].3 = [primary.tag(), primary_value, 2];
+            catalog.maps[0].levels[7].4 = [secondary.tag(), secondary_value, secondary_count];
+            assert!(validate_catalog(&catalog).is_err());
         }
     }
 }

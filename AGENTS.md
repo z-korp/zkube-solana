@@ -559,6 +559,15 @@ perfect clears, guardian triggers, and points;
 `every_constraint_kind_reads_its_declared_action_fact` pins the engine fact
 behind each kind.
 
+Every cumulative primary must carry a count of at least two;
+`campaign_rules_require_contiguous_star_sources`,
+`codegen_enforces_constraint_class_per_slot`, and
+`campaign_publication_enforces_constraint_class_per_slot` guard that rule at
+the core, fixture, and program boundaries. A secondary must never be an
+instance of its primary's fact, including the moment fact that is the realm's
+own guardian trigger; the same three tests guard that rule at the same three
+boundaries.
+
 A level ends as complete when every authored star source has latched, or ends
 incomplete when its move budget or board is exhausted; already-latched stars
 are retained and recorded in either terminal state.

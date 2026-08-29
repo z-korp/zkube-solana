@@ -54,6 +54,10 @@ impl CampaignRules {
             && self.level.secondary.is_valid_secondary()
             && self.level.has_contiguous_star_sources()
             && self.level.has_valid_constraint_classes()
+            && self.level.has_distinct_constraint_facts(
+                self.mutator.bonus_trigger_type,
+                self.mutator.bonus_threshold,
+            )
             && self.mutator.score_multiplier_x100 > 0
             && self.mutator.combo_multiplier_x100 > 0
             && bonus_trigger_threshold_is_valid(
@@ -525,6 +529,101 @@ mod tests {
         }
     }
 
+    type ContainedFactCase = (ConstraintKind, u8, ConstraintKind, u8, u8, u8, u16);
+
+    const CONTAINED_FACT_CASES: [ContainedFactCase; 10] = [
+        (
+            ConstraintKind::CombosOfExactly,
+            4,
+            ConstraintKind::ComboOfExactly,
+            4,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::CombosOfExactly,
+            4,
+            ConstraintKind::ComboOfAtLeast,
+            3,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::CombosOfAtLeast,
+            4,
+            ConstraintKind::ComboOfAtLeast,
+            3,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::BigMoves,
+            20,
+            ConstraintKind::BigMove,
+            19,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::BonusLines,
+            0,
+            ConstraintKind::BonusLinesInMove,
+            1,
+            1,
+            0,
+            0,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::ComboOfAtLeast,
+            2,
+            1,
+            1,
+            2,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::ComboOfExactly,
+            3,
+            1,
+            4,
+            3,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::AllWidthsInMove,
+            0,
+            1,
+            6,
+            0,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::BreakInMove,
+            0,
+            6,
+            8,
+            6,
+        ),
+        (
+            ConstraintKind::TriggerFired,
+            0,
+            ConstraintKind::Streak,
+            1,
+            3,
+            9,
+            3,
+        ),
+    ];
+
     #[test]
     fn campaign_opening_is_seeded_and_reproducible() {
         let first = CampaignSimulation::new(config()).unwrap();
@@ -551,7 +650,7 @@ mod tests {
         rules.level.primary = Constraint {
             kind: ConstraintKind::BreakBlocks,
             value: 1,
-            required_count: 1,
+            required_count: 2,
         };
         assert!(rules.is_valid());
 
@@ -560,6 +659,56 @@ mod tests {
         rules.level.primary.kind = ConstraintKind::CombosOfAtLeast;
         rules.level.secondary.kind = ConstraintKind::CombosOfAtLeast;
         assert!(!rules.is_valid());
+
+        for (kind, value) in [
+            (ConstraintKind::CombosOfAtLeast, 2),
+            (ConstraintKind::BreakBlocks, 1),
+            (ConstraintKind::ClearLines, 0),
+            (ConstraintKind::CombosOfExactly, 2),
+            (ConstraintKind::BigMoves, 1),
+            (ConstraintKind::TriggerFired, 0),
+            (ConstraintKind::BonusLines, 0),
+            (ConstraintKind::BonusBreaks, 0),
+        ] {
+            let mut candidate = config().rules;
+            candidate.level.primary = Constraint {
+                kind,
+                value,
+                required_count: 1,
+            };
+            assert!(!candidate.is_valid(), "{kind:?} accepted count one");
+            candidate.level.primary.required_count = 2;
+            assert!(candidate.is_valid(), "{kind:?} rejected count two");
+        }
+
+        for (
+            primary,
+            primary_value,
+            secondary,
+            secondary_value,
+            secondary_count,
+            trigger,
+            threshold,
+        ) in CONTAINED_FACT_CASES
+        {
+            let mut candidate = config().rules;
+            candidate.level.primary = Constraint {
+                kind: primary,
+                value: primary_value,
+                required_count: 2,
+            };
+            candidate.level.secondary = Constraint {
+                kind: secondary,
+                value: secondary_value,
+                required_count: secondary_count,
+            };
+            candidate.mutator.bonus_trigger_type = trigger;
+            candidate.mutator.bonus_threshold = threshold;
+            assert!(
+                !candidate.is_valid(),
+                "accepted {primary:?} | {secondary:?}"
+            );
+        }
     }
 
     #[test]

@@ -144,6 +144,7 @@ impl Constraint {
     pub const fn is_valid_primary(self) -> bool {
         self.has_valid_shape()
             && matches!(self.kind.class(), None | Some(ConstraintClass::Cumulative))
+            && (!self.is_present() || self.required_count >= 2)
     }
 
     #[must_use]
@@ -308,6 +309,61 @@ impl LevelRules {
             self.secondary.kind.class(),
             None | Some(ConstraintClass::Moment)
         )
+    }
+
+    /// A Blow must add a new fact after its cumulative Shape. This rejects
+    /// exact fact containment; geometric overlap remains authored balance.
+    #[must_use]
+    pub const fn has_distinct_constraint_facts(
+        self,
+        bonus_trigger_type: u8,
+        bonus_threshold: u16,
+    ) -> bool {
+        let primary = self.primary;
+        let secondary = self.secondary;
+        let secondary_is_trigger = match bonus_trigger_type {
+            1 => {
+                matches!(secondary.kind, ConstraintKind::ComboOfAtLeast)
+                    && secondary.value as u16 == bonus_threshold
+            }
+            4 => {
+                matches!(secondary.kind, ConstraintKind::ComboOfExactly)
+                    && secondary.value as u16 == bonus_threshold
+            }
+            6 => matches!(secondary.kind, ConstraintKind::AllWidthsInMove),
+            8 => {
+                matches!(secondary.kind, ConstraintKind::BreakInMove)
+                    && secondary.value == 0
+                    && secondary.required_count as u16 == bonus_threshold
+            }
+            9 => {
+                matches!(secondary.kind, ConstraintKind::Streak)
+                    && secondary.value == 1
+                    && secondary.required_count as u16 == bonus_threshold
+            }
+            _ => false,
+        };
+        let contained = match primary.kind {
+            ConstraintKind::CombosOfExactly => match secondary.kind {
+                ConstraintKind::ComboOfExactly => secondary.value == primary.value,
+                ConstraintKind::ComboOfAtLeast => secondary.value <= primary.value,
+                _ => false,
+            },
+            ConstraintKind::CombosOfAtLeast => {
+                matches!(secondary.kind, ConstraintKind::ComboOfAtLeast)
+                    && secondary.value <= primary.value
+            }
+            ConstraintKind::BigMoves => {
+                matches!(secondary.kind, ConstraintKind::BigMove)
+                    && secondary.value <= primary.value
+            }
+            ConstraintKind::BonusLines => {
+                matches!(secondary.kind, ConstraintKind::BonusLinesInMove) && secondary.value == 1
+            }
+            ConstraintKind::TriggerFired => secondary_is_trigger,
+            _ => false,
+        };
+        !contained
     }
 }
 
