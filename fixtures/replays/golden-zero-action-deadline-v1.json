@@ -7,13 +7,11 @@
   "mode": "ranked",
   "rules": {
     "max_moves": 100,
-    "mutator": {
-      "line_clear_bonus": 0,
-      "perfect_clear_bonus": 0,
-      "bonus_trigger_type": 0,
-      "bonus_threshold": 0
+    "guardian": {
+      "bonus": "wave",
+      "trigger": 0,
+      "threshold": 0
     },
-    "bonus": "wave",
     "starting_height": 4,
     "objective": {
       "kind": "classic",
@@ -23,12 +21,12 @@
       "score_multipliers_x100": [100, 150, 200, 250, 300, 350, 400, 450]
     }
   },
-  "rules_snapshot_hash_hex": "97aec122e77760d0f4368735dad4a0a9d16b9b047bba4f0c685a6ef9c86eba05",
+  "rules_snapshot_hash_hex": "a9ec866f9867a01388809976e394d7a2f327b6df94fcc80ba152c6dd3694dea8",
   "day_id": 42,
   "content_version": 2,
-  "rules_hash_hex": "bc790d7b6faa8af8e6ee0376f5f8bc57e45466f80d77369e2feba63e50960e87",
+  "rules_hash_hex": "621e99c25618674c29fbc47807b591fd2f929248bd8a67e7f0993ca12a84b9da",
   "player_id_hex": "da8355dd1b72696e764a2744b362ed873e450a168a551fcb584103241064b1e2",
-  "initial_replay_hash_hex": "8f3d83a1bfe6cc87f22c752e477f26176a54d9194def8c9f09981dcf5e36b277",
+  "initial_replay_hash_hex": "880dfc4f9fe450f34ce0dcd2615c8ccdce5de9a7019d76e02c71b70122ff2c42",
   "events": [
     {
       "kind": "vrf",
@@ -42,10 +40,10 @@
     "deadline_finished": true,
     "score_eligible": false,
     "final_grid": [
-      1, 2, 2, 0, 1, 2, 2, 1,
-      0, 2, 2, 3, 3, 3, 0, 1,
-      2, 2, 2, 2, 1, 1, 0, 0,
-      1, 0, 4, 4, 4, 4, 0, 0,
+      0, 2, 2, 1, 1, 3, 3, 3,
+      0, 3, 3, 3, 0, 2, 2, 1,
+      0, 4, 4, 4, 4, 2, 2, 0,
+      0, 0, 0, 0, 0, 2, 2, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
@@ -81,6 +79,6 @@
       "total_blocks_destroyed": 0,
       "perfect_clears": 0
     },
-    "final_replay_hash_hex": "98253b883b8fea918ea7d19939634473d89eb5c20bf8f141775278a73bae23a0"
+    "final_replay_hash_hex": "5eee3634df4b9f6a62202d8e7c3bdee264ef6e742feae654cda1522100888488"
   }
 }

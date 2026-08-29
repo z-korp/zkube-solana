@@ -1,7 +1,7 @@
 use crate::{
-    BlockWeights, Bonus, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
-    Sha256Provider, SoftwareSha256, bonus_trigger_threshold_is_valid, continuation_from_vrf,
-    opening_from_vrf, reroll_row_from_vrf, row_from_vrf,
+    BlockWeights, Guardian, LevelRules, MoveReport, RunEngine, RunError, RunPhase, Sha256Provider,
+    SoftwareSha256, bonus_trigger_threshold_is_valid, continuation_from_vrf, opening_from_vrf,
+    reroll_row_from_vrf, row_from_vrf,
 };
 
 const CAMPAIGN_RANDOMNESS_DOMAIN: &[u8] = b"zkube-campaign-v2-rng";
@@ -37,8 +37,7 @@ impl CampaignEndReason {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CampaignRules {
     pub level: LevelRules,
-    pub mutator: MutatorRules,
-    pub bonus: Option<Bonus>,
+    pub guardian: Guardian,
     pub starting_height: u8,
     pub level_difficulty: u8,
 }
@@ -51,15 +50,10 @@ impl CampaignRules {
             && self.level.primary.is_valid_primary()
             && self.level.secondary.is_valid_secondary()
             && self.level.has_valid_constraint_classes()
-            && self.level.has_distinct_constraint_facts(
-                self.mutator.bonus_trigger_type,
-                self.mutator.bonus_threshold,
-            )
-            && bonus_trigger_threshold_is_valid(
-                self.mutator.bonus_trigger_type,
-                self.mutator.bonus_threshold,
-            )
-            && self.bonus.is_some()
+            && self
+                .level
+                .has_distinct_constraint_facts(self.guardian.trigger, self.guardian.threshold)
+            && bonus_trigger_threshold_is_valid(self.guardian.trigger, self.guardian.threshold)
             && (crate::MIN_OPENING_HEIGHT..=crate::MAX_OPENING_HEIGHT)
                 .contains(&self.starting_height)
             && self.level_difficulty <= 7
@@ -147,7 +141,7 @@ impl CampaignSimulation {
             config.rules.weights(current_difficulty),
         )?;
         let mut engine = RunEngine::start(opening.grid, opening.preview)?;
-        engine.bonus = config.rules.bonus;
+        engine.bonus = Some(config.rules.guardian.bonus);
         Ok(Self {
             content_version: config.content_version,
             content_hash: config.content_hash,
@@ -200,7 +194,7 @@ impl CampaignSimulation {
             start,
             destination,
             config.rules.level,
-            config.rules.mutator,
+            config.rules.guardian,
             100,
         )?;
         next.accept_action(config, report)?;
@@ -224,7 +218,7 @@ impl CampaignSimulation {
         let mut next = *self;
         let report =
             next.engine
-                .apply_bonus(row, column, config.rules.level, config.rules.mutator, 100)?;
+                .apply_bonus(row, column, config.rules.level, config.rules.guardian, 100)?;
         next.accept_action(config, report)?;
         *self = next;
         Ok(report)
@@ -490,7 +484,7 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Constraint, ConstraintKind};
+    use crate::{Bonus, Constraint, ConstraintKind};
 
     fn config() -> CampaignSimulationConfig {
         CampaignSimulationConfig {
@@ -502,8 +496,10 @@ mod tests {
             seed: [11; 32],
             rules: CampaignRules {
                 level: LevelRules::default(),
-                mutator: MutatorRules::default(),
-                bonus: Some(Bonus::Wave),
+                guardian: Guardian {
+                    bonus: Bonus::Wave,
+                    ..Guardian::default()
+                },
                 starting_height: 4,
                 level_difficulty: 0,
             },
@@ -670,8 +666,8 @@ mod tests {
                 value: secondary_value,
                 required_count: secondary_count,
             };
-            candidate.mutator.bonus_trigger_type = trigger;
-            candidate.mutator.bonus_threshold = threshold;
+            candidate.guardian.trigger = trigger;
+            candidate.guardian.threshold = threshold;
             assert!(
                 !candidate.is_valid(),
                 "accepted {primary:?} | {secondary:?}"
@@ -707,7 +703,7 @@ mod tests {
     #[test]
     fn initial_reroll_spends_without_changing_guardian_inventory() {
         let mut config = config();
-        config.rules.bonus = Some(Bonus::Hammer);
+        config.rules.guardian.bonus = Bonus::Hammer;
         let mut simulation = CampaignSimulation::new(config).unwrap();
         let original_preview = simulation.engine.next_row;
 

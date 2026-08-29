@@ -76,14 +76,20 @@ fn decode<T: AccountDeserialize>(account: &Account) -> T {
 fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
     CampaignMapRuleSnapshot {
         active_mutator_id: 1,
-        passive_mutator_id: 2,
-        line_clear_bonus: 1,
-        perfect_clear_bonus: 2,
-        bonus_type: 1,
-        bonus_trigger_type: 1,
-        bonus_threshold: 10,
+        guardian: GuardianSnapshot {
+            bonus: 1,
+            trigger: 1,
+            threshold: 10,
+        },
         starting_rows: 4,
         ..CampaignMapRuleSnapshot::default()
+    }
+}
+
+fn level_rule_fixture() -> LevelRuleSnapshot {
+    LevelRuleSnapshot {
+        guardian: daily_map_rule_fixture().guardian,
+        ..LevelRuleSnapshot::default()
     }
 }
 
@@ -633,7 +639,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
     let opening_rules = LevelRuleSnapshot {
         difficulty: 0,
         starting_rows: 8,
-        ..LevelRuleSnapshot::default()
+        ..level_rule_fixture()
     };
     let opening_state = ActiveRun {
         version: ACCOUNT_VERSION,
@@ -829,7 +835,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: DAILY_MAX_MOVES,
-            ..LevelRuleSnapshot::default()
+            ..level_rule_fixture()
         },
         daily_pressure: DailyPressureProfile::canonical(),
         grid,
@@ -1121,7 +1127,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
         enabled: true,
         map_rules: CampaignMapRuleSnapshot {
             starting_rows: 3,
-            ..CampaignMapRuleSnapshot::default()
+            ..daily_map_rule_fixture()
         },
         levels,
         bump: map_bump,
@@ -1282,7 +1288,7 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
         level: 1,
         rules: LevelRuleSnapshot {
             max_moves: 20,
-            ..LevelRuleSnapshot::default()
+            ..level_rule_fixture()
         },
         grid,
         next_row: [0, 0, 0, 0, 0, 0, 0, 1],
@@ -1334,7 +1340,7 @@ fn sbf_campaign_perfect_clear_grants_a_held_reroll_that_can_be_requested() {
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: 20,
-            ..LevelRuleSnapshot::default()
+            ..level_rule_fixture()
         },
         grid,
         next_row: [0; 8],
@@ -1417,7 +1423,7 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
             rules: LevelRuleSnapshot {
                 points_required: u32::MAX,
                 max_moves: DAILY_MAX_MOVES,
-                ..LevelRuleSnapshot::default()
+                ..level_rule_fixture()
             },
             daily_pressure: DailyPressureProfile::canonical(),
             daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
@@ -1481,7 +1487,7 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
             max_moves: 20,
-            ..LevelRuleSnapshot::default()
+            ..level_rule_fixture()
         },
         grid,
         next_row: [1, 0, 0, 0, 0, 0, 0, 0],
@@ -1540,7 +1546,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
                 value: 3,
                 required_count: 1,
             },
-            ..LevelRuleSnapshot::default()
+            ..level_rule_fixture()
         },
         score: 1,
         grid,
@@ -1839,7 +1845,7 @@ fn daily_fixture(
             rules_hash: [2; 32],
             map_id: 1,
             daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
-            rules: LevelRuleSnapshot::default(),
+            rules: level_rule_fixture(),
             pressure: DailyPressureProfile::canonical(),
             opens_at,
             runs_close_at,
@@ -2852,9 +2858,7 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
         after.rules.active_mutator_id,
         daily_map_rule_fixture().active_mutator_id
     );
-    assert_eq!(after.rules.passive_mutator_id, 0);
-    assert_eq!(after.rules.line_clear_bonus, 0);
-    assert_eq!(after.rules.perfect_clear_bonus, 0);
+    assert_eq!(after.rules.guardian, daily_map_rule_fixture().guardian);
     assert_eq!(
         resulting_account(&result, &cadence_funding).lamports
             + resulting_account(&result, &missing).lamports,

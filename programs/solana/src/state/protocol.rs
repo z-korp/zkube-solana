@@ -448,14 +448,34 @@ impl MapCatalog {
             primary: authored.primary,
             secondary: authored.secondary,
             active_mutator_id: map.active_mutator_id,
-            passive_mutator_id: map.passive_mutator_id,
             boss_id: u8::from(level == LEVELS_PER_MAP as u8) * map.boss_id,
-            line_clear_bonus: map.line_clear_bonus,
-            perfect_clear_bonus: map.perfect_clear_bonus,
-            bonus_type: map.bonus_type,
-            bonus_trigger_type: map.bonus_trigger_type,
-            bonus_threshold: map.bonus_threshold,
+            guardian: map.guardian,
             starting_rows: map.starting_rows,
+        })
+    }
+}
+
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub struct GuardianSnapshot {
+    pub bonus: u8,
+    pub trigger: u8,
+    pub threshold: u16,
+}
+
+impl GuardianSnapshot {
+    pub fn to_core(self) -> Result<zkube_core::Guardian> {
+        let bonus = match self.bonus {
+            1 => zkube_core::Bonus::Hammer,
+            2 => zkube_core::Bonus::Totem,
+            3 => zkube_core::Bonus::Wave,
+            _ => return err!(ErrorCode::InvalidLevel),
+        };
+        Ok(zkube_core::Guardian {
+            bonus,
+            trigger: self.trigger,
+            threshold: self.threshold,
         })
     }
 }
@@ -463,13 +483,8 @@ impl MapCatalog {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
 pub struct CampaignMapRuleSnapshot {
     pub active_mutator_id: u8,
-    pub passive_mutator_id: u8,
     pub boss_id: u8,
-    pub line_clear_bonus: u16,
-    pub perfect_clear_bonus: u16,
-    pub bonus_type: u8,
-    pub bonus_trigger_type: u8,
-    pub bonus_threshold: u16,
+    pub guardian: GuardianSnapshot,
     pub starting_rows: u8,
 }
 
@@ -492,13 +507,8 @@ pub struct LevelRuleSnapshot {
     pub primary: ConstraintSnapshot,
     pub secondary: ConstraintSnapshot,
     pub active_mutator_id: u8,
-    pub passive_mutator_id: u8,
     pub boss_id: u8,
-    pub line_clear_bonus: u16,
-    pub perfect_clear_bonus: u16,
-    pub bonus_type: u8,
-    pub bonus_trigger_type: u8,
-    pub bonus_threshold: u16,
+    pub guardian: GuardianSnapshot,
     pub starting_rows: u8,
 }
 
@@ -818,7 +828,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 423);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 418);
     }
 
     #[test]
@@ -843,13 +853,13 @@ mod tests {
     fn map_catalog_expands_one_identity_across_all_ten_levels() {
         let map_rules = CampaignMapRuleSnapshot {
             active_mutator_id: 13,
-            passive_mutator_id: 14,
             boss_id: 5,
-            bonus_type: 1,
-            bonus_trigger_type: 4,
-            bonus_threshold: 3,
+            guardian: GuardianSnapshot {
+                bonus: 1,
+                trigger: 4,
+                threshold: 3,
+            },
             starting_rows: 5,
-            ..CampaignMapRuleSnapshot::default()
         };
         let levels = std::array::from_fn(|index| CampaignLevelSnapshot {
             level: index as u8 + 1,
@@ -872,8 +882,8 @@ mod tests {
         let first = catalog.expanded_level(1).unwrap();
         let boss = catalog.expanded_level(10).unwrap();
         assert_eq!(first.active_mutator_id, boss.active_mutator_id);
-        assert_eq!(first.bonus_trigger_type, 4);
-        assert_eq!(first.bonus_threshold, 3);
+        assert_eq!(first.guardian.trigger, 4);
+        assert_eq!(first.guardian.threshold, 3);
         assert_eq!(first.boss_id, 0);
         assert_eq!(boss.boss_id, 5);
         assert_eq!(boss.level, 10);

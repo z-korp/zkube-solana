@@ -16,7 +16,6 @@ export interface GameLevelData {
   constraint2Type: ConstraintType;
   constraint2Value: number;
   constraint2Count: number;
-  mutatorId: number;
 }
 
 export function rulesToGameLevelData(
@@ -36,7 +35,6 @@ export function rulesToGameLevelData(
     constraint2Type: rules.secondary.kind as ConstraintType,
     constraint2Value: rules.secondary.value,
     constraint2Count: rules.secondary.requiredCount,
-    mutatorId: rules.passiveMutatorId,
   };
 }
 

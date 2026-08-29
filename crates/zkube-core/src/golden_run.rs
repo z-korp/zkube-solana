@@ -3,11 +3,10 @@ use serde::Deserialize;
 use std::{string::String, vec::Vec};
 
 #[derive(Deserialize)]
-struct GoldenMutator {
-    line_clear_bonus: u16,
-    perfect_clear_bonus: u16,
-    bonus_trigger_type: u8,
-    bonus_threshold: u16,
+struct GoldenGuardian {
+    bonus: String,
+    trigger: u8,
+    threshold: u16,
 }
 
 #[derive(Deserialize)]
@@ -24,8 +23,7 @@ struct GoldenPressure {
 #[derive(Deserialize)]
 struct GoldenRules {
     max_moves: u16,
-    mutator: GoldenMutator,
-    bonus: String,
+    guardian: GoldenGuardian,
     starting_height: u8,
     objective: GoldenObjective,
     pressure: GoldenPressure,
@@ -148,13 +146,11 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
     };
     DailyRunRules {
         max_moves: value.max_moves,
-        mutator: MutatorRules {
-            line_clear_bonus: value.mutator.line_clear_bonus,
-            perfect_clear_bonus: value.mutator.perfect_clear_bonus,
-            bonus_trigger_type: value.mutator.bonus_trigger_type,
-            bonus_threshold: value.mutator.bonus_threshold,
+        guardian: Guardian {
+            bonus: bonus(&value.guardian.bonus).unwrap(),
+            trigger: value.guardian.trigger,
+            threshold: value.guardian.threshold,
         },
-        bonus: bonus(&value.bonus),
         starting_height: value.starting_height,
         objective: DailyTheme {
             kind,
@@ -178,8 +174,7 @@ fn verify_daily_run_vector(json: &str) {
     let rules_hash = daily_rules_hash(
         fixture.day_id,
         fixture.content_version,
-        rules.mutator,
-        rules.bonus.unwrap(),
+        rules.guardian,
         rules.starting_height,
         rules.objective,
     );

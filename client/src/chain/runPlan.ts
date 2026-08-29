@@ -213,6 +213,12 @@ interface RawConstraintSnapshot {
   requiredCount: unknown;
 }
 
+interface RawGuardianSnapshot {
+  bonus: unknown;
+  trigger: unknown;
+  threshold: unknown;
+}
+
 export interface RawLevelRuleSnapshot {
   pointsRequired: unknown;
   maxMoves: unknown;
@@ -220,11 +226,8 @@ export interface RawLevelRuleSnapshot {
   primary: RawConstraintSnapshot;
   secondary: RawConstraintSnapshot;
   activeMutatorId: unknown;
-  passiveMutatorId: unknown;
   bossId: unknown;
-  bonusType: unknown;
-  bonusTriggerType: unknown;
-  bonusThreshold: unknown;
+  guardian: RawGuardianSnapshot;
 }
 
 export function mapLevelRuleSnapshot(
@@ -245,11 +248,12 @@ export function mapLevelRuleSnapshot(
       requiredCount: Number(rules.secondary.requiredCount),
     },
     activeMutatorId: Number(rules.activeMutatorId),
-    passiveMutatorId: Number(rules.passiveMutatorId),
     bossId: Number(rules.bossId),
-    bonusType: Number(rules.bonusType),
-    bonusTriggerType: Number(rules.bonusTriggerType),
-    bonusThreshold: Number(rules.bonusThreshold),
+    guardian: {
+      bonus: Number(rules.guardian.bonus),
+      trigger: Number(rules.guardian.trigger),
+      threshold: Number(rules.guardian.threshold),
+    },
   };
 }
 
@@ -260,11 +264,12 @@ export interface ActiveRunRulesView {
   primary: ActiveRunConstraintView;
   secondary: ActiveRunConstraintView;
   activeMutatorId: number;
-  passiveMutatorId: number;
   bossId: number;
-  bonusType: number;
-  bonusTriggerType: number;
-  bonusThreshold: number;
+  guardian: {
+    bonus: number;
+    trigger: number;
+    threshold: number;
+  };
 }
 
 export const VRF_QUEUE = new PublicKey(

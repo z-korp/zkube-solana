@@ -102,10 +102,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "the shop offers only 1-, 10-, and 25-Kredit packs",
   },
   {
-    pattern: /\bpassive_map_id\b|\bpassiveMapId\b|\bpassiveMapCatalog\b/,
-    trees: [CLIENT, SERVICES, PROGRAM],
+    pattern:
+      /\bMutatorRules\b|\bpassive\b|line_clear_bonus|perfect_clear_bonus|neutral baseline|Calm Tides|Foundation Stone|Frozen Rage|Marble Discipline|Imperial Scale|Geometric Flow|Bushido|Jungle Altar|Primal Pulse|Altitude/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
-      "Daily has no passive map pairing; Campaign passives stay in Campaign",
+      "one Guardian value replaced realm scoring fields and the Daily mode exception",
   },
   {
     pattern:

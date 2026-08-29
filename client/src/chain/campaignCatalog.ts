@@ -19,20 +19,21 @@ interface CampaignLevelPublication {
   secondary: CampaignConstraintPublication;
 }
 
+export interface GuardianPublication {
+  bonus: number;
+  trigger: number;
+  threshold: number;
+}
+
 interface CampaignMapRulesPublication {
   activeMutatorId: number;
-  passiveMutatorId: number;
   /**
    * Which boss archetype the guardian level fights, not which guardian. The
    * ids index the roster in `fixtures/game-parity.json`; realm identity comes
-   * from the map id and its realm-named mutators instead.
+   * from the map id and its realm-named guardian instead.
   */
   bossId: number;
-  lineClearBonus: number;
-  perfectClearBonus: number;
-  bonusType: number;
-  bonusTriggerType: number;
-  bonusThreshold: number;
+  guardian: GuardianPublication;
   startingRows: number;
 }
 
@@ -84,24 +85,12 @@ function publicationRules(
   mapId: number,
   bossId: number,
 ): CampaignMapRulesPublication {
-  const [
-    lineClearBonus,
-    perfectClearBonus,
-    bonusType,
-    bonusTriggerType,
-    bonusThreshold,
-    startingRows,
-  ] = rules;
+  const [bonus, trigger, threshold, startingRows] = rules;
   const activeMutatorId = 19 + mapId * 2;
   return {
     activeMutatorId,
-    passiveMutatorId: activeMutatorId + 1,
     bossId,
-    lineClearBonus,
-    perfectClearBonus,
-    bonusType,
-    bonusTriggerType,
-    bonusThreshold,
+    guardian: { bonus, trigger, threshold },
     startingRows,
   };
 }

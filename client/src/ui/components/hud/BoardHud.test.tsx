@@ -36,7 +36,6 @@ describe("BoardHud", () => {
           constraint2Type: ConstraintType.PerfectClear,
           constraint2Value: 0,
           constraint2Count: 1,
-          mutatorId: 0,
         }}
         constraintProgress={5}
         constraint2Progress={0}

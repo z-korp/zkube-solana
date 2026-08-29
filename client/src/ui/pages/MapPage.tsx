@@ -670,7 +670,6 @@ const MapPage: React.FC = () => {
             colors={colors}
             guardian={guardian}
             activeMutatorId={map?.levels[firstPlayable - 1]?.activeMutatorId}
-            passiveMutatorId={map?.levels[firstPlayable - 1]?.passiveMutatorId}
             isFirstVisit={isFirstVisit}
             bossCleared={map?.cleared ?? false}
             onClose={() => setShowGreeting(false)}

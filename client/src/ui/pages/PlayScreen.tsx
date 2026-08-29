@@ -204,19 +204,19 @@ export default function PlayScreen() {
         name: info.name,
         description: info.description,
         triggerDescription: buildTriggerDescription(
-          activeRun.rules.bonusTriggerType,
-          activeRun.rules.bonusThreshold,
+          activeRun.rules.guardian.trigger,
+          activeRun.rules.guardian.threshold,
         ),
         // Only the cumulative line trigger exposes meaningful progress from
         // the authoritative receipt counters. Per-move trigger families do
         // not have a safe "toward next" value between actions.
         lineProgress:
-          activeRun.rules.bonusTriggerType === 2 &&
-          activeRun.rules.bonusThreshold > 0
+          activeRun.rules.guardian.trigger === 2 &&
+          activeRun.rules.guardian.threshold > 0
             ? {
                 current:
-                  activeRun.levelLinesCleared % activeRun.rules.bonusThreshold,
-                threshold: activeRun.rules.bonusThreshold,
+                  activeRun.levelLinesCleared % activeRun.rules.guardian.threshold,
+                threshold: activeRun.rules.guardian.threshold,
               }
             : undefined,
         totemTarget:

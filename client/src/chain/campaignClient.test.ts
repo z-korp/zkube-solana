@@ -67,8 +67,9 @@ describe("fetchCampaignView", () => {
         enabled: true,
         mapRules: {
           activeMutatorId: 20 + mapId * 2 - 1,
-          passiveMutatorId: 20 + mapId * 2,
           bossId: mapId,
+          guardian: { bonus: 1, trigger: 1, threshold: 2 },
+          startingRows: 4,
         },
         levels: Array.from({ length: 10 }, (_, index) => ({
           level: index + 1,

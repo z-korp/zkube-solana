@@ -11,11 +11,8 @@ const rules: ActiveRunRulesView = {
   primary: { kind: 1, value: 3, requiredCount: 2 },
   secondary: { kind: 2, value: 4, requiredCount: 8 },
   activeMutatorId: 9,
-  passiveMutatorId: 7,
   bossId: 2,
-  bonusType: 1,
-  bonusTriggerType: 2,
-  bonusThreshold: 4,
+  guardian: { bonus: 1, trigger: 2, threshold: 4 },
 };
 
 describe("rulesToGameLevelData", () => {
@@ -32,7 +29,6 @@ describe("rulesToGameLevelData", () => {
       constraint2Type: 2,
       constraint2Value: 4,
       constraint2Count: 8,
-      mutatorId: 7,
     });
   });
 });

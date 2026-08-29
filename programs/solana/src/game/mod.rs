@@ -4,8 +4,8 @@
 //! is adapted so SBF uses Solana's SHA-256 syscall with the canonical schedule.
 
 pub use zkube_core::{
-    BlockWeights, Bonus, Constraint, ConstraintKind, EndlessRules, Grid, GridError, LevelRules,
-    MoveReport, MutatorRules, OpeningLayout, RandomnessError, Row, RunEngine, RunError, RunPhase,
+    BlockWeights, Bonus, Constraint, ConstraintKind, EndlessRules, Grid, GridError, Guardian,
+    LevelRules, MoveReport, OpeningLayout, RandomnessError, Row, RunEngine, RunError, RunPhase,
     GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT,
 };
 

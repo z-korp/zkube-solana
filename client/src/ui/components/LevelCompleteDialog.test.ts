@@ -35,7 +35,6 @@ describe("LevelCompleteDialog", () => {
           constraint2Type: 16,
           constraint2Value: 0,
           constraint2Count: 1,
-          mutatorId: 0,
         },
       }),
     );

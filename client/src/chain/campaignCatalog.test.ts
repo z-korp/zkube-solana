@@ -20,11 +20,9 @@ describe("Campaign content v2", () => {
       maps().map((map) => ({
         mapId: map.mapId,
         rules: [
-          map.mapRules.lineClearBonus,
-          map.mapRules.perfectClearBonus,
-          map.mapRules.bonusType,
-          map.mapRules.bonusTriggerType,
-          map.mapRules.bonusThreshold,
+          map.mapRules.guardian.bonus,
+          map.mapRules.guardian.trigger,
+          map.mapRules.guardian.threshold,
           map.mapRules.startingRows,
         ],
         levels: map.levels.map((level) => [
@@ -47,22 +45,19 @@ describe("Campaign content v2", () => {
     expect(TIER_BLOCK_WEIGHTS).toEqual(fixture.difficultyWeights);
   });
 
-  it("keeps realm mutators, boss archetypes, and trigger semantics stable", () => {
+  it("keeps realm guardians, boss archetypes, and trigger semantics stable", () => {
     const published = maps();
     expect(published.map((map) => map.mapRules.activeMutatorId)).toEqual([
       21, 23, 25, 27, 29, 31, 33, 35, 37, 39,
-    ]);
-    expect(published.map((map) => map.mapRules.passiveMutatorId)).toEqual([
-      22, 24, 26, 28, 30, 32, 34, 36, 38, 40,
     ]);
     expect(published.map((map) => map.mapRules.bossId)).toEqual([
       1, 2, 3, 4, 6, 7, 5, 8, 9, 10,
     ]);
     for (const map of published) {
-      const { bonusTriggerType, bonusThreshold } = map.mapRules;
-      const readsThreshold = [1, 2, 4, 7, 8, 9].includes(bonusTriggerType);
-      expect(bonusTriggerType).not.toBe(3);
-      expect(bonusThreshold > 0).toBe(readsThreshold);
+      const { trigger, threshold } = map.mapRules.guardian;
+      const readsThreshold = [1, 2, 4, 7, 8, 9].includes(trigger);
+      expect(trigger).not.toBe(3);
+      expect(threshold > 0).toBe(readsThreshold);
     }
   });
 

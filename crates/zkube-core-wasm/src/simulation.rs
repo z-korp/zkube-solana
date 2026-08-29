@@ -2,8 +2,8 @@ use crate::BoundaryError;
 use zkube_core::{
     BONUS_CHARGE_CAP, Bonus, CANONICAL_DAILY_RULES_LEN, ChainDomain, ChallengeId, ConstraintKind,
     DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig, DailyTheme, Grid,
-    MutatorRules, PlayerId, ReplayCommitment, ReplayMode, RulesHash, RunEngine, RunMetrics,
-    RunPhase, derive_player_id,
+    Guardian, PlayerId, ReplayCommitment, ReplayMode, RulesHash, RunEngine, RunMetrics, RunPhase,
+    derive_player_id,
 };
 
 /// Versioned fixed encoding consumed by the stateless WASM transition API.
@@ -11,7 +11,7 @@ use zkube_core::{
 /// Layout: chain domain (32), challenge (32), raw account (32), run ID LE (8),
 /// replay mode (1), finalized Daily rules hash (32), then the canonical
 /// canonical [`DailyRunRules`] snapshot encoding.
-pub const DAILY_SIMULATION_CONFIG_LEN: usize = 166;
+pub const DAILY_SIMULATION_CONFIG_LEN: usize = 162;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
@@ -327,7 +327,7 @@ fn decode_for_transition(
     if simulation.rules_hash != config.rules_hash
         || simulation.rules_snapshot_hash != config.rules.snapshot_hash()
         || simulation.player_id != derive_player_id(config.chain_domain, config.raw_account)
-        || simulation.engine.bonus != config.rules.bonus
+        || simulation.engine.bonus != Some(config.rules.guardian.bonus)
     {
         return Err(BoundaryError::InvalidEncoding);
     }
@@ -336,13 +336,11 @@ fn decode_for_transition(
 
 fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError> {
     let max_moves = reader.u16()?;
-    let mutator = MutatorRules {
-        line_clear_bonus: reader.u16()?,
-        perfect_clear_bonus: reader.u16()?,
-        bonus_trigger_type: reader.u8()?,
-        bonus_threshold: reader.u16()?,
+    let guardian = Guardian {
+        bonus: decode_bonus(reader.u8()?)?.ok_or(BoundaryError::InvalidEncoding)?,
+        trigger: reader.u8()?,
+        threshold: reader.u16()?,
     };
-    let bonus = decode_bonus(reader.u8()?)?;
     let starting_height = reader.u8()?;
     let objective_tag = reader.u8()?;
     let objective_parameter = reader.u8()?;
@@ -356,8 +354,7 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
     }
     Ok(DailyRunRules {
         max_moves,
-        mutator,
-        bonus,
+        guardian,
         starting_height,
         objective,
         pressure: DailyPressureRules {
@@ -526,8 +523,10 @@ mod tests {
     fn rules() -> DailyRunRules {
         DailyRunRules {
             max_moves: 100,
-            mutator: MutatorRules::default(),
-            bonus: Some(Bonus::Wave),
+            guardian: Guardian {
+                bonus: Bonus::Wave,
+                ..Guardian::default()
+            },
             starting_height: 4,
             objective: zkube_core::DAILY_THEMES[1],
             pressure: DailyPressureRules::canonical(),
@@ -547,8 +546,7 @@ mod tests {
             rules_hash: zkube_core::daily_rules_hash(
                 42,
                 2,
-                rules.mutator,
-                rules.bonus.unwrap(),
+                rules.guardian,
                 rules.starting_height,
                 rules.objective,
             ),
@@ -662,8 +660,7 @@ mod tests {
         config.rules_hash = zkube_core::daily_rules_hash(
             42,
             2,
-            config.rules.mutator,
-            config.rules.bonus.unwrap(),
+            config.rules.guardian,
             config.rules.starting_height,
             config.rules.objective,
         );

@@ -145,10 +145,6 @@ export class Game {
     return this.view.bonusCharges;
   }
 
-  public get bonusTriggerType(): number {
-    return this.view.rules.bonusTriggerType;
-  }
-
   /** 0 = story/campaign, 1 = endless (Daily Arena). */
   public get mode(): number {
     return this.view.mode === "daily" ? 1 : 0;

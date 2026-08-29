@@ -71,8 +71,7 @@ vi.mock("@/play/usePlayController", () => ({
       rules: {
         bossId: 0,
         activeMutatorId: 0,
-        bonusTriggerType: 2,
-        bonusThreshold: 3,
+        guardian: { bonus: 1, trigger: 2, threshold: 3 },
       },
       endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
       endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],

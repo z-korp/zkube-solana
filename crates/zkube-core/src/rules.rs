@@ -342,32 +342,28 @@ impl LevelRules {
     /// A Blow must add a new fact after its cumulative Shape. This rejects
     /// exact fact containment; geometric overlap remains authored balance.
     #[must_use]
-    pub const fn has_distinct_constraint_facts(
-        self,
-        bonus_trigger_type: u8,
-        bonus_threshold: u16,
-    ) -> bool {
+    pub const fn has_distinct_constraint_facts(self, trigger: u8, threshold: u16) -> bool {
         let primary = self.primary;
         let secondary = self.secondary;
-        let secondary_is_trigger = match bonus_trigger_type {
+        let secondary_is_trigger = match trigger {
             1 => {
                 matches!(secondary.kind, ConstraintKind::ComboOfAtLeast)
-                    && secondary.value as u16 == bonus_threshold
+                    && secondary.value as u16 == threshold
             }
             4 => {
                 matches!(secondary.kind, ConstraintKind::ComboOfExactly)
-                    && secondary.value as u16 == bonus_threshold
+                    && secondary.value as u16 == threshold
             }
             6 => matches!(secondary.kind, ConstraintKind::AllWidthsInMove),
             8 => {
                 matches!(secondary.kind, ConstraintKind::BreakInMove)
                     && secondary.value == 0
-                    && secondary.required_count as u16 == bonus_threshold
+                    && secondary.required_count as u16 == threshold
             }
             9 => {
                 matches!(secondary.kind, ConstraintKind::Streak)
                     && secondary.value == 1
-                    && secondary.required_count as u16 == bonus_threshold
+                    && secondary.required_count as u16 == threshold
             }
             _ => false,
         };
@@ -395,15 +391,24 @@ impl LevelRules {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct MutatorRules {
-    pub line_clear_bonus: u16,
-    pub perfect_clear_bonus: u16,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Guardian {
+    pub bonus: Bonus,
     /// 0=None, 1=N+ move lines, 2=cumulative move lines, 4=exact move lines,
     /// 6=all block sizes in one move, 7=combo-count boundary, 8=N+ blocks in
     /// one move, 9=N consecutive line-clearing moves.
-    pub bonus_trigger_type: u8,
-    pub bonus_threshold: u16,
+    pub trigger: u8,
+    pub threshold: u16,
+}
+
+impl Default for Guardian {
+    fn default() -> Self {
+        Self {
+            bonus: Bonus::Hammer,
+            trigger: 0,
+            threshold: 0,
+        }
+    }
 }
 
 /// Validates the one shared threshold convention for renewable bonus triggers.
@@ -481,7 +486,7 @@ pub struct MoveReport {
     /// True only for a guardian bonus action. Rerolls produce no move report.
     pub action_was_bonus: bool,
     pub blocks_destroyed_by_size: [u8; 4],
-    /// Neutral points before passive/endless multipliers and flat bonuses.
+    /// Neutral points before the Daily pressure multiplier.
     pub neutral_points_earned: u32,
     /// Difficulty tier used to score the action.
     pub difficulty_at_action: u8,
@@ -627,7 +632,7 @@ impl RunEngine {
         start: u8,
         destination: u8,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
@@ -668,7 +673,7 @@ impl RunEngine {
                     row_insertion_blocked: true,
                 },
                 level,
-                mutator,
+                guardian,
                 action_score_multiplier_x100,
             ));
         }
@@ -687,7 +692,7 @@ impl RunEngine {
                 row_insertion_blocked: false,
             },
             level,
-            mutator,
+            guardian,
             action_score_multiplier_x100,
         );
         Ok(report)
@@ -698,7 +703,7 @@ impl RunEngine {
         row: u8,
         column: u8,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
@@ -723,7 +728,7 @@ impl RunEngine {
                 row_insertion_blocked: false,
             },
             level,
-            mutator,
+            guardian,
             action_score_multiplier_x100,
             false,
             true,
@@ -790,23 +795,23 @@ impl RunEngine {
         &mut self,
         context: ActionContext,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
     ) -> MoveReport {
-        self.finish_move_with_multiplier(context, level, mutator, 100)
+        self.finish_move_with_multiplier(context, level, guardian, 100)
     }
 
     fn finish_move_with_multiplier(
         &mut self,
         context: ActionContext,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> MoveReport {
         self.moves = self.moves.saturating_add(1);
         self.finish_action_with_multiplier(
             context,
             level,
-            mutator,
+            guardian,
             action_score_multiplier_x100,
             true,
             false,
@@ -818,10 +823,10 @@ impl RunEngine {
         &mut self,
         context: ActionContext,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         needs_next_row: bool,
     ) -> MoveReport {
-        self.finish_action_with_multiplier(context, level, mutator, 100, needs_next_row, false)
+        self.finish_action_with_multiplier(context, level, guardian, 100, needs_next_row, false)
     }
 
     #[cfg(test)]
@@ -829,14 +834,14 @@ impl RunEngine {
         &mut self,
         context: ActionContext,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         needs_next_row: bool,
         action_was_bonus: bool,
     ) -> MoveReport {
         self.finish_action_with_multiplier(
             context,
             level,
-            mutator,
+            guardian,
             100,
             needs_next_row,
             action_was_bonus,
@@ -848,7 +853,7 @@ impl RunEngine {
         &mut self,
         context: ActionContext,
         level: LevelRules,
-        mutator: MutatorRules,
+        guardian: Guardian,
         action_score_multiplier_x100: u16,
         needs_next_row: bool,
         action_was_bonus: bool,
@@ -878,11 +883,7 @@ impl RunEngine {
         // so preserve the same integer-floor behavior instead of multiplying
         // their sum.
         let neutral_points = base_point_parts.into_iter().map(u32::from).sum::<u32>();
-        let mut points = score_base_parts(base_point_parts, action_score_multiplier_x100);
-        points = points.saturating_add(lines as u32 * mutator.line_clear_bonus as u32);
-        if perfect_clear {
-            points = points.saturating_add(mutator.perfect_clear_bonus as u32);
-        }
+        let points = score_base_parts(base_point_parts, action_score_multiplier_x100);
         self.score = self.score.saturating_add(points);
         if needs_next_row {
             self.level_lines_cleared = self.level_lines_cleared.saturating_add(u16::from(lines));
@@ -908,18 +909,17 @@ impl RunEngine {
             reroll_granted: false,
             reroll_grant_discarded: false,
         };
-        let charges = match mutator.bonus_trigger_type {
+        let charges = match guardian.trigger {
             1 if needs_next_row
-                && mutator.bonus_threshold > 0
-                && u16::from(lines) >= mutator.bonus_threshold =>
+                && guardian.threshold > 0
+                && u16::from(lines) >= guardian.threshold =>
             {
                 1
             }
-            2 if needs_next_row && mutator.bonus_threshold > 0 => {
-                self.level_lines_cleared / mutator.bonus_threshold
-                    - lines_before / mutator.bonus_threshold
+            2 if needs_next_row && guardian.threshold > 0 => {
+                self.level_lines_cleared / guardian.threshold - lines_before / guardian.threshold
             }
-            4 if needs_next_row && u16::from(lines) == mutator.bonus_threshold => 1,
+            4 if needs_next_row && u16::from(lines) == guardian.threshold => 1,
             6 if needs_next_row
                 && blocks_destroyed_by_size
                     .iter()
@@ -928,9 +928,9 @@ impl RunEngine {
                 1
             }
             7 if needs_next_row
-                && mutator.bonus_threshold > 0
-                && u16::from(self.combo_counter) / mutator.bonus_threshold
-                    > u16::from(combo_before) / mutator.bonus_threshold =>
+                && guardian.threshold > 0
+                && u16::from(self.combo_counter) / guardian.threshold
+                    > u16::from(combo_before) / guardian.threshold =>
             {
                 1
             }
@@ -939,11 +939,11 @@ impl RunEngine {
                     .into_iter()
                     .map(u16::from)
                     .sum::<u16>()
-                    >= mutator.bonus_threshold =>
+                    >= guardian.threshold =>
             {
                 1
             }
-            9 if needs_next_row && u16::from(self.streak) == mutator.bonus_threshold => 1,
+            9 if needs_next_row && u16::from(self.streak) == guardian.threshold => 1,
             _ => 0,
         };
         report.charges_earned = charges.min(u16::from(u8::MAX)) as u8;
@@ -1035,7 +1035,7 @@ mod tests {
         Grid::try_from_cells(cells).unwrap()
     }
 
-    fn campaign_v2_mutators() -> Vec<MutatorRules> {
+    fn campaign_v2_guardians() -> Vec<Guardian> {
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
         fixture["maps"]
@@ -1044,11 +1044,15 @@ mod tests {
             .iter()
             .map(|map| {
                 let rules = map["rules"].as_array().unwrap();
-                MutatorRules {
-                    line_clear_bonus: rules[0].as_u64().unwrap() as u16,
-                    perfect_clear_bonus: rules[1].as_u64().unwrap() as u16,
-                    bonus_trigger_type: rules[3].as_u64().unwrap() as u8,
-                    bonus_threshold: rules[4].as_u64().unwrap() as u16,
+                Guardian {
+                    bonus: match rules[0].as_u64().unwrap() {
+                        1 => Bonus::Hammer,
+                        2 => Bonus::Totem,
+                        3 => Bonus::Wave,
+                        _ => panic!("unknown guardian bonus"),
+                    },
+                    trigger: rules[1].as_u64().unwrap() as u8,
+                    threshold: rules[2].as_u64().unwrap() as u16,
                 }
             })
             .collect()
@@ -1071,7 +1075,7 @@ mod tests {
             progress: u8,
             streak: u8,
             points_required: u32,
-            mutator: MutatorRules,
+            guardian: Guardian,
         ) -> (ActionContext, bool, bool) {
             let mut lines = 4u8;
             let mut block_cells_before = [0; 4];
@@ -1105,24 +1109,22 @@ mod tests {
                 ConstraintKind::BigMoves | ConstraintKind::BigMove => {
                     base_points = base_points.max(u16::from(constraint.value));
                 }
-                ConstraintKind::TriggerFired => match mutator.bonus_trigger_type {
+                ConstraintKind::TriggerFired => match guardian.trigger {
                     1 | 4 => {
-                        lines = u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                        lines = u8::try_from(guardian.threshold).unwrap_or(u8::MAX);
                     }
                     2 => {
-                        lines = u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                        lines = u8::try_from(guardian.threshold).unwrap_or(u8::MAX);
                     }
                     5 => {}
                     6 => block_cells_before = [1, 2, 3, 4],
                     7 => lines = 2,
                     8 => {
-                        block_cells_before[0] =
-                            u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX);
+                        block_cells_before[0] = u8::try_from(guardian.threshold).unwrap_or(u8::MAX);
                     }
                     9 => {
-                        lines = u8::from(
-                            streak < u8::try_from(mutator.bonus_threshold).unwrap_or(u8::MAX),
-                        );
+                        lines =
+                            u8::from(streak < u8::try_from(guardian.threshold).unwrap_or(u8::MAX));
                     }
                     _ => panic!("authored trigger must have constructive semantics"),
                 },
@@ -1161,7 +1163,7 @@ mod tests {
 
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
-        let mutators = campaign_v2_mutators();
+        let guardians = campaign_v2_guardians();
         for (map_index, map) in fixture["maps"].as_array().unwrap().iter().enumerate() {
             for (level_index, value) in map["levels"].as_array().unwrap().iter().enumerate() {
                 let tuple = value.as_array().unwrap();
@@ -1192,12 +1194,12 @@ mod tests {
                         progress,
                         run.streak,
                         level.points_required,
-                        mutators[map_index],
+                        guardians[map_index],
                     );
                     run.finish_action_with_kind(
                         context,
                         level,
-                        mutators[map_index],
+                        guardians[map_index],
                         needs_next_row,
                         action_was_bonus,
                     );
@@ -1214,11 +1216,8 @@ mod tests {
     }
 
     #[test]
-    fn campaign_v2_scoring_synergies_are_exact_for_moves_and_bonus_actions() {
-        let mutators = campaign_v2_mutators();
-        let expected_single = [2, 1, 2, 1, 4, 2, 1, 1, 3, 1];
-        let expected_combo = [5, 3, 5, 3, 9, 5, 3, 3, 7, 3];
-        let expected_perfect_four = [14, 30, 14, 25, 22, 24, 30, 10, 18, 40];
+    fn triangular_scoring_is_guardian_neutral_for_moves_and_bonus_actions() {
+        let guardians = campaign_v2_guardians();
         let incomplete = LevelRules {
             points_required: u32::MAX,
             max_moves: u16::MAX,
@@ -1239,7 +1238,7 @@ mod tests {
             ..incomplete
         };
 
-        for (index, mutator) in mutators.into_iter().enumerate() {
+        for guardian in guardians {
             let occupied = || RunEngine {
                 grid: grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]),
                 phase: RunPhase::Playing,
@@ -1253,10 +1252,10 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
-                mutator,
+                guardian,
                 true,
             );
-            assert_eq!(single_report.points_earned, expected_single[index]);
+            assert_eq!(single_report.points_earned, 1);
 
             let mut combo = occupied();
             let combo_report = combo.finish_action(
@@ -1266,10 +1265,10 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
-                mutator,
+                guardian,
                 true,
             );
-            assert_eq!(combo_report.points_earned, expected_combo[index]);
+            assert_eq!(combo_report.points_earned, 3);
 
             let mut perfect = RunEngine {
                 phase: RunPhase::Playing,
@@ -1282,10 +1281,10 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
-                mutator,
+                guardian,
                 true,
             );
-            assert_eq!(perfect_report.points_earned, expected_perfect_four[index]);
+            assert_eq!(perfect_report.points_earned, 10);
 
             // Bonus actions share score, combo, and constraint accounting but
             // do not spend a move or advance move-only trigger counters.
@@ -1297,10 +1296,10 @@ mod tests {
                     ..ActionContext::default()
                 },
                 bonus_level,
-                mutator,
+                guardian,
                 false,
             );
-            assert_eq!(bonus_report.points_earned, expected_combo[index]);
+            assert_eq!(bonus_report.points_earned, 3);
             assert_eq!(bonus.moves, 0);
             assert_eq!((bonus.primary_progress, bonus.secondary_progress), (1, 1));
         }
@@ -1311,15 +1310,7 @@ mod tests {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);
         let mut run = RunEngine::start(source, [0, 0, 0, 0, 0, 0, 0, 1]).unwrap();
         let report = run
-            .play_move(
-                0,
-                0,
-                7,
-                6,
-                LevelRules::default(),
-                MutatorRules::default(),
-                100,
-            )
+            .play_move(0, 0, 7, 6, LevelRules::default(), Guardian::default(), 100)
             .unwrap();
         assert_eq!(report.lines_cleared, 1);
         assert_eq!(report.points_earned, 1);
@@ -1341,7 +1332,7 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let tenth_row = run
-            .play_move(0, 0, 0, 0, level, MutatorRules::default(), 100)
+            .play_move(0, 0, 0, 0, level, Guardian::default(), 100)
             .unwrap();
         assert_eq!(tenth_row.height_after, 10);
         assert_eq!(run.grid.occupied_height(), 10);
@@ -1352,7 +1343,7 @@ mod tests {
         run.provide_vrf_row(sparse).unwrap();
         let before_overflow = run.grid;
         let overflow = run
-            .play_move(1, 0, 0, 0, level, MutatorRules::default(), 100)
+            .play_move(1, 0, 0, 0, level, Guardian::default(), 100)
             .unwrap();
         assert_eq!(overflow.height_after, 10);
         assert_eq!(overflow.blocks_destroyed_by_size, [0; 4]);
@@ -1375,7 +1366,7 @@ mod tests {
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let report = run
-            .play_move(0, 1, 0, 0, level, MutatorRules::default(), 100)
+            .play_move(0, 1, 0, 0, level, Guardian::default(), 100)
             .unwrap();
 
         assert_eq!(report.lines_cleared, 1);
@@ -1401,7 +1392,7 @@ mod tests {
                 max_moves: 20,
                 ..LevelRules::default()
             },
-            MutatorRules::default(),
+            Guardian::default(),
             100,
         )
         .unwrap();
@@ -1445,7 +1436,7 @@ mod tests {
         let granted = run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             100,
             true,
             false,
@@ -1459,7 +1450,7 @@ mod tests {
         let discarded = run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             100,
             true,
             false,
@@ -1485,7 +1476,7 @@ mod tests {
                 max_moves: 20,
                 ..LevelRules::default()
             },
-            MutatorRules::default(),
+            Guardian::default(),
             100,
         )
         .unwrap();
@@ -1565,12 +1556,12 @@ mod tests {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);
         let mut run = RunEngine::start(source, [0, 0, 0, 0, 0, 0, 0, 1]).unwrap();
         run.bonus = Some(Bonus::Wave);
-        let mutator = MutatorRules {
-            bonus_trigger_type: 2,
-            bonus_threshold: 1,
-            ..MutatorRules::default()
+        let guardian = Guardian {
+            trigger: 2,
+            threshold: 1,
+            ..Guardian::default()
         };
-        run.play_move(0, 0, 7, 6, LevelRules::default(), mutator, 100)
+        run.play_move(0, 0, 7, 6, LevelRules::default(), guardian, 100)
             .unwrap();
         assert_eq!(run.level_lines_cleared, 1);
         assert_eq!(run.bonus_charges, 1);
@@ -1590,10 +1581,10 @@ mod tests {
                 ..ActionContext::default()
             },
             LevelRules::default(),
-            MutatorRules {
-                bonus_trigger_type: 1,
-                bonus_threshold: 1,
-                ..MutatorRules::default()
+            Guardian {
+                trigger: 1,
+                threshold: 1,
+                ..Guardian::default()
             },
             true,
         );
@@ -1619,10 +1610,10 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules {
-                bonus_trigger_type: 1,
-                bonus_threshold: 3,
-                ..MutatorRules::default()
+            Guardian {
+                trigger: 1,
+                threshold: 3,
+                ..Guardian::default()
             },
             true,
         );
@@ -1632,10 +1623,10 @@ mod tests {
             phase: RunPhase::Playing,
             ..RunEngine::default()
         };
-        let exact_rules = MutatorRules {
-            bonus_trigger_type: 4,
-            bonus_threshold: 3,
-            ..MutatorRules::default()
+        let exact_rules = Guardian {
+            trigger: 4,
+            threshold: 3,
+            ..Guardian::default()
         };
         exact.finish_action(
             ActionContext {
@@ -1667,9 +1658,9 @@ mod tests {
             max_moves: 20,
             ..LevelRules::default()
         };
-        let rules = MutatorRules {
-            bonus_trigger_type: 6,
-            ..MutatorRules::default()
+        let rules = Guardian {
+            trigger: 6,
+            ..Guardian::default()
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
@@ -1717,10 +1708,10 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules {
-                bonus_trigger_type: 7,
-                bonus_threshold: 3,
-                ..MutatorRules::default()
+            Guardian {
+                trigger: 7,
+                threshold: 3,
+                ..Guardian::default()
             },
             true,
         );
@@ -1733,10 +1724,10 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules {
-                bonus_trigger_type: 7,
-                bonus_threshold: 3,
-                ..MutatorRules::default()
+            Guardian {
+                trigger: 7,
+                threshold: 3,
+                ..Guardian::default()
             },
             false,
             true,
@@ -1752,10 +1743,10 @@ mod tests {
             max_moves: 20,
             ..LevelRules::default()
         };
-        let rules = MutatorRules {
-            bonus_trigger_type: 8,
-            bonus_threshold: 6,
-            ..MutatorRules::default()
+        let rules = Guardian {
+            trigger: 8,
+            threshold: 6,
+            ..Guardian::default()
         };
         let context = ActionContext {
             // Six blocks: two each of widths one, two, and three.
@@ -1780,10 +1771,10 @@ mod tests {
             max_moves: 20,
             ..LevelRules::default()
         };
-        let rules = MutatorRules {
-            bonus_trigger_type: 9,
-            bonus_threshold: 3,
-            ..MutatorRules::default()
+        let rules = Guardian {
+            trigger: 9,
+            threshold: 3,
+            ..Guardian::default()
         };
         let clearing_move = ActionContext {
             lines: 1,
@@ -1806,34 +1797,6 @@ mod tests {
     }
 
     #[test]
-    fn perfect_clear_bonus_is_added_after_line_bonus() {
-        let level = LevelRules {
-            points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
-        };
-        let mut run = RunEngine {
-            phase: RunPhase::Playing,
-            ..RunEngine::default()
-        };
-        let report = run.finish_action(
-            ActionContext {
-                lines: 2,
-                base_point_parts: [10, 0],
-                ..ActionContext::default()
-            },
-            level,
-            MutatorRules {
-                line_clear_bonus: 3,
-                perfect_clear_bonus: 5,
-                ..MutatorRules::default()
-            },
-            false,
-        );
-        assert_eq!(report.points_earned, 21);
-    }
-
-    #[test]
     fn bonus_perfect_clear_consumes_preview_without_spending_a_move() {
         let source = grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]);
         let preview = [2, 2, 0, 0, 0, 0, 0, 0];
@@ -1849,16 +1812,13 @@ mod tests {
                     max_moves: 20,
                     ..LevelRules::default()
                 },
-                MutatorRules {
-                    perfect_clear_bonus: 10,
-                    ..MutatorRules::default()
-                },
+                Guardian::default(),
                 100,
             )
             .unwrap();
         assert!(report.perfect_clear);
         assert!(report.action_was_bonus);
-        assert_eq!(report.points_earned, 10);
+        assert_eq!(report.points_earned, 0);
         assert_eq!(run.moves, 0);
         assert_eq!(run.phase, RunPhase::AwaitingVrf);
         assert_eq!(run.next_row, None);
@@ -2065,7 +2025,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             true,
         );
         assert_eq!((run.streak, run.secondary_progress), (1, 1));
@@ -2077,7 +2037,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             false,
             true,
         );
@@ -2090,7 +2050,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             true,
         );
         assert_eq!((run.streak, run.secondary_progress), (2, 0));
@@ -2121,19 +2081,18 @@ mod tests {
                 1,
                 0,
                 level,
-                MutatorRules {
-                    line_clear_bonus: 1,
-                    bonus_trigger_type: 1,
-                    bonus_threshold: 1,
-                    ..MutatorRules::default()
+                Guardian {
+                    trigger: 1,
+                    threshold: 1,
+                    ..Guardian::default()
                 },
                 100,
             )
             .unwrap();
 
         assert_eq!(report.lines_cleared, 1);
-        assert_eq!(report.points_earned, 2);
-        assert_eq!(run.score, 2);
+        assert_eq!(report.points_earned, 1);
+        assert_eq!(run.score, 1);
         assert_eq!(run.primary_progress, 6);
         assert_eq!(run.moves, 0);
         assert_eq!(run.bonus_charges, 0);
@@ -2167,7 +2126,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
 
@@ -2203,7 +2162,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
         assert_eq!(run.latched_star_sources, STAR_SOURCE_SECONDARY);
@@ -2215,7 +2174,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
         assert_eq!(
@@ -2229,7 +2188,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
         assert_eq!(run.latched_star_sources, 0b111);
@@ -2263,7 +2222,7 @@ mod tests {
                 primary,
                 secondary,
             },
-            MutatorRules::default(),
+            Guardian::default(),
         );
         assert_eq!(
             (one.phase, one.latched_star_sources),
@@ -2286,7 +2245,7 @@ mod tests {
                 primary,
                 secondary,
             },
-            MutatorRules::default(),
+            Guardian::default(),
         );
         assert_eq!(
             (two.phase, two.latched_star_sources),
@@ -2316,7 +2275,7 @@ mod tests {
                     required_count: 1,
                 },
             },
-            MutatorRules::default(),
+            Guardian::default(),
         );
         assert_eq!(
             (secondary_only.phase, secondary_only.latched_star_sources),
@@ -2336,7 +2295,7 @@ mod tests {
                 ..ActionContext::default()
             },
             LevelRules::default(),
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
         assert_eq!(
@@ -2362,7 +2321,7 @@ mod tests {
                 },
                 ..LevelRules::default()
             },
-            MutatorRules::default(),
+            Guardian::default(),
             false,
         );
         assert_eq!(
@@ -2420,12 +2379,15 @@ mod tests {
                 primary: fixture_constraint(&fixture["level"]["primary"]),
                 secondary: fixture_constraint(&fixture["level"]["secondary"]),
             };
-            let mutator = MutatorRules {
-                line_clear_bonus: fixture["mutator"]["lineClearBonus"].as_u64().unwrap() as u16,
-                perfect_clear_bonus: fixture["mutator"]["perfectClearBonus"].as_u64().unwrap()
-                    as u16,
-                bonus_trigger_type: fixture["mutator"]["bonusTriggerType"].as_u64().unwrap() as u8,
-                bonus_threshold: fixture["mutator"]["bonusThreshold"].as_u64().unwrap() as u16,
+            let guardian = Guardian {
+                bonus: match fixture["guardian"]["bonus"].as_str().unwrap() {
+                    "hammer" => Bonus::Hammer,
+                    "totem" => Bonus::Totem,
+                    "wave" => Bonus::Wave,
+                    _ => panic!("unknown guardian bonus"),
+                },
+                trigger: fixture["guardian"]["trigger"].as_u64().unwrap() as u8,
+                threshold: fixture["guardian"]["threshold"].as_u64().unwrap() as u16,
             };
             let mut run = RunEngine::start(grid(&rows), fixture_row(&fixture["nextRow"])).unwrap();
             let movement = fixture["move"].as_array().unwrap();
@@ -2436,7 +2398,7 @@ mod tests {
                     movement[1].as_u64().unwrap() as u8,
                     movement[2].as_u64().unwrap() as u8,
                     level,
-                    mutator,
+                    guardian,
                     100,
                 )
                 .unwrap();
@@ -2507,16 +2469,8 @@ mod tests {
         let next = [1, 0, 0, 0, 0, 0, 0, 0];
         let mut run = RunEngine::start(source, next).unwrap();
         assert!(
-            run.play_move(
-                0,
-                0,
-                0,
-                1,
-                LevelRules::default(),
-                MutatorRules::default(),
-                100,
-            )
-            .is_err()
+            run.play_move(0, 0, 0, 1, LevelRules::default(), Guardian::default(), 100,)
+                .is_err()
         );
         assert_eq!(run.grid, source);
         assert_eq!(run.next_row, Some(next));

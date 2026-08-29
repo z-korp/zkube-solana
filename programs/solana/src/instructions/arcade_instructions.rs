@@ -167,20 +167,10 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
     )?;
     let map_rules = ctx.accounts.realm_map_catalog.map_rules;
     let rules = daily_level_rules(map_rules, content.pressure);
-    let bonus = match map_rules.bonus_type {
-        1 => zkube_core::Bonus::Hammer,
-        2 => zkube_core::Bonus::Totem,
-        3 => zkube_core::Bonus::Wave,
-        _ => return err!(ErrorCode::InvalidLevel),
-    };
     let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
         ctx.accounts.protocol.content_version,
-        zkube_core::neutral_daily_mutator_rules(
-            map_rules.bonus_trigger_type,
-            map_rules.bonus_threshold,
-        ),
-        bonus,
+        map_rules.guardian.to_core()?,
         map_rules.starting_rows,
         content.objective.to_core()?,
     )
@@ -1848,8 +1838,6 @@ fn daily_level_rules(
     realm: CampaignMapRuleSnapshot,
     pressure: DailyPressureProfile,
 ) -> LevelRuleSnapshot {
-    let mutator =
-        zkube_core::neutral_daily_mutator_rules(realm.bonus_trigger_type, realm.bonus_threshold);
     LevelRuleSnapshot {
         level: 1,
         points_required: u32::MAX,
@@ -1858,13 +1846,8 @@ fn daily_level_rules(
         primary: ConstraintSnapshot::default(),
         secondary: ConstraintSnapshot::default(),
         active_mutator_id: realm.active_mutator_id,
-        passive_mutator_id: 0,
         boss_id: 0,
-        line_clear_bonus: mutator.line_clear_bonus,
-        perfect_clear_bonus: mutator.perfect_clear_bonus,
-        bonus_type: realm.bonus_type,
-        bonus_trigger_type: mutator.bonus_trigger_type,
-        bonus_threshold: mutator.bonus_threshold,
+        guardian: realm.guardian,
         starting_rows: realm.starting_rows,
     }
 }
@@ -2033,17 +2016,17 @@ mod tests {
         let pressure = DailyPressureProfile::canonical();
         let realm = CampaignMapRuleSnapshot {
             active_mutator_id: 7,
-            bonus_type: 2,
-            bonus_trigger_type: 8,
-            bonus_threshold: 12,
+            guardian: GuardianSnapshot {
+                bonus: 2,
+                trigger: 8,
+                threshold: 12,
+            },
             starting_rows: 6,
             ..CampaignMapRuleSnapshot::default()
         };
         let daily = daily_level_rules(realm, pressure);
         assert_eq!(daily.active_mutator_id, realm.active_mutator_id);
-        assert_eq!(daily.bonus_type, realm.bonus_type);
-        assert_eq!(daily.bonus_trigger_type, realm.bonus_trigger_type);
-        assert_eq!(daily.bonus_threshold, realm.bonus_threshold);
+        assert_eq!(daily.guardian, realm.guardian);
         assert_eq!(daily.starting_rows, realm.starting_rows);
     }
 }

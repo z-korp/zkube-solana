@@ -17,7 +17,7 @@ use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 use crate::error::ErrorCode;
 use crate::game::{
     opening_from_vrf, reroll_row_from_vrf, row_from_vrf, sha256v, BlockWeights, Bonus, Constraint,
-    ConstraintKind, Grid, LevelRules, MoveReport, MutatorRules, RunEngine, RunError, RunPhase,
+    ConstraintKind, Grid, Guardian, LevelRules, MoveReport, RunEngine, RunError, RunPhase,
 };
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
@@ -429,7 +429,7 @@ pub fn handler_play_move(
     );
     let level = level_rules(&active.rules)?;
     let difficulty_at_action = active.current_difficulty;
-    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
+    let (guardian, pressure_multiplier_x100) = action_guardian(active)?;
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
@@ -439,7 +439,7 @@ pub fn handler_play_move(
             start,
             destination,
             level,
-            mutator,
+            guardian,
             pressure_multiplier_x100,
         )
         .map_err(map_run_error)?;
@@ -546,11 +546,11 @@ pub fn handler_apply_bonus(
     );
     let level = level_rules(&active.rules)?;
     let difficulty_at_action = active.current_difficulty;
-    let (mutator, pressure_multiplier_x100) = action_mutator(active)?;
+    let (guardian, pressure_multiplier_x100) = action_guardian(active)?;
     let combo_before = active.combo_counter;
     let mut engine = engine_from_active(active)?;
     let mut report = engine
-        .apply_bonus(row, column, level, mutator, pressure_multiplier_x100)
+        .apply_bonus(row, column, level, guardian, pressure_multiplier_x100)
         .map_err(map_run_error)?;
     fold_replay_event(
         active,
@@ -657,14 +657,14 @@ enum ActionKind {
     Bonus,
 }
 
-fn action_mutator(active: &ActiveRun) -> Result<(MutatorRules, u16)> {
-    let mutator = mutator_rules(&active.rules);
+fn action_guardian(active: &ActiveRun) -> Result<(Guardian, u16)> {
+    let guardian = active.rules.guardian.to_core()?;
     if active.mode != RunMode::Daily {
-        return Ok((mutator, 100));
+        return Ok((guardian, 100));
     }
     let pressure_multiplier_x100 =
         active.daily_pressure.score_multipliers_x100[usize::from(active.current_difficulty.min(7))];
-    Ok((mutator, pressure_multiplier_x100))
+    Ok((guardian, pressure_multiplier_x100))
 }
 
 fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
@@ -1126,15 +1126,6 @@ fn level_rules(snapshot: &LevelRuleSnapshot) -> Result<LevelRules> {
         primary: constraint(snapshot.primary)?,
         secondary: constraint(snapshot.secondary)?,
     })
-}
-
-fn mutator_rules(snapshot: &LevelRuleSnapshot) -> MutatorRules {
-    MutatorRules {
-        line_clear_bonus: snapshot.line_clear_bonus,
-        perfect_clear_bonus: snapshot.perfect_clear_bonus,
-        bonus_trigger_type: snapshot.bonus_trigger_type,
-        bonus_threshold: snapshot.bonus_threshold,
-    }
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
@@ -1798,13 +1789,17 @@ mod tests {
         }
     }
 
-    fn campaign_mutator(value: &Value) -> MutatorRules {
+    fn campaign_guardian(value: &Value) -> Guardian {
         let rules = value.as_array().unwrap();
-        MutatorRules {
-            line_clear_bonus: rules[0].as_u64().unwrap() as u16,
-            perfect_clear_bonus: rules[1].as_u64().unwrap() as u16,
-            bonus_trigger_type: rules[3].as_u64().unwrap() as u8,
-            bonus_threshold: rules[4].as_u64().unwrap() as u16,
+        Guardian {
+            bonus: match rules[0].as_u64().unwrap() {
+                1 => Bonus::Hammer,
+                2 => Bonus::Totem,
+                3 => Bonus::Wave,
+                kind => panic!("unknown Campaign bonus kind {kind}"),
+            },
+            trigger: rules[1].as_u64().unwrap() as u8,
+            threshold: rules[2].as_u64().unwrap() as u16,
         }
     }
 
@@ -1830,7 +1825,7 @@ mod tests {
             let rules = map["rules"].as_array().unwrap();
             assert!(
                 (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
-                    .contains(&(rules[5].as_u64().unwrap() as u8))
+                    .contains(&(rules[3].as_u64().unwrap() as u8))
             );
             let levels = map["levels"].as_array().unwrap();
             assert_eq!(levels.len(), 10);
@@ -1949,18 +1944,12 @@ mod tests {
         let weight_values = fixture["difficultyWeights"][difficulty].as_array().unwrap();
         let weights = std::array::from_fn(|index| weight_values[index].as_u64().unwrap() as u16);
         let rules = map["rules"].as_array().unwrap();
-        let mutator = campaign_mutator(&map["rules"]);
-        let bonus = match rules[2].as_u64().unwrap() {
-            1 => Some(Bonus::Hammer),
-            2 => Some(Bonus::Totem),
-            3 => Some(Bonus::Wave),
-            kind => panic!("unknown Campaign bonus kind {kind}"),
-        };
+        let guardian = campaign_guardian(&map["rules"]);
         let mut engine = RunEngine {
             phase: RunPhase::AwaitingVrf,
-            bonus,
-            bonus_charges: rules[5].as_u64().unwrap() as u8,
-            starting_height_target: rules[6].as_u64().unwrap() as u8,
+            bonus: Some(guardian.bonus),
+            bonus_charges: 0,
+            starting_height_target: rules[3].as_u64().unwrap() as u8,
             ..RunEngine::default()
         };
         let mut row_counter = 0u32;
@@ -1983,7 +1972,7 @@ mod tests {
                 for row in 0..10 {
                     for column in 0..8 {
                         let mut candidate = engine;
-                        let Ok(report) = candidate.apply_bonus(row, column, level, mutator, 100)
+                        let Ok(report) = candidate.apply_bonus(row, column, level, guardian, 100)
                         else {
                             continue;
                         };
@@ -2037,7 +2026,7 @@ mod tests {
                             start,
                             destination,
                             level,
-                            mutator,
+                            guardian,
                             100,
                         ) else {
                             continue;

@@ -1,260 +1,31 @@
-export interface MutatorDef {
+export interface GuardianDef {
   id: number;
   name: string;
   description: string;
   icon: string;
-  /** Zone-mode effects (includes star-threshold lines). */
   effects: string[];
-  /**
-   * Endless / tournament effects — star thresholds are omitted because star
-   * ratings don't apply to those modes. Falls back to `effects` when absent.
-   */
-  effectsEndless?: string[];
 }
 
 // Campaign trigger types are authored once per map and remain fixed for all ten levels.
 // Bonus types: 1=Hammer (destroy 1 block), 2=Totem (destroy all blocks of same size), 3=Wave (clear entire row)
 
-const MUTATOR_DEFS: Record<number, MutatorDef> = {
+const GUARDIAN_DEFS: Record<number, GuardianDef> = {
   0: {
     id: 0,
-    name: "No Mutator",
+    name: "No Guardian",
     description: "Standard rules apply",
     icon: "⚖️",
     effects: [],
   },
 
-  // ── Active Mutators (odd IDs 1-19) ──
 
-  // Zone 1 — Mako 🐢 / Tiki / Ocean
-  1: {
-    id: 1,
-    name: "Mako's Gift",
-    description: "The sea turtle rewards a strong clear with a Wave.",
-    icon: "🐢",
-    effects: ["3+ lines in one move = +1 Wave", "start with 1"],
-  },
-  // Zone 2 — Sobek 🐊 / Egypt
-  3: {
-    id: 3,
-    name: "Sobek's Strike",
-    description:
-      "The Nile crocodile rewards exact two-line clears with the Hammer.",
-    icon: "🐊",
-    effects: ["exactly 2 lines = +1 Hammer", "start with 1"],
-  },
-  // Zone 3 — Fenris 🐺 / Norse
-  5: {
-    id: 5,
-    name: "Fenris Howl",
-    description: "The frost wolf answers a strong clear with the Totem.",
-    icon: "🐺",
-    effects: ["3+ lines in one move = +1 Totem", "start with 1"],
-  },
-  // Zone 4 — Noctua 🦉 / Greece
-  7: {
-    id: 7,
-    name: "Noctua's Sight",
-    description: "The owl rewards a perfectly empty board with the Hammer.",
-    icon: "🦉",
-    effects: ["empty the board = +1 Hammer", "max 1 per move", "start with 1"],
-  },
-  // Zone 5 — Long 🐲 / China
-  9: {
-    id: 9,
-    name: "Long's Breath",
-    description: "The dragon rewards sustained line clearing with a Wave.",
-    icon: "🐲",
-    effects: ["every 15 lines cleared = +1 Wave", "start with 1"],
-  },
-  // Zone 6 — Lamassu 🦁 / Persia
-  11: {
-    id: 11,
-    name: "Lamassu's Gaze",
-    description:
-      "The gate guardian rewards one move that breaks every block size.",
-    icon: "🦁",
-    effects: ["break sizes 1-4 in one move = +1 Totem", "start with 1"],
-  },
-  // Zone 7 — Kitsune 🦊 / Japan
-  13: {
-    id: 13,
-    name: "Kitsune's Spark",
-    description:
-      "The spirit fox rewards exact three-line clears with the Hammer.",
-    icon: "🦊",
-    effects: ["exactly 3 lines = +1 Hammer", "start with 1"],
-  },
-  // Zone 8 — Balam 🐆 / Mayan
-  15: {
-    id: 15,
-    name: "Balam's Rite",
-    description: "The jaguar rewards a perfectly empty board with a Wave.",
-    icon: "🐆",
-    effects: ["empty the board = +1 Wave", "max 1 per move", "start with 2"],
-  },
-  // Zone 9 — Mamba 🐍 / Tribal
-  17: {
-    id: 17,
-    name: "Mamba's Rhythm",
-    description: "The serpent turns combo milestones into Totems.",
-    icon: "🐍",
-    effects: [
-      "every 8 combos = +1 Totem",
-      "max 1 per action",
-      "start with 1",
-    ],
-  },
-  // Zone 10 — Kuntur 🦅 / Inca
-  19: {
-    id: 19,
-    name: "Kuntur's Trial",
-    description: "The condor rewards exact four-line clears with the Hammer.",
-    icon: "🦅",
-    effects: ["exactly 4 lines = +1 Hammer", "start with 1"],
-  },
-
-  // ── Passive Mutators (even IDs 2-20) — change the rules of the zone ──
-
-  // Zone 1 — Mako 🐢 / Tiki / Ocean
-  2: {
-    id: 2,
-    name: "Calm Tides",
-    description: "Gentle waters make ⭐ Stars easier to earn.",
-    icon: "🌊",
-    effects: ["stars 10% easier", "4 rows at start"],
-    effectsEndless: ["4 rows at start"],
-  },
-  // Zone 2 — Sobek 🐊 / Egypt
-  4: {
-    id: 4,
-    name: "Foundation Stone",
-    description:
-      "Measured scoring and perfect clears make the desert more forgiving.",
-    icon: "☀️",
-    effects: [
-      "move score ×1.25",
-      "perfect clear +10",
-      "stars 5% easier",
-      "5 rows at start",
-    ],
-    effectsEndless: [
-      "move score ×1.25",
-      "perfect clear +10",
-      "5 rows at start",
-    ],
-  },
-  // Zone 3 — Fenris 🐺 / Norse
-  6: {
-    id: 6,
-    name: "Frozen Rage",
-    description:
-      "Fury rewards fury. Combos detonate and line clears chain steady pressure.",
-    icon: "❄️",
-    effects: ["combos ×1.5", "+1 per line", "4 rows at start"],
-    effectsEndless: ["combos ×1.5", "+1 per line", "4 rows at start"],
-  },
-  // Zone 4 — Noctua 🦉 / Greece
-  8: {
-    id: 8,
-    name: "Marble Discipline",
-    description: "Precision pays through stronger moves and perfect clears.",
-    icon: "🏛️",
-    effects: ["move score ×1.25", "perfect clear +15", "5 rows at start"],
-    effectsEndless: [
-      "move score ×1.25",
-      "perfect clear +15",
-      "5 rows at start",
-    ],
-  },
-  // Zone 5 — Long 🐲 / China
-  10: {
-    id: 10,
-    name: "Imperial Scale",
-    description:
-      "Waves roll in from the dragon's domain. Every line you break pays a steady toll.",
-    icon: "🐉",
-    effects: ["+1 per line", "6 rows at start"],
-    effectsEndless: ["+1 per line", "6 rows at start"],
-  },
-  // Zone 6 — Lamassu 🦁 / Persia
-  12: {
-    id: 12,
-    name: "Geometric Flow",
-    description: "Patterns reward skilled combos and perfect clears.",
-    icon: "🕌",
-    effects: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
-    effectsEndless: ["combos ×1.5", "perfect clear +10", "5 rows at start"],
-  },
-  // Zone 7 — Kitsune 🦊 / Japan
-  14: {
-    id: 14,
-    name: "Bushido",
-    description:
-      "The warrior's code turns every scored move into a sharper strike.",
-    icon: "🗡️",
-    effects: ["move score ×1.75", "5 rows at start"],
-    effectsEndless: ["move score ×1.75", "5 rows at start"],
-  },
-  // Zone 8 — Balam 🐆 / Mayan
-  16: {
-    id: 16,
-    name: "Jungle Altar",
-    description:
-      "The jaguar favors the skilled. Combos detonate at double strength.",
-    icon: "🌿",
-    effects: ["combos ×2", "6 rows at start"],
-    effectsEndless: ["combos ×2", "6 rows at start"],
-  },
-  // Zone 9 — Mamba 🐍 / Tribal
-  18: {
-    id: 18,
-    name: "Primal Pulse",
-    description:
-      "The serpent's drum. Combos score at ×2 and every line keeps the rhythm.",
-    icon: "🔥",
-    effects: ["combos ×2", "+1 per line", "6 rows at start"],
-    effectsEndless: ["combos ×2", "+1 per line", "6 rows at start"],
-  },
-  // Zone 10 — Kuntur 🦅 / Inca
-  20: {
-    id: 20,
-    name: "Altitude",
-    description:
-      "Thin air, strong scoring, double combos, and perfect-clear rewards at the summit.",
-    icon: "⛰️",
-    effects: [
-      "move score ×1.5",
-      "combos ×2",
-      "perfect clear +20",
-      "stars 5% harder",
-      "7 rows at start",
-    ],
-    effectsEndless: [
-      "move score ×1.5",
-      "combos ×2",
-      "perfect clear +20",
-      "7 rows at start",
-    ],
-  },
-
-  // ── Campaign content v2 (IDs 21-40) ──
-  // The v1 definitions above remain immutable so copied-back or resumed v1
-  // runs continue to explain their snapshotted rules correctly.
+  // ── Campaign guardians ──
   21: {
     id: 21,
     name: "Mako's Gift",
     description: "The sea turtle rewards a strong clear with a Wave.",
     icon: "🐢",
-    effects: ["3+ lines in one action = +1 Wave", "start with 1"],
-  },
-  22: {
-    id: 22,
-    name: "Calm Tides",
-    description: "Patient line clearing keeps the tide—and the score—moving.",
-    icon: "🌊",
-    effects: ["+1 per line", "stars 10% easier", "4 rows at start"],
-    effectsEndless: ["+1 per line", "4 rows at start"],
+    effects: ["2+ lines in one action = +1 Wave"],
   },
   23: {
     id: 23,
@@ -262,71 +33,28 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The Nile crocodile rewards exact two-line clears with the Hammer.",
     icon: "🐊",
-    effects: ["exactly 2 lines = +1 Hammer", "start with 1"],
-  },
-  24: {
-    id: 24,
-    name: "Foundation Stone",
-    description:
-      "Heavy scoring and perfect clears reward deliberate demolition.",
-    icon: "☀️",
-    effects: [
-      "move score ×1.5",
-      "perfect clear +20",
-      "stars 5% easier",
-      "5 rows at start",
-    ],
-    effectsEndless: ["move score ×1.5", "perfect clear +20", "5 rows at start"],
+    effects: ["exactly 2 lines = +1 Hammer"],
   },
   25: {
     id: 25,
     name: "Fenris Howl",
-    description: "The frost wolf answers a strong clear with the Totem.",
+    description: "The frost wolf rewards a devastating block break with a Totem.",
     icon: "🐺",
-    effects: ["3+ lines in one action = +1 Totem", "start with 1"],
-  },
-  26: {
-    id: 26,
-    name: "Frozen Rage",
-    description: "Relentless combo play feeds Fenris's scoring loop.",
-    icon: "❄️",
-    effects: ["combos ×2", "+1 per line", "4 rows at start"],
-    effectsEndless: ["combos ×2", "+1 per line", "4 rows at start"],
+    effects: ["break 10+ blocks in one action = +1 Totem"],
   },
   27: {
     id: 27,
     name: "Noctua's Sight",
-    description: "The owl rewards a perfectly empty board with the Hammer.",
+    description: "The owl rewards sustained clearing with the Hammer.",
     icon: "🦉",
-    effects: [
-      "empty the board = +1 Hammer",
-      "max 1 per action",
-      "start with 1",
-    ],
-  },
-  28: {
-    id: 28,
-    name: "Marble Discipline",
-    description: "Clean, deliberate play earns the strongest proofs.",
-    icon: "🏛️",
-    effects: ["move score ×2", "perfect clear +15", "5 rows at start"],
-    effectsEndless: ["move score ×2", "perfect clear +15", "5 rows at start"],
+    effects: ["3 clearing moves in a row = +1 Hammer"],
   },
   29: {
     id: 29,
     name: "Long's Breath",
     description: "The dragon rewards sustained line clearing with a Wave.",
     icon: "🐲",
-    effects: ["every 15 lines cleared by moves = +1 Wave", "start with 1"],
-  },
-  30: {
-    id: 30,
-    name: "Imperial Scale",
-    description:
-      "Every cleared line strengthens the dragon's rolling pressure.",
-    icon: "🐉",
-    effects: ["+3 per line", "6 rows at start"],
-    effectsEndless: ["+3 per line", "6 rows at start"],
+    effects: ["every 7 lines cleared by moves = +1 Wave"],
   },
   31: {
     id: 31,
@@ -334,25 +62,7 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The gate guardian rewards breaking every block size in one action.",
     icon: "🦁",
-    effects: ["break sizes 1-4 in one action = +1 Totem", "start with 1"],
-  },
-  32: {
-    id: 32,
-    name: "Geometric Flow",
-    description: "Stacked patterns reward combos, lines, and perfect clears.",
-    icon: "🕌",
-    effects: [
-      "combos ×2",
-      "+1 per line",
-      "perfect clear +10",
-      "5 rows at start",
-    ],
-    effectsEndless: [
-      "combos ×2",
-      "+1 per line",
-      "perfect clear +10",
-      "5 rows at start",
-    ],
+    effects: ["break sizes 1-4 in one action = +1 Totem"],
   },
   33: {
     id: 33,
@@ -360,97 +70,41 @@ const MUTATOR_DEFS: Record<number, MutatorDef> = {
     description:
       "The spirit fox rewards exact three-line clears with the Hammer.",
     icon: "🦊",
-    effects: ["exactly 3 lines = +1 Hammer", "start with 1"],
-  },
-  34: {
-    id: 34,
-    name: "Bushido",
-    description: "Every precise harvest lands as a decisive strike.",
-    icon: "🗡️",
-    effects: ["move score ×3", "perfect clear +20", "5 rows at start"],
-    effectsEndless: ["move score ×3", "perfect clear +20", "5 rows at start"],
+    effects: ["exactly 3 lines = +1 Hammer"],
   },
   35: {
     id: 35,
     name: "Balam's Rite",
-    description: "The jaguar rewards a perfectly empty board with a Totem.",
+    description: "The jaguar rewards a strong clear with a Totem.",
     icon: "🐆",
-    effects: ["empty the board = +1 Totem", "max 1 per action", "start with 2"],
-  },
-  36: {
-    id: 36,
-    name: "Jungle Altar",
-    description: "Double-strength combos power Balam's surgical block play.",
-    icon: "🌿",
-    effects: ["combos ×2", "6 rows at start"],
-    effectsEndless: ["combos ×2", "6 rows at start"],
+    effects: ["3+ lines in one action = +1 Totem"],
   },
   37: {
     id: 37,
     name: "Mamba's Rhythm",
     description: "The serpent turns combo milestones into Totems.",
     icon: "🐍",
-    effects: [
-      "every 8 combos = +1 Totem",
-      "max 1 per action",
-      "start with 1",
-    ],
-  },
-  38: {
-    id: 38,
-    name: "Primal Pulse",
-    description: "Combos and line clears keep the serpent's rhythm alive.",
-    icon: "🔥",
-    effects: ["combos ×2", "+2 per line", "6 rows at start"],
-    effectsEndless: ["combos ×2", "+2 per line", "6 rows at start"],
+    effects: ["every 2 combo moves = +1 Totem", "max 1 per action"],
   },
   39: {
     id: 39,
     name: "Kuntur's Trial",
     description: "The condor rewards exact four-line clears with the Hammer.",
     icon: "🦅",
-    effects: ["exactly 4 lines = +1 Hammer", "start with 1"],
-  },
-  40: {
-    id: 40,
-    name: "Altitude",
-    description: "The summit amplifies scoring, combos, and perfect execution.",
-    icon: "⛰️",
-    effects: [
-      "move score ×2.5",
-      "combos ×2.5",
-      "perfect clear +30",
-      "stars 5% harder",
-      "7 rows at start",
-    ],
-    effectsEndless: [
-      "move score ×2.5",
-      "combos ×2.5",
-      "perfect clear +30",
-      "7 rows at start",
-    ],
+    effects: ["exactly 4 lines = +1 Hammer"],
   },
 };
 
-const createFallbackMutator = (id: number): MutatorDef => ({
+const createFallbackGuardian = (id: number): GuardianDef => ({
   id,
-  name: `Mutator ${id}`,
-  description: "Unknown mutator",
+  name: `Guardian ${id}`,
+  description: "Unknown guardian",
   icon: id % 2 === 0 ? "🛡️" : "✨",
   effects: [],
 });
 
-export const getMutatorDef = (id: number): MutatorDef =>
-  id <= 0 ? MUTATOR_DEFS[0] : (MUTATOR_DEFS[id] ?? createFallbackMutator(id));
-
-/**
- * Return the effect list tailored for the run's mode. In endless / tournament
- * runs (run_type === 1) star thresholds aren't scored, so we skip those lines.
- */
-export const getMutatorEffects = (
-  def: MutatorDef,
-  isEndless: boolean,
-): string[] => (isEndless ? (def.effectsEndless ?? def.effects) : def.effects);
+export const getGuardianDef = (id: number): GuardianDef =>
+  id <= 0 ? GUARDIAN_DEFS[0] : (GUARDIAN_DEFS[id] ?? createFallbackGuardian(id));
 
 const BONUS_TYPES: Record<
   number,

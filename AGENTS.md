@@ -147,16 +147,13 @@ ladder tier boundaries, and the flat qualifying credit.
   1.0/1.5/2.0/2.5/3.0/3.5/4.0/4.5. Objective increments never feed pressure.
   Every selected pair uses that profile and the fixed 100-move limit; there is
   no authored threshold array or per-content pressure copy.
-- **A guardian's active mutator is identical in Campaign and Arcade.** The
-  drawn realm resolves the same published Campaign guardian bytes used by its
-  levels, so the practice bridge and completed star records cannot drift between
-  rule sets. `campaign_and_daily_share_guardian_rules` guards the boundary.
-- **Daily has no passive pairing.** A Daily inherits its realm's active mutator
-  and guardian bonus, then uses the neutral passive scoring baseline: no passive
-  line-clear or perfect-clear bonus. Campaign realms keep their authored
-  line-clear and perfect-clear bonuses. Daily preparation must never carry a
-  passive map identity;
-  `supersession.test.ts` guards that boundary.
+- **A realm has one guardian rule in both modes.** `Guardian { bonus, trigger,
+  threshold }` is the complete realm-specific gameplay rule, and the same
+  bytes reach Campaign and Arcade. Scoring is triangular action score alone,
+  multiplied only by the Daily pressure tier; no realm-specific scoring field
+  or mode exception exists. `campaign_and_daily_share_guardian_rules` and
+  `triangular_scoring_is_guardian_neutral_for_moves_and_bonus_actions` guard
+  the boundary.
 - **Trigger thresholds exist only when the trigger reads one.** Line,
   exact-line, combo-count, block-burst, and clearing-move-streak triggers carry a
   positive threshold. The all-block-sizes trigger carries zero because its
@@ -345,7 +342,7 @@ deposits, prize claims, and ratings; positive thresholds on all-block-sizes
 triggers; perfect-clear guardian triggers; a two-request perfect-clear
 continuation; a stored or publisher-supplied Daily selection seed; per-entry
 Daily difficulty bands; and
-Score-threshold bonus triggers. A five-Kredit shop pack and Daily passive
+Score-threshold bonus triggers. A five-Kredit shop pack and per-realm scoring
 pairing are superseded too, as is the ladder streak multiplier. Reroll as a
 fourth guardian bonus type, wildcard Daily realms, and multi-bonus map pairings
 are also superseded. Authored Daily entries and their rules catalog, revision
@@ -585,7 +582,7 @@ star array.
 
 ### Replay and determinism
 
-`zkube-core` is the deterministic source for grid state, blocks, mutators,
+`zkube-core` is the deterministic source for grid state, blocks, guardians,
 scoring, pressure, metrics, period math, payout math, canonical encoding, and
 the replay commitment schedule. Native Rust, WASM, and the Solana program must
 pass the same committed golden vectors before an ABI is releasable.

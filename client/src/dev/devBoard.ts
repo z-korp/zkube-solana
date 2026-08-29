@@ -80,18 +80,15 @@ function campaignRules(): ActiveRunRulesView {
     primary: level.primary,
     secondary: level.secondary,
     activeMutatorId: map.mapRules.activeMutatorId,
-    passiveMutatorId: map.mapRules.passiveMutatorId,
     bossId: map.mapRules.bossId,
-    bonusType: map.mapRules.bonusType,
-    bonusTriggerType: map.mapRules.bonusTriggerType,
-    bonusThreshold: map.mapRules.bonusThreshold,
+    guardian: map.mapRules.guardian,
   };
 }
 
 /**
  * Exactly what `daily_level_rules` builds on chain from the drawn realm and
  * pressure profile: an unreachable points target (the Daily is not a level to
- * clear), the profile's move budget, difficulty zero, and the realm's mutators.
+ * clear), the profile's move budget, difficulty zero, and the realm's guardian.
  * Inventing friendlier numbers here would make the HUD lie about the run it is
  * supposed to be showing.
  */
@@ -102,11 +99,8 @@ const ARENA_RULES: ActiveRunRulesView = {
   primary: { kind: 0, value: 0, requiredCount: 0 },
   secondary: { kind: 0, value: 0, requiredCount: 0 },
   activeMutatorId: DEV_BOARD_MAP_ID,
-  passiveMutatorId: 0,
   bossId: 0,
-  bonusType: BonusType.Hammer,
-  bonusTriggerType: 2,
-  bonusThreshold: 4,
+  guardian: { bonus: BonusType.Hammer, trigger: 2, threshold: 4 },
 };
 
 /**
@@ -160,7 +154,7 @@ export function buildDevActiveRun(
     currentDifficulty: isArena ? 4 : 3,
     // A run carries exactly one bonus type, and an id outside the enum falls
     // back to "None" — which renders an empty slot that reads as a wiring bug.
-    bonusType: rules.bonusType,
+    bonusType: rules.guardian.bonus,
     bonusCharges: 2,
     rerollCharges: 1,
     grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),

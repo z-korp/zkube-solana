@@ -6799,32 +6799,16 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "passiveMutatorId",
-            "type": "u8"
-          },
-          {
             "name": "bossId",
             "type": "u8"
           },
           {
-            "name": "lineClearBonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfectClearBonus",
-            "type": "u16"
-          },
-          {
-            "name": "bonusType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusTriggerType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusThreshold",
-            "type": "u16"
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "guardianSnapshot"
+              }
+            }
           },
           {
             "name": "startingRows",
@@ -7102,6 +7086,26 @@ export type Solana = {
       }
     },
     {
+      "name": "guardianSnapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bonus",
+            "type": "u8"
+          },
+          {
+            "name": "trigger",
+            "type": "u8"
+          },
+          {
+            "name": "threshold",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
       "name": "initializeProtocolArgs",
       "type": {
         "kind": "struct",
@@ -7192,32 +7196,16 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "passiveMutatorId",
-            "type": "u8"
-          },
-          {
             "name": "bossId",
             "type": "u8"
           },
           {
-            "name": "lineClearBonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfectClearBonus",
-            "type": "u16"
-          },
-          {
-            "name": "bonusType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusTriggerType",
-            "type": "u8"
-          },
-          {
-            "name": "bonusThreshold",
-            "type": "u16"
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "guardianSnapshot"
+              }
+            }
           },
           {
             "name": "startingRows",

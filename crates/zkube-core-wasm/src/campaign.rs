@@ -1,13 +1,13 @@
 use crate::BoundaryError;
 use zkube_core::{
     BONUS_CHARGE_CAP, Bonus, CampaignEndReason, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, Constraint, ConstraintKind, Grid, LevelRules, MoveReport,
-    MutatorRules, RunEngine, RunPhase,
+    CampaignSimulationConfig, Constraint, ConstraintKind, Grid, Guardian, LevelRules, MoveReport,
+    RunEngine, RunPhase,
 };
 
-pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 101;
+pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 97;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
-const CONFIG_VERSION: u8 = 6;
+const CONFIG_VERSION: u8 = 7;
 const STATE_VERSION: u8 = 6;
 
 #[must_use]
@@ -22,8 +22,7 @@ pub fn encode_campaign_simulation_config(
     writer.write(&config.attempt.to_le_bytes());
     writer.write(&config.seed);
     encode_level(&mut writer, config.rules.level);
-    encode_mutator(&mut writer, config.rules.mutator);
-    writer.write(&[bonus_tag(config.rules.bonus)]);
+    encode_guardian(&mut writer, config.rules.guardian);
     writer.write(&[config.rules.starting_height, config.rules.level_difficulty]);
     writer.finish()
 }
@@ -48,8 +47,7 @@ pub fn decode_campaign_simulation_config(
     let attempt = reader.u64()?;
     let seed = reader.array()?;
     let level = decode_level(&mut reader)?;
-    let mutator = decode_mutator(&mut reader)?;
-    let bonus = decode_bonus(reader.u8()?)?;
+    let guardian = decode_guardian(&mut reader)?;
     let starting_height = reader.u8()?;
     let level_difficulty = reader.u8()?;
     reader.finish()?;
@@ -62,8 +60,7 @@ pub fn decode_campaign_simulation_config(
         seed,
         rules: CampaignRules {
             level,
-            mutator,
-            bonus,
+            guardian,
             starting_height,
             level_difficulty,
         },
@@ -311,7 +308,7 @@ fn decode_for_transition(
     let config = decode_campaign_simulation_config(config)?;
     let simulation = decode_campaign_simulation_state(state)?;
     if !simulation.matches_config(config)
-        || simulation.engine.bonus != config.rules.bonus
+        || simulation.engine.bonus != Some(config.rules.guardian.bonus)
         || simulation.current_difficulty != config.rules.level_difficulty
     {
         return Err(BoundaryError::InvalidEncoding);
@@ -352,19 +349,16 @@ fn decode_constraint(reader: &mut Reader<'_>) -> Result<Constraint, BoundaryErro
     })
 }
 
-fn encode_mutator<const N: usize>(writer: &mut Writer<N>, mutator: MutatorRules) {
-    writer.write(&mutator.line_clear_bonus.to_le_bytes());
-    writer.write(&mutator.perfect_clear_bonus.to_le_bytes());
-    writer.write(&[mutator.bonus_trigger_type]);
-    writer.write(&mutator.bonus_threshold.to_le_bytes());
+fn encode_guardian<const N: usize>(writer: &mut Writer<N>, guardian: Guardian) {
+    writer.write(&[bonus_tag(Some(guardian.bonus)), guardian.trigger]);
+    writer.write(&guardian.threshold.to_le_bytes());
 }
 
-fn decode_mutator(reader: &mut Reader<'_>) -> Result<MutatorRules, BoundaryError> {
-    Ok(MutatorRules {
-        line_clear_bonus: reader.u16()?,
-        perfect_clear_bonus: reader.u16()?,
-        bonus_trigger_type: reader.u8()?,
-        bonus_threshold: reader.u16()?,
+fn decode_guardian(reader: &mut Reader<'_>) -> Result<Guardian, BoundaryError> {
+    Ok(Guardian {
+        bonus: decode_bonus(reader.u8()?)?.ok_or(BoundaryError::InvalidEncoding)?,
+        trigger: reader.u8()?,
+        threshold: reader.u16()?,
     })
 }
 
@@ -558,8 +552,10 @@ mod tests {
             seed: [11; 32],
             rules: CampaignRules {
                 level: LevelRules::default(),
-                mutator: MutatorRules::default(),
-                bonus: Some(Bonus::Wave),
+                guardian: Guardian {
+                    bonus: Bonus::Wave,
+                    ..Guardian::default()
+                },
                 starting_height: 4,
                 level_difficulty: 0,
             },
@@ -609,7 +605,7 @@ mod tests {
     #[test]
     fn campaign_reroll_round_trips_once_without_spending_guardian_charges() {
         let mut config = config();
-        config.rules.bonus = Some(Bonus::Wave);
+        config.rules.guardian.bonus = Bonus::Wave;
         let config_bytes = encode_campaign_simulation_config(config);
         let state = initialize_campaign_simulation(&config_bytes).unwrap();
 

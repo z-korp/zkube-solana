@@ -65,7 +65,7 @@ function rankedDependencyInfos(
   const protocol = deriveProtocolConfigPda();
   const arcadeConfig = deriveArcadeConfigPda();
   const dailyAccount = (dayId: number) =>
-    account("arenaDaily", 240, (data) => {
+    account("arenaDaily", 235, (data) => {
       data.writeUInt32LE(dayId, 9);
       writePublicKey(data, 13, arcadeConfig);
     });

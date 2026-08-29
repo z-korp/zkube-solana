@@ -120,7 +120,7 @@ export default function SpectatorHud({
           ? "Daily challenge"
           : `Map ${run.mapId} · Level ${run.level}`}
         {run.rules.activeMutatorId > 0
-          ? ` · Mutator ${run.rules.activeMutatorId}`
+          ? ` · Guardian ${run.rules.activeMutatorId}`
           : ""}
       </div>
     </div>

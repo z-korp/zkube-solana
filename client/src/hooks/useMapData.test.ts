@@ -17,11 +17,8 @@ const rule: ActiveRunRulesView = {
   primary: { kind: 0, value: 0, requiredCount: 0 },
   secondary: { kind: 0, value: 0, requiredCount: 0 },
   activeMutatorId: 0,
-  passiveMutatorId: 0,
   bossId: 0,
-  bonusType: 0,
-  bonusTriggerType: 0,
-  bonusThreshold: 0,
+  guardian: { bonus: 0, trigger: 0, threshold: 0 },
 };
 
 const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({

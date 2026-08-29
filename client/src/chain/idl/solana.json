@@ -6793,32 +6793,16 @@
             "type": "u8"
           },
           {
-            "name": "passive_mutator_id",
-            "type": "u8"
-          },
-          {
             "name": "boss_id",
             "type": "u8"
           },
           {
-            "name": "line_clear_bonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfect_clear_bonus",
-            "type": "u16"
-          },
-          {
-            "name": "bonus_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_trigger_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_threshold",
-            "type": "u16"
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "GuardianSnapshot"
+              }
+            }
           },
           {
             "name": "starting_rows",
@@ -7096,6 +7080,26 @@
       }
     },
     {
+      "name": "GuardianSnapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bonus",
+            "type": "u8"
+          },
+          {
+            "name": "trigger",
+            "type": "u8"
+          },
+          {
+            "name": "threshold",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
       "name": "InitializeProtocolArgs",
       "type": {
         "kind": "struct",
@@ -7186,32 +7190,16 @@
             "type": "u8"
           },
           {
-            "name": "passive_mutator_id",
-            "type": "u8"
-          },
-          {
             "name": "boss_id",
             "type": "u8"
           },
           {
-            "name": "line_clear_bonus",
-            "type": "u16"
-          },
-          {
-            "name": "perfect_clear_bonus",
-            "type": "u16"
-          },
-          {
-            "name": "bonus_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_trigger_type",
-            "type": "u8"
-          },
-          {
-            "name": "bonus_threshold",
-            "type": "u16"
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "GuardianSnapshot"
+              }
+            }
           },
           {
             "name": "starting_rows",

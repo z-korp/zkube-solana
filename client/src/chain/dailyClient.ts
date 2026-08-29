@@ -643,7 +643,7 @@ const rankedDependencyCoder = new BorshAccountsCoder(
 const RANKED_ACCOUNT_SPACES = {
   protocolConfig: 156,
   arcadeConfig: 103,
-  arenaDaily: 240,
+  arenaDaily: 235,
   creditVault: 58,
 } as const;
 

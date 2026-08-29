@@ -111,11 +111,10 @@
         "primary": { "kind": "none", "value": 0, "requiredCount": 0 },
         "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
       },
-      "mutator": {
-        "lineClearBonus": 0,
-        "perfectClearBonus": 0,
-        "bonusTriggerType": 0,
-        "bonusThreshold": 0
+      "guardian": {
+        "bonus": "hammer",
+        "trigger": 0,
+        "threshold": 0
       },
       "expected": {
         "phase": "levelComplete",
@@ -130,7 +129,7 @@
       }
     },
     {
-      "name": "combo-objective-mutator-and-charge",
+      "name": "combo-objective-and-guardian-charge",
       "inputRows": [
         { "index": 0, "cells": [1, 1, 1, 1, 1, 1, 1, 1] },
         { "index": 1, "cells": [1, 1, 1, 1, 1, 1, 1, 1] }
@@ -143,18 +142,17 @@
         "primary": { "kind": "combosOfAtLeast", "value": 2, "requiredCount": 1 },
         "secondary": { "kind": "none", "value": 0, "requiredCount": 0 }
       },
-      "mutator": {
-        "lineClearBonus": 1,
-        "perfectClearBonus": 0,
-        "bonusTriggerType": 1,
-        "bonusThreshold": 2
+      "guardian": {
+        "bonus": "wave",
+        "trigger": 1,
+        "threshold": 2
       },
       "expected": {
         "phase": "awaitingVrf",
-        "score": 5,
+        "score": 3,
         "moves": 1,
         "lines": 2,
-        "points": 5,
+        "points": 3,
         "combo": 1,
         "primaryProgress": 1,
         "bonusCharges": 1,

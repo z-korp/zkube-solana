@@ -8,7 +8,7 @@ use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
     CampaignRules, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT,
     DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, DailyPressureRules,
-    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, LevelRules, MutatorRules,
+    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, LevelRules,
     PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP,
     PROTOCOL_ACCOUNT_VERSION, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
     SoftwareSha256,
@@ -64,7 +64,7 @@ struct CampaignCatalog {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CampaignMap {
     map_id: u8,
-    rules: [u16; 6],
+    rules: [u16; 4],
     levels: Vec<EncodedLevel>,
 }
 
@@ -262,11 +262,10 @@ fn campaign_rules(
             map.map_id
         ));
     }
-    let bonus = match map.rules[2] {
-        0 => None,
-        1 => Some(Bonus::Hammer),
-        2 => Some(Bonus::Totem),
-        3 => Some(Bonus::Wave),
+    let bonus = match map.rules[0] {
+        1 => Bonus::Hammer,
+        2 => Bonus::Totem,
+        3 => Bonus::Wave,
         value => return Err(format!("map {} has unknown bonus {value}", map.map_id)),
     };
     Ok(CampaignRules {
@@ -276,15 +275,13 @@ fn campaign_rules(
             primary: constraint(level.3)?,
             secondary: constraint(level.4)?,
         },
-        mutator: MutatorRules {
-            line_clear_bonus: map.rules[0],
-            perfect_clear_bonus: map.rules[1],
-            bonus_trigger_type: u8::try_from(map.rules[3])
+        guardian: Guardian {
+            bonus,
+            trigger: u8::try_from(map.rules[1])
                 .map_err(|_| format!("map {} trigger exceeds u8", map.map_id))?,
-            bonus_threshold: map.rules[4],
+            threshold: map.rules[2],
         },
-        bonus,
-        starting_height: u8::try_from(map.rules[5])
+        starting_height: u8::try_from(map.rules[3])
             .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
         level_difficulty: level.2,
     })
@@ -602,8 +599,8 @@ mod tests {
         ) in CONTAINED_FACT_CASES
         {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-            catalog.maps[0].rules[3] = u16::from(trigger);
-            catalog.maps[0].rules[4] = threshold;
+            catalog.maps[0].rules[1] = u16::from(trigger);
+            catalog.maps[0].rules[2] = threshold;
             catalog.maps[0].levels[7].3 = [primary.tag(), primary_value, 2];
             catalog.maps[0].levels[7].4 = [secondary.tag(), secondary_value, secondary_count];
             assert!(validate_catalog(&catalog).is_err());

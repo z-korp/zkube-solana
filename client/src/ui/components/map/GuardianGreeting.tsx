@@ -2,7 +2,7 @@ import { Swords } from "lucide-react";
 import { motion } from "motion/react";
 
 import { type ZoneGuardian } from "@/config/bossCharacters";
-import { getMutatorDef } from "@/config/mutatorConfig";
+import { getGuardianDef } from "@/config/mutatorConfig";
 import type { ThemeColors } from "@/config/themes";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
@@ -11,7 +11,6 @@ interface GuardianGreetingProps {
   colors: ThemeColors;
   guardian: ZoneGuardian;
   activeMutatorId?: number;
-  passiveMutatorId?: number;
   isFirstVisit?: boolean;
   bossCleared?: boolean;
   onClose: () => void;
@@ -21,7 +20,6 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   colors,
   guardian,
   activeMutatorId,
-  passiveMutatorId,
   isFirstVisit = false,
   bossCleared = false,
   onClose,
@@ -31,13 +29,9 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   const talk = useGuardianTalk(guardian.zoneId, guardian.greeting, {
     mood: "greeting",
   });
-  const activeMutator =
+  const guardianRule =
     activeMutatorId && activeMutatorId > 0
-      ? getMutatorDef(activeMutatorId)
-      : null;
-  const passiveMutator =
-    passiveMutatorId && passiveMutatorId > 0
-      ? getMutatorDef(passiveMutatorId)
+      ? getGuardianDef(activeMutatorId)
       : null;
 
   return (
@@ -126,27 +120,18 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             {guardian.zoneHint}
           </p>
 
-          {/* Mutators — the guardian explains each rule in prose; stat lines
-              live in the in-game tooltips, not here. */}
-          {(activeMutator || passiveMutator) && (
+          {guardianRule && (
             <div className="mt-2 flex flex-col gap-1.5">
-              {[activeMutator, passiveMutator].map((mutator) =>
-                mutator ? (
-                  <p
-                    key={mutator.id}
-                    className="font-sans text-[14px] leading-relaxed text-white"
-                  >
-                    {mutator.icon}{" "}
-                    <span
-                      className="font-semibold"
-                      style={{ color: colors.accent }}
-                    >
-                      {mutator.name}
-                    </span>{" "}
-                    {mutator.description}
-                  </p>
-                ) : null,
-              )}
+              <p className="font-sans text-[14px] leading-relaxed text-white">
+                {guardianRule.icon}{" "}
+                <span
+                  className="font-semibold"
+                  style={{ color: colors.accent }}
+                >
+                  {guardianRule.name}
+                </span>{" "}
+                {guardianRule.description}
+              </p>
             </div>
           )}
 

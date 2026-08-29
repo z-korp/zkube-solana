@@ -247,17 +247,19 @@ pub fn handler_write_map_catalog(
 
 fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
     require!(rules.active_mutator_id > 0, ErrorCode::InvalidLevel);
-    require!(rules.passive_mutator_id > 0, ErrorCode::InvalidLevel);
     require!(rules.boss_id > 0, ErrorCode::InvalidLevel);
-    require!((1..=3).contains(&rules.bonus_type), ErrorCode::InvalidLevel);
     require!(
-        matches!(rules.bonus_trigger_type, 1 | 2 | 4 | 6..=9),
+        (1..=3).contains(&rules.guardian.bonus),
+        ErrorCode::InvalidLevel
+    );
+    require!(
+        matches!(rules.guardian.trigger, 1 | 2 | 4 | 6..=9),
         ErrorCode::InvalidLevel
     );
     require!(
         zkube_core::bonus_trigger_threshold_is_valid(
-            rules.bonus_trigger_type,
-            rules.bonus_threshold,
+            rules.guardian.trigger,
+            rules.guardian.threshold,
         ),
         ErrorCode::InvalidLevel
     );
@@ -266,8 +268,8 @@ fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
             .contains(&rules.starting_rows),
         ErrorCode::InvalidLevel
     );
-    match rules.bonus_trigger_type {
-        1 | 4 => require!(rules.bonus_threshold <= 8, ErrorCode::InvalidLevel),
+    match rules.guardian.trigger {
+        1 | 4 => require!(rules.guardian.threshold <= 8, ErrorCode::InvalidLevel),
         2 | 6 | 7 | 8 | 9 => {}
         _ => return err!(ErrorCode::InvalidLevel),
     }
@@ -313,8 +315,8 @@ fn validate_distinct_constraint_facts(
     };
     require!(
         level.has_distinct_constraint_facts(
-            map_rules.bonus_trigger_type,
-            map_rules.bonus_threshold,
+            map_rules.guardian.trigger,
+            map_rules.guardian.threshold,
         ),
         ErrorCode::InvalidLevel
     );
@@ -578,7 +580,7 @@ pub fn handler_prepare_campaign_run(
     active.combo4_hits = 0;
     active.high_combo_hits = 0;
     active.blocks_destroyed_by_size = [0; 4];
-    active.bonus_type = rules.bonus_type;
+    active.bonus_type = rules.guardian.bonus;
     active.bonus_charges = 0;
     active.reroll_charges = 1;
     active.starting_height_target = rules.starting_rows.max(1);
@@ -628,25 +630,31 @@ mod tests {
     }
 
     #[test]
-    fn campaign_map_rules_require_a_playable_fixed_bonus_identity() {
+    fn campaign_map_rules_require_a_playable_guardian_identity() {
         let valid = CampaignMapRuleSnapshot {
             active_mutator_id: 1,
-            passive_mutator_id: 2,
             boss_id: 1,
-            bonus_type: 3,
-            bonus_trigger_type: 1,
-            bonus_threshold: 3,
+            guardian: GuardianSnapshot {
+                bonus: 3,
+                trigger: 1,
+                threshold: 3,
+            },
             starting_rows: 4,
-            ..CampaignMapRuleSnapshot::default()
         };
         assert!(validate_campaign_map_rules(&valid).is_ok());
         assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
-            bonus_trigger_type: 0,
+            guardian: GuardianSnapshot {
+                trigger: 0,
+                ..valid.guardian
+            },
             ..valid
         })
         .is_err());
         assert!(validate_campaign_map_rules(&CampaignMapRuleSnapshot {
-            bonus_type: 0,
+            guardian: GuardianSnapshot {
+                bonus: 0,
+                ..valid.guardian
+            },
             ..valid
         })
         .is_err());
@@ -658,8 +666,11 @@ mod tests {
         for trigger_type in 1..=10 {
             for threshold in 0..=1 {
                 let snapshot = CampaignMapRuleSnapshot {
-                    bonus_trigger_type: trigger_type,
-                    bonus_threshold: threshold,
+                    guardian: GuardianSnapshot {
+                        trigger: trigger_type,
+                        threshold,
+                        ..valid.guardian
+                    },
                     ..valid
                 };
                 assert_eq!(
@@ -851,8 +862,11 @@ mod tests {
                 required_count: secondary_count,
             };
             let map_rules = CampaignMapRuleSnapshot {
-                bonus_trigger_type: trigger,
-                bonus_threshold: threshold,
+                guardian: GuardianSnapshot {
+                    trigger,
+                    threshold,
+                    ..GuardianSnapshot::default()
+                },
                 ..CampaignMapRuleSnapshot::default()
             };
             assert!(validate_distinct_constraint_facts(primary, secondary, &map_rules).is_err());

@@ -54,9 +54,9 @@ expired entry, with no refund path, and the on-chain invariant is
 Each Daily draws one of ten Campaign realms and one of sixteen protocol
 objectives. Its guardian, objective, and realm starting height are fixed for the
 whole field, while one global pressure step and a shared eight-tier block table
-govern every Daily. Daily uses
-neutral passive scoring; Campaign realms keep their authored line-clear and
-perfect-clear bonuses. Selection is derived from a protocol seed and the
+govern every Daily. Campaign and Daily use the same guardian rule, and scoring
+is triangular action score alone with the Daily pressure multiplier applied in
+Arcade. Selection is derived from a protocol seed and the
 absolute day identifier, so the 160 realm-objective pairs cycle without
 replacement and are independently recomputable.
 
@@ -76,7 +76,7 @@ Daily boards, direct claim settlement, and the points ladder are in source.
 
 | Unit | Length | Carries |
 | --- | --- | --- |
-| Day | 24h | the money, realm, active mutator, and objective that shape it |
+| Day | 24h | the money, realm, guardian, and objective that shape it |
 | Draw cycle | 160 days | each realm-objective pair exactly once |
 
 **Kredits replace the per-run signature.** Entries are prepaid in bundles rather
@@ -137,7 +137,7 @@ before.
 
 | Component | Role |
 | --- | --- |
-| `crates/zkube-core` | Deterministic Rust engine: grid, blocks, mutators, scoring, metrics, period and payout math, canonical encoding, replay schedule |
+| `crates/zkube-core` | Deterministic Rust engine: grid, blocks, guardians, scoring, metrics, period and payout math, canonical encoding, replay schedule |
 | `crates/zkube-core-wasm` | WASM build of the same engine for the client |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |

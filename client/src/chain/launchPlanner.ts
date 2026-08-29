@@ -49,7 +49,7 @@ export const LAUNCH_ACCOUNT_SPACES = {
   operatorRevenueVault: 58,
   creditVault: 58,
   arcadeArchive: 82,
-  arenaDaily: 240,
+  arenaDaily: 235,
 } as const;
 
 export interface LaunchPlannerInput {
