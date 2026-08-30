@@ -89,7 +89,7 @@ describe("zKube deployment manifest v6", () => {
           programDataAddress: Keypair.generate().publicKey.toBase58(),
         },
       },
-      { ...base, content: { ...base.content, campaignVersion: 3 } },
+      { ...base, content: { ...base.content, campaignVersion: 2 } },
       { ...base, launch: { ...base.launch, dayId: 11 } },
       {
         ...base,
@@ -190,7 +190,7 @@ function candidate(): ZkubeDeploymentManifest {
     },
     content: {
       baseVersion: 1,
-      campaignVersion: 2,
+      campaignVersion: 3,
       catalogSha256: "c".repeat(64),
     },
     launch: {

@@ -793,7 +793,7 @@ After the program and independently fingerprinted keeper release exist,
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused, initializes the Arcade archive
 with the explicitly approved recyclable cadence-rent float, publishes Campaign
-v2 and Arena rules, prepares the current and following Daily accounts, and ends
+v3 and Arena rules, prepares the current and following Daily accounts, and ends
 with one atomic transaction that seeds the first Daily, unpauses, and activates
 it. Its approval expires at the specified pre-entry cutoff. The planner has no
 signing or sending path. Transaction indices and the cadence-rent funding amount

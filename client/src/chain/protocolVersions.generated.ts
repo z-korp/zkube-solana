@@ -12,5 +12,6 @@ export const SECONDS_PER_DAY = 86400 as const;
 export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = 2592000 as const;
 export const DAILY_MAX_MOVES = 100 as const;
 export const PRESSURE_STEP = 15 as const;
+export const CAMPAIGN_CONTENT_VERSION = 3 as const;
 export const CAMPAIGN_TARGET_LADDER = [10, 14, 18, 22, 27, 32, 37, 42, 46, 50] as const;
 export const TIER_BLOCK_WEIGHTS = [[25, 30, 25, 15, 5], [22, 28, 25, 18, 7], [20, 25, 25, 20, 10], [18, 22, 24, 22, 14], [16, 20, 22, 24, 18], [14, 18, 20, 26, 22], [12, 16, 18, 28, 26], [10, 14, 16, 30, 30]] as const;

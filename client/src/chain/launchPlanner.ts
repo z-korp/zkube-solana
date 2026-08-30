@@ -400,7 +400,7 @@ export async function buildZkubeLaunchPlan(
   const phases = [
     { label: "Initialize paused base content v1", transactionIndexes: [0] },
     {
-      label: "Stage Campaign content v2",
+      label: `Stage Campaign content v${CAMPAIGN_CONTENT_VERSION}`,
       transactionIndexes: Array.from({ length: 10 }, (_, index) => index + 1),
     },
     { label: "Activate staged content", transactionIndexes: [11] },

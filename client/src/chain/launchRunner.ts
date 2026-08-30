@@ -17,7 +17,10 @@ import {
   CADENCE_FUNDING_SEED_LAMPORTS,
   buildAtomicArcadeLaunchPlan,
 } from "./adminClient";
-import { canonicalCampaignMap } from "./campaignCatalog";
+import {
+  CAMPAIGN_CONTENT_VERSION,
+  canonicalCampaignMap,
+} from "./campaignCatalog";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
@@ -372,7 +375,7 @@ async function verifyStagedLaunch(
       new PublicKey(bundle.input.teamDestination),
     ) ||
     bytesHex(protocol.replayDomain) !== bundle.input.replayDomainHex ||
-    integer(protocol.contentVersion) !== 2 ||
+    integer(protocol.contentVersion) !== CAMPAIGN_CONTENT_VERSION ||
     integer(protocol.campaignMapCount) !== 10 ||
     protocol.paused !== true
   ) {
@@ -384,12 +387,12 @@ async function verifyStagedLaunch(
       connection,
       program,
       "mapCatalog",
-      deriveMapCatalogPda(2, mapId),
+      deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, mapId),
       LAUNCH_ACCOUNT_SPACES.mapCatalog,
     );
-    const expected = canonicalCampaignMap(2, mapId);
+    const expected = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, mapId);
     if (
-      integer(map.contentVersion) !== 2 ||
+      integer(map.contentVersion) !== CAMPAIGN_CONTENT_VERSION ||
       integer(map.mapId) !== mapId ||
       integer(map.themeId) !== expected.themeId ||
       map.enabled !== true ||

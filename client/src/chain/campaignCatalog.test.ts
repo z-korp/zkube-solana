@@ -13,7 +13,7 @@ const maps = () =>
     canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, index + 1),
   );
 
-describe("Campaign content v2", () => {
+describe("Campaign content v3", () => {
   it("publishes the generated catalog exactly", () => {
     expect(fixture.contentVersion).toBe(CAMPAIGN_CONTENT_VERSION);
     expect(
@@ -60,16 +60,20 @@ describe("Campaign content v2", () => {
   });
 
   it("rejects other releases and returns defensive publications", () => {
-    expect(() => canonicalCampaignMap(1, 1)).toThrow(
-      /bound to content version 2/,
+    expect(() =>
+      canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION - 1, 1),
+    ).toThrow(`bound to content version ${CAMPAIGN_CONTENT_VERSION}`);
+    expect(() => canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 0)).toThrow(
+      /mapId must be between/,
     );
-    expect(() => canonicalCampaignMap(2, 0)).toThrow(/mapId must be between/);
-    expect(() => canonicalCampaignMap(2, 11)).toThrow(/mapId must be between/);
+    expect(() => canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 11)).toThrow(
+      /mapId must be between/,
+    );
 
-    const first = canonicalCampaignMap(2, 1);
-    const pristine = canonicalCampaignMap(2, 1);
+    const first = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
+    const pristine = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
     first.levels[0].difficulty = 7;
     first.levels[0].primary.kind = 3;
-    expect(canonicalCampaignMap(2, 1)).toEqual(pristine);
+    expect(canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1)).toEqual(pristine);
   });
 });

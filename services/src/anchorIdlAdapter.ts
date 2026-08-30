@@ -20,6 +20,7 @@ import {
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
+  CAMPAIGN_CONTENT_VERSION,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
@@ -443,7 +444,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }
     if (!boolean(protocol.value.paused, "protocol pause state") ||
         u32(config.value.launchDayId, "launch day id") !== 0 ||
-        u32(protocol.value.contentVersion, "protocol content version") !== 2 ||
+        u32(protocol.value.contentVersion, "protocol content version") !==
+          CAMPAIGN_CONTENT_VERSION ||
         u8(protocol.value.campaignMapCount, "Campaign map count") !== 10) {
       throw new Error("paused launch carrier is incomplete or active");
     }
@@ -479,10 +481,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (let mapId = 1; mapId <= 10; mapId += 1) {
       const map = await this.loadRequired(
         "mapCatalog",
-        mapCatalogPda(2, mapId),
+        mapCatalogPda(CAMPAIGN_CONTENT_VERSION, mapId),
         PROTOCOL_ACCOUNT_VERSION,
       );
-      if (u32(map.value.contentVersion, "Campaign content version") !== 2 ||
+      if (u32(map.value.contentVersion, "Campaign content version") !==
+            CAMPAIGN_CONTENT_VERSION ||
           u8(map.value.mapId, "Campaign map id") !== mapId ||
           !boolean(map.value.enabled, "Campaign map enabled")) {
         throw new Error("paused Campaign release is incomplete");

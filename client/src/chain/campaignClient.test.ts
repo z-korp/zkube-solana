@@ -12,6 +12,7 @@ import {
   unpackCompactLevelStars,
 } from "./campaignClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
+import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import { PROTOCOL_ACCOUNT_VERSION } from "./protocolVersions.generated";
 
 const mocks = vi.hoisted(() => ({
@@ -54,14 +55,14 @@ describe("fetchCampaignView", () => {
       if (name === "protocolConfig") {
         return {
           version: PROTOCOL_ACCOUNT_VERSION,
-          contentVersion: 2,
+          contentVersion: CAMPAIGN_CONTENT_VERSION,
           campaignMapCount: 10,
         };
       }
       const mapId = data[0] - 20;
       return {
         version: PROTOCOL_ACCOUNT_VERSION,
-        contentVersion: 2,
+        contentVersion: CAMPAIGN_CONTENT_VERSION,
         mapId,
         themeId: mapId,
         enabled: true,
@@ -89,7 +90,7 @@ describe("fetchCampaignView", () => {
     });
 
     expect(campaign).not.toBeNull();
-    expect(campaign?.contentVersion).toBe(2);
+    expect(campaign?.contentVersion).toBe(CAMPAIGN_CONTENT_VERSION);
     expect(campaign?.maps).toHaveLength(10);
     expect(campaign?.maps[0]).toMatchObject({
       mapId: 1,

@@ -124,6 +124,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "one Campaign target ladder and tier-derived move budgets replaced authored curves",
   },
   {
+    pattern: /\bCampaign (?:content )?v2\b|\bcampaign_v2\b/i,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal: "Campaign content v3 replaced the pre-ladder v2 publication",
+  },
+  {
     pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",

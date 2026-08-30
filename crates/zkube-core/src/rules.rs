@@ -1102,7 +1102,7 @@ mod tests {
         Grid::try_from_cells(cells).unwrap()
     }
 
-    fn campaign_v2_guardians() -> Vec<Guardian> {
+    fn campaign_v3_guardians() -> Vec<Guardian> {
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
         fixture["maps"]
@@ -1125,7 +1125,7 @@ mod tests {
             .collect()
     }
 
-    fn campaign_v2_constraint(value: &Value) -> Constraint {
+    fn campaign_v3_constraint(value: &Value) -> Constraint {
         let tuple = value.as_array().unwrap();
         Constraint {
             kind: ConstraintKind::from_tag(tuple[0].as_u64().unwrap() as u8)
@@ -1136,7 +1136,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_v2_levels_have_constructive_accounting_completions() {
+    fn campaign_v3_levels_have_constructive_accounting_completions() {
         fn constructive_action(
             constraint: Constraint,
             progress: u8,
@@ -1230,7 +1230,7 @@ mod tests {
 
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
-        let guardians = campaign_v2_guardians();
+        let guardians = campaign_v3_guardians();
         for (map_index, map) in fixture["maps"].as_array().unwrap().iter().enumerate() {
             for (level_index, value) in map["levels"].as_array().unwrap().iter().enumerate() {
                 let tuple = value.as_array().unwrap();
@@ -1239,8 +1239,8 @@ mod tests {
                 let level = LevelRules {
                     points_required: u32::from(crate::CAMPAIGN_TARGET_LADDER[level_index]),
                     max_moves: crate::campaign_move_budget(level_number, tier).unwrap(),
-                    primary: campaign_v2_constraint(&tuple[1]),
-                    secondary: campaign_v2_constraint(&tuple[2]),
+                    primary: campaign_v3_constraint(&tuple[1]),
+                    secondary: campaign_v3_constraint(&tuple[2]),
                 };
                 let mut run = RunEngine {
                     phase: RunPhase::Playing,
@@ -1286,7 +1286,7 @@ mod tests {
 
     #[test]
     fn triangular_scoring_is_guardian_neutral_for_moves_and_bonus_actions() {
-        let guardians = campaign_v2_guardians();
+        let guardians = campaign_v3_guardians();
         let incomplete = LevelRules {
             points_required: u32::MAX,
             max_moves: u16::MAX,

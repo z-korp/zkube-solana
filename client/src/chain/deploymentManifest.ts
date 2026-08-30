@@ -7,6 +7,7 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "./constants";
 import { VRF_QUEUE } from "./runPlan";
+import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import { deriveOperatorRevenueVaultPda } from "./pdas";
 import { SECONDS_PER_DAY } from "./protocolVersions.generated";
 
@@ -61,7 +62,7 @@ export interface ZkubeDeploymentManifest {
   };
   content: {
     baseVersion: 1;
-    campaignVersion: 2;
+    campaignVersion: typeof CAMPAIGN_CONTENT_VERSION;
     catalogSha256: string;
   };
   launch: {
@@ -172,7 +173,7 @@ export function deploymentManifestFromEnv(
       campaignVersion: requiredLiteralInteger(
         env,
         "ZKUBE_CAMPAIGN_CONTENT_VERSION",
-        2,
+        CAMPAIGN_CONTENT_VERSION,
       ),
       catalogSha256: required(
         env,
@@ -334,9 +335,9 @@ export function validateDeploymentManifest(
       "content",
       "Campaign content",
       content?.baseVersion === 1 &&
-        content?.campaignVersion === 2 &&
+        content?.campaignVersion === CAMPAIGN_CONTENT_VERSION &&
         HASH_PATTERN.test(string(content?.catalogSha256) ?? ""),
-      "Manifest must bind base content v1, Campaign v2, and the Campaign catalog hash",
+      `Manifest must bind base content v1, Campaign v${CAMPAIGN_CONTENT_VERSION}, and the Campaign catalog hash`,
     ),
     check(
       "launch",
