@@ -63,8 +63,9 @@ pub use ladder::{
     ladder_points, ladder_tier_floor, ladder_tier_for_points,
 };
 pub use payouts::{
-    BoardWidth, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,
-    board_width, payout_for_rank, rank_weighted_payouts, sol_rank_weighted_payouts,
+    BoardWidth, DailyBoardPools, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan,
+    SOL_PAYOUT_UNIT_LAMPORTS, board_width, daily_board_pools, payout_for_rank,
+    rank_weighted_payouts, sol_rank_weighted_payouts,
 };
 pub use periods::{DAILY_REWARD_CLAIM_WINDOW_SECONDS, PeriodError, SECONDS_PER_DAY, day_id_at};
 pub use randomness::{

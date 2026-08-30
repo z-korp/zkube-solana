@@ -16,6 +16,7 @@ const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
 const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
 const CORE = join(ROOT, "crates/zkube-core/src");
+const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
@@ -53,7 +54,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
     pattern:
       /positive thresholds? (?:for|on) (?:perfect[- ]clear|all[- ]block[- ]sizes)|(?:perfect[- ]clear|all[- ]block[- ]sizes).{0,40}positive thresholds?/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
     reversal:
       "perfect-clear guardian triggers were removed; all-block-sizes carries no numeric threshold",
   },
@@ -128,6 +129,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
       "Campaign stays on the ER and every row comes from a verified VRF output",
+  },
+  {
+    pattern: /\bCampaignSimulation\b|\bDailySimulation\b/,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal: "one Run and one codec drive both gameplay modes",
   },
   {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,

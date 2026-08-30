@@ -36,6 +36,29 @@ pub struct BoardWidth {
     pub denominator: u128,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailyBoardPools {
+    pub score: u64,
+    pub theme: u64,
+}
+
+/// Split one Daily pot between Score and Theme. Classic has no qualifying
+/// Theme metric, so its otherwise-empty half folds back into Score.
+#[must_use]
+pub const fn daily_board_pools(pool: u64, theme_qualified: u32) -> DailyBoardPools {
+    if theme_qualified == 0 {
+        return DailyBoardPools {
+            score: pool,
+            theme: 0,
+        };
+    }
+    let theme = pool / 2;
+    DailyBoardPools {
+        score: pool - theme,
+        theme,
+    }
+}
+
 /// Size a board using harmonic weights proportional to `1 / rank` without allocating
 /// a payout array.
 ///
@@ -191,6 +214,24 @@ fn rounded_weighted_payout(
 mod tests {
     use super::*;
     use serde_json::Value;
+
+    #[test]
+    fn classic_empty_theme_folds_the_whole_pool_into_score() {
+        assert_eq!(
+            daily_board_pools(101_500_001, 0),
+            DailyBoardPools {
+                score: 101_500_001,
+                theme: 0,
+            }
+        );
+        assert_eq!(
+            daily_board_pools(101_500_001, 1),
+            DailyBoardPools {
+                score: 50_750_001,
+                theme: 50_750_000,
+            }
+        );
+    }
 
     #[test]
     fn harmonic_weights_are_exact_integer_division_for_all_rank_scales() {

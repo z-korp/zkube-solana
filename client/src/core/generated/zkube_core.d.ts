@@ -1,29 +1,23 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function abandonCampaignRun(config: Uint8Array, state: Uint8Array): Uint8Array;
+export function applyRunBonus(config: Uint8Array, state: Uint8Array, action: number, row: number, column: number): Uint8Array;
 
-export function applyCampaignBonus(config: Uint8Array, state: Uint8Array, row: number, column: number): Uint8Array;
+export function applyRunVrf(config: Uint8Array, state: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
 
-export function applyDailySimulationBonus(config: Uint8Array, state: Uint8Array, action: number, row: number, column: number): Uint8Array;
+export function boardWidth(pool: bigint, qualified_winners: number, entry_price: bigint, whole_unit: bigint): Uint8Array;
 
-export function applyDailySimulationVrf(config: Uint8Array, state: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
+export function dailyBoardPools(pool: bigint, theme_qualified: number): Uint8Array;
 
-export function campaignRunEndReason(state: Uint8Array): number;
-
-export function campaignRunLatchedStarSources(state: Uint8Array): number;
-
-export function dailySimulationScoreEligible(state: Uint8Array): boolean;
+export function dailyPairIndex(day_id: number): number;
 
 export function emptyContinuationRows(request_counter: number, vrf_output: Uint8Array, rules_hash: Uint8Array, weights: Uint16Array): Uint8Array;
 
-export function finishDailySimulationAtDeadline(config: Uint8Array, state: Uint8Array): Uint8Array;
+export function finishRun(config: Uint8Array, state: Uint8Array, reason_tag: number): Uint8Array;
 
 export function initialReplayCommitment(chain_domain: Uint8Array, challenge_id: Uint8Array, rules_hash: Uint8Array, raw_account: Uint8Array, run_id: bigint, mode_tag: number): Uint8Array;
 
-export function initializeCampaignSimulation(config: Uint8Array): Uint8Array;
-
-export function initializeDailySimulation(config: Uint8Array, request_counter: number, vrf_output: Uint8Array): Uint8Array;
+export function initializeRun(config: Uint8Array): Uint8Array;
 
 export function ladderPoints(qualified_entrants: number, rank: number): number;
 
@@ -33,15 +27,21 @@ export function ladderTierCount(): number;
 
 export function ladderTierFloor(tier: number): bigint;
 
-export function playCampaignMove(config: Uint8Array, state: Uint8Array, expected_move: number, row: number, start: number, destination: number): Uint8Array;
+export function payoutForRank(pool: bigint, denominator: Uint8Array, rank: number, whole_unit: bigint): bigint;
 
-export function playDailySimulationMove(config: Uint8Array, state: Uint8Array, action: number, expected_move: number, row: number, start: number, destination: number): Uint8Array;
+export function payoutPlan(pool: bigint, qualified_winners: number, capacity: number, entry_price: bigint, whole_unit: bigint): Uint8Array;
+
+export function playRunMove(config: Uint8Array, state: Uint8Array, action: number, expected_move: number, row: number, start: number, destination: number): Uint8Array;
 
 export function qualifiedPlayerId(chain_domain: Uint8Array, raw_account: Uint8Array): Uint8Array;
 
-export function requestCampaignSimulationReroll(config: Uint8Array, state: Uint8Array): Uint8Array;
+export function requestRunReroll(config: Uint8Array, state: Uint8Array, action: number): Uint8Array;
 
-export function requestDailySimulationReroll(config: Uint8Array, state: Uint8Array, action: number): Uint8Array;
+export function runEndReason(state: Uint8Array): number;
+
+export function runLatchedStarSources(state: Uint8Array): number;
+
+export function runScoreEligible(state: Uint8Array): boolean;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -54,20 +54,20 @@ export interface InitOutput {
     readonly ladderTier: (a: bigint) => number;
     readonly ladderTierFloor: (a: number) => bigint;
     readonly ladderTierCount: () => number;
-    readonly initializeDailySimulation: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly applyDailySimulationVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-    readonly playDailySimulationMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
-    readonly applyDailySimulationBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-    readonly requestDailySimulationReroll: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly requestCampaignSimulationReroll: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly finishDailySimulationAtDeadline: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly dailySimulationScoreEligible: (a: number, b: number) => [number, number, number];
-    readonly initializeCampaignSimulation: (a: number, b: number) => [number, number, number, number];
-    readonly playCampaignMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly applyCampaignBonus: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
-    readonly abandonCampaignRun: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly campaignRunLatchedStarSources: (a: number, b: number) => [number, number, number];
-    readonly campaignRunEndReason: (a: number, b: number) => [number, number, number];
+    readonly initializeRun: (a: number, b: number) => [number, number, number, number];
+    readonly applyRunVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly playRunMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
+    readonly applyRunBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly requestRunReroll: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly finishRun: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly runScoreEligible: (a: number, b: number) => [number, number, number];
+    readonly runLatchedStarSources: (a: number, b: number) => [number, number, number];
+    readonly runEndReason: (a: number, b: number) => [number, number, number];
+    readonly dailyBoardPools: (a: bigint, b: number) => [number, number];
+    readonly boardWidth: (a: bigint, b: number, c: bigint, d: bigint) => [number, number, number, number];
+    readonly payoutPlan: (a: bigint, b: number, c: number, d: bigint, e: bigint) => [number, number, number, number];
+    readonly payoutForRank: (a: bigint, b: number, c: number, d: number, e: bigint) => [bigint, number, number];
+    readonly dailyPairIndex: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;

@@ -10,14 +10,10 @@
     "dailyDeadline": 5,
     "reroll": 6
   },
-  "dailySimulationStateEncoding": {
-    "version": 6,
-    "length": 263,
+  "runStateEncoding": {
+    "version": 1,
+    "length": 231,
     "objectiveTotal": "u64-le"
-  },
-  "campaignSimulationStateEncoding": {
-    "version": 6,
-    "length": 183
   },
   "dailyClaimWindowSeconds": 2592000
 }

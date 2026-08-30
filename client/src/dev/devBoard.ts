@@ -10,9 +10,8 @@
  *
  * It is a STILL LIFE, deliberately. The board renders and animates, but a move
  * resolves to the same state it started from, because the only honest way to
- * make it play is to drive `zkube-core`'s simulation (the WASM build already
- * exports `playDailySimulationMove` and `playCampaignMove`) and that needs the
- * config/state codecs written on the TS side. Anything cheaper would be the
+ * make it play is to drive `zkube-core`'s shared `Run` boundary; wiring that
+ * boundary into the real controller is brief 09's work. Anything cheaper would be the
  * client simulating the game, which is exactly the divergence the chain-grid
  * rule exists to prevent — the harness is for judging the surface, and it must
  * never become a second implementation of the rules.

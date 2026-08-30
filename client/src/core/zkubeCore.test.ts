@@ -5,11 +5,14 @@ import { readFileSync } from "node:fs";
 import golden from "../../../fixtures/replays/golden-daily-run-v1.json";
 import continuation from "../../../fixtures/replays/golden-perfect-clear-continuation-v1.json";
 import ladder from "../../../fixtures/ladder-points.json";
+import parity from "../../../fixtures/game-parity.json";
 import {
   coreEmptyContinuationRows,
   coreInitialReplayCommitment,
   coreLadderPoints,
+  coreInitializeRun,
   corePlayerId,
+  coreProtocol,
   decodeHex,
   encodeHex,
   initializeZkubeCoreSync,
@@ -60,6 +63,23 @@ describe("generated zkube-core WASM boundary", () => {
         vector.points,
       );
     }
+  });
+
+  it("exposes the shared Run and protocol boundaries in the browser build", () => {
+    const draw = parity.phase1Core.dailyPairDraw;
+    expect(coreProtocol.dailyPairIndex(draw.startsDay)).toBe(
+      draw.pairIndicesByDay[0],
+    );
+    const split = parity.phase1Core.dailyBoardSplit;
+    expect(
+      coreProtocol.dailyBoardPools(
+        BigInt(split.poolLamports),
+        split.themeQualifiedWinners,
+      ),
+    ).toHaveLength(16);
+    expect(() => coreInitializeRun(new Uint8Array(88))).toThrow(
+      "invalid run encoding",
+    );
   });
 
   it("rejects malformed inputs before crossing into WASM", () => {

@@ -177,6 +177,12 @@
         5, 132, 138, 26, 151, 99, 20, 119, 54, 15
       ]
     },
+    "dailyBoardSplit": {
+      "poolLamports": 101500001,
+      "themeQualifiedWinners": 1,
+      "scoreLamports": 50750001,
+      "themeLamports": 50750000
+    },
     "rankPayout": {
       "poolLamports": 1000000000,
       "qualifiedWinners": 50,

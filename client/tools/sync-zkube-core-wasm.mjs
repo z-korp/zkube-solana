@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -22,76 +23,97 @@ const check = process.argv.includes("--check");
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = resolve(clientRoot, "..");
 const crate = resolve(workspaceRoot, "crates/zkube-core-wasm");
-const destination = resolve(clientRoot, "src/core/generated");
-const temporary = mkdtempSync(resolve(tmpdir(), "zkube-core-wasm-"));
+const builds = [
+  {
+    label: "browser",
+    target: "web",
+    destination: resolve(clientRoot, "src/core/generated"),
+  },
+  {
+    label: "Node",
+    target: "nodejs",
+    destination: resolve(workspaceRoot, "services/zkube-core"),
+  },
+];
 
-try {
-  const version = spawnSync("wasm-pack", ["--version"], {
-    encoding: "utf8",
-  });
-  if (version.status !== 0) {
-    throw new Error("wasm-pack is required to generate zkube-core bindings");
-  }
-  if (version.stdout.trim() !== `wasm-pack ${WASM_PACK_VERSION}`) {
-    throw new Error(
-      `expected wasm-pack ${WASM_PACK_VERSION}, received ${version.stdout.trim()}`,
-    );
-  }
-
-  const built = spawnSync(
-    "wasm-pack",
-    [
-      "build",
-      "--target",
-      "web",
-      "--out-dir",
-      temporary,
-      "--out-name",
-      "zkube_core",
-      "--release",
-      crate,
-      "--",
-      "--locked",
-      "--features",
-      "wasm-bindgen",
-    ],
-    { cwd: workspaceRoot, stdio: "inherit" },
+const version = spawnSync("wasm-pack", ["--version"], {
+  encoding: "utf8",
+});
+if (version.status !== 0) {
+  throw new Error("wasm-pack is required to generate zkube-core bindings");
+}
+if (version.stdout.trim() !== `wasm-pack ${WASM_PACK_VERSION}`) {
+  throw new Error(
+    `expected wasm-pack ${WASM_PACK_VERSION}, received ${version.stdout.trim()}`,
   );
-  if (built.status !== 0) {
-    throw new Error(`wasm-pack exited with status ${built.status ?? "unknown"}`);
-  }
+}
 
-  const actualFiles = readdirSync(temporary)
-    .filter((name) => name !== ".gitignore")
-    .sort();
-  if (actualFiles.join("\n") !== [...generatedFiles].sort().join("\n")) {
-    throw new Error(
-      `generated file set changed: ${actualFiles.join(", ")}`,
+for (const build of builds) {
+  const temporary = mkdtempSync(resolve(tmpdir(), "zkube-core-wasm-"));
+  try {
+    const built = spawnSync(
+      "wasm-pack",
+      [
+        "build",
+        "--target",
+        build.target,
+        "--out-dir",
+        temporary,
+        "--out-name",
+        "zkube_core",
+        "--release",
+        crate,
+        "--",
+        "--locked",
+        "--features",
+        "wasm-bindgen",
+      ],
+      { cwd: workspaceRoot, stdio: "inherit" },
     );
-  }
-
-  const stale = generatedFiles.filter((name) => {
-    try {
-      return !readFileSync(resolve(temporary, name)).equals(
-        readFileSync(resolve(destination, name)),
+    if (built.status !== 0) {
+      throw new Error(
+        `wasm-pack exited with status ${built.status ?? "unknown"}`,
       );
-    } catch {
-      return true;
     }
-  });
-  if (check && stale.length > 0) {
-    throw new Error(
-      `zkube-core WASM bindings are stale: ${stale.join(", ")}. Run pnpm core:wasm:sync.`,
-    );
-  }
-  if (!check) {
-    for (const name of generatedFiles) {
-      copyFileSync(resolve(temporary, name), resolve(destination, name));
+
+    const actualFiles = readdirSync(temporary)
+      .filter((name) => name !== ".gitignore")
+      .sort();
+    if (actualFiles.join("\n") !== [...generatedFiles].sort().join("\n")) {
+      throw new Error(`generated file set changed: ${actualFiles.join(", ")}`);
     }
-    process.stdout.write("Updated zkube-core WASM bindings.\n");
-  } else {
-    process.stdout.write("zkube-core WASM bindings are current.\n");
+
+    const stale = generatedFiles.filter((name) => {
+      try {
+        return !readFileSync(resolve(temporary, name)).equals(
+          readFileSync(resolve(build.destination, name)),
+        );
+      } catch {
+        return true;
+      }
+    });
+    if (check && stale.length > 0) {
+      throw new Error(
+        `zkube-core ${build.label} WASM bindings are stale: ${stale.join(", ")}. Run pnpm core:wasm:sync.`,
+      );
+    }
+    if (!check) {
+      mkdirSync(build.destination, { recursive: true });
+      for (const name of generatedFiles) {
+        copyFileSync(
+          resolve(temporary, name),
+          resolve(build.destination, name),
+        );
+      }
+      process.stdout.write(
+        `Updated zkube-core ${build.label} WASM bindings.\n`,
+      );
+    } else {
+      process.stdout.write(
+        `zkube-core ${build.label} WASM bindings are current.\n`,
+      );
+    }
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
   }
-} finally {
-  rmSync(temporary, { recursive: true, force: true });
 }

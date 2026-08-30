@@ -572,8 +572,7 @@ their code and copy from returning. Removing that model deletes one byte from
 Campaign map rules, level snapshots, `ActiveRun`, and each encoded rules configuration.
 The constraint vocabulary adds one action-origin bit to the Campaign report
 codec and stores one streak byte plus one cumulative-trigger byte in `ActiveRun`
-and the run state codec; `campaign_config_and_state_round_trip`,
-`config_and_state_codecs_round_trip_exactly`, and
+and the run state codec; `shared_run_config_and_state_codecs_round_trip_both_rule_shapes` and
 `target_accounts_fit_normal_solana_account_limits` pin those costs.
 
 Campaign uses the same engine and generated catalog as Arcade but a separate
@@ -594,7 +593,8 @@ path; `program_and_core_score_one_action_identically` guards the projection.
 view, and its 325-byte account size is pinned by
 `target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
 Solana program must pass the same committed golden vectors before an ABI is
-releasable.
+releasable; `wasm_run_matches_native_golden_vectors` and
+`wasm_protocol_matches_native_golden_vectors` guard the generated boundary.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
 mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
@@ -673,7 +673,7 @@ Emblems are identity display only with no monetary effect.
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
 | Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
-| Static PWA/TWA | Wallet, Campaign, and Arcade UI | No server signer or paymaster |
+| Static PWA/TWA | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
 
 The player funding PDA is System-owned with zero data and can fund only the rent
 paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot

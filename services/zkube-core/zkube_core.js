@@ -8,7 +8,7 @@
  * @param {number} column
  * @returns {Uint8Array}
  */
-export function applyRunBonus(config, state, action, row, column) {
+function applyRunBonus(config, state, action, row, column) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
@@ -21,6 +21,7 @@ export function applyRunBonus(config, state, action, row, column) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
 }
+exports.applyRunBonus = applyRunBonus;
 
 /**
  * @param {Uint8Array} config
@@ -29,7 +30,7 @@ export function applyRunBonus(config, state, action, row, column) {
  * @param {Uint8Array} vrf_output
  * @returns {Uint8Array}
  */
-export function applyRunVrf(config, state, request_counter, vrf_output) {
+function applyRunVrf(config, state, request_counter, vrf_output) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
@@ -44,6 +45,7 @@ export function applyRunVrf(config, state, request_counter, vrf_output) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v4;
 }
+exports.applyRunVrf = applyRunVrf;
 
 /**
  * @param {bigint} pool
@@ -52,7 +54,7 @@ export function applyRunVrf(config, state, request_counter, vrf_output) {
  * @param {bigint} whole_unit
  * @returns {Uint8Array}
  */
-export function boardWidth(pool, qualified_winners, entry_price, whole_unit) {
+function boardWidth(pool, qualified_winners, entry_price, whole_unit) {
     const ret = wasm.boardWidth(pool, qualified_winners, entry_price, whole_unit);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
@@ -61,27 +63,30 @@ export function boardWidth(pool, qualified_winners, entry_price, whole_unit) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v1;
 }
+exports.boardWidth = boardWidth;
 
 /**
  * @param {bigint} pool
  * @param {number} theme_qualified
  * @returns {Uint8Array}
  */
-export function dailyBoardPools(pool, theme_qualified) {
+function dailyBoardPools(pool, theme_qualified) {
     const ret = wasm.dailyBoardPools(pool, theme_qualified);
     var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v1;
 }
+exports.dailyBoardPools = dailyBoardPools;
 
 /**
  * @param {number} day_id
  * @returns {number}
  */
-export function dailyPairIndex(day_id) {
+function dailyPairIndex(day_id) {
     const ret = wasm.dailyPairIndex(day_id);
     return ret >>> 0;
 }
+exports.dailyPairIndex = dailyPairIndex;
 
 /**
  * @param {number} request_counter
@@ -90,7 +95,7 @@ export function dailyPairIndex(day_id) {
  * @param {Uint16Array} weights
  * @returns {Uint8Array}
  */
-export function emptyContinuationRows(request_counter, vrf_output, rules_hash, weights) {
+function emptyContinuationRows(request_counter, vrf_output, rules_hash, weights) {
     const ptr0 = passArray8ToWasm0(vrf_output, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(rules_hash, wasm.__wbindgen_malloc);
@@ -105,6 +110,7 @@ export function emptyContinuationRows(request_counter, vrf_output, rules_hash, w
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v4;
 }
+exports.emptyContinuationRows = emptyContinuationRows;
 
 /**
  * @param {Uint8Array} config
@@ -112,7 +118,7 @@ export function emptyContinuationRows(request_counter, vrf_output, rules_hash, w
  * @param {number} reason_tag
  * @returns {Uint8Array}
  */
-export function finishRun(config, state, reason_tag) {
+function finishRun(config, state, reason_tag) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
@@ -125,6 +131,7 @@ export function finishRun(config, state, reason_tag) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
 }
+exports.finishRun = finishRun;
 
 /**
  * @param {Uint8Array} chain_domain
@@ -135,7 +142,7 @@ export function finishRun(config, state, reason_tag) {
  * @param {number} mode_tag
  * @returns {Uint8Array}
  */
-export function initialReplayCommitment(chain_domain, challenge_id, rules_hash, raw_account, run_id, mode_tag) {
+function initialReplayCommitment(chain_domain, challenge_id, rules_hash, raw_account, run_id, mode_tag) {
     const ptr0 = passArray8ToWasm0(chain_domain, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(challenge_id, wasm.__wbindgen_malloc);
@@ -152,12 +159,13 @@ export function initialReplayCommitment(chain_domain, challenge_id, rules_hash, 
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v5;
 }
+exports.initialReplayCommitment = initialReplayCommitment;
 
 /**
  * @param {Uint8Array} config
  * @returns {Uint8Array}
  */
-export function initializeRun(config) {
+function initializeRun(config) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.initializeRun(ptr0, len0);
@@ -168,45 +176,50 @@ export function initializeRun(config) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
 }
+exports.initializeRun = initializeRun;
 
 /**
  * @param {number} qualified_entrants
  * @param {number} rank
  * @returns {number}
  */
-export function ladderPoints(qualified_entrants, rank) {
+function ladderPoints(qualified_entrants, rank) {
     const ret = wasm.ladderPoints(qualified_entrants, rank);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] >>> 0;
 }
+exports.ladderPoints = ladderPoints;
 
 /**
  * @param {bigint} points
  * @returns {number}
  */
-export function ladderTier(points) {
+function ladderTier(points) {
     const ret = wasm.ladderTier(points);
     return ret;
 }
+exports.ladderTier = ladderTier;
 
 /**
  * @returns {number}
  */
-export function ladderTierCount() {
+function ladderTierCount() {
     const ret = wasm.ladderTierCount();
     return ret;
 }
+exports.ladderTierCount = ladderTierCount;
 
 /**
  * @param {number} tier
  * @returns {bigint}
  */
-export function ladderTierFloor(tier) {
+function ladderTierFloor(tier) {
     const ret = wasm.ladderTierFloor(tier);
     return BigInt.asUintN(64, ret);
 }
+exports.ladderTierFloor = ladderTierFloor;
 
 /**
  * @param {bigint} pool
@@ -215,7 +228,7 @@ export function ladderTierFloor(tier) {
  * @param {bigint} whole_unit
  * @returns {bigint}
  */
-export function payoutForRank(pool, denominator, rank, whole_unit) {
+function payoutForRank(pool, denominator, rank, whole_unit) {
     const ptr0 = passArray8ToWasm0(denominator, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.payoutForRank(pool, ptr0, len0, rank, whole_unit);
@@ -224,6 +237,7 @@ export function payoutForRank(pool, denominator, rank, whole_unit) {
     }
     return BigInt.asUintN(64, ret[0]);
 }
+exports.payoutForRank = payoutForRank;
 
 /**
  * @param {bigint} pool
@@ -233,7 +247,7 @@ export function payoutForRank(pool, denominator, rank, whole_unit) {
  * @param {bigint} whole_unit
  * @returns {Uint8Array}
  */
-export function payoutPlan(pool, qualified_winners, capacity, entry_price, whole_unit) {
+function payoutPlan(pool, qualified_winners, capacity, entry_price, whole_unit) {
     const ret = wasm.payoutPlan(pool, qualified_winners, capacity, entry_price, whole_unit);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
@@ -242,6 +256,7 @@ export function payoutPlan(pool, qualified_winners, capacity, entry_price, whole
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v1;
 }
+exports.payoutPlan = payoutPlan;
 
 /**
  * @param {Uint8Array} config
@@ -253,7 +268,7 @@ export function payoutPlan(pool, qualified_winners, capacity, entry_price, whole
  * @param {number} destination
  * @returns {Uint8Array}
  */
-export function playRunMove(config, state, action, expected_move, row, start, destination) {
+function playRunMove(config, state, action, expected_move, row, start, destination) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
@@ -266,13 +281,14 @@ export function playRunMove(config, state, action, expected_move, row, start, de
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
 }
+exports.playRunMove = playRunMove;
 
 /**
  * @param {Uint8Array} chain_domain
  * @param {Uint8Array} raw_account
  * @returns {Uint8Array}
  */
-export function qualifiedPlayerId(chain_domain, raw_account) {
+function qualifiedPlayerId(chain_domain, raw_account) {
     const ptr0 = passArray8ToWasm0(chain_domain, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(raw_account, wasm.__wbindgen_malloc);
@@ -285,6 +301,7 @@ export function qualifiedPlayerId(chain_domain, raw_account) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
 }
+exports.qualifiedPlayerId = qualifiedPlayerId;
 
 /**
  * @param {Uint8Array} config
@@ -292,7 +309,7 @@ export function qualifiedPlayerId(chain_domain, raw_account) {
  * @param {number} action
  * @returns {Uint8Array}
  */
-export function requestRunReroll(config, state, action) {
+function requestRunReroll(config, state, action) {
     const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
@@ -305,12 +322,13 @@ export function requestRunReroll(config, state, action) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
 }
+exports.requestRunReroll = requestRunReroll;
 
 /**
  * @param {Uint8Array} state
  * @returns {number}
  */
-export function runEndReason(state) {
+function runEndReason(state) {
     const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.runEndReason(ptr0, len0);
@@ -319,12 +337,13 @@ export function runEndReason(state) {
     }
     return ret[0];
 }
+exports.runEndReason = runEndReason;
 
 /**
  * @param {Uint8Array} state
  * @returns {number}
  */
-export function runLatchedStarSources(state) {
+function runLatchedStarSources(state) {
     const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.runLatchedStarSources(ptr0, len0);
@@ -333,12 +352,13 @@ export function runLatchedStarSources(state) {
     }
     return ret[0];
 }
+exports.runLatchedStarSources = runLatchedStarSources;
 
 /**
  * @param {Uint8Array} state
  * @returns {boolean}
  */
-export function runScoreEligible(state) {
+function runScoreEligible(state) {
     const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.runScoreEligible(ptr0, len0);
@@ -347,6 +367,7 @@ export function runScoreEligible(state) {
     }
     return ret[0] !== 0;
 }
+exports.runScoreEligible = runScoreEligible;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -418,109 +439,14 @@ function takeFromExternrefTable0(idx) {
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 cachedTextDecoder.decode();
-const MAX_SAFARI_DECODE_BYTES = 2146435072;
-let numBytesDecoded = 0;
 function decodeText(ptr, len) {
-    numBytesDecoded += len;
-    if (numBytesDecoded >= MAX_SAFARI_DECODE_BYTES) {
-        cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
-        cachedTextDecoder.decode();
-        numBytesDecoded = len;
-    }
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
 let WASM_VECTOR_LEN = 0;
 
-let wasmModule, wasm;
-function __wbg_finalize_init(instance, module) {
-    wasm = instance.exports;
-    wasmModule = module;
-    cachedUint16ArrayMemory0 = null;
-    cachedUint8ArrayMemory0 = null;
-    wasm.__wbindgen_start();
-    return wasm;
-}
-
-async function __wbg_load(module, imports) {
-    if (typeof Response === 'function' && module instanceof Response) {
-        if (typeof WebAssembly.instantiateStreaming === 'function') {
-            try {
-                return await WebAssembly.instantiateStreaming(module, imports);
-            } catch (e) {
-                const validResponse = module.ok && expectedResponseType(module.type);
-
-                if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
-                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
-
-                } else { throw e; }
-            }
-        }
-
-        const bytes = await module.arrayBuffer();
-        return await WebAssembly.instantiate(bytes, imports);
-    } else {
-        const instance = await WebAssembly.instantiate(module, imports);
-
-        if (instance instanceof WebAssembly.Instance) {
-            return { instance, module };
-        } else {
-            return instance;
-        }
-    }
-
-    function expectedResponseType(type) {
-        switch (type) {
-            case 'basic': case 'cors': case 'default': return true;
-        }
-        return false;
-    }
-}
-
-function initSync(module) {
-    if (wasm !== undefined) return wasm;
-
-
-    if (module !== undefined) {
-        if (Object.getPrototypeOf(module) === Object.prototype) {
-            ({module} = module)
-        } else {
-            console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
-        }
-    }
-
-    const imports = __wbg_get_imports();
-    if (!(module instanceof WebAssembly.Module)) {
-        module = new WebAssembly.Module(module);
-    }
-    const instance = new WebAssembly.Instance(module, imports);
-    return __wbg_finalize_init(instance, module);
-}
-
-async function __wbg_init(module_or_path) {
-    if (wasm !== undefined) return wasm;
-
-
-    if (module_or_path !== undefined) {
-        if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
-            ({module_or_path} = module_or_path)
-        } else {
-            console.warn('using deprecated parameters for the initialization function; pass a single object instead')
-        }
-    }
-
-    if (module_or_path === undefined) {
-        module_or_path = new URL('zkube_core_bg.wasm', import.meta.url);
-    }
-    const imports = __wbg_get_imports();
-
-    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
-        module_or_path = fetch(module_or_path);
-    }
-
-    const { instance, module } = await __wbg_load(await module_or_path, imports);
-
-    return __wbg_finalize_init(instance, module);
-}
-
-export { initSync, __wbg_init as default };
+const wasmPath = `${__dirname}/zkube_core_bg.wasm`;
+const wasmBytes = require('fs').readFileSync(wasmPath);
+const wasmModule = new WebAssembly.Module(wasmBytes);
+let wasm = new WebAssembly.Instance(wasmModule, __wbg_get_imports()).exports;
+wasm.__wbindgen_start();

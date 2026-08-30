@@ -1008,25 +1008,7 @@ pub fn immutable_board_header(board: &ArenaBoard) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DailyBoardPools {
-    pub score: u64,
-    pub theme: u64,
-}
-
-pub fn daily_board_pools(pool: u64, theme_qualified: u32) -> DailyBoardPools {
-    if theme_qualified == 0 {
-        return DailyBoardPools {
-            score: pool,
-            theme: 0,
-        };
-    }
-    let theme = pool / 2;
-    DailyBoardPools {
-        score: pool - theme,
-        theme,
-    }
-}
+pub use zkube_core::{daily_board_pools, DailyBoardPools};
 
 pub fn compare_arena_entries(
     board: DailyBoardKind,
