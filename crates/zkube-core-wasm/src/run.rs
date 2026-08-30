@@ -1,4 +1,4 @@
-use crate::BoundaryError;
+use crate::{BoundaryError, array_32};
 use zkube_core::{
     BONUS_CHARGE_CAP, Bonus, CANONICAL_RUN_RULES_LEN, Constraint, ConstraintKind, DailyTheme, Grid,
     Guardian, ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunEngine, RunPhase,
@@ -11,6 +11,211 @@ pub const RUN_CONFIG_LEN: usize = 88;
 pub const RUN_STATE_LEN: usize = 231;
 const CONFIG_VERSION: u8 = 1;
 const STATE_VERSION: u8 = 1;
+
+/// Build the one versioned config token from fields published in an
+/// `ActiveRun`. Mode selects the only two valid shapes: fixed-tier Campaign
+/// rules carry stars, while pressure-tier Daily rules carry an optional theme.
+///
+/// # Errors
+///
+/// Rejects malformed hashes, tags, or a rules combination the core would not
+/// accept for a run.
+#[allow(clippy::too_many_arguments)]
+pub fn build_run_config(
+    rules_hash: &[u8],
+    initial_replay: &[u8],
+    max_moves: u16,
+    bonus: u8,
+    trigger: u8,
+    trigger_threshold: u16,
+    starting_height: u8,
+    tier_policy: u8,
+    fixed_tier: u8,
+    points_required: u32,
+    primary_kind: u8,
+    primary_value: u8,
+    primary_count: u8,
+    secondary_kind: u8,
+    secondary_value: u8,
+    secondary_count: u8,
+    objective_kind: u8,
+    objective_value: u8,
+) -> Result<Vec<u8>, BoundaryError> {
+    let guardian = Guardian {
+        bonus: decode_bonus(bonus)?.ok_or(BoundaryError::InvalidEncoding)?,
+        trigger,
+        threshold: trigger_threshold,
+    };
+    let (tier, stars, objective) = match tier_policy {
+        0 => {
+            if objective_kind != 0 || objective_value != 0 {
+                return Err(BoundaryError::InvalidEncoding);
+            }
+            (
+                TierPolicy::Fixed(fixed_tier),
+                Some(StarRules {
+                    points_required,
+                    primary: constraint_from_parts(primary_kind, primary_value, primary_count)?,
+                    secondary: constraint_from_parts(
+                        secondary_kind,
+                        secondary_value,
+                        secondary_count,
+                    )?,
+                }),
+                None,
+            )
+        }
+        1 => {
+            if fixed_tier != 0
+                || points_required != 0
+                || primary_kind != 0
+                || primary_value != 0
+                || primary_count != 0
+                || secondary_kind != 0
+                || secondary_value != 0
+                || secondary_count != 0
+            {
+                return Err(BoundaryError::InvalidEncoding);
+            }
+            let objective = if objective_kind == 0 {
+                if objective_value != 0 {
+                    return Err(BoundaryError::InvalidEncoding);
+                }
+                None
+            } else {
+                Some(DailyTheme {
+                    kind: ConstraintKind::from_tag(objective_kind)
+                        .ok_or(BoundaryError::InvalidEncoding)?,
+                    value: objective_value,
+                })
+            };
+            (TierPolicy::Pressure, None, objective)
+        }
+        _ => return Err(BoundaryError::InvalidEncoding),
+    };
+    let config = RunConfig {
+        rules_hash: RulesHash(array_32(rules_hash)?),
+        rules: RunRules {
+            guardian,
+            starting_height,
+            max_moves,
+            tier,
+            stars,
+            objective,
+        },
+        initial_replay: ReplayCommitment(array_32(initial_replay)?),
+    };
+    if !config.rules.is_valid() {
+        return Err(BoundaryError::InvalidEncoding);
+    }
+    Ok(encode_run_config(config).to_vec())
+}
+
+/// Rebuild the opaque core token from one validated chain snapshot. The
+/// account decoder owns identity and Borsh; this function owns every engine
+/// invariant, phase mapping, counter relationship, and codec byte.
+///
+/// # Errors
+///
+/// Rejects malformed fields or a snapshot that cannot be a state of `config`.
+#[allow(clippy::too_many_arguments)]
+pub fn reconcile_run_state(
+    config: &[u8],
+    phase: u8,
+    end_reason: u8,
+    bonus: u8,
+    bonus_charges: u8,
+    reroll_charges: u8,
+    combo_counter: u8,
+    max_combo: u8,
+    primary_progress: u8,
+    secondary_progress: u8,
+    latched_star_sources: u8,
+    streak: u8,
+    charges_earned: u8,
+    current_tier: u8,
+    level_lines_cleared: u16,
+    moves: u16,
+    action_counter: u32,
+    vrf_request_counter: u32,
+    pending_vrf_counter: u32,
+    score: u32,
+    daily_score: u32,
+    objective_total: u64,
+    pressure_score: u32,
+    grid: &[u8],
+    next_row: &[u8],
+    replay: &[u8],
+) -> Result<Vec<u8>, BoundaryError> {
+    let config_value = decode_run_config(config)?;
+    let bonus = decode_bonus(bonus)?;
+    if bonus != Some(config_value.rules.guardian.bonus) {
+        return Err(BoundaryError::InvalidEncoding);
+    }
+    let grid = Grid::try_from_cells(grid.try_into().map_err(|_| BoundaryError::InvalidLength)?)
+        .map_err(|_| BoundaryError::InvalidEncoding)?;
+    let next_row = if next_row.is_empty() {
+        None
+    } else {
+        let row: [u8; 8] = next_row
+            .try_into()
+            .map_err(|_| BoundaryError::InvalidLength)?;
+        Grid::validate_row(&row).map_err(|_| BoundaryError::InvalidEncoding)?;
+        Some(row)
+    };
+    let last_vrf_counter = if pending_vrf_counter == 0 {
+        vrf_request_counter
+    } else {
+        if pending_vrf_counter != vrf_request_counter {
+            return Err(BoundaryError::InvalidEncoding);
+        }
+        vrf_request_counter
+            .checked_sub(1)
+            .ok_or(BoundaryError::InvalidEncoding)?
+    };
+    let current_tier = match config_value.rules.tier {
+        TierPolicy::Fixed(tier) => {
+            if current_tier != 0 && current_tier != tier {
+                return Err(BoundaryError::InvalidEncoding);
+            }
+            tier
+        }
+        TierPolicy::Pressure => current_tier,
+    };
+    let run = Run {
+        engine: RunEngine {
+            grid,
+            next_row,
+            phase: decode_phase(phase)?,
+            score,
+            moves,
+            combo_counter,
+            max_combo,
+            primary_progress,
+            secondary_progress,
+            latched_star_sources,
+            streak,
+            charges_earned,
+            level_lines_cleared,
+            bonus,
+            bonus_charges,
+            reroll_charges,
+        },
+        action_counter,
+        daily_score,
+        objective_total,
+        pressure_score,
+        current_tier,
+        last_vrf_counter,
+        replay: ReplayCommitment(array_32(replay)?),
+        rules_hash: config_value.rules_hash,
+        rules_snapshot_hash: config_value.rules.snapshot_hash(),
+        end_reason: decode_end_reason(end_reason)?,
+    };
+    let state = encode_run_state(run);
+    decode_for_transition(config, &state)?;
+    Ok(state.to_vec())
+}
 
 #[must_use]
 pub fn encode_run_config(config: RunConfig) -> [u8; RUN_CONFIG_LEN] {
@@ -376,10 +581,18 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<RunRules, BoundaryError> {
 }
 
 fn decode_constraint(reader: &mut Reader<'_>) -> Result<Constraint, BoundaryError> {
+    constraint_from_parts(reader.u8()?, reader.u8()?, reader.u8()?)
+}
+
+fn constraint_from_parts(
+    kind: u8,
+    value: u8,
+    required_count: u8,
+) -> Result<Constraint, BoundaryError> {
     Ok(Constraint {
-        kind: ConstraintKind::from_tag(reader.u8()?).ok_or(BoundaryError::InvalidEncoding)?,
-        value: reader.u8()?,
-        required_count: reader.u8()?,
+        kind: ConstraintKind::from_tag(kind).ok_or(BoundaryError::InvalidEncoding)?,
+        value,
+        required_count,
     })
 }
 

@@ -1,21 +1,4 @@
-/**
- * DEV-ONLY in-run board fixtures for the wallet-bypass harness.
- *
- * The play surface was the one screen the harness could not reach: it needs a
- * delegated run in an ER, which needs a wallet, a session and a paid entry, so
- * every board change had to be judged from memory or from a device. This builds
- * an `ActiveRunView` — the exact shape `useRunController` hands back after
- * reading the delegated account — so `PlayScreen`, `GameHud`, `GameBoard` and
- * the action bar all render through their real paths with no test seams.
- *
- * It is a STILL LIFE, deliberately. The board renders and animates, but a move
- * resolves to the same state it started from, because the only honest way to
- * make it play is to drive `zkube-core`'s shared `Run` boundary; wiring that
- * boundary into the real controller is brief 09's work. Anything cheaper would be the
- * client simulating the game, which is exactly the divergence the chain-grid
- * rule exists to prevent — the harness is for judging the surface, and it must
- * never become a second implementation of the rules.
- */
+/** DEV-only playable board driven by the same core `Run` as connected play. */
 import { PublicKey } from "@solana/web3.js";
 
 import { BonusType } from "@/chain/bonusTypes";
@@ -27,7 +10,20 @@ import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
 } from "@/chain/campaignCatalog";
-import type { ActiveRunRulesView, ActiveRunView } from "@/chain/runPlan";
+import {
+  projectRunFromLocalState,
+  type ActiveRunRulesView,
+  type ActiveRunView,
+} from "@/chain/runPlan";
+import {
+  coreApplyRunBonus,
+  coreApplyRunVrf,
+  coreBuildRunConfig,
+  corePlayRunMove,
+  coreReconcileRunState,
+  coreRequestRunReroll,
+  coreRunSummary,
+} from "@/core/zkubeCore";
 
 export type DevBoardMode = "arena" | "campaign";
 
@@ -81,6 +77,7 @@ function campaignRules(): ActiveRunRulesView {
     activeMutatorId: map.mapRules.activeMutatorId,
     bossId: map.mapRules.bossId,
     guardian: map.mapRules.guardian,
+    startingRows: map.mapRules.startingRows,
   };
 }
 
@@ -100,6 +97,8 @@ const ARENA_RULES: ActiveRunRulesView = {
   activeMutatorId: DEV_BOARD_MAP_ID,
   bossId: 0,
   guardian: { bonus: BonusType.Hammer, trigger: 2, threshold: 4 },
+  startingRows: canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, DEV_BOARD_MAP_ID)
+    .mapRules.startingRows,
 };
 
 /**
@@ -121,7 +120,52 @@ export function buildDevActiveRun(
   // it is only a bug in the fixture.
   const score = isArena ? 18_450 : Math.round(rules.pointsRequired * 0.6);
   const moves = isArena ? 26 : Math.round(rules.maxMoves * 0.45);
-  return {
+  const rulesHash = new Uint8Array(32).fill(0x33);
+  const replayHash = new Uint8Array(32).fill(0x42);
+  const config = coreBuildRunConfig({
+    mode: isArena ? "daily" : "campaign",
+    rulesHash,
+    initialReplay: replayHash,
+    maxMoves: rules.maxMoves,
+    bonusType: rules.guardian.bonus,
+    trigger: rules.guardian.trigger,
+    triggerThreshold: rules.guardian.threshold,
+    startingHeight: rules.startingRows,
+    fixedTier: rules.difficulty,
+    pointsRequired: rules.pointsRequired,
+    primary: rules.primary,
+    secondary: rules.secondary,
+    objective: { kind: 4, value: 2, requiredCount: 0 },
+  });
+  const state = coreReconcileRunState(config, {
+    phase: "playing",
+    endReason: 0,
+    bonusType: rules.guardian.bonus,
+    bonusCharges: 2,
+    rerollCharges: 1,
+    comboCounter: 2,
+    maxCombo: 5,
+    primaryProgress: Math.min(3, rules.primary.requiredCount),
+    secondaryProgress: Math.min(1, rules.secondary.requiredCount),
+    latchedStarSources: 0,
+    streak: 0,
+    chargesEarned: 0,
+    currentTier: isArena ? 4 : rules.difficulty,
+    levelLinesCleared: 11,
+    moves,
+    actionCounter: moves + 1,
+    vrfRequestCounter: 12,
+    pendingVrfCounter: 0,
+    score,
+    dailyScore: isArena ? 24_180 : 0,
+    objectiveTotal: isArena ? 480n : 0n,
+    pressureScore: isArena ? 80 : 0,
+    grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),
+    nextRow: NEXT_ROW,
+    replayHash,
+  });
+  const base: ActiveRunView = {
+    runToken: { config, state },
     owner,
     rentPayer: owner,
     runId: 4_242n,
@@ -135,35 +179,110 @@ export function buildDevActiveRun(
     // enough out that the harness never opens on a locked board.
     deadlineAt: isArena ? nowUnix + 4 * 3_600 : 0,
     score,
-    dailyScore: isArena ? 24_180 : 0,
-    objectiveTotal: isArena ? 480n : 0n,
-    pressureScore: isArena ? 1_240 : 0,
-    dailyTheme: { kind: 3, value: 2 },
+    dailyScore: 0,
+    objectiveTotal: 0n,
+    pressureScore: 0,
+    dailyTheme: { kind: 4, value: 2 },
     dailyPressure: CANONICAL_DAILY_PRESSURE,
-    actionCounter: moves + 1,
+    actionCounter: 0,
     moves,
-    comboCounter: 2,
-    maxCombo: 5,
-    primaryProgress: Math.min(3, rules.primary.requiredCount),
-    secondaryProgress: Math.min(1, rules.secondary.requiredCount),
+    comboCounter: 0,
+    maxCombo: 0,
+    primaryProgress: 0,
+    secondaryProgress: 0,
     latchedStarSources: 0,
     streak: 0,
     chargesEarned: 0,
-    levelLinesCleared: 11,
-    totalLinesCleared: 11,
-    bonusUses: 1,
-    currentTier: isArena ? 4 : 0,
-    currentDifficulty: isArena ? 4 : 3,
+    levelLinesCleared: 0,
+    totalLinesCleared: 0,
+    bonusUses: 0,
+    currentTier: 0,
+    currentDifficulty: 0,
     // A run carries exactly one bonus type, and an id outside the enum falls
     // back to "None" — which renders an empty slot that reads as a wiring bug.
     bonusType: rules.guardian.bonus,
-    bonusCharges: 2,
+    bonusCharges: 0,
     rerollCharges: 1,
-    grid: encodeGrid(BOARD_ROWS_BOTTOM_UP),
-    nextRow: [...NEXT_ROW],
+    grid: [],
+    nextRow: null,
     pendingVrfCounter: 0,
-    vrfRequestCounter: 12,
+    vrfRequestCounter: 0,
     pressureThresholds: dailyPressureThresholds(),
     pressureScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
+  return projectRunFromLocalState(base, state);
+}
+
+export function playDevMove(
+  run: ActiveRunView,
+  row: number,
+  start: number,
+  destination: number,
+): ActiveRunView {
+  const token = requireToken(run);
+  return hydrateDevRun(
+    projectRunFromLocalState(
+      run,
+      corePlayRunMove({
+        config: token.config,
+        state: token.state,
+        action: run.actionCounter,
+        expectedMove: run.moves,
+        row,
+        start,
+        destination,
+      }),
+    ),
+  );
+}
+
+export function playDevBonus(
+  run: ActiveRunView,
+  row: number,
+  column: number,
+): ActiveRunView {
+  const token = requireToken(run);
+  return hydrateDevRun(
+    projectRunFromLocalState(
+      run,
+      coreApplyRunBonus({
+        config: token.config,
+        state: token.state,
+        action: run.actionCounter,
+        row,
+        column,
+      }),
+    ),
+  );
+}
+
+export function playDevReroll(run: ActiveRunView): ActiveRunView {
+  const token = requireToken(run);
+  return hydrateDevRun(
+    projectRunFromLocalState(
+      run,
+      coreRequestRunReroll(token.config, token.state, run.actionCounter),
+    ),
+  );
+}
+
+function hydrateDevRun(run: ActiveRunView): ActiveRunView {
+  const token = requireToken(run);
+  const summary = coreRunSummary(token.state);
+  if (summary.phase !== "awaitingVrf") return run;
+  const requestCounter = summary.lastVrfCounter + 1;
+  return projectRunFromLocalState(
+    run,
+    coreApplyRunVrf({
+      config: token.config,
+      state: token.state,
+      requestCounter,
+      vrfOutput: new Uint8Array(32).fill(0x5a),
+    }),
+  );
+}
+
+function requireToken(run: ActiveRunView) {
+  if (!run.runToken) throw new Error("Dev run has no core token");
+  return run.runToken;
 }

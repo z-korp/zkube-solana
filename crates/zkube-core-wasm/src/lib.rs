@@ -3,9 +3,10 @@
 mod run;
 
 pub use run::{
-    RUN_CONFIG_LEN, RUN_STATE_LEN, decode_run_config, decode_run_state, encode_run_config,
-    encode_run_state, initialize_run, run_apply_bonus, run_apply_vrf, run_end_reason, run_finish,
-    run_latched_star_sources, run_play_move, run_request_reroll, run_score_eligible,
+    RUN_CONFIG_LEN, RUN_STATE_LEN, build_run_config, decode_run_config, decode_run_state,
+    encode_run_config, encode_run_state, initialize_run, reconcile_run_state, run_apply_bonus,
+    run_apply_vrf, run_end_reason, run_finish, run_latched_star_sources, run_play_move,
+    run_request_reroll, run_score_eligible,
 };
 
 use zkube_core::{
@@ -359,6 +360,112 @@ mod wasm {
     #[wasm_bindgen(js_name = initializeRun)]
     pub fn js_initialize_run(config: &[u8]) -> Result<Vec<u8>, JsError> {
         initialize_run(config).map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = buildRunConfig)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn js_build_run_config(
+        rules_hash: &[u8],
+        initial_replay: &[u8],
+        max_moves: u16,
+        bonus: u8,
+        trigger: u8,
+        trigger_threshold: u16,
+        starting_height: u8,
+        tier_policy: u8,
+        fixed_tier: u8,
+        points_required: u32,
+        primary_kind: u8,
+        primary_value: u8,
+        primary_count: u8,
+        secondary_kind: u8,
+        secondary_value: u8,
+        secondary_count: u8,
+        objective_kind: u8,
+        objective_value: u8,
+    ) -> Result<Vec<u8>, JsError> {
+        build_run_config(
+            rules_hash,
+            initial_replay,
+            max_moves,
+            bonus,
+            trigger,
+            trigger_threshold,
+            starting_height,
+            tier_policy,
+            fixed_tier,
+            points_required,
+            primary_kind,
+            primary_value,
+            primary_count,
+            secondary_kind,
+            secondary_value,
+            secondary_count,
+            objective_kind,
+            objective_value,
+        )
+        .map_err(js_error)
+    }
+
+    #[wasm_bindgen(js_name = reconcileRunState)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn js_reconcile_run_state(
+        config: &[u8],
+        phase: u8,
+        end_reason: u8,
+        bonus: u8,
+        bonus_charges: u8,
+        reroll_charges: u8,
+        combo_counter: u8,
+        max_combo: u8,
+        primary_progress: u8,
+        secondary_progress: u8,
+        latched_star_sources: u8,
+        streak: u8,
+        charges_earned: u8,
+        current_tier: u8,
+        level_lines_cleared: u16,
+        moves: u16,
+        action_counter: u32,
+        vrf_request_counter: u32,
+        pending_vrf_counter: u32,
+        score: u32,
+        daily_score: u32,
+        objective_total: u64,
+        pressure_score: u32,
+        grid: &[u8],
+        next_row: &[u8],
+        replay: &[u8],
+    ) -> Result<Vec<u8>, JsError> {
+        reconcile_run_state(
+            config,
+            phase,
+            end_reason,
+            bonus,
+            bonus_charges,
+            reroll_charges,
+            combo_counter,
+            max_combo,
+            primary_progress,
+            secondary_progress,
+            latched_star_sources,
+            streak,
+            charges_earned,
+            current_tier,
+            level_lines_cleared,
+            moves,
+            action_counter,
+            vrf_request_counter,
+            pending_vrf_counter,
+            score,
+            daily_score,
+            objective_total,
+            pressure_score,
+            grid,
+            next_row,
+            replay,
+        )
+        .map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = applyRunVrf)]

@@ -5,9 +5,21 @@
 //   level (`levelComplete`) flows through the level-completion path.
 // - `zoneCleared` marks a completed guardian trial (level 10 of a map).
 // - scores are per-run: levelScore === totalScore === score.
-import { toDisplayGrid } from "@/chain/gridProjection";
 import type { ActiveRunView } from "@/chain/runPlan";
 import { isBossLevel } from "@/game/constants";
+
+const ROWS = 10;
+const COLS = 8;
+
+/** Project the core's bottom-up cells into the display's top-down rows. */
+export function toDisplayGrid(cells: readonly number[]): number[][] {
+  const rows = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  for (let index = 0; index < Math.min(cells.length, ROWS * COLS); index += 1) {
+    const row = Math.floor(index / COLS);
+    rows[ROWS - 1 - row]![index % COLS] = cells[index];
+  }
+  return rows;
+}
 
 export class Game {
   public id: bigint;
@@ -94,7 +106,7 @@ export class Game {
   }
 
   public get challengeBonus(): number {
-    return Math.max(0, this.dailyScore - this.engineScore);
+    return Number(this.view.objectiveTotal);
   }
 
   public get pressureScore(): number {

@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { toDisplayGrid } from "@/chain/gridProjection";
+import { toDisplayGrid } from "@/game/model";
 import { canSubmitRunMove } from "@/chain/useRunController";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
-import { buildDevActiveRun } from "./devBoard";
+import { buildDevActiveRun, playDevMove } from "./devBoard";
 import { DEV_PLAYER_PUBLIC_KEY } from "./fixtures";
 
 /**
@@ -16,7 +16,9 @@ describe("dev play board", () => {
   const modes = ["arena", "campaign"] as const;
 
   it.each(modes)("encodes %s rows the chain's own way", (mode) => {
-    const grid = toDisplayGrid(buildDevActiveRun(mode, DEV_PLAYER_PUBLIC_KEY).grid);
+    const grid = toDisplayGrid(
+      buildDevActiveRun(mode, DEV_PLAYER_PUBLIC_KEY).grid,
+    );
     expect(grid).toHaveLength(10);
     for (const row of grid) {
       // A block of width w occupies exactly w cells all holding w, so the
@@ -37,6 +39,30 @@ describe("dev play board", () => {
     // a board nobody can touch, which is the one state not worth reviewing.
     expect(canSubmitRunMove(run)).toBe(true);
     expect(run.nextRow).toHaveLength(8);
+  });
+
+  it.each(modes)("accepts an engine move on the fixed %s board", (mode) => {
+    const run = buildDevActiveRun(mode, DEV_PLAYER_PUBLIC_KEY);
+    let advanced: ReturnType<typeof playDevMove> | null = null;
+
+    for (let row = 0; row < 10 && advanced === null; row += 1) {
+      for (let start = 0; start < 8 && advanced === null; start += 1) {
+        for (let destination = 0; destination < 8; destination += 1) {
+          try {
+            advanced = playDevMove(run, row, start, destination);
+            break;
+          } catch {
+            // The engine rejects placements that do not name a complete block
+            // or do not fit. At least one placement on this fixed board must.
+          }
+        }
+      }
+    }
+
+    expect(advanced).not.toBeNull();
+    expect(advanced?.moves).toBe(run.moves + 1);
+    expect(advanced?.actionCounter).toBe(run.actionCounter + 1);
+    expect(advanced?.runToken).not.toEqual(run.runToken);
   });
 
   it("keeps a campaign run inside its own authored level", () => {

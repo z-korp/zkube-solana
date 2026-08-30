@@ -11,6 +11,9 @@ import {
 } from "vitest";
 
 import PlayScreen from "./PlayScreen";
+import { buildDevActiveRun } from "@/dev/devBoard";
+import { DEV_PLAYER_PUBLIC_KEY } from "@/dev/fixtures";
+import { Game } from "@/game/model";
 
 const fixtures = vi.hoisted(() => ({
   lifecycle: "playing",
@@ -44,6 +47,9 @@ const fixtures = vi.hoisted(() => ({
   setThemeTemplate: vi.fn(),
   actionBarProps: null as Record<string, unknown> | null,
   gameBoardProps: null as Record<string, unknown> | null,
+  hudProps: null as Record<string, unknown> | null,
+  activeRunOverride: null as Record<string, unknown> | null,
+  gameOverride: null as Record<string, unknown> | null,
   onActionReceipt: null as
     | null
     | ((receipt: {
@@ -60,7 +66,7 @@ vi.mock("@/play/usePlayController", () => ({
     onActionReceipt?: typeof fixtures.onActionReceipt;
   }) => {
     fixtures.onActionReceipt = options?.onActionReceipt ?? null;
-    const activeRun = {
+    const activeRun = fixtures.activeRunOverride ?? {
       runId: 7n,
       mapId: 1,
       level: 1,
@@ -90,7 +96,7 @@ vi.mock("@/play/usePlayController", () => ({
         recoverSession: fixtures.recoverSession,
       },
       game: fixtures.gameAvailable
-        ? {
+        ? (fixtures.gameOverride ?? {
             id: 7n,
             blocks: [[1]],
             nextRow: [1],
@@ -105,7 +111,7 @@ vi.mock("@/play/usePlayController", () => ({
             currentDifficulty: 1,
             zoneId: 1,
             countCellsOfSize: (size: number) => (size === 2 ? 6 : 0),
-          }
+          })
         : null,
       gameLevel: fixtures.gameAvailable
         ? { maxMoves: 16, pointsRequired: 10 }
@@ -164,7 +170,12 @@ vi.mock("@/ui/components/GameBoard", () => ({
     return <div data-testid="game-board" />;
   },
 }));
-vi.mock("@/ui/components/hud/BoardHud", () => ({ default: () => null }));
+vi.mock("@/ui/components/hud/BoardHud", () => ({
+  default: (props: Record<string, unknown>) => {
+    fixtures.hudProps = props;
+    return <div data-testid="board-hud" />;
+  },
+}));
 vi.mock("@/ui/components/hud/BoardRail", () => ({
   default: (props: Record<string, unknown>) => {
     fixtures.actionBarProps = props;
@@ -183,6 +194,45 @@ beforeAll(() => {
 
 beforeEach(() => {
   fixtures.bonusType = 1;
+  fixtures.activeRunOverride = null;
+  fixtures.gameOverride = null;
+  fixtures.hudProps = null;
+});
+
+describe("PlayScreen local Run projection", () => {
+  it("hud_renders_from_the_local_run_token", () => {
+    fixtures.lifecycle = "playing";
+    fixtures.phase = "delegated";
+    fixtures.gameAvailable = true;
+    fixtures.sessionAuthorized = true;
+    const activeRun = buildDevActiveRun("arena", DEV_PLAYER_PUBLIC_KEY);
+    fixtures.activeRunOverride = activeRun;
+    fixtures.gameOverride = new Game(activeRun) as unknown as Record<
+      string,
+      unknown
+    >;
+
+    render(<PlayScreen />);
+
+    expect(activeRun.runToken).toBeDefined();
+    expect(fixtures.hudProps).toMatchObject({
+      score: activeRun.dailyScore,
+      themeScore: Number(activeRun.objectiveTotal),
+      combo: activeRun.comboCounter,
+      pressureScore: activeRun.pressureScore,
+      currentDifficulty: activeRun.currentTier,
+      constraintProgress: activeRun.primaryProgress,
+      constraint2Progress: activeRun.secondaryProgress,
+      latchedStarSources: activeRun.latchedStarSources,
+    });
+    const slots = fixtures.actionBarProps?.bonusSlots as Array<{
+      charges: number;
+    }>;
+    expect(slots.map(({ charges }) => charges)).toEqual([
+      activeRun.bonusCharges,
+      activeRun.rerollCharges,
+    ]);
+  });
 });
 
 afterAll(() => {

@@ -9,7 +9,7 @@ import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
 import type { ActiveRunView } from "@/chain/runPlan";
 import type { RunResultView } from "@/chain/resumeRun";
 import type { SettleStage } from "@/chain/useRunController";
-import { toDisplayGrid } from "@/chain/gridProjection";
+import { toDisplayGrid } from "@/game/model";
 import {
   useNavigationStore,
   type PendingLevelCompletion,

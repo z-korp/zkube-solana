@@ -177,14 +177,17 @@ export function launchPlannerInputFromEnv(
  */
 export async function buildZkubeLaunchPlan(
   input: LaunchPlannerInput,
-  connection: Connection = new Connection(input.baseRpc, "confirmed"),
+  connection: Connection,
+  dailyPairIndex: (dayId: number) => number,
 ): Promise<ZkubeLaunchPlan> {
   const genesisHash = await connection.getGenesisHash();
   if (genesisHash !== input.expectedGenesisHash) {
     throw new Error(`Devnet genesis mismatch: received ${genesisHash}`);
   }
   if (input.replayDomainHex !== canonicalDevnetReplayDomainHex()) {
-    throw new Error("launch replay domain is not canonical for this Devnet program");
+    throw new Error(
+      "launch replay domain is not canonical for this Devnet program",
+    );
   }
   const deployer = new PublicKey(input.deployer);
   const authority = new PublicKey(input.authority);
@@ -220,11 +223,12 @@ export async function buildZkubeLaunchPlan(
     teamDestination,
     "confirmed",
   );
-  if (teamInfo && (
-    teamInfo.executable ||
-    !teamInfo.owner.equals(SystemProgram.programId) ||
-    teamInfo.data.length !== 0
-  )) {
+  if (
+    teamInfo &&
+    (teamInfo.executable ||
+      !teamInfo.owner.equals(SystemProgram.programId) ||
+      teamInfo.data.length !== 0)
+  ) {
     throw new Error(
       "existing team destination must be System-owned and zero-data",
     );
@@ -297,6 +301,7 @@ export async function buildZkubeLaunchPlan(
       authority: wallet,
       dayId: input.launchDayId,
       contentVersion: CAMPAIGN_CONTENT_VERSION,
+      dailyPairIndex,
     })),
   );
   plans.push(
@@ -536,18 +541,22 @@ function buildFundingPlan(args: {
 }): TransactionPlan | undefined {
   const transaction = new Transaction();
   if (args.authorityFundingLamports > 0) {
-    transaction.add(SystemProgram.transfer({
-      fromPubkey: args.deployer,
-      toPubkey: args.authority,
-      lamports: args.authorityFundingLamports,
-    }));
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: args.deployer,
+        toPubkey: args.authority,
+        lamports: args.authorityFundingLamports,
+      }),
+    );
   }
   if (args.teamFundingLamports > 0) {
-    transaction.add(SystemProgram.transfer({
-      fromPubkey: args.deployer,
-      toPubkey: args.teamDestination,
-      lamports: args.teamFundingLamports,
-    }));
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: args.deployer,
+        toPubkey: args.teamDestination,
+        lamports: args.teamFundingLamports,
+      }),
+    );
   }
   if (transaction.instructions.length === 0) return undefined;
   return {

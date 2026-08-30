@@ -63,6 +63,7 @@ const DEV_RUN_RULES: ActiveRunRulesView = {
   activeMutatorId: 0,
   bossId: 0,
   guardian: { bonus: 0, trigger: 0, threshold: 0 },
+  startingRows: 4,
 };
 
 const NAMES = [
@@ -138,7 +139,8 @@ export function buildDevDailyView(): DailyView {
     player,
     leaderboard,
     themeLeaderboard: [...leaderboard].sort((left, right) =>
-      Number(right.objectiveTotal - left.objectiveTotal)),
+      Number(right.objectiveTotal - left.objectiveTotal),
+    ),
     scoreQualifiedPlayers: leaderboard.length,
     themeQualifiedPlayers: leaderboard.length,
     rules: DEV_RUN_RULES,

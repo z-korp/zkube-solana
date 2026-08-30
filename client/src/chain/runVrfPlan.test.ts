@@ -112,8 +112,12 @@ describe("atomic action + VRF plans", () => {
       value.replace(/_([a-z])/g, (_match, letter: string) =>
         letter.toUpperCase(),
       );
-    expect(activeRunType.type.fields.map(({ name }) => camelCase(name)).sort())
-      .toEqual(Object.keys(ACTIVE_RUN_FIELD_PROJECTIONS).sort());
+    expect(
+      activeRunType.type.fields.map(({ name }) => camelCase(name)).sort(),
+    ).toEqual(Object.keys(ACTIVE_RUN_FIELD_PROJECTIONS).sort());
+    expect(ACTIVE_RUN_FIELD_PROJECTIONS.grid).toBe("runToken");
+    expect(ACTIVE_RUN_FIELD_PROJECTIONS.score).toBe("runToken");
+    expect(ACTIVE_RUN_FIELD_PROJECTIONS.replayHash).toBe("runToken");
   });
 });
 

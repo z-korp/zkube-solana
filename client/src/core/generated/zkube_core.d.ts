@@ -7,6 +7,8 @@ export function applyRunVrf(config: Uint8Array, state: Uint8Array, request_count
 
 export function boardWidth(pool: bigint, qualified_winners: number, entry_price: bigint, whole_unit: bigint): Uint8Array;
 
+export function buildRunConfig(rules_hash: Uint8Array, initial_replay: Uint8Array, max_moves: number, bonus: number, trigger: number, trigger_threshold: number, starting_height: number, tier_policy: number, fixed_tier: number, points_required: number, primary_kind: number, primary_value: number, primary_count: number, secondary_kind: number, secondary_value: number, secondary_count: number, objective_kind: number, objective_value: number): Uint8Array;
+
 export function dailyBoardPools(pool: bigint, theme_qualified: number): Uint8Array;
 
 export function dailyPairIndex(day_id: number): number;
@@ -35,6 +37,8 @@ export function playRunMove(config: Uint8Array, state: Uint8Array, action: numbe
 
 export function qualifiedPlayerId(chain_domain: Uint8Array, raw_account: Uint8Array): Uint8Array;
 
+export function reconcileRunState(config: Uint8Array, phase: number, end_reason: number, bonus: number, bonus_charges: number, reroll_charges: number, combo_counter: number, max_combo: number, primary_progress: number, secondary_progress: number, latched_star_sources: number, streak: number, charges_earned: number, current_tier: number, level_lines_cleared: number, moves: number, action_counter: number, vrf_request_counter: number, pending_vrf_counter: number, score: number, daily_score: number, objective_total: bigint, pressure_score: number, grid: Uint8Array, next_row: Uint8Array, replay: Uint8Array): Uint8Array;
+
 export function requestRunReroll(config: Uint8Array, state: Uint8Array, action: number): Uint8Array;
 
 export function runEndReason(state: Uint8Array): number;
@@ -55,6 +59,8 @@ export interface InitOutput {
     readonly ladderTierFloor: (a: number) => bigint;
     readonly ladderTierCount: () => number;
     readonly initializeRun: (a: number, b: number) => [number, number, number, number];
+    readonly buildRunConfig: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => [number, number, number, number];
+    readonly reconcileRunState: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: bigint, x: number, y: number, z: number, a1: number, b1: number, c1: number, d1: number) => [number, number, number, number];
     readonly applyRunVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly playRunMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
     readonly applyRunBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];

@@ -189,6 +189,7 @@ export async function fetchCampaignView(args: {
           {
             ...level,
             guardian: catalog.mapRules.guardian,
+            startingRows: catalog.mapRules.startingRows,
           } as RawLevelRuleSnapshot,
           mapId,
           levelIndex + 1,

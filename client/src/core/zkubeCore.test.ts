@@ -8,11 +8,17 @@ import ladder from "../../../fixtures/ladder-points.json";
 import parity from "../../../fixtures/game-parity.json";
 import {
   coreEmptyContinuationRows,
+  coreApplyRunVrf,
+  coreBuildRunConfig,
+  coreFinishRun,
   coreInitialReplayCommitment,
   coreLadderPoints,
   coreInitializeRun,
+  corePlayRunMove,
   corePlayerId,
   coreProtocol,
+  coreReconcileRunState,
+  coreRunSummary,
   decodeHex,
   encodeHex,
   initializeZkubeCoreSync,
@@ -79,6 +85,84 @@ describe("generated zkube-core WASM boundary", () => {
     ).toHaveLength(16);
     expect(() => coreInitializeRun(new Uint8Array(88))).toThrow(
       "invalid run encoding",
+    );
+  });
+
+  it("local_run_and_chain_run_agree_on_golden_replays", () => {
+    const config = coreBuildRunConfig({
+      mode: "daily",
+      rulesHash: decodeHex(golden.rules_hash_hex),
+      initialReplay: decodeHex(golden.initial_replay_hash_hex),
+      maxMoves: golden.rules.max_moves,
+      bonusType: 3,
+      trigger: golden.rules.guardian.trigger,
+      triggerThreshold: golden.rules.guardian.threshold,
+      startingHeight: golden.rules.starting_height,
+      fixedTier: 0,
+      pointsRequired: 0,
+      primary: { kind: 0, value: 0, requiredCount: 0 },
+      secondary: { kind: 0, value: 0, requiredCount: 0 },
+      objective: { kind: 0, value: 0, requiredCount: 0 },
+    });
+    let state = coreInitializeRun(config);
+    state = coreApplyRunVrf({
+      config,
+      state,
+      requestCounter: 1,
+      vrfOutput: decodeHex(golden.events[0].output_hex!),
+    });
+    state = corePlayRunMove({
+      config,
+      state,
+      action: 0,
+      expectedMove: 0,
+      row: 0,
+      start: 3,
+      destination: 0,
+    });
+    state = coreApplyRunVrf({
+      config,
+      state,
+      requestCounter: 2,
+      vrfOutput: decodeHex(golden.events[2].output_hex!),
+    });
+    state = coreFinishRun(config, state, "deadline");
+
+    const local = coreRunSummary(state);
+    const reconciled = coreRunSummary(
+      coreReconcileRunState(config, {
+        phase: "finished",
+        endReason: 4,
+        bonusType: 3,
+        bonusCharges: golden.expected.bonus_charges,
+        rerollCharges: 1,
+        comboCounter: golden.expected.combo_counter,
+        maxCombo: golden.expected.maximum_engine_combo,
+        primaryProgress: golden.expected.primary_progress,
+        secondaryProgress: golden.expected.secondary_progress,
+        latchedStarSources: 0,
+        streak: 0,
+        chargesEarned: 0,
+        currentTier: golden.expected.current_tier,
+        levelLinesCleared: golden.expected.level_lines_cleared,
+        moves: golden.expected.moves,
+        actionCounter: golden.expected.action_counter,
+        vrfRequestCounter: golden.expected.last_vrf_counter,
+        pendingVrfCounter: 0,
+        score: golden.expected.base_score,
+        dailyScore: golden.expected.daily_score,
+        objectiveTotal: BigInt(golden.expected.objective_total),
+        pressureScore: golden.expected.pressure_score,
+        grid: golden.expected.final_grid,
+        nextRow: golden.expected.next_row,
+        replayHash: decodeHex(golden.expected.final_replay_hash_hex),
+      }),
+    );
+
+    expect(reconciled).toEqual(local);
+    expect(local.grid).toEqual(golden.expected.final_grid);
+    expect(encodeHex(Uint8Array.from(local.replayHash))).toBe(
+      golden.expected.final_replay_hash_hex,
     );
   });
 

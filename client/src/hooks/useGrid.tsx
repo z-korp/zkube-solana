@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRun } from "@/contexts/run";
-import { toDisplayGrid } from "@/chain/gridProjection";
+import { toDisplayGrid } from "@/game/model";
 import useDeepMemo from "./useDeepMemo";
 
 export const useGrid = (options: {

@@ -89,15 +89,17 @@ const DEFAULT_BUNDLE_PATH = "/tmp/zkube-v5-launch.json";
 
 export async function runLaunchFromEnv(
   env: Record<string, string | undefined> = process.env,
+  dailyPairIndex: (dayId: number) => number,
 ): Promise<LaunchRunnerResult> {
   const mode = launchMode(env.ZKUBE_LAUNCH_MODE);
-  const bundlePath = env.ZKUBE_LAUNCH_BUNDLE_PATH?.trim() || DEFAULT_BUNDLE_PATH;
+  const bundlePath =
+    env.ZKUBE_LAUNCH_BUNDLE_PATH?.trim() || DEFAULT_BUNDLE_PATH;
   if (mode === "activate") return activateLaunch(env, bundlePath);
   if (mode === "resume") return resumeStaging(env, bundlePath);
 
   const input = launchPlannerInputFromEnv(env);
   const connection = new Connection(input.baseRpc, "confirmed");
-  const plan = await buildZkubeLaunchPlan(input, connection);
+  const plan = await buildZkubeLaunchPlan(input, connection, dailyPairIndex);
   const result: LaunchRunnerResult = {
     mode,
     approvalFingerprint: plan.approvalFingerprint,
@@ -108,7 +110,9 @@ export async function runLaunchFromEnv(
 
   requireApproval(env, plan.approvalFingerprint);
   if (existsSync(bundlePath)) {
-    throw new Error("launch bundle already exists; use resume or choose a fresh path");
+    throw new Error(
+      "launch bundle already exists; use resume or choose a fresh path",
+    );
   }
   const deployer = loadPinnedKeypair(
     required(env, "ZKUBE_DEPLOYER_KEYPAIR"),
@@ -189,15 +193,20 @@ async function resumeStaging(
     "protocol authority",
   );
   const payload = object(bundle.approvalPayload, "launch approval payload");
-  const funding = payload.fundingTransaction === null
-    ? undefined
-    : transactionPlanFromPublic(payload.fundingTransaction, connection);
-  const publicTransactions = array(payload.transactions, "approved transactions");
+  const funding =
+    payload.fundingTransaction === null
+      ? undefined
+      : transactionPlanFromPublic(payload.fundingTransaction, connection);
+  const publicTransactions = array(
+    payload.transactions,
+    "approved transactions",
+  );
   if (publicTransactions.length !== 17) {
     throw new Error("approved launch must contain exactly 17 transactions");
   }
   const plans = publicTransactions.map((value) =>
-    transactionPlanFromPublic(value, connection));
+    transactionPlanFromPublic(value, connection),
+  );
   const signatures: string[] = [];
 
   if (funding) {
@@ -253,9 +262,13 @@ async function activateLaunch(
 ): Promise<LaunchRunnerResult> {
   const bundle = parseBundle(readFileSync(bundlePath, "utf8"));
   requireApproval(env, bundle.approvalFingerprint);
-  if (required(env, "ZKUBE_KEEPER_STAGED_RELEASE_FINGERPRINT") !==
-      bundle.input.keeperReleaseFingerprint) {
-    throw new Error("atomic activation requires the verified staged keeper release");
+  if (
+    required(env, "ZKUBE_KEEPER_STAGED_RELEASE_FINGERPRINT") !==
+    bundle.input.keeperReleaseFingerprint
+  ) {
+    throw new Error(
+      "atomic activation requires the verified staged keeper release",
+    );
   }
   const connection = new Connection(bundle.input.baseRpc, "confirmed");
   await verifyImmutableRelease(connection, bundle);
@@ -270,7 +283,9 @@ async function activateLaunch(
     dayId: bundle.input.launchDayId,
   });
   if (launchTransactionSha256(plan) !== bundle.activationTransactionSha256) {
-    throw new Error("atomic activation instruction bytes drifted after approval");
+    throw new Error(
+      "atomic activation instruction bytes drifted after approval",
+    );
   }
   if (!bundle.progress.activation) {
     await verifyStagedLaunch(connection, bundle);
@@ -306,11 +321,16 @@ async function verifyImmutableRelease(
   if (now === null || now > bundle.input.launchCutoffUnixTimestamp) {
     throw new Error("approved launch cutoff has expired");
   }
-  const deployed = await inspectUpgradeableProgram(connection, ZKUBE_PROGRAM_ID);
-  if (deployed.programDataAddress.toBase58() !== bundle.programDataAddress ||
-      deployed.deployedSbfSha256 !== bundle.input.deployedProgramDataSha256 ||
-      deployed.programCapacityBytes !== bundle.input.programAllocationBytes ||
-      deployed.upgradeAuthority !== bundle.input.programUpgradeAuthority) {
+  const deployed = await inspectUpgradeableProgram(
+    connection,
+    ZKUBE_PROGRAM_ID,
+  );
+  if (
+    deployed.programDataAddress.toBase58() !== bundle.programDataAddress ||
+    deployed.deployedSbfSha256 !== bundle.input.deployedProgramDataSha256 ||
+    deployed.programCapacityBytes !== bundle.input.programAllocationBytes ||
+    deployed.upgradeAuthority !== bundle.input.programUpgradeAuthority
+  ) {
     throw new Error("deployed program drifted after launch approval");
   }
 }
@@ -326,7 +346,9 @@ async function verifyFunding(
     connection.getAccountInfo(team, "confirmed"),
   ]);
   if (authorityBalance < bundle.costs.requiredAuthorityBalanceLamports) {
-    throw new Error("launch authority funding did not reach the approved floor");
+    throw new Error(
+      "launch authority funding did not reach the approved floor",
+    );
   }
   requireSystemWallet(teamInfo, "team destination");
 }
@@ -344,12 +366,16 @@ async function verifyStagedLaunch(
     deriveProtocolConfigPda(),
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
   );
-  if (!key(protocol.authority).equals(authority) ||
-      !key(protocol.teamDestination).equals(new PublicKey(bundle.input.teamDestination)) ||
-      bytesHex(protocol.replayDomain) !== bundle.input.replayDomainHex ||
-      integer(protocol.contentVersion) !== 2 ||
-      integer(protocol.campaignMapCount) !== 10 ||
-      protocol.paused !== true) {
+  if (
+    !key(protocol.authority).equals(authority) ||
+    !key(protocol.teamDestination).equals(
+      new PublicKey(bundle.input.teamDestination),
+    ) ||
+    bytesHex(protocol.replayDomain) !== bundle.input.replayDomainHex ||
+    integer(protocol.contentVersion) !== 2 ||
+    integer(protocol.campaignMapCount) !== 10 ||
+    protocol.paused !== true
+  ) {
     throw new Error("paused protocol carrier does not match launch approval");
   }
 
@@ -362,11 +388,17 @@ async function verifyStagedLaunch(
       LAUNCH_ACCOUNT_SPACES.mapCatalog,
     );
     const expected = canonicalCampaignMap(2, mapId);
-    if (integer(map.contentVersion) !== 2 || integer(map.mapId) !== mapId ||
-        integer(map.themeId) !== expected.themeId || map.enabled !== true ||
-        !isDeepStrictEqual(normalize(map.mapRules), expected.mapRules) ||
-        !isDeepStrictEqual(normalize(map.levels), expected.levels)) {
-      throw new Error(`Campaign map ${mapId} does not match the approved release`);
+    if (
+      integer(map.contentVersion) !== 2 ||
+      integer(map.mapId) !== mapId ||
+      integer(map.themeId) !== expected.themeId ||
+      map.enabled !== true ||
+      !isDeepStrictEqual(normalize(map.mapRules), expected.mapRules) ||
+      !isDeepStrictEqual(normalize(map.levels), expected.levels)
+    ) {
+      throw new Error(
+        `Campaign map ${mapId} does not match the approved release`,
+      );
     }
   }
 
@@ -377,10 +409,13 @@ async function verifyStagedLaunch(
     deriveArcadeConfigPda(),
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
   );
-  if (arcade.launchSeeded !== false || integer(arcade.launchDayId) !== 0 ||
-      amount(arcade.entryLamports) !== ARENA_ENTRY_LAMPORTS ||
-      amount(arcade.dailyLamports) !== ENTRY_DAILY_LAMPORTS ||
-      amount(arcade.operatorLamports) !== ENTRY_OPERATOR_LAMPORTS) {
+  if (
+    arcade.launchSeeded !== false ||
+    integer(arcade.launchDayId) !== 0 ||
+    amount(arcade.entryLamports) !== ARENA_ENTRY_LAMPORTS ||
+    amount(arcade.dailyLamports) !== ENTRY_DAILY_LAMPORTS ||
+    amount(arcade.operatorLamports) !== ENTRY_OPERATOR_LAMPORTS
+  ) {
     throw new Error("paused ArcadeConfig does not match the approved economy");
   }
   const vault = await fetchExact(
@@ -390,7 +425,10 @@ async function verifyStagedLaunch(
     deriveOperatorRevenueVaultPda(),
     LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
   );
-  if (amount(vault.grossOperatorShare) !== 0n || amount(vault.withdrawn) !== 0n) {
+  if (
+    amount(vault.grossOperatorShare) !== 0n ||
+    amount(vault.withdrawn) !== 0n
+  ) {
     throw new Error("operator vault is not fresh");
   }
   const creditVault = await fetchExact(
@@ -400,8 +438,10 @@ async function verifyStagedLaunch(
     deriveCreditVaultPda(),
     LAUNCH_ACCOUNT_SPACES.creditVault,
   );
-  if (amount(creditVault.purchasedPrizeLamports) !== 0n ||
-      amount(creditVault.spentPrizeLamports) !== 0n) {
+  if (
+    amount(creditVault.purchasedPrizeLamports) !== 0n ||
+    amount(creditVault.spentPrizeLamports) !== 0n
+  ) {
     throw new Error("credit vault is not fresh");
   }
   await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
@@ -428,8 +468,11 @@ async function verifyActiveLaunch(
     deriveArcadeConfigPda(),
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
   );
-  if (protocol.paused !== false || arcade.launchSeeded !== true ||
-      integer(arcade.launchDayId) !== bundle.input.launchDayId) {
+  if (
+    protocol.paused !== false ||
+    arcade.launchSeeded !== true ||
+    integer(arcade.launchDayId) !== bundle.input.launchDayId
+  ) {
     throw new Error("atomic launch did not activate the approved cadence");
   }
   await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
@@ -452,9 +495,11 @@ async function verifyFreshArcadeArchive(
     deriveArcadeArchivePda(),
     LAUNCH_ACCOUNT_SPACES.arcadeArchive,
   );
-  if (integer(archive.firstDailyId) !== launchDayId ||
-      integer(archive.lastDailyId) !== launchDayId - 1 ||
-      bytesHex(archive.dailyRoot) !== "00".repeat(32)) {
+  if (
+    integer(archive.firstDailyId) !== launchDayId ||
+    integer(archive.lastDailyId) !== launchDayId - 1 ||
+    bytesHex(archive.dailyRoot) !== "00".repeat(32)
+  ) {
     throw new Error("Arcade archive is not the approved fresh checkpoint");
   }
   const funding = await connection.getAccountInfo(
@@ -482,9 +527,12 @@ async function verifyPeriods(
       deriveArenaDailyPda(id),
       LAUNCH_ACCOUNT_SPACES.arenaDaily,
     );
-    verifyPeriod(value, id === dayId && active, id === dayId && active
-      ? BigInt(LAUNCH_DAILY_SEED_LAMPORTS)
-      : 0n, "Daily");
+    verifyPeriod(
+      value,
+      id === dayId && active,
+      id === dayId && active ? BigInt(LAUNCH_DAILY_SEED_LAMPORTS) : 0n,
+      "Daily",
+    );
   }
 }
 
@@ -494,16 +542,20 @@ function verifyPeriod(
   seededLamports: bigint,
   label: string,
 ): void {
-  if (enumName(value.status) !== (active ? "open" : "funding") ||
-      value.predecessorRolloverApplied !== active) {
+  if (
+    enumName(value.status) !== (active ? "open" : "funding") ||
+    value.predecessorRolloverApplied !== active
+  ) {
     throw new Error(`${label} status or predecessor flag is invalid`);
   }
   const ledger = object(value.ledger, `${label} ledger`);
-  if (amount(ledger.seededLamports) !== seededLamports ||
-      amount(ledger.entryLamports) !== 0n ||
-      amount(ledger.rolloverInLamports) !== 0n ||
-      amount(ledger.payoutLamports) !== 0n ||
-      amount(ledger.rolloverOutLamports) !== 0n) {
+  if (
+    amount(ledger.seededLamports) !== seededLamports ||
+    amount(ledger.entryLamports) !== 0n ||
+    amount(ledger.rolloverInLamports) !== 0n ||
+    amount(ledger.payoutLamports) !== 0n ||
+    amount(ledger.rolloverOutLamports) !== 0n
+  ) {
     throw new Error(`${label} launch ledger is invalid`);
   }
 }
@@ -516,8 +568,12 @@ async function fetchExact(
   size: number,
 ): Promise<Record<string, unknown>> {
   const info = await connection.getAccountInfo(address, "confirmed");
-  if (!info || info.executable || !info.owner.equals(ZKUBE_PROGRAM_ID) ||
-      info.data.length !== size) {
+  if (
+    !info ||
+    info.executable ||
+    !info.owner.equals(ZKUBE_PROGRAM_ID) ||
+    info.data.length !== size
+  ) {
     throw new Error(`${name} account owner, size, or PDA is invalid`);
   }
   try {
@@ -541,13 +597,20 @@ async function executeApprovedTransaction(args: {
   if (args.existing) {
     verifyReceipt(args.existing, plan, signer.publicKey);
     if (args.existing.transactionSha256 !== transactionSha256) {
-      throw new Error(`${plan.label} receipt does not match its approved transaction`);
+      throw new Error(
+        `${plan.label} receipt does not match its approved transaction`,
+      );
     }
-    const status = await plan.connection.getSignatureStatus(args.existing.signature, {
-      searchTransactionHistory: true,
-    });
+    const status = await plan.connection.getSignatureStatus(
+      args.existing.signature,
+      {
+        searchTransactionHistory: true,
+      },
+    );
     if (status.value?.err) {
-      throw new Error(`${plan.label} previously failed: ${JSON.stringify(status.value.err)}`);
+      throw new Error(
+        `${plan.label} previously failed: ${JSON.stringify(status.value.err)}`,
+      );
     }
     if (confirmedStatus(status.value?.confirmationStatus)) {
       const confirmed = { ...args.existing, state: "confirmed" as const };
@@ -555,7 +618,9 @@ async function executeApprovedTransaction(args: {
       return confirmed;
     }
     if (args.existing.state === "confirmed") {
-      throw new Error(`${plan.label} confirmed receipt is no longer visible on Devnet`);
+      throw new Error(
+        `${plan.label} confirmed receipt is no longer visible on Devnet`,
+      );
     }
     const stillValid = await plan.connection.isBlockhashValid(
       args.existing.blockhash,
@@ -583,7 +648,9 @@ async function executeApprovedTransaction(args: {
   transaction.sign(signer);
   const simulation = await plan.connection.simulateTransaction(transaction);
   if (simulation.value.err) {
-    throw new Error(`${plan.label} simulation failed: ${JSON.stringify(simulation.value.err)}`);
+    throw new Error(
+      `${plan.label} simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
   }
   const raw = transaction.serialize();
   const signatureBytes = transaction.signature;
@@ -601,10 +668,10 @@ async function executeApprovedTransaction(args: {
     lastValidBlockHeight: latest.lastValidBlockHeight,
   };
   args.onReceipt?.(pending);
-  const relayed = await plan.connection.sendRawTransaction(
-    raw,
-    { maxRetries: 5, skipPreflight: false },
-  );
+  const relayed = await plan.connection.sendRawTransaction(raw, {
+    maxRetries: 5,
+    skipPreflight: false,
+  });
   if (relayed !== signature) {
     throw new Error(`${plan.label} submitted signature drifted`);
   }
@@ -617,20 +684,30 @@ async function confirmReceipt(
   plan: TransactionPlan,
   receipt: LaunchTransactionReceipt,
 ): Promise<LaunchTransactionReceipt> {
-  const confirmation = await plan.connection.confirmTransaction({
-    blockhash: receipt.blockhash,
-    lastValidBlockHeight: receipt.lastValidBlockHeight,
-    signature: receipt.signature,
-  }, "confirmed");
+  const confirmation = await plan.connection.confirmTransaction(
+    {
+      blockhash: receipt.blockhash,
+      lastValidBlockHeight: receipt.lastValidBlockHeight,
+      signature: receipt.signature,
+    },
+    "confirmed",
+  );
   if (confirmation.value.err) {
-    throw new Error(`${plan.label} confirmation failed: ${JSON.stringify(confirmation.value.err)}`);
+    throw new Error(
+      `${plan.label} confirmation failed: ${JSON.stringify(confirmation.value.err)}`,
+    );
   }
   const status = await plan.connection.getSignatureStatus(receipt.signature, {
     searchTransactionHistory: true,
   });
-  if (!status.value || status.value.err ||
-      !confirmedStatus(status.value.confirmationStatus)) {
-    throw new Error(`${plan.label} could not be re-verified after confirmation`);
+  if (
+    !status.value ||
+    status.value.err ||
+    !confirmedStatus(status.value.confirmationStatus)
+  ) {
+    throw new Error(
+      `${plan.label} could not be re-verified after confirmation`,
+    );
   }
   return { ...receipt, state: "confirmed" };
 }
@@ -644,28 +721,40 @@ function verifyReceipt(
   plan: TransactionPlan,
   signer: PublicKey,
 ): void {
-  if (!/^[0-9a-f]{64}$/.test(receipt.transactionSha256) ||
-      !/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(receipt.signature) ||
-      !Number.isSafeInteger(receipt.lastValidBlockHeight) ||
-      receipt.lastValidBlockHeight <= 0 ||
-      (receipt.state !== "pending" && receipt.state !== "confirmed")) {
+  if (
+    !/^[0-9a-f]{64}$/.test(receipt.transactionSha256) ||
+    !/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(receipt.signature) ||
+    !Number.isSafeInteger(receipt.lastValidBlockHeight) ||
+    receipt.lastValidBlockHeight <= 0 ||
+    (receipt.state !== "pending" && receipt.state !== "confirmed")
+  ) {
     throw new Error(`${plan.label} receipt is malformed`);
   }
   const raw = Buffer.from(receipt.rawTransactionBase64, "base64");
   const transaction = Transaction.from(raw);
-  if (!transaction.feePayer?.equals(signer) || !transaction.recentBlockhash ||
-      transaction.recentBlockhash !== receipt.blockhash ||
-      !transaction.signature ||
-      encodeBase58(transaction.signature) !== receipt.signature ||
-      Buffer.from(transaction.signature).toString("base64") !== receipt.signatureBase64 ||
-      !transaction.verifySignatures()) {
+  if (
+    !transaction.feePayer?.equals(signer) ||
+    !transaction.recentBlockhash ||
+    transaction.recentBlockhash !== receipt.blockhash ||
+    !transaction.signature ||
+    encodeBase58(transaction.signature) !== receipt.signature ||
+    Buffer.from(transaction.signature).toString("base64") !==
+      receipt.signatureBase64 ||
+    !transaction.verifySignatures()
+  ) {
     throw new Error(`${plan.label} receipt signature or fee payer is invalid`);
   }
   const expected = new Transaction().add(...plan.transaction.instructions);
   expected.feePayer = signer;
   expected.recentBlockhash = receipt.blockhash;
-  if (!Buffer.from(expected.serializeMessage()).equals(transaction.serializeMessage())) {
-    throw new Error(`${plan.label} receipt instruction bytes drifted from approval`);
+  if (
+    !Buffer.from(expected.serializeMessage()).equals(
+      transaction.serializeMessage(),
+    )
+  ) {
+    throw new Error(
+      `${plan.label} receipt instruction bytes drifted from approval`,
+    );
   }
 }
 
@@ -674,9 +763,12 @@ function transactionPlanFromPublic(
   connection: Connection,
 ): TransactionPlan {
   const publicPlan = object(value, "approved transaction");
-  if (publicPlan.layer !== "solana-base" ||
-      typeof publicPlan.label !== "string" || !publicPlan.label ||
-      typeof publicPlan.feePayer !== "string") {
+  if (
+    publicPlan.layer !== "solana-base" ||
+    typeof publicPlan.label !== "string" ||
+    !publicPlan.label ||
+    typeof publicPlan.feePayer !== "string"
+  ) {
     throw new Error("approved transaction header is malformed");
   }
   const feePayer = new PublicKey(publicPlan.feePayer);
@@ -686,32 +778,39 @@ function transactionPlanFromPublic(
     "approved transaction instructions",
   )) {
     const instruction = object(rawInstruction, "approved instruction");
-    if (typeof instruction.programId !== "string" ||
-        typeof instruction.dataBase64 !== "string") {
+    if (
+      typeof instruction.programId !== "string" ||
+      typeof instruction.dataBase64 !== "string"
+    ) {
       throw new Error("approved instruction is malformed");
     }
     const data = Buffer.from(instruction.dataBase64, "base64");
     if (data.toString("base64") !== instruction.dataBase64) {
       throw new Error("approved instruction data is not canonical base64");
     }
-    transaction.add(new TransactionInstruction({
-      programId: new PublicKey(instruction.programId),
-      keys: array(instruction.accounts, "approved instruction accounts")
-        .map((rawAccount) => {
-          const account = object(rawAccount, "approved instruction account");
-          if (typeof account.publicKey !== "string" ||
+    transaction.add(
+      new TransactionInstruction({
+        programId: new PublicKey(instruction.programId),
+        keys: array(instruction.accounts, "approved instruction accounts").map(
+          (rawAccount) => {
+            const account = object(rawAccount, "approved instruction account");
+            if (
+              typeof account.publicKey !== "string" ||
               typeof account.signer !== "boolean" ||
-              typeof account.writable !== "boolean") {
-            throw new Error("approved instruction account is malformed");
-          }
-          return {
-            pubkey: new PublicKey(account.publicKey),
-            isSigner: account.signer,
-            isWritable: account.writable,
-          };
-        }),
-      data,
-    }));
+              typeof account.writable !== "boolean"
+            ) {
+              throw new Error("approved instruction account is malformed");
+            }
+            return {
+              pubkey: new PublicKey(account.publicKey),
+              isSigner: account.signer,
+              isWritable: account.writable,
+            };
+          },
+        ),
+        data,
+      }),
+    );
   }
   if (transaction.instructions.length === 0) {
     throw new Error("approved transaction has no instructions");
@@ -750,10 +849,17 @@ function encodeBase58(bytes: Uint8Array): string {
   return encoded || "1";
 }
 
-function loadPinnedKeypair(path: string, expected: string, label: string): Keypair {
+function loadPinnedKeypair(
+  path: string,
+  expected: string,
+  label: string,
+): Keypair {
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (!Array.isArray(parsed) || parsed.length !== 64 ||
-      !parsed.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length !== 64 ||
+    !parsed.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  ) {
     throw new Error(`${label} keypair file is malformed`);
   }
   const keypair = Keypair.fromSecretKey(Uint8Array.from(parsed));
@@ -765,40 +871,50 @@ function loadPinnedKeypair(path: string, expected: string, label: string): Keypa
 
 function parseBundle(source: string): LaunchBundle {
   const value: unknown = JSON.parse(source);
-  if (!value || typeof value !== "object" ||
-      (value as { schema?: unknown }).schema !== "zkube-v5-devnet-launch-bundle" ||
-      (value as { schemaVersion?: unknown }).schemaVersion !== 3) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    (value as { schema?: unknown }).schema !==
+      "zkube-v5-devnet-launch-bundle" ||
+    (value as { schemaVersion?: unknown }).schemaVersion !== 3
+  ) {
     throw new Error("launch bundle is malformed or unsupported");
   }
   const bundle = value as LaunchBundle;
   const recomputedApproval = createHash("sha256")
     .update(JSON.stringify(bundle.approvalPayload))
     .digest("hex");
-  if (!/^[0-9a-f]{64}$/.test(bundle.approvalFingerprint) ||
-      !/^[0-9a-f]{64}$/.test(bundle.activationTransactionSha256) ||
-      bundle.approvalFingerprint !== bundle.approvalEvidenceSha256 ||
-      recomputedApproval !== bundle.approvalFingerprint) {
+  if (
+    !/^[0-9a-f]{64}$/.test(bundle.approvalFingerprint) ||
+    !/^[0-9a-f]{64}$/.test(bundle.activationTransactionSha256) ||
+    bundle.approvalFingerprint !== bundle.approvalEvidenceSha256 ||
+    recomputedApproval !== bundle.approvalFingerprint
+  ) {
     throw new Error("launch bundle hashes are malformed");
   }
   const payload = object(bundle.approvalPayload, "launch approval payload");
   const observed = object(payload.observed, "launch approval observation");
   const transactions = array(payload.transactions, "approved transactions");
-  if (!isDeepStrictEqual(payload.input, bundle.input) ||
-      !isDeepStrictEqual(payload.costs, bundle.costs) ||
-      observed.programDataAddress !== bundle.programDataAddress ||
-      transactions.length !== 17 ||
-      createHash("sha256")
-        .update(JSON.stringify(transactions[16]))
-        .digest("hex") !== bundle.activationTransactionSha256) {
+  if (
+    !isDeepStrictEqual(payload.input, bundle.input) ||
+    !isDeepStrictEqual(payload.costs, bundle.costs) ||
+    observed.programDataAddress !== bundle.programDataAddress ||
+    transactions.length !== 17 ||
+    createHash("sha256")
+      .update(JSON.stringify(transactions[16]))
+      .digest("hex") !== bundle.activationTransactionSha256
+  ) {
     throw new Error("launch bundle fields drifted from approved evidence");
   }
   const progress = object(bundle.progress, "launch progress");
-  if (!Array.isArray(progress.staged) ||
-      progress.staged.length > 16 ||
-      (progress.funding !== undefined &&
-        (typeof progress.funding !== "object" || progress.funding === null)) ||
-      (progress.activation !== undefined &&
-        (typeof progress.activation !== "object" || progress.activation === null))) {
+  if (
+    !Array.isArray(progress.staged) ||
+    progress.staged.length > 16 ||
+    (progress.funding !== undefined &&
+      (typeof progress.funding !== "object" || progress.funding === null)) ||
+    (progress.activation !== undefined &&
+      (typeof progress.activation !== "object" || progress.activation === null))
+  ) {
     throw new Error("launch progress is malformed");
   }
   return bundle;
@@ -815,23 +931,41 @@ function requireApproval(
 
 function launchMode(value: string | undefined): LaunchMode {
   const mode = value?.trim() || "plan";
-  if (mode !== "plan" && mode !== "stage" && mode !== "resume" &&
-      mode !== "activate") {
-    throw new Error("ZKUBE_LAUNCH_MODE must be plan, stage, resume, or activate");
+  if (
+    mode !== "plan" &&
+    mode !== "stage" &&
+    mode !== "resume" &&
+    mode !== "activate"
+  ) {
+    throw new Error(
+      "ZKUBE_LAUNCH_MODE must be plan, stage, resume, or activate",
+    );
   }
   return mode;
 }
 
-function required(env: Record<string, string | undefined>, keyName: string): string {
+function required(
+  env: Record<string, string | undefined>,
+  keyName: string,
+): string {
   const value = env[keyName]?.trim();
   if (!value) throw new Error(`${keyName} is required`);
   return value;
 }
 
-function requireSystemWallet(info: AccountInfo<Buffer> | null, label: string): void {
-  if (!info || info.executable || !info.owner.equals(SystemProgram.programId) ||
-      info.data.length !== 0) {
-    throw new Error(`${label} must be an existing System-owned zero-data account`);
+function requireSystemWallet(
+  info: AccountInfo<Buffer> | null,
+  label: string,
+): void {
+  if (
+    !info ||
+    info.executable ||
+    !info.owner.equals(SystemProgram.programId) ||
+    info.data.length !== 0
+  ) {
+    throw new Error(
+      `${label} must be an existing System-owned zero-data account`,
+    );
   }
 }
 
@@ -871,12 +1005,14 @@ function amount(value: unknown): bigint {
 }
 
 function bytesHex(value: unknown): string {
-  const bytes = value instanceof Uint8Array
-    ? value
-    : Array.isArray(value)
-      ? Uint8Array.from(value as number[])
-      : undefined;
-  if (!bytes || bytes.length !== 32) throw new Error("decoded bytes32 is malformed");
+  const bytes =
+    value instanceof Uint8Array
+      ? value
+      : Array.isArray(value)
+        ? Uint8Array.from(value as number[])
+        : undefined;
+  if (!bytes || bytes.length !== 32)
+    throw new Error("decoded bytes32 is malformed");
   return Buffer.from(bytes).toString("hex");
 }
 
@@ -893,8 +1029,10 @@ function normalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalize);
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .map(([name, child]) => [name, normalize(child)]),
+      Object.entries(value as Record<string, unknown>).map(([name, child]) => [
+        name,
+        normalize(child),
+      ]),
     );
   }
   return value;
@@ -905,8 +1043,9 @@ export function formatLaunchRunnerResult(result: LaunchRunnerResult): string {
     `Mode: ${result.mode}`,
     `Approval fingerprint: ${result.approvalFingerprint}`,
     `Bundle: ${result.bundlePath}`,
-    ...result.signatures.map((signature, index) =>
-      `Signature ${index + 1}: ${signature}`),
+    ...result.signatures.map(
+      (signature, index) => `Signature ${index + 1}: ${signature}`,
+    ),
     ...(result.mode === "plan"
       ? ["No transaction was signed or sent."]
       : result.mode === "stage" || result.mode === "resume"

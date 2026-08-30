@@ -66,6 +66,13 @@ import {
 } from "./deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
 import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
+import {
+  coreBuildRunConfig,
+  coreReconcileRunState,
+  coreRunSummary,
+  type CoreRunPhase,
+  type CoreRunToken,
+} from "../core/zkubeCore.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */
@@ -163,6 +170,8 @@ export interface DailyPressureRulesView {
 }
 
 export interface ActiveRunView extends DailyPressureRulesView {
+  /** Opaque deterministic state/config pair that drives every local view. */
+  runToken?: CoreRunToken;
   version?: number;
   owner: PublicKey;
   rentPayer: PublicKey;
@@ -236,6 +245,7 @@ export interface RawLevelRuleSnapshot {
   activeMutatorId?: unknown;
   bossId?: unknown;
   guardian: RawGuardianSnapshot;
+  startingRows: unknown;
 }
 
 export function mapLevelRuleSnapshot(
@@ -276,6 +286,7 @@ export function mapLevelRuleSnapshot(
       trigger: Number(rules.guardian.trigger),
       threshold: Number(rules.guardian.threshold),
     },
+    startingRows: Number(rules.startingRows),
   };
 }
 
@@ -292,6 +303,7 @@ export interface ActiveRunRulesView {
     trigger: number;
     threshold: number;
   };
+  startingRows: number;
 }
 
 export const VRF_QUEUE = new PublicKey(
@@ -348,11 +360,7 @@ export async function buildPrepareCampaignRunPlan(args: {
   }
   const instructions = [
     await program.methods
-      .prepareCampaignRun(
-        new BN(runId.toString()),
-        args.mapId,
-        args.level,
-      )
+      .prepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
       .accountsPartial({
         protocol: protocolAddress,
         playerState: profileAddress,
@@ -918,36 +926,36 @@ export const ACTIVE_RUN_FIELD_PROJECTIONS = {
   mode: "mode",
   lifecycle: "lifecycle",
   finishReason: "finishReason",
-  rulesHash: "rulesHash",
+  rulesHash: "runToken",
   deadlineAt: "deadlineAt",
   mapId: "mapId",
   level: "level",
   rules: "rules",
-  grid: "grid",
-  nextRow: "nextRow",
-  hasNextRow: "nextRow",
-  score: "score",
-  dailyScore: "dailyScore",
-  objectiveTotal: "objectiveTotal",
-  pressureScore: "pressureScore",
+  grid: "runToken",
+  nextRow: "runToken",
+  hasNextRow: "runToken",
+  score: "runToken",
+  dailyScore: "runToken",
+  objectiveTotal: "runToken",
+  pressureScore: "runToken",
   dailyTheme: "dailyTheme",
-  actionCounter: "actionCounter",
-  moves: "moves",
-  comboCounter: "comboCounter",
-  maxCombo: "maxCombo",
-  primaryProgress: "primaryProgress",
-  secondaryProgress: "secondaryProgress",
-  latchedStarSources: "latchedStarSources",
-  streak: "streak",
-  chargesEarned: "chargesEarned",
-  levelLinesCleared: "levelLinesCleared",
-  bonusType: "bonusType",
-  bonusCharges: "bonusCharges",
-  rerollCharges: "rerollCharges",
-  currentTier: "currentTier",
+  actionCounter: "runToken",
+  moves: "runToken",
+  comboCounter: "runToken",
+  maxCombo: "runToken",
+  primaryProgress: "runToken",
+  secondaryProgress: "runToken",
+  latchedStarSources: "runToken",
+  streak: "runToken",
+  chargesEarned: "runToken",
+  levelLinesCleared: "runToken",
+  bonusType: "runToken",
+  bonusCharges: "runToken",
+  rerollCharges: "runToken",
+  currentTier: "runToken",
   vrfRequestCounter: "vrfRequestCounter",
   pendingVrfCounter: "pendingVrfCounter",
-  replayHash: "replayHash",
+  replayHash: "runToken",
   finishedAt: "finishedAt",
   bump: "bump",
 } as const satisfies Record<keyof DecodedActiveRunAccount, keyof ActiveRunView>;
@@ -976,43 +984,57 @@ export function decodeActiveRunAccount(
     "activeRun",
     Buffer.from(data),
   );
-  return mapActiveRunAccount(decoded);
+  return reconcileRunFromChain(decoded);
 }
 
-function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
+/**
+ * Rebuild the deterministic token from the validated account, then project the
+ * HUD view from that token. This is the only chain-to-engine reconciliation
+ * path used by subscriptions, confirmation polling, and recovery.
+ */
+export function reconcileRunFromChain(
+  account: DecodedActiveRunAccount,
+): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
+  const finishReason =
+    account.finishReason === null
+      ? null
+      : (Object.keys(account.finishReason)[0] ?? null);
+  const mode = Object.keys(account.mode)[0] ?? "unknown";
+  if (mode !== "campaign" && mode !== "daily") {
+    throw new Error("ActiveRun mode is invalid");
+  }
   const dailyPressure = CANONICAL_DAILY_PRESSURE;
-  return {
-    version: Number(account.version),
-    owner: account.owner,
-    rentPayer: account.rentPayer,
-    runId: BigInt(account.runId.toString()),
-    mode: Object.keys(account.mode)[0] ?? "unknown",
-    dailyChallenge: account.dailyChallenge,
-    mapId: Number(account.mapId),
-    level: Number(account.level),
-    rules: mapLevelRuleSnapshot(
-      account.rules,
-      Number(account.mapId),
-      Number(account.level),
-    ),
-    lifecycle,
-    finishReason:
-      account.finishReason === null
-        ? null
-        : (Object.keys(account.finishReason)[0] ?? null),
-    deadlineAt: Number(account.deadlineAt),
-    score: Number(account.score),
-    dailyScore: Number(account.dailyScore),
-    objectiveTotal: BigInt(account.objectiveTotal.toString()),
-    pressureScore: Number(account.pressureScore),
-    dailyTheme: {
-      kind: Number(account.dailyTheme.kind),
-      value: Number(account.dailyTheme.value),
-    },
-    dailyPressure,
-    actionCounter: Number(account.actionCounter),
-    moves: Number(account.moves),
+  const mapId = Number(account.mapId);
+  const level = Number(account.level);
+  const rules = mapLevelRuleSnapshot(account.rules, mapId, level);
+  const dailyTheme = {
+    kind: Number(account.dailyTheme.kind),
+    value: Number(account.dailyTheme.value),
+  };
+  const rulesHash = Uint8Array.from(account.rulesHash, Number);
+  const replayHash = Uint8Array.from(account.replayHash, Number);
+  const config = coreBuildRunConfig({
+    mode,
+    rulesHash,
+    initialReplay: replayHash,
+    maxMoves: rules.maxMoves,
+    bonusType: rules.guardian.bonus,
+    trigger: rules.guardian.trigger,
+    triggerThreshold: rules.guardian.threshold,
+    startingHeight: rules.startingRows,
+    fixedTier: rules.difficulty,
+    pointsRequired: rules.pointsRequired,
+    primary: rules.primary,
+    secondary: rules.secondary,
+    objective: { ...dailyTheme, requiredCount: 0 },
+  });
+  const state = coreReconcileRunState(config, {
+    phase: chainCorePhase(lifecycle),
+    endReason: chainEndReason(lifecycle, finishReason),
+    bonusType: Number(account.bonusType),
+    bonusCharges: Number(account.bonusCharges),
+    rerollCharges: Number(account.rerollCharges),
     comboCounter: Number(account.comboCounter),
     maxCombo: Number(account.maxCombo),
     primaryProgress: Number(account.primaryProgress),
@@ -1020,27 +1042,127 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     latchedStarSources: Number(account.latchedStarSources),
     streak: Number(account.streak),
     chargesEarned: Number(account.chargesEarned),
-    levelLinesCleared: Number(account.levelLinesCleared),
-    totalLinesCleared: Number(account.levelLinesCleared),
-    bonusUses: 0,
     currentTier: Number(account.currentTier),
-    currentDifficulty: Number(account.currentTier),
-    // Presentation aliases retained while the HUD terminology migrates from
-    // the old Cairo arcade mode to Daily pressure tiers.
-    pressureThresholds: dailyPressureThresholds(),
-    pressureScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
-    bonusType: Number(account.bonusType),
-    bonusCharges: Number(account.bonusCharges),
-    rerollCharges: account.rerollCharges,
+    levelLinesCleared: Number(account.levelLinesCleared),
+    moves: Number(account.moves),
+    actionCounter: Number(account.actionCounter),
+    vrfRequestCounter: Number(account.vrfRequestCounter),
+    pendingVrfCounter: Number(account.pendingVrfCounter),
+    score: Number(account.score),
+    dailyScore: Number(account.dailyScore),
+    objectiveTotal: BigInt(account.objectiveTotal.toString()),
+    pressureScore: Number(account.pressureScore),
     grid: [...account.grid].map(Number),
     nextRow: account.hasNextRow ? [...account.nextRow].map(Number) : null,
+    replayHash,
+  });
+  const token = { config, state };
+  return {
+    version: Number(account.version),
+    owner: account.owner,
+    rentPayer: account.rentPayer,
+    runId: BigInt(account.runId.toString()),
+    mode,
+    dailyChallenge: account.dailyChallenge,
+    mapId,
+    level,
+    rules,
+    deadlineAt: Number(account.deadlineAt),
+    dailyTheme,
+    dailyPressure,
+    pressureThresholds: dailyPressureThresholds(),
+    pressureScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
+    ...projectCoreRun(token),
+    lifecycle,
+    finishReason,
     pendingVrfCounter: Number(account.pendingVrfCounter),
     vrfRequestCounter: Number(account.vrfRequestCounter),
-    rulesHash: [...account.rulesHash].map(Number),
-    replayHash: [...account.replayHash].map(Number),
     finishedAt: Number(account.finishedAt),
     bump: Number(account.bump),
   };
+}
+
+/** Project an optimistic accepted action without reading account bytes. */
+export function projectRunFromLocalState(
+  view: ActiveRunView,
+  state: Uint8Array,
+): ActiveRunView {
+  if (!view.runToken) {
+    throw new Error("Active run has no local core token");
+  }
+  return {
+    ...view,
+    ...projectCoreRun({ config: view.runToken.config, state }),
+  };
+}
+
+function projectCoreRun(token: CoreRunToken) {
+  const summary = coreRunSummary(token.state);
+  const pendingVrfCounter =
+    summary.phase === "awaitingVrf" ? summary.lastVrfCounter + 1 : 0;
+  return {
+    runToken: token,
+    lifecycle: summary.phase,
+    finishReason:
+      summary.endReason === 3
+        ? "abandon"
+        : summary.endReason === 4
+          ? "deadline"
+          : null,
+    score: summary.score,
+    dailyScore: summary.dailyScore,
+    objectiveTotal: summary.objectiveTotal,
+    pressureScore: summary.pressureScore,
+    actionCounter: summary.actionCounter,
+    moves: summary.moves,
+    comboCounter: summary.comboCounter,
+    maxCombo: summary.maxCombo,
+    primaryProgress: summary.primaryProgress,
+    secondaryProgress: summary.secondaryProgress,
+    latchedStarSources: summary.latchedStarSources,
+    streak: summary.streak,
+    chargesEarned: summary.chargesEarned,
+    levelLinesCleared: summary.levelLinesCleared,
+    totalLinesCleared: summary.levelLinesCleared,
+    bonusUses: 0,
+    currentTier: summary.currentTier,
+    currentDifficulty: summary.currentTier,
+    bonusType: summary.bonusType,
+    bonusCharges: summary.bonusCharges,
+    rerollCharges: summary.rerollCharges,
+    grid: summary.grid,
+    nextRow: summary.nextRow,
+    pendingVrfCounter,
+    vrfRequestCounter: Math.max(summary.lastVrfCounter, pendingVrfCounter),
+    rulesHash: summary.rulesHash,
+    replayHash: summary.replayHash,
+  };
+}
+
+function chainCorePhase(lifecycle: string): CoreRunPhase {
+  if (lifecycle === "playing") return "playing";
+  if (lifecycle === "levelComplete") return "levelComplete";
+  if (lifecycle === "finished") return "finished";
+  if (
+    lifecycle === "prepared" ||
+    lifecycle === "delegated" ||
+    lifecycle === "awaitingVrf"
+  ) {
+    return "awaitingVrf";
+  }
+  throw new Error("ActiveRun lifecycle is invalid");
+}
+
+function chainEndReason(
+  lifecycle: string,
+  finishReason: string | null,
+): number {
+  if (lifecycle === "levelComplete" && finishReason === null) return 1;
+  if (lifecycle !== "finished") return finishReason === null ? 0 : 255;
+  if (finishReason === null) return 2;
+  if (finishReason === "abandon") return 3;
+  if (finishReason === "deadline") return 4;
+  return 255;
 }
 
 export async function compileWalletTransactionPlan(args: {

@@ -3,7 +3,7 @@ import { ChevronUp, Eye } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
-import { toDisplayGrid } from "@/chain/gridProjection";
+import { toDisplayGrid } from "@/game/model";
 import type { SpectateTarget } from "@/chain/spectateRun";
 import { useSpectatedRun } from "@/chain/useSpectatedRun";
 import { useNavigationStore } from "@/stores/navigationStore";

@@ -66,6 +66,42 @@ function boardWidth(pool, qualified_winners, entry_price, whole_unit) {
 exports.boardWidth = boardWidth;
 
 /**
+ * @param {Uint8Array} rules_hash
+ * @param {Uint8Array} initial_replay
+ * @param {number} max_moves
+ * @param {number} bonus
+ * @param {number} trigger
+ * @param {number} trigger_threshold
+ * @param {number} starting_height
+ * @param {number} tier_policy
+ * @param {number} fixed_tier
+ * @param {number} points_required
+ * @param {number} primary_kind
+ * @param {number} primary_value
+ * @param {number} primary_count
+ * @param {number} secondary_kind
+ * @param {number} secondary_value
+ * @param {number} secondary_count
+ * @param {number} objective_kind
+ * @param {number} objective_value
+ * @returns {Uint8Array}
+ */
+function buildRunConfig(rules_hash, initial_replay, max_moves, bonus, trigger, trigger_threshold, starting_height, tier_policy, fixed_tier, points_required, primary_kind, primary_value, primary_count, secondary_kind, secondary_value, secondary_count, objective_kind, objective_value) {
+    const ptr0 = passArray8ToWasm0(rules_hash, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(initial_replay, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.buildRunConfig(ptr0, len0, ptr1, len1, max_moves, bonus, trigger, trigger_threshold, starting_height, tier_policy, fixed_tier, points_required, primary_kind, primary_value, primary_count, secondary_kind, secondary_value, secondary_count, objective_kind, objective_value);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+exports.buildRunConfig = buildRunConfig;
+
+/**
  * @param {bigint} pool
  * @param {number} theme_qualified
  * @returns {Uint8Array}
@@ -302,6 +338,54 @@ function qualifiedPlayerId(chain_domain, raw_account) {
     return v3;
 }
 exports.qualifiedPlayerId = qualifiedPlayerId;
+
+/**
+ * @param {Uint8Array} config
+ * @param {number} phase
+ * @param {number} end_reason
+ * @param {number} bonus
+ * @param {number} bonus_charges
+ * @param {number} reroll_charges
+ * @param {number} combo_counter
+ * @param {number} max_combo
+ * @param {number} primary_progress
+ * @param {number} secondary_progress
+ * @param {number} latched_star_sources
+ * @param {number} streak
+ * @param {number} charges_earned
+ * @param {number} current_tier
+ * @param {number} level_lines_cleared
+ * @param {number} moves
+ * @param {number} action_counter
+ * @param {number} vrf_request_counter
+ * @param {number} pending_vrf_counter
+ * @param {number} score
+ * @param {number} daily_score
+ * @param {bigint} objective_total
+ * @param {number} pressure_score
+ * @param {Uint8Array} grid
+ * @param {Uint8Array} next_row
+ * @param {Uint8Array} replay
+ * @returns {Uint8Array}
+ */
+function reconcileRunState(config, phase, end_reason, bonus, bonus_charges, reroll_charges, combo_counter, max_combo, primary_progress, secondary_progress, latched_star_sources, streak, charges_earned, current_tier, level_lines_cleared, moves, action_counter, vrf_request_counter, pending_vrf_counter, score, daily_score, objective_total, pressure_score, grid, next_row, replay) {
+    const ptr0 = passArray8ToWasm0(config, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(grid, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(next_row, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArray8ToWasm0(replay, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.reconcileRunState(ptr0, len0, phase, end_reason, bonus, bonus_charges, reroll_charges, combo_counter, max_combo, primary_progress, secondary_progress, latched_star_sources, streak, charges_earned, current_tier, level_lines_cleared, moves, action_counter, vrf_request_counter, pending_vrf_counter, score, daily_score, objective_total, pressure_score, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+exports.reconcileRunState = reconcileRunState;
 
 /**
  * @param {Uint8Array} config

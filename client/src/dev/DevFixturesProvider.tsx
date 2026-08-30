@@ -8,13 +8,18 @@
  * `run` field of the Daily controller is passed through from the real
  * RunProvider (no live run exists without a wallet, so it reads as "none").
  */
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ConnectedPlayerContext } from "@/chain/connectedPlayerContext";
 import { CampaignContext, type CampaignController } from "@/contexts/campaign";
 import { DailyContext, type DailyController } from "@/contexts/daily";
 import { RunContext, useRun, type RunController } from "@/contexts/run";
-import { buildDevActiveRun } from "./devBoard";
+import {
+  buildDevActiveRun,
+  playDevBonus,
+  playDevMove,
+  playDevReroll,
+} from "./devBoard";
 import { devBoardModeFromUrl } from "./devBypass";
 import {
   buildDevCampaignView,
@@ -26,18 +31,38 @@ import {
 const NO_REAL_RUN = "Dev bypass does not start real runs";
 
 /**
- * The staged board, when `&board=` asked for one.
- *
- * Every action rejects rather than pretending: the harness renders an
- * authoritative snapshot so the surface can be judged, and a move that appeared
- * to work would be the client simulating the game — the one thing the board is
- * never allowed to do.
+ * The staged board, when `&board=` asks for one, advances through the exact
+ * browser core boundary used by connected runs.
  */
 function useDevRunController(realRun: RunController): RunController {
   const mode = useMemo(() => devBoardModeFromUrl(), []);
+  const [activeRun, setActiveRun] = useState(() =>
+    mode ? buildDevActiveRun(mode, DEV_PLAYER_PUBLIC_KEY) : null,
+  );
+  const activeRunRef = useRef(activeRun);
+  const apply = useCallback(
+    (
+      transition: (
+        run: NonNullable<typeof activeRun>,
+      ) => NonNullable<typeof activeRun>,
+    ) => {
+      const current = activeRunRef.current;
+      if (!current) return Promise.reject(new Error(NO_REAL_RUN));
+      try {
+        const next = transition(current);
+        activeRunRef.current = next;
+        setActiveRun(next);
+        return Promise.resolve(next);
+      } catch (error) {
+        return Promise.reject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    },
+    [],
+  );
   return useMemo(() => {
-    if (!mode) return realRun;
-    const activeRun = buildDevActiveRun(mode, DEV_PLAYER_PUBLIC_KEY);
+    if (!mode || !activeRun) return realRun;
     const reject = async () => {
       throw new Error(NO_REAL_RUN);
     };
@@ -56,14 +81,16 @@ function useDevRunController(realRun: RunController): RunController {
       settleStage: null,
       connected: true,
       publicKey: DEV_PLAYER_PUBLIC_KEY,
-      playMove: reject,
-      applyBonus: reject,
-      requestReroll: reject,
+      playMove: (row, start, destination) =>
+        apply((run) => playDevMove(run, row, start, destination)),
+      applyBonus: (row, column) =>
+        apply((run) => playDevBonus(run, row, column)),
+      requestReroll: () => apply(playDevReroll),
       settleAndAdvance: reject,
       abandonRun: reject,
     };
     return { ...slot, campaign: slot, arcade: slot };
-  }, [mode, realRun]);
+  }, [activeRun, apply, mode, realRun]);
 }
 
 export function DevFixturesProvider({ children }: { children: ReactNode }) {

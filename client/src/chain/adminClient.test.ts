@@ -188,6 +188,7 @@ describe("authority publication client", () => {
       authority,
       dayId: 100,
       contentVersion: 2,
+      dailyPairIndex: (dayId) => dayId % 160,
     });
 
     expect(plans.map(({ label }) => label)).toEqual([
@@ -221,11 +222,13 @@ describe("authority publication client", () => {
   it("routes a chosen amount to the exact selected prize-pool PDA", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const connection = {} as Connection;
-    const cases = [{
-      pool: "daily" as const,
-      cadenceId: 20_657,
-      expected: deriveArenaDailyPda(20_657),
-    }];
+    const cases = [
+      {
+        pool: "daily" as const,
+        cadenceId: 20_657,
+        expected: deriveArenaDailyPda(20_657),
+      },
+    ];
 
     for (const testCase of cases) {
       const plan = await buildDepositArenaDailyPlan({
@@ -239,9 +242,9 @@ describe("authority publication client", () => {
       expect(accounts[1]?.pubkey.equals(deriveArcadeConfigPda())).toBe(true);
       expect(accounts[2]?.pubkey.equals(testCase.expected)).toBe(true);
       expect(accounts[3]?.pubkey.equals(authority.publicKey)).toBe(true);
-      expect(
-        plan.transaction.instructions[0]?.data.readBigUInt64LE(8),
-      ).toBe(1_234_567_890n);
+      expect(plan.transaction.instructions[0]?.data.readBigUInt64LE(8)).toBe(
+        1_234_567_890n,
+      );
       expect(plan.label).toContain("1234567890 lamports");
     }
   });

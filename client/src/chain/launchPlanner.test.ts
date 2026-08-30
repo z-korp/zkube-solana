@@ -47,6 +47,7 @@ describe("read-only paused bootstrap and launch planner", () => {
     const plan = await buildZkubeLaunchPlan(
       input,
       launchConnection({ upgradeAuthority, team, allocationBytes }),
+      (dayId) => dayId % 160,
     );
 
     expect(plan.plans).toHaveLength(17);
@@ -97,6 +98,7 @@ describe("read-only paused bootstrap and launch planner", () => {
           allocationBytes,
           observedUnixTimestamp: input.launchCutoffUnixTimestamp + 1,
         }),
+        (dayId) => dayId % 160,
       ),
     ).rejects.toThrow("approval window has already closed");
   });

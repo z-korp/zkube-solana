@@ -19,12 +19,20 @@ import {
   combinePreparedAndDelegatePlan,
   decodeActiveRunAccount,
   fetchActiveRun,
+  projectRunFromLocalState,
   resolveRunErConnection,
   submitPreparedRunPlan,
   submitVersionedTransactionPlan,
   type ActiveRunView,
   type PreparedRunPlan,
 } from "./runPlan";
+import {
+  coreApplyRunBonus,
+  coreFinishRun,
+  corePlayRunMove,
+  coreRequestRunReroll,
+  type CoreRunToken,
+} from "../core/zkubeCore";
 import {
   prewarmErTransport,
   submitErTransactionPlan,
@@ -950,9 +958,11 @@ export function useRunController(slot: RunSlot) {
         throw new Error("The run is waiting for a playable preview row");
       }
       actionInFlight.current = true;
+      let rollback: ActiveRunView | null = null;
       try {
         return await withBusy(setState, async () => {
           const beforeAction = run.activeRun;
+          rollback = beforeAction;
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
           const observer = await ensureActiveRunObserver(
@@ -966,9 +976,24 @@ export function useRunController(slot: RunSlot) {
           const previousScore = run.activeRun.score;
           const previousLines = run.activeRun.totalLinesCleared;
           const previousComboCounter = run.activeRun.comboCounter;
+          const token = requireLocalRunToken(beforeAction);
+          const optimistic = projectRunFromLocalState(
+            beforeAction,
+            corePlayRunMove({
+              config: token.config,
+              state: token.state,
+              action: beforeAction.actionCounter,
+              expectedMove: beforeAction.moves,
+              row,
+              start,
+              destination,
+            }),
+          );
+          run.activeRun = optimistic;
+          setState((value) => ({ ...value, activeRun: optimistic }));
           plog(telemetryTrace.current, "move:start", "magicblock-er", {
-            move: run.activeRun.moves,
-            action: run.activeRun.actionCounter,
+            move: beforeAction.moves,
+            action: beforeAction.actionCounter,
             row,
             start,
             destination,
@@ -979,8 +1004,8 @@ export function useRunController(slot: RunSlot) {
             sessionToken: device.sessionToken,
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
-            expectedMove: run.activeRun.moves,
-            expectedAction: run.activeRun.actionCounter,
+            expectedMove: beforeAction.moves,
+            expectedAction: beforeAction.actionCounter,
             row,
             start,
             destination,
@@ -1050,6 +1075,10 @@ export function useRunController(slot: RunSlot) {
           return activeRun;
         });
       } catch (error) {
+        if (rollback) {
+          run.activeRun = rollback;
+          setState((value) => ({ ...value, activeRun: rollback }));
+        }
         plogFailure(
           telemetryTrace.current,
           "move:error",
@@ -1423,6 +1452,7 @@ export function useRunController(slot: RunSlot) {
         throw new Error("Another run action is already in progress");
       }
       actionInFlight.current = true;
+      const beforeAbandon = run.activeRun;
       try {
         await withBusy(setState, async () => {
           setStage("abandoning");
@@ -1431,6 +1461,13 @@ export function useRunController(slot: RunSlot) {
             run.marker.addresses.activeRun,
             sessionWallet,
           );
+          const token = requireLocalRunToken(beforeAbandon);
+          const optimistic = projectRunFromLocalState(
+            beforeAbandon,
+            coreFinishRun(token.config, token.state, "abandon"),
+          );
+          run.activeRun = optimistic;
+          setState((value) => ({ ...value, activeRun: optimistic }));
           const abandon = await buildFinishRunPlan({
             owner: run.marker.owner,
             signerWallet: sessionWallet,
@@ -1459,6 +1496,10 @@ export function useRunController(slot: RunSlot) {
           run.activeRun = abandoned.state;
           return submission.signature;
         });
+      } catch (error) {
+        run.activeRun = beforeAbandon;
+        setState((value) => ({ ...value, activeRun: beforeAbandon }));
+        throw error;
       } finally {
         setStage(null);
         actionInFlight.current = false;
@@ -1573,9 +1614,11 @@ export function useRunController(slot: RunSlot) {
       const run = currentRun.current;
       if (!run) throw new Error("No delegated run is attached");
       actionInFlight.current = true;
+      let rollback: ActiveRunView | null = null;
       try {
         return await withBusy(setState, async () => {
           const beforeAction = run.activeRun;
+          rollback = beforeAction;
           const device = player.requireSession();
           const sessionWallet = new SessionWallet(device.signer);
           const observer = await ensureActiveRunObserver(
@@ -1585,13 +1628,26 @@ export function useRunController(slot: RunSlot) {
           );
           const expectedAction = run.activeRun.actionCounter + 1;
           const bonusStartedAt = Date.now();
+          const token = requireLocalRunToken(beforeAction);
+          const optimistic = projectRunFromLocalState(
+            beforeAction,
+            coreApplyRunBonus({
+              config: token.config,
+              state: token.state,
+              action: beforeAction.actionCounter,
+              row,
+              column,
+            }),
+          );
+          run.activeRun = optimistic;
+          setState((value) => ({ ...value, activeRun: optimistic }));
           const plan = await buildApplyBonusPlan({
             owner: run.marker.owner,
             sessionWallet,
             sessionToken: device.sessionToken,
             activeRun: run.marker.addresses.activeRun,
             erConnection: run.connection,
-            expectedAction: run.activeRun.actionCounter,
+            expectedAction: beforeAction.actionCounter,
             row,
             column,
           });
@@ -1633,6 +1689,12 @@ export function useRunController(slot: RunSlot) {
           await logDevPlaytestAction(beforeAction, activeRun, "bonus");
           return activeRun;
         });
+      } catch (error) {
+        if (rollback) {
+          run.activeRun = rollback;
+          setState((value) => ({ ...value, activeRun: rollback }));
+        }
+        throw error;
       } finally {
         actionInFlight.current = false;
       }
@@ -1644,9 +1706,11 @@ export function useRunController(slot: RunSlot) {
     const run = currentRun.current;
     if (!run) throw new Error("No delegated run is attached");
     actionInFlight.current = true;
+    let rollback: ActiveRunView | null = null;
     try {
       return await withBusy(setState, async () => {
         const beforeAction = run.activeRun;
+        rollback = beforeAction;
         const device = player.requireSession();
         const sessionWallet = new SessionWallet(device.signer);
         const observer = await ensureActiveRunObserver(
@@ -1656,13 +1720,24 @@ export function useRunController(slot: RunSlot) {
         );
         const expectedAction = run.activeRun.actionCounter + 1;
         const rerollStartedAt = Date.now();
+        const token = requireLocalRunToken(beforeAction);
+        const optimistic = projectRunFromLocalState(
+          beforeAction,
+          coreRequestRunReroll(
+            token.config,
+            token.state,
+            beforeAction.actionCounter,
+          ),
+        );
+        run.activeRun = optimistic;
+        setState((value) => ({ ...value, activeRun: optimistic }));
         const plan = await buildRequestRerollPlan({
           owner: run.marker.owner,
           sessionWallet,
           sessionToken: device.sessionToken,
           activeRun: run.marker.addresses.activeRun,
           erConnection: run.connection,
-          expectedAction: run.activeRun.actionCounter,
+          expectedAction: beforeAction.actionCounter,
         });
         const submission = await submitErTransactionPlan({
           transactionPlan: plan,
@@ -1701,6 +1776,12 @@ export function useRunController(slot: RunSlot) {
         await logDevPlaytestAction(beforeAction, activeRun, "reroll");
         return activeRun;
       });
+    } catch (error) {
+      if (rollback) {
+        run.activeRun = rollback;
+        setState((value) => ({ ...value, activeRun: rollback }));
+      }
+      throw error;
     } finally {
       actionInFlight.current = false;
     }
@@ -1930,6 +2011,13 @@ function settlementDescriptor(
     mode: marker.mode,
     dailyChallenge,
   };
+}
+
+function requireLocalRunToken(activeRun: ActiveRunView): CoreRunToken {
+  if (!activeRun.runToken) {
+    throw new Error("Run recovery did not produce a local core token");
+  }
+  return activeRun.runToken;
 }
 
 async function withBusy<T>(

@@ -2,6 +2,7 @@ import {
   formatLaunchRunnerResult,
   runLaunchFromEnv,
 } from "../../src/chain/launchRunner";
+import { dailyPairIndex } from "./core";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
     );
     return;
   }
-  const result = await runLaunchFromEnv();
+  const result = await runLaunchFromEnv(process.env, dailyPairIndex);
   process.stdout.write(`${formatLaunchRunnerResult(result)}\n`);
 }
 
