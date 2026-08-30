@@ -44,7 +44,6 @@ import {
   cadenceFundingPda,
   mapCatalogPda,
   nextScheduledDaily,
-  playerFundingPda,
   playerStatePda,
   protocolPda,
   type KeeperOperation,
@@ -84,7 +83,7 @@ const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "1a9a3629ecfadd1dc73aa88d2cf9fdde90a91332334ee660d06091c6c2d99125";
+  "0f41486ee9d4803b0fa4c6a784d36e38564740877fbb5b06e771017fc640e742";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -777,7 +776,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             activeRun: activeRunPda(player, requiredRunId(runId)),
             playerState: playerStatePda(player),
             owner: player,
-            rentRecipient: playerFundingPda(player),
+            rentRecipient: requireRentRecipient(context.rentRecipient),
           },
         };
       }
@@ -793,7 +792,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             arenaDaily: daily,
             arenaPlayer: arenaPlayerPda(daily, player),
             activeRun: activeRunPda(player, requiredRunId(runId)),
-            rentRecipient: playerFundingPda(player),
+            rentRecipient: requireRentRecipient(context.rentRecipient),
           },
         };
       }
@@ -821,7 +820,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             ...base,
             activeRun: activeRunPda(player, requiredRunId(runId)),
             playerState: playerStatePda(player),
-            rentRecipient: playerFundingPda(player),
+            rentRecipient: requireRentRecipient(context.rentRecipient),
           },
         };
       }
@@ -929,7 +928,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       case "close_arena_player": {
         const player = requiredOwner(owner);
         const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
-        requireRentRecipient(context.rentRecipient, player);
+        const rentRecipient = requireRentRecipient(context.rentRecipient);
         return {
           name: "closeArenaPlayer",
           args: {},
@@ -937,7 +936,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             caller: keeper,
             arenaDaily: daily,
             arenaPlayer: arenaPlayerPda(daily, player),
-            rentRecipient: playerFundingPda(player),
+            rentRecipient,
           },
         };
       }
@@ -1276,7 +1275,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       theme: BoardSourceSnapshot[];
     }>;
   }> {
-    const candidates: Array<{ dayId: number; owner: PublicKey }> = [];
+    const candidates: Array<{ dayId: number; owner: PublicKey; rentRecipient: PublicKey }> = [];
     const arenaCadenceBlockers = new Set<number>();
     const boardSources = new Map<number, {
       score: BoardSourceSnapshot[];
@@ -1299,6 +1298,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (const player of discovered) {
       const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
       const owner = publicKey(player.value.player, "ArenaPlayer owner");
+      const rentRecipient = publicKey(
+        player.value.rentPayer,
+        "ArenaPlayer rent payer",
+      );
       const dayId = dayByAddress.get(challenge.toBase58());
       if (dayId === undefined ||
           !player.address.equals(arenaPlayerPda(challenge, owner))) {
@@ -1333,18 +1336,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         "ArenaPlayer resolved entries",
       );
       const resolved = resolvedEntries === paidEntries;
-      if (activePaidRunId === 0n && resolved) candidates.push({ dayId, owner });
+      if (activePaidRunId === 0n && resolved) {
+        candidates.push({ dayId, owner, rentRecipient });
+      }
     }
-
-    const fundingInfos = await this.getMultiple(
-      candidates.map(({ owner }) => playerFundingPda(owner)),
-    );
-    const arenaPlayers = candidates.flatMap(({ dayId, owner }, index) => {
-      const info = fundingInfos[index];
-      const valid = !info || (!info.executable &&
-        info.owner.equals(SystemProgram.programId) && info.data.length === 0);
-      return valid ? [{ dayId, owner, rentRecipient: playerFundingPda(owner) }] : [];
-    });
+    const arenaPlayers = candidates;
     for (const sources of boardSources.values()) {
       sources.score.sort((left, right) => compareBoardSources("score", left, right));
       sources.theme.sort((left, right) => compareBoardSources("theme", left, right));
@@ -1538,6 +1534,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       address,
     );
     const owner = publicKey(loaded.value.owner, "ActiveRun owner");
+    const rentPayer = publicKey(loaded.value.rentPayer, "ActiveRun rent payer");
     const decodedRunId = bigint(loaded.value.runId, "ActiveRun run id");
     if (!owner.equals(player.owner) || decodedRunId !== runId) {
       throw new Error("ActiveRun identity is invalid");
@@ -1556,6 +1553,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       }
       return {
         owner,
+        rentPayer,
         runId,
         mode,
         arenaPlayerExists: false,
@@ -1575,6 +1573,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     }
     return {
       owner,
+      rentPayer,
       runId,
       mode,
       challengeDayId: cadence.challengeDayId,
@@ -2238,10 +2237,11 @@ function requiredOwner(value: PublicKey | undefined): PublicKey {
   return value;
 }
 
-function requireRentRecipient(value: PublicKey | undefined, owner: PublicKey): void {
-  if (!value || !value.equals(playerFundingPda(owner))) {
-    throw new Error("IDL materializer rejects noncanonical player funding recipient");
+function requireRentRecipient(value: PublicKey | undefined): PublicKey {
+  if (!value || value.equals(PublicKey.default)) {
+    throw new Error("IDL materializer requires the persisted rent recipient");
   }
+  return value;
 }
 
 function requiredRunId(value: bigint | undefined): bigint {

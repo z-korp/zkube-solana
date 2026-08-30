@@ -116,7 +116,6 @@ vi.mock("./pdas", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./pdas")>();
   return {
     ...actual,
-    derivePlayerFundingPda: () => PublicKey.default,
     deriveProtocolConfigPda: () => PublicKey.default,
   };
 });
@@ -579,7 +578,7 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
       await expect(connect).rejects.toThrow();
     });
 
-    expect(mocks.connection.getAccountInfo).toHaveBeenCalled();
+    expect(result.current.publicKey?.equals(owner)).toBe(true);
   });
 });
 

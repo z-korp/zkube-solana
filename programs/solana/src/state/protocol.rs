@@ -12,7 +12,6 @@ pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
 pub const MAP_CATALOG_SEED: &[u8] = b"map";
 pub const ACTIVE_RUN_SEED: &[u8] = b"run";
-pub const PLAYER_FUNDING_SEED: &[u8] = b"player_funding";
 
 pub const ACCOUNT_VERSION: u8 = zkube_core::PROTOCOL_ACCOUNT_VERSION;
 /// Fresh-bootstrap PlayerState schema with independent Campaign and Arcade
@@ -30,7 +29,6 @@ pub const EMBLEM_REALM_CONQUEROR: u8 = 11;
 pub const EMBLEM_WORLD_PERFECT: u8 = 12;
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 pub const INITIAL_RUN_ID: u64 = 1;
-pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = zkube_core::PLAYER_FUNDING_TARGET_LAMPORTS;
 pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = zkube_core::LADDER_TIER_POINT_THRESHOLDS;
 
 #[account]
@@ -515,6 +513,8 @@ pub struct ConstraintSnapshot {
 pub struct ActiveRun {
     pub version: u8,
     pub owner: Pubkey,
+    /// Original signer that funded this account and receives its rent back.
+    pub rent_payer: Pubkey,
     pub daily_challenge: Pubkey,
     pub run_id: u64,
     pub mode: RunMode,
@@ -572,6 +572,7 @@ impl Default for ActiveRun {
         Self {
             version: 0,
             owner: Pubkey::default(),
+            rent_payer: Pubkey::default(),
             daily_challenge: Pubkey::default(),
             run_id: 0,
             mode: RunMode::default(),
@@ -806,7 +807,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 325);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 357);
     }
 
     #[test]

@@ -248,7 +248,7 @@ pub struct FulfillRowVrf<'info> {
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: MagicBlock's validator-scoped ER callback fee vault. This is
     /// protocol infrastructure for gasless ER VRF and is unrelated to the
-    /// owner's base-layer player funding PDA.
+    /// owner's base-layer device-rent flow.
     #[account(mut)]
     pub magic_fee_vault: UncheckedAccount<'info>,
 }
@@ -638,13 +638,10 @@ pub struct ConsumeCampaignRun<'info> {
     pub player_state: Box<Account<'info, PlayerState>>,
     /// CHECK: Player wallet pinned by every durable account and active_run.
     pub owner: UncheckedAccount<'info>,
-    /// CHECK: Canonical zero-data System PDA receives recycled ActiveRun rent.
+    /// CHECK: Exact original payer persisted on the closing account.
     #[account(
         mut,
-        seeds = [PLAYER_FUNDING_SEED, owner.key().as_ref()],
-        bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner
+        address = active_run.rent_payer @ ErrorCode::InvalidOwner
     )]
     pub rent_recipient: UncheckedAccount<'info>,
 }

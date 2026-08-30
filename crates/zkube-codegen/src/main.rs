@@ -8,10 +8,9 @@ use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
     Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED,
     DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, DailyPressureRules, ENTRY_DAILY_LAMPORTS,
-    ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_FUNDING_TARGET_LAMPORTS,
-    PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP,
-    PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256, StarRules, TierPolicy,
+    ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION,
+    PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
+    Sha256Provider, SoftwareSha256, StarRules, TierPolicy,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -371,7 +370,6 @@ fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\
          export const ENTRY_DAILY_LAMPORTS = {ENTRY_DAILY_LAMPORTS}n;\n\
          export const ENTRY_OPERATOR_LAMPORTS = {ENTRY_OPERATOR_LAMPORTS}n;\n\
-         export const PLAYER_FUNDING_TARGET_LAMPORTS = {PLAYER_FUNDING_TARGET_LAMPORTS}n;\n\
          export const SOL_PAYOUT_UNIT_LAMPORTS = {SOL_PAYOUT_UNIT_LAMPORTS}n;\n\
          export const SECONDS_PER_DAY = {SECONDS_PER_DAY} as const;\n\
          export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = {DAILY_REWARD_CLAIM_WINDOW_SECONDS} as const;\n\
@@ -502,7 +500,6 @@ mod tests {
         );
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
-        assert!(versions.contains("PLAYER_FUNDING_TARGET_LAMPORTS = 50000000n"));
         assert!(versions.contains("PRESSURE_STEP = 20"));
         assert!(versions.contains("TIER_BLOCK_WEIGHTS = [[25, 30, 25, 15, 5]"));
     }

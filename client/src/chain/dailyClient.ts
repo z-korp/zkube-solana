@@ -27,7 +27,6 @@ import {
   deriveCreditVaultPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
@@ -348,7 +347,7 @@ export async function buildPrepareDailyRunPlan(args: {
     currentDayId: args.daily.dayId,
   }).catch(() => []);
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedEnterArena(
+    .methods.enterArena(
       new BN(args.daily.nextRunId.toString()),
       new BN(args.daily.entryLamports.toString()),
       autoClaims.map(({ position }) => position),
@@ -362,12 +361,11 @@ export async function buildPrepareDailyRunPlan(args: {
       followingDaily: deriveArenaDailyPda(followingDayId),
       creditVault: deriveCreditVaultPda(),
       activeRun: addresses.activeRun,
-      playerFunding: derivePlayerFundingPda(owner),
+      payer: args.wallet.publicKey,
       ownerAuthority: owner,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
       systemProgram: SystemProgram.programId,
-      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .remainingAccounts(autoClaims.flatMap(({ accounts }) => accounts))
     .instruction();

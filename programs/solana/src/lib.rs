@@ -43,13 +43,6 @@ pub mod solana {
         instructions::player_label_instructions::handler_create_player_label(ctx, args)
     }
 
-    pub fn funded_create_player_label(
-        ctx: Context<FundedCreatePlayerLabel>,
-        args: PlayerLabelArgs,
-    ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_create_player_label(ctx, args)
-    }
-
     pub fn set_player_label(ctx: Context<SetPlayerLabel>, args: PlayerLabelArgs) -> Result<()> {
         instructions::player_label_instructions::handler_set_player_label(ctx, args)
     }
@@ -60,30 +53,6 @@ pub mod solana {
         frame_tier: u8,
     ) -> Result<()> {
         instructions::profile_instructions::handler_set_featured_emblem(ctx, emblem_id, frame_tier)
-    }
-
-    pub fn withdraw_player_funding(
-        ctx: Context<WithdrawPlayerFunding>,
-        lamports: u64,
-    ) -> Result<()> {
-        instructions::content_instructions::handler_withdraw_player_funding(ctx, lamports)
-    }
-
-    pub fn funded_prepare_campaign_run(
-        ctx: Context<FundedPrepareCampaignRun>,
-        run_id: u64,
-        map_id: u8,
-        level: u8,
-    ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_prepare_campaign_run(
-            ctx, run_id, map_id, level,
-        )
-    }
-
-    pub fn funded_delegate_active_run<'info>(
-        ctx: Context<'info, FundedDelegateActiveRun<'info>>,
-    ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_delegate_active_run(ctx)
     }
 
     pub fn initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
@@ -151,20 +120,6 @@ pub mod solana {
         auto_claim_positions: Vec<u32>,
     ) -> Result<()> {
         instructions::arcade_instructions::handler_enter_arena(
-            ctx,
-            run_id,
-            expected_entry_lamports,
-            auto_claim_positions,
-        )
-    }
-
-    pub fn funded_enter_arena<'info>(
-        ctx: Context<'info, FundedEnterArena<'info>>,
-        run_id: u64,
-        expected_entry_lamports: u64,
-        auto_claim_positions: Vec<u32>,
-    ) -> Result<()> {
-        instructions::player_funding_instructions::handler_funded_enter_arena(
             ctx,
             run_id,
             expected_entry_lamports,

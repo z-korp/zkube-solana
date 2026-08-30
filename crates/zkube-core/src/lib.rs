@@ -54,8 +54,7 @@ pub use daily_content::{
 };
 pub use economics::{
     ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_BPS,
-    ENTRY_OPERATOR_LAMPORTS, EntrySplit, EntrySplitError, PLAYER_FUNDING_TARGET_LAMPORTS,
-    split_arena_entry,
+    ENTRY_OPERATOR_LAMPORTS, EntrySplit, EntrySplitError, split_arena_entry,
 };
 pub use grid::{Bonus, GRID_CELLS, GRID_HEIGHT, GRID_WIDTH, Grid, GridError, Row};
 pub use hash::{Sha256Provider, SoftwareSha256};

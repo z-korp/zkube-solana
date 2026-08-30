@@ -4,7 +4,7 @@ import { errorMessage } from "@/utils/errors";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
 import {
-  buildFundedCreatePlayerLabelPlan,
+  buildCreatePlayerLabelPlan,
   buildSetPlayerLabelPlan,
   fetchPlayerLabel,
   invalidatePlayerLabel,
@@ -81,7 +81,7 @@ export function usePlayerLabelController() {
               sessionToken: device.sessionToken,
               displayName,
             })
-          : await buildFundedCreatePlayerLabelPlan({
+          : await buildCreatePlayerLabelPlan({
               connection,
               wallet,
               ownerAuthority: owner,

@@ -9,7 +9,6 @@ import {
   ZKUBE_PROGRAM_ID,
   arcadeArchivePda,
   cadenceFundingPda,
-  playerFundingPda,
 } from "../src/arcadeChain";
 import {
   discoverReconciliation,
@@ -350,7 +349,7 @@ describe("v5 Daily keeper reconciliation", () => {
       .toMatchObject({ dayId: DAY, previousCadenceId: DAY + 1 });
   });
 
-  it("closes one resolved ArenaPlayer to its canonical funding PDA", () => {
+  it("closes one resolved ArenaPlayer to its persisted rent payer", () => {
     const owner = Keypair.generate().publicKey;
     const finalized = daily(DAY, "finalized");
     const plans = discoverReconciliationPlans({
@@ -360,7 +359,7 @@ describe("v5 Daily keeper reconciliation", () => {
         arenaPlayerClosures: [{
           dayId: DAY,
           owner,
-          rentRecipient: playerFundingPda(owner),
+          rentRecipient: Keypair.generate().publicKey,
         }],
         archiveState: {
           address: arcadeArchivePda(),

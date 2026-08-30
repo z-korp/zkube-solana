@@ -207,8 +207,6 @@ export const arenaBoardPda = (daily: PublicKey, board: DailyBoardKind) =>
   derivePda("arena_board", daily.toBytes(), Buffer.from(board, "utf8"));
 export const playerStatePda = (owner: PublicKey) =>
   derivePda("player", owner.toBytes());
-export const playerFundingPda = (owner: PublicKey) =>
-  derivePda("player_funding", owner.toBytes());
 export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
   derivePda("arena_player", daily.toBytes(), owner.toBytes());
 export const activeRunPda = (owner: PublicKey, runId: bigint) =>

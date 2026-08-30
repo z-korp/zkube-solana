@@ -2,8 +2,8 @@
  * Transaction orchestration boundary.
  *
  * Solana base plans use the device session signer for transaction fees while
- * narrow on-chain wrappers use the owner's System-owned, zero-data funding PDA
- * for account rent. Router-selected ER plans use that same device signer. Durable run
+ * the device signer pays account rent and transaction fees. Router-selected ER
+ * plans use that same device signer. Durable run
  * markers are saved only after base confirmation.
  */
 import {
@@ -36,7 +36,6 @@ import {
 import { IDL, type ZkubeProgram } from "./idl/index.js";
 import { campaignGuardianPresentation } from "./campaignCatalog.js";
 import {
-  DELEGATION_PROGRAM_ID,
   INITIAL_RUN_ID,
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
@@ -49,7 +48,6 @@ import { SessionWallet, type WalletLike } from "./sessionWallet.js";
 import {
   deriveArenaPlayerPda,
   deriveMapCatalogPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
@@ -167,6 +165,7 @@ export interface EndlessRulesView {
 export interface ActiveRunView extends EndlessRulesView {
   version?: number;
   owner: PublicKey;
+  rentPayer: PublicKey;
   runId: bigint;
   mode: string;
   dailyChallenge: PublicKey;
@@ -349,7 +348,7 @@ export async function buildPrepareCampaignRunPlan(args: {
   }
   const instructions = [
     await program.methods
-      .fundedPrepareCampaignRun(
+      .prepareCampaignRun(
         new BN(runId.toString()),
         args.mapId,
         args.level,
@@ -359,12 +358,11 @@ export async function buildPrepareCampaignRunPlan(args: {
         playerState: profileAddress,
         mapCatalog,
         activeRun: addresses.activeRun,
-        playerFunding: derivePlayerFundingPda(owner),
+        payer: actor,
         ownerAuthority: owner,
         sessionToken: args.sessionToken,
         actor,
         systemProgram: SystemProgram.programId,
-        zkubeProgram: ZKUBE_PROGRAM_ID,
       })
       .instruction(),
   ];
@@ -468,7 +466,7 @@ export async function buildDelegateRunPlan(args: {
   const payer = args.wallet.publicKey;
   const activeRun = args.addresses.activeRun;
   const instruction = await program.methods
-    .fundedDelegateActiveRun()
+    .delegateActiveRun()
     .accountsPartial({
       bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
         activeRun,
@@ -478,13 +476,10 @@ export async function buildDelegateRunPlan(args: {
       delegationMetadataPda:
         delegationMetadataPdaFromDelegatedAccount(activeRun),
       pda: activeRun,
-      playerFunding: derivePlayerFundingPda(args.ownerAuthority),
+      payer,
       ownerAuthority: args.ownerAuthority,
       sessionToken: args.sessionToken,
       actor: args.wallet.publicKey,
-      ownerProgram: ZKUBE_PROGRAM_ID,
-      delegationProgram: DELEGATION_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       { pubkey: validator.identity, isSigner: false, isWritable: false },
@@ -867,6 +862,9 @@ async function buildConsumeRunInstruction(
     dailyChallenge?: PublicKey | null;
   },
 ): Promise<TransactionInstruction> {
+  const { rentPayer } = await program.account.activeRun.fetch(
+    args.addresses.activeRun,
+  );
   if (args.mode === "daily") {
     const dailyChallenge = args.dailyChallenge;
     if (!dailyChallenge) {
@@ -879,7 +877,7 @@ async function buildConsumeRunInstruction(
         playerState: derivePlayerStatePda(args.owner),
         arenaDaily: dailyChallenge,
         arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
-        rentRecipient: derivePlayerFundingPda(args.owner),
+        rentRecipient: rentPayer,
       })
       .instruction();
   }
@@ -889,7 +887,7 @@ async function buildConsumeRunInstruction(
       activeRun: args.addresses.activeRun,
       playerState: derivePlayerStatePda(args.owner),
       owner: args.owner,
-      rentRecipient: derivePlayerFundingPda(args.owner),
+      rentRecipient: rentPayer,
     })
     .instruction();
 }
@@ -914,6 +912,7 @@ type DecodedActiveRunAccount = Awaited<
 export const ACTIVE_RUN_FIELD_PROJECTIONS = {
   version: "version",
   owner: "owner",
+  rentPayer: "rentPayer",
   dailyChallenge: "dailyChallenge",
   runId: "runId",
   mode: "mode",
@@ -986,6 +985,7 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
   return {
     version: Number(account.version),
     owner: account.owner,
+    rentPayer: account.rentPayer,
     runId: BigInt(account.runId.toString()),
     mode: Object.keys(account.mode)[0] ?? "unknown",
     dailyChallenge: account.dailyChallenge,

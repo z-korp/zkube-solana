@@ -668,35 +668,7 @@ export type Solana = {
         },
         {
           "name": "rentRecipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "activeRun"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "caller",
@@ -943,35 +915,7 @@ export type Solana = {
         },
         {
           "name": "rentRecipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_player.player",
-                "account": "arenaPlayer"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "caller",
@@ -1153,35 +1097,7 @@ export type Solana = {
         },
         {
           "name": "rentRecipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "activeRun"
-              }
-            ]
-          }
+          "writable": true
         }
       ],
       "args": []
@@ -1267,34 +1183,7 @@ export type Solana = {
         },
         {
           "name": "rentRecipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
+          "writable": true
         }
       ],
       "args": []
@@ -2534,7 +2423,7 @@ export type Solana = {
           "name": "magicFeeVault",
           "docs": [
             "protocol infrastructure for gasless ER VRF and is unrelated to the",
-            "owner's base-layer player funding PDA."
+            "owner's base-layer device-rent flow."
           ],
           "writable": true
         }
@@ -2552,285 +2441,6 @@ export type Solana = {
         {
           "name": "expectedRequestCounter",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "fundedCreatePlayerLabel",
-      "discriminator": [
-        28,
-        170,
-        69,
-        230,
-        197,
-        34,
-        128,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "playerState"
-        },
-        {
-          "name": "playerLabel",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "playerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "fundedDelegateActiveRun",
-      "discriminator": [
-        102,
-        174,
-        16,
-        12,
-        194,
-        90,
-        137,
-        177
-      ],
-      "accounts": [
-        {
-          "name": "bufferPda",
-          "writable": true
-        },
-        {
-          "name": "delegationRecordPda",
-          "writable": true
-        },
-        {
-          "name": "delegationMetadataPda",
-          "writable": true
-        },
-        {
-          "name": "pda",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "ownerProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        },
-        {
-          "name": "delegationProgram"
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "fundedEnterArena",
-      "discriminator": [
-        206,
-        116,
-        24,
-        77,
-        137,
-        195,
-        205,
-        22
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "arcadeConfig"
-        },
-        {
-          "name": "playerState",
-          "writable": true
-        },
-        {
-          "name": "currentDaily",
-          "writable": true
-        },
-        {
-          "name": "arenaPlayer",
-          "writable": true
-        },
-        {
-          "name": "followingDaily",
-          "writable": true
-        },
-        {
-          "name": "creditVault",
-          "writable": true
-        },
-        {
-          "name": "activeRun",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority",
-          "writable": true
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "runId",
-          "type": "u64"
-        },
-        {
-          "name": "expectedEntryLamports",
-          "type": "u64"
-        },
-        {
-          "name": "autoClaimPositions",
-          "type": {
-            "vec": "u32"
-          }
         }
       ]
     },
@@ -2989,102 +2599,6 @@ export type Solana = {
         {
           "name": "dayId",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "fundedPrepareCampaignRun",
-      "discriminator": [
-        100,
-        111,
-        127,
-        144,
-        180,
-        127,
-        15,
-        84
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "playerState",
-          "docs": [
-            "this unchecked prevents Anchor from serializing a stale outer copy over",
-            "the changes made by the self-CPI."
-          ],
-          "writable": true
-        },
-        {
-          "name": "mapCatalog"
-        },
-        {
-          "name": "activeRun",
-          "writable": true
-        },
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "runId",
-          "type": "u64"
-        },
-        {
-          "name": "mapId",
-          "type": "u8"
-        },
-        {
-          "name": "level",
-          "type": "u8"
         }
       ]
     },
@@ -3334,40 +2848,6 @@ export type Solana = {
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerFunding",
-          "docs": [
-            "account is accepted; no retired program-owned layout is convertible."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
                 ]
               },
               {
@@ -4904,67 +4384,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "withdrawPlayerFunding",
-      "discriminator": [
-        186,
-        115,
-        58,
-        115,
-        207,
-        128,
-        127,
-        224
-      ],
-      "accounts": [
-        {
-          "name": "playerFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "writeMapCatalog",
       "discriminator": [
         217,
@@ -5621,6 +5040,13 @@ export type Solana = {
             "type": "pubkey"
           },
           {
+            "name": "rentPayer",
+            "docs": [
+              "Original signer that funded this account and receives its rent back."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "dailyChallenge",
             "type": "pubkey"
           },
@@ -6199,6 +5625,13 @@ export type Solana = {
           },
           {
             "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "rentPayer",
+            "docs": [
+              "Original signer that funded this account and receives its rent back."
+            ],
             "type": "pubkey"
           },
           {

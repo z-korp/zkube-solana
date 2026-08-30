@@ -123,6 +123,7 @@ export function buildDevActiveRun(
   const moves = isArena ? 26 : Math.round(rules.maxMoves * 0.45);
   return {
     owner,
+    rentPayer: owner,
     runId: 4_242n,
     mode: isArena ? "daily" : "campaign",
     dailyChallenge: PublicKey.default,

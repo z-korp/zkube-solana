@@ -12,7 +12,6 @@ import {
   activeRunPda,
   arenaDailyPda,
   arenaPlayerPda,
-  playerFundingPda,
   type KeeperInstructionPlan,
 } from "../src/arcadeChain";
 import {
@@ -57,7 +56,7 @@ describe("keeper bounds", () => {
     const owner = Keypair.generate().publicKey;
     const runId = 9n;
     const activeRun = activeRunPda(owner, runId);
-    const rentRecipient = playerFundingPda(owner);
+    const rentRecipient = Keypair.generate().publicKey;
     const instruction = new TransactionInstruction({
       programId: ZKUBE_PROGRAM_ID,
       keys: [
@@ -99,12 +98,12 @@ describe("keeper bounds", () => {
       .rejects.toThrow("does not match");
   });
 
-  it("re-verifies a closed ArenaPlayer and its canonical funding recipient", async () => {
+  it("re-verifies a closed ArenaPlayer and its persisted rent recipient", async () => {
     const owner = Keypair.generate().publicKey;
     const dayId = 20_651;
     const daily = arenaDailyPda(dayId);
     const arenaPlayer = arenaPlayerPda(daily, owner);
-    const rentRecipient = playerFundingPda(owner);
+    const rentRecipient = Keypair.generate().publicKey;
     const instruction = new TransactionInstruction({
       programId: ZKUBE_PROGRAM_ID,
       keys: [

@@ -4,19 +4,17 @@ import { Keypair, SystemProgram, type Connection } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  buildFundedCreatePlayerLabelPlan,
+  buildCreatePlayerLabelPlan,
   buildSetPlayerLabelPlan,
   fetchPlayerLabels,
   validatePlayerLabel,
 } from "./playerLabelClient";
 import {
-  derivePlayerFundingPda,
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas";
 import { SessionWallet } from "./sessionWallet";
-import { ZKUBE_PROGRAM_ID } from "./constants";
 
 describe("cosmetic player label client", () => {
   it("validates the contract's case-preserving ASCII label", () => {
@@ -26,11 +24,11 @@ describe("cosmetic player label client", () => {
     }
   });
 
-  it("creates one owner-keyed label through the session funding wrapper", async () => {
+  it("creates one owner-keyed label with the session signer as payer", async () => {
     const owner = Keypair.generate().publicKey;
     const wallet = new SessionWallet(Keypair.generate());
     const sessionToken = Keypair.generate().publicKey;
-    const plan = await buildFundedCreatePlayerLabelPlan({
+    const plan = await buildCreatePlayerLabelPlan({
       connection: {} as Connection,
       wallet,
       ownerAuthority: owner,
@@ -45,17 +43,17 @@ describe("cosmetic player label client", () => {
         deriveProtocolConfigPda(),
         derivePlayerStatePda(owner),
         derivePlayerLabelPda(owner),
-        derivePlayerFundingPda(owner),
+        wallet.publicKey,
         owner,
         sessionToken,
         wallet.publicKey,
         SystemProgram.programId,
-        ZKUBE_PROGRAM_ID,
       ].map((key) => key.toBase58()),
     );
-    expect(instruction.keys.filter(({ isSigner }) => isSigner)).toEqual([
-      expect.objectContaining({ pubkey: wallet.publicKey }),
-    ]);
+    const signerMetas = instruction.keys.filter(({ isSigner }) => isSigner);
+    expect(signerMetas).toHaveLength(2);
+    expect(signerMetas.every(({ pubkey }) => pubkey.equals(wallet.publicKey)))
+      .toBe(true);
   });
 
   it("updates the same label without a payer, claim, cooldown, or Star account", async () => {

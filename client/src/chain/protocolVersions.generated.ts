@@ -7,7 +7,6 @@ export const ARCADE_DAILY_RESULT_HASH_DOMAIN = "zkube-arcade-daily-result-v5" as
 export const ARENA_ENTRY_LAMPORTS = 10000000n;
 export const ENTRY_DAILY_LAMPORTS = 9000000n;
 export const ENTRY_OPERATOR_LAMPORTS = 1000000n;
-export const PLAYER_FUNDING_TARGET_LAMPORTS = 50000000n;
 export const SOL_PAYOUT_UNIT_LAMPORTS = 1000000n;
 export const SECONDS_PER_DAY = 86400 as const;
 export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = 2592000 as const;

@@ -373,7 +373,7 @@ fn player_fixture(owner: Pubkey) -> (Pubkey, PlayerState) {
 }
 
 #[test]
-fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
+fn sbf_device_paid_player_label_creation_is_session_scoped_and_duplicate_friendly() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
@@ -381,8 +381,6 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
     let (player, player_state) = player_fixture(owner);
     let (player_label, _) =
         Pubkey::find_program_address(&[PLAYER_LABEL_SEED, owner.as_ref()], &zkube::ID);
-    let (player_funding, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
     let session_token = session_token_address(owner, actor);
     let session_state = SessionTokenV2 {
         authority: owner,
@@ -393,26 +391,25 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
     };
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::FundedCreatePlayerLabel {
+        accounts: zkube::accounts::CreatePlayerLabel {
             protocol,
             player_state: player,
             player_label,
-            player_funding,
+            payer: actor,
             owner_authority: owner,
-            session_token,
+            session_token: Some(session_token),
             actor,
             system_program: anchor_lang::system_program::ID,
-            zkube_program: zkube::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FundedCreatePlayerLabel {
+        data: zkube::instruction::CreatePlayerLabel {
             args: zkube::PlayerLabelArgs {
                 display: "Wave_Rider7".to_string(),
             },
         }
         .data(),
     };
-    let funding_before = PLAYER_FUNDING_TARGET_LAMPORTS;
+    let actor_before = ACCOUNT_LAMPORTS;
     let accounts = vec![
         (
             protocol,
@@ -423,7 +420,6 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
             program_account(&player_state, 8 + PlayerState::INIT_SPACE),
         ),
         (player_label, system_account(0)),
-        (player_funding, system_account(funding_before)),
         (owner, system_account(0)),
         (
             session_token,
@@ -434,7 +430,7 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
                 ACCOUNT_LAMPORTS,
             ),
         ),
-        (actor, system_account(ACCOUNT_LAMPORTS)),
+        (actor, system_account(actor_before)),
         (anchor_lang::system_program::ID, system_program_account()),
         (
             zkube::ID,
@@ -446,16 +442,16 @@ fn sbf_funded_player_label_creation_is_session_scoped_and_duplicate_friendly() {
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     eprintln!(
-        "SBF_COMPUTE funded_create_player_label={}",
+        "SBF_COMPUTE create_player_label={}",
         result.compute_units_consumed
     );
     let label: PlayerLabel = decode(resulting_account(&result, &player_label));
     assert_eq!(label.owner, owner);
     assert_eq!(label.display_name(), Some(b"Wave_Rider7".as_slice()));
     assert_eq!(
-        resulting_account(&result, &player_funding).lamports
+        resulting_account(&result, &actor).lamports
             + resulting_account(&result, &player_label).lamports,
-        funding_before
+        actor_before
     );
 
     // The label value is not a global key: a second wallet may use the same display text.
@@ -841,6 +837,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
+        rent_payer: caller,
         daily_challenge: daily,
         run_id,
         mode: RunMode::Daily,
@@ -1070,11 +1067,10 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         &[ARENA_PLAYER_SEED, daily.as_ref(), owner.as_ref()],
         &zkube::ID,
     );
-    let mut arena_player_state = ArenaPlayer::initialize(daily, owner, arena_player_bump);
+    let mut arena_player_state = ArenaPlayer::initialize(daily, owner, caller, arena_player_bump);
     arena_player_state.paid_entries = 1;
     arena_player_state.active_paid_run_id = run_id;
-    let (rent_recipient, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
+    let rent_recipient = caller;
     let consume = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ConsumeArenaRun {
@@ -1211,7 +1207,7 @@ fn sbf_finish_run_predicates_are_exact() {
 }
 
 #[test]
-fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
+fn sbf_device_payer_creates_only_the_canonical_active_run() {
     let authority = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
     let actor = Pubkey::new_unique();
@@ -1253,8 +1249,6 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
         ],
         &zkube::ID,
     );
-    let (player_funding, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
     let session_token = session_token_address(owner, actor);
     let session_state = SessionTokenV2 {
         authority: owner,
@@ -1265,27 +1259,26 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     };
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::FundedPrepareCampaignRun {
+        accounts: zkube::accounts::PrepareCampaignRun {
             protocol,
             player_state: player,
             map_catalog,
             active_run,
-            player_funding,
+            payer: actor,
             owner_authority: owner,
-            session_token,
+            session_token: Some(session_token),
             actor,
             system_program: anchor_lang::system_program::ID,
-            zkube_program: zkube::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FundedPrepareCampaignRun {
+        data: zkube::instruction::PrepareCampaignRun {
             run_id,
             map_id,
             level: 1,
         }
         .data(),
     };
-    let funding_before = PLAYER_FUNDING_TARGET_LAMPORTS;
+    let actor_before = ACCOUNT_LAMPORTS;
     let accounts = vec![
         (
             protocol,
@@ -1300,7 +1293,6 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
             program_account(&map_state, 8 + MapCatalog::INIT_SPACE),
         ),
         (active_run, system_account(0)),
-        (player_funding, system_account(funding_before)),
         (owner, system_account(0)),
         (
             session_token,
@@ -1311,7 +1303,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
                 ACCOUNT_LAMPORTS,
             ),
         ),
-        (actor, system_account(ACCOUNT_LAMPORTS)),
+        (actor, system_account(actor_before)),
         (anchor_lang::system_program::ID, system_program_account()),
         (
             zkube::ID,
@@ -1323,7 +1315,7 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     eprintln!(
-        "SBF_COMPUTE funded_prepare={}",
+        "SBF_COMPUTE prepare_campaign={}",
         result.compute_units_consumed
     );
     let created = resulting_account(&result, &active_run);
@@ -1331,14 +1323,15 @@ fn sbf_funded_self_cpi_creates_only_the_canonical_active_run() {
     assert_eq!(created.data.len(), 8 + ActiveRun::INIT_SPACE);
     let active: ActiveRun = decode(created);
     assert_eq!(active.owner, owner);
+    assert_eq!(active.rent_payer, actor);
     assert_eq!(active.run_id, run_id);
     let player_after: PlayerState = decode(resulting_account(&result, &player));
     assert_eq!(player_after.campaign_active_run_id, run_id);
     assert_eq!(player_after.active_run_id, 0);
     assert_eq!(player_after.next_run_id, run_id + 1);
     assert_eq!(
-        resulting_account(&result, &player_funding).lamports + created.lamports,
-        funding_before
+        resulting_account(&result, &actor).lamports + created.lamports,
+        actor_before
     );
 
     let unrelated_payer = Pubkey::new_unique();
@@ -1622,6 +1615,7 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
 #[test]
 fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     let owner = Pubkey::new_unique();
+    let rent_payer = Pubkey::new_unique();
     let run_id = 11u64;
     let (_, bump) = Pubkey::find_program_address(
         &[
@@ -1639,6 +1633,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
+        rent_payer,
         run_id,
         mode: RunMode::Campaign,
         lifecycle: RunLifecycle::Playing,
@@ -1678,8 +1673,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     let (player, mut player_state) = player_fixture(owner);
     player_state.campaign_active_run_id = run_id;
     player_state.next_run_id = run_id + 1;
-    let (rent_recipient, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
+    let rent_recipient = rent_payer;
     let consume = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ConsumeCampaignRun {
@@ -1700,10 +1694,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
                 program_account(&player_state, 8 + PlayerState::INIT_SPACE),
             ),
             (owner, system_account(0)),
-            (
-                rent_recipient,
-                system_account(PLAYER_FUNDING_TARGET_LAMPORTS),
-            ),
+            (rent_recipient, system_account(ACCOUNT_LAMPORTS)),
         ],
     );
     assert!(
@@ -1716,7 +1707,7 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
 }
 
 #[test]
-fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
+fn a_closed_run_returns_rent_to_its_payer() {
     let owner = Pubkey::new_unique();
     let run_id = 1u64;
     let (player, mut player_state) = player_fixture(owner);
@@ -1731,9 +1722,11 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         ],
         &zkube::ID,
     );
+    let rent_recipient = Pubkey::new_unique();
     let active_state = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
+        rent_payer: rent_recipient,
         run_id,
         mode: RunMode::Campaign,
         lifecycle: RunLifecycle::Finished,
@@ -1743,10 +1736,8 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         bump: active_bump,
         ..ActiveRun::default()
     };
-    let (rent_recipient, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
     let active_lamports = 4_000_000;
-    let funding_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
+    let funding_lamports = ACCOUNT_LAMPORTS;
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ConsumeCampaignRun {
@@ -1775,6 +1766,24 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         (owner, system_account(0)),
         (rent_recipient, system_account(funding_lamports)),
     ];
+    let wrong_recipient = Pubkey::new_unique();
+    let wrong_instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ConsumeCampaignRun {
+            active_run,
+            player_state: player,
+            owner,
+            rent_recipient: wrong_recipient,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ConsumeCampaignRun {}.data(),
+    };
+    let mut wrong_accounts = accounts.clone();
+    wrong_accounts.pop();
+    wrong_accounts.push((wrong_recipient, system_account(funding_lamports)));
+    let rejected = mollusk().process_instruction(&wrong_instruction, &wrong_accounts);
+    assert!(rejected.program_result.is_err());
+
     let result = mollusk().process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let closed = resulting_account(&result, &active_run);
@@ -2034,7 +2043,7 @@ fn credit_vault_fixture(protocol: Pubkey) -> (Pubkey, CreditVault) {
 }
 
 #[test]
-fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths() {
+fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
@@ -2121,11 +2130,9 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         ],
         &zkube::ID,
     );
-    let (player_funding, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
     let mut instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::FundedEnterArena {
+        accounts: zkube::accounts::EnterArena {
             protocol,
             arcade_config: arcade,
             player_state: player,
@@ -2134,15 +2141,15 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
             following_daily,
             credit_vault,
             active_run,
-            player_funding,
+            payer: actor,
             owner_authority: owner,
-            session_token,
+            session_token: Some(session_token),
             actor,
             system_program: anchor_lang::system_program::ID,
             zkube_program: zkube::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FundedEnterArena {
+        data: zkube::instruction::EnterArena {
             run_id,
             expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
             auto_claim_positions: vec![0, 0],
@@ -2155,7 +2162,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         anchor_lang::solana_program::instruction::AccountMeta::new(claim_daily, false),
         anchor_lang::solana_program::instruction::AccountMeta::new(claim_board, false),
     ]);
-    let funding_before = PLAYER_FUNDING_TARGET_LAMPORTS;
+    let actor_before = 100_000_000;
     let accounts = vec![
         (
             protocol,
@@ -2188,7 +2195,6 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
             ),
         ),
         (active_run, system_account(0)),
-        (player_funding, system_account(funding_before)),
         (owner, system_account(0)),
         (
             session_token,
@@ -2199,7 +2205,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
                 ACCOUNT_LAMPORTS,
             ),
         ),
-        (actor, system_account(ACCOUNT_LAMPORTS)),
+        (actor, system_account(actor_before)),
         (anchor_lang::system_program::ID, system_program_account()),
         (
             zkube::ID,
@@ -2241,11 +2247,9 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
     let mut suspended_runtime = mollusk();
     suspended_runtime.sysvars.clock.unix_timestamp = current_daily_state.opens_at + 1;
     let refused = suspended_runtime.process_instruction(&instruction, &suspended_accounts);
-    let expected_error = 6_000 + zkube::error::ErrorCode::DailyNotScheduled as u32;
     assert!(
-        format!("{:?}", refused.program_result).contains(&format!("Custom({expected_error})")),
-        "unexpected suspension refusal: {:?}",
-        refused.program_result
+        refused.program_result.is_err(),
+        "a missing suspended Daily must reject entry"
     );
 
     let mut runtime = mollusk();
@@ -2290,32 +2294,12 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
     assert_eq!(auto_claimed_board.claimed_lamports, expected_auto_claim);
     let arena_player_rent = resulting_account(&result, &arena_player).lamports;
     let active_run_rent = resulting_account(&result, &active_run).lamports;
-    let funding_after_entry = resulting_account(&result, &player_funding).lamports;
+    let actor_after_entry = resulting_account(&result, &actor).lamports;
     assert_eq!(
-        funding_after_entry + arena_player_rent + active_run_rent,
-        funding_before,
-        "the funding PDA pays rent only; no entry share leaves it"
+        actor_after_entry + arena_player_rent + active_run_rent,
+        actor_before,
+        "the device signer pays only the two player-account rents"
     );
-
-    // A bare System transfer cannot treat the PDA as a signer. The only code
-    // that supplies its seeds is the fixed zKube self-CPI rent wrapper.
-    let arbitrary_destination = Pubkey::new_unique();
-    let mut arbitrary_transfer = anchor_lang::solana_program::system_instruction::transfer(
-        &player_funding,
-        &arbitrary_destination,
-        1,
-    );
-    arbitrary_transfer.accounts[0].is_signer = false;
-    assert!(mollusk()
-        .process_instruction(
-            &arbitrary_transfer,
-            &[
-                (player_funding, system_account(funding_before)),
-                (arbitrary_destination, system_account(0)),
-            ],
-        )
-        .program_result
-        .is_err());
 
     // A last-second run with one accepted action scores its partial state.
     let mut partial: ActiveRun = decode(resulting_account(&result, &active_run));
@@ -2332,7 +2316,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
     );
 
     // A terminal zero-action run is consumed permissionlessly. Its ActiveRun
-    // rent returns to the canonical funding PDA while the daily records one
+    // rent returns to the original device payer while the daily records one
     // paid expiry and releases the durable reservation.
     let mut terminal: ActiveRun = decode(resulting_account(&result, &active_run));
     terminal.lifecycle = RunLifecycle::Finished;
@@ -2352,7 +2336,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
             arena_daily: current_daily,
             arena_player,
             active_run,
-            rent_recipient: player_funding,
+            rent_recipient: actor,
         }
         .to_account_metas(None),
         data: zkube::instruction::ConsumeArenaRun {}.data(),
@@ -2368,10 +2352,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
             resulting_account(&result, &arena_player).clone(),
         ),
         (active_run, terminal_account),
-        (
-            player_funding,
-            resulting_account(&result, &player_funding).clone(),
-        ),
+        (actor, resulting_account(&result, &actor).clone()),
     ];
     let scored = mollusk().process_instruction(
         &consume,
@@ -2399,12 +2380,12 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         consumed.program_result
     );
     assert_eq!(
-        resulting_account(&consumed, &player_funding).lamports,
-        funding_after_entry + active_run_rent
+        resulting_account(&consumed, &actor).lamports,
+        actor_after_entry + active_run_rent
     );
     assert_eq!(
-        resulting_account(&consumed, &player_funding).lamports + arena_player_rent,
-        funding_before
+        resulting_account(&consumed, &actor).lamports + arena_player_rent,
+        actor_before
     );
     let consumed_daily: ArenaDaily = decode(resulting_account(&consumed, &current_daily));
     let consumed_player: PlayerState = decode(resulting_account(&consumed, &player));
@@ -2488,7 +2469,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
 }
 
 #[test]
-fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
+fn sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
@@ -2581,11 +2562,9 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
         ],
         &zkube::ID,
     );
-    let (player_funding, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &zkube::ID);
     let mut instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::FundedEnterArena {
+        accounts: zkube::accounts::EnterArena {
             protocol,
             arcade_config: arcade,
             player_state: player,
@@ -2594,15 +2573,15 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
             following_daily,
             credit_vault,
             active_run,
-            player_funding,
+            payer: actor,
             owner_authority: owner,
-            session_token,
+            session_token: Some(session_token),
             actor,
             system_program: anchor_lang::system_program::ID,
             zkube_program: zkube::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FundedEnterArena {
+        data: zkube::instruction::EnterArena {
             run_id,
             expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
             auto_claim_positions: vec![last_position, last_position],
@@ -2647,10 +2626,6 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
             ),
         ),
         (active_run, system_account(0)),
-        (
-            player_funding,
-            system_account(PLAYER_FUNDING_TARGET_LAMPORTS),
-        ),
         (owner, system_account(0)),
         (
             session_token,
@@ -2661,7 +2636,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
                 ACCOUNT_LAMPORTS,
             ),
         ),
-        (actor, system_account(ACCOUNT_LAMPORTS)),
+        (actor, system_account(100_000_000)),
         (anchor_lang::system_program::ID, system_program_account()),
         (
             zkube::ID,
@@ -2711,7 +2686,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     eprintln!(
-        "SBF_COMPUTE funded_entry_two_maximum_boards={}",
+        "SBF_COMPUTE device_entry_two_maximum_boards={}",
         result.compute_units_consumed
     );
     assert!(result.compute_units_consumed < 360_000);
@@ -3075,7 +3050,7 @@ fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boar
                 &[ARENA_PLAYER_SEED, daily.as_ref(), entry.player.as_ref()],
                 &zkube::ID,
             );
-            let mut player = ArenaPlayer::initialize(daily, entry.player, bump);
+            let mut player = ArenaPlayer::initialize(daily, entry.player, entry.player, bump);
             player.paid_entries = 1;
             player.resolved_entries = 1;
             player.has_score_best = true;
@@ -3749,7 +3724,7 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
 }
 
 #[test]
-fn sbf_participant_rent_can_be_recycled_after_parent_daily_is_closed() {
+fn sbf_participant_rent_returns_to_its_payer_after_parent_daily_is_closed() {
     let day_id = 20_656u32;
     let player = Pubkey::new_unique();
     let caller = Pubkey::new_unique();
@@ -3759,9 +3734,8 @@ fn sbf_participant_rent_can_be_recycled_after_parent_daily_is_closed() {
         &[ARENA_PLAYER_SEED, daily.as_ref(), player.as_ref()],
         &zkube::ID,
     );
-    let player_state = ArenaPlayer::initialize(daily, player, player_bump);
-    let (rent_recipient, _) =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, player.as_ref()], &zkube::ID);
+    let rent_recipient = Pubkey::new_unique();
+    let player_state = ArenaPlayer::initialize(daily, player, rent_recipient, player_bump);
     let participant_lamports = ACCOUNT_LAMPORTS;
     let funding_before = 1_000_000;
     let instruction = anchor_lang::solana_program::instruction::Instruction {

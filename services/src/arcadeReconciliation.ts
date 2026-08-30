@@ -17,7 +17,6 @@ import {
   currentDayId,
   dailyContentSelection,
   nextScheduledDaily,
-  playerFundingPda,
   validationOnlyPlan,
   type CompetitionKind,
   type DailyBoardKind,
@@ -107,6 +106,7 @@ export interface ArenaPlayerClosureSnapshot {
 
 export interface RunSnapshot {
   owner: PublicKey;
+  rentPayer?: PublicKey;
   runId: bigint;
   mode: RunMode;
   /** Required for ranked runs and absent for Campaign. */
@@ -425,6 +425,7 @@ function appendRunPlan(
     challengeDayId: run.challengeDayId,
     deadlineDayId: run.deadlineDayId,
     owner: run.owner,
+    rentRecipient: run.rentPayer,
     runId: run.runId,
     runMode: run.mode,
     runLocation: run.location,
@@ -716,8 +717,8 @@ function validateClosureRecipient(
   label: string,
 ): void {
   if (!(owner instanceof PublicKey) || owner.equals(PublicKey.default) ||
-      !rentRecipient.equals(playerFundingPda(owner))) {
-    throw new Error(`${label} closure rent recipient is not canonical`);
+      !(rentRecipient instanceof PublicKey) || rentRecipient.equals(PublicKey.default)) {
+    throw new Error(`${label} closure rent recipient is invalid`);
   }
 }
 

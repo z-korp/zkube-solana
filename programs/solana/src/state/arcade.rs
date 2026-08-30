@@ -478,6 +478,8 @@ pub struct ArenaPlayer {
     pub version: u8,
     pub challenge: Pubkey,
     pub player: Pubkey,
+    /// Original signer that funded this account and receives its rent back.
+    pub rent_payer: Pubkey,
     pub paid_entries: u32,
     pub resolved_entries: u32,
     pub active_paid_run_id: u64,
@@ -492,11 +494,12 @@ pub struct ArenaPlayer {
 }
 
 impl ArenaPlayer {
-    pub fn initialize(challenge: Pubkey, player: Pubkey, bump: u8) -> Self {
+    pub fn initialize(challenge: Pubkey, player: Pubkey, rent_payer: Pubkey, bump: u8) -> Self {
         Self {
             version: ARCADE_ACCOUNT_VERSION,
             challenge,
             player,
+            rent_payer,
             paid_entries: 0,
             resolved_entries: 0,
             active_paid_run_id: 0,
@@ -1130,7 +1133,7 @@ mod tests {
     fn zero_metrics_do_not_qualify_for_either_board() {
         let wallet = Pubkey::new_unique();
         let mut daily = ArenaDaily::default();
-        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, wallet, 1);
         let mut state = PlayerState::initialize(wallet, 1);
         daily
             .record_scored_entry(
@@ -1157,7 +1160,7 @@ mod tests {
     fn score_entries(entries: &[(u32, u64)]) -> (ArenaDaily, ArenaPlayer, PlayerState) {
         let wallet = Pubkey::new_unique();
         let mut daily = ArenaDaily::default();
-        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, wallet, 1);
         let mut state = PlayerState::initialize(wallet, 1);
         for (index, (score, objective_total)) in entries.iter().enumerate() {
             daily
@@ -1237,7 +1240,7 @@ mod tests {
             replay_hash: [1; 32],
             ..ArenaBoardEntry::default()
         };
-        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, 1);
+        let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, wallet, 1);
         assert!(player.record_score(DailyBoardKind::Score, best, 1));
         assert!(!player.record_score(
             DailyBoardKind::Score,
@@ -1263,6 +1266,7 @@ mod tests {
         assert_eq!(daily_bytes.len(), 225);
         assert_eq!(ArenaBoard::INIT_SPACE, 117);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_341);
+        assert_eq!(8 + ArenaPlayer::INIT_SPACE, 308);
         assert_eq!(
             Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
             901_104_240
@@ -1320,7 +1324,8 @@ mod tests {
     }
 
     fn score_source(entry: ArenaBoardEntry) -> ArenaPlayer {
-        let mut source = ArenaPlayer::initialize(Pubkey::new_unique(), entry.player, 1);
+        let mut source =
+            ArenaPlayer::initialize(Pubkey::new_unique(), entry.player, entry.player, 1);
         source.has_score_best = true;
         source.score_best_entry = entry;
         source

@@ -25,7 +25,6 @@ import {
   deriveArenaDailyPda,
   deriveCreditVaultPda,
   deriveOperatorRevenueVaultPda,
-  derivePlayerFundingPda,
   deriveProtocolConfigPda,
 } from "./pdas";
 import {
@@ -160,18 +159,14 @@ describe("Daily transaction layer boundaries", () => {
     expect(prepared.transactionPlan.label).toContain("spend 1 Kredit");
     const enterAccounts =
       prepared.transactionPlan.transaction.instructions[0].keys;
-    const playerFunding = enterAccounts.find(({ pubkey }) =>
-      pubkey.equals(derivePlayerFundingPda(owner.publicKey)),
-    );
     const ownerAccount = enterAccounts.find(({ pubkey }) =>
       pubkey.equals(owner.publicKey),
     );
     const actor = enterAccounts.find(({ pubkey }) =>
       pubkey.equals(device.publicKey),
     );
-    expect(playerFunding).toMatchObject({ isWritable: true, isSigner: false });
     expect(ownerAccount).toMatchObject({ isWritable: true, isSigner: false });
-    expect(actor).toMatchObject({ isSigner: true });
+    expect(actor).toMatchObject({ isSigner: true, isWritable: true });
     expect(enterAccounts.find(({ pubkey }) => pubkey.equals(claimDaily)))
       .toMatchObject({ isWritable: true, isSigner: false });
     expect(enterAccounts.find(({ pubkey }) =>

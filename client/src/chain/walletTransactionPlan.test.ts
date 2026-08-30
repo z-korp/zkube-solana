@@ -25,7 +25,6 @@ import {
   deriveArenaPlayerPda,
   deriveCreditVaultPda,
   deriveMapCatalogPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
@@ -87,53 +86,43 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(pinned[1]!.data).readUInt8(0)).toBe(3);
   });
 
-  it("exposes no generic vault signer: funded prepare is pinned to owner PDAs", async () => {
+  it("makes the device signer the campaign run payer", async () => {
     const owner = Keypair.generate().publicKey;
     const actor = new SessionWallet(Keypair.generate());
     const sessionToken = Keypair.generate().publicKey;
     const runId = 7n;
     const run = deriveRunAddresses(owner, runId);
     const instruction = await zkubeProgram({} as Connection, actor)
-      .methods.fundedPrepareCampaignRun(new BN(runId.toString()), 1, 1)
+      .methods.prepareCampaignRun(new BN(runId.toString()), 1, 1)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         playerState: derivePlayerStatePda(owner),
         mapCatalog: deriveMapCatalogPda(1, 1),
         activeRun: run.activeRun,
-        playerFunding: derivePlayerFundingPda(owner),
+        payer: actor.publicKey,
         ownerAuthority: owner,
         sessionToken,
         actor: actor.publicKey,
         systemProgram: SystemProgram.programId,
-        zkubeProgram: ZKUBE_PROGRAM_ID,
       })
       .instruction();
 
-    const funding = instruction.keys.find((key) =>
-      key.pubkey.equals(derivePlayerFundingPda(owner)),
-    );
     const signers = instruction.keys.filter((key) => key.isSigner);
-    const zkubeProgramMeta = instruction.keys.at(-1);
-    expect(funding).toMatchObject({ isSigner: false, isWritable: true });
-    expect(signers).toHaveLength(1);
-    expect(signers[0]?.pubkey.equals(actor.publicKey)).toBe(true);
-    expect(zkubeProgramMeta?.pubkey.equals(ZKUBE_PROGRAM_ID)).toBe(true);
-    expect(zkubeProgramMeta).toMatchObject({
-      isSigner: false,
-      isWritable: false,
-    });
+    expect(signers).toHaveLength(2);
+    expect(signers.every(({ pubkey }) => pubkey.equals(actor.publicKey))).toBe(
+      true,
+    );
     expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
       [
         deriveProtocolConfigPda(),
         derivePlayerStatePda(owner),
         deriveMapCatalogPda(1, 1),
         run.activeRun,
-        derivePlayerFundingPda(owner),
+        actor.publicKey,
         owner,
         sessionToken,
         actor.publicKey,
         SystemProgram.programId,
-        ZKUBE_PROGRAM_ID,
       ].map((publicKey) => publicKey.toBase58()),
     );
   });
@@ -170,7 +159,7 @@ describe("native SOL transaction boundaries", () => {
     expect(instructionNames.has("activate_content_release")).toBe(true);
   });
 
-  it("funds delegation rent only from the canonical player PDA", async () => {
+  it("funds delegation rent from the device signer", async () => {
     const owner = Keypair.generate().publicKey;
     const actor = new SessionWallet(Keypair.generate());
     const sessionToken = Keypair.generate().publicKey;
@@ -183,16 +172,16 @@ describe("native SOL transaction boundaries", () => {
     const record = delegationRecordPdaFromDelegatedAccount(run.activeRun);
     const metadata = delegationMetadataPdaFromDelegatedAccount(run.activeRun);
     const instruction = await zkubeProgram({} as Connection, actor)
-      .methods.fundedDelegateActiveRun()
+      .methods.delegateActiveRun()
       .accountsPartial({
+        payer: actor.publicKey,
+        ownerAuthority: owner,
+        sessionToken,
+        actor: actor.publicKey,
         bufferPda: buffer,
         delegationRecordPda: record,
         delegationMetadataPda: metadata,
         pda: run.activeRun,
-        playerFunding: derivePlayerFundingPda(owner),
-        ownerAuthority: owner,
-        sessionToken,
-        actor: actor.publicKey,
         ownerProgram: ZKUBE_PROGRAM_ID,
         delegationProgram: DELEGATION_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
@@ -202,27 +191,28 @@ describe("native SOL transaction boundaries", () => {
       ])
       .instruction();
 
-    expect(instruction.keys.filter(({ isSigner }) => isSigner)).toEqual([
-      expect.objectContaining({ pubkey: actor.publicKey }),
-    ]);
+    const signerMetas = instruction.keys.filter(({ isSigner }) => isSigner);
+    expect(signerMetas).toHaveLength(2);
+    expect(signerMetas.every(({ pubkey }) => pubkey.equals(actor.publicKey)))
+      .toBe(true);
     expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
       [
+        actor.publicKey,
+        owner,
+        sessionToken,
+        actor.publicKey,
         buffer,
         record,
         metadata,
         run.activeRun,
-        derivePlayerFundingPda(owner),
-        owner,
-        sessionToken,
-        actor.publicKey,
         ZKUBE_PROGRAM_ID,
         DELEGATION_PROGRAM_ID,
         SystemProgram.programId,
         validator,
       ].map((publicKey) => publicKey.toBase58()),
     );
-    expect(instruction.keys[4]).toMatchObject({
-      isSigner: false,
+    expect(instruction.keys[0]).toMatchObject({
+      isSigner: true,
       isWritable: true,
     });
     expect(instruction.keys.at(-1)).toMatchObject({
@@ -295,23 +285,26 @@ describe("native SOL transaction boundaries", () => {
     const run = deriveRunAddresses(owner, 1n);
     const program = zkubeProgram({} as Connection, actor);
     const prepare = await program.methods
-      .fundedPrepareCampaignRun(new BN(1), 1, 1)
+      .prepareCampaignRun(new BN(1), 1, 1)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         playerState: derivePlayerStatePda(owner),
         mapCatalog: deriveMapCatalogPda(1, 1),
         activeRun: run.activeRun,
-        playerFunding: derivePlayerFundingPda(owner),
+        payer: actor.publicKey,
         ownerAuthority: owner,
         sessionToken,
         actor: actor.publicKey,
         systemProgram: SystemProgram.programId,
-        zkubeProgram: ZKUBE_PROGRAM_ID,
       })
       .instruction();
     const delegate = await program.methods
-      .fundedDelegateActiveRun()
+      .delegateActiveRun()
       .accountsPartial({
+        payer: actor.publicKey,
+        ownerAuthority: owner,
+        sessionToken,
+        actor: actor.publicKey,
         bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
           run.activeRun,
           ZKUBE_PROGRAM_ID,
@@ -323,10 +316,6 @@ describe("native SOL transaction boundaries", () => {
           run.activeRun,
         ),
         pda: run.activeRun,
-        playerFunding: derivePlayerFundingPda(owner),
-        ownerAuthority: owner,
-        sessionToken,
-        actor: actor.publicKey,
         ownerProgram: ZKUBE_PROGRAM_ID,
         delegationProgram: DELEGATION_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
@@ -368,7 +357,7 @@ describe("native SOL transaction boundaries", () => {
     });
     const currentDaily = deriveArenaDailyPda(20);
     const enterArena = await zkubeProgram(connection, new SessionWallet(session))
-      .methods.fundedEnterArena(new BN(1), new BN(10_000_000), [])
+      .methods.enterArena(new BN(1), new BN(10_000_000), [])
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
@@ -378,7 +367,7 @@ describe("native SOL transaction boundaries", () => {
         followingDaily: deriveArenaDailyPda(21),
         creditVault: deriveCreditVaultPda(),
         activeRun: addresses.activeRun,
-        playerFunding: derivePlayerFundingPda(owner.publicKey),
+        payer: session.publicKey,
         ownerAuthority: owner.publicKey,
         sessionToken,
         actor: session.publicKey,
@@ -413,9 +402,9 @@ describe("native SOL transaction boundaries", () => {
       true,
     );
     expect(combined.transactionPlan.signers).toEqual([session]);
-    expect(delegate.keys[5]?.pubkey.equals(owner.publicKey)).toBe(true);
-    expect(delegate.keys[6]?.pubkey.equals(sessionToken)).toBe(true);
-    expect(delegate.keys[7]).toMatchObject({
+    expect(delegate.keys[1]?.pubkey.equals(owner.publicKey)).toBe(true);
+    expect(delegate.keys[2]?.pubkey.equals(sessionToken)).toBe(true);
+    expect(delegate.keys[3]).toMatchObject({
       pubkey: session.publicKey,
       isSigner: true,
     });

@@ -9,7 +9,6 @@ import {
 
 import { ZKUBE_PROGRAM_ID } from "./constants.js";
 import {
-  derivePlayerFundingPda,
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
@@ -110,7 +109,7 @@ export function invalidatePlayerLabel(owner: PublicKey): void {
   }
 }
 
-export async function buildFundedCreatePlayerLabelPlan(args: {
+export async function buildCreatePlayerLabelPlan(args: {
   connection: Connection;
   wallet: WalletLike;
   ownerAuthority: PublicKey;
@@ -120,17 +119,16 @@ export async function buildFundedCreatePlayerLabelPlan(args: {
   const display = validatePlayerLabel(args.displayName);
   const actor = args.wallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.wallet)
-    .methods.fundedCreatePlayerLabel({ display })
+    .methods.createPlayerLabel({ display })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       playerState: derivePlayerStatePda(args.ownerAuthority),
       playerLabel: derivePlayerLabelPda(args.ownerAuthority),
-      playerFunding: derivePlayerFundingPda(args.ownerAuthority),
+      payer: actor,
       ownerAuthority: args.ownerAuthority,
       sessionToken: args.sessionToken,
       actor,
       systemProgram: SystemProgram.programId,
-      zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
   return plan(

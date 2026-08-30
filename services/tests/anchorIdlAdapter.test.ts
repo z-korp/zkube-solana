@@ -11,22 +11,21 @@ import {
 import {
   ZKUBE_PROGRAM_ID,
   arenaDailyPda,
-  playerFundingPda,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "1a9a3629ecfadd1dc73aa88d2cf9fdde90a91332334ee660d06091c6c2d99125";
+  "0f41486ee9d4803b0fa4c6a784d36e38564740877fbb5b06e771017fc640e742";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 50 instructions and 12 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 45 instructions and 12 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(50);
+    expect(idl.instructions).toHaveLength(45);
     expect(idl.accounts).toHaveLength(12);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
@@ -89,6 +88,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["commit_run", ranked(owner, "ephemeral_rollup"), "commit_run"],
       ["consume_campaign_run", {
         owner,
+        rentRecipient: Keypair.generate().publicKey,
         runId: RUN_ID,
         runMode: "campaign",
         runLocation: "base",
@@ -128,7 +128,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["close_arena_player", {
         dayId: DAY,
         owner,
-        rentRecipient: playerFundingPda(owner),
+        rentRecipient: Keypair.generate().publicKey,
       }, "close_arena_player"],
     ];
     const idl = readIdl();
@@ -176,6 +176,7 @@ function ranked(
 ): KeeperPlanContext {
   return {
     owner,
+    rentRecipient: Keypair.generate().publicKey,
     runId: RUN_ID,
     runMode: "ranked",
     runLocation,

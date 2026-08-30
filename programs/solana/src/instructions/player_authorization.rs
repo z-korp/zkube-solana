@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
-use crate::state::PLAYER_FUNDING_SEED;
 
 /// The common authorization boundary for owner-controlled, non-custodial
 /// player actions. The owner address remains the durable identity; `actor`
@@ -28,15 +27,9 @@ pub fn require_player_authorization(
     )
 }
 
-/// Rent may be paid directly by the owner/actor or by the owner's canonical
-/// zero-data System PDA. No unrelated signer may be substituted as a sponsor.
+/// Rent may be paid directly by the owner or the authorized device actor.
 pub fn require_player_rent_payer(owner: Pubkey, actor: Pubkey, payer: Pubkey) -> Result<()> {
-    let funding =
-        Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
-    require!(
-        payer == owner || payer == actor || payer == funding,
-        ErrorCode::InvalidOwner
-    );
+    require!(payer == owner || payer == actor, ErrorCode::InvalidOwner);
     Ok(())
 }
 
@@ -181,46 +174,12 @@ mod tests {
     }
 
     #[test]
-    fn rent_payer_is_owner_actor_or_canonical_funding_only() {
+    fn rent_payer_is_owner_or_authorized_actor_only() {
         let owner = Pubkey::new_unique();
         let actor = Pubkey::new_unique();
-        let funding =
-            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
         assert!(require_player_rent_payer(owner, actor, owner).is_ok());
         assert!(require_player_rent_payer(owner, actor, actor).is_ok());
-        assert!(require_player_rent_payer(owner, actor, funding).is_ok());
         assert!(require_player_rent_payer(owner, actor, Pubkey::new_unique()).is_err());
-    }
-
-    #[test]
-    fn funded_delegate_outer_metas_never_make_the_funding_pda_a_signer() {
-        let owner = Pubkey::new_unique();
-        let actor = Pubkey::new_unique();
-        let funding =
-            Pubkey::find_program_address(&[PLAYER_FUNDING_SEED, owner.as_ref()], &crate::ID).0;
-        let metas = crate::accounts::FundedDelegateActiveRun {
-            buffer_pda: Pubkey::new_unique(),
-            delegation_record_pda: Pubkey::new_unique(),
-            delegation_metadata_pda: Pubkey::new_unique(),
-            pda: Pubkey::new_unique(),
-            player_funding: funding,
-            owner_authority: owner,
-            session_token: token_address(owner, actor),
-            actor,
-            owner_program: crate::ID,
-            delegation_program: ephemeral_rollups_sdk::id().to_bytes().into(),
-            system_program: system_program::ID,
-        }
-        .to_account_metas(None);
-
-        assert_eq!(metas.len(), 11);
-        assert_eq!(metas[4].pubkey, funding);
-        assert!(metas[4].is_writable);
-        assert!(!metas[4].is_signer);
-        assert_eq!(metas[7].pubkey, actor);
-        assert!(metas[7].is_signer);
-        assert_eq!(metas[8].pubkey, crate::ID);
-        assert!(!metas[8].is_signer);
     }
 
     #[test]

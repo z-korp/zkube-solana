@@ -583,6 +583,7 @@ pub fn handler_enter_arena<'info>(
         ctx.accounts.arena_player.set_inner(ArenaPlayer::initialize(
             ctx.accounts.current_daily.key(),
             ctx.accounts.owner_authority.key(),
+            ctx.accounts.payer.key(),
             ctx.bumps.arena_player,
         ));
         ctx.accounts.current_daily.unique_players =
@@ -642,6 +643,7 @@ pub fn handler_enter_arena<'info>(
         &mut ctx.accounts.active_run,
         ctx.bumps.active_run,
         ctx.accounts.owner_authority.key(),
+        ctx.accounts.payer.key(),
         run_id,
         RunMode::Daily,
         ctx.accounts.current_daily.runs_close_at,
@@ -783,6 +785,7 @@ fn initialize_arena_run(
     active: &mut ActiveRun,
     bump: u8,
     owner: Pubkey,
+    rent_payer: Pubkey,
     run_id: u64,
     mode: RunMode,
     deadline_at: i64,
@@ -792,6 +795,7 @@ fn initialize_arena_run(
     *active = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
+        rent_payer,
         daily_challenge: daily_key,
         run_id,
         mode,
@@ -857,10 +861,8 @@ pub struct ConsumeArenaRun<'info> {
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump)]
     pub active_run: Box<Account<'info, ActiveRun>>,
-    /// CHECK: Canonical zero-data player funding PDA.
-    #[account(mut, seeds = [PLAYER_FUNDING_SEED, active_run.owner.as_ref()], bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    /// CHECK: Exact original payer persisted on the closing account.
+    #[account(mut, address = active_run.rent_payer @ ErrorCode::InvalidOwner)]
     pub rent_recipient: UncheckedAccount<'info>,
 }
 
@@ -967,10 +969,8 @@ pub struct CleanupOrphanActiveRun<'info> {
         constraint = player_state.owner == active_run.owner @ ErrorCode::Unauthorized,
         constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion)]
     pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: Canonical zero-data player funding PDA receives recycled rent.
-    #[account(mut, seeds = [PLAYER_FUNDING_SEED, active_run.owner.as_ref()], bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    /// CHECK: Exact original payer persisted on the closing account.
+    #[account(mut, address = active_run.rent_payer @ ErrorCode::InvalidOwner)]
     pub rent_recipient: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
 }
@@ -1730,10 +1730,8 @@ pub struct CloseArenaPlayer<'info> {
         constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
         constraint = arena_player.resolved() @ ErrorCode::InvalidState)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    /// CHECK: Canonical player funding PDA receives recycled rent.
-    #[account(mut, seeds = [PLAYER_FUNDING_SEED, arena_player.player.as_ref()], bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = rent_recipient.data_is_empty() @ ErrorCode::InvalidOwner)]
+    /// CHECK: Exact original payer persisted on the closing account.
+    #[account(mut, address = arena_player.rent_payer @ ErrorCode::InvalidOwner)]
     pub rent_recipient: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
 }

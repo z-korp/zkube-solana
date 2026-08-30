@@ -662,35 +662,7 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "caller",
@@ -937,35 +909,7 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_player.player",
-                "account": "ArenaPlayer"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "caller",
@@ -1147,35 +1091,7 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
+          "writable": true
         }
       ],
       "args": []
@@ -1261,34 +1177,7 @@
         },
         {
           "name": "rent_recipient",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
+          "writable": true
         }
       ],
       "args": []
@@ -2528,7 +2417,7 @@
           "name": "magic_fee_vault",
           "docs": [
             "protocol infrastructure for gasless ER VRF and is unrelated to the",
-            "owner's base-layer player funding PDA."
+            "owner's base-layer device-rent flow."
           ],
           "writable": true
         }
@@ -2546,285 +2435,6 @@
         {
           "name": "expected_request_counter",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "funded_create_player_label",
-      "discriminator": [
-        28,
-        170,
-        69,
-        230,
-        197,
-        34,
-        128,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "player_state"
-        },
-        {
-          "name": "player_label",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "PlayerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "funded_delegate_active_run",
-      "discriminator": [
-        102,
-        174,
-        16,
-        12,
-        194,
-        90,
-        137,
-        177
-      ],
-      "accounts": [
-        {
-          "name": "buffer_pda",
-          "writable": true
-        },
-        {
-          "name": "delegation_record_pda",
-          "writable": true
-        },
-        {
-          "name": "delegation_metadata_pda",
-          "writable": true
-        },
-        {
-          "name": "pda",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "owner_program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        },
-        {
-          "name": "delegation_program"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "funded_enter_arena",
-      "discriminator": [
-        206,
-        116,
-        24,
-        77,
-        137,
-        195,
-        205,
-        22
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "arcade_config"
-        },
-        {
-          "name": "player_state",
-          "writable": true
-        },
-        {
-          "name": "current_daily",
-          "writable": true
-        },
-        {
-          "name": "arena_player",
-          "writable": true
-        },
-        {
-          "name": "following_daily",
-          "writable": true
-        },
-        {
-          "name": "credit_vault",
-          "writable": true
-        },
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority",
-          "writable": true
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        },
-        {
-          "name": "expected_entry_lamports",
-          "type": "u64"
-        },
-        {
-          "name": "auto_claim_positions",
-          "type": {
-            "vec": "u32"
-          }
         }
       ]
     },
@@ -2983,102 +2593,6 @@
         {
           "name": "day_id",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "funded_prepare_campaign_run",
-      "discriminator": [
-        100,
-        111,
-        127,
-        144,
-        180,
-        127,
-        15,
-        84
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "player_state",
-          "docs": [
-            "this unchecked prevents Anchor from serializing a stale outer copy over",
-            "the changes made by the self-CPI."
-          ],
-          "writable": true
-        },
-        {
-          "name": "map_catalog"
-        },
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token"
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        },
-        {
-          "name": "map_id",
-          "type": "u8"
-        },
-        {
-          "name": "level",
-          "type": "u8"
         }
       ]
     },
@@ -3328,40 +2842,6 @@
                   121,
                   101,
                   114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_funding",
-          "docs": [
-            "account is accepted; no retired program-owned layout is convertible."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
                 ]
               },
               {
@@ -4898,67 +4378,6 @@
       ]
     },
     {
-      "name": "withdraw_player_funding",
-      "discriminator": [
-        186,
-        115,
-        58,
-        115,
-        207,
-        128,
-        127,
-        224
-      ],
-      "accounts": [
-        {
-          "name": "player_funding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "write_map_catalog",
       "discriminator": [
         217,
@@ -5615,6 +5034,13 @@
             "type": "pubkey"
           },
           {
+            "name": "rent_payer",
+            "docs": [
+              "Original signer that funded this account and receives its rent back."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "daily_challenge",
             "type": "pubkey"
           },
@@ -6193,6 +5619,13 @@
           },
           {
             "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "rent_payer",
+            "docs": [
+              "Original signer that funded this account and receives its rent back."
+            ],
             "type": "pubkey"
           },
           {

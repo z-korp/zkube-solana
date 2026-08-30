@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { Keypair, type Connection } from "@solana/web3.js";
+import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,7 +13,6 @@ import {
   arenaBoardPda,
   cadenceFundingPda,
   dailyContentSelection,
-  playerFundingPda,
   validationOnlyPlan,
   type KeeperInstructionPlan,
   type KeeperPlanContext,
@@ -117,17 +116,17 @@ describe("v5 keeper semantic policy", () => {
       .toThrow("file hash");
   });
 
-  it("pins ArenaPlayer cleanup to the owner funding PDA", () => {
+  it("pins ArenaPlayer cleanup to its persisted nonzero rent payer", () => {
     const owner = Keypair.generate().publicKey;
     const context: KeeperPlanContext = {
       competition: "daily",
       dayId: DAY,
       owner,
-      rentRecipient: playerFundingPda(owner),
+      rentRecipient: Keypair.generate().publicKey,
     };
     expect(() => policy(validationOnlyPlan("close_arena_player", context)))
       .not.toThrow();
-    context.rentRecipient = Keypair.generate().publicKey;
+    context.rentRecipient = PublicKey.default;
     expect(() => policy(validationOnlyPlan("close_arena_player", context)))
       .toThrow("cleanup recipient");
   });

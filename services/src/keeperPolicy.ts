@@ -18,7 +18,6 @@ import {
   currentDayId,
   dailyContentSelection,
   nextScheduledDaily,
-  playerFundingPda,
   type KeeperInstructionPlan,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
@@ -248,7 +247,7 @@ function assertExpiryTarget(
 function assertParticipantClosure(context: KeeperPlanContext, today: number): void {
   assertRecentDaily(context.dayId, today, "ArenaPlayer");
   if (context.competition !== "daily" || !context.owner || !context.rentRecipient ||
-      !context.rentRecipient.equals(playerFundingPda(context.owner))) {
+      context.rentRecipient.equals(PublicKey.default)) {
     throw new Error("keeper policy rejects ArenaPlayer cleanup recipient");
   }
 }

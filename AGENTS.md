@@ -66,10 +66,10 @@ Source implements v5 partially. Current state:
   any time. The ladder is cumulative log-rank
   points, pays no SOL, never decays, and resets only by an announced decision.
   Neither mode grants SOL, entries, prize eligibility, or mint odds.
-- The owner funds the shared System-owned zero-data player funding PDA and the
-  recyclable device fee allowance. A separately seeded System-owned zero-data
+- The owner funds the device session's recyclable fee-and-rent allowance
+  directly. A separately seeded System-owned zero-data
   cadence funding PDA recycles Daily account rent after finalized results are
-  durably archived. Funding PDAs sign only narrow self-CPI rent paths; there is
+  durably archived. The cadence funding PDA signs only narrow self-CPI rent paths; there is
   no Kora or generic paymaster.
 - Separate durable Campaign and Arcade run slots prevent overlap within either
   mode and support cross-device recovery while allowing one run of each. They
@@ -394,8 +394,6 @@ themes, and starting guardian charges are superseded as well.
 - `/home/djizus/zkube` and `/home/djizus/cycling-sim` are read-only references.
 - Treat RPC data as untrusted: verify cluster genesis, owner, bounded length,
   discriminator, PDA seeds, and account relationships before decoding.
-- A player funding PDA may never gain a generic transfer or arbitrary
-  instruction-forwarding path.
 - Preserve `ActiveRun` until copied-back terminal state is consumed, or until a
   deterministic expiry resolution and orphan reservation prevent late scoring
   and permit safe cleanup.
@@ -674,8 +672,7 @@ Emblems are identity display only with no monetary effect.
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
 | Owner wallet | Durable identity and paid entry | Signs every 0.01 SOL entry |
-| Device session | Approximately seven days of safe gameplay | Never signs entry payment |
-| Player funding PDA | Narrow reusable rent float | Owner-funded; self-CPI wrappers only |
+| Device session | Approximately seven days of safe gameplay | Owner-funded fee/rent float; never signs entry payment |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
@@ -683,10 +680,11 @@ Emblems are identity display only with no monetary effect.
 | Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
 | Static PWA/TWA | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
 
-The player funding PDA is System-owned with zero data and can fund only the rent
-paths named by exact zKube self-CPI wrappers. It is not a wallet and cannot
-forward arbitrary instructions. The cadence funding PDA follows the same pattern
-but is usable only by the exact Daily preparation and board-allocation wrappers.
+Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
+close returns rent to that exact address even when another device resumes the
+run. `a_closed_run_returns_rent_to_its_payer` guards this boundary. The cadence
+funding PDA is usable only by the exact Daily preparation and board-allocation
+wrappers.
 
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
 limit and 1,000-micro-lamport unit price before wallet approval, so the maximum
@@ -771,8 +769,8 @@ relationships before decoding or planning a write. It reconciles:
 - full canonical cadence snapshots, sequential on-chain archive commitments,
   and safe cadence-account closure back to the cadence funding PDA;
 - resolved run and expired session cleanup;
-- bounded post-rollup participant-account closure, with rent recycled only to
-  the canonical player funding PDA.
+- bounded post-rollup participant-account closure, with rent returned only to
+  each account's persisted original payer.
 
 The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The

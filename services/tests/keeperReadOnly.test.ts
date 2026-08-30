@@ -18,7 +18,6 @@ import {
   arenaDailyPda,
   arenaBoardPda,
   cadenceFundingPda,
-  playerFundingPda,
   type KeeperInstructionPlan,
 } from "../src/arcadeChain";
 import { canonicalArchive, cadenceResultHash } from "../src/archiveContract";
@@ -187,7 +186,7 @@ describe("keeper read-only planning", () => {
         arenaPlayerClosures: owners.map((owner, index) => ({
           dayId: DAY - index,
           owner,
-          rentRecipient: playerFundingPda(owner),
+          rentRecipient: Keypair.generate().publicKey,
         })),
         archiveState: {
           address: arcadeArchivePda(),
@@ -288,7 +287,7 @@ describe("keeper read-only planning", () => {
         arenaPlayerClosures: [{
           dayId: DAY - 1,
           owner: poisonedOwner,
-          rentRecipient: playerFundingPda(poisonedOwner),
+          rentRecipient: Keypair.generate().publicKey,
         }],
         archiveState: {
           address: arcadeArchivePda(),

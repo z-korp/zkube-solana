@@ -13,7 +13,6 @@ import {
   deriveCreditVaultPda,
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas";
@@ -441,7 +440,6 @@ export async function buildInitializePlayerPlan(args: {
     .methods.initializePlayer()
     .accountsPartial({
       playerState: derivePlayerStatePda(args.owner.publicKey),
-      playerFunding: derivePlayerFundingPda(args.owner.publicKey),
       payer,
       ownerAuthority: args.owner.publicKey,
       sessionToken: null,

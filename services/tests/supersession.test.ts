@@ -148,6 +148,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "one position-addressed claim, one authority deposit, and generated constants replaced duplicate surfaces",
   },
   {
+    pattern:
+      /player funding PDA|player_funding|playerFunding|funded_prepare_campaign_run|fundedPrepareCampaignRun|funded_enter_arena|fundedEnterArena|withdraw_player_funding|withdrawPlayerFunding|funded_delegate_active_run|fundedDelegateActiveRun|funded_create_player_label|fundedCreatePlayerLabel/,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "the owner-funded device session pays player account rent and stored rent_payer receives every refund",
+  },
+  {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

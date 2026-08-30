@@ -24,7 +24,6 @@ import {
   deriveCreditVaultPda,
   deriveMapCatalogPda,
   deriveArenaDailyPda,
-  derivePlayerFundingPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas";
@@ -277,9 +276,7 @@ describe("authority publication client", () => {
     expect(keys[0].pubkey.equals(derivePlayerStatePda(owner.publicKey))).toBe(
       true,
     );
-    expect(keys[1].pubkey.equals(derivePlayerFundingPda(owner.publicKey))).toBe(
-      true,
-    );
+    expect(keys[1].pubkey.equals(payer)).toBe(true);
     expect(plan.feePayer.equals(payer)).toBe(true);
   });
 });
