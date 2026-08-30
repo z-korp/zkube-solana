@@ -186,32 +186,6 @@ export function resolveAutoEmblemId(zones: readonly EmblemZoneInput[]): number {
 }
 
 /**
- * Resolve a stored `featuredEmblem` id to the concrete descriptor to render
- * (following the auto choice) together with its gold flag, given full
- * per-zone Campaign progress.
- */
-export function resolveFeaturedEmblem(
-  featuredEmblemId: number,
-  zones: readonly EmblemZoneInput[],
-): EmblemState {
-  const states = resolveEmblemStates(zones);
-  if (featuredEmblemId === AUTO_EMBLEM_ID) {
-    const resolvedId = resolveAutoEmblemId(zones);
-    return (
-      states.find((state) => state.descriptor.id === resolvedId) ??
-      states[AUTO_EMBLEM_ID]!
-    );
-  }
-  return (
-    states.find((state) => state.descriptor.id === featuredEmblemId) ?? {
-      descriptor: emblemDescriptor(featuredEmblemId),
-      unlocked: false,
-      gold: false,
-    }
-  );
-}
-
-/**
  * Lightweight resolver for leaderboard rows, where only the stored emblem id
  * and a player's total star count are known (never per-zone detail). Explicit
  * emblem ids resolve to their descriptor directly. Gold can only be proven at

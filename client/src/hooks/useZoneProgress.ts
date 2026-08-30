@@ -1,13 +1,9 @@
 import { useMemo } from "react";
 
 import { useCampaign } from "@/contexts/campaign";
-import {
-  ZONE_NAMES,
-  type ZoneProgressData,
-} from "@/config/profileData";
+import type { ZoneProgressData } from "@/config/profileData";
 import type { CampaignMapView } from "@/chain/campaignClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { highestClearedLevel } from "@/utils/solanaDisplay";
 
 export interface ZoneProgressResult {
   zones: ZoneProgressData[];
@@ -36,21 +32,13 @@ export function campaignMapsToZones(
         );
 
   return source.map((map) => {
-    const highestCleared = map.cleared
-      ? 10
-      : highestClearedLevel(map.levelStars);
     return {
       zoneId: map.mapId,
-      themeId: map.themeId,
-      settingsId: map.mapId,
-      name: ZONE_NAMES[map.mapId] ?? `Zone ${map.mapId}`,
       stars: map.levelStars.reduce((sum, stars) => sum + stars, 0),
       maxStars: 30,
       unlocked: map.unlocked,
       cleared: map.cleared,
-      isFree: true,
       levelStars: map.levelStars,
-      highestCleared,
       bossCleared: map.cleared,
       perfectionClaimed: map.perfected,
     };

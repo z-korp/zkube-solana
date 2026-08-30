@@ -11,11 +11,7 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
 import type { Game } from "@/game/model";
 import { dailyThemeDescription } from "@/game/constraint";
-import {
-  getBonusType,
-  getGuardianDef,
-  REROLL_ACTION,
-} from "@/config/mutatorConfig";
+import { getGuardianDef } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { canSubmitRunMove } from "@/chain/useRunController";
@@ -39,7 +35,11 @@ import ScoreChips, {
   CHIP_STAGGER_MS,
   type ScoreChip,
 } from "@/ui/components/hud/ScoreChips";
-import type { BonusSlot } from "@/ui/components/hud/bonusSlot";
+import {
+  bonusDisplay,
+  REROLL_DISPLAY,
+  type BonusSlot,
+} from "@/ui/components/hud/bonusSlot";
 import { useGuardianMood } from "@/ui/components/hud/useGuardianMood";
 import ImageAssets from "@/ui/theme/ImageAssets";
 import { BOARD_WELL, stoneSurface } from "@/ui/theme/stoneSurface";
@@ -205,7 +205,7 @@ export default function PlayScreen() {
 
   const bonusDescription =
     activeBonus !== BonusType.None && activeRun
-      ? `TAP A BLOCK TO USE ${getBonusType(activeRun.bonusType).name.toUpperCase()}`
+      ? `TAP A BLOCK TO USE ${bonusDisplay(activeRun.bonusType).name.toUpperCase()}`
       : "";
 
   // Freeze the HUD at the pre-action snapshot; a rejected action never fires
@@ -251,7 +251,7 @@ export default function PlayScreen() {
     const slots: BonusSlot[] = [];
     if (activeRun.bonusType > 0) {
       const type = activeRun.bonusType as BonusType;
-      const info = getBonusType(type);
+      const info = bonusDisplay(type);
       slots.push({
         type,
         // Displayed count is held until the cascade lands, so it bumps
@@ -296,8 +296,8 @@ export default function PlayScreen() {
       type: "reroll",
       charges: activeRun.rerollCharges,
       isActive: true,
-      icon: REROLL_ACTION.icon,
-      name: REROLL_ACTION.name,
+      icon: REROLL_DISPLAY.icon,
+      name: REROLL_DISPLAY.name,
       description:
         "Replaces the next row · perfect clear awards +1 · hold up to 3",
       triggerDescription: "Held rerolls",
@@ -764,7 +764,7 @@ export default function PlayScreen() {
     activeRun.dailyTheme?.kind === 3 ? Number(activeRun.dailyTheme.value) : 2;
   const themeSentence = dailyThemeDescription(
     activeRun.dailyTheme,
-    getGuardianDef(activeRun.rules.activeMutatorId).name,
+    getGuardianDef(activeRun.mapId).name,
   );
   const guardianSlot = bonusSlots.find((slot) => slot.type !== "reroll");
   const coachText = !coachMarks.move

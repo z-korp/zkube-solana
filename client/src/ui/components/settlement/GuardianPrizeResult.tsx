@@ -7,7 +7,7 @@ import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import GuardianTalkScene from "@/ui/components/settlement/GuardianTalkScene";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
-import type { PrizeLabel } from "./usePrizeDeltaTrigger";
+import type { PrizeLabel } from "@/hooks/useRewards";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
 interface GuardianPrizeResultProps {

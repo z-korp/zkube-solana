@@ -16,6 +16,7 @@ import { truncatePublicKey } from "@/utils/solanaDisplay";
 const ROWS = 10;
 const COLS = 8;
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 export default function SpectatorScreen() {
   const navigate = useNavigationStore((state) => state.navigate);
   const rawTarget = useNavigationStore((state) => state.spectateTarget);

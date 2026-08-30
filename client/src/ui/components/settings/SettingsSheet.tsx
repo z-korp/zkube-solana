@@ -3,7 +3,7 @@ import { Check, Copy, ExternalLink, Music2, Volume2 } from "lucide-react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useRewards } from "@/hooks/useRewards";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { MONEY_GOLD, mixHex, SolMark } from "@/ui/components/economy";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
@@ -57,7 +57,7 @@ const SettingsSheet: React.FC = () => {
   const player = useConnectedPlayer();
   const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
     useMusicPlayer();
-  const notifications = useNotifications();
+  const { notifications } = useRewards();
   const [copied, setCopied] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletStatus, setWalletStatus] = useState("");
@@ -176,6 +176,7 @@ const SettingsSheet: React.FC = () => {
           </div>
         </section>
 
+        {/* PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked */}
         {/* Alerts */}
         <section>
           <p className={SECTION_CLASS}>Alerts</p>

@@ -7,6 +7,7 @@ interface HudBarSvgProps {
   daily?: boolean;
 }
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 const HudBarSvg: React.FC<HudBarSvgProps> = ({
   latchedStarSources = 0,
   daily = false,

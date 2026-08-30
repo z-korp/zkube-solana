@@ -15,7 +15,7 @@ import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
-import { useNotifications } from "@/hooks/useNotifications";
+import { RewardsProvider } from "@/hooks/useRewards";
 import BootReveal from "@/ui/components/shared/BootReveal";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE, devBoardModeFromUrl } from "@/dev/devBypass";
@@ -73,13 +73,6 @@ export default function App() {
   // One PlayerState watch keeps Arcade progression and Campaign completion in
   // agreement without mixing their presentation surfaces.
   usePlayerStateSync();
-  // Mount the opt-in notification observers once at the app root so "you won"
-  // and "new Daily is open" alerts fire across the whole in-session lifetime,
-  // not only while Settings is open. Fully inert until the player opts in
-  // (Settings toggle) and the browser grants permission; local/in-session only.
-  // Safe to also mount on Settings — each fire persists its baseline before
-  // notifying and carries an OS-level dedupe tag.
-  useNotifications();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app
   // opens on the correct background). Spectator/recovery deep-links don't
@@ -159,14 +152,16 @@ function ClientSurface({
 }) {
   return (
     <TooltipProvider>
-      <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
-      <SettingsSheet />
-      {/* The diagnostics drawer is pinned to the bottom edge, which is
-          exactly where the in-run action bar lives — hide it while a board
-          is staged so the bar can be judged. */}
-      {showDiagnostics && <CapabilityDiagnostics />}
-      <Toaster position={getToastPlacement()} />
-      {overlay}
+      <RewardsProvider>
+        <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+        <SettingsSheet />
+        {/* The diagnostics drawer is pinned to the bottom edge, which is
+            exactly where the in-run action bar lives — hide it while a board
+            is staged so the bar can be judged. */}
+        {showDiagnostics && <CapabilityDiagnostics />}
+        <Toaster position={getToastPlacement()} />
+        {overlay}
+      </RewardsProvider>
     </TooltipProvider>
   );
 }

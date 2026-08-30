@@ -12,6 +12,7 @@ import {
 } from "@/ui/components/chrome";
 import { constraintStatus } from "@/ui/components/hud/constraintDisplay";
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 export default function SpectatorHud({
   run,
   onBack,

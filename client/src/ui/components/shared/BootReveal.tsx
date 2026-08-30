@@ -94,6 +94,7 @@ interface BootRevealProps {
   onFinished: () => void;
 }
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 export default function BootReveal({ onSettled, onFinished }: BootRevealProps) {
   const colours = useThemeColors();
   const reduceMotion = useReducedMotion();

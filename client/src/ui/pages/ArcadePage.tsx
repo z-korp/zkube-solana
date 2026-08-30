@@ -12,6 +12,7 @@ import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCountdown, useNowTick } from "@/hooks/useNowTick";
+import { useRewards } from "@/hooks/useRewards";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import {
@@ -32,7 +33,6 @@ import {
 import {
   GuardianPrizeResult,
   InsertCoinSheet,
-  usePrizeDeltaTrigger,
 } from "@/ui/components/settlement";
 import DailyBoard from "@/ui/components/arcade/DailyBoard";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
@@ -88,7 +88,7 @@ const ArcadePage: React.FC = () => {
     }
   }, []);
   // Data-available celebration for a grown per-period reward record.
-  const { prize, dismiss: dismissPrize } = usePrizeDeltaTrigger();
+  const { prize, dismissPrize } = useRewards();
 
   const view = daily.daily;
   const zoneId = view?.mapId ?? 1;

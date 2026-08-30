@@ -13,16 +13,11 @@ export const ZONE_NAMES: Record<number, string> = {
 
 export interface ZoneProgressData {
   zoneId: number;
-  themeId?: number;
-  settingsId: number;
-  name: string;
   stars: number;
   maxStars: number;
   unlocked: boolean;
   cleared: boolean;
-  isFree: boolean;
   levelStars?: number[];
-  highestCleared?: number;
   bossCleared?: boolean;
   perfectionClaimed?: boolean;
 }

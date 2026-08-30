@@ -300,6 +300,7 @@ interface Spark {
   life: number;
 }
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 export class BootRevealScene {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly dpr = Math.min(window.devicePixelRatio || 1, 2);

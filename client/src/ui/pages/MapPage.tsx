@@ -53,8 +53,6 @@ const STATE_COLORS: Record<
   locked: { fill: "#334155", border: "#475569", alpha: 0.5, text: "#94a3b8" },
   cleared: { fill: "#14532d", border: "#22c55e", alpha: 1, text: "#bbf7d0" },
   current: { fill: "#0f2743", border: "#3b82f6", alpha: 1, text: "#bfdbfe" },
-  available: { fill: "#1e293b", border: "#f97316", alpha: 1, text: "#fed7aa" },
-  visited: { fill: "#1e3a2f", border: "#4ade80", alpha: 0.85, text: "#bbf7d0" },
   playing: { fill: "#7c2d12", border: "#fb923c", alpha: 1, text: "#ffedd5" },
 };
 
@@ -66,13 +64,13 @@ const getPathType = (
 ): "cleared" | "active" | "locked" => {
   if (
     fromState === "cleared" &&
-    (toState === "cleared" || toState === "visited")
+    toState === "cleared"
   ) {
     return "cleared";
   }
   if (
     fromState === "cleared" &&
-    (toState === "current" || toState === "available" || toState === "playing")
+    (toState === "current" || toState === "playing")
   ) {
     return "active";
   }
@@ -120,10 +118,7 @@ const MapPage: React.FC = () => {
   });
   const gameLevel = useGameLevel({ gameId: game?.id });
 
-  // Layout randomness is visual-only; gameplay rules come from the catalog.
-  const layoutSeed = mapZoneId * 48_271 + 12_347;
   const zoneLayouts = useMapLayout({
-    seed: layoutSeed,
     totalZones: 1,
     nodesPerZone: NODES_PER_ZONE,
   });
@@ -225,11 +220,6 @@ const MapPage: React.FC = () => {
     markZoneGreeted,
   ]);
 
-  const firstPlayable = useMemo(() => {
-    if (!map) return 1;
-    const firstUncleared = map.levelStars.findIndex((stars) => stars === 0);
-    return firstUncleared < 0 ? 10 : firstUncleared + 1;
-  }, [map]);
   const currentNode =
     nodes.find((node) => node.state === "playing") ??
     nodes.find((node) => node.state === "current") ??
@@ -512,8 +502,7 @@ const MapPage: React.FC = () => {
               const isInteractive =
                 node.state !== "locked" && !blockedByActiveRun;
               const label = getLabel(node);
-              const isCleared =
-                node.state === "cleared" || node.state === "visited";
+              const isCleared = node.state === "cleared";
               const nodeImage =
                 node.type === "boss"
                   ? themeImages.mapNodeBoss
@@ -689,7 +678,6 @@ const MapPage: React.FC = () => {
           <GuardianGreeting
             colors={colors}
             guardian={guardian}
-            activeMutatorId={map?.levels[firstPlayable - 1]?.activeMutatorId}
             isFirstVisit={isFirstVisit}
             bossCleared={map?.cleared ?? false}
             onClose={() => setShowGreeting(false)}

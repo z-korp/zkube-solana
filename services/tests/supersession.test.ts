@@ -31,6 +31,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /\bgridProjection\b|\bEmptyState\b|\bSegmentedTabs\b|\bActionBarSvg\b|\bresolveFeaturedEmblem\b|\busePrizeDeltaTrigger\b|notify-rewards-seen|Wake the guardian|zkube:v4:/i,
+    trees: [CLIENT],
+    reversal:
+      "one engine projection, one rewards observer, and produced client states replaced the dead client surfaces",
+  },
+  {
+    pattern:
       /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally/i,
     trees: [CLIENT],
     reversal: "player-facing run copy names player actions, not protocol plumbing",

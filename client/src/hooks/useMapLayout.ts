@@ -1,7 +1,5 @@
 import { useMemo } from "react";
 
-type MapLayoutEdgeKind = "main" | "branch";
-
 interface MapLayoutPoint {
   x: number;
   y: number;
@@ -10,7 +8,6 @@ interface MapLayoutPoint {
 interface MapLayoutEdge {
   from: number;
   to: number;
-  kind: MapLayoutEdgeKind;
 }
 
 export interface ZoneLayout {
@@ -19,224 +16,43 @@ export interface ZoneLayout {
 }
 
 export interface UseMapLayoutParams {
-  seed: number;
   totalZones: number;
   nodesPerZone: number;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Hash helpers                                                       */
-/* ------------------------------------------------------------------ */
+// The ten Campaign positions are authored furniture. Gameplay does not gain
+// anything from rolling and ranking eight cosmetic paths for every realm.
+const CAMPAIGN_PATH: readonly MapLayoutPoint[] = [
+  { x: 0.5, y: 0.92 },
+  { x: 0.28, y: 0.82 },
+  { x: 0.68, y: 0.73 },
+  { x: 0.31, y: 0.64 },
+  { x: 0.7, y: 0.55 },
+  { x: 0.26, y: 0.46 },
+  { x: 0.64, y: 0.37 },
+  { x: 0.3, y: 0.28 },
+  { x: 0.72, y: 0.18 },
+  { x: 0.5, y: 0.08 },
+] as const;
 
-/**
- * Deterministic float in [0, 1) for a given (seed, zone, step, salt).
- * Layout randomness is purely visual, so a splitmix32-style mix replaces
- * the original client's Poseidon hash.
- */
-function hashToUnit(
-  seed: number,
-  zone: number,
-  step: number,
-  salt: number,
-): number {
-  let h = (seed ^ 0x9e3779b9) >>> 0;
-  for (const value of [zone + 1, step + 1, salt]) {
-    h = (h + value) >>> 0;
-    h = Math.imul(h ^ (h >>> 16), 0x21f0aaad) >>> 0;
-    h = Math.imul(h ^ (h >>> 15), 0x735a2d97) >>> 0;
-    h = (h ^ (h >>> 15)) >>> 0;
-  }
-  return (h % 10_000) / 10_000;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-/* ------------------------------------------------------------------ */
-/*  Layout constants                                                   */
-/* ------------------------------------------------------------------ */
-
-const Y_TOP = 0.08;
-const Y_BOTTOM = 0.92;
-
-/** X bounds for node placement */
-const X_MIN = 0.15;
-const X_MAX = 0.85;
-const X_CENTER = 0.5;
-
-/** Minimum horizontal distance between consecutive nodes */
-const MIN_X_SHIFT = 0.15;
-
-/** Maximum Y jitter (fraction of yStep) */
-const Y_JITTER = 0.25;
-
-/** Candidate rolls scored per zone; the prettiest wins (still deterministic) */
-const LAYOUT_CANDIDATES = 8;
-
-/** ViewBox aspect used for crowding distances (matches MapPage's 60×100) */
-const VB_W = 60;
-const VB_H = 100;
-
-/* ------------------------------------------------------------------ */
-/*  Build zone layout                                                  */
-/* ------------------------------------------------------------------ */
-
-function buildCandidate(
-  seed: number,
-  zoneIndex: number,
-  nodesPerZone: number,
-): MapLayoutPoint[] {
-  const points: MapLayoutPoint[] = [];
-  const lastNode = nodesPerZone - 1;
-  const yStep = (Y_BOTTOM - Y_TOP) / Math.max(lastNode, 1);
-
-  let prevX = X_CENTER;
-
-  for (let i = 0; i < nodesPerZone; i++) {
-    const isFirst = i === 0;
-    const isLast = i === lastNode;
-
-    // Y: even spacing with jitter on interior nodes
-    let y = Y_BOTTOM - i * yStep;
-    if (!isFirst && !isLast) {
-      const yJit =
-        (hashToUnit(seed, zoneIndex, i, 300) - 0.5) * yStep * Y_JITTER;
-      y = clamp(y + yJit, Y_TOP, Y_BOTTOM);
-    }
-
-    // X: first and last always centered
-    if (isFirst || isLast) {
-      points.push({ x: X_CENTER, y });
-      prevX = X_CENTER;
-      continue;
-    }
-
-    // Pre-boss: offset from center, away from previous
-    if (i === lastNode - 1) {
-      const dir = prevX < X_CENTER ? 1 : -1;
-      const offset = 0.15 + hashToUnit(seed, zoneIndex, i, 301) * 0.15;
-      const x = clamp(X_CENTER + dir * offset, X_MIN, X_MAX);
-      points.push({ x, y });
-      prevX = x;
-      continue;
-    }
-
-    // Interior nodes: continuous X with guaranteed shift from previous
-    const roll = hashToUnit(seed, zoneIndex, i, 201);
-
-    // Node right after start (level 2): keep left of 0.65 to avoid the
-    // guardian portrait at the bottom-right
-    const xCeiling = i === 1 ? 0.65 : X_MAX;
-
-    // Decide direction: biased away from edges, always shift from prevX
-    let targetX: number;
-    const rightBound = xCeiling;
-    if (prevX < 0.35) {
-      // Near left edge: bias rightward
-      targetX = prevX + MIN_X_SHIFT + roll * (rightBound - prevX - MIN_X_SHIFT);
-    } else if (prevX > rightBound - 0.2) {
-      // Near right bound: bias leftward
-      targetX = prevX - MIN_X_SHIFT - roll * (prevX - MIN_X_SHIFT - X_MIN);
-    } else {
-      // Middle: go either direction
-      if (roll < 0.5) {
-        const shift = MIN_X_SHIFT + roll * 2 * (prevX - X_MIN - MIN_X_SHIFT);
-        targetX = prevX - shift;
-      } else {
-        const shift =
-          MIN_X_SHIFT + (roll - 0.5) * 2 * (rightBound - prevX - MIN_X_SHIFT);
-        targetX = prevX + shift;
-      }
-    }
-
-    const x = clamp(targetX, X_MIN, xCeiling);
-    points.push({ x, y });
-    prevX = x;
-  }
-
-  return points;
-}
-
-/**
- * Beauty score for a candidate roll: reward using the full width with
- * uneven, organic swing amplitudes; punish nodes crowding each other
- * (distances in viewBox units, where a node with its badge and star row
- * needs roughly 15 units of air).
- */
-function scoreCandidate(points: MapLayoutPoint[]): number {
-  const interior = points.slice(1, -1);
-  const xs = interior.map((point) => point.x);
-  const spread = Math.max(...xs) - Math.min(...xs);
-
-  const amplitudes = interior.map((point) => Math.abs(point.x - X_CENTER));
-  const mean =
-    amplitudes.reduce((sum, value) => sum + value, 0) / amplitudes.length;
-  const variety = Math.sqrt(
-    amplitudes.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
-      amplitudes.length,
+function fixedZoneLayout(nodesPerZone: number): ZoneLayout {
+  const points = CAMPAIGN_PATH.slice(0, nodesPerZone).map((point) => ({
+    ...point,
+  }));
+  const edges = Array.from(
+    { length: Math.max(0, points.length - 1) },
+    (_, from) => ({ from, to: from + 1 }),
   );
-
-  let minDist = Infinity;
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      const dist = Math.hypot(
-        (points[i].x - points[j].x) * VB_W,
-        (points[i].y - points[j].y) * VB_H,
-      );
-      if (dist < minDist) minDist = dist;
-    }
-  }
-  const crowding = Math.max(0, 15 - minDist);
-
-  return spread * 2 + variety * 6 - crowding * 0.3;
-}
-
-function buildZoneLayout(
-  seed: number,
-  zoneIndex: number,
-  nodesPerZone: number,
-): ZoneLayout {
-  // The walk is the original client's algorithm; rolls vary in quality, so
-  // score a handful of deterministic candidates and keep the prettiest.
-  let points = buildCandidate(seed, zoneIndex, nodesPerZone);
-  let bestScore = scoreCandidate(points);
-  for (let k = 1; k < LAYOUT_CANDIDATES; k++) {
-    const candidate = buildCandidate(
-      (seed ^ Math.imul(k, 0x85ebca6b)) >>> 0,
-      zoneIndex,
-      nodesPerZone,
-    );
-    const score = scoreCandidate(candidate);
-    if (score > bestScore) {
-      bestScore = score;
-      points = candidate;
-    }
-  }
-
-  // Linear chain edges
-  const edges: MapLayoutEdge[] = [];
-  for (let i = 0; i < nodesPerZone - 1; i++) {
-    edges.push({ from: i, to: i + 1, kind: "main" });
-  }
-
   return { points, edges };
 }
 
-/* ------------------------------------------------------------------ */
-/*  Hook                                                               */
-/* ------------------------------------------------------------------ */
-
 export function useMapLayout({
-  seed,
   totalZones,
   nodesPerZone,
 }: UseMapLayoutParams): ZoneLayout[] {
   return useMemo(
     () =>
-      Array.from({ length: totalZones }, (_, zoneIndex) =>
-        buildZoneLayout(seed, zoneIndex, nodesPerZone),
-      ),
-    [seed, totalZones, nodesPerZone],
+      Array.from({ length: totalZones }, () => fixedZoneLayout(nodesPerZone)),
+    [nodesPerZone, totalZones],
   );
 }

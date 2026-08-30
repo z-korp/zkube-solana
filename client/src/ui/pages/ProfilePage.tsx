@@ -456,6 +456,8 @@ const ProfilePage: React.FC = () => {
                 </span>
               </span>
               <span className="flex-none font-sans text-[11px] font-semibold text-white/45">
+                {record.podiums} {record.podiums === 1 ? "podium" : "podiums"}
+                {" · "}
                 {record.wins} {record.wins === 1 ? "win" : "wins"}
               </span>
               <span

@@ -12,6 +12,7 @@ interface SpectatorGridProps {
   themeId: ThemeId;
 }
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 /**
  * Stable per-origin-cell block IDs so BlockContainer's CSS transform
  * transition tweens movement between polls instead of remounting.

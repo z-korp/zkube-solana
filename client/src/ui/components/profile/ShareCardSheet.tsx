@@ -34,6 +34,7 @@ export interface ShareCardData {
   bestPrizeRank: number;
 }
 
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 interface ShareCardSheetProps {
   open: boolean;
   onClose: () => void;

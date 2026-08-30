@@ -9,8 +9,6 @@ export type NodeState =
   | "locked"
   | "cleared"
   | "current"
-  | "available"
-  | "visited"
   | "playing";
 
 interface ActiveStoryNode {

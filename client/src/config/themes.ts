@@ -1,4 +1,4 @@
-import { darken, lighten, withAlpha } from "@/utils/colour";
+import { darken, lighten } from "@/utils/colour";
 
 export const THEME_IDS = [
   "theme-1",
@@ -580,13 +580,9 @@ export const THEME_MUSIC: Record<ThemeId, Record<MusicContext, string>> = {
 
 export const SFX_PATHS = {
   // Core gameplay
-  move: "/assets/common/sounds/effects/move.mp3",
   swipe: "/assets/common/sounds/effects/swipe.mp3",
-  break: "/assets/common/sounds/effects/break.mp3",
   explode: "/assets/common/sounds/effects/explode.mp3",
-  new: "/assets/common/sounds/effects/new.mp3",
   // Game flow
-  start: "/assets/common/sounds/effects/start.mp3",
   over: "/assets/common/sounds/effects/over.mp3",
   levelup: "/assets/common/sounds/effects/levelup.mp3",
   victory: "/assets/common/sounds/effects/victory.mp3",
@@ -594,15 +590,10 @@ export const SFX_PATHS = {
   "boss-intro": "/assets/common/sounds/effects/boss-intro.mp3",
   "boss-defeat": "/assets/common/sounds/effects/boss-defeat.mp3",
   // UI interaction
-  click: "/assets/common/sounds/effects/click.mp3",
   coin: "/assets/common/sounds/effects/coin.mp3",
   star: "/assets/common/sounds/effects/star.mp3",
   // Bonus and loadout
   "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
-  equip: "/assets/common/sounds/effects/equip.mp3",
-  unequip: "/assets/common/sounds/effects/unequip.mp3",
-  "constraint-complete":
-    "/assets/common/sounds/effects/constraint-complete.mp3",
 } as const;
 
 export type SfxName = keyof typeof SFX_PATHS;
@@ -621,12 +612,10 @@ export function getThemeImages(themeId: ThemeId) {
     block4: `${base}/block-4.png`,
     loadingBg: `${base}/loading-bg.png`,
     background: `${base}/background.png`,
-    gridBg: `${base}/grid-bg.png`,
     mapBg: `${base}/map-bg.png`,
     mapNodeLevel: `${base}/map-node-level.png`,
     mapNodeBoss: `${base}/map-node-boss.png`,
     mapNodeCompleted: `${base}/map-node-completed.png`,
-    themeIcon: `${base}/theme-icon.png`,
   };
 }
 
@@ -695,10 +684,8 @@ export interface MapPathTheme {
   clearedColor: string;
   activeColor: string;
   lockedColor: string;
-  branchColor: string;
   pathStyle: MapPathStyle;
   lockedDash: string;
-  branchDash: string;
   strokeWidth: number;
   lockedStrokeWidth: number;
 }
@@ -713,77 +700,67 @@ export interface MapPathTheme {
  */
 type MapPathStyleSpec = Pick<
   MapPathTheme,
-  "pathStyle" | "lockedDash" | "branchDash" | "strokeWidth" | "lockedStrokeWidth"
+  "pathStyle" | "lockedDash" | "strokeWidth" | "lockedStrokeWidth"
 >;
 
 const MAP_PATH_STYLES: Record<ThemeId, MapPathStyleSpec> = {
   "theme-1": {
     pathStyle: "solid",
     lockedDash: "6 5",
-    branchDash: "3 5",
     strokeWidth: 2.5,
     lockedStrokeWidth: 1.8,
   },
   "theme-2": {
     pathStyle: "dashed",
     lockedDash: "8 4",
-    branchDash: "4 6",
     strokeWidth: 2.8,
     lockedStrokeWidth: 1.6,
   },
   "theme-3": {
     pathStyle: "solid",
     lockedDash: "2 4",
-    branchDash: "2 5",
     strokeWidth: 2.2,
     lockedStrokeWidth: 1.4,
   },
   "theme-4": {
     pathStyle: "dotted",
     lockedDash: "6 4",
-    branchDash: "3 4",
     strokeWidth: 2.5,
     lockedStrokeWidth: 1.6,
   },
   "theme-5": {
     pathStyle: "solid",
     lockedDash: "5 5",
-    branchDash: "4 4",
     strokeWidth: 2.5,
     lockedStrokeWidth: 1.6,
   },
   "theme-6": {
     pathStyle: "solid",
     lockedDash: "7 5",
-    branchDash: "4 5",
     strokeWidth: 3,
     lockedStrokeWidth: 1.8,
   },
   "theme-7": {
     pathStyle: "dashed",
     lockedDash: "3 4",
-    branchDash: "2 4",
     strokeWidth: 2.2,
     lockedStrokeWidth: 1.4,
   },
   "theme-8": {
     pathStyle: "solid",
     lockedDash: "5 4",
-    branchDash: "3 5",
     strokeWidth: 2.8,
     lockedStrokeWidth: 1.6,
   },
   "theme-9": {
     pathStyle: "dashed",
     lockedDash: "6 4",
-    branchDash: "4 5",
     strokeWidth: 2.5,
     lockedStrokeWidth: 1.6,
   },
   "theme-10": {
     pathStyle: "solid",
     lockedDash: "7 4",
-    branchDash: "4 4",
     strokeWidth: 2.8,
     lockedStrokeWidth: 1.8,
   },
@@ -798,7 +775,6 @@ export function getMapPathTheme(themeId: ThemeId): MapPathTheme {
     clearedColor: colors.accent,
     activeColor: colors.accent2,
     lockedColor: darken(colors.background, 0.45),
-    branchColor: withAlpha(colors.accent, 0.22),
     ...style,
   };
 }

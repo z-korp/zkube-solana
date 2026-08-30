@@ -93,13 +93,13 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
 
   const stars =
     levelStars?.[levelNum - 1] ?? game?.getLevelStars(levelNum) ?? 0;
-  const isCleared = node.state === "cleared" || node.state === "visited";
+  const isCleared = node.state === "cleared";
 
   // An active run is authoritative for itself; otherwise the map catalog's
   // exact rule snapshot is authoritative for the preview.
   const levelData =
     gameLevel?.level === levelNum ? gameLevel : node.levelConfig;
-  const triggerName = getGuardianDef(19 + zoneId * 2).name;
+  const triggerName = getGuardianDef(zoneId).name;
   const constraints = constraintDescriptions(levelData, triggerName);
   const starRules = levelData
     ? [
@@ -109,10 +109,8 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
     : [];
   const canPlay =
     node.state === "current" ||
-    node.state === "available" ||
     node.state === "playing" ||
-    node.state === "cleared" ||
-    node.state === "visited";
+    node.state === "cleared";
 
   const guardianLine = isBossLevel
     ? isCleared

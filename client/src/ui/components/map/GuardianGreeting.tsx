@@ -10,7 +10,6 @@ import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 interface GuardianGreetingProps {
   colors: ThemeColors;
   guardian: ZoneGuardian;
-  activeMutatorId?: number;
   isFirstVisit?: boolean;
   bossCleared?: boolean;
   onClose: () => void;
@@ -19,7 +18,6 @@ interface GuardianGreetingProps {
 const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   colors,
   guardian,
-  activeMutatorId,
   isFirstVisit = false,
   bossCleared = false,
   onClose,
@@ -29,10 +27,7 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
   const talk = useGuardianTalk(guardian.zoneId, guardian.greeting, {
     mood: "greeting",
   });
-  const guardianRule =
-    activeMutatorId && activeMutatorId > 0
-      ? getGuardianDef(activeMutatorId)
-      : null;
+  const guardianRule = getGuardianDef(guardian.zoneId);
 
   return (
     <motion.div
@@ -120,20 +115,18 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             {guardian.zoneHint}
           </p>
 
-          {guardianRule && (
-            <div className="mt-2 flex flex-col gap-1.5">
-              <p className="font-sans text-[14px] leading-relaxed text-white">
-                {guardianRule.icon}{" "}
-                <span
-                  className="font-semibold"
-                  style={{ color: colors.accent }}
-                >
-                  {guardianRule.name}
-                </span>{" "}
-                {guardianRule.description}
-              </p>
-            </div>
-          )}
+          <div className="mt-2 flex flex-col gap-1.5">
+            <p className="font-sans text-[14px] leading-relaxed text-white">
+              {guardianRule.icon}{" "}
+              <span
+                className="font-semibold"
+                style={{ color: colors.accent }}
+              >
+                {guardianRule.name}
+              </span>{" "}
+              {guardianRule.description}
+            </p>
+          </div>
 
           {bossCleared && (
             <p className="mt-2 flex items-center gap-1.5 font-sans text-[12px] text-white/70">

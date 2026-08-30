@@ -1,3 +1,4 @@
+// PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked
 export const HUD_BAR = {
   viewBox: { width: 500, height: 152 },
   panel: { x: 76, y: 16, width: 348, height: 88, rx: 12 },
@@ -9,15 +10,6 @@ export const HUD_BAR = {
     moves: { cx: 424, cy: 60, r: 34 },
     constraint1: { cx: 160, cy: 110, r: 18 },
     constraint2: { cx: 340, cy: 110, r: 18 },
-  },
-} as const;
-
-export const ACTION_BAR = {
-  viewBox: { width: 400, height: 100 },
-  sockets: {
-    surrender: { cx: 72, cy: 50, r: 26 },
-    bonus: { cx: 200, cy: 50, r: 30 },
-    settings: { cx: 328, cy: 50, r: 26 },
   },
 } as const;
 

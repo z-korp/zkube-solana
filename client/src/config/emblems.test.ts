@@ -8,7 +8,6 @@ import {
   type EmblemZoneInput,
   resolveAutoEmblemId,
   resolveEmblemStates,
-  resolveFeaturedEmblem,
   resolveLeaderboardEmblem,
 } from "./emblems";
 
@@ -133,16 +132,6 @@ describe("auto emblem resolution", () => {
     expect(resolveAutoEmblemId(perfect)).toBe(WORLD_PERFECT_EMBLEM_ID);
   });
 
-  it("resolveFeaturedEmblem follows auto and reports explicit lock state", () => {
-    const input = zones({ 1: zone(1, 15, true), 2: zone(2, 30, true) });
-    const auto = resolveFeaturedEmblem(AUTO_EMBLEM_ID, input);
-    expect(auto.descriptor.id).toBe(2);
-    expect(auto.unlocked).toBe(true);
-
-    const lockedGuardian = resolveFeaturedEmblem(9, input);
-    expect(lockedGuardian.descriptor.id).toBe(9);
-    expect(lockedGuardian.unlocked).toBe(false);
-  });
 });
 
 describe("leaderboard emblem resolution", () => {

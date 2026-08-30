@@ -17,15 +17,13 @@ const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({
 });
 
 describe("campaignMapsToZones", () => {
-  it("projects guardian unlocks, theme, and one-based progress", () => {
+  it("projects guardian unlocks and star progress", () => {
     expect(campaignMapsToZones([map()])[0]).toMatchObject({
       zoneId: 3,
-      themeId: 8,
-      settingsId: 3,
       stars: 6,
       maxStars: 30,
-      highestCleared: 3,
-      isFree: true,
+      unlocked: true,
+      cleared: false,
     });
   });
 
@@ -37,7 +35,7 @@ describe("campaignMapsToZones", () => {
       ],
     );
     expect(zones).toHaveLength(1);
-    expect(zones[0].highestCleared).toBe(10);
+    expect(zones[0].cleared).toBe(true);
   });
 
   it("makes only Map 1 playable before career initialization", () => {
@@ -55,15 +53,5 @@ describe("campaignMapsToZones", () => {
       false,
       false,
     ]);
-  });
-
-  it("keeps every placeholder map free of purchase pricing", () => {
-    const zones = campaignMapsToZones(null);
-    expect(zones.every((zone) => zone.isFree)).toBe(true);
-  });
-
-  it("does not invent a price for a locked guardian-gated map", () => {
-    const zones = campaignMapsToZones([map({ unlocked: false })]);
-    expect(zones[0].isFree).toBe(true);
   });
 });
