@@ -637,7 +637,7 @@ export function operationPriority(operation: string): number {
   const priority: Record<string, number> = {
     prepare_arena_daily: 0,
     activate_arena_daily: 1,
-    force_finish_deadline: 2,
+    finish_run: 2,
     commit_run: 3,
     consume_campaign_run: 4,
     consume_arena_run: 4,

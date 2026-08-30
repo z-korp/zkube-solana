@@ -84,7 +84,7 @@ const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "f71309ee0bfc3070ee38c4c3104440ae6a51568091de334a3cc2cde6b6f0fbd9";
+  "aecc84b24727fd319d1f0d3a52dccd00fd283608736d20d74efd8701c2f0adb4";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -98,7 +98,7 @@ const REQUIRED_ACCOUNTS = [
 const REQUIRED_INSTRUCTIONS = [
   "activateArenaDaily",
   "skipSuspendedArenaDaily",
-  "forceFinishDeadline",
+  "finishRun",
   "commitRun",
   "consumeCampaignRun",
   "consumeArenaRun",
@@ -755,15 +755,19 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             cadenceFunding: cadenceFundingPda(),
           },
         };
-      case "force_finish_deadline":
+      case "finish_run": {
+        const player = requiredOwner(owner);
         return {
-          name: "forceFinishDeadline",
-          args: {},
+          name: "finishRun",
+          args: { reason: { deadline: {} } },
           accounts: {
-            ...base,
+            actor: keeper,
             activeRun: activeRunPda(requiredOwner(owner), requiredRunId(runId)),
+            ownerAuthority: player,
+            sessionToken: ZKUBE_PROGRAM_ID,
           },
         };
+      }
       case "commit_run":
         return {
           name: "commitRun",
@@ -812,9 +816,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             ...base,
             playerState: playerStatePda(player),
             arenaDaily: daily,
-            arenaPlayer: context.includeArenaPlayer
-              ? arenaPlayerPda(daily, player)
-              : ZKUBE_PROGRAM_ID,
+            arenaPlayer: arenaPlayerPda(daily, player),
             owner: player,
           },
         };

@@ -450,7 +450,7 @@ function appendRunPlan(
   if (run.mode === "ranked" && forceFinishEligible &&
       run.location === "ephemeral_rollup" && run.runsCloseAt !== undefined &&
       nowUnix >= run.runsCloseAt) {
-    plans.push(validationOnlyPlan("force_finish_deadline", context));
+    plans.push(validationOnlyPlan("finish_run", context));
     return;
   }
   if (run.mode === "ranked" && run.reservationActive &&

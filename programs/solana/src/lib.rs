@@ -315,8 +315,8 @@ pub mod solana {
         instructions::run_lifecycle::handler_delegate_active_run(ctx)
     }
 
-    pub fn request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
-        instructions::run_lifecycle::handler_request_row_vrf(ctx, client_seed)
+    pub fn request_vrf(ctx: Context<RunVrf>, client_seed: [u8; 32]) -> Result<()> {
+        instructions::run_lifecycle::handler_request_vrf(ctx, client_seed)
     }
 
     pub fn fulfill_row_vrf(
@@ -332,7 +332,7 @@ pub mod solana {
     }
 
     pub fn play_move(
-        ctx: Context<PlayMove>,
+        ctx: Context<RunVrf>,
         expected_action: u32,
         expected_move: u16,
         row: u8,
@@ -352,7 +352,7 @@ pub mod solana {
     }
 
     pub fn apply_bonus(
-        ctx: Context<ApplyBonus>,
+        ctx: Context<RunVrf>,
         expected_action: u32,
         row: u8,
         column: u8,
@@ -368,19 +368,15 @@ pub mod solana {
     }
 
     pub fn request_reroll(
-        ctx: Context<ApplyBonus>,
+        ctx: Context<RunVrf>,
         expected_action: u32,
         client_seed: [u8; 32],
     ) -> Result<()> {
         instructions::run_lifecycle::handler_request_reroll(ctx, expected_action, client_seed)
     }
 
-    pub fn abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
-        instructions::run_lifecycle::handler_abandon_run(ctx)
-    }
-
-    pub fn force_finish_deadline(ctx: Context<ForceFinishDeadline>) -> Result<()> {
-        instructions::run_lifecycle::handler_force_finish_deadline(ctx)
+    pub fn finish_run(ctx: Context<FinishRun>, reason: RunFinishReason) -> Result<()> {
+        instructions::run_lifecycle::handler_finish_run(ctx, reason)
     }
 
     pub fn commit_run(ctx: Context<CommitRun>) -> Result<()> {

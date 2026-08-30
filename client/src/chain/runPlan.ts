@@ -174,6 +174,7 @@ export interface ActiveRunView extends EndlessRulesView {
   level: number;
   rules: ActiveRunRulesView;
   lifecycle: string;
+  finishReason?: string | null;
   /** Authoritative chain deadline for Daily; Campaign uses zero. */
   deadlineAt?: number;
   score: number;
@@ -601,7 +602,7 @@ export async function buildRequestRowPlan(args: {
   if (clientSeed.length !== 32)
     throw new Error("clientSeed must contain 32 bytes");
   const instruction = await program.methods
-    .requestRowVrf([...clientSeed])
+    .requestVrf([...clientSeed])
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -741,7 +742,7 @@ export async function buildRequestRerollPlan(args: {
  * commit/consume/close pipeline settles it and reclaims rent. Signed by the
  * owner (sessionToken null) or a fresh session key.
  */
-export async function buildAbandonRunPlan(args: {
+export async function buildFinishRunPlan(args: {
   owner: PublicKey;
   signerWallet: WalletLike;
   sessionToken: PublicKey | null;
@@ -750,7 +751,7 @@ export async function buildAbandonRunPlan(args: {
 }): Promise<TransactionPlan> {
   const program = zkubeProgram(args.erConnection, args.signerWallet);
   const instruction = await program.methods
-    .abandonRun()
+    .finishRun({ abandon: {} })
     .accountsPartial({
       activeRun: args.activeRun,
       ownerAuthority: args.owner,
@@ -816,7 +817,7 @@ export async function buildFinalizeRunPlan(args: {
   if (args.abandonFirst) {
     instructions.push(
       await program.methods
-        .abandonRun()
+        .finishRun({ abandon: {} })
         .accountsPartial({
           activeRun: args.addresses.activeRun,
           ownerAuthority: args.owner,
@@ -917,6 +918,7 @@ export const ACTIVE_RUN_FIELD_PROJECTIONS = {
   runId: "runId",
   mode: "mode",
   lifecycle: "lifecycle",
+  finishReason: "finishReason",
   rulesHash: "rulesHash",
   deadlineAt: "deadlineAt",
   mapId: "mapId",
@@ -995,6 +997,10 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
       Number(account.level),
     ),
     lifecycle,
+    finishReason:
+      account.finishReason === null
+        ? null
+        : (Object.keys(account.finishReason)[0] ?? null),
     deadlineAt: Number(account.deadlineAt),
     score: Number(account.score),
     dailyScore: Number(account.dailyScore),

@@ -101,5 +101,5 @@ function revokeExpiredSessionInstruction(
 }
 
 function usesEphemeralRollup(operation: KeeperOperation): boolean {
-  return operation === "force_finish_deadline" || operation === "commit_run";
+  return operation === "finish_run" || operation === "commit_run";
 }

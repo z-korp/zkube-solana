@@ -60,10 +60,10 @@ describe("v5 keeper semantic policy", () => {
 
   it("pins ranked run routing and deadlines", () => {
     const context = rankedContext();
-    expect(() => policy(validationOnlyPlan("force_finish_deadline", context)))
+    expect(() => policy(validationOnlyPlan("finish_run", context)))
       .not.toThrow();
     context.runLocation = "base";
-    expect(() => policy(validationOnlyPlan("force_finish_deadline", context)))
+    expect(() => policy(validationOnlyPlan("finish_run", context)))
       .toThrow("routing");
   });
 

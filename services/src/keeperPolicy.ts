@@ -63,7 +63,7 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
     case "skip_suspended_arena_daily":
       assertSuspendedSkip(context, today);
       return;
-    case "force_finish_deadline":
+    case "finish_run":
       assertRankedRunContext(context, today);
       assertRunDeadlines(context);
       if (context.runLocation !== "ephemeral_rollup" ||

@@ -146,7 +146,7 @@ describe("v5 Daily keeper reconciliation", () => {
       nowUnix: NOW,
     });
     const runOperations = new Set([
-      "force_finish_deadline",
+      "finish_run",
       "expire_unresolved_arena_run",
       "commit_run",
       "consume_arena_run",
@@ -208,9 +208,9 @@ describe("v5 Daily keeper reconciliation", () => {
       nowUnix: NOW,
     });
     expect(plans.map(({ operation }) => operation)
-      .filter((operation) => operation === "force_finish_deadline" ||
+      .filter((operation) => operation === "finish_run" ||
         operation === "expire_unresolved_arena_run")).toEqual([
-      "force_finish_deadline",
+      "finish_run",
       "expire_unresolved_arena_run",
     ]);
   });

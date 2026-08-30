@@ -941,7 +941,7 @@ pub struct ExpireUnresolvedArenaRun<'info> {
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump,
         constraint = arena_player.player == owner.key() @ ErrorCode::Unauthorized)]
-    pub arena_player: Option<Box<Account<'info, ArenaPlayer>>>,
+    pub arena_player: Box<Account<'info, ArenaPlayer>>,
     /// CHECK: Wallet identity pinned by PlayerState.
     pub owner: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
@@ -969,11 +969,7 @@ pub fn handler_expire_unresolved_arena_run(
         ctx.accounts.player_state.active_run_mode == RunMode::Daily,
         ErrorCode::InvalidState
     );
-    let player = ctx
-        .accounts
-        .arena_player
-        .as_deref_mut()
-        .ok_or(ErrorCode::InvalidState)?;
+    let player = &mut ctx.accounts.arena_player;
     require!(player.active_paid_run_id == run_id, ErrorCode::InvalidRunId);
     ctx.accounts.arena_daily.record_expired_entry(player)?;
     player.active_paid_run_id = 0;

@@ -17,16 +17,16 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "f71309ee0bfc3070ee38c4c3104440ae6a51568091de334a3cc2cde6b6f0fbd9";
+  "aecc84b24727fd319d1f0d3a52dccd00fd283608736d20d74efd8701c2f0adb4";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 54 instructions and 12 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 53 instructions and 12 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(54);
+    expect(idl.instructions).toHaveLength(53);
     expect(idl.accounts).toHaveLength(12);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
@@ -85,7 +85,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         suspendedUntilDay: DAY + 1,
         cadenceFunding: Keypair.generate().publicKey,
       }, "skip_suspended_arena_daily"],
-      ["force_finish_deadline", ranked(owner, "ephemeral_rollup"), "force_finish_deadline"],
+      ["finish_run", ranked(owner, "ephemeral_rollup"), "finish_run"],
       ["commit_run", ranked(owner, "ephemeral_rollup"), "commit_run"],
       ["consume_campaign_run", {
         owner,

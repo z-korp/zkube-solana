@@ -522,6 +522,9 @@ pub struct ActiveRun {
     pub run_id: u64,
     pub mode: RunMode,
     pub lifecycle: RunLifecycle,
+    /// Explicit caller-selected terminal resolution. Automatic completion or
+    /// exhaustion keeps this empty.
+    pub finish_reason: Option<RunFinishReason>,
     pub rules_hash: [u8; 32],
     /// Ranked actions and VRF callbacks are rejected at this immutable cutoff.
     /// Campaign runs use zero (no cadence deadline).
@@ -576,6 +579,7 @@ impl Default for ActiveRun {
             run_id: 0,
             mode: RunMode::default(),
             lifecycle: RunLifecycle::default(),
+            finish_reason: None,
             rules_hash: [0; 32],
             deadline_at: 0,
             map_id: 0,
@@ -632,6 +636,12 @@ pub enum RunLifecycle {
     Playing,
     LevelComplete,
     Finished,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
+pub enum RunFinishReason {
+    Abandon,
+    Deadline,
 }
 
 fn campaign_stars_error(error: zkube_core::CampaignStarsError) -> Error {
@@ -799,7 +809,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 323);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 325);
     }
 
     #[test]

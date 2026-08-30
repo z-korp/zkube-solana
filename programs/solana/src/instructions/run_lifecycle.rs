@@ -93,7 +93,7 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
 
 #[vrf]
 #[derive(Accounts, Session)]
-pub struct RequestRowVrf<'info> {
+pub struct RunVrf<'info> {
     #[account(
         mut,
         owner = crate::ID,
@@ -118,7 +118,7 @@ pub struct RequestRowVrf<'info> {
     pub delegation_record_active: UncheckedAccount<'info>,
 }
 
-impl<'info> RequestRowVrf<'info> {
+impl<'info> RunVrf<'info> {
     pub(crate) fn invoke_vrf_request<'a>(
         &self,
         payer: &'a AccountInfo<'info>,
@@ -214,7 +214,7 @@ fn prepare_row_vrf_request(
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
-pub fn handler_request_row_vrf(ctx: Context<RequestRowVrf>, client_seed: [u8; 32]) -> Result<()> {
+pub fn handler_request_vrf(ctx: Context<RunVrf>, client_seed: [u8; 32]) -> Result<()> {
     require_player_authorization(
         ctx.accounts.active_run.owner,
         ctx.accounts.actor.key(),
@@ -275,49 +275,12 @@ pub fn handler_fulfill_row_vrf(
     Ok(())
 }
 
-#[vrf]
-#[derive(Accounts, Session)]
-pub struct PlayMove<'info> {
-    #[account(
-        mut,
-        owner = crate::ID,
-        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-    /// CHECK: Logical wallet authority, bound to the active run.
-    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
-    pub owner_authority: UncheckedAccount<'info>,
-    #[session(signer = actor, authority = owner_authority.key())]
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    #[account(mut)]
-    pub actor: Signer<'info>,
-    /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
-    #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
-    pub oracle_queue: UncheckedAccount<'info>,
-    /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
-    #[account(
-        address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
-        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidMagicProgram
-    )]
-    pub delegation_record_active: UncheckedAccount<'info>,
-}
-
-impl<'info> PlayMove<'info> {
-    fn invoke_vrf_request<'a>(
-        &self,
-        payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
-    ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
-        self.invoke_signed_vrf(payer, ix)
-    }
-}
-
 #[session_auth_or(
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
 pub fn handler_play_move(
-    ctx: Context<PlayMove>,
+    ctx: Context<RunVrf>,
     expected_action: u32,
     expected_move: u16,
     row: u8,
@@ -371,49 +334,12 @@ pub fn handler_play_move(
     Ok(())
 }
 
-#[vrf]
-#[derive(Accounts, Session)]
-pub struct ApplyBonus<'info> {
-    #[account(
-        mut,
-        owner = crate::ID,
-        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-    /// CHECK: Logical wallet authority, bound to the active run.
-    #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
-    pub owner_authority: UncheckedAccount<'info>,
-    #[session(signer = actor, authority = owner_authority.key())]
-    pub session_token: Option<Account<'info, SessionTokenV2>>,
-    #[account(mut)]
-    pub actor: Signer<'info>,
-    /// CHECK: Address-constrained to MagicBlock's delegated ER queue.
-    #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
-    pub oracle_queue: UncheckedAccount<'info>,
-    /// CHECK: Address/owner constrained and SDK-decoded before requesting VRF.
-    #[account(
-        address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
-        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidMagicProgram
-    )]
-    pub delegation_record_active: UncheckedAccount<'info>,
-}
-
-impl<'info> ApplyBonus<'info> {
-    fn invoke_vrf_request<'a>(
-        &self,
-        payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
-    ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
-        self.invoke_signed_vrf(payer, ix)
-    }
-}
-
 #[session_auth_or(
     ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
     SessionError::InvalidToken
 )]
 pub fn handler_apply_bonus(
-    ctx: Context<ApplyBonus>,
+    ctx: Context<RunVrf>,
     expected_action: u32,
     row: u8,
     column: u8,
@@ -463,7 +389,7 @@ pub fn handler_apply_bonus(
     SessionError::InvalidToken
 )]
 pub fn handler_request_reroll(
-    ctx: Context<ApplyBonus>,
+    ctx: Context<RunVrf>,
     expected_action: u32,
     client_seed: [u8; 32],
 ) -> Result<()> {
@@ -519,21 +445,6 @@ fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
     Ok(0)
 }
 
-fn fold_replay_event(active: &mut ActiveRun, event: zkube_core::ReplayEvent) {
-    if active.mode == RunMode::Daily {
-        active.replay_hash = zkube_core::ReplayCommitment(active.replay_hash)
-            .fold_with::<SolanaSha256>(event)
-            .to_bytes();
-    } else {
-        let encoded = event.canonical_bytes();
-        active.replay_hash = sha256v(&[
-            b"zkube-campaign-replay-fold-v1",
-            &active.replay_hash,
-            encoded.as_slice(),
-        ]);
-    }
-}
-
 fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
     if active.mode == RunMode::Daily {
         require!(
@@ -544,8 +455,8 @@ fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
     Ok(())
 }
 
-#[derive(Accounts, Session)]
-pub struct AbandonRun<'info> {
+#[derive(Accounts)]
+pub struct FinishRun<'info> {
     #[account(
         mut,
         owner = crate::ID,
@@ -555,96 +466,78 @@ pub struct AbandonRun<'info> {
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
     pub owner_authority: UncheckedAccount<'info>,
-    #[session(signer = actor, authority = owner_authority.key())]
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
 }
 
-/// Give up a run that has not reached a terminal projection. The run is
-/// forced into `Finished` (kept score, `completed == false`, zero stars), so
-/// the unchanged commit/consume/close pipeline settles it and reclaims the
-/// ActiveRun rent. Works identically on the ER clone and on a stuck
-/// undelegated base account.
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
-pub fn handler_abandon_run(ctx: Context<AbandonRun>) -> Result<()> {
-    require_player_authorization(
-        ctx.accounts.active_run.owner,
-        ctx.accounts.actor.key(),
-        ctx.accounts.session_token.as_ref(),
-    )?;
+/// Resolve a run through one exact terminal predicate table. Abandon is
+/// owner/session-authorized before the cutoff; deadline resolution is
+/// permissionless at or after a Daily cutoff.
+pub fn handler_finish_run(ctx: Context<FinishRun>, reason: RunFinishReason) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
     let active = &mut ctx.accounts.active_run;
+    match reason {
+        RunFinishReason::Abandon => {
+            require_player_authorization(
+                active.owner,
+                ctx.accounts.actor.key(),
+                ctx.accounts.session_token.as_ref(),
+            )?;
+            if active.lifecycle == RunLifecycle::Finished
+                && active.finish_reason == Some(RunFinishReason::Abandon)
+            {
+                return Ok(());
+            }
+            require_before_arcade_deadline(active, now)?;
+        }
+        RunFinishReason::Deadline => {
+            require!(active.mode == RunMode::Daily, ErrorCode::InvalidState);
+            require!(
+                active.deadline_at > 0 && now >= active.deadline_at,
+                ErrorCode::ChallengeNotEnded
+            );
+            if active.lifecycle == RunLifecycle::Finished
+                && active.finish_reason == Some(RunFinishReason::Deadline)
+            {
+                return Ok(());
+            }
+        }
+    }
     require!(
-        abandon_lifecycle_is_allowed(active.lifecycle),
+        finish_lifecycle_is_allowed(reason, active.lifecycle),
         ErrorCode::InvalidState
     );
-    // A pending VRF request dies with the run: fulfillment is lifecycle-gated
-    // to AwaitingVrf, so a late oracle callback can no longer land.
+    let rules = run_rules(active)?;
+    let mut run = run_from_active(active, rules)?;
+    let core_reason = match reason {
+        RunFinishReason::Abandon => zkube_core::RunEndReason::Abandoned,
+        RunFinishReason::Deadline => zkube_core::RunEndReason::Deadline,
+    };
+    run.finish_with::<SolanaSha256>(rules, core_reason)
+        .map_err(map_transition_error)?;
+    let terminal_at = match reason {
+        RunFinishReason::Abandon => now,
+        RunFinishReason::Deadline => active.deadline_at,
+    };
+    write_run(active, &run, terminal_at)?;
     active.pending_vrf_counter = 0;
-    active.lifecycle = RunLifecycle::Finished;
-    active.latched_star_sources = 0;
-    if active.finished_at == 0 {
-        active.finished_at = Clock::get()?.unix_timestamp;
-    }
-    let action = active.action_counter;
-    fold_replay_event(active, zkube_core::ReplayEvent::PlayerAbandon { action });
     Ok(())
 }
 
-#[derive(Accounts)]
-pub struct ForceFinishDeadline<'info> {
-    #[account(
-        mut,
-        owner = crate::ID,
-        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub active_run: Account<'info, ActiveRun>,
-    pub caller: Signer<'info>,
-}
-
-/// Permissionless ER-side cutoff. It freezes the last fully accepted state,
-/// clears any pending VRF request, and makes the normal commit/consume path the
-/// only possible resolution. Zero-action ranked runs are expired by consume.
-pub fn handler_force_finish_deadline(ctx: Context<ForceFinishDeadline>) -> Result<()> {
-    let active = &mut ctx.accounts.active_run;
-    require!(active.mode == RunMode::Daily, ErrorCode::InvalidState);
-    require!(
-        Clock::get()?.unix_timestamp >= active.deadline_at,
-        ErrorCode::ChallengeNotEnded
-    );
-    if active.lifecycle == RunLifecycle::Finished
-        && active.finished_at == active.deadline_at
-        && active.pending_vrf_counter == 0
-        && !active.has_next_row
-    {
-        return Ok(());
-    }
-    require!(
-        matches!(
-            active.lifecycle,
+fn finish_lifecycle_is_allowed(reason: RunFinishReason, lifecycle: RunLifecycle) -> bool {
+    match reason {
+        RunFinishReason::Abandon => matches!(
+            lifecycle,
+            RunLifecycle::Prepared
+                | RunLifecycle::Delegated
+                | RunLifecycle::AwaitingVrf
+                | RunLifecycle::Playing
+        ),
+        RunFinishReason::Deadline => matches!(
+            lifecycle,
             RunLifecycle::Delegated | RunLifecycle::AwaitingVrf | RunLifecycle::Playing
         ),
-        ErrorCode::InvalidState
-    );
-    active.pending_vrf_counter = 0;
-    active.has_next_row = false;
-    active.lifecycle = RunLifecycle::Finished;
-    active.finished_at = active.deadline_at;
-    let action = active.action_counter;
-    fold_replay_event(active, zkube_core::ReplayEvent::DailyDeadline { action });
-    Ok(())
-}
-
-fn abandon_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
-    matches!(
-        lifecycle,
-        RunLifecycle::Prepared
-            | RunLifecycle::Delegated
-            | RunLifecycle::AwaitingVrf
-            | RunLifecycle::Playing
-    )
+    }
 }
 
 fn vrf_request_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
@@ -919,15 +812,15 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
         active.vrf_request_counter
     };
     let end_reason = match active.lifecycle {
-        RunLifecycle::LevelComplete => Some(zkube_core::RunEndReason::Completed),
-        RunLifecycle::Finished
-            if active.mode == RunMode::Daily
-                && active.deadline_at > 0
-                && active.finished_at == active.deadline_at =>
-        {
-            Some(zkube_core::RunEndReason::Deadline)
+        RunLifecycle::LevelComplete if active.finish_reason.is_none() => {
+            Some(zkube_core::RunEndReason::Completed)
         }
-        RunLifecycle::Finished => Some(zkube_core::RunEndReason::Exhausted),
+        RunLifecycle::Finished => Some(match active.finish_reason {
+            None => zkube_core::RunEndReason::Exhausted,
+            Some(RunFinishReason::Abandon) => zkube_core::RunEndReason::Abandoned,
+            Some(RunFinishReason::Deadline) => zkube_core::RunEndReason::Deadline,
+        }),
+        _ if active.finish_reason.is_some() => return err!(ErrorCode::InvalidState),
         _ => None,
     };
     Ok(zkube_core::Run {
@@ -962,6 +855,13 @@ fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) ->
     };
     active.replay_hash = run.replay.to_bytes();
     active.lifecycle = lifecycle_from_phase(run.engine.phase);
+    active.finish_reason = match run.end_reason {
+        Some(zkube_core::RunEndReason::Abandoned) => Some(RunFinishReason::Abandon),
+        Some(zkube_core::RunEndReason::Deadline) => Some(RunFinishReason::Deadline),
+        Some(zkube_core::RunEndReason::Completed | zkube_core::RunEndReason::Exhausted) | None => {
+            None
+        }
+    };
     if matches!(
         active.lifecycle,
         RunLifecycle::LevelComplete | RunLifecycle::Finished
@@ -1099,7 +999,7 @@ mod tests {
         let vrf_program = Pubkey::new_unique();
         let slot_hashes = Pubkey::new_unique();
         let system_program = Pubkey::new_unique();
-        let metas = crate::accounts::PlayMove {
+        let metas = crate::accounts::RunVrf {
             active_run,
             owner_authority: owner,
             session_token: Some(session_token),
@@ -1210,8 +1110,8 @@ mod tests {
                 zkube_core::ReplayEvent::Move { .. } => "play_move",
                 zkube_core::ReplayEvent::Bonus { .. } => "apply_bonus",
                 zkube_core::ReplayEvent::Reroll { .. } => "request_reroll",
-                zkube_core::ReplayEvent::PlayerAbandon { .. } => "abandon_run",
-                zkube_core::ReplayEvent::DailyDeadline { .. } => "force_finish_deadline",
+                zkube_core::ReplayEvent::PlayerAbandon { .. }
+                | zkube_core::ReplayEvent::DailyDeadline { .. } => "finish_run",
             }
         }
         assert_eq!(
@@ -1304,13 +1204,35 @@ mod tests {
     }
 
     #[test]
-    fn abandon_accepts_only_nonterminal_lifecycles() {
-        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Prepared));
-        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Delegated));
-        assert!(abandon_lifecycle_is_allowed(RunLifecycle::AwaitingVrf));
-        assert!(abandon_lifecycle_is_allowed(RunLifecycle::Playing));
-        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::LevelComplete));
-        assert!(!abandon_lifecycle_is_allowed(RunLifecycle::Finished));
+    fn finish_run_predicates_are_exact() {
+        assert!(finish_lifecycle_is_allowed(
+            RunFinishReason::Abandon,
+            RunLifecycle::Prepared
+        ));
+        assert!(finish_lifecycle_is_allowed(
+            RunFinishReason::Abandon,
+            RunLifecycle::Playing
+        ));
+        assert!(!finish_lifecycle_is_allowed(
+            RunFinishReason::Abandon,
+            RunLifecycle::LevelComplete
+        ));
+        assert!(finish_lifecycle_is_allowed(
+            RunFinishReason::Deadline,
+            RunLifecycle::Delegated
+        ));
+        assert!(finish_lifecycle_is_allowed(
+            RunFinishReason::Deadline,
+            RunLifecycle::AwaitingVrf
+        ));
+        assert!(!finish_lifecycle_is_allowed(
+            RunFinishReason::Deadline,
+            RunLifecycle::Prepared
+        ));
+        assert!(!finish_lifecycle_is_allowed(
+            RunFinishReason::Deadline,
+            RunLifecycle::Finished
+        ));
     }
 
     #[test]

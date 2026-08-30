@@ -8,37 +8,6 @@
   },
   "instructions": [
     {
-      "name": "abandon_run",
-      "discriminator": [
-        35,
-        86,
-        196,
-        223,
-        149,
-        225,
-        12,
-        24
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "accept_protocol_authority",
       "discriminator": [
         237,
@@ -2257,7 +2226,6 @@
         {
           "name": "arena_player",
           "writable": true,
-          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -2504,16 +2472,16 @@
       ]
     },
     {
-      "name": "force_finish_deadline",
+      "name": "finish_run",
       "discriminator": [
-        127,
-        24,
-        175,
-        82,
-        140,
-        88,
-        108,
-        159
+        125,
+        146,
+        243,
+        213,
+        56,
+        220,
+        214,
+        25
       ],
       "accounts": [
         {
@@ -2521,11 +2489,27 @@
           "writable": true
         },
         {
-          "name": "caller",
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "reason",
+          "type": {
+            "defined": {
+              "name": "RunFinishReason"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "fulfill_row_vrf",
@@ -4208,16 +4192,16 @@
       ]
     },
     {
-      "name": "request_row_vrf",
+      "name": "request_vrf",
       "discriminator": [
-        9,
-        81,
-        254,
-        165,
-        167,
-        236,
-        63,
-        112
+        5,
+        87,
+        79,
+        152,
+        164,
+        176,
+        190,
+        226
       ],
       "accounts": [
         {
@@ -5989,6 +5973,20 @@
             }
           },
           {
+            "name": "finish_reason",
+            "docs": [
+              "Explicit caller-selected terminal resolution. Automatic completion or",
+              "exhaustion keeps this empty."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "RunFinishReason"
+                }
+              }
+            }
+          },
+          {
             "name": "rules_hash",
             "type": {
               "array": [
@@ -7634,6 +7632,20 @@
           {
             "name": "paused",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RunFinishReason",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Abandon"
+          },
+          {
+            "name": "Deadline"
           }
         ]
       }

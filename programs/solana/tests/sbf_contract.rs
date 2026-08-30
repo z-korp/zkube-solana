@@ -181,7 +181,7 @@ fn process_play_move(
     let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::PlayMove {
+        accounts: zkube::accounts::RunVrf {
             active_run,
             owner_authority: owner,
             session_token: None,
@@ -284,7 +284,7 @@ fn process_request_reroll(
     let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::ApplyBonus {
+        accounts: zkube::accounts::RunVrf {
             active_run,
             owner_authority: owner,
             session_token: None,
@@ -897,7 +897,7 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
     let apply = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::ApplyBonus {
+        accounts: zkube::accounts::RunVrf {
             active_run,
             owner_authority: owner,
             session_token: None,
@@ -1022,21 +1022,30 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_eq!(rerolled.reroll_charges, 1);
     assert_eq!(rerolled.replay_hash, replay_after_callback);
 
-    let force_finish = anchor_lang::solana_program::instruction::Instruction {
+    let finish = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::ForceFinishDeadline { active_run, caller }
-            .to_account_metas(None),
-        data: zkube::instruction::ForceFinishDeadline {}.data(),
+        accounts: zkube::accounts::FinishRun {
+            active_run,
+            owner_authority: owner,
+            session_token: None,
+            actor: caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::FinishRun {
+            reason: RunFinishReason::Deadline,
+        }
+        .data(),
     };
     let mut deadline_runtime = mollusk();
     deadline_runtime.sysvars.clock.unix_timestamp = deadline_at;
     let finished_result = deadline_runtime.process_instruction(
-        &force_finish,
+        &finish,
         &[
             (
                 active_run,
                 resulting_account(&requested, &active_run).clone(),
             ),
+            (owner, system_account(0)),
             (caller, system_account(ACCOUNT_LAMPORTS)),
         ],
     );
@@ -1111,6 +1120,95 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
     assert_eq!(scored_daily.entries_scored, 1);
     assert_eq!(scored_daily.entries_expired, 0);
     assert_eq!(scored_player.resolved_entries, 1);
+}
+
+#[test]
+fn sbf_finish_run_predicates_are_exact() {
+    let owner = Pubkey::new_unique();
+    let caller = Pubkey::new_unique();
+    let stranger = Pubkey::new_unique();
+    let active_run = Pubkey::new_unique();
+    let deadline_at = 1_000;
+    let daily = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        run_id: 1,
+        mode: RunMode::Daily,
+        lifecycle: RunLifecycle::Playing,
+        rules: level_rule_fixture(),
+        deadline_at,
+        ..ActiveRun::default()
+    };
+    let campaign = ActiveRun {
+        mode: RunMode::Campaign,
+        deadline_at: 0,
+        ..daily
+    };
+    let instruction = |actor: Pubkey, reason: RunFinishReason| {
+        anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::FinishRun {
+                active_run,
+                owner_authority: owner,
+                session_token: None,
+                actor,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::FinishRun { reason }.data(),
+        }
+    };
+    let process = |state: &ActiveRun, actor: Pubkey, reason, now| {
+        let mut runtime = mollusk();
+        runtime.sysvars.clock.unix_timestamp = now;
+        runtime.process_instruction(
+            &instruction(actor, reason),
+            &[
+                (
+                    active_run,
+                    program_account(state, 8 + ActiveRun::INIT_SPACE),
+                ),
+                (owner, system_account(0)),
+                (actor, system_account(ACCOUNT_LAMPORTS)),
+            ],
+        )
+    };
+
+    assert!(
+        process(&daily, caller, RunFinishReason::Deadline, deadline_at - 1)
+            .program_result
+            .is_err()
+    );
+    assert!(
+        process(&campaign, caller, RunFinishReason::Deadline, deadline_at)
+            .program_result
+            .is_err()
+    );
+    assert!(
+        process(&daily, stranger, RunFinishReason::Abandon, deadline_at - 1)
+            .program_result
+            .is_err()
+    );
+    assert!(
+        process(&daily, owner, RunFinishReason::Abandon, deadline_at)
+            .program_result
+            .is_err()
+    );
+
+    let first = process(&daily, caller, RunFinishReason::Deadline, deadline_at);
+    assert!(first.program_result.is_ok(), "{:?}", first.program_result);
+    let finished: ActiveRun = decode(resulting_account(&first, &active_run));
+    assert_eq!(finished.finish_reason, Some(RunFinishReason::Deadline));
+    let repeated = process(
+        &finished,
+        caller,
+        RunFinishReason::Deadline,
+        deadline_at + 1,
+    );
+    assert!(
+        repeated.program_result.is_ok(),
+        "{:?}",
+        repeated.program_result
+    );
 }
 
 #[test]

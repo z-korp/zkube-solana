@@ -10,7 +10,7 @@ import {
   buildApplyBonusPlan,
   buildCommitRunPlan,
   buildDelegateRunPlan,
-  buildAbandonRunPlan,
+  buildFinishRunPlan,
   buildFinalizeRunPlan,
   buildPlayMovePlan,
   buildPrepareCampaignRunPlan,
@@ -1431,7 +1431,7 @@ export function useRunController(slot: RunSlot) {
             run.marker.addresses.activeRun,
             sessionWallet,
           );
-          const abandon = await buildAbandonRunPlan({
+          const abandon = await buildFinishRunPlan({
             owner: run.marker.owner,
             signerWallet: sessionWallet,
             sessionToken: device.sessionToken,

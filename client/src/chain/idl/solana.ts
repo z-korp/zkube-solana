@@ -14,37 +14,6 @@ export type Solana = {
   },
   "instructions": [
     {
-      "name": "abandonRun",
-      "discriminator": [
-        35,
-        86,
-        196,
-        223,
-        149,
-        225,
-        12,
-        24
-      ],
-      "accounts": [
-        {
-          "name": "activeRun",
-          "writable": true
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "acceptProtocolAuthority",
       "discriminator": [
         237,
@@ -2263,7 +2232,6 @@ export type Solana = {
         {
           "name": "arenaPlayer",
           "writable": true,
-          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -2510,16 +2478,16 @@ export type Solana = {
       ]
     },
     {
-      "name": "forceFinishDeadline",
+      "name": "finishRun",
       "discriminator": [
-        127,
-        24,
-        175,
-        82,
-        140,
-        88,
-        108,
-        159
+        125,
+        146,
+        243,
+        213,
+        56,
+        220,
+        214,
+        25
       ],
       "accounts": [
         {
@@ -2527,11 +2495,27 @@ export type Solana = {
           "writable": true
         },
         {
-          "name": "caller",
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
           "signer": true
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "reason",
+          "type": {
+            "defined": {
+              "name": "runFinishReason"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "fulfillRowVrf",
@@ -4214,16 +4198,16 @@ export type Solana = {
       ]
     },
     {
-      "name": "requestRowVrf",
+      "name": "requestVrf",
       "discriminator": [
-        9,
-        81,
-        254,
-        165,
-        167,
-        236,
-        63,
-        112
+        5,
+        87,
+        79,
+        152,
+        164,
+        176,
+        190,
+        226
       ],
       "accounts": [
         {
@@ -5995,6 +5979,20 @@ export type Solana = {
             }
           },
           {
+            "name": "finishReason",
+            "docs": [
+              "Explicit caller-selected terminal resolution. Automatic completion or",
+              "exhaustion keeps this empty."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "runFinishReason"
+                }
+              }
+            }
+          },
+          {
             "name": "rulesHash",
             "type": {
               "array": [
@@ -7640,6 +7638,20 @@ export type Solana = {
           {
             "name": "paused",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "runFinishReason",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "abandon"
+          },
+          {
+            "name": "deadline"
           }
         ]
       }

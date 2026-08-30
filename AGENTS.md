@@ -591,7 +591,7 @@ that shared driver. The Solana lifecycle reconstructs that `Run` for every VRF,
 move, bonus, and reroll transition rather than maintaining a second accounting
 path; `program_and_core_score_one_action_identically` guards the projection.
 `ActiveRun` stores only fields read by a handler, result row, hash, or client
-view, and its 323-byte account size is pinned by
+view, and its 325-byte account size is pinned by
 `target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
 Solana program must pass the same committed golden vectors before an ABI is
 releasable.
@@ -620,6 +620,15 @@ adds a replay deadline event. A run with at least one accepted action is scored
 from that partial state; an untouched run expires without a leaderboard row.
 Pending or late VRF output is ignored, and expired or orphaned state can never
 become scoreable later.
+
+Every opening, move, guardian bonus, and reroll request uses one `RunVrf`
+account context and one VRF invoke helper. The opening `request_vrf` remains a
+separate ER instruction after Router placement resolves; delegation on Base
+cannot request against the resolved ER queue. `finish_run` accepts only
+owner/session-authorized Abandon before a cutoff or permissionless Deadline at
+or after a Daily cutoff, and only an identical stored resolution may return
+idempotently; `finish_run_predicates_are_exact` guards all four rejection
+boundaries in SBF.
 
 ### Competitive profile
 

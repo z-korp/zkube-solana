@@ -53,7 +53,7 @@ export type KeeperOperation =
   | "prepare_arena_daily"
   | "activate_arena_daily"
   | "skip_suspended_arena_daily"
-  | "force_finish_deadline"
+  | "finish_run"
   | "commit_run"
   | "consume_campaign_run"
   | "consume_arena_run"

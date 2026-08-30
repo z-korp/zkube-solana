@@ -136,6 +136,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Run persists only state consumed by gameplay, settlement, replay, or presentation",
   },
   {
+    pattern: /\brequest_row_vrf\b|\bforce_finish_deadline\b|\babandon_run\b/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "one Run VRF context and one exact finish_run predicate table own the lifecycle",
+  },
+  {
     pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],

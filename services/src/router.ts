@@ -67,7 +67,7 @@ export async function resolveEphemeralConnectionForPlan(args: {
   fetcher?: typeof fetch;
   connectionFactory?: (endpoint: string) => Connection;
 }): Promise<Connection> {
-  if (args.plan.operation !== "force_finish_deadline" &&
+  if (args.plan.operation !== "finish_run" &&
       args.plan.operation !== "commit_run") {
     throw new Error("keeper rejects ER routing for a base-layer operation");
   }
