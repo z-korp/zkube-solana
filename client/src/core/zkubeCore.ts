@@ -3,6 +3,7 @@ import {
   applyRunVrf,
   boardWidth,
   buildRunConfig,
+  campaignMoveBudget,
   dailyBoardPools,
   dailyPairIndex,
   default as initializeBindings,
@@ -228,6 +229,14 @@ export function coreLadderTierFloor(tier: number): bigint {
 export function coreLadderTierCount(): number {
   assertInitialized();
   return ladderTierCount();
+}
+
+/** Campaign difficulty is derived in core, never copied from a publication. */
+export function coreCampaignMoveBudget(level: number, tier: number): number {
+  assertInitialized();
+  assertUnsigned(level, 0xff, "level");
+  assertUnsigned(tier, 0xff, "tier");
+  return campaignMoveBudget(level, tier);
 }
 
 export function coreInitialReplayCommitment(args: {

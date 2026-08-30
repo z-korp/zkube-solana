@@ -7,7 +7,7 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
-pub const RULES_VERSION: u32 = 4;
+pub const RULES_VERSION: u32 = 5;
 const CAMPAIGN_REPLAY_FOLD_DOMAIN: &[u8] = b"zkube-campaign-replay-fold-v1";
 pub const CANONICAL_RUN_RULES_LEN: usize = 23;
 pub const DAILY_MAX_MOVES: u16 = 100;

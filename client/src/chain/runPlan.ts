@@ -64,11 +64,17 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
+import {
+  CAMPAIGN_TARGET_LADDER,
+  DAILY_MAX_MOVES,
+  PLAYER_STATE_ACCOUNT_VERSION,
+} from "./protocolVersions.generated.js";
 import {
   coreBuildRunConfig,
+  coreCampaignMoveBudget,
   coreReconcileRunState,
   coreRunSummary,
+  type CoreRunMode,
   type CoreRunPhase,
   type CoreRunToken,
 } from "../core/zkubeCore.js";
@@ -210,8 +216,7 @@ interface RawGuardianSnapshot {
 }
 
 export interface RawLevelRuleSnapshot {
-  pointsRequired: unknown;
-  maxMoves: unknown;
+  pointsRequired?: unknown;
   difficulty: unknown;
   primary: RawConstraintSnapshot;
   secondary: RawConstraintSnapshot;
@@ -225,15 +230,34 @@ export function mapLevelRuleSnapshot(
   rules: RawLevelRuleSnapshot,
   mapId = 0,
   level = 0,
+  mode: CoreRunMode = "campaign",
 ): ActiveRunRulesView {
   const presentation =
     mapId > 0
       ? campaignGuardianPresentation(mapId)
       : { activeMutatorId: 0, bossId: 0 };
+  const difficulty = Number(rules.difficulty);
+  const pointsRequired =
+    mode === "campaign"
+      ? CAMPAIGN_TARGET_LADDER[level - 1]
+      : Number(rules.pointsRequired);
+  if (pointsRequired === undefined) {
+    throw new Error("Campaign level is outside the target ladder");
+  }
+  if (
+    mode === "campaign" &&
+    rules.pointsRequired !== undefined &&
+    Number(rules.pointsRequired) !== pointsRequired
+  ) {
+    throw new Error("Campaign score target does not match the protocol ladder");
+  }
   return {
-    pointsRequired: Number(rules.pointsRequired),
-    maxMoves: Number(rules.maxMoves),
-    difficulty: Number(rules.difficulty),
+    pointsRequired,
+    maxMoves:
+      mode === "campaign"
+        ? coreCampaignMoveBudget(level, difficulty)
+        : DAILY_MAX_MOVES,
+    difficulty,
     primary: {
       kind: Number(rules.primary.kind),
       value: Number(rules.primary.value),
@@ -980,7 +1004,7 @@ export function reconcileRunFromChain(
   const dailyPressure = CANONICAL_DAILY_PRESSURE;
   const mapId = Number(account.mapId);
   const level = Number(account.level);
-  const rules = mapLevelRuleSnapshot(account.rules, mapId, level);
+  const rules = mapLevelRuleSnapshot(account.rules, mapId, level, mode);
   const dailyTheme = {
     kind: Number(account.dailyTheme.kind),
     value: Number(account.dailyTheme.value),

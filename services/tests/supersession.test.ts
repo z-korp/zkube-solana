@@ -118,6 +118,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Daily score pressure is an uncapped formula rather than a stored multiplier array",
   },
   {
+    pattern: /private target curves?|authored move budgets?|per[- ]realm target curves?/i,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "one Campaign target ladder and tier-derived move budgets replaced authored curves",
+  },
+  {
     pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",

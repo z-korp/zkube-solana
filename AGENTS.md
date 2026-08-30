@@ -538,6 +538,14 @@ constraint is not a source; `absent_constraints_limit_the_earnable_source_mask`
 guards the authored mask. Every published level still carries both constraints,
 as enforced by codegen and campaign publication.
 
+Every realm shares the ten-level score ladder
+`[10, 14, 18, 22, 27, 32, 37, 42, 46, 50]`. A level authors only its tier,
+Shape, and Blow; its move budget is the ceiling of its ladder target times the
+protocol moves-per-point value for that tier. Neither target nor budget is a
+Campaign publication field. `campaign_move_budget_is_derived_from_the_ladder_and_tier`
+and `campaign_publication_rejects_an_authored_budget` guard the core, fixture,
+and program boundaries.
+
 Primary constraints are cumulative facts counted across a run; secondary
 constraints are moment facts that must be true on one action. Every authored
 primary must use a cumulative kind and every authored secondary must use a

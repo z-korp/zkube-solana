@@ -144,6 +144,36 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn campaign_move_budget_is_derived_from_the_ladder_and_tier() {
+        const EXPECTED: [[u16; 8]; 10] = [
+            [16, 15, 14, 13, 12, 11, 10, 9],
+            [23, 21, 20, 19, 17, 16, 14, 13],
+            [29, 27, 26, 24, 22, 20, 18, 17],
+            [36, 33, 31, 29, 27, 25, 22, 20],
+            [44, 41, 38, 36, 33, 30, 27, 25],
+            [52, 48, 45, 42, 39, 36, 32, 29],
+            [60, 56, 52, 49, 45, 41, 37, 34],
+            [68, 63, 59, 55, 51, 47, 42, 38],
+            [74, 69, 65, 60, 56, 51, 46, 42],
+            [80, 75, 70, 65, 60, 55, 50, 45],
+        ];
+        for (level_index, expected_tiers) in EXPECTED.iter().enumerate() {
+            for (tier, expected) in expected_tiers.iter().enumerate() {
+                assert_eq!(
+                    crate::campaign_move_budget(
+                        u8::try_from(level_index).unwrap() + 1,
+                        u8::try_from(tier).unwrap(),
+                    ),
+                    Some(*expected),
+                );
+            }
+        }
+        assert_eq!(crate::campaign_move_budget(0, 0), None);
+        assert_eq!(crate::campaign_move_budget(11, 0), None);
+        assert_eq!(crate::campaign_move_budget(1, 8), None);
+    }
     use crate::{Bonus, Constraint, ConstraintKind, Guardian, RunRules, StarRules, TierPolicy};
 
     fn rules() -> RunRules {

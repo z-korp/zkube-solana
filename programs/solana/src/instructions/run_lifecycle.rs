@@ -711,8 +711,10 @@ fn constraint(snapshot: ConstraintSnapshot) -> Result<Constraint> {
 
 fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
     let guardian = active.rules.guardian.to_core()?;
-    let (tier, stars, objective) = match active.mode {
+    let (max_moves, tier, stars, objective) = match active.mode {
         RunMode::Campaign => (
+            zkube_core::campaign_move_budget(active.level, active.rules.difficulty)
+                .ok_or(ErrorCode::InvalidLevel)?,
             zkube_core::TierPolicy::Fixed(active.rules.difficulty),
             Some(zkube_core::StarRules {
                 points_required: active.rules.points_required,
@@ -724,13 +726,18 @@ fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
         RunMode::Daily => {
             let theme = active.daily_theme.to_core()?;
             let objective = (theme.kind != ConstraintKind::None).then_some(theme);
-            (zkube_core::TierPolicy::Pressure, None, objective)
+            (
+                zkube_core::DAILY_MAX_MOVES,
+                zkube_core::TierPolicy::Pressure,
+                None,
+                objective,
+            )
         }
     };
     let rules = zkube_core::RunRules {
         guardian,
         starting_height: active.rules.starting_rows,
-        max_moves: active.rules.max_moves,
+        max_moves,
         tier,
         stars,
         objective,
@@ -926,7 +933,6 @@ mod tests {
             rules: LevelRuleSnapshot {
                 level: 1,
                 points_required: u32::MAX,
-                max_moves: zkube_core::DAILY_MAX_MOVES,
                 difficulty: 0,
                 primary: ConstraintSnapshot::default(),
                 secondary: ConstraintSnapshot::default(),

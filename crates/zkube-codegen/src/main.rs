@@ -6,11 +6,12 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
-    Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED,
-    DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS,
-    Guardian, PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP,
-    PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256, StarRules, TierPolicy,
+    CAMPAIGN_TARGET_LADDER, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT,
+    DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES,
+    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION,
+    PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules,
+    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SoftwareSha256, StarRules,
+    TierPolicy, campaign_move_budget,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -67,7 +68,7 @@ struct CampaignMap {
     levels: Vec<EncodedLevel>,
 }
 
-type EncodedLevel = (u32, u16, u8, [u8; 3], [u8; 3]);
+type EncodedLevel = (u8, [u8; 3], [u8; 3]);
 
 fn main() -> ExitCode {
     match run(&Cli::parse()) {
@@ -219,7 +220,8 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
         }
         for (level_index, level) in map.levels.iter().enumerate() {
             // This curve is a bot-calibrated baseline until the three-realm playtest.
-            let rules = campaign_rules(map, level, &catalog.difficulty_weights)?;
+            let level_number = u8::try_from(level_index + 1).map_err(|error| error.to_string())?;
+            let rules = campaign_rules(map, level_number, *level, &catalog.difficulty_weights)?;
             if !rules.is_valid() {
                 return Err(format!(
                     "map {} level {} has invalid rules",
@@ -235,15 +237,12 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
                     level_index + 1
                 ));
             }
-            if level_index > 0 {
-                let previous = map.levels[level_index - 1];
-                if level.0 <= previous.0 || level.2 < previous.2 {
-                    return Err(format!(
-                        "map {} level {} must raise score and preserve difficulty",
-                        map.map_id,
-                        level_index + 1
-                    ));
-                }
+            if level_index > 0 && level.0 < map.levels[level_index - 1].0 {
+                return Err(format!(
+                    "map {} level {} must preserve difficulty",
+                    map.map_id,
+                    level_index + 1
+                ));
             }
         }
     }
@@ -252,10 +251,11 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
 
 fn campaign_rules(
     map: &CampaignMap,
-    level: &(u32, u16, u8, [u8; 3], [u8; 3]),
+    level_number: u8,
+    level: EncodedLevel,
     weights: &[[u16; 5]],
 ) -> Result<RunRules, String> {
-    let difficulty = usize::from(level.2);
+    let difficulty = usize::from(level.0);
     if difficulty >= weights.len() {
         return Err(format!(
             "map {} references difficulty {difficulty}",
@@ -277,12 +277,17 @@ fn campaign_rules(
         },
         starting_height: u8::try_from(map.rules[3])
             .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
-        max_moves: level.1,
-        tier: TierPolicy::Fixed(level.2),
+        max_moves: campaign_move_budget(level_number, level.0).ok_or_else(|| {
+            format!(
+                "map {} level {level_number} cannot derive a move budget for tier {}",
+                map.map_id, level.0
+            )
+        })?,
+        tier: TierPolicy::Fixed(level.0),
         stars: Some(StarRules {
-            points_required: level.0,
-            primary: constraint(level.3)?,
-            secondary: constraint(level.4)?,
+            points_required: u32::from(CAMPAIGN_TARGET_LADDER[usize::from(level_number - 1)]),
+            primary: constraint(level.1)?,
+            secondary: constraint(level.2)?,
         }),
         objective: None,
     })
@@ -373,6 +378,7 @@ fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
          export const DAILY_REWARD_CLAIM_WINDOW_SECONDS = {DAILY_REWARD_CLAIM_WINDOW_SECONDS} as const;\n\
          export const DAILY_MAX_MOVES = {DAILY_MAX_MOVES} as const;\n\
          export const PRESSURE_STEP = {PRESSURE_STEP} as const;\n\
+         export const CAMPAIGN_TARGET_LADDER = {CAMPAIGN_TARGET_LADDER:?} as const;\n\
          export const TIER_BLOCK_WEIGHTS = {tier_block_weights:?} as const;\n"
     )
 }
@@ -503,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_structure_keeps_weight_divergence_without_a_move_trajectory() {
+    fn campaign_structure_keeps_weight_divergence() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         catalog.difficulty_weights[1] = catalog.difficulty_weights[0];
@@ -512,18 +518,20 @@ mod tests {
                 .unwrap_err()
                 .contains("must differ by at least")
         );
+    }
 
-        let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[1].1 = catalog.maps[0].levels[0].1;
-        validate_catalog(&catalog).unwrap();
+    #[test]
+    fn campaign_publication_rejects_an_authored_budget() {
+        assert!(serde_json::from_str::<EncodedLevel>("[0,[3,0,6],[9,2,1]]").is_ok());
+        assert!(serde_json::from_str::<EncodedLevel>("[10,16,0,[3,0,6],[9,2,1]]").is_err());
     }
 
     #[test]
     fn codegen_requires_both_constraints_on_every_level() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[0].3 = [0, 0, 0];
-        catalog.maps[0].levels[0].4 = [0, 0, 0];
+        catalog.maps[0].levels[0].1 = [0, 0, 0];
+        catalog.maps[0].levels[0].2 = [0, 0, 0];
         assert!(
             validate_catalog(&catalog)
                 .unwrap_err()
@@ -531,7 +539,7 @@ mod tests {
         );
 
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[0].4 = [0, 0, 0];
+        catalog.maps[0].levels[0].2 = [0, 0, 0];
         assert!(
             validate_catalog(&catalog)
                 .unwrap_err()
@@ -543,7 +551,7 @@ mod tests {
     fn codegen_enforces_constraint_class_per_slot() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[2].3 = [9, 2, 1];
+        catalog.maps[0].levels[2].1 = [9, 2, 1];
         assert!(validate_catalog(&catalog).is_err());
 
         for (kind, value) in [
@@ -557,16 +565,16 @@ mod tests {
             (ConstraintKind::BonusBreaks, 0),
         ] {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-            catalog.maps[0].levels[7].3 = [kind.tag(), value, 1];
-            catalog.maps[0].levels[7].4 = [ConstraintKind::PerfectClear.tag(), 0, 1];
+            catalog.maps[0].levels[7].1 = [kind.tag(), value, 1];
+            catalog.maps[0].levels[7].2 = [ConstraintKind::PerfectClear.tag(), 0, 1];
             assert!(validate_catalog(&catalog).is_err());
 
-            catalog.maps[0].levels[7].3[2] = 2;
+            catalog.maps[0].levels[7].1[2] = 2;
             assert!(validate_catalog(&catalog).is_ok());
         }
 
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        catalog.maps[0].levels[7].4 = [1, 2, 1];
+        catalog.maps[0].levels[7].2 = [1, 2, 1];
         assert!(validate_catalog(&catalog).is_err());
 
         for invalid in [
@@ -578,12 +586,12 @@ mod tests {
             [16, 0, 2],
         ] {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-            catalog.maps[0].levels[7].4 = invalid;
+            catalog.maps[0].levels[7].2 = invalid;
             assert!(validate_catalog(&catalog).is_err());
         }
         for valid in [[11, 1, 2], [12, 0, 2]] {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-            catalog.maps[0].levels[7].4 = valid;
+            catalog.maps[0].levels[7].2 = valid;
             assert!(validate_catalog(&catalog).is_ok());
         }
 
@@ -600,8 +608,8 @@ mod tests {
             let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
             catalog.maps[0].rules[1] = u16::from(trigger);
             catalog.maps[0].rules[2] = threshold;
-            catalog.maps[0].levels[7].3 = [primary.tag(), primary_value, 2];
-            catalog.maps[0].levels[7].4 = [secondary.tag(), secondary_value, secondary_count];
+            catalog.maps[0].levels[7].1 = [primary.tag(), primary_value, 2];
+            catalog.maps[0].levels[7].2 = [secondary.tag(), secondary_value, secondary_count];
             assert!(validate_catalog(&catalog).is_err());
         }
     }

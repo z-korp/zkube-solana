@@ -166,7 +166,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         ctx.accounts.protocol.content_version,
     )?;
     let map_rules = ctx.accounts.realm_map_catalog.map_rules;
-    let rules = daily_level_rules(map_rules, content.pressure);
+    let rules = daily_level_rules(map_rules);
     let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
         ctx.accounts.protocol.content_version,
@@ -1787,14 +1787,10 @@ pub fn handler_withdraw_operator_revenue(
     Ok(())
 }
 
-fn daily_level_rules(
-    realm: CampaignMapRuleSnapshot,
-    pressure: DailyPressureProfile,
-) -> LevelRuleSnapshot {
+fn daily_level_rules(realm: CampaignMapRuleSnapshot) -> LevelRuleSnapshot {
     LevelRuleSnapshot {
         level: 1,
         points_required: u32::MAX,
-        max_moves: pressure.max_moves,
         difficulty: 0,
         primary: ConstraintSnapshot::default(),
         secondary: ConstraintSnapshot::default(),
@@ -1964,7 +1960,6 @@ mod tests {
 
     #[test]
     fn campaign_and_daily_share_guardian_rules() {
-        let pressure = DailyPressureProfile::canonical();
         let realm = CampaignMapRuleSnapshot {
             guardian: GuardianSnapshot {
                 bonus: 2,
@@ -1973,7 +1968,7 @@ mod tests {
             },
             starting_rows: 6,
         };
-        let daily = daily_level_rules(realm, pressure);
+        let daily = daily_level_rules(realm);
         assert_eq!(daily.guardian, realm.guardian);
         assert_eq!(daily.starting_rows, realm.starting_rows);
     }

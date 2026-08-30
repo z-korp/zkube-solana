@@ -12,8 +12,6 @@ interface CampaignConstraintPublication {
 
 interface CampaignLevelPublication {
   level: number;
-  pointsRequired: number;
-  maxMoves: number;
   difficulty: number;
   primary: CampaignConstraintPublication;
   secondary: CampaignConstraintPublication;
@@ -47,7 +45,7 @@ export interface CampaignMapPublication {
 
 type EncodedMap = (typeof CAMPAIGN_CATALOG.maps)[number];
 type EncodedLevel = EncodedMap["levels"][number];
-type ConstraintTuple = EncodedLevel[3] | EncodedLevel[4];
+type ConstraintTuple = EncodedLevel[1] | EncodedLevel[2];
 
 const BOSS_ARCHETYPE_IDS = [1, 2, 3, 4, 6, 7, 5, 8, 9, 10] as const;
 
@@ -107,11 +105,9 @@ function level(
   levelNumber: number,
   tuple: EncodedLevel,
 ): CampaignLevelPublication {
-  const [pointsRequired, maxMoves, difficulty, primary, secondary] = tuple;
+  const [difficulty, primary, secondary] = tuple;
   return {
     level: levelNumber,
-    pointsRequired,
-    maxMoves,
     difficulty,
     primary: publicationConstraint(primary),
     secondary: publicationConstraint(secondary),

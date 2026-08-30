@@ -8,7 +8,9 @@ import {
 } from "@/chain/campaignCatalog";
 import type { ActiveRunRulesView } from "@/chain/runPlan";
 import { generateMapData } from "./useMapData";
-import { UNINITIALIZED_MAP_1 } from "@/ui/components/map/mapLogic";
+import { CAMPAIGN_TARGET_LADDER } from "@/chain/protocolVersions.generated";
+import { coreCampaignMoveBudget } from "@/core/zkubeCore";
+import { uninitializedMap1 } from "@/ui/components/map/mapLogic";
 
 const rule: ActiveRunRulesView = {
   pointsRequired: 10,
@@ -70,15 +72,14 @@ describe("generateMapData", () => {
   });
 
   it("provides authored Map 1 preview rules before player initialization", () => {
-    const result = generateMapData({ map: UNINITIALIZED_MAP_1 });
+    const result = generateMapData({ map: uninitializedMap1() });
     const authored = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
     for (const levelIndex of [0, 9]) {
-      const { level, pointsRequired, maxMoves, difficulty } =
-        authored.levels[levelIndex];
+      const { level, difficulty } = authored.levels[levelIndex];
       expect(result.nodes[levelIndex].levelConfig).toMatchObject({
         level,
-        pointsRequired,
-        maxMoves,
+        pointsRequired: CAMPAIGN_TARGET_LADDER[levelIndex],
+        maxMoves: coreCampaignMoveBudget(level, difficulty),
         difficulty,
       });
     }

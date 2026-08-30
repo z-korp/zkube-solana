@@ -9,6 +9,8 @@ export function boardWidth(pool: bigint, qualified_winners: number, entry_price:
 
 export function buildRunConfig(rules_hash: Uint8Array, initial_replay: Uint8Array, max_moves: number, bonus: number, trigger: number, trigger_threshold: number, starting_height: number, tier_policy: number, fixed_tier: number, points_required: number, primary_kind: number, primary_value: number, primary_count: number, secondary_kind: number, secondary_value: number, secondary_count: number, objective_kind: number, objective_value: number): Uint8Array;
 
+export function campaignMoveBudget(level: number, tier: number): number;
+
 export function dailyBoardPools(pool: bigint, theme_qualified: number): Uint8Array;
 
 export function dailyPairIndex(day_id: number): number;

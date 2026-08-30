@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { CampaignMapView } from "@/chain/campaignClient";
 import {
   resolveCampaignMap,
-  UNINITIALIZED_MAP_1,
+  uninitializedMap1,
 } from "@/ui/components/map/mapLogic";
 
 function campaignMap(mapId: number): CampaignMapView {
   return {
-    ...UNINITIALIZED_MAP_1,
+    ...uninitializedMap1(),
     mapId,
     themeId: mapId,
     levelStars: Array.from({ length: 10 }, () => 0),
@@ -24,7 +24,7 @@ describe("MapPage campaign routing", () => {
 
   it("makes only Map 1 playable for an uninitialized career", () => {
     expect(resolveCampaignMap(null, 1, true)).toBeUndefined();
-    expect(resolveCampaignMap(null, 1, false)).toBe(UNINITIALIZED_MAP_1);
+    expect(resolveCampaignMap(null, 1, false)).toBe(uninitializedMap1());
     expect(resolveCampaignMap(null, 2, false)).toBeUndefined();
   });
 });

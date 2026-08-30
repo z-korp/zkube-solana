@@ -5774,14 +5774,6 @@
             "type": "u8"
           },
           {
-            "name": "points_required",
-            "type": "u32"
-          },
-          {
-            "name": "max_moves",
-            "type": "u16"
-          },
-          {
             "name": "difficulty",
             "type": "u8"
           },
@@ -6136,10 +6128,6 @@
           {
             "name": "points_required",
             "type": "u32"
-          },
-          {
-            "name": "max_moves",
-            "type": "u16"
           },
           {
             "name": "difficulty",

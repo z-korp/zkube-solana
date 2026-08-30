@@ -160,8 +160,6 @@ pub fn handler_write_map_catalog(
     validate_campaign_map_rules(&args.map_rules)?;
     for (index, level) in args.levels.iter().enumerate() {
         require!(level.level == index as u8 + 1, ErrorCode::InvalidLevel);
-        require!(level.points_required > 0, ErrorCode::InvalidLevel);
-        require!(level.max_moves > 0, ErrorCode::InvalidLevel);
         require!(level.difficulty <= 7, ErrorCode::InvalidLevel);
         validate_primary_constraint_snapshot(level.primary)?;
         validate_secondary_constraint_snapshot(level.secondary)?;
@@ -520,13 +518,34 @@ mod tests {
     fn rule_hash_is_domain_separated_and_stable() {
         let rules = LevelRuleSnapshot {
             level: 1,
-            max_moves: 20,
             ..LevelRuleSnapshot::default()
         };
         let first = hash_rules(1, 1, &rules).unwrap();
         assert_eq!(first, hash_rules(1, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(2, 1, &rules).unwrap());
         assert_ne!(first, hash_rules(1, 2, &rules).unwrap());
+    }
+
+    #[test]
+    fn campaign_publication_rejects_an_authored_budget() {
+        let level = CampaignLevelSnapshot {
+            level: 1,
+            difficulty: 0,
+            primary: ConstraintSnapshot {
+                kind: zkube_core::ConstraintKind::ClearLines.tag(),
+                value: 0,
+                required_count: 2,
+            },
+            secondary: ConstraintSnapshot {
+                kind: zkube_core::ConstraintKind::ComboOfAtLeast.tag(),
+                value: 2,
+                required_count: 1,
+            },
+        };
+        let mut encoded = Vec::new();
+        level.serialize(&mut encoded).unwrap();
+        assert_eq!(CampaignLevelSnapshot::INIT_SPACE, 8);
+        assert_eq!(encoded.len(), 8);
     }
 
     #[test]

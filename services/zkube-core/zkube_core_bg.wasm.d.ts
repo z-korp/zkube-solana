@@ -8,6 +8,7 @@ export const ladderPoints: (a: number, b: number) => [number, number, number];
 export const ladderTier: (a: bigint) => number;
 export const ladderTierFloor: (a: number) => bigint;
 export const ladderTierCount: () => number;
+export const campaignMoveBudget: (a: number, b: number) => [number, number, number];
 export const initializeRun: (a: number, b: number) => [number, number, number, number];
 export const buildRunConfig: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => [number, number, number, number];
 export const reconcileRunState: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: bigint, x: number, y: number, z: number, a1: number, b1: number, c1: number, d1: number) => [number, number, number, number];

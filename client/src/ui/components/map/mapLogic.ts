@@ -5,30 +5,40 @@ import {
 } from "@/chain/campaignCatalog";
 import { mapLevelRuleSnapshot } from "@/chain/runPlan";
 
-const INITIAL_MAP_1 = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
+let initialMap1: CampaignMapView | undefined;
+
+export function uninitializedMap1(): CampaignMapView {
+  if (initialMap1) return initialMap1;
+  const authored = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
+  initialMap1 = {
+    mapId: 1,
+    themeId: 1,
+    enabled: true,
+    unlocked: true,
+    cleared: false,
+    perfected: false,
+    levelStars: Array.from({ length: 10 }, () => 0),
+    levels: authored.levels.map((level, index) =>
+      mapLevelRuleSnapshot(
+        {
+          ...level,
+          ...authored.mapRules,
+          bossId: index === 9 ? authored.mapRules.bossId : 0,
+        },
+        1,
+        index + 1,
+        "campaign",
+      ),
+    ),
+  };
+  return initialMap1;
+}
 
 // A new identity has no PlayerState account yet. Map 1 remains playable,
 // and its preview uses the same authored catalog that is published on-chain.
-export const UNINITIALIZED_MAP_1: CampaignMapView = {
-  mapId: 1,
-  themeId: 1,
-  enabled: true,
-  unlocked: true,
-  cleared: false,
-  perfected: false,
-  levelStars: Array.from({ length: 10 }, () => 0),
-  levels: INITIAL_MAP_1.levels.map((level, index) =>
-    mapLevelRuleSnapshot({
-      ...level,
-      ...INITIAL_MAP_1.mapRules,
-      bossId: index === 9 ? INITIAL_MAP_1.mapRules.bossId : 0,
-    }),
-  ),
-};
-
 export function unavailableMap(mapId: number): CampaignMapView {
   return {
-    ...UNINITIALIZED_MAP_1,
+    ...uninitializedMap1(),
     mapId,
     themeId: mapId,
     enabled: false,
@@ -44,6 +54,6 @@ export function resolveCampaignMap(
 ): CampaignMapView | undefined {
   const current = maps?.find((map) => map.mapId === mapId);
   if (current) return current;
-  if (!loading && maps === null && mapId === 1) return UNINITIALIZED_MAP_1;
+  if (!loading && maps === null && mapId === 1) return uninitializedMap1();
   return undefined;
 }

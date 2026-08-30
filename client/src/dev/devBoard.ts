@@ -10,6 +10,7 @@ import {
 } from "@/chain/campaignCatalog";
 import {
   projectRunFromLocalState,
+  mapLevelRuleSnapshot,
   type ActiveRunRulesView,
   type ActiveRunView,
 } from "@/chain/runPlan";
@@ -66,17 +67,12 @@ function campaignRules(): ActiveRunRulesView {
   const level = map.levels[DEV_BOARD_LEVEL - 1]!;
   // The authored catalog, not invented numbers: the HUD's target score, move
   // budget and objective chips are only worth judging at real values.
-  return {
-    pointsRequired: level.pointsRequired,
-    maxMoves: level.maxMoves,
-    difficulty: level.difficulty,
-    primary: level.primary,
-    secondary: level.secondary,
-    activeMutatorId: map.mapRules.activeMutatorId,
-    bossId: map.mapRules.bossId,
-    guardian: map.mapRules.guardian,
-    startingRows: map.mapRules.startingRows,
-  };
+  return mapLevelRuleSnapshot(
+    { ...level, ...map.mapRules },
+    DEV_BOARD_MAP_ID,
+    DEV_BOARD_LEVEL,
+    "campaign",
+  );
 }
 
 /**

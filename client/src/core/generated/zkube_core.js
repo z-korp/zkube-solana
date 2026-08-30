@@ -98,6 +98,19 @@ export function buildRunConfig(rules_hash, initial_replay, max_moves, bonus, tri
 }
 
 /**
+ * @param {number} level
+ * @param {number} tier
+ * @returns {number}
+ */
+export function campaignMoveBudget(level, tier) {
+    const ret = wasm.campaignMoveBudget(level, tier);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0];
+}
+
+/**
  * @param {bigint} pool
  * @param {number} theme_qualified
  * @returns {Uint8Array}

@@ -357,6 +357,12 @@ mod wasm {
         ladder_tier_count()
     }
 
+    #[wasm_bindgen(js_name = campaignMoveBudget)]
+    pub fn js_campaign_move_budget(level: u8, tier: u8) -> Result<u16, JsError> {
+        zkube_core::campaign_move_budget(level, tier)
+            .ok_or_else(|| JsError::new("Campaign level or tier is invalid"))
+    }
+
     #[wasm_bindgen(js_name = initializeRun)]
     pub fn js_initialize_run(config: &[u8]) -> Result<Vec<u8>, JsError> {
         initialize_run(config).map_err(js_error)
@@ -742,8 +748,14 @@ mod tests {
         native.apply_vrf(rules, 1, [0x11; 32]).unwrap();
         state = run_apply_vrf(&config_bytes, &state, 1, &[0x11; 32]).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
-        native.play_move(rules, 0, 0, 0, 0, 0).unwrap();
-        state = run_play_move(&config_bytes, &state, 0, 0, 0, 0, 0).unwrap();
+        let movement = &fixture["events"][1];
+        let row = u8::try_from(movement["row"].as_u64().unwrap()).unwrap();
+        let start = u8::try_from(movement["start"].as_u64().unwrap()).unwrap();
+        let destination = u8::try_from(movement["destination"].as_u64().unwrap()).unwrap();
+        native
+            .play_move(rules, 0, 0, row, start, destination)
+            .unwrap();
+        state = run_play_move(&config_bytes, &state, 0, 0, row, start, destination).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
         native.apply_vrf(rules, 2, [0x22; 32]).unwrap();
         state = run_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();

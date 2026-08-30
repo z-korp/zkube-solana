@@ -35,6 +35,26 @@ mod rules;
 mod simulation;
 include!("tier_weights.generated.rs");
 
+/// One score target for each Campaign level, shared by all realms.
+pub const CAMPAIGN_TARGET_LADDER: [u16; CAMPAIGN_LEVELS_PER_MAP] =
+    [10, 14, 18, 22, 27, 32, 37, 42, 46, 50];
+/// Campaign moves per target point in tenths, indexed by the authored tier.
+pub const MOVES_PER_POINT: [u16; TIER_BLOCK_WEIGHTS.len()] = [16, 15, 14, 13, 12, 11, 10, 9];
+
+/// Derive the only Campaign move budget from its level and authored tier.
+#[must_use]
+pub const fn campaign_move_budget(level: u8, tier: u8) -> Option<u16> {
+    if level == 0
+        || level as usize > CAMPAIGN_TARGET_LADDER.len()
+        || tier as usize >= MOVES_PER_POINT.len()
+    {
+        return None;
+    }
+    let target = CAMPAIGN_TARGET_LADDER[level as usize - 1];
+    let scaled = target * MOVES_PER_POINT[tier as usize];
+    Some(scaled.div_ceil(10))
+}
+
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 1;

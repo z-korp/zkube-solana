@@ -234,7 +234,12 @@ export async function fetchDailyView(args: {
     })),
     scoreQualifiedPlayers: Number(challenge.scoreQualifiedPlayers),
     themeQualifiedPlayers: Number(challenge.themeQualifiedPlayers),
-    rules: mapLevelRuleSnapshot(challenge.rules, Number(challenge.mapId), 1),
+    rules: mapLevelRuleSnapshot(
+      challenge.rules,
+      Number(challenge.mapId),
+      1,
+      "daily",
+    ),
     dailyTheme: {
       kind: Number(challenge.dailyTheme.kind),
       value: Number(challenge.dailyTheme.value),

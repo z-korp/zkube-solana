@@ -1234,11 +1234,13 @@ mod tests {
         for (map_index, map) in fixture["maps"].as_array().unwrap().iter().enumerate() {
             for (level_index, value) in map["levels"].as_array().unwrap().iter().enumerate() {
                 let tuple = value.as_array().unwrap();
+                let level_number = level_index as u8 + 1;
+                let tier = tuple[0].as_u64().unwrap() as u8;
                 let level = LevelRules {
-                    points_required: tuple[0].as_u64().unwrap() as u32,
-                    max_moves: tuple[1].as_u64().unwrap() as u16,
-                    primary: campaign_v2_constraint(&tuple[3]),
-                    secondary: campaign_v2_constraint(&tuple[4]),
+                    points_required: u32::from(crate::CAMPAIGN_TARGET_LADDER[level_index]),
+                    max_moves: crate::campaign_move_budget(level_number, tier).unwrap(),
+                    primary: campaign_v2_constraint(&tuple[1]),
+                    secondary: campaign_v2_constraint(&tuple[2]),
                 };
                 let mut run = RunEngine {
                     phase: RunPhase::Playing,

@@ -193,6 +193,7 @@ export async function fetchCampaignView(args: {
           } as RawLevelRuleSnapshot,
           mapId,
           levelIndex + 1,
+          "campaign",
         ),
       ),
     };

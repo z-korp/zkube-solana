@@ -26,8 +26,6 @@ describe("Campaign content v2", () => {
           map.mapRules.startingRows,
         ],
         levels: map.levels.map((level) => [
-          level.pointsRequired,
-          level.maxMoves,
           level.difficulty,
           [
             level.primary.kind,
@@ -70,7 +68,7 @@ describe("Campaign content v2", () => {
 
     const first = canonicalCampaignMap(2, 1);
     const pristine = canonicalCampaignMap(2, 1);
-    first.levels[0].pointsRequired = 999;
+    first.levels[0].difficulty = 7;
     first.levels[0].primary.kind = 3;
     expect(canonicalCampaignMap(2, 1)).toEqual(pristine);
   });

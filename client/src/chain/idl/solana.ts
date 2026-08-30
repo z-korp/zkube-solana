@@ -5780,14 +5780,6 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "pointsRequired",
-            "type": "u32"
-          },
-          {
-            "name": "maxMoves",
-            "type": "u16"
-          },
-          {
             "name": "difficulty",
             "type": "u8"
           },
@@ -6142,10 +6134,6 @@ export type Solana = {
           {
             "name": "pointsRequired",
             "type": "u32"
-          },
-          {
-            "name": "maxMoves",
-            "type": "u16"
           },
           {
             "name": "difficulty",

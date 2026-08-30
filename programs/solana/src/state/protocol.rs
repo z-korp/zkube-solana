@@ -437,8 +437,7 @@ impl MapCatalog {
         let map = self.map_rules;
         Ok(LevelRuleSnapshot {
             level: authored.level,
-            points_required: authored.points_required,
-            max_moves: authored.max_moves,
+            points_required: u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[usize::from(level - 1)]),
             difficulty: authored.difficulty,
             primary: authored.primary,
             secondary: authored.secondary,
@@ -482,8 +481,6 @@ pub struct CampaignMapRuleSnapshot {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
 pub struct CampaignLevelSnapshot {
     pub level: u8,
-    pub points_required: u32,
-    pub max_moves: u16,
     pub difficulty: u8,
     pub primary: ConstraintSnapshot,
     pub secondary: ConstraintSnapshot,
@@ -493,7 +490,6 @@ pub struct CampaignLevelSnapshot {
 pub struct LevelRuleSnapshot {
     pub level: u8,
     pub points_required: u32,
-    pub max_moves: u16,
     pub difficulty: u8,
     pub primary: ConstraintSnapshot,
     pub secondary: ConstraintSnapshot,
@@ -807,7 +803,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 357);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 355);
     }
 
     #[test]
@@ -840,8 +836,6 @@ mod tests {
         };
         let levels = std::array::from_fn(|index| CampaignLevelSnapshot {
             level: index as u8 + 1,
-            points_required: 20 + index as u32,
-            max_moves: 30,
             difficulty: index.min(7) as u8,
             ..CampaignLevelSnapshot::default()
         });
@@ -861,6 +855,14 @@ mod tests {
         assert_eq!(first.guardian, boss.guardian);
         assert_eq!(first.guardian.trigger, 4);
         assert_eq!(first.guardian.threshold, 3);
+        assert_eq!(
+            first.points_required,
+            u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[0])
+        );
+        assert_eq!(
+            boss.points_required,
+            u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[9])
+        );
         assert_eq!(boss.level, 10);
     }
 

@@ -89,7 +89,6 @@ fn level_rule_fixture() -> LevelRuleSnapshot {
     LevelRuleSnapshot {
         level: 1,
         points_required: 10,
-        max_moves: 20,
         primary: ConstraintSnapshot {
             kind: zkube_core::ConstraintKind::ClearLines.tag(),
             value: 0,
@@ -652,6 +651,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
     let opening_state = ActiveRun {
         version: ACCOUNT_VERSION,
         lifecycle: RunLifecycle::AwaitingVrf,
+        level: opening_rules.level,
         rules_hash: [19; 32],
         rules: opening_rules,
         vrf_request_counter: 1,
@@ -716,7 +716,6 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
         lifecycle: RunLifecycle::AwaitingVrf,
         grid: daily_grid,
         rules: LevelRuleSnapshot {
-            max_moves: DAILY_MAX_MOVES,
             ..level_rule_fixture()
         },
         daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
@@ -845,7 +844,6 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
         rules_hash,
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
-            max_moves: DAILY_MAX_MOVES,
             ..level_rule_fixture()
         },
         grid,
@@ -1222,8 +1220,6 @@ fn sbf_device_payer_creates_only_the_canonical_active_run() {
     );
     let levels = std::array::from_fn(|index| CampaignLevelSnapshot {
         level: index as u8 + 1,
-        points_required: 10,
-        max_moves: 20,
         ..CampaignLevelSnapshot::default()
     });
     let map_state = MapCatalog {
@@ -1391,7 +1387,6 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
         map_id: 1,
         level: 1,
         rules: LevelRuleSnapshot {
-            max_moves: 20,
             ..level_rule_fixture()
         },
         grid,
@@ -1442,7 +1437,6 @@ fn sbf_campaign_perfect_clear_grants_a_held_reroll_that_can_be_requested() {
         level: 1,
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
-            max_moves: 20,
             ..level_rule_fixture()
         },
         grid,
@@ -1524,7 +1518,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
             deadline_at: 1_000,
             rules: LevelRuleSnapshot {
                 points_required: u32::MAX,
-                max_moves: DAILY_MAX_MOVES,
                 ..level_rule_fixture()
             },
             daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
@@ -1585,7 +1578,6 @@ fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
         level: 1,
         rules: LevelRuleSnapshot {
             points_required: u32::MAX,
-            max_moves: 20,
             ..level_rule_fixture()
         },
         grid,
@@ -1641,7 +1633,6 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
         level: 1,
         rules: LevelRuleSnapshot {
             points_required: 1,
-            max_moves: 20,
             ..level_rule_fixture()
         },
         score: 1,
