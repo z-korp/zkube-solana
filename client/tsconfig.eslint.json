@@ -27,5 +27,5 @@
     "tools/**/*.ts",
     "*.config.ts"
   ],
-  "exclude": ["dist", "node_modules", "src/chain/idl/solana.ts"]
+  "exclude": ["dist", "node_modules", "src/backend/solana/idl/solana.ts"]
 }

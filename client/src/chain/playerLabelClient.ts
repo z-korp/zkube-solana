@@ -13,7 +13,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import { PLAYER_LABEL_ACCOUNT_VERSION } from "./protocolVersions.generated.js";
+import { PLAYER_LABEL_ACCOUNT_VERSION } from "../core/protocolVersions.generated.js";
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 

@@ -2,7 +2,7 @@ import {
   buildZkubeLaunchPlan,
   formatZkubeLaunchPlan,
   launchPlannerInputFromEnv,
-} from "../../src/chain/launchPlanner";
+} from "./launchPlanner";
 import { Connection } from "@solana/web3.js";
 import { dailyPairIndex } from "./core";
 

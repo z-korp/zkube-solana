@@ -9,7 +9,8 @@
  */
 import { Keypair } from "@solana/web3.js";
 
-import type { ActiveRunRulesView, ActiveRunView } from "@/chain/runPlan";
+import type { ActiveRunRulesView } from "@/core/runProjection";
+import type { ActiveRunView } from "@/chain/runPlan";
 
 export function makeRunRules(
   overrides: Partial<ActiveRunRulesView> = {},

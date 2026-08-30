@@ -1,5 +1,10 @@
 import { SystemProgram, type AccountInfo } from "@solana/web3.js";
-import { errorMessage } from "../utils/errors.js";
+import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../core/runStartError.js";
+
+export {
+  DEVICE_SESSION_RENEWAL_ERROR_CODE,
+  isDeviceSessionRenewalError,
+} from "../core/runStartError.js";
 
 /** Owner-funded allowance assigned to each origin-scoped device signer. */
 export const DEVICE_FEE_ALLOWANCE_LAMPORTS = 5_000_000;
@@ -10,9 +15,6 @@ export const DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS = 5_000;
 /** A ready session can both launch and later settle one run. */
 const DEVICE_READY_FEE_RESERVE_LAMPORTS =
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS * 2;
-
-export const DEVICE_SESSION_RENEWAL_ERROR_CODE =
-  "ZKUBE_DEVICE_SESSION_RENEWAL_REQUIRED";
 
 export type DeviceSignerFundingStatus = "ready" | "needsRenewal";
 
@@ -96,16 +98,6 @@ function deviceSessionRenewalError(detail?: string): Error {
     `${DEVICE_SESSION_RENEWAL_ERROR_CODE}: ${
       detail ?? "Renew zKube to refill this device's fee allowance."
     }`,
-  );
-}
-
-export function isDeviceSessionRenewalError(value: unknown): boolean {
-  const message = errorMessage(value);
-  return (
-    message.includes(DEVICE_SESSION_RENEWAL_ERROR_CODE) ||
-    (message.includes("Simulation failed for") &&
-      (message.includes('"Custom":1') ||
-        message.includes("InsufficientFundsForRent")))
   );
 }
 

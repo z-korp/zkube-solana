@@ -1,19 +1,19 @@
 /** DEV-only playable board driven by the same core `Run` as connected play. */
 import { PublicKey } from "@solana/web3.js";
 
-import { BonusType } from "@/chain/bonusTypes";
-import { CANONICAL_DAILY_PRESSURE } from "@/chain/dailyRules";
-import { PRESSURE_STEP } from "@/chain/protocolVersions.generated";
+import { BonusType } from "@/core/bonusTypes";
+import { CANONICAL_DAILY_PRESSURE } from "@/core/dailyRules";
+import { PRESSURE_STEP } from "@/core/protocolVersions.generated";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
-} from "@/chain/campaignCatalog";
+} from "@/core/campaignCatalog";
 import {
   projectRunFromLocalState,
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,
-  type ActiveRunView,
-} from "@/chain/runPlan";
+} from "@/core/runProjection";
+import { type ActiveRunView } from "@/chain/runPlan";
 import {
   coreApplyRunBonus,
   coreApplyRunVrf,

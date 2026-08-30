@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { getThemeId } from "@/config/themes";
-import { dailyThemeName } from "@/chain/dailyRules";
+import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";

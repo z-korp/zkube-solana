@@ -2,7 +2,7 @@ import {
   formatPrizeTopUpResult,
   parsePrizeTopUpCliArgs,
   runPrizeTopUpCommand,
-} from "../../src/chain/prizeTopUpRunner";
+} from "./prizeTopUpRunner";
 
 function help(): string {
   return [

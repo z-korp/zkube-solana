@@ -12,15 +12,14 @@ import {
   unpackCompactLevelStars,
 } from "./campaignClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
-import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
-import { PROTOCOL_ACCOUNT_VERSION } from "./protocolVersions.generated";
+import { CAMPAIGN_CONTENT_VERSION } from "../core/campaignCatalog";
+import { PROTOCOL_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
 
 const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
 }));
 
 vi.mock("./runPlan", async () => ({
-  mapLevelRuleSnapshot: (value: unknown) => value,
   zkubeProgram: () => ({
     programId: ZKUBE_PROGRAM_ID,
     account: {
@@ -30,6 +29,10 @@ vi.mock("./runPlan", async () => ({
     },
     coder: { accounts: { decode: mocks.decode } },
   }),
+}));
+
+vi.mock("../core/runProjection", () => ({
+  mapLevelRuleSnapshot: (value: unknown) => value,
 }));
 
 function account(size: number, marker: number): AccountInfo<Buffer> {

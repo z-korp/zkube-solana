@@ -7,7 +7,7 @@ import {
   isZkubeDeploymentManifest,
   validateDeploymentBinding,
   validateDeploymentManifest,
-} from "../../src/chain/deploymentManifest";
+} from "./deploymentManifest";
 
 interface Options {
   manifestPath: string | null;

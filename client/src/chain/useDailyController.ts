@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRun } from "@/contexts/run";
 import { errorMessage } from "@/utils/errors";
-import { describeRunStartError } from "./runStartError";
+import { describeRunStartError } from "../core/runStartError";
 import { useSolanaConnection } from "./connectionContext";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import {

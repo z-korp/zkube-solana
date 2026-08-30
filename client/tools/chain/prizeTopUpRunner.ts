@@ -13,7 +13,7 @@ import {
 } from "@solana/web3.js";
 
 import { buildDepositArenaDailyPlan, type PrizePoolKind } from "./adminClient";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 import {
   isZkubeDeploymentManifest,
   type ZkubeDeploymentManifest,
@@ -24,7 +24,7 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveProtocolConfigPda,
-} from "./pdas";
+} from "../../src/chain/pdas";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
@@ -32,9 +32,9 @@ import {
   ENTRY_OPERATOR_LAMPORTS,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
-} from "./protocolVersions.generated";
-import { createReadOnlyWallet } from "./readOnlyWallet";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
+} from "../../src/core/protocolVersions.generated";
+import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
 
 type PrizeTopUpMode = "plan" | "execute";
 type CadenceSelector = "current" | "following" | number;

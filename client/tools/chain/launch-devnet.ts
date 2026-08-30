@@ -1,7 +1,7 @@
 import {
   formatLaunchRunnerResult,
   runLaunchFromEnv,
-} from "../../src/chain/launchRunner";
+} from "./launchRunner";
 import { dailyPairIndex } from "./core";
 
 async function main(): Promise<void> {

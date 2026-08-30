@@ -18,7 +18,7 @@ import {
   type DailyView,
 } from "./dailyClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
-import { IDL } from "./idl";
+import { IDL } from "../backend/solana/idl";
 import {
   deriveArcadeConfigPda,
   deriveArenaBoardPda,
@@ -30,7 +30,7 @@ import {
 import {
   ARCADE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-} from "./protocolVersions.generated";
+} from "../core/protocolVersions.generated";
 import { SessionWallet } from "./sessionWallet";
 
 const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));

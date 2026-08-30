@@ -3,7 +3,7 @@
  * close the next one is. Lives here rather than in a component so the rail and
  * the play screen can share it without either owning the other.
  */
-import type { BonusType } from "@/chain/bonusTypes";
+import type { BonusType } from "@/core/bonusTypes";
 
 const BONUS_DISPLAY: Readonly<
   Record<number, { name: string; icon: string; description: string }>

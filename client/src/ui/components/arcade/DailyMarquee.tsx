@@ -3,9 +3,9 @@ import { Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 import type { DailyLeaderboardView } from "@/chain/dailyClient";
-import { dailyThemeName } from "@/chain/dailyRules";
+import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
-import type { DailyThemeView } from "@/chain/dailyRules";
+import type { DailyThemeView } from "@/core/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";

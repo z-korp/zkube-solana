@@ -15,7 +15,7 @@ import {
 } from "./playerStateClient";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
-} from "./protocolVersions.generated";
+} from "../core/protocolVersions.generated";
 import { zkubeProgram } from "./runPlan";
 import { SessionWallet } from "./sessionWallet";
 

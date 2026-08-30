@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { HTMLAttributes } from "react";
 import Grid, { type ReceiptProjection } from "./Grid";
-import { BonusType } from "../../chain/bonusTypes";
+import { BonusType } from "../../core/bonusTypes";
 import { useMoveStore } from "../../stores/moveTxStore";
 
 vi.mock("sonner", () => ({

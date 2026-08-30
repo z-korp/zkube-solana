@@ -1,4 +1,4 @@
-import type { ActiveRunConstraintView } from "@/chain/runPlan";
+import type { ActiveRunConstraintView } from "@/core/runProjection";
 import { Constraint } from "@/game/constraint";
 
 export function constraintDescription(rule: ActiveRunConstraintView): string {

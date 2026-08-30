@@ -8,7 +8,7 @@ import {
 } from "react";
 
 import { useMusicPlayer } from "@/contexts/hooks";
-import { BonusType } from "@/chain/bonusTypes";
+import { BonusType } from "@/core/bonusTypes";
 import type { Game } from "@/game/model";
 import { dailyThemeDescription } from "@/game/constraint";
 import { getGuardianDef } from "@/config/mutatorConfig";

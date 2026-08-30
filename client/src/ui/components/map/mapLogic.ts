@@ -2,8 +2,8 @@ import type { CampaignMapView } from "@/chain/campaignClient";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
-} from "@/chain/campaignCatalog";
-import { mapLevelRuleSnapshot } from "@/chain/runPlan";
+} from "@/core/campaignCatalog";
+import { mapLevelRuleSnapshot } from "@/core/runProjection";
 
 let initialMap1: CampaignMapView | undefined;
 

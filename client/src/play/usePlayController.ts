@@ -16,7 +16,7 @@ import {
 } from "@/stores/navigationStore";
 import type { ReceiptProjection } from "@/ui/components/Grid";
 
-export { describeRunStartError } from "@/chain/runStartError";
+export { describeRunStartError } from "@/core/runStartError";
 
 export interface TerminalRunSnapshot {
   activeRun: ActiveRunView;

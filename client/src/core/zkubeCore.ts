@@ -30,7 +30,7 @@ import wasmUrl from "./generated/zkube_core_bg.wasm?url";
 import {
   ARENA_ENTRY_LAMPORTS,
   SOL_PAYOUT_UNIT_LAMPORTS,
-} from "../chain/protocolVersions.generated";
+} from "./protocolVersions.generated";
 
 export type ReplayMode = "ranked";
 export type RunFinishReason = "abandon" | "deadline";

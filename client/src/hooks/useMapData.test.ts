@@ -5,10 +5,10 @@ import type { CampaignMapView } from "@/chain/campaignClient";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
-} from "@/chain/campaignCatalog";
-import type { ActiveRunRulesView } from "@/chain/runPlan";
+} from "@/core/campaignCatalog";
+import type { ActiveRunRulesView } from "@/core/runProjection";
 import { generateMapData } from "./useMapData";
-import { CAMPAIGN_TARGET_LADDER } from "@/chain/protocolVersions.generated";
+import { CAMPAIGN_TARGET_LADDER } from "@/core/protocolVersions.generated";
 import { coreCampaignMoveBudget } from "@/core/zkubeCore";
 import { uninitializedMap1 } from "@/ui/components/map/mapLogic";
 

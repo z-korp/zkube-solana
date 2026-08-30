@@ -15,16 +15,16 @@ import {
   deriveOperatorRevenueVaultPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "./pdas";
+} from "../../src/chain/pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
   MAX_CAMPAIGN_MAPS,
   canonicalCampaignMap,
-} from "./campaignCatalog";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
-import type { WalletLike } from "./sessionWallet";
+} from "../../src/core/campaignCatalog";
+import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
+import type { WalletLike } from "../../src/chain/sessionWallet";
 import BN from "bn.js";
-import { dailyContentFromPairIndex } from "./dailyRules";
+import { dailyContentFromPairIndex } from "../../src/core/dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;

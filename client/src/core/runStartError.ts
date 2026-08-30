@@ -1,5 +1,17 @@
-import { errorMessage } from "@/utils/errors";
-import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
+import { errorMessage } from "../utils/errors.js";
+
+export const DEVICE_SESSION_RENEWAL_ERROR_CODE =
+  "ZKUBE_DEVICE_SESSION_RENEWAL_REQUIRED";
+
+export function isDeviceSessionRenewalError(value: unknown): boolean {
+  const message = errorMessage(value);
+  return (
+    message.includes(DEVICE_SESSION_RENEWAL_ERROR_CODE) ||
+    (message.includes("Simulation failed for") &&
+      (message.includes('"Custom":1') ||
+        message.includes("InsufficientFundsForRent")))
+  );
+}
 
 type RunStartFailureKind =
   | "deviceSessionRenewal"
@@ -13,8 +25,7 @@ export interface DescribedRunStartError {
   detail: string | null;
 }
 
-const RUN_DISCOVERY_PENDING_ERROR_CODE =
-  "ZKUBE_RUN_DISCOVERY_PENDING";
+const RUN_DISCOVERY_PENDING_ERROR_CODE = "ZKUBE_RUN_DISCOVERY_PENDING";
 
 export function runDiscoveryPendingError(): Error {
   return new Error(

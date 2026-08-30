@@ -16,7 +16,7 @@ import {
   buildSetProtocolPausePlan,
   buildDepositArenaDailyPlan,
 } from "./adminClient";
-import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
+import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
@@ -26,8 +26,8 @@ import {
   deriveArenaDailyPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "./pdas";
-import { SessionWallet } from "./sessionWallet";
+} from "../../src/chain/pdas";
+import { SessionWallet } from "../../src/chain/sessionWallet";
 
 describe("authority publication client", () => {
   it("initializes the lean protocol with its team destination", async () => {

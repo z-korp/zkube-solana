@@ -33,8 +33,7 @@ import {
   type Signer,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { IDL, type ZkubeProgram } from "./idl/index.js";
-import { campaignGuardianPresentation } from "./campaignCatalog.js";
+import { IDL, type ZkubeProgram } from "../backend/solana/idl/index.js";
 import {
   INITIAL_RUN_ID,
   MAGIC_CONTEXT_ID,
@@ -58,26 +57,24 @@ import {
   CANONICAL_DAILY_PRESSURE,
   type DailyPressureProfileView,
   type DailyThemeView,
-} from "./dailyRules.js";
+} from "../core/dailyRules.js";
 import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "./deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "./sessionV2.js";
-import {
-  CAMPAIGN_TARGET_LADDER,
-  DAILY_MAX_MOVES,
-  PLAYER_STATE_ACCOUNT_VERSION,
-} from "./protocolVersions.generated.js";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated.js";
 import {
   coreBuildRunConfig,
-  coreCampaignMoveBudget,
   coreReconcileRunState,
-  coreRunSummary,
-  type CoreRunMode,
   type CoreRunPhase,
   type CoreRunToken,
 } from "../core/zkubeCore.js";
+import {
+  mapLevelRuleSnapshot,
+  projectCoreRun,
+  type ActiveRunRulesView,
+} from "../core/runProjection.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */
@@ -195,112 +192,6 @@ export interface ActiveRunView {
   replayHash?: number[];
   finishedAt?: number;
   bump?: number;
-}
-
-export interface ActiveRunConstraintView {
-  kind: number;
-  value: number;
-  requiredCount: number;
-}
-
-interface RawConstraintSnapshot {
-  kind: unknown;
-  value: unknown;
-  requiredCount: unknown;
-}
-
-interface RawGuardianSnapshot {
-  bonus: unknown;
-  trigger: unknown;
-  threshold: unknown;
-}
-
-export interface RawLevelRuleSnapshot {
-  pointsRequired?: unknown;
-  difficulty: unknown;
-  primary: RawConstraintSnapshot;
-  secondary: RawConstraintSnapshot;
-  activeMutatorId?: unknown;
-  bossId?: unknown;
-  guardian: RawGuardianSnapshot;
-  startingRows: unknown;
-}
-
-export function mapLevelRuleSnapshot(
-  rules: RawLevelRuleSnapshot,
-  mapId = 0,
-  level = 0,
-  mode: CoreRunMode = "campaign",
-): ActiveRunRulesView {
-  const presentation =
-    mapId > 0
-      ? campaignGuardianPresentation(mapId)
-      : { activeMutatorId: 0, bossId: 0 };
-  const difficulty = Number(rules.difficulty);
-  const pointsRequired =
-    mode === "campaign"
-      ? CAMPAIGN_TARGET_LADDER[level - 1]
-      : Number(rules.pointsRequired);
-  if (pointsRequired === undefined) {
-    throw new Error("Campaign level is outside the target ladder");
-  }
-  if (
-    mode === "campaign" &&
-    rules.pointsRequired !== undefined &&
-    Number(rules.pointsRequired) !== pointsRequired
-  ) {
-    throw new Error("Campaign score target does not match the protocol ladder");
-  }
-  return {
-    pointsRequired,
-    maxMoves:
-      mode === "campaign"
-        ? coreCampaignMoveBudget(level, difficulty)
-        : DAILY_MAX_MOVES,
-    difficulty,
-    primary: {
-      kind: Number(rules.primary.kind),
-      value: Number(rules.primary.value),
-      requiredCount: Number(rules.primary.requiredCount),
-    },
-    secondary: {
-      kind: Number(rules.secondary.kind),
-      value: Number(rules.secondary.value),
-      requiredCount: Number(rules.secondary.requiredCount),
-    },
-    activeMutatorId:
-      rules.activeMutatorId === undefined
-        ? presentation.activeMutatorId
-        : Number(rules.activeMutatorId),
-    bossId:
-      rules.bossId === undefined
-        ? level === 10
-          ? presentation.bossId
-          : 0
-        : Number(rules.bossId),
-    guardian: {
-      bonus: Number(rules.guardian.bonus),
-      trigger: Number(rules.guardian.trigger),
-      threshold: Number(rules.guardian.threshold),
-    },
-    startingRows: Number(rules.startingRows),
-  };
-}
-
-export interface ActiveRunRulesView {
-  pointsRequired: number;
-  maxMoves: number;
-  difficulty: number;
-  primary: ActiveRunConstraintView;
-  secondary: ActiveRunConstraintView;
-  activeMutatorId: number;
-  bossId: number;
-  guardian: {
-    bonus: number;
-    trigger: number;
-    threshold: number;
-  };
-  startingRows: number;
 }
 
 export const VRF_QUEUE = new PublicKey(
@@ -1074,63 +965,6 @@ export function reconcileRunFromChain(
     vrfRequestCounter: Number(account.vrfRequestCounter),
     finishedAt: Number(account.finishedAt),
     bump: Number(account.bump),
-  };
-}
-
-/** Project an optimistic accepted action without reading account bytes. */
-export function projectRunFromLocalState(
-  view: ActiveRunView,
-  state: Uint8Array,
-): ActiveRunView {
-  if (!view.runToken) {
-    throw new Error("Active run has no local core token");
-  }
-  return {
-    ...view,
-    ...projectCoreRun({ config: view.runToken.config, state }),
-  };
-}
-
-function projectCoreRun(token: CoreRunToken) {
-  const summary = coreRunSummary(token.state);
-  const pendingVrfCounter =
-    summary.phase === "awaitingVrf" ? summary.lastVrfCounter + 1 : 0;
-  return {
-    runToken: token,
-    lifecycle: summary.phase,
-    finishReason:
-      summary.endReason === 3
-        ? "abandon"
-        : summary.endReason === 4
-          ? "deadline"
-          : null,
-    score: summary.score,
-    dailyScore: summary.dailyScore,
-    objectiveTotal: summary.objectiveTotal,
-    pressureScore: summary.pressureScore,
-    actionCounter: summary.actionCounter,
-    moves: summary.moves,
-    comboCounter: summary.comboCounter,
-    maxCombo: summary.maxCombo,
-    primaryProgress: summary.primaryProgress,
-    secondaryProgress: summary.secondaryProgress,
-    latchedStarSources: summary.latchedStarSources,
-    streak: summary.streak,
-    chargesEarned: summary.chargesEarned,
-    levelLinesCleared: summary.levelLinesCleared,
-    totalLinesCleared: summary.levelLinesCleared,
-    bonusUses: 0,
-    currentTier: summary.currentTier,
-    currentDifficulty: summary.currentTier,
-    bonusType: summary.bonusType,
-    bonusCharges: summary.bonusCharges,
-    rerollCharges: summary.rerollCharges,
-    grid: summary.grid,
-    nextRow: summary.nextRow,
-    pendingVrfCounter,
-    vrfRequestCounter: Math.max(summary.lastVrfCounter, pendingVrfCounter),
-    rulesHash: summary.rulesHash,
-    replayHash: summary.replayHash,
   };
 }
 

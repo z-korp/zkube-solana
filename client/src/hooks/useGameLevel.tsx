@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useRun } from "@/contexts/run";
 import { ConstraintType } from "@/game/constraint";
-import type { ActiveRunRulesView } from "@/chain/runPlan";
+import type { ActiveRunRulesView } from "@/core/runProjection";
 
 export interface GameLevelData {
   gameId: bigint;

@@ -2,7 +2,7 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { BonusType } from "@/chain/bonusTypes";
+import { BonusType } from "@/core/bonusTypes";
 import type { Game } from "@/game/model";
 import type { Block } from "@/types/types";
 import GameBoard from "./GameBoard";

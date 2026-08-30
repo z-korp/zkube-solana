@@ -18,7 +18,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import { IDL } from "./idl";
+import { IDL } from "../backend/solana/idl";
 import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,

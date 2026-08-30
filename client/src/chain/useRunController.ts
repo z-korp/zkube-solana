@@ -19,13 +19,13 @@ import {
   combinePreparedAndDelegatePlan,
   decodeActiveRunAccount,
   fetchActiveRun,
-  projectRunFromLocalState,
   resolveRunErConnection,
   submitPreparedRunPlan,
   submitVersionedTransactionPlan,
   type ActiveRunView,
   type PreparedRunPlan,
 } from "./runPlan";
+import { projectRunFromLocalState } from "../core/runProjection";
 import {
   coreApplyRunBonus,
   coreFinishRun,
@@ -66,7 +66,10 @@ import {
   emitChainMetric,
   type ChainMetricLayer,
 } from "./telemetry";
-import { isActiveRunConflict, runDiscoveryPendingError } from "./runStartError";
+import {
+  isActiveRunConflict,
+  runDiscoveryPendingError,
+} from "../core/runStartError";
 import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
 
 const plog = (

@@ -34,19 +34,21 @@ import {
 import {
   activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,
-  mapLevelRuleSnapshot,
   zkubeProgram,
-  type ActiveRunRulesView,
   type PreparedRunPlan,
   type TransactionPlan,
 } from "./runPlan.js";
+import {
+  mapLevelRuleSnapshot,
+  type ActiveRunRulesView,
+} from "../core/runProjection.js";
 import {
   mapDailyPressureProfile,
   dailyContentFromPairIndex,
   nextScheduledDaily,
   type DailyPressureProfileView,
   type DailyThemeView,
-} from "./dailyRules.js";
+} from "../core/dailyRules.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
@@ -54,13 +56,13 @@ import {
   corePayoutForRank as payoutForRank,
 } from "../core/zkubeCore";
 import { formatSolBalanceLamports } from "@/utils/currency";
-import { IDL } from "./idl/index.js";
+import { IDL } from "../backend/solana/idl/index.js";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PROTOCOL_ACCOUNT_VERSION,
-} from "./protocolVersions.generated.js";
+} from "../core/protocolVersions.generated.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
@@ -500,8 +502,11 @@ export async function buildClaimDailyPrizePlan(args: {
   board: "score" | "theme";
   position: number;
 }): Promise<TransactionPlan> {
-  if (!Number.isSafeInteger(args.position) || args.position < 0 ||
-      args.position >= ARENA_BOARD_CAPACITY) {
+  if (
+    !Number.isSafeInteger(args.position) ||
+    args.position < 0 ||
+    args.position >= ARENA_BOARD_CAPACITY
+  ) {
     throw new Error("Daily reward position is invalid");
   }
   const daily = deriveArenaDailyPda(args.dayId);

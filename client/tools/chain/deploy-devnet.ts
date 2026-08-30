@@ -2,7 +2,7 @@ import {
   devnetDeploymentInputFromEnv,
   formatDevnetDeployment,
   runZkubeDevnetDeployment,
-} from "../../src/chain/deploymentRunner";
+} from "./deploymentRunner";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {

@@ -17,7 +17,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/services/package.json ./services/package.json
 COPY --from=build --chown=node:node /app/services/node_modules ./services/node_modules
 COPY --from=build --chown=node:node /app/services/dist ./services/dist
-COPY --chown=node:node client/src/chain/idl/solana.json ./client/src/chain/idl/solana.json
+COPY --chown=node:node client/src/backend/solana/idl/solana.json ./client/src/backend/solana/idl/solana.json
 USER node
 
 CMD ["node", "services/dist/keeperWorker.js"]

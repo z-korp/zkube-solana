@@ -9,7 +9,7 @@ import { ChevronUp } from "lucide-react";
 import Grid, { type GridProps, type OutcomeAnimation } from "./Grid";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import NextLine from "./NextLine";
-import { BonusType } from "@/chain/bonusTypes";
+import { BonusType } from "@/core/bonusTypes";
 import { Game } from "@/game/model";
 
 import "../../grid.css";

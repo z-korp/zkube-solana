@@ -10,7 +10,7 @@ import {
   assertPreparedRunAddressesAvailable,
   resolvePreparedRunAddresses,
 } from "./runPlan";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
 
 function collisionConnection(
   occupiedIndexes: number[],

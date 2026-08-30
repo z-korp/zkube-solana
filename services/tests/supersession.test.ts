@@ -21,7 +21,7 @@ const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
 // Generated bindings and the frozen IDL are machine output, not authored text.
-const SKIPPED = [join(CLIENT, "core/generated"), join(CLIENT, "chain/idl")];
+const SKIPPED = [join(CLIENT, "core/generated"), join(CLIENT, "backend/solana/idl")];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {

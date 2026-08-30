@@ -16,7 +16,7 @@ import {
   buildPrepareLaunchPeriodPlans,
   buildPublishCanonicalMapsPlan,
 } from "./adminClient";
-import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
+import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
@@ -28,11 +28,11 @@ import {
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-} from "./pdas";
-import { SECONDS_PER_DAY } from "./protocolVersions.generated";
-import { createReadOnlyWallet } from "./readOnlyWallet";
-import type { TransactionPlan } from "./runPlan";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
+} from "../../src/chain/pdas";
+import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";
+import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import type { TransactionPlan } from "../../src/chain/runPlan";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 
 const BASE_CONTENT_VERSION = 1;
 const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;

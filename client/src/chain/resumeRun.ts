@@ -17,7 +17,7 @@ import type { WalletLike } from "./sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import type { DeviceSession } from "./deviceSessionStore";
 import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "./protocolVersions.generated";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
 
 export type ResumedRun =
   | { phase: "none" }

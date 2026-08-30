@@ -4,7 +4,7 @@
  * The score multiplier keeps climbing after the authored row danger reaches
  * its top name and colour.
  */
-import { PRESSURE_STEP } from "@/chain/protocolVersions.generated";
+import { PRESSURE_STEP } from "@/core/protocolVersions.generated";
 
 export interface BoardTierStep {
   index: number;

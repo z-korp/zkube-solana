@@ -17,6 +17,7 @@ export default defineConfig({
     include: [
       "src/**/*.{test,spec}.{js,ts,jsx,tsx}",
       "tests/**/*.{test,spec}.{js,ts,jsx,tsx}",
+      "tools/**/*.{test,spec}.{js,ts,jsx,tsx}",
     ],
   },
 });

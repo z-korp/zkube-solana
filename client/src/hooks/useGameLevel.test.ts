@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import type { ActiveRunRulesView } from "@/chain/runPlan";
+import type { ActiveRunRulesView } from "@/core/runProjection";
 import { rulesToGameLevelData } from "./useGameLevel";
 
 const rules: ActiveRunRulesView = {

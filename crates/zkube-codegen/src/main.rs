@@ -15,14 +15,14 @@ use zkube_core::{
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
-const GENERATED_TS: &str = "client/src/chain/campaignCatalog.generated.ts";
+const GENERATED_TS: &str = "client/src/core/campaignCatalog.generated.ts";
 const GENERATED_TIER_WEIGHTS_RS: &str = "crates/zkube-core/src/tier_weights.generated.rs";
 const GENERATED_DAILY_RULES_TS: [&str; 2] = [
-    "client/src/chain/dailyRules.generated.ts",
+    "client/src/core/dailyRules.generated.ts",
     "services/src/dailyRules.generated.ts",
 ];
 const GENERATED_PROTOCOL_TS: [&str; 2] = [
-    "client/src/chain/protocolVersions.generated.ts",
+    "client/src/core/protocolVersions.generated.ts",
     "services/src/protocolVersions.generated.ts",
 ];
 

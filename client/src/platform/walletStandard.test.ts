@@ -18,7 +18,7 @@ import {
   WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
   withPinnedWalletComputeBudget,
 } from "@/chain/runPlan";
-import { ARENA_ENTRY_LAMPORTS } from "@/chain/protocolVersions.generated";
+import { ARENA_ENTRY_LAMPORTS } from "@/core/protocolVersions.generated";
 import {
   createFakeWalletStandard,
   signTransactionInputs,

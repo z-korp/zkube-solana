@@ -2,7 +2,7 @@ import {
   formatProgramExtension,
   programExtensionInputFromEnv,
   runProgramExtension,
-} from "../../src/chain/programExtension";
+} from "./programExtension";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {

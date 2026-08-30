@@ -8,7 +8,7 @@ import {
   MAGIC_PROGRAM_ID,
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
-} from "./constants";
+} from "../../src/chain/constants";
 import {
   deploymentManifestFromEnv,
   deploymentManifestMismatches,
@@ -17,8 +17,8 @@ import {
   validateDeploymentManifest,
   type ZkubeDeploymentManifest,
 } from "./deploymentManifest";
-import { VRF_QUEUE } from "./runPlan";
-import { deriveOperatorRevenueVaultPda } from "./pdas";
+import { VRF_QUEUE } from "../../src/chain/runPlan";
+import { deriveOperatorRevenueVaultPda } from "../../src/chain/pdas";
 
 describe("zKube deployment manifest v6", () => {
   it("validates a sanitized, fully bound Devnet candidate", () => {

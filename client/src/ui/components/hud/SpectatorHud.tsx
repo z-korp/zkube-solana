@@ -3,7 +3,8 @@ import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
-import type { ActiveRunConstraintView, ActiveRunView } from "@/chain/runPlan";
+import type { ActiveRunConstraintView } from "@/core/runProjection";
+import type { ActiveRunView } from "@/chain/runPlan";
 import {
   HUD_BAR,
   HudBarSvg,

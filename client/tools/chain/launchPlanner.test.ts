@@ -14,7 +14,7 @@ import {
   formatZkubeLaunchPlan,
   type LaunchPlannerInput,
 } from "./launchPlanner";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 describe("read-only paused bootstrap and launch planner", () => {

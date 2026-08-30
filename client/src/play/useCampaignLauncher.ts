@@ -4,7 +4,7 @@ import { errorMessage } from "@/utils/errors";
 import { useRun } from "@/contexts/run";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { showToast } from "@/utils/toast";
-import { describeRunStartError } from "@/chain/runStartError";
+import { describeRunStartError } from "@/core/runStartError";
 
 /**
  * In-place campaign run launch, mirroring the Daily flow: the run is created

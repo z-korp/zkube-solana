@@ -20,7 +20,7 @@ import {
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
-} from "./campaignCatalog";
+} from "../../src/core/campaignCatalog";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
@@ -40,15 +40,15 @@ import {
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-} from "./pdas";
+} from "../../src/chain/pdas";
 import {
   ARENA_ENTRY_LAMPORTS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
-} from "./protocolVersions.generated";
-import { createReadOnlyWallet } from "./readOnlyWallet";
-import { zkubeProgram, type TransactionPlan } from "./runPlan";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+} from "../../src/core/protocolVersions.generated";
+import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
+import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 
 type LaunchMode = "plan" | "stage" | "resume" | "activate";
 

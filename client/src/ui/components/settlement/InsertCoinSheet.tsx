@@ -10,7 +10,7 @@ import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
-import type { DailyThemeView } from "@/chain/dailyRules";
+import type { DailyThemeView } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 
 interface InsertCoinSheetProps {

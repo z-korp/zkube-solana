@@ -5,17 +5,17 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
+import { zkubeProgram } from "./runPlan.js";
 import {
   mapLevelRuleSnapshot,
-  zkubeProgram,
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
-} from "./runPlan.js";
-import { CANONICAL_CAMPAIGN_MAP_COUNT } from "./campaignCatalog.js";
+} from "../core/runProjection.js";
+import { CANONICAL_CAMPAIGN_MAP_COUNT } from "../core/campaignCatalog.js";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-} from "./protocolVersions.generated.js";
+} from "../core/protocolVersions.generated.js";
 
 export const CAMPAIGN_LEVEL_COUNT = 100;
 export const CAMPAIGN_STAR_BYTES = 25;

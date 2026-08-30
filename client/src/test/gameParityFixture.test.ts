@@ -5,7 +5,7 @@ import {
   CAMPAIGN_CONTENT_VERSION,
   CANONICAL_CAMPAIGN_MAP_COUNT,
   canonicalCampaignMap,
-} from "@/chain/campaignCatalog";
+} from "@/core/campaignCatalog";
 import { transformDataContractIntoBlock } from "@/utils/gridUtils";
 import { Game } from "@/game/model";
 import { makeActiveRun } from "@/test/fixtures/activeRun";

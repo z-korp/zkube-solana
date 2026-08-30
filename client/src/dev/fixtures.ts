@@ -20,13 +20,13 @@ import type {
 } from "@/chain/dailyClient";
 import {
   CANONICAL_DAILY_PRESSURE,
-} from "@/chain/dailyRules";
+} from "@/core/dailyRules";
 import type {
   CampaignMapView,
   CampaignView,
   CompetitionRecord,
 } from "@/chain/campaignClient";
-import type { ActiveRunRulesView } from "@/chain/runPlan";
+import type { ActiveRunRulesView } from "@/core/runProjection";
 import type { ConnectedPlayerValue } from "@/chain/connectedPlayerContext";
 import { createReadOnlyWallet } from "@/chain/readOnlyWallet";
 import type { PlayerLabelView } from "@/chain/playerLabelClient";

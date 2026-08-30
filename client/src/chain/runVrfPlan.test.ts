@@ -17,7 +17,7 @@ import {
   buildRequestRerollPlan,
   decodeActiveRunAccount,
 } from "./runPlan";
-import { IDL } from "./idl";
+import { IDL } from "../backend/solana/idl";
 import { SessionWallet } from "./sessionWallet";
 
 describe("atomic action + VRF plans", () => {
