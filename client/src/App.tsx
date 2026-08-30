@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import {
-  useCampaign,
-  useConnectedPlayer,
-  useRun,
-} from "@/backend/client";
+import { useCampaign, useConnectedPlayer } from "@/backend/client";
+import PlaytestNameGate from "@/backend/local/PlaytestNameGate";
+import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
@@ -19,7 +17,7 @@ import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
 import BootReveal from "@/ui/components/shared/BootReveal";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
-import { DEV_BYPASS_ACTIVE, devBoardModeFromUrl } from "@/dev/devBypass";
+import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 
 const params = new URLSearchParams(window.location.search);
 if (import.meta.env.DEV) {
@@ -91,23 +89,41 @@ export default function App() {
   // keeps falling after the connect action appears, so it is torn down only
   // once every particle has cleared.
   const [bootRevealGone, setBootRevealGone] = useState(false);
+  const playerReady =
+    player.connectionStatus === "connected" &&
+    !!player.publicKey &&
+    player.sessionStatus === "ready";
+
+  useEffect(() => {
+    if (
+      PLAYTEST_ACTIVE &&
+      player.connectionStatus === "connected" &&
+      player.sessionStatus !== "ready"
+    ) {
+      void player.enable();
+    }
+  }, [player]);
+
+  if (PLAYTEST_ACTIVE) {
+    return playerReady ? (
+      <ClientSurface currentPage={currentPage} />
+    ) : (
+      <PlaytestNameGate />
+    );
+  }
   // DEV-ONLY: skip the connect gate and render the populated menus from fixture
   // providers. `import.meta.env.DEV` is a literal `false` in production, so this
   // branch (and everything it imports under src/dev/) is dead-code-eliminated.
   if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
     return (
-      <DevBackendBootstrap>
+      <LocalBackendBootstrap>
         <ClientSurface currentPage={currentPage} />
-      </DevBackendBootstrap>
+      </LocalBackendBootstrap>
     );
   }
   // Whether this player lands in the app rather than on the connect screen.
   // The reveal reads it live: the silent reconnect it covers may resolve while
   // the animation is still running.
-  const playerReady =
-    player.connectionStatus === "connected" &&
-    !!player.publicKey &&
-    player.sessionStatus === "ready";
   const reveal = bootRevealGone ? null : (
     <BootReveal
       onSettled={() => setBootRevealDone(true)}
@@ -153,12 +169,9 @@ function ClientSurface({
   );
 }
 
-/** Connects and stages the query-selected board through LocalBackendLive. */
-function DevBackendBootstrap({ children }: { children: ReactNode }) {
+/** Connects the development bypass; runs still start through the real menus. */
+function LocalBackendBootstrap({ children }: { children: ReactNode }) {
   const player = useConnectedPlayer();
-  const run = useRun();
-  const started = useRef(false);
-  const mode = devBoardModeFromUrl();
 
   useEffect(() => {
     if (player.connectionStatus === "disconnected") {
@@ -170,29 +183,6 @@ function DevBackendBootstrap({ children }: { children: ReactNode }) {
       void player.enable();
     }
   }, [player]);
-
-  useEffect(() => {
-    if (
-      !mode ||
-      started.current ||
-      player.sessionStatus !== "ready" ||
-      run.activeRun
-    ) {
-      return;
-    }
-    started.current = true;
-    const start =
-      mode === "campaign"
-        ? run.campaign.startCampaignRun(8, 4)
-        : run.arcade.startDailyRun();
-    void start.then((active) => {
-      useNavigationStore.setState({
-        currentPage: "play",
-        previousPage: mode === "campaign" ? "map" : "arcade",
-        gameId: active.runId,
-      });
-    });
-  }, [mode, player.sessionStatus, run]);
 
   return children;
 }

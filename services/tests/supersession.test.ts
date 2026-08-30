@@ -21,7 +21,10 @@ const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
 // Generated bindings and the frozen IDL are machine output, not authored text.
-const SKIPPED = [join(CLIENT, "core/generated"), join(CLIENT, "backend/solana/idl")];
+const SKIPPED = [
+  join(CLIENT, "core/generated"),
+  join(CLIENT, "backend/solana/idl"),
+];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
@@ -40,7 +43,8 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     pattern:
       /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally/i,
     trees: [CLIENT],
-    reversal: "player-facing run copy names player actions, not protocol plumbing",
+    reversal:
+      "player-facing run copy names player actions, not protocol plumbing",
   },
   {
     pattern:
@@ -118,7 +122,8 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Daily score pressure is an uncapped formula rather than a stored multiplier array",
   },
   {
-    pattern: /private target curves?|authored move budgets?|per[- ]realm target curves?/i,
+    pattern:
+      /private target curves?|authored move budgets?|per[- ]realm target curves?/i,
     trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
     reversal:
       "one Campaign target ladder and tier-derived move budgets replaced authored curves",
@@ -224,6 +229,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     trees: [CLIENT],
     reversal:
       "the six Effect services and one BackendProvider replaced the client chain-context stack",
+  },
+  {
+    pattern: /\bdevBoard\b|still life/i,
+    trees: [CLIENT],
+    reversal:
+      "the owner play build uses the playable local backend instead of frozen fixtures",
   },
   {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,

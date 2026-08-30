@@ -2,14 +2,11 @@ import { useMemo } from "react";
 
 import { getThemeId, type ThemeId } from "@/config/themes";
 import type { ClientCampaignMap } from "@/backend/client";
+import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 type NodeType = "classic" | "boss";
-export type NodeState =
-  | "locked"
-  | "cleared"
-  | "current"
-  | "playing";
+export type NodeState = "locked" | "cleared" | "current" | "playing";
 
 interface ActiveStoryNode {
   zoneId: number;
@@ -60,7 +57,9 @@ export function generateMapData({
     let state: NodeState = "locked";
     if (playing) state = "playing";
     else if (cleared) state = "cleared";
-    else if (playable && nodeIndex === currentNodeIndex) state = "current";
+    else if (playable && (PLAYTEST_ACTIVE || nodeIndex === currentNodeIndex)) {
+      state = "current";
+    }
 
     const rules = map.levels[nodeIndex];
     return {

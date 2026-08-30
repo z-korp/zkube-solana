@@ -19,6 +19,7 @@ import {
 } from "@/core/protocolVersions.generated";
 import { coreRunSummary } from "@/core/zkubeCore";
 import { browserLocalStorage } from "@/platform/browserStorage";
+import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { errorMessage } from "@/utils/errors";
 import { useBackendRuntime } from "./runtime";
@@ -114,7 +115,11 @@ export interface ClientSlotRunController {
   publicKey: string | null;
   startCampaignRun(mapId: number, level: number): Promise<ClientRunView>;
   startDailyRun(_daily?: unknown): Promise<ClientRunView>;
-  playMove(row: number, start: number, destination: number): Promise<ClientRunView>;
+  playMove(
+    row: number,
+    start: number,
+    destination: number,
+  ): Promise<ClientRunView>;
   applyBonus(row: number, column: number): Promise<ClientRunView>;
   requestReroll(): Promise<ClientRunView>;
   settleAndAdvance(): Promise<ClientRunReceipt | null>;
@@ -210,8 +215,20 @@ export function BackendClientState({ children }: { children: ReactNode }) {
   const [today, setToday] = useState<DailyContent | null>(null);
   const [boards, setBoards] = useState<ReadonlyArray<BoardState>>([]);
   const [catalog, setCatalog] = useState<CampaignCatalog | null>(null);
-  const campaignRun = useRunSlot("campaign", { runtime, identity, session, today, catalog });
-  const arcadeRun = useRunSlot("arcade", { runtime, identity, session, today, catalog });
+  const campaignRun = useRunSlot("campaign", {
+    runtime,
+    identity,
+    session,
+    today,
+    catalog,
+  });
+  const arcadeRun = useRunSlot("arcade", {
+    runtime,
+    identity,
+    session,
+    today,
+    catalog,
+  });
 
   useEffect(() => {
     void runtime
@@ -219,38 +236,50 @@ export function BackendClientState({ children }: { children: ReactNode }) {
       .catch(() => undefined);
   }, [runtime]);
 
-  useEffect(() =>
-    runtime.runCallback(
-      Effect.flatMap(Identity, (service) =>
-        Stream.runForEach(service.state, (value) =>
-          Effect.sync(() => setIdentity(value)),
+  useEffect(
+    () =>
+      runtime.runCallback(
+        Effect.flatMap(Identity, (service) =>
+          Stream.runForEach(service.state, (value) =>
+            Effect.sync(() => setIdentity(value)),
+          ),
         ),
       ),
-    ), [runtime]);
-  useEffect(() =>
-    runtime.runCallback(
-      Effect.flatMap(Session, (service) =>
-        Stream.runForEach(service.state, (value) =>
-          Effect.sync(() => setSession(value)),
+    [runtime],
+  );
+  useEffect(
+    () =>
+      runtime.runCallback(
+        Effect.flatMap(Session, (service) =>
+          Stream.runForEach(service.state, (value) =>
+            Effect.sync(() => setSession(value)),
+          ),
         ),
       ),
-    ), [runtime]);
-  useEffect(() =>
-    runtime.runCallback(
-      Effect.flatMap(Economy, (service) =>
-        Stream.runForEach(service.state, (value) =>
-          Effect.sync(() => setEconomy(value)),
+    [runtime],
+  );
+  useEffect(
+    () =>
+      runtime.runCallback(
+        Effect.flatMap(Economy, (service) =>
+          Stream.runForEach(service.state, (value) =>
+            Effect.sync(() => setEconomy(value)),
+          ),
         ),
       ),
-    ), [runtime]);
-  useEffect(() =>
-    runtime.runCallback(
-      Effect.flatMap(Content, (service) =>
-        Stream.runForEach(service.todayChanges, (value) =>
-          Effect.sync(() => setToday(value)),
+    [runtime],
+  );
+  useEffect(
+    () =>
+      runtime.runCallback(
+        Effect.flatMap(Content, (service) =>
+          Stream.runForEach(service.todayChanges, (value) =>
+            Effect.sync(() => setToday(value)),
+          ),
         ),
       ),
-    ), [runtime]);
+    [runtime],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -271,16 +300,18 @@ export function BackendClientState({ children }: { children: ReactNode }) {
     }
     const cancel = runtime.runCallback(
       Effect.flatMap(Boards, (service) =>
-        service.watch(today.dayId).pipe(
-          Stream.runForEach((board) =>
-            Effect.sync(() =>
-              setBoards((current) => [
-                ...current.filter((value) => value.kind !== board.kind),
-                board,
-              ]),
+        service
+          .watch(today.dayId)
+          .pipe(
+            Stream.runForEach((board) =>
+              Effect.sync(() =>
+                setBoards((current) => [
+                  ...current.filter((value) => value.kind !== board.kind),
+                  board,
+                ]),
+              ),
             ),
           ),
-        ),
       ),
     );
     return cancel;
@@ -297,7 +328,16 @@ export function BackendClientState({ children }: { children: ReactNode }) {
       campaignRun,
       arcadeRun,
     }),
-    [arcadeRun, boards, campaignRun, catalog, economy, identity, session, today],
+    [
+      arcadeRun,
+      boards,
+      campaignRun,
+      catalog,
+      economy,
+      identity,
+      session,
+      today,
+    ],
   );
   return createElement(ClientContext.Provider, { value }, children);
 }
@@ -318,7 +358,8 @@ function useRunSlot(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const connected = args.identity.status === "connected";
-  const sessionAuthorized = args.session.status === "live" || args.session.status === "expiring";
+  const sessionAuthorized =
+    args.session.status === "live" || args.session.status === "expiring";
 
   const project = useCallback(
     (view: RunView, selection?: RunSelection) =>
@@ -441,7 +482,9 @@ function useRunSlot(
       },
       dismissRun: () => setActiveRun(null),
       recoverSession: async () => {
-        await args.runtime.runPromise(Effect.flatMap(Session, (service) => service.ensure()));
+        await args.runtime.runPromise(
+          Effect.flatMap(Session, (service) => service.ensure()),
+        );
       },
       resumePreparedRun: resume,
       retryResolve: resume,
@@ -480,8 +523,16 @@ function projectClientRun(
   const summary = coreRunSummary(view.token);
   const realmId = selection?.realm ?? today?.realm ?? 1;
   const level = selection?.level ?? 1;
-  const realm = catalog?.realms.find((candidate) => candidate.realm === realmId);
-  const rules = clientRules(view.mode, realm, level, today, summary.currentTier);
+  const realm = catalog?.realms.find(
+    (candidate) => candidate.realm === realmId,
+  );
+  const rules = clientRules(
+    view.mode,
+    realm,
+    level,
+    today,
+    summary.currentTier,
+  );
   return {
     runId: BigInt(view.runId),
     mode: view.mode === "campaign" ? "campaign" : "daily",
@@ -531,7 +582,9 @@ function clientRules(
   currentTier: number,
 ): ActiveRunRulesView {
   const content = realm?.levels[level - 1];
-  const presentation = campaignGuardianPresentation(realm?.realm ?? today?.realm ?? 1);
+  const presentation = campaignGuardianPresentation(
+    realm?.realm ?? today?.realm ?? 1,
+  );
   if (mode === "campaign" && content && realm) {
     return {
       pointsRequired: content.target,
@@ -579,7 +632,10 @@ function saveSelection(runId: string, selection: RunSelection): void {
   const storage = browserLocalStorage();
   if (!storage) return;
   try {
-    const values = JSON.parse(storage.getItem(SELECTION_KEY) ?? "{}") as Record<string, RunSelection>;
+    const values = JSON.parse(storage.getItem(SELECTION_KEY) ?? "{}") as Record<
+      string,
+      RunSelection
+    >;
     values[runId] = selection;
     storage.setItem(SELECTION_KEY, JSON.stringify(values));
   } catch {
@@ -591,7 +647,12 @@ function loadSelection(runId: string): RunSelection | null {
   const storage = browserLocalStorage();
   if (!storage) return null;
   try {
-    const value = (JSON.parse(storage.getItem(SELECTION_KEY) ?? "{}") as Record<string, RunSelection>)[runId];
+    const value = (
+      JSON.parse(storage.getItem(SELECTION_KEY) ?? "{}") as Record<
+        string,
+        RunSelection
+      >
+    )[runId];
     return value &&
       (value.mode === "campaign" || value.mode === "arcade") &&
       Number.isInteger(value.realm) &&
@@ -617,7 +678,8 @@ export function useRun(): ClientRunController {
   const selected =
     campaignRun.activeRun?.runId === gameId ||
     (arcadeRun.activeRun?.runId !== gameId &&
-      (currentPage === "map" || (currentPage === "play" && previousPage === "map")))
+      (currentPage === "map" ||
+        (currentPage === "play" && previousPage === "map")))
       ? campaignRun
       : arcadeRun;
   return { ...selected, campaign: campaignRun, arcade: arcadeRun };
@@ -631,10 +693,18 @@ export function useCampaign() {
     [state.catalog, state.economy.profile.stars],
   );
   const refresh = useCallback(async () => {
-    const catalog = await runtime.runPromise(Effect.flatMap(Content, (service) => service.catalog()));
+    const catalog = await runtime.runPromise(
+      Effect.flatMap(Content, (service) => service.catalog()),
+    );
     return projectCampaign(catalog, state.economy.profile.stars);
   }, [runtime, state.economy.profile.stars]);
-  return { campaign, loading: !state.catalog, loaded: Boolean(state.catalog), error: null, refresh };
+  return {
+    campaign,
+    loading: !state.catalog,
+    loaded: Boolean(state.catalog),
+    error: null,
+    refresh,
+  };
 }
 
 export function useDaily() {
@@ -650,17 +720,24 @@ export function useDaily() {
       setAction(null);
     }
   }, [state.arcadeRun]);
-  const buyKredits = useCallback(async (pack: 1 | 10 | 25 = 1) => {
-    setAction("buy:kredits");
-    try {
-      await runtime.runPromise(Effect.flatMap(Economy, (service) => service.buy(pack)));
-      return "confirmed";
-    } finally {
-      setAction(null);
-    }
-  }, [runtime]);
+  const buyKredits = useCallback(
+    async (pack: 1 | 10 | 25 = 1) => {
+      setAction("buy:kredits");
+      try {
+        await runtime.runPromise(
+          Effect.flatMap(Economy, (service) => service.buy(pack)),
+        );
+        return "confirmed";
+      } finally {
+        setAction(null);
+      }
+    },
+    [runtime],
+  );
   const refresh = useCallback(async () => {
-    const content = await runtime.runPromise(Effect.flatMap(Content, (service) => service.today()));
+    const content = await runtime.runPromise(
+      Effect.flatMap(Content, (service) => service.today()),
+    );
     return daily && content.dayId === daily.dayId ? daily : null;
   }, [daily, runtime]);
   return {
@@ -676,21 +753,30 @@ export function useDaily() {
   };
 }
 
-function projectCampaign(catalog: CampaignCatalog | null, stars: readonly number[]): ClientCampaignView | null {
+function projectCampaign(
+  catalog: CampaignCatalog | null,
+  stars: readonly number[],
+): ClientCampaignView | null {
   if (!catalog) return null;
   return {
     contentVersion: catalog.contentVersion,
     maps: catalog.realms.map((realm, index) => {
-      const levelStars = Array.from({ length: 10 }, (_, level) => stars[index * 10 + level] ?? 0);
+      const levelStars = Array.from(
+        { length: 10 },
+        (_, level) => stars[index * 10 + level] ?? 0,
+      );
       return {
         mapId: realm.realm,
         themeId: realm.theme,
         enabled: true,
-        unlocked: index === 0 || (stars[index * 10 - 1] ?? 0) > 0,
+        unlocked:
+          PLAYTEST_ACTIVE || index === 0 || (stars[index * 10 - 1] ?? 0) > 0,
         cleared: levelStars[9]! > 0,
         perfected: levelStars.every((value) => value === 3),
         levelStars,
-        levels: realm.levels.map((level) => clientRules("campaign", realm, level.level, null, level.tier)),
+        levels: realm.levels.map((level) =>
+          clientRules("campaign", realm, level.level, null, level.tier),
+        ),
       };
     }),
   };
@@ -704,17 +790,24 @@ function projectDaily(state: ClientState): ClientDailyView | null {
     ? "funding"
     : now < state.today.freezesAt
       ? "open"
-      : state.boards.some((board) => board.status === "sealed" || board.status === "expired")
+      : state.boards.some(
+            (board) => board.status === "sealed" || board.status === "expired",
+          )
         ? "finalized"
         : "open";
-  const players = new Set(state.boards.flatMap((board) => board.rows.map((row) => row.address)));
+  const players = new Set(
+    state.boards.flatMap((board) => board.rows.map((row) => row.address)),
+  );
   return {
     dayId: state.today.dayId,
     status,
     mapId: state.today.realm,
     opensAt: state.today.opensAt,
     runsCloseAt: state.today.freezesAt,
-    dailyPotLamports: state.boards.reduce((total, board) => total + board.potLamports, 0n),
+    dailyPotLamports: state.boards.reduce(
+      (total, board) => total + board.potLamports,
+      0n,
+    ),
     followingDailyLamports: suspended ? null : 0n,
     kreditBalance: state.economy.kredits,
     uniquePlayers: players.size,
@@ -758,7 +851,9 @@ export function useConnectedPlayer(): ConnectedPlayer {
     };
   }, [runtime]);
   const ensure = useCallback(async () => {
-    await runtime.runPromise(Effect.flatMap(Session, (service) => service.ensure()));
+    await runtime.runPromise(
+      Effect.flatMap(Session, (service) => service.ensure()),
+    );
     return "confirmed";
   }, [runtime]);
   return {
@@ -767,7 +862,8 @@ export function useConnectedPlayer(): ConnectedPlayer {
     connector: identity.wallet ?? null,
     publicKey: identity.address ?? null,
     wallet: identity.wallet ?? null,
-    session: session.status === "none" ? null : { validUntil: session.expiresAt },
+    session:
+      session.status === "none" ? null : { validUntil: session.expiresAt },
     sessionStatus:
       session.status === "live" || session.status === "expiring"
         ? "ready"
@@ -778,13 +874,17 @@ export function useConnectedPlayer(): ConnectedPlayer {
     balanceLoading: false,
     error: null,
     connectAndEnable: async (walletId) => {
-      await runtime.runPromise(Effect.flatMap(Identity, (service) => service.connect(walletId)));
+      await runtime.runPromise(
+        Effect.flatMap(Identity, (service) => service.connect(walletId)),
+      );
       await ensure();
     },
     enable: ensure,
     renew: ensure,
     disconnect: async () => {
-      await runtime.runPromise(Effect.flatMap(Identity, (service) => service.disconnect()));
+      await runtime.runPromise(
+        Effect.flatMap(Identity, (service) => service.disconnect()),
+      );
     },
     refreshBalance: async () => undefined,
   };
@@ -794,9 +894,13 @@ export function useIdentityActions() {
   const runtime = useBackendRuntime();
   return {
     setLabel: (label: string) =>
-      runtime.runPromise(Effect.flatMap(Identity, (service) => service.setLabel(label))),
+      runtime.runPromise(
+        Effect.flatMap(Identity, (service) => service.setLabel(label)),
+      ),
     setWorn: (emblem: number, border: number) =>
-      runtime.runPromise(Effect.flatMap(Economy, (service) => service.setWorn(emblem, border))),
+      runtime.runPromise(
+        Effect.flatMap(Economy, (service) => service.setWorn(emblem, border)),
+      ),
   };
 }
 
@@ -804,7 +908,9 @@ export function useEconomyActions() {
   const runtime = useBackendRuntime();
   return {
     claim: (dayId: number, board: "score" | "theme") =>
-      runtime.runPromise(Effect.flatMap(Economy, (service) => service.claim(dayId, board))),
+      runtime.runPromise(
+        Effect.flatMap(Economy, (service) => service.claim(dayId, board)),
+      ),
   };
 }
 
@@ -820,7 +926,9 @@ export function useSpectatedRun(address: string, mode: RunMode) {
           service.spectate(PlayerAddress.make(address), mode),
         ),
       );
-      const next = view ? projectClientRun(view, loadSelection(view.runId), catalog, today) : null;
+      const next = view
+        ? projectClientRun(view, loadSelection(view.runId), catalog, today)
+        : null;
       setRun(next);
       setError(null);
       return next;

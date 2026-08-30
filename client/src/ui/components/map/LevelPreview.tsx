@@ -12,6 +12,8 @@ import type { MapNodeData } from "@/hooks/useMapData";
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import { getGuardianDef } from "@/config/mutatorConfig";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import { PlaytestSeedControl } from "@/backend/local/PlaytestControls";
+import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 
 interface LevelPreviewProps {
   node: MapNodeData;
@@ -264,6 +266,12 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {PLAYTEST_ACTIVE && (
+            <div className="mt-3">
+              <PlaytestSeedControl />
             </div>
           )}
 

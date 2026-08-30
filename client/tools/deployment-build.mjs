@@ -18,7 +18,11 @@ if (production) {
   ]);
 }
 
-run(["build"]);
+// Vercel's project root is client/. Operator tooling remains part of the full
+// repository build, but it intentionally imports artifacts outside that root.
+// A web deployment type-checks only the app and its Vite configuration.
+run(["exec", "tsc", "-b", "tsconfig.app.json", "tsconfig.node.json"]);
+run(["exec", "vite", "build"]);
 
 function required(key) {
   const value = process.env[key]?.trim();

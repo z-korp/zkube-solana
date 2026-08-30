@@ -13,11 +13,7 @@ import {
   type CoreRunConfigInput,
 } from "@/core/zkubeCore";
 import { Runs } from "../services";
-import {
-  localRowsFromVrf,
-  localVrfOutput,
-  makeLocalBackendLive,
-} from "./LocalBackendLive";
+import { localRowsFromVrf, makeLocalBackendLive } from "./LocalBackendLive";
 
 initializeZkubeCoreSync(
   readFileSync(
@@ -80,14 +76,33 @@ describe("LocalBackendLive", () => {
 
   it("local_rows_are_deterministic_per_seed", async () => {
     const seed = new Uint8Array(32).fill(7);
-    await expect(localVrfOutput(seed, 19)).resolves.toEqual(
-      await localVrfOutput(seed, 19),
-    );
-    expect(await localVrfOutput(seed, 20)).not.toEqual(
-      await localVrfOutput(seed, 19),
+    const first = await finishedLocalToken(seed);
+    const second = await finishedLocalToken(seed);
+    expect(second).toEqual(first);
+    expect(await finishedLocalToken(new Uint8Array(32).fill(8))).not.toEqual(
+      first,
     );
   });
 });
+
+async function finishedLocalToken(seed: Uint8Array): Promise<Uint8Array> {
+  const runtime = ManagedRuntime.make(makeLocalBackendLive({ seed }));
+  try {
+    return await runtime.runPromise(
+      Effect.gen(function* () {
+        const runs = yield* Runs;
+        const started = yield* runs.enterDaily();
+        const finished = yield* runs.act(started.runId, {
+          _tag: "Finish",
+          reason: "abandon",
+        });
+        return finished.token;
+      }),
+    );
+  } finally {
+    await runtime.dispose();
+  }
+}
 
 function goldenConfig(): CoreRunConfigInput {
   return {

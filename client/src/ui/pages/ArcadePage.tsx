@@ -7,6 +7,8 @@ import { getThemeId } from "@/config/themes";
 import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
+import { PlaytestDailyControls } from "@/backend/local/PlaytestControls";
+import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
@@ -204,6 +206,7 @@ const ArcadePage: React.FC = () => {
 
       <div className="relative z-10 mx-4 mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 hide-scrollbar">
         <>
+          {PLAYTEST_ACTIVE && <PlaytestDailyControls />}
           {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
             <>
               {/* The floor header: chips, not sentences. */}
