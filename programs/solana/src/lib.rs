@@ -128,12 +128,8 @@ pub mod solana {
         instructions::arcade_instructions::handler_skip_suspended_arena_daily(ctx)
     }
 
-    pub fn seed_launch_pools(ctx: Context<SeedLaunchPools>, daily_lamports: u64) -> Result<()> {
-        instructions::arcade_instructions::handler_seed_launch_pools(ctx, daily_lamports)
-    }
-
-    pub fn top_up_arena_daily(ctx: Context<TopUpArenaDaily>, lamports: u64) -> Result<()> {
-        instructions::arcade_instructions::handler_top_up_arena_daily(ctx, lamports)
+    pub fn deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_deposit_arena_daily(ctx, lamports)
     }
 
     pub fn purchase_kredits(
@@ -152,19 +148,27 @@ pub mod solana {
         ctx: Context<'info, EnterArena<'info>>,
         run_id: u64,
         expected_entry_lamports: u64,
+        auto_claim_positions: Vec<u32>,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_enter_arena(ctx, run_id, expected_entry_lamports)
+        instructions::arcade_instructions::handler_enter_arena(
+            ctx,
+            run_id,
+            expected_entry_lamports,
+            auto_claim_positions,
+        )
     }
 
     pub fn funded_enter_arena<'info>(
         ctx: Context<'info, FundedEnterArena<'info>>,
         run_id: u64,
         expected_entry_lamports: u64,
+        auto_claim_positions: Vec<u32>,
     ) -> Result<()> {
         instructions::player_funding_instructions::handler_funded_enter_arena(
             ctx,
             run_id,
             expected_entry_lamports,
+            auto_claim_positions,
         )
     }
 
@@ -206,18 +210,12 @@ pub mod solana {
         )
     }
 
-    pub fn claim_daily_prize(ctx: Context<ClaimDailyPrize>, board: DailyBoardKind) -> Result<()> {
-        instructions::arcade_instructions::handler_claim_daily_prize(ctx, board)
-    }
-
-    pub fn claim_daily_prize_at_position(
+    pub fn claim_daily_prize(
         ctx: Context<ClaimDailyPrize>,
         board: DailyBoardKind,
         position: u32,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_claim_daily_prize_at_position(
-            ctx, board, position,
-        )
+        instructions::arcade_instructions::handler_claim_daily_prize(ctx, board, position)
     }
 
     pub fn archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {

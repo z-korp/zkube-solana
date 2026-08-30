@@ -93,6 +93,7 @@ export function useUnclaimedRewards(): UnclaimedRewardsResult {
           sessionToken: device.sessionToken,
           dayId: reward.dayId,
           board: reward.board,
+          position: reward.position,
         });
         const signature = await submitVersionedTransactionPlan({
           transactionPlan,

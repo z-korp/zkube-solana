@@ -3,6 +3,8 @@ pub const ENTRY_DAILY_BPS: u16 = 9_000;
 pub const ENTRY_OPERATOR_BPS: u16 = 1_000;
 pub const ENTRY_DAILY_LAMPORTS: u64 = ARENA_ENTRY_LAMPORTS * ENTRY_DAILY_BPS as u64 / 10_000;
 pub const ENTRY_OPERATOR_LAMPORTS: u64 = ARENA_ENTRY_LAMPORTS * ENTRY_OPERATOR_BPS as u64 / 10_000;
+/// Temporary device-session rent float target while player-funded wrappers exist.
+pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 50_000_000;
 
 const BASIS_POINTS: u128 = 10_000;
 

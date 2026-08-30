@@ -364,7 +364,7 @@ export async function buildAtomicArcadeLaunchPlan(args: {
   assertU32(args.dayId, "dayId");
   const program = zkubeProgram(args.connection, args.authority);
   const seed = await program.methods
-    .seedLaunchPools(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
+    .depositArenaDaily(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
@@ -400,7 +400,7 @@ export async function buildAtomicArcadeLaunchPlan(args: {
  * Builds one exact authority-funded prize-pool transfer. The public API is
  * constrained to the canonical Daily PDA.
  */
-export async function buildTopUpPrizePoolPlan(args: {
+export async function buildDepositArenaDailyPlan(args: {
   connection: Connection;
   authority: WalletLike;
   pool: PrizePoolKind;
@@ -414,7 +414,7 @@ export async function buildTopUpPrizePoolPlan(args: {
   const program = zkubeProgram(args.connection, args.authority);
   const amount = new BN(args.lamports.toString());
   const instruction = await program.methods
-    .topUpArenaDaily(amount)
+    .depositArenaDaily(amount)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),

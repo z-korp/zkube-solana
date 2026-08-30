@@ -368,7 +368,7 @@ describe("native SOL transaction boundaries", () => {
     });
     const currentDaily = deriveArenaDailyPda(20);
     const enterArena = await zkubeProgram(connection, new SessionWallet(session))
-      .methods.fundedEnterArena(new BN(1), new BN(10_000_000))
+      .methods.fundedEnterArena(new BN(1), new BN(10_000_000), [])
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),

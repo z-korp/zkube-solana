@@ -359,7 +359,6 @@ fn protocol_fixture(
             team_destination,
             replay_domain: [9; 32],
             content_version: 1,
-            player_funding_target_lamports: PLAYER_FUNDING_TARGET_LAMPORTS,
             campaign_map_count: 1,
             paused,
             bump,
@@ -1863,7 +1862,7 @@ fn sbf_content_activation_switches_versions_only_for_exact_staged_maps() {
 }
 
 #[test]
-fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
+fn sbf_authority_deposit_rejects_zero_finalized_and_noncanonical_periods() {
     let authority = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
@@ -1878,7 +1877,7 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
         let (daily, daily_state) = daily_fixture(candidate_day, arcade, status, true);
         let instruction = anchor_lang::solana_program::instruction::Instruction {
             program_id: zkube::ID,
-            accounts: zkube::accounts::TopUpArenaDaily {
+            accounts: zkube::accounts::DepositArenaDaily {
                 protocol,
                 arcade_config: arcade,
                 arena_daily: daily,
@@ -1886,7 +1885,7 @@ fn sbf_authority_top_up_rejects_zero_finalized_and_noncanonical_periods() {
                 system_program: anchor_lang::system_program::ID,
             }
             .to_account_metas(None),
-            data: zkube::instruction::TopUpArenaDaily { lamports: amount }.data(),
+            data: zkube::instruction::DepositArenaDaily { lamports: amount }.data(),
         };
         let mut runtime = mollusk();
         runtime.sysvars.clock.unix_timestamp = now;
@@ -2146,6 +2145,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         data: zkube::instruction::FundedEnterArena {
             run_id,
             expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
+            auto_claim_positions: vec![0, 0],
         }
         .data(),
     };
@@ -2605,6 +2605,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
         data: zkube::instruction::FundedEnterArena {
             run_id,
             expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
+            auto_claim_positions: vec![last_position, last_position],
         }
         .data(),
     };
@@ -2693,7 +2694,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
             actor,
         }
         .to_account_metas(None),
-        data: zkube::instruction::ClaimDailyPrizeAtPosition {
+        data: zkube::instruction::ClaimDailyPrize {
             board: DailyBoardKind::Score,
             position: 0,
         }
@@ -3320,6 +3321,7 @@ fn ladder_points_are_credited_once_per_claim() {
         .to_account_metas(None),
         data: zkube::instruction::ClaimDailyPrize {
             board: DailyBoardKind::Score,
+            position: 1,
         }
         .data(),
     };
@@ -3452,7 +3454,7 @@ fn ladder_points_are_credited_once_per_claim() {
 }
 
 #[test]
-fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
+fn sbf_first_deposit_funds_and_activates_the_first_daily() {
     let authority = Pubkey::new_unique();
     let team = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, team, true);
@@ -3462,7 +3464,7 @@ fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
     let (daily, daily_state) = daily_fixture(today, arcade, PeriodStatus::Funding, false);
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
-        accounts: zkube::accounts::SeedLaunchPools {
+        accounts: zkube::accounts::DepositArenaDaily {
             protocol,
             arcade_config: arcade,
             arena_daily: daily,
@@ -3470,8 +3472,8 @@ fn sbf_launch_seeding_funds_and_activates_the_first_daily() {
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::SeedLaunchPools {
-            daily_lamports: 10_000_000,
+        data: zkube::instruction::DepositArenaDaily {
+            lamports: 10_000_000,
         }
         .data(),
     };

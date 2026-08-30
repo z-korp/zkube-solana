@@ -12,7 +12,7 @@ import {
   type AccountInfo,
 } from "@solana/web3.js";
 
-import { buildTopUpPrizePoolPlan, type PrizePoolKind } from "./adminClient";
+import { buildDepositArenaDailyPlan, type PrizePoolKind } from "./adminClient";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants";
 import {
   isZkubeDeploymentManifest,
@@ -763,7 +763,7 @@ async function buildAtomicTopUpPlan(
   const wallet = createReadOnlyWallet(authority);
   const transaction = new Transaction();
   for (const operation of operations) {
-    const plan = await buildTopUpPrizePoolPlan({
+    const plan = await buildDepositArenaDailyPlan({
       connection,
       authority: wallet,
       pool: operation.kind,

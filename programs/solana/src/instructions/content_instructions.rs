@@ -55,7 +55,6 @@ pub fn handler_initialize_protocol(
     protocol.team_destination = args.team_destination;
     protocol.replay_domain = args.replay_domain;
     protocol.content_version = args.content_version;
-    protocol.player_funding_target_lamports = PLAYER_FUNDING_TARGET_LAMPORTS;
     protocol.campaign_map_count = 0;
     // A fresh deployment must remain inert until content, Arena rules, funding,
     // keeper policy, and clients have all been verified as one release.

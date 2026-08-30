@@ -243,7 +243,10 @@ ladder tier boundaries, and the flat qualifying credit.
   across the persisted cursor, and seals only the program-computed count. Claims
   remain disabled until sealing, then locate the owner's position and recompute
   its payout directly. A dynamic claimed bitmap lives beside the
-  rows in each board account. A reward stays claimable for **thirty days from
+  rows in each board account. An explicit claim supplies its board position to
+  the single `claim_daily_prize` instruction; there is no account-scanning
+  public claim variant. `ladder_points_are_credited_once_per_claim` guards that
+  position-addressed settlement boundary. A reward stays claimable for **thirty days from
   its board's sealing**; after archival and both independent windows, unclaimed
   rewards expire into the next daily pot, never into operator revenue.
 - **Spending a Kredit settles what that player is already owed.** Any unclaimed
@@ -256,6 +259,12 @@ ladder tier boundaries, and the flat qualifying credit.
   unsealed, the account absent, the window past, or the reward already taken,
   the attachment is skipped and the entry proceeds. Explicit claiming remains
   available and unchanged, and expiry into the next daily pot is unchanged.
+- **Protocol economics are code, not mutable account terms.** The entry price
+  and its Daily/operator split are core constants emitted to clients by
+  codegen; neither `ProtocolConfig` nor `ArcadeConfig` stores a second copy.
+  Authority funding uses the single `deposit_arena_daily` instruction for both
+  launch seeding and later deposits. `entry_split_is_exact_and_static` and
+  `sbf_first_deposit_funds_and_activates_the_first_daily` guard those boundaries.
 - **The ladder is cumulative log-rank points, pays nothing, and runs on no
   timer.** A player who placed on a board scores
   `floor(50 * ln(qualified_entrants / rank))` for it, where the denominator is

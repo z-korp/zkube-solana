@@ -30,9 +30,7 @@ pub const EMBLEM_REALM_CONQUEROR: u8 = 11;
 pub const EMBLEM_WORLD_PERFECT: u8 = 12;
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 pub const INITIAL_RUN_ID: u64 = 1;
-/// Reusable owner-funded float: current maximum run/delegation rent plus a
-/// 20% safety margin, rounded up to the next 0.001 SOL.
-pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = 50_000_000;
+pub const PLAYER_FUNDING_TARGET_LAMPORTS: u64 = zkube_core::PLAYER_FUNDING_TARGET_LAMPORTS;
 pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = zkube_core::LADDER_TIER_POINT_THRESHOLDS;
 
 #[account]
@@ -45,7 +43,6 @@ pub struct ProtocolConfig {
     /// Chain/deployment-specific replay domain used by canonical replay v2.
     pub replay_domain: [u8; 32],
     pub content_version: u32,
-    pub player_funding_target_lamports: u64,
     /// Number of contiguous, authority-activated Campaign maps.
     pub campaign_map_count: u8,
     pub paused: bool,

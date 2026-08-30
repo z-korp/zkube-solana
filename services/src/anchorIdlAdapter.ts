@@ -84,7 +84,7 @@ const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "798fe549d0332dd12d068f04b6a7c1ac70ccb7afd2649fdf1bde7a639a4615c5";
+  "1a9a3629ecfadd1dc73aa88d2cf9fdde90a91332334ee660d06091c6c2d99125";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",

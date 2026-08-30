@@ -56,7 +56,7 @@ const idl = convertIdlToCamelCase(JSON.parse(readFileSync(
 const coder = new BorshAccountsCoder(idl);
 const temporaryRoots: string[] = [];
 const SOURCE_IDL_SHA256 =
-  "798fe549d0332dd12d068f04b6a7c1ac70ccb7afd2649fdf1bde7a639a4615c5";
+  "1a9a3629ecfadd1dc73aa88d2cf9fdde90a91332334ee660d06091c6c2d99125";
 let adapter: AnchorKeeperAdapter;
 
 beforeAll(async () => {

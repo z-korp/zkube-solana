@@ -260,7 +260,7 @@ pub fn handler_funded_prepare_campaign_run(
 }
 
 #[derive(Accounts)]
-#[instruction(run_id: u64, expected_entry_lamports: u64)]
+#[instruction(run_id: u64, expected_entry_lamports: u64, auto_claim_positions: Vec<u32>)]
 pub struct FundedEnterArena<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
@@ -298,6 +298,7 @@ pub fn handler_funded_enter_arena<'info>(
     ctx: Context<'info, FundedEnterArena<'info>>,
     run_id: u64,
     expected_entry_lamports: u64,
+    auto_claim_positions: Vec<u32>,
 ) -> Result<()> {
     // Check the expected current-day PDA before the inner instruction tries
     // to deserialize it, so a suspended day returns the protocol's typed
@@ -345,6 +346,7 @@ pub fn handler_funded_enter_arena<'info>(
         data: crate::instruction::EnterArena {
             run_id,
             expected_entry_lamports,
+            auto_claim_positions,
         }
         .data(),
     };

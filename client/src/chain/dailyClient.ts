@@ -57,6 +57,7 @@ import { formatSolBalanceLamports } from "@/utils/currency";
 import { IDL } from "./idl/index.js";
 import {
   ARCADE_ACCOUNT_VERSION,
+  ARENA_ENTRY_LAMPORTS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PROTOCOL_ACCOUNT_VERSION,
 } from "./protocolVersions.generated.js";
@@ -189,7 +190,7 @@ export async function fetchDailyView(args: {
     settlementGraceCloseAt: Number(challenge.recoveryDeadlineAt),
     recoveryDeadlineAt: Number(challenge.recoveryDeadlineAt),
     finalizedAt: Number(challenge.finalizedAt),
-    entryLamports: BigInt(arcadeConfig.entryLamports.toString()),
+    entryLamports: ARENA_ENTRY_LAMPORTS,
     dailyPotLamports: availablePoolLamports(challenge.ledger),
     followingDailyLamports: following
       ? availablePoolLamports(following.ledger)
@@ -341,7 +342,7 @@ export async function buildPrepareDailyRunPlan(args: {
     args.daily.nextRunId,
     addresses,
   );
-  const autoClaimAccounts = await discoverAutoClaimAccounts({
+  const autoClaims = await discoverAutoClaims({
     connection: args.connection,
     owner,
     currentDayId: args.daily.dayId,
@@ -350,6 +351,7 @@ export async function buildPrepareDailyRunPlan(args: {
     .methods.fundedEnterArena(
       new BN(args.daily.nextRunId.toString()),
       new BN(args.daily.entryLamports.toString()),
+      autoClaims.map(({ position }) => position),
     )
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
@@ -367,7 +369,7 @@ export async function buildPrepareDailyRunPlan(args: {
       systemProgram: SystemProgram.programId,
       zkubeProgram: ZKUBE_PROGRAM_ID,
     })
-    .remainingAccounts(autoClaimAccounts)
+    .remainingAccounts(autoClaims.flatMap(({ accounts }) => accounts))
     .instruction();
   return {
     runId: args.daily.nextRunId,
@@ -494,11 +496,17 @@ export async function buildClaimDailyPrizePlan(args: {
   sessionToken: PublicKey;
   dayId: number;
   board: "score" | "theme";
+  position: number;
 }): Promise<TransactionPlan> {
+  if (!Number.isSafeInteger(args.position) || args.position < 0 ||
+      args.position >= ARENA_BOARD_CAPACITY) {
+    throw new Error("Daily reward position is invalid");
+  }
   const daily = deriveArenaDailyPda(args.dayId);
   const instruction = await zkubeProgram(args.connection, args.wallet)
     .methods.claimDailyPrize(
       args.board === "score" ? { score: {} } : { theme: {} },
+      args.position,
     )
     .accountsPartial({
       arenaDaily: daily,
@@ -517,19 +525,22 @@ export async function buildClaimDailyPrizePlan(args: {
   );
 }
 
-async function discoverAutoClaimAccounts(args: {
+async function discoverAutoClaims(args: {
   connection: Pick<Connection, "getMultipleAccountsInfo">;
   owner: PublicKey;
   currentDayId: number;
   nowUnix?: number;
-}): Promise<AccountMeta[]> {
+}): Promise<Array<{ position: number; accounts: AccountMeta[] }>> {
   const candidates = await scanUnclaimedBoards(args);
   return candidates
     .slice(0, MAX_AUTO_CLAIMS_PER_ENTRY)
-    .flatMap(({ daily, board }) => [
-      { pubkey: daily, isSigner: false, isWritable: true },
-      { pubkey: board, isSigner: false, isWritable: true },
-    ]);
+    .map(({ daily, board, position }) => ({
+      position,
+      accounts: [
+        { pubkey: daily, isSigner: false, isWritable: true },
+        { pubkey: board, isSigner: false, isWritable: true },
+      ],
+    }));
 }
 
 interface UnclaimedBoardReward {

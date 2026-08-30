@@ -579,127 +579,6 @@
               "name": "DailyBoardKind"
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "claim_daily_prize_at_position",
-      "discriminator": [
-        191,
-        203,
-        51,
-        29,
-        121,
-        5,
-        206,
-        122
-      ],
-      "accounts": [
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily"
-              },
-              {
-                "kind": "arg",
-                "path": "board"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority",
-          "writable": true
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "board",
-          "type": {
-            "defined": {
-              "name": "DailyBoardKind"
-            }
-          }
         },
         {
           "name": "position",
@@ -1703,6 +1582,107 @@
       "args": []
     },
     {
+      "name": "deposit_arena_daily",
+      "discriminator": [
+        90,
+        108,
+        3,
+        251,
+        15,
+        171,
+        133,
+        247
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcade_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arena_daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "enter_arena",
       "discriminator": [
         237,
@@ -1961,6 +1941,12 @@
         {
           "name": "expected_entry_lamports",
           "type": "u64"
+        },
+        {
+          "name": "auto_claim_positions",
+          "type": {
+            "vec": "u32"
+          }
         }
       ]
     },
@@ -2833,6 +2819,12 @@
         {
           "name": "expected_entry_lamports",
           "type": "u64"
+        },
+        {
+          "name": "auto_claim_positions",
+          "type": {
+            "vec": "u32"
+          }
         }
       ]
     },
@@ -4276,107 +4268,6 @@
       ]
     },
     {
-      "name": "seed_launch_pools",
-      "discriminator": [
-        0,
-        171,
-        164,
-        86,
-        246,
-        236,
-        150,
-        59
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "daily_lamports",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "set_arena_suspension",
       "discriminator": [
         63,
@@ -4875,106 +4766,6 @@
         {
           "name": "seal",
           "type": "bool"
-        }
-      ]
-    },
-    {
-      "name": "top_up_arena_daily",
-      "discriminator": [
-        254,
-        172,
-        152,
-        98,
-        150,
-        111,
-        105,
-        28
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
         }
       ]
     },
@@ -6116,18 +5907,6 @@
               "Days below this absolute identifier are suspended; zero disables it."
             ],
             "type": "u32"
-          },
-          {
-            "name": "entry_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "daily_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "operator_lamports",
-            "type": "u64"
           },
           {
             "name": "launch_seeded",
@@ -7440,10 +7219,6 @@
           {
             "name": "content_version",
             "type": "u32"
-          },
-          {
-            "name": "player_funding_target_lamports",
-            "type": "u64"
           },
           {
             "name": "campaign_map_count",

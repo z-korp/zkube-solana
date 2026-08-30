@@ -14,7 +14,7 @@ import {
   buildPublishCanonicalMapsPlan,
   buildSetArenaSuspensionPlan,
   buildSetProtocolPausePlan,
-  buildTopUpPrizePoolPlan,
+  buildDepositArenaDailyPlan,
 } from "./adminClient";
 import { CAMPAIGN_CONTENT_VERSION } from "./campaignCatalog";
 import {
@@ -229,7 +229,7 @@ describe("authority publication client", () => {
     }];
 
     for (const testCase of cases) {
-      const plan = await buildTopUpPrizePoolPlan({
+      const plan = await buildDepositArenaDailyPlan({
         connection,
         authority,
         ...testCase,
@@ -251,7 +251,7 @@ describe("authority publication client", () => {
     const authority = new SessionWallet(Keypair.generate());
     const connection = {} as Connection;
     const build = (lamports: bigint, cadenceId = 1) =>
-      buildTopUpPrizePoolPlan({
+      buildDepositArenaDailyPlan({
         connection,
         authority,
         pool: "daily",

@@ -141,6 +141,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "a Daily claim atomically settles its payout and profile",
   },
   {
+    pattern:
+      /seed_launch_pools|seedLaunchPools|top_up_arena_daily|topUpArenaDaily|claim_daily_prize_at_position|ClaimDailyPrizeAtPosition|player_funding_target_lamports|playerFundingTargetLamports/,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "one position-addressed claim, one authority deposit, and generated constants replaced duplicate surfaces",
+  },
+  {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

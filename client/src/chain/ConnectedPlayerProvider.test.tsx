@@ -44,12 +44,11 @@ const mocks = vi.hoisted(() => ({
   decodeSessionTokenV2Account: vi.fn(),
   connection: {
     getBalance: vi.fn(async () => 123_000_000),
+    getAccountInfo: vi.fn(async () => null),
     getMultipleAccountsInfo: vi.fn(),
     getMinimumBalanceForRentExemption: vi.fn(async () => 0),
   },
-  protocolFetch: vi.fn(async () => ({
-    playerFundingTargetLamports: { toString: () => "50000000" },
-  })),
+  protocolFetch: vi.fn(async () => ({})),
 }));
 
 vi.mock("@/platform/walletStandard", () => ({
@@ -580,7 +579,7 @@ describe("ConnectedPlayerProvider wallet lifecycle", () => {
       await expect(connect).rejects.toThrow();
     });
 
-    expect(mocks.protocolFetch).toHaveBeenCalled();
+    expect(mocks.connection.getAccountInfo).toHaveBeenCalled();
   });
 });
 

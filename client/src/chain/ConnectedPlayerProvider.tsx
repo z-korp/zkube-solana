@@ -30,6 +30,7 @@ import {
 } from "@/platform/walletStandard";
 import { errorMessage, isWalletRejection } from "@/utils/errors";
 import { ZKUBE_PROGRAM_ID } from "./constants";
+import { PLAYER_FUNDING_TARGET_LAMPORTS } from "./protocolVersions.generated";
 import {
   assertDeviceSessionStorageAvailable,
   clearDeviceSession,
@@ -61,7 +62,6 @@ import { createReadOnlyWallet } from "./readOnlyWallet";
 import {
   derivePlayerFundingPda,
   derivePlayerStatePda,
-  deriveProtocolConfigPda,
 } from "./pdas";
 import { withPinnedWalletComputeBudget, zkubeProgram } from "./runPlan";
 import {
@@ -83,7 +83,6 @@ import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
-const PLAYER_FUNDING_TARGET_LAMPORTS = 50_000_000;
 
 interface ConnectedWalletState {
   connector: WalletConnector;
@@ -359,10 +358,8 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
       let fundingInfo;
       let signerInfo;
       let signerRentFloor;
-      let protocol;
       try {
-        const program = zkubeProgram(connection, createReadOnlyWallet(owner));
-        [[info, fundingInfo, signerInfo], signerRentFloor, protocol] =
+        [[info, fundingInfo, signerInfo], signerRentFloor] =
           await Promise.all([
             connection.getMultipleAccountsInfo(
               [
@@ -373,7 +370,6 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
               "confirmed",
             ),
             connection.getMinimumBalanceForRentExemption(0, "confirmed"),
-            program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
           ]);
       } catch (cause) {
         const message = walletErrorMessage(cause);
@@ -419,9 +415,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
           }
           return "missing";
         }
-        const configuredFundingTarget = validatedPlayerFundingTarget(
-          protocol.playerFundingTargetLamports,
-        );
+        const configuredFundingTarget = Number(PLAYER_FUNDING_TARGET_LAMPORTS);
         const now = Math.floor(Date.now() / 1_000);
         const fundingStatus = validateDeviceSignerFunding({
           info: signerInfo,
@@ -719,10 +713,10 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
     let revokeInstruction: TransactionInstruction | null = null;
     const program = zkubeProgram(connection, current.wallet);
     const playerFunding = derivePlayerFundingPda(current.publicKey);
-    const [protocol, existingFundingInfo] = await Promise.all([
-      program.account.protocolConfig.fetch(deriveProtocolConfigPda()),
-      connection.getAccountInfo(playerFunding, "confirmed"),
-    ]);
+    const existingFundingInfo = await connection.getAccountInfo(
+      playerFunding,
+      "confirmed",
+    );
     if (
       existingFundingInfo &&
       !isNormalizedPlayerFunding(existingFundingInfo)
@@ -731,9 +725,7 @@ export function ConnectedPlayerProvider({ children }: { children: ReactNode }) {
         "Player funding PDA has an invalid owner or account layout",
       );
     }
-    const configuredFundingTarget = validatedPlayerFundingTarget(
-      protocol.playerFundingTargetLamports,
-    );
+    const configuredFundingTarget = Number(PLAYER_FUNDING_TARGET_LAMPORTS);
     const fundingTopUp = Math.max(
       0,
       configuredFundingTarget - (existingFundingInfo?.lamports ?? 0),
@@ -1204,16 +1196,4 @@ function isNormalizedPlayerFunding(info: AccountInfo<Buffer> | null): boolean {
     info.owner.equals(SystemProgram.programId) &&
     info.data.length === 0,
   );
-}
-
-function validatedPlayerFundingTarget(value: { toString(): string }): number {
-  const target = Number(value.toString());
-  if (
-    !Number.isSafeInteger(target) ||
-    target <= 0 ||
-    target > PLAYER_FUNDING_TARGET_LAMPORTS
-  ) {
-    throw new Error("Protocol player funding target is invalid");
-  }
-  return target;
 }

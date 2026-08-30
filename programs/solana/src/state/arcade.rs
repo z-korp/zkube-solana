@@ -48,9 +48,6 @@ pub struct ArcadeConfig {
     pub protocol: Pubkey,
     /// Days below this absolute identifier are suspended; zero disables it.
     pub suspended_until_day: u32,
-    pub entry_lamports: u64,
-    pub daily_lamports: u64,
-    pub operator_lamports: u64,
     pub launch_seeded: bool,
     pub launch_day_id: u32,
     pub bump: u8,
@@ -62,32 +59,10 @@ impl ArcadeConfig {
             version: ARCADE_ACCOUNT_VERSION,
             protocol,
             suspended_until_day: 0,
-            entry_lamports: ARENA_ENTRY_LAMPORTS,
-            daily_lamports: ENTRY_DAILY_LAMPORTS,
-            operator_lamports: ENTRY_OPERATOR_LAMPORTS,
             launch_seeded: false,
             launch_day_id: 0,
             bump,
         }
-    }
-
-    pub fn validate_terms(&self) -> Result<()> {
-        require!(
-            self.version == ARCADE_ACCOUNT_VERSION,
-            ErrorCode::InvalidVersion
-        );
-        let total = self
-            .daily_lamports
-            .checked_add(self.operator_lamports)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        require!(
-            self.entry_lamports == ARENA_ENTRY_LAMPORTS
-                && self.daily_lamports == ENTRY_DAILY_LAMPORTS
-                && self.operator_lamports == ENTRY_OPERATOR_LAMPORTS
-                && total == self.entry_lamports,
-            ErrorCode::AccountingInvariant
-        );
-        Ok(())
     }
 }
 
@@ -796,36 +771,6 @@ pub fn set_board_bitmap(info: &AccountInfo<'_>, board: &ArenaBoard, position: u3
     Ok(())
 }
 
-pub fn ranked_prize(
-    board: &ArenaBoard,
-    board_info: &AccountInfo<'_>,
-    owner: Pubkey,
-) -> Result<RankedPrize> {
-    require!(
-        board.sealed && board.cursor == board.payout_count,
-        ErrorCode::BoardIncomplete
-    );
-    let row_count =
-        usize::try_from(board.payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-    let rows_len = row_count
-        .checked_mul(ARENA_BOARD_ENTRY_SIZE)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let rows_end = ArenaBoard::HEADER_SIZE
-        .checked_add(rows_len)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let data = board_info.try_borrow_data()?;
-    let rows = data
-        .get(ArenaBoard::HEADER_SIZE..rows_end)
-        .ok_or(ErrorCode::AccountingInvariant)?;
-    let owner_bytes = owner.to_bytes();
-    let position = rows
-        .chunks_exact(ARENA_BOARD_ENTRY_SIZE)
-        .position(|row| row[..32] == owner_bytes)
-        .ok_or(ErrorCode::NoPrize)?;
-    let position = u32::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-    ranked_prize_at_position(board, board_info, owner, position)
-}
-
 pub fn ranked_prize_at_position(
     board: &ArenaBoard,
     board_info: &AccountInfo<'_>,
@@ -1053,12 +998,8 @@ mod tests {
 
     #[test]
     fn entry_split_is_exact_and_static() {
-        let config = ArcadeConfig::canonical(Pubkey::new_unique(), 1);
-        config.validate_terms().unwrap();
-        assert_eq!(
-            config.daily_lamports + config.operator_lamports,
-            ARENA_ENTRY_LAMPORTS
-        );
+        let split = zkube_core::split_arena_entry(ARENA_ENTRY_LAMPORTS).unwrap();
+        assert_eq!(split.total().unwrap(), ARENA_ENTRY_LAMPORTS);
     }
 
     #[test]
@@ -1371,7 +1312,7 @@ mod tests {
             ..ArenaBoardEntry::default()
         };
         write_board_entry(&info, count - 1, &entry).unwrap();
-        let prize = ranked_prize(&board, &info, player).unwrap();
+        let prize = ranked_prize_at_position(&board, &info, player, count - 1).unwrap();
         assert_eq!(prize.position, count - 1);
         assert_eq!(prize.amount, board.payout_for_position(count - 1).unwrap());
         set_board_bitmap(&info, &board, count - 1).unwrap();
@@ -1460,7 +1401,7 @@ mod tests {
         let mut lamports = 0;
         let mut data = vec![0u8; ArenaBoard::account_space(1).unwrap()];
         let info = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
-        assert!(ranked_prize(&board, &info, Pubkey::new_unique()).is_err());
+        assert!(ranked_prize_at_position(&board, &info, Pubkey::new_unique(), 0).is_err());
     }
 
     #[test]

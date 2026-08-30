@@ -585,127 +585,6 @@ export type Solana = {
               "name": "dailyBoardKind"
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "claimDailyPrizeAtPosition",
-      "discriminator": [
-        191,
-        203,
-        51,
-        29,
-        121,
-        5,
-        206,
-        122
-      ],
-      "accounts": [
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaBoard",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "arg",
-                "path": "board"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority",
-          "writable": true
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "board",
-          "type": {
-            "defined": {
-              "name": "dailyBoardKind"
-            }
-          }
         },
         {
           "name": "position",
@@ -1709,6 +1588,107 @@ export type Solana = {
       "args": []
     },
     {
+      "name": "depositArenaDaily",
+      "discriminator": [
+        90,
+        108,
+        3,
+        251,
+        15,
+        171,
+        133,
+        247
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arcadeConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  99,
+                  97,
+                  100,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "arenaDaily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily.day_id",
+                "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "enterArena",
       "discriminator": [
         237,
@@ -1967,6 +1947,12 @@ export type Solana = {
         {
           "name": "expectedEntryLamports",
           "type": "u64"
+        },
+        {
+          "name": "autoClaimPositions",
+          "type": {
+            "vec": "u32"
+          }
         }
       ]
     },
@@ -2839,6 +2825,12 @@ export type Solana = {
         {
           "name": "expectedEntryLamports",
           "type": "u64"
+        },
+        {
+          "name": "autoClaimPositions",
+          "type": {
+            "vec": "u32"
+          }
         }
       ]
     },
@@ -4282,107 +4274,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "seedLaunchPools",
-      "discriminator": [
-        0,
-        171,
-        164,
-        86,
-        246,
-        236,
-        150,
-        59
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "dailyLamports",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "setArenaSuspension",
       "discriminator": [
         63,
@@ -4881,106 +4772,6 @@ export type Solana = {
         {
           "name": "seal",
           "type": "bool"
-        }
-      ]
-    },
-    {
-      "name": "topUpArenaDaily",
-      "discriminator": [
-        254,
-        172,
-        152,
-        98,
-        150,
-        111,
-        105,
-        28
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
         }
       ]
     },
@@ -6122,18 +5913,6 @@ export type Solana = {
               "Days below this absolute identifier are suspended; zero disables it."
             ],
             "type": "u32"
-          },
-          {
-            "name": "entryLamports",
-            "type": "u64"
-          },
-          {
-            "name": "dailyLamports",
-            "type": "u64"
-          },
-          {
-            "name": "operatorLamports",
-            "type": "u64"
           },
           {
             "name": "launchSeeded",
@@ -7446,10 +7225,6 @@ export type Solana = {
           {
             "name": "contentVersion",
             "type": "u32"
-          },
-          {
-            "name": "playerFundingTargetLamports",
-            "type": "u64"
           },
           {
             "name": "campaignMapCount",
