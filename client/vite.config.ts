@@ -12,6 +12,7 @@ const SERVICE_WORKER_VERSION_PLACEHOLDER = "__ZKUBE_BUILD_VERSION__";
 const HTTPS_CERT_PATH_ENV = "ZKUBE_HTTPS_CERT_PATH";
 const HTTPS_KEY_PATH_ENV = "ZKUBE_HTTPS_KEY_PATH";
 const DEV_PLAYTEST_ACTION_SENTINEL = "zkube_playtest_action_v1";
+const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 
 function localHttpsOptions():
   | Readonly<{ cert: Buffer; key: Buffer }>
@@ -91,9 +92,12 @@ function excludeDevPlaytestInstrumentation(): Plugin {
             : typeof output.source === "string"
               ? output.source
               : Buffer.from(output.source).toString("utf8");
-        if (contents.includes(DEV_PLAYTEST_ACTION_SENTINEL)) {
+        if (
+          contents.includes(DEV_PLAYTEST_ACTION_SENTINEL) ||
+          contents.includes(LOCAL_BACKEND_SENTINEL)
+        ) {
           throw new Error(
-            `Dev playtest instrumentation entered release asset ${output.fileName}`,
+            `Dev-only code entered release asset ${output.fileName}`,
           );
         }
       }
